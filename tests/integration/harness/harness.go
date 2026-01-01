@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
 )
 
@@ -52,8 +53,37 @@ func StartTestServer(t *testing.T) *TestServer {
 		Level: slog.LevelWarn, // Only log warnings and errors during tests
 	}))
 
+	// Create identity components
+	partyRepo := identity.NewMemoryPartyRepo()
+	sessionRepo := identity.NewMemorySessionRepo()
+	userAuth := identity.NewUserAuth(4) // Low cost for fast tests
+
+	// Bootstrap test admin user
+	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)
+	adminUser := identity.SeededUser{
+		Username:    "admin",
+		Password:    "admin",
+		DisplayName: "Test Admin",
+		Role:        "admin",
+	}
+	if _, err := bootstrap.Run(context.Background(), adminUser, nil); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to bootstrap users: %v", err)
+	}
+
+	// Create server dependencies
+	deps := &server.Deps{
+		PartyRepo:   partyRepo,
+		SessionRepo: sessionRepo,
+		UserAuth:    userAuth,
+	}
+
 	// Create server
-	srv := server.New(cfg, logger)
+	srv, err := server.New(cfg, logger, deps)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create server: %v", err)
+	}
 
 	// Start server in background
 	_, cancel := context.WithCancel(context.Background())

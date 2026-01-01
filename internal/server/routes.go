@@ -118,8 +118,9 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 
 		// Auth endpoints (public)
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/login", s.notImplementedHandler("auth-login"))
-			r.Post("/logout", s.notImplementedHandler("auth-logout"))
+			r.Post("/login", s.authHandler.Login)
+			r.Post("/logout", s.authHandler.Logout)
+			r.Get("/me", s.authHandler.GetCurrentUser)
 		})
 
 		// Inbox endpoints (authenticated) - will be implemented in later phases
@@ -146,8 +147,8 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 
 	// UI endpoints
 	r.Route("/ui", func(r chi.Router) {
-		r.Get("/login", s.notImplementedHandler("ui-login"))
-		r.Get("/inbox", s.notImplementedHandler("ui-inbox"))
+		r.Get("/login", s.uiHandler.Login)
+		r.Get("/inbox", s.uiHandler.Inbox)
 	})
 
 	// WebDAV endpoint

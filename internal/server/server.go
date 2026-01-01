@@ -7,21 +7,46 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 )
+
+// Deps holds all server dependencies.
+type Deps struct {
+	PartyRepo   identity.PartyRepo
+	SessionRepo identity.SessionRepo
+	UserAuth    *identity.UserAuth
+}
 
 // Server wraps the HTTP server and its dependencies.
 type Server struct {
-	cfg        *config.Config
-	httpServer *http.Server
-	logger     *slog.Logger
+	cfg         *config.Config
+	httpServer  *http.Server
+	logger      *slog.Logger
+	deps        *Deps
+	authHandler *api.AuthHandler
+	uiHandler   *ui.Handler
 }
 
 // New creates a new Server with the given configuration.
-func New(cfg *config.Config, logger *slog.Logger) *Server {
+func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
+	// Create UI handler
+	uiHandler, err := ui.NewHandler(cfg.ExternalBasePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create auth handler
+	authHandler := api.NewAuthHandler(deps.PartyRepo, deps.SessionRepo, deps.UserAuth)
+
 	s := &Server{
-		cfg:    cfg,
-		logger: logger,
+		cfg:         cfg,
+		logger:      logger,
+		deps:        deps,
+		authHandler: authHandler,
+		uiHandler:   uiHandler,
 	}
 
 	router := s.setupRoutes()
@@ -34,7 +59,7 @@ func New(cfg *config.Config, logger *slog.Logger) *Server {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return s
+	return s, nil
 }
 
 // Start starts the HTTP server. It blocks until the server is shut down.

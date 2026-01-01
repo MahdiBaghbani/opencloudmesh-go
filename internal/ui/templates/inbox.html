@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="{{.BasePath}}/" />
+    <title>Inbox - OpenCloudMesh</title>
+    <style>
+      :root {
+        --bg-dark: #0f1419;
+        --bg-card: #1a1f26;
+        --bg-hover: #22272e;
+        --accent: #00d4aa;
+        --accent-dim: #00a884;
+        --text-primary: #e7e9ea;
+        --text-secondary: #8899a6;
+        --success: #00ba7c;
+        --warning: #ffad1f;
+        --error: #f4212e;
+        --border: #2f3336;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, sans-serif;
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        min-height: 100vh;
+      }
+      .header {
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .logo {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+      .logo span {
+        color: var(--accent);
+      }
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .user-name {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+      }
+      .logout-btn {
+        padding: 8px 16px;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .logout-btn:hover {
+        background: var(--bg-hover);
+      }
+      .main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 24px;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+      .tab {
+        padding: 10px 20px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .tab.active {
+        color: var(--bg-dark);
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .tab:hover:not(.active) {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+      }
+      .share-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .share-item {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        transition: background 0.2s;
+      }
+      .share-item:hover {
+        background: var(--bg-hover);
+      }
+      .share-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+      }
+      .share-name {
+        font-size: 1rem;
+        font-weight: 500;
+      }
+      .share-status {
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border-radius: 4px;
+      }
+      .status-pending {
+        background: rgba(255, 173, 31, 0.15);
+        color: var(--warning);
+      }
+      .status-accepted {
+        background: rgba(0, 186, 124, 0.15);
+        color: var(--success);
+      }
+      .status-declined {
+        background: rgba(244, 33, 46, 0.15);
+        color: var(--error);
+      }
+      .share-meta {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 16px;
+      }
+      .share-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .action-btn {
+        padding: 8px 16px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .btn-accept {
+        color: var(--bg-dark);
+        background: var(--success);
+        border: none;
+      }
+      .btn-accept:hover {
+        background: #00a870;
+      }
+      .btn-decline {
+        color: var(--error);
+        background: transparent;
+        border: 1px solid var(--error);
+      }
+      .btn-decline:hover {
+        background: rgba(244, 33, 46, 0.1);
+      }
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-secondary);
+      }
+      .empty-state svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="logo">Open<span>Cloud</span>Mesh</div>
+      <div class="user-info">
+        <span class="user-name" id="user-name">Loading...</span>
+        <button class="logout-btn" id="logout-btn">Sign Out</button>
+      </div>
+    </header>
+    <main class="main">
+      <h2>Shared with Me</h2>
+      <div class="tabs">
+        <button class="tab active" data-filter="all">All</button>
+        <button class="tab" data-filter="pending">Pending</button>
+        <button class="tab" data-filter="accepted">Accepted</button>
+      </div>
+      <div class="share-list" id="share-list">
+        <div class="empty-state">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+            />
+          </svg>
+          <p>No shares yet</p>
+        </div>
+      </div>
+    </main>
+    <script>
+      // Load user info
+      fetch("api/auth/me")
+        .then((r) => r.json())
+        .then((user) => {
+          document.getElementById("user-name").textContent =
+            user.display_name || user.username;
+        })
+        .catch(() => {
+          window.location.href = "ui/login";
+        });
+
+      // Logout
+      document
+        .getElementById("logout-btn")
+        .addEventListener("click", async () => {
+          await fetch("api/auth/logout", { method: "POST" });
+          window.location.href = "ui/login";
+        });
+
+      // Tab filtering (placeholder - shares endpoint not yet implemented)
+      document.querySelectorAll(".tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          document
+            .querySelectorAll(".tab")
+            .forEach((t) => t.classList.remove("active"));
+          tab.classList.add("active");
+        });
+      });
+    </script>
+  </body>
+</html>

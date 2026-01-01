@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
 )
 
@@ -40,8 +41,37 @@ func main() {
 		cfg.ExternalBasePath = *externalBasePath
 	}
 
+	// Create identity components
+	partyRepo := identity.NewMemoryPartyRepo()
+	sessionRepo := identity.NewMemorySessionRepo()
+	userAuth := identity.NewUserAuth(10) // bcrypt cost 10
+
+	// Bootstrap admin user
+	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)
+	adminUser := identity.SeededUser{
+		Username:    "admin",
+		Password:    "admin", // Default password for development
+		DisplayName: "Administrator",
+		Role:        "admin",
+	}
+	if _, err := bootstrap.Run(context.Background(), adminUser, nil); err != nil {
+		logger.Error("failed to bootstrap users", "error", err)
+		os.Exit(1)
+	}
+
+	// Create server dependencies
+	deps := &server.Deps{
+		PartyRepo:   partyRepo,
+		SessionRepo: sessionRepo,
+		UserAuth:    userAuth,
+	}
+
 	// Create and start server
-	srv := server.New(cfg, logger)
+	srv, err := server.New(cfg, logger, deps)
+	if err != nil {
+		logger.Error("failed to create server", "error", err)
+		os.Exit(1)
+	}
 
 	// Setup graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
