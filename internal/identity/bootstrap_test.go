@@ -11,7 +11,7 @@ import (
 
 func TestBootstrap_Run(t *testing.T) {
 	repo := identity.NewMemoryPartyRepo()
-	auth := identity.NewUserAuth(4)
+	auth := identity.NewUserAuthFast()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	bootstrap := identity.NewBootstrap(repo, auth, logger)
 	ctx := context.Background()
@@ -58,7 +58,7 @@ func TestBootstrap_Run(t *testing.T) {
 
 func TestBootstrap_CreateProbeUser(t *testing.T) {
 	repo := identity.NewMemoryPartyRepo()
-	auth := identity.NewUserAuth(4)
+	auth := identity.NewUserAuthFast()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	bootstrap := identity.NewBootstrap(repo, auth, logger)
 	ctx := context.Background()

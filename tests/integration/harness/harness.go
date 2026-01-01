@@ -56,7 +56,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	// Create identity components
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
-	userAuth := identity.NewUserAuth(4) // Low cost for fast tests
+	userAuth := identity.NewUserAuthFast() // Fast Argon2id params for tests
 
 	// Bootstrap test admin user
 	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)

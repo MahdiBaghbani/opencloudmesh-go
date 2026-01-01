@@ -2,13 +2,14 @@ package identity_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 )
 
 func TestUserAuth_HashAndVerify(t *testing.T) {
-	auth := identity.NewUserAuth(4) // Low cost for fast tests
+	auth := identity.NewUserAuthFast() // Fast params for tests
 
 	password := "secret123"
 	hash, err := auth.HashPassword(password)
@@ -18,6 +19,11 @@ func TestUserAuth_HashAndVerify(t *testing.T) {
 
 	if hash == password {
 		t.Error("hash should not equal password")
+	}
+
+	// Verify PHC format
+	if !strings.HasPrefix(hash, "$argon2id$") {
+		t.Errorf("expected argon2id PHC format, got %q", hash)
 	}
 
 	// Correct password
@@ -34,7 +40,7 @@ func TestUserAuth_HashAndVerify(t *testing.T) {
 
 func TestUserAuth_Authenticate(t *testing.T) {
 	repo := identity.NewMemoryPartyRepo()
-	auth := identity.NewUserAuth(4)
+	auth := identity.NewUserAuthFast()
 	ctx := context.Background()
 
 	// Create a user
