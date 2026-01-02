@@ -37,6 +37,30 @@ type TLSConfig struct {
 
 	// HTTPSPort for HTTPS listener
 	HTTPSPort int `json:"https_port"`
+
+	// SelfSignedDir is where self-signed certs are stored
+	SelfSignedDir string `json:"self_signed_dir"`
+
+	// ACME configuration
+	ACME ACMEConfig `json:"acme"`
+}
+
+// ACMEConfig holds ACME/Let's Encrypt settings.
+type ACMEConfig struct {
+	// Email for ACME registration
+	Email string `json:"email"`
+
+	// Domain is the domain to obtain a certificate for
+	Domain string `json:"domain"`
+
+	// Directory is the ACME server URL (default: Let's Encrypt production)
+	Directory string `json:"directory"`
+
+	// StorageDir is where ACME certificates and account info are stored
+	StorageDir string `json:"storage_dir"`
+
+	// UseStaging uses Let's Encrypt staging (for testing)
+	UseStaging bool `json:"use_staging"`
 }
 
 // OutboundHTTPConfig holds settings for outbound HTTP requests.
@@ -67,9 +91,15 @@ func DefaultConfig() *Config {
 		ExternalBasePath: "",
 		ListenAddr:       ":9200",
 		TLS: TLSConfig{
-			Mode:      "selfsigned",
-			HTTPPort:  9280,
-			HTTPSPort: 9200,
+			Mode:          "selfsigned",
+			HTTPPort:      9280,
+			HTTPSPort:     9200,
+			SelfSignedDir: ".ocm/certs",
+			ACME: ACMEConfig{
+				Directory:  "https://acme-v02.api.letsencrypt.org/directory",
+				StorageDir: ".ocm/acme",
+				UseStaging: false,
+			},
 		},
 		OutboundHTTP: OutboundHTTPConfig{
 			SSRFMode:           "off", // off for local dev
@@ -79,5 +109,17 @@ func DefaultConfig() *Config {
 			MaxResponseBytes:   1048576,
 			InsecureSkipVerify: true, // for local dev with self-signed certs
 		},
+	}
+}
+
+// OutboundHTTPConfigStrict returns strict outbound HTTP config for production.
+func OutboundHTTPConfigStrict() OutboundHTTPConfig {
+	return OutboundHTTPConfig{
+		SSRFMode:           "strict",
+		TimeoutMS:          10000,
+		ConnectTimeoutMS:   2000,
+		MaxRedirects:       3,
+		MaxResponseBytes:   1048576,
+		InsecureSkipVerify: false,
 	}
 }
