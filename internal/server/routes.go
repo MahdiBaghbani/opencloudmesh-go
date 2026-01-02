@@ -105,10 +105,10 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		r.Post("/token", s.notImplementedHandler("ocm-token"))
 	})
 
-	// OCM auxiliary endpoints (WAYF helpers)
+	// OCM auxiliary endpoints (WAYF helpers) - Phase B
 	r.Route("/ocm-aux", func(r chi.Router) {
-		r.Get("/federations", s.notImplementedHandler("ocm-aux-federations"))
-		r.Get("/discover", s.notImplementedHandler("ocm-aux-discover"))
+		r.Get("/federations", s.auxHandler.HandleFederations)
+		r.Get("/discover", s.auxHandler.HandleDiscover)
 	})
 
 	// API endpoints

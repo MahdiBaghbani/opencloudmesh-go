@@ -10,6 +10,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
@@ -17,10 +18,12 @@ import (
 
 // Deps holds all server dependencies.
 type Deps struct {
-	PartyRepo   identity.PartyRepo
-	SessionRepo identity.SessionRepo
-	UserAuth    *identity.UserAuth
-	KeyManager  *crypto.KeyManager
+	PartyRepo       identity.PartyRepo
+	SessionRepo     identity.SessionRepo
+	UserAuth        *identity.UserAuth
+	KeyManager      *crypto.KeyManager
+	FederationMgr   *federation.FederationManager
+	DiscoveryClient *discovery.Client
 }
 
 // Server wraps the HTTP server and its dependencies.
@@ -34,6 +37,7 @@ type Server struct {
 	discoveryHandler *discovery.Handler
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
+	auxHandler       *federation.AuxHandler
 }
 
 // New creates a new Server with the given configuration.
@@ -67,6 +71,9 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		signer = crypto.NewRFC9421Signer(deps.KeyManager)
 	}
 
+	// Create auxiliary handler for federation endpoints
+	auxHandler := federation.NewAuxHandler(deps.FederationMgr, deps.DiscoveryClient)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -76,6 +83,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		discoveryHandler: discoveryHandler,
 		signer:           signer,
 		peerResolver:     crypto.NewPeerResolver(),
+		auxHandler:       auxHandler,
 	}
 
 	router := s.setupRoutes()
