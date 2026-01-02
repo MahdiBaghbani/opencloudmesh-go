@@ -21,6 +21,25 @@ type Config struct {
 
 	// OutboundHTTP configuration (expanded in Phase 0d)
 	OutboundHTTP OutboundHTTPConfig `json:"outbound_http"`
+
+	// Signature configuration (Phase C)
+	Signature SignatureConfig `json:"signature"`
+}
+
+// SignatureConfig holds HTTP signature settings.
+type SignatureConfig struct {
+	// Mode is one of: off, lenient, strict
+	Mode string `json:"mode"`
+
+	// KeyPath is where the signing private key is stored
+	KeyPath string `json:"key_path"`
+
+	// OnDiscoveryError determines behavior when peer discovery fails:
+	// "reject" (default) or "allow" (dev-only)
+	OnDiscoveryError string `json:"on_discovery_error"`
+
+	// AllowMismatch allows declared peer vs keyId host mismatch (dev-only)
+	AllowMismatch bool `json:"allow_mismatch"`
 }
 
 // TLSConfig holds TLS-related settings.
@@ -108,6 +127,12 @@ func DefaultConfig() *Config {
 			MaxRedirects:       3,
 			MaxResponseBytes:   1048576,
 			InsecureSkipVerify: true, // for local dev with self-signed certs
+		},
+		Signature: SignatureConfig{
+			Mode:             "lenient",
+			KeyPath:          ".ocm/keys/signing.pem",
+			OnDiscoveryError: "reject",
+			AllowMismatch:    false,
 		},
 	}
 }

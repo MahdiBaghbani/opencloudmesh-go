@@ -89,4 +89,3 @@ func TestDiscoveryEndpoints(t *testing.T) {
 		})
 	}
 }
-

@@ -9,6 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
@@ -19,6 +20,7 @@ type Deps struct {
 	PartyRepo   identity.PartyRepo
 	SessionRepo identity.SessionRepo
 	UserAuth    *identity.UserAuth
+	KeyManager  *crypto.KeyManager
 }
 
 // Server wraps the HTTP server and its dependencies.
@@ -30,6 +32,8 @@ type Server struct {
 	authHandler      *api.AuthHandler
 	uiHandler        *ui.Handler
 	discoveryHandler *discovery.Handler
+	signer           *crypto.RFC9421Signer
+	peerResolver     *crypto.PeerResolver
 }
 
 // New creates a new Server with the given configuration.
@@ -46,6 +50,23 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create discovery handler
 	discoveryHandler := discovery.NewHandler(cfg)
 
+	// Set up public keys in discovery if signature mode is not off
+	if cfg.Signature.Mode != "off" && deps.KeyManager != nil {
+		discoveryHandler.SetPublicKeys([]discovery.PublicKey{
+			{
+				KeyID:        deps.KeyManager.GetKeyID(),
+				PublicKeyPem: deps.KeyManager.GetPublicKeyPEM(),
+				Algorithm:    "ed25519",
+			},
+		})
+	}
+
+	// Create signer for outgoing requests
+	var signer *crypto.RFC9421Signer
+	if deps.KeyManager != nil {
+		signer = crypto.NewRFC9421Signer(deps.KeyManager)
+	}
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -53,6 +74,8 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		authHandler:      authHandler,
 		uiHandler:        uiHandler,
 		discoveryHandler: discoveryHandler,
+		signer:           signer,
+		peerResolver:     crypto.NewPeerResolver(),
 	}
 
 	router := s.setupRoutes()

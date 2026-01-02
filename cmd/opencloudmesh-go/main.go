@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
 )
@@ -44,7 +46,27 @@ func main() {
 	// Create identity components
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
-	userAuth := identity.NewUserAuth(10) // bcrypt cost 10
+	userAuth := identity.NewUserAuth(3) // argon2id time parameter
+
+	// Initialize key manager for HTTP signatures
+	var keyManager *crypto.KeyManager
+	if cfg.Signature.Mode != "off" {
+		// Ensure key directory exists
+		keyDir := filepath.Dir(cfg.Signature.KeyPath)
+		if keyDir != "" && keyDir != "." {
+			if err := os.MkdirAll(keyDir, 0700); err != nil {
+				logger.Error("failed to create key directory", "path", keyDir, "error", err)
+				os.Exit(1)
+			}
+		}
+
+		keyManager = crypto.NewKeyManager(cfg.Signature.KeyPath, cfg.ExternalOrigin)
+		if err := keyManager.LoadOrGenerate(); err != nil {
+			logger.Error("failed to initialize signing key", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
+	}
 
 	// Bootstrap admin user
 	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)
@@ -64,6 +86,7 @@ func main() {
 		PartyRepo:   partyRepo,
 		SessionRepo: sessionRepo,
 		UserAuth:    userAuth,
+		KeyManager:  keyManager,
 	}
 
 	// Create and start server
