@@ -34,11 +34,11 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 }
 
-func TestRootOnlyEndpointsExist(t *testing.T) {
+func TestDiscoveryEndpoints(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	// These should return 501 Not Implemented (not 404)
+	// Both discovery endpoints should return 200 with valid JSON
 	endpoints := []string{
 		"/.well-known/ocm",
 		"/ocm-provider",
@@ -52,9 +52,39 @@ func TestRootOnlyEndpointsExist(t *testing.T) {
 			}
 			defer resp.Body.Close()
 
-			// 501 means the route exists but handler is not implemented yet
-			if resp.StatusCode != http.StatusNotImplemented {
-				t.Errorf("expected status 501 for %s, got %d", endpoint, resp.StatusCode)
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("expected status 200 for %s, got %d", endpoint, resp.StatusCode)
+			}
+
+			contentType := resp.Header.Get("Content-Type")
+			if contentType != "application/json" {
+				t.Errorf("expected Content-Type 'application/json', got %q", contentType)
+			}
+
+			var disc struct {
+				Enabled       bool   `json:"enabled"`
+				APIVersion    string `json:"apiVersion"`
+				EndPoint      string `json:"endPoint"`
+				Provider      string `json:"provider"`
+				ResourceTypes []struct {
+					Name string `json:"name"`
+				} `json:"resourceTypes"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
+				t.Fatalf("failed to decode discovery response: %v", err)
+			}
+
+			if !disc.Enabled {
+				t.Error("expected enabled=true")
+			}
+			if disc.APIVersion != "1.2.2" {
+				t.Errorf("expected apiVersion '1.2.2', got %q", disc.APIVersion)
+			}
+			if disc.Provider != "OpenCloudMesh" {
+				t.Errorf("expected provider 'OpenCloudMesh', got %q", disc.Provider)
+			}
+			if len(disc.ResourceTypes) == 0 {
+				t.Error("expected at least one resource type")
 			}
 		})
 	}

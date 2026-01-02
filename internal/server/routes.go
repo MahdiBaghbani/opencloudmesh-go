@@ -90,9 +90,9 @@ func (s *Server) setupRoutes() chi.Router {
 
 // mountRootOnlyEndpoints mounts endpoints that must be at host root.
 func (s *Server) mountRootOnlyEndpoints(r chi.Router) {
-	// Discovery endpoints - will be implemented in Phase A
-	r.Get("/.well-known/ocm", s.notImplementedHandler("discovery"))
-	r.Get("/ocm-provider", s.notImplementedHandler("discovery"))
+	// Discovery endpoints (Phase A)
+	r.Get("/.well-known/ocm", s.discoveryHandler.WellKnownHandler())
+	r.Get("/ocm-provider", s.discoveryHandler.ProviderHandler())
 }
 
 // mountAppEndpoints mounts app endpoints (may be under base path).

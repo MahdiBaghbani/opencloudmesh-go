@@ -10,6 +10,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 )
 
@@ -22,12 +23,13 @@ type Deps struct {
 
 // Server wraps the HTTP server and its dependencies.
 type Server struct {
-	cfg         *config.Config
-	httpServer  *http.Server
-	logger      *slog.Logger
-	deps        *Deps
-	authHandler *api.AuthHandler
-	uiHandler   *ui.Handler
+	cfg              *config.Config
+	httpServer       *http.Server
+	logger           *slog.Logger
+	deps             *Deps
+	authHandler      *api.AuthHandler
+	uiHandler        *ui.Handler
+	discoveryHandler *discovery.Handler
 }
 
 // New creates a new Server with the given configuration.
@@ -41,12 +43,16 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create auth handler
 	authHandler := api.NewAuthHandler(deps.PartyRepo, deps.SessionRepo, deps.UserAuth)
 
+	// Create discovery handler
+	discoveryHandler := discovery.NewHandler(cfg)
+
 	s := &Server{
-		cfg:         cfg,
-		logger:      logger,
-		deps:        deps,
-		authHandler: authHandler,
-		uiHandler:   uiHandler,
+		cfg:              cfg,
+		logger:           logger,
+		deps:             deps,
+		authHandler:      authHandler,
+		uiHandler:        uiHandler,
+		discoveryHandler: discoveryHandler,
 	}
 
 	router := s.setupRoutes()
