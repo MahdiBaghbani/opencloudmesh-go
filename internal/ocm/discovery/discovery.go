@@ -133,8 +133,3 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) WellKnownHandler() http.HandlerFunc {
 	return h.ServeHTTP
 }
-
-// ProviderHandler returns an http.HandlerFunc for /ocm-provider
-func (h *Handler) ProviderHandler() http.HandlerFunc {
-	return h.ServeHTTP
-}
