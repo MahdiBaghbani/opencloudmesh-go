@@ -120,10 +120,10 @@ func TestValidateNewShareRequest_MustExchangeToken(t *testing.T) {
 	}
 }
 
-func TestHandler_CreateShare(t *testing.T) {
+func TestIncomingHandler_CreateShare(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryIncomingShareRepo()
-	handler := shares.NewHandler(repo, nil, logger, false)
+	handler := shares.NewIncomingHandler(repo, nil, logger, false)
 
 	body := `{
 		"shareWith": "user@example.com",
@@ -146,17 +146,17 @@ func TestHandler_CreateShare(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	handler.HandleCreate(w, req)
+	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
-func TestHandler_CreateShare_ValidationError(t *testing.T) {
+func TestIncomingHandler_CreateShare_ValidationError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryIncomingShareRepo()
-	handler := shares.NewHandler(repo, nil, logger, false)
+	handler := shares.NewIncomingHandler(repo, nil, logger, false)
 
 	// Missing required fields
 	body := `{"name": "test.txt"}`
@@ -165,7 +165,7 @@ func TestHandler_CreateShare_ValidationError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	handler.HandleCreate(w, req)
+	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", w.Code)
@@ -181,7 +181,7 @@ func TestHandler_CreateShare_ValidationError(t *testing.T) {
 	}
 }
 
-func TestRepository_SenderScopedStorage(t *testing.T) {
+func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 	repo := shares.NewMemoryIncomingShareRepo()
 	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
 

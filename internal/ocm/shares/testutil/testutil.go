@@ -1,4 +1,5 @@
-package shares
+// Package testutil provides test helpers for the shares package.
+package testutil
 
 import (
 	"context"

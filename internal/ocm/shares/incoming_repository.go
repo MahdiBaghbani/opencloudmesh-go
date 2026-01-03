@@ -58,8 +58,8 @@ func generateUUIDv7() string {
 	return id.String()
 }
 
-// providerKey creates the sender-scoped lookup key.
-func providerKey(senderHost, providerID string) string {
+// incomingProviderKey creates the sender-scoped lookup key.
+func incomingProviderKey(senderHost, providerID string) string {
 	return fmt.Sprintf("%s:%s", senderHost, providerID)
 }
 
@@ -73,7 +73,7 @@ func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingSha
 	}
 
 	// Check for duplicate providerId from same sender
-	key := providerKey(share.SenderHost, share.ProviderID)
+	key := incomingProviderKey(share.SenderHost, share.ProviderID)
 	if _, exists := r.providerIndex[key]; exists {
 		return fmt.Errorf("share with providerId %s from sender %s already exists", share.ProviderID, share.SenderHost)
 	}
@@ -106,7 +106,7 @@ func (r *MemoryIncomingShareRepo) GetByProviderID(ctx context.Context, senderHos
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	key := providerKey(senderHost, providerID)
+	key := incomingProviderKey(senderHost, providerID)
 	shareID, exists := r.providerIndex[key]
 	if !exists {
 		return nil, fmt.Errorf("share not found for providerId %s from sender %s", providerID, senderHost)
@@ -154,7 +154,7 @@ func (r *MemoryIncomingShareRepo) Delete(ctx context.Context, shareID string) er
 	}
 
 	// Remove from index
-	key := providerKey(share.SenderHost, share.ProviderID)
+	key := incomingProviderKey(share.SenderHost, share.ProviderID)
 	delete(r.providerIndex, key)
 
 	// Remove share

@@ -9,17 +9,17 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 )
 
-// Handler handles OCM share endpoints.
-type Handler struct {
+// IncomingHandler handles incoming OCM share endpoints.
+type IncomingHandler struct {
 	repo         IncomingShareRepo
 	policyEngine *federation.PolicyEngine
 	logger       *slog.Logger
 	strictMode   bool
 }
 
-// NewHandler creates a new shares handler.
-func NewHandler(repo IncomingShareRepo, policyEngine *federation.PolicyEngine, logger *slog.Logger, strictMode bool) *Handler {
-	return &Handler{
+// NewIncomingHandler creates a new incoming shares handler.
+func NewIncomingHandler(repo IncomingShareRepo, policyEngine *federation.PolicyEngine, logger *slog.Logger, strictMode bool) *IncomingHandler {
+	return &IncomingHandler{
 		repo:         repo,
 		policyEngine: policyEngine,
 		logger:       logger,
@@ -27,8 +27,8 @@ func NewHandler(repo IncomingShareRepo, policyEngine *federation.PolicyEngine, l
 	}
 }
 
-// HandleCreate handles POST /ocm/shares.
-func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
+// CreateShare handles POST /ocm/shares.
+func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -137,11 +137,27 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 // sendError sends a JSON error response.
-func (h *Handler) sendError(w http.ResponseWriter, status int, code, message string) {
+func (h *IncomingHandler) sendError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{
 		"error":       code,
 		"description": message,
 	})
+}
+
+// Handler is an alias for backward compatibility.
+// Deprecated: Use IncomingHandler instead.
+type Handler = IncomingHandler
+
+// NewHandler creates a new incoming shares handler.
+// Deprecated: Use NewIncomingHandler instead.
+func NewHandler(repo IncomingShareRepo, policyEngine *federation.PolicyEngine, logger *slog.Logger, strictMode bool) *Handler {
+	return NewIncomingHandler(repo, policyEngine, logger, strictMode)
+}
+
+// HandleCreate is an alias for backward compatibility.
+// Deprecated: Use CreateShare instead.
+func (h *IncomingHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
+	h.CreateShare(w, r)
 }
