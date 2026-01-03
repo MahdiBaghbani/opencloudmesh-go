@@ -134,7 +134,7 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 
 		// Outgoing shares (authenticated)
 		r.Route("/shares", func(r chi.Router) {
-			r.Post("/outgoing", s.notImplementedHandler("shares-outgoing"))
+			r.Post("/outgoing", s.outgoingHandler.HandleCreate)
 		})
 
 		// Invites (authenticated)

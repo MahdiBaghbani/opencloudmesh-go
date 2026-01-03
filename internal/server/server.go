@@ -27,6 +27,7 @@ type Deps struct {
 	DiscoveryClient   *discovery.Client
 	PolicyEngine      *federation.PolicyEngine
 	IncomingShareRepo shares.IncomingShareRepo
+	OutgoingShareRepo shares.OutgoingShareRepo
 }
 
 // Server wraps the HTTP server and its dependencies.
@@ -43,6 +44,7 @@ type Server struct {
 	auxHandler       *federation.AuxHandler
 	sharesHandler    *shares.Handler
 	inboxHandler     *shares.InboxHandler
+	outgoingHandler  *shares.OutgoingHandler
 }
 
 // New creates a new Server with the given configuration.
@@ -85,6 +87,16 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create inbox handler
 	inboxHandler := shares.NewInboxHandler(deps.IncomingShareRepo)
 
+	// Create outgoing share handler
+	outgoingHandler := shares.NewOutgoingHandler(
+		deps.OutgoingShareRepo,
+		deps.DiscoveryClient,
+		nil, // HTTP client - will be configured later
+		signer,
+		cfg,
+		logger,
+	)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -97,6 +109,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		auxHandler:       auxHandler,
 		sharesHandler:    sharesHandler,
 		inboxHandler:     inboxHandler,
+		outgoingHandler:  outgoingHandler,
 	}
 
 	router := s.setupRoutes()
