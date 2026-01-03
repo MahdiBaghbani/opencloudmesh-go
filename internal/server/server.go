@@ -13,17 +13,20 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 )
 
 // Deps holds all server dependencies.
 type Deps struct {
-	PartyRepo       identity.PartyRepo
-	SessionRepo     identity.SessionRepo
-	UserAuth        *identity.UserAuth
-	KeyManager      *crypto.KeyManager
-	FederationMgr   *federation.FederationManager
-	DiscoveryClient *discovery.Client
+	PartyRepo         identity.PartyRepo
+	SessionRepo       identity.SessionRepo
+	UserAuth          *identity.UserAuth
+	KeyManager        *crypto.KeyManager
+	FederationMgr     *federation.FederationManager
+	DiscoveryClient   *discovery.Client
+	PolicyEngine      *federation.PolicyEngine
+	IncomingShareRepo shares.IncomingShareRepo
 }
 
 // Server wraps the HTTP server and its dependencies.
@@ -38,6 +41,8 @@ type Server struct {
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	auxHandler       *federation.AuxHandler
+	sharesHandler    *shares.Handler
+	inboxHandler     *shares.InboxHandler
 }
 
 // New creates a new Server with the given configuration.
@@ -74,6 +79,12 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create auxiliary handler for federation endpoints
 	auxHandler := federation.NewAuxHandler(deps.FederationMgr, deps.DiscoveryClient)
 
+	// Create shares handler
+	sharesHandler := shares.NewHandler(deps.IncomingShareRepo, deps.PolicyEngine, logger, true)
+
+	// Create inbox handler
+	inboxHandler := shares.NewInboxHandler(deps.IncomingShareRepo)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -84,6 +95,8 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		signer:           signer,
 		peerResolver:     crypto.NewPeerResolver(),
 		auxHandler:       auxHandler,
+		sharesHandler:    sharesHandler,
+		inboxHandler:     inboxHandler,
 	}
 
 	router := s.setupRoutes()

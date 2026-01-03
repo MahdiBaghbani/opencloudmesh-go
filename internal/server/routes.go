@@ -100,9 +100,9 @@ func (s *Server) mountRootOnlyEndpoints(r chi.Router) {
 
 // mountAppEndpoints mounts app endpoints (may be under base path).
 func (s *Server) mountAppEndpoints(r chi.Router) {
-	// OCM API endpoints - will be implemented in later phases
+	// OCM API endpoints
 	r.Route("/ocm", func(r chi.Router) {
-		r.Post("/shares", s.notImplementedHandler("ocm-shares"))
+		r.Post("/shares", s.sharesHandler.HandleCreate)
 		r.Post("/notifications", s.notImplementedHandler("ocm-notifications"))
 		r.Post("/invite-accepted", s.notImplementedHandler("ocm-invites"))
 		r.Post("/token", s.notImplementedHandler("ocm-token"))
@@ -126,9 +126,9 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 			r.Get("/me", s.authHandler.GetCurrentUser)
 		})
 
-		// Inbox endpoints (authenticated) - will be implemented in later phases
+		// Inbox endpoints (authenticated)
 		r.Route("/inbox", func(r chi.Router) {
-			r.Get("/shares", s.notImplementedHandler("inbox-shares"))
+			r.Get("/shares", s.inboxHandler.HandleList)
 			r.Get("/invites", s.notImplementedHandler("inbox-invites"))
 		})
 
