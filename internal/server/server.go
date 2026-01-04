@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
@@ -43,10 +44,12 @@ type Server struct {
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	auxHandler       *federation.AuxHandler
-	sharesHandler    *shares.Handler
-	inboxHandler     *shares.InboxHandler
-	outgoingHandler  *shares.OutgoingHandler
-	webdavHandler    *webdav.Handler
+	sharesHandler        *shares.Handler
+	inboxHandler         *shares.InboxHandler
+	inboxActionsHandler  *shares.InboxActionsHandler
+	outgoingHandler      *shares.OutgoingHandler
+	webdavHandler        *webdav.Handler
+	notificationsHandler *notifications.Handler
 }
 
 // New creates a new Server with the given configuration.
@@ -102,6 +105,12 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create WebDAV handler
 	webdavHandler := webdav.NewHandler(deps.OutgoingShareRepo, logger)
 
+	// Create notifications handler
+	notificationsHandler := notifications.NewHandler(deps.OutgoingShareRepo, logger)
+
+	// Create inbox actions handler (notification client will be nil for now)
+	inboxActionsHandler := shares.NewInboxActionsHandler(deps.IncomingShareRepo, nil, logger)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -112,10 +121,12 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		signer:           signer,
 		peerResolver:     crypto.NewPeerResolver(),
 		auxHandler:       auxHandler,
-		sharesHandler:    sharesHandler,
-		inboxHandler:     inboxHandler,
-		outgoingHandler:  outgoingHandler,
-		webdavHandler:    webdavHandler,
+		sharesHandler:        sharesHandler,
+		inboxHandler:         inboxHandler,
+		inboxActionsHandler:  inboxActionsHandler,
+		outgoingHandler:      outgoingHandler,
+		webdavHandler:        webdavHandler,
+		notificationsHandler: notificationsHandler,
 	}
 
 	router := s.setupRoutes()

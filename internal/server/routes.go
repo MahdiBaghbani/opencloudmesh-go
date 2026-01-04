@@ -103,7 +103,7 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 	// OCM API endpoints
 	r.Route("/ocm", func(r chi.Router) {
 		r.Post("/shares", s.sharesHandler.HandleCreate)
-		r.Post("/notifications", s.notImplementedHandler("ocm-notifications"))
+		r.Post("/notifications", s.notificationsHandler.HandleNotification)
 		r.Post("/invite-accepted", s.notImplementedHandler("ocm-invites"))
 		r.Post("/token", s.notImplementedHandler("ocm-token"))
 	})
@@ -129,6 +129,8 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		// Inbox endpoints (authenticated)
 		r.Route("/inbox", func(r chi.Router) {
 			r.Get("/shares", s.inboxHandler.HandleList)
+			r.Post("/shares/{shareId}/accept", s.inboxActionsHandler.HandleAccept)
+			r.Post("/shares/{shareId}/decline", s.inboxActionsHandler.HandleDecline)
 			r.Get("/invites", s.notImplementedHandler("inbox-invites"))
 		})
 
