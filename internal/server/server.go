@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
 )
 
 // Deps holds all server dependencies.
@@ -45,6 +46,7 @@ type Server struct {
 	sharesHandler    *shares.Handler
 	inboxHandler     *shares.InboxHandler
 	outgoingHandler  *shares.OutgoingHandler
+	webdavHandler    *webdav.Handler
 }
 
 // New creates a new Server with the given configuration.
@@ -97,6 +99,9 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		logger,
 	)
 
+	// Create WebDAV handler
+	webdavHandler := webdav.NewHandler(deps.OutgoingShareRepo, logger)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -110,6 +115,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		sharesHandler:    sharesHandler,
 		inboxHandler:     inboxHandler,
 		outgoingHandler:  outgoingHandler,
+		webdavHandler:    webdavHandler,
 	}
 
 	router := s.setupRoutes()

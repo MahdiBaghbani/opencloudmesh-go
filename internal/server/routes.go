@@ -154,9 +154,9 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		r.Get("/inbox", s.uiHandler.Inbox)
 	})
 
-	// WebDAV endpoint
+	// WebDAV endpoint - serves shared files
 	r.Route("/webdav/ocm", func(r chi.Router) {
-		r.HandleFunc("/*", s.notImplementedHandler("webdav"))
+		r.HandleFunc("/*", s.webdavHandler.ServeHTTP)
 	})
 }
 
