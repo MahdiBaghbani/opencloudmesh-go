@@ -11,11 +11,21 @@ import (
 )
 
 var (
-	ErrUserNotFound    = errors.New("user not found")
-	ErrUserExists      = errors.New("user already exists")
-	ErrInvalidPassword = errors.New("invalid password")
-	ErrSessionExpired  = errors.New("session expired")
-	ErrSessionNotFound = errors.New("session not found")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrUserExists             = errors.New("user already exists")
+	ErrInvalidPassword        = errors.New("invalid password")
+	ErrSessionExpired         = errors.New("session expired")
+	ErrSessionNotFound        = errors.New("session not found")
+	ErrSuperAdminProtected    = errors.New("super admin cannot be deleted or demoted")
+	ErrSuperAdminRoleChange   = errors.New("super admin role cannot be changed")
+)
+
+// Role constants for user roles.
+const (
+	RoleUser       = "user"
+	RoleAdmin      = "admin"
+	RoleSuperAdmin = "super_admin"
+	RoleProbe      = "probe"
 )
 
 // User represents a party (user) in the system.
@@ -34,12 +44,17 @@ type User struct {
 
 // IsProbe returns true if the user is a probe user.
 func (u *User) IsProbe() bool {
-	return u.Role == "probe"
+	return u.Role == RoleProbe
 }
 
-// IsAdmin returns true if the user is an admin.
+// IsAdmin returns true if the user is an admin (includes super_admin).
 func (u *User) IsAdmin() bool {
-	return u.Role == "admin"
+	return u.Role == RoleAdmin || u.Role == RoleSuperAdmin
+}
+
+// IsSuperAdmin returns true if the user is the super admin.
+func (u *User) IsSuperAdmin() bool {
+	return u.Role == RoleSuperAdmin
 }
 
 // IsExpired returns true if the user has expired.
@@ -186,6 +201,11 @@ func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 		return ErrUserNotFound
 	}
 
+	// Super admin role cannot be changed
+	if existing.Role == RoleSuperAdmin && user.Role != RoleSuperAdmin {
+		return ErrSuperAdminRoleChange
+	}
+
 	// If username changed, update the index
 	if existing.Username != user.Username {
 		delete(r.byUsername, existing.Username)
@@ -204,6 +224,11 @@ func (r *MemoryPartyRepo) Delete(ctx context.Context, id string) error {
 	user, ok := r.users[id]
 	if !ok {
 		return ErrUserNotFound
+	}
+
+	// Super admin cannot be deleted
+	if user.Role == RoleSuperAdmin {
+		return ErrSuperAdminProtected
 	}
 
 	delete(r.byUsername, user.Username)

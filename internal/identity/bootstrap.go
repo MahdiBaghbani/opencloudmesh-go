@@ -2,6 +2,8 @@ package identity
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"log/slog"
 	"time"
@@ -58,6 +60,94 @@ func (b *Bootstrap) Run(ctx context.Context, admin SeededUser, seeded []SeededUs
 	}
 
 	return created, nil
+}
+
+// EnsureSuperAdmin creates or verifies the super admin user.
+// If no super admin exists, creates one with the given username and password.
+// If password is empty, generates a random password and logs it once.
+// If a super admin already exists, this is a no-op (returns nil).
+// Password rotation only happens when explicitPasswordSet is true.
+func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password string, explicitPasswordSet bool) error {
+	if username == "" {
+		username = "admin"
+	}
+
+	// Check if a super admin already exists (by role, not username)
+	users, err := b.repo.List(ctx, "")
+	if err != nil {
+		return err
+	}
+
+	var existingSuperAdmin *User
+	for _, u := range users {
+		if u.Role == RoleSuperAdmin {
+			existingSuperAdmin = u
+			break
+		}
+	}
+
+	if existingSuperAdmin != nil {
+		// Super admin exists
+		if explicitPasswordSet && password != "" {
+			// Rotate password
+			hash, err := b.auth.HashPassword(password)
+			if err != nil {
+				return err
+			}
+			existingSuperAdmin.PasswordHash = hash
+			if err := b.repo.Update(ctx, existingSuperAdmin); err != nil {
+				return err
+			}
+			b.log.Info("super admin password rotated", "username", existingSuperAdmin.Username)
+		}
+		return nil
+	}
+
+	// No super admin exists, create one
+	passwordGenerated := false
+	if password == "" {
+		password = generateRandomPassword()
+		passwordGenerated = true
+	}
+
+	hash, err := b.auth.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	superAdmin := &User{
+		ID:           UUIDv7(),
+		Username:     username,
+		DisplayName:  "Super Administrator",
+		PasswordHash: hash,
+		Role:         RoleSuperAdmin,
+		CreatedAt:    time.Now(),
+	}
+
+	if err := b.repo.Create(ctx, superAdmin); err != nil {
+		return err
+	}
+
+	if passwordGenerated {
+		b.log.Info("super admin created with auto-generated password",
+			"username", username,
+			"password", password,
+			"user_id", superAdmin.ID)
+	} else {
+		b.log.Info("super admin created", "username", username, "user_id", superAdmin.ID)
+	}
+
+	return nil
+}
+
+// generateRandomPassword generates a cryptographically secure random password.
+func generateRandomPassword() string {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to a simple random string if crypto/rand fails
+		return "changeme-" + UUIDv7()
+	}
+	return base64.URLEncoding.EncodeToString(b)
 }
 
 func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {

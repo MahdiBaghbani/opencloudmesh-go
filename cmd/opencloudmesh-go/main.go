@@ -84,16 +84,21 @@ func main() {
 		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
 	}
 
-	// Bootstrap admin user
+	// Bootstrap super admin user
 	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)
-	adminUser := identity.SeededUser{
-		Username:    "admin",
-		Password:    "admin", // Default password for development
-		DisplayName: "Administrator",
-		Role:        "admin",
+	bootstrapUsername := cfg.Server.BootstrapAdmin.Username
+	if bootstrapUsername == "" {
+		bootstrapUsername = "admin"
 	}
-	if _, err := bootstrap.Run(context.Background(), adminUser, nil); err != nil {
-		logger.Error("failed to bootstrap users", "error", err)
+	// Determine if password was explicitly set (non-empty in config or via flag)
+	explicitPasswordSet := cfg.Server.BootstrapAdmin.Password != ""
+	if err := bootstrap.EnsureSuperAdmin(
+		context.Background(),
+		bootstrapUsername,
+		cfg.Server.BootstrapAdmin.Password,
+		explicitPasswordSet,
+	); err != nil {
+		logger.Error("failed to bootstrap super admin", "error", err)
 		os.Exit(1)
 	}
 

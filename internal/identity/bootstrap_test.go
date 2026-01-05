@@ -91,3 +91,177 @@ func TestBootstrap_CreateProbeUser(t *testing.T) {
 		t.Error("should return existing user")
 	}
 }
+
+func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	auth := identity.NewUserAuthFast()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bootstrap := identity.NewBootstrap(repo, auth, logger)
+	ctx := context.Background()
+
+	// First call creates super admin with explicit password
+	err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret123", true)
+	if err != nil {
+		t.Fatalf("EnsureSuperAdmin failed: %v", err)
+	}
+
+	// Verify super admin exists
+	user, err := repo.GetByUsername(ctx, "superadmin")
+	if err != nil {
+		t.Fatalf("super admin not found: %v", err)
+	}
+	if !user.IsSuperAdmin() {
+		t.Errorf("expected role 'super_admin', got %q", user.Role)
+	}
+
+	// Second call should be idempotent (no new user)
+	err = bootstrap.EnsureSuperAdmin(ctx, "different", "password", true)
+	if err != nil {
+		t.Fatalf("EnsureSuperAdmin (second) failed: %v", err)
+	}
+
+	// Original super admin should still exist
+	user, err = repo.GetByUsername(ctx, "superadmin")
+	if err != nil {
+		t.Fatalf("super admin not found after second call: %v", err)
+	}
+
+	// "different" user should not exist (only one super admin)
+	_, err = repo.GetByUsername(ctx, "different")
+	if err != identity.ErrUserNotFound {
+		t.Error("expected no 'different' user to be created")
+	}
+}
+
+func TestBootstrap_EnsureSuperAdmin_AutoGenPassword(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	auth := identity.NewUserAuthFast()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bootstrap := identity.NewBootstrap(repo, auth, logger)
+	ctx := context.Background()
+
+	// Empty password should auto-generate
+	err := bootstrap.EnsureSuperAdmin(ctx, "admin", "", false)
+	if err != nil {
+		t.Fatalf("EnsureSuperAdmin failed: %v", err)
+	}
+
+	// Verify super admin exists
+	user, err := repo.GetByUsername(ctx, "admin")
+	if err != nil {
+		t.Fatalf("super admin not found: %v", err)
+	}
+	if !user.IsSuperAdmin() {
+		t.Errorf("expected role 'super_admin', got %q", user.Role)
+	}
+	// Password hash should be set (we can't verify the actual password)
+	if user.PasswordHash == "" {
+		t.Error("password hash should be set")
+	}
+}
+
+func TestSuperAdmin_CannotBeDeleted(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	auth := identity.NewUserAuthFast()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bootstrap := identity.NewBootstrap(repo, auth, logger)
+	ctx := context.Background()
+
+	// Create super admin
+	err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
+	if err != nil {
+		t.Fatalf("EnsureSuperAdmin failed: %v", err)
+	}
+
+	// Get super admin
+	user, err := repo.GetByUsername(ctx, "superadmin")
+	if err != nil {
+		t.Fatalf("super admin not found: %v", err)
+	}
+
+	// Try to delete - should fail
+	err = repo.Delete(ctx, user.ID)
+	if err != identity.ErrSuperAdminProtected {
+		t.Errorf("expected ErrSuperAdminProtected, got %v", err)
+	}
+}
+
+func TestSuperAdmin_CannotBeDemoted(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	auth := identity.NewUserAuthFast()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bootstrap := identity.NewBootstrap(repo, auth, logger)
+	ctx := context.Background()
+
+	// Create super admin
+	err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
+	if err != nil {
+		t.Fatalf("EnsureSuperAdmin failed: %v", err)
+	}
+
+	// Get super admin
+	user, err := repo.GetByUsername(ctx, "superadmin")
+	if err != nil {
+		t.Fatalf("super admin not found: %v", err)
+	}
+
+	// Try to demote to admin - should fail
+	user.Role = identity.RoleAdmin
+	err = repo.Update(ctx, user)
+	if err != identity.ErrSuperAdminRoleChange {
+		t.Errorf("expected ErrSuperAdminRoleChange, got %v", err)
+	}
+
+	// Try to demote to user - should fail
+	user.Role = identity.RoleUser
+	err = repo.Update(ctx, user)
+	if err != identity.ErrSuperAdminRoleChange {
+		t.Errorf("expected ErrSuperAdminRoleChange, got %v", err)
+	}
+}
+
+func TestSuperAdmin_UsernameCanBeRenamed(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	auth := identity.NewUserAuthFast()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bootstrap := identity.NewBootstrap(repo, auth, logger)
+	ctx := context.Background()
+
+	// Create super admin
+	err := bootstrap.EnsureSuperAdmin(ctx, "superadmin", "secret", true)
+	if err != nil {
+		t.Fatalf("EnsureSuperAdmin failed: %v", err)
+	}
+
+	// Get super admin
+	user, err := repo.GetByUsername(ctx, "superadmin")
+	if err != nil {
+		t.Fatalf("super admin not found: %v", err)
+	}
+	originalID := user.ID
+
+	// Rename username - should succeed
+	user.Username = "root"
+	err = repo.Update(ctx, user)
+	if err != nil {
+		t.Fatalf("renaming super admin failed: %v", err)
+	}
+
+	// Old username should not exist
+	_, err = repo.GetByUsername(ctx, "superadmin")
+	if err != identity.ErrUserNotFound {
+		t.Error("old username should not exist")
+	}
+
+	// New username should exist with same ID
+	user, err = repo.GetByUsername(ctx, "root")
+	if err != nil {
+		t.Fatalf("new username not found: %v", err)
+	}
+	if user.ID != originalID {
+		t.Error("user ID should remain the same after rename")
+	}
+	if !user.IsSuperAdmin() {
+		t.Error("user should still be super admin after rename")
+	}
+}
