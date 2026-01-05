@@ -18,9 +18,16 @@ import (
 
 func main() {
 	// Parse flags
+	configPath := flag.String("config", "", "Path to TOML config file (optional)")
+	modeFlag := flag.String("mode", "", "Operating mode: strict, interop, or dev (overrides config)")
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
 	externalOrigin := flag.String("external-origin", "", "External origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
+	ssrfMode := flag.String("ssrf-mode", "", "SSRF protection mode: strict or off (overrides config)")
+	signaturePolicy := flag.String("signature-policy", "", "Signature policy: strict, lenient, or off (overrides config)")
+	tlsMode := flag.String("tls-mode", "", "TLS mode: off, static, selfsigned, or acme (overrides config)")
+	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
+	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
 	flag.Parse()
 
 	// Setup logger
@@ -29,19 +36,28 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	// Load config (using defaults for now, config file loading in Phase 0d)
-	cfg := config.DefaultConfig()
+	// Load config with precedence: mode preset -> TOML file -> CLI flags
+	cfg, err := config.Load(config.LoaderOptions{
+		ConfigPath: *configPath,
+		ModeFlag:   *modeFlag,
+		FlagOverrides: config.FlagOverrides{
+			ListenAddr:       listenAddr,
+			ExternalOrigin:   externalOrigin,
+			ExternalBasePath: externalBasePath,
+			SSRFMode:         ssrfMode,
+			SignaturePolicy:  signaturePolicy,
+			TLSMode:          tlsMode,
+			AdminUsername:    adminUsername,
+			AdminPassword:    adminPassword,
+		},
+	})
+	if err != nil {
+		logger.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
 
-	// Apply flag overrides
-	if *listenAddr != "" {
-		cfg.ListenAddr = *listenAddr
-	}
-	if *externalOrigin != "" {
-		cfg.ExternalOrigin = *externalOrigin
-	}
-	if *externalBasePath != "" {
-		cfg.ExternalBasePath = *externalBasePath
-	}
+	// Log effective config with secrets redacted
+	logger.Info("effective configuration", "config", cfg.Redacted())
 
 	// Create identity components
 	partyRepo := identity.NewMemoryPartyRepo()
