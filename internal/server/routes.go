@@ -104,7 +104,7 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 	r.Route("/ocm", func(r chi.Router) {
 		r.Post("/shares", s.sharesHandler.HandleCreate)
 		r.Post("/notifications", s.notificationsHandler.HandleNotification)
-		r.Post("/invite-accepted", s.notImplementedHandler("ocm-invites"))
+		r.Post("/invite-accepted", s.invitesHandler.HandleInviteAccepted)
 		r.Post("/token", s.notImplementedHandler("ocm-token"))
 	})
 
@@ -131,7 +131,9 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 			r.Get("/shares", s.inboxHandler.HandleList)
 			r.Post("/shares/{shareId}/accept", s.inboxActionsHandler.HandleAccept)
 			r.Post("/shares/{shareId}/decline", s.inboxActionsHandler.HandleDecline)
-			r.Get("/invites", s.notImplementedHandler("inbox-invites"))
+			r.Get("/invites", s.invitesInboxHandler.HandleList)
+			r.Post("/invites/{inviteId}/accept", s.invitesInboxHandler.HandleAccept)
+			r.Post("/invites/{inviteId}/decline", s.invitesInboxHandler.HandleDecline)
 		})
 
 		// Outgoing shares (authenticated)
@@ -139,9 +141,9 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 			r.Post("/outgoing", s.outgoingHandler.HandleCreate)
 		})
 
-		// Invites (authenticated)
+		// Outgoing invites (authenticated)
 		r.Route("/invites", func(r chi.Router) {
-			r.Post("/outgoing", s.notImplementedHandler("invites-outgoing"))
+			r.Post("/outgoing", s.invitesHandler.HandleCreateOutgoing)
 		})
 
 		// Admin endpoints (authenticated)

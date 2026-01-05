@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
@@ -21,15 +22,17 @@ import (
 
 // Deps holds all server dependencies.
 type Deps struct {
-	PartyRepo         identity.PartyRepo
-	SessionRepo       identity.SessionRepo
-	UserAuth          *identity.UserAuth
-	KeyManager        *crypto.KeyManager
-	FederationMgr     *federation.FederationManager
-	DiscoveryClient   *discovery.Client
-	PolicyEngine      *federation.PolicyEngine
-	IncomingShareRepo shares.IncomingShareRepo
-	OutgoingShareRepo shares.OutgoingShareRepo
+	PartyRepo            identity.PartyRepo
+	SessionRepo          identity.SessionRepo
+	UserAuth             *identity.UserAuth
+	KeyManager           *crypto.KeyManager
+	FederationMgr        *federation.FederationManager
+	DiscoveryClient      *discovery.Client
+	PolicyEngine         *federation.PolicyEngine
+	IncomingShareRepo    shares.IncomingShareRepo
+	OutgoingShareRepo    shares.OutgoingShareRepo
+	OutgoingInviteRepo   invites.OutgoingInviteRepo
+	IncomingInviteRepo   invites.IncomingInviteRepo
 }
 
 // Server wraps the HTTP server and its dependencies.
@@ -44,12 +47,14 @@ type Server struct {
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	auxHandler       *federation.AuxHandler
-	sharesHandler        *shares.Handler
-	inboxHandler         *shares.InboxHandler
-	inboxActionsHandler  *shares.InboxActionsHandler
-	outgoingHandler      *shares.OutgoingHandler
-	webdavHandler        *webdav.Handler
-	notificationsHandler *notifications.Handler
+	sharesHandler         *shares.Handler
+	inboxHandler          *shares.InboxHandler
+	inboxActionsHandler   *shares.InboxActionsHandler
+	outgoingHandler       *shares.OutgoingHandler
+	webdavHandler         *webdav.Handler
+	notificationsHandler  *notifications.Handler
+	invitesHandler        *invites.Handler
+	invitesInboxHandler   *invites.InboxHandler
 }
 
 // New creates a new Server with the given configuration.
@@ -111,6 +116,23 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create inbox actions handler (notification client will be nil for now)
 	inboxActionsHandler := shares.NewInboxActionsHandler(deps.IncomingShareRepo, nil, logger)
 
+	// Extract provider FQDN from external origin
+	providerFQDN := extractProviderFQDN(cfg.ExternalOrigin)
+
+	// Create invites handler
+	invitesHandler := invites.NewHandler(deps.OutgoingInviteRepo, providerFQDN, logger)
+
+	// Create invites inbox handler (with nil HTTP client for now)
+	invitesInboxHandler := invites.NewInboxHandler(
+		deps.IncomingInviteRepo,
+		deps.DiscoveryClient,
+		nil, // HTTP client - will be configured later
+		signer,
+		"", // Our user ID
+		providerFQDN,
+		logger,
+	)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -121,12 +143,14 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		signer:           signer,
 		peerResolver:     crypto.NewPeerResolver(),
 		auxHandler:       auxHandler,
-		sharesHandler:        sharesHandler,
-		inboxHandler:         inboxHandler,
-		inboxActionsHandler:  inboxActionsHandler,
-		outgoingHandler:      outgoingHandler,
-		webdavHandler:        webdavHandler,
-		notificationsHandler: notificationsHandler,
+		sharesHandler:         sharesHandler,
+		inboxHandler:          inboxHandler,
+		inboxActionsHandler:   inboxActionsHandler,
+		outgoingHandler:       outgoingHandler,
+		webdavHandler:         webdavHandler,
+		notificationsHandler:  notificationsHandler,
+		invitesHandler:        invitesHandler,
+		invitesInboxHandler:   invitesInboxHandler,
 	}
 
 	router := s.setupRoutes()
@@ -166,4 +190,20 @@ func (s *Server) Start() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down server")
 	return s.httpServer.Shutdown(ctx)
+}
+
+// extractProviderFQDN extracts the host:port from an external origin URL.
+func extractProviderFQDN(externalOrigin string) string {
+	// Remove scheme
+	fqdn := externalOrigin
+	if idx := len("https://"); len(fqdn) > idx && fqdn[:idx] == "https://" {
+		fqdn = fqdn[idx:]
+	} else if idx := len("http://"); len(fqdn) > idx && fqdn[:idx] == "http://" {
+		fqdn = fqdn[idx:]
+	}
+	// Remove trailing slash
+	if len(fqdn) > 0 && fqdn[len(fqdn)-1] == '/' {
+		fqdn = fqdn[:len(fqdn)-1]
+	}
+	return fqdn
 }
