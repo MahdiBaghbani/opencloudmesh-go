@@ -12,6 +12,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
 )
@@ -102,12 +103,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create outbound HTTP client
+	rawHTTPClient := httpclient.New(&cfg.OutboundHTTP)
+	httpClient := httpclient.NewContextClient(rawHTTPClient)
+
 	// Create server dependencies
 	deps := &server.Deps{
 		PartyRepo:   partyRepo,
 		SessionRepo: sessionRepo,
 		UserAuth:    userAuth,
 		KeyManager:  keyManager,
+		HTTPClient:  httpClient,
 	}
 
 	// Create and start server

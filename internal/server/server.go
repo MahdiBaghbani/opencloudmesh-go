@@ -3,6 +3,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
@@ -21,20 +24,34 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
 )
 
+var (
+	ErrMissingDep = errors.New("missing required dependency")
+)
+
 // Deps holds all server dependencies.
 type Deps struct {
-	PartyRepo            identity.PartyRepo
-	SessionRepo          identity.SessionRepo
-	UserAuth             *identity.UserAuth
-	KeyManager           *crypto.KeyManager
-	FederationMgr        *federation.FederationManager
-	DiscoveryClient      *discovery.Client
-	PolicyEngine         *federation.PolicyEngine
-	IncomingShareRepo    shares.IncomingShareRepo
-	OutgoingShareRepo    shares.OutgoingShareRepo
-	OutgoingInviteRepo   invites.OutgoingInviteRepo
-	IncomingInviteRepo   invites.IncomingInviteRepo
-	TokenStore           token.TokenStore
+	// Required: identity and auth
+	PartyRepo   identity.PartyRepo
+	SessionRepo identity.SessionRepo
+	UserAuth    *identity.UserAuth
+
+	// Required: outbound HTTP client for server-to-server communication
+	HTTPClient *httpclient.ContextClient
+
+	// Optional: signature key manager (nil if signature mode is off)
+	KeyManager *crypto.KeyManager
+
+	// Optional: federation (nil if federation is not configured)
+	FederationMgr   *federation.FederationManager
+	DiscoveryClient *discovery.Client
+	PolicyEngine    *federation.PolicyEngine
+
+	// Optional: persistence repos (nil uses in-memory or disabled features)
+	IncomingShareRepo  shares.IncomingShareRepo
+	OutgoingShareRepo  shares.OutgoingShareRepo
+	OutgoingInviteRepo invites.OutgoingInviteRepo
+	IncomingInviteRepo invites.IncomingInviteRepo
+	TokenStore         token.TokenStore
 }
 
 // Server wraps the HTTP server and its dependencies.
@@ -61,7 +78,13 @@ type Server struct {
 }
 
 // New creates a new Server with the given configuration.
+// Returns an error if required dependencies are missing.
 func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
+	// Fail fast: validate required dependencies
+	if err := validateDeps(deps); err != nil {
+		return nil, err
+	}
+
 	// Create UI handler
 	uiHandler, err := ui.NewHandler(cfg.ExternalBasePath)
 	if err != nil {
@@ -104,7 +127,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	outgoingHandler := shares.NewOutgoingHandler(
 		deps.OutgoingShareRepo,
 		deps.DiscoveryClient,
-		nil, // HTTP client - will be configured later
+		deps.HTTPClient,
 		signer,
 		cfg,
 		logger,
@@ -116,8 +139,11 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create notifications handler
 	notificationsHandler := notifications.NewHandler(deps.OutgoingShareRepo, logger)
 
-	// Create inbox actions handler (notification client will be nil for now)
-	inboxActionsHandler := shares.NewInboxActionsHandler(deps.IncomingShareRepo, nil, logger)
+	// Create notification client for outbound notifications
+	notificationClient := notifications.NewClient(deps.HTTPClient, deps.DiscoveryClient, signer)
+
+	// Create inbox actions handler
+	inboxActionsHandler := shares.NewInboxActionsHandler(deps.IncomingShareRepo, notificationClient, logger)
 
 	// Extract provider FQDN from external origin
 	providerFQDN := extractProviderFQDN(cfg.ExternalOrigin)
@@ -125,13 +151,13 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create invites handler
 	invitesHandler := invites.NewHandler(deps.OutgoingInviteRepo, providerFQDN, logger)
 
-	// Create invites inbox handler (with nil HTTP client for now)
+	// Create invites inbox handler
 	invitesInboxHandler := invites.NewInboxHandler(
 		deps.IncomingInviteRepo,
 		deps.DiscoveryClient,
-		nil, // HTTP client - will be configured later
+		deps.HTTPClient,
 		signer,
-		"", // Our user ID
+		"", // Our user ID - will be set from session context
 		providerFQDN,
 		logger,
 	)
@@ -213,4 +239,30 @@ func extractProviderFQDN(externalOrigin string) string {
 		fqdn = fqdn[:len(fqdn)-1]
 	}
 	return fqdn
+}
+
+// validateDeps checks that all required dependencies are provided.
+func validateDeps(deps *Deps) error {
+	if deps == nil {
+		return errors.New("deps is nil")
+	}
+
+	// Required: identity and auth
+	if deps.PartyRepo == nil {
+		return fmt.Errorf("%w: PartyRepo", ErrMissingDep)
+	}
+	if deps.SessionRepo == nil {
+		return fmt.Errorf("%w: SessionRepo", ErrMissingDep)
+	}
+	if deps.UserAuth == nil {
+		return fmt.Errorf("%w: UserAuth", ErrMissingDep)
+	}
+
+	// Required: outbound HTTP client
+	if deps.HTTPClient == nil {
+		return fmt.Errorf("%w: HTTPClient", ErrMissingDep)
+	}
+
+	// Optional deps are allowed to be nil
+	return nil
 }

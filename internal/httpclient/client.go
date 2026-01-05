@@ -365,3 +365,26 @@ func IsRedirectError(err error) bool {
 		errors.Is(err, ErrRedirectDowngrade) ||
 		errors.Is(err, ErrTooManyRedirects)
 }
+
+// ContextClient wraps Client to provide a context-first Do method.
+// This adapts the Client to interfaces that expect Do(ctx, req) signature.
+type ContextClient struct {
+	client *Client
+}
+
+// NewContextClient creates a ContextClient adapter.
+func NewContextClient(c *Client) *ContextClient {
+	return &ContextClient{client: c}
+}
+
+// Do performs an HTTP request, using the provided context.
+func (c *ContextClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	req = req.WithContext(ctx)
+	return c.client.Do(req)
+}
+
+// DoSigned performs a signed HTTP request that rejects redirects.
+func (c *ContextClient) DoSigned(ctx context.Context, req *http.Request) (*http.Response, error) {
+	req = req.WithContext(ctx)
+	return c.client.DoSigned(req)
+}

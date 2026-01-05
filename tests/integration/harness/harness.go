@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
 )
@@ -71,11 +72,23 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to bootstrap users: %v", err)
 	}
 
+	// Create HTTP client for outbound requests (SSRF off for tests to allow localhost)
+	rawHTTPClient := httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode:           "off", // Allow localhost connections in tests
+		TimeoutMS:          5000,
+		ConnectTimeoutMS:   2000,
+		MaxRedirects:       1,
+		MaxResponseBytes:   1048576,
+		InsecureSkipVerify: true, // For self-signed certs in tests
+	})
+	httpClient := httpclient.NewContextClient(rawHTTPClient)
+
 	// Create server dependencies
 	deps := &server.Deps{
 		PartyRepo:   partyRepo,
 		SessionRepo: sessionRepo,
 		UserAuth:    userAuth,
+		HTTPClient:  httpClient,
 	}
 
 	// Create server
