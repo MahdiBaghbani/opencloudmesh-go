@@ -15,6 +15,7 @@ type OutgoingShareRepo interface {
 	GetByID(ctx context.Context, shareID string) (*OutgoingShare, error)
 	GetByProviderID(ctx context.Context, providerID string) (*OutgoingShare, error)
 	GetByWebDAVID(ctx context.Context, webdavID string) (*OutgoingShare, error)
+	GetBySharedSecret(ctx context.Context, sharedSecret string) (*OutgoingShare, error)
 	List(ctx context.Context) ([]*OutgoingShare, error)
 	Update(ctx context.Context, share *OutgoingShare) error
 }
@@ -25,6 +26,7 @@ type MemoryOutgoingShareRepo struct {
 	shares        map[string]*OutgoingShare // keyed by shareID
 	providerIndex map[string]string         // providerId -> shareID
 	webdavIndex   map[string]string         // webdavId -> shareID
+	secretIndex   map[string]string         // sharedSecret -> shareID
 }
 
 // NewMemoryOutgoingShareRepo creates a new in-memory repo.
@@ -33,6 +35,7 @@ func NewMemoryOutgoingShareRepo() *MemoryOutgoingShareRepo {
 		shares:        make(map[string]*OutgoingShare),
 		providerIndex: make(map[string]string),
 		webdavIndex:   make(map[string]string),
+		secretIndex:   make(map[string]string),
 	}
 }
 
@@ -49,6 +52,9 @@ func (r *MemoryOutgoingShareRepo) Create(ctx context.Context, share *OutgoingSha
 	r.shares[share.ShareID] = share
 	r.providerIndex[share.ProviderID] = share.ShareID
 	r.webdavIndex[share.WebDAVID] = share.ShareID
+	if share.SharedSecret != "" {
+		r.secretIndex[share.SharedSecret] = share.ShareID
+	}
 
 	return nil
 }
@@ -82,6 +88,17 @@ func (r *MemoryOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID st
 	shareID, ok := r.webdavIndex[webdavID]
 	if !ok {
 		return nil, fmt.Errorf("share not found for webdavId: %s", webdavID)
+	}
+	return r.shares[shareID], nil
+}
+
+func (r *MemoryOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSecret string) (*OutgoingShare, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	shareID, ok := r.secretIndex[sharedSecret]
+	if !ok {
+		return nil, fmt.Errorf("share not found for sharedSecret")
 	}
 	return r.shares[shareID], nil
 }

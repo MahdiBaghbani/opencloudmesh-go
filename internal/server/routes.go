@@ -105,7 +105,7 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		r.Post("/shares", s.sharesHandler.HandleCreate)
 		r.Post("/notifications", s.notificationsHandler.HandleNotification)
 		r.Post("/invite-accepted", s.invitesHandler.HandleInviteAccepted)
-		r.Post("/token", s.notImplementedHandler("ocm-token"))
+		r.Post("/token", s.tokenHandler.HandleToken)
 	})
 
 	// OCM auxiliary endpoints (WAYF helpers) - Phase B

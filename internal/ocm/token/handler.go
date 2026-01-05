@@ -1,0 +1,148 @@
+package token
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+)
+
+// Handler handles the OCM token endpoint.
+type Handler struct {
+	outgoingRepo shares.OutgoingShareRepo
+	tokenStore   TokenStore
+	tokenTTL     time.Duration
+	logger       *slog.Logger
+}
+
+// NewHandler creates a new token handler.
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, logger *slog.Logger) *Handler {
+	return &Handler{
+		outgoingRepo: outgoingRepo,
+		tokenStore:   tokenStore,
+		tokenTTL:     DefaultTokenTTL,
+		logger:       logger,
+	}
+}
+
+// HandleToken handles POST /ocm/token.
+func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse request - support both form-urlencoded (spec) and JSON (Nextcloud interop)
+	var req TokenRequest
+	ct := r.Header.Get("Content-Type")
+
+	if strings.HasPrefix(ct, "application/json") {
+		// Nextcloud interop: JSON body
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "failed to parse JSON body")
+			return
+		}
+	} else {
+		// Spec: form-urlencoded
+		if err := r.ParseForm(); err != nil {
+			h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "failed to parse form body")
+			return
+		}
+		req.GrantType = r.FormValue("grant_type")
+		req.ClientID = r.FormValue("client_id")
+		req.Code = r.FormValue("code")
+	}
+
+	// Validate required fields
+	if req.GrantType == "" {
+		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "grant_type is required")
+		return
+	}
+	if req.GrantType != GrantTypeOCMShare {
+		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidGrant, "unsupported grant_type")
+		return
+	}
+	if req.ClientID == "" {
+		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "client_id is required")
+		return
+	}
+	if req.Code == "" {
+		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "code is required")
+		return
+	}
+
+	ctx := r.Context()
+
+	// The `code` is the sharedSecret from the share
+	// Look up the share by the sharedSecret
+	share, err := h.outgoingRepo.GetBySharedSecret(ctx, req.Code)
+	if err != nil {
+		h.logger.Warn("token exchange for unknown secret", "clientId", req.ClientID)
+		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidGrant, "invalid code")
+		return
+	}
+
+	// Verify client_id matches the receiver
+	// client_id should be the receiver's provider FQDN
+	if share.ReceiverHost != req.ClientID {
+		h.logger.Warn("token exchange client mismatch",
+			"expected", share.ReceiverHost,
+			"got", req.ClientID)
+		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidClient, "client_id mismatch")
+		return
+	}
+
+	// Generate access token
+	accessToken, err := GenerateAccessToken()
+	if err != nil {
+		h.logger.Error("failed to generate access token", "error", err)
+		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token generation failed")
+		return
+	}
+
+	// Store the token
+	now := time.Now()
+	issuedToken := &IssuedToken{
+		AccessToken: accessToken,
+		ShareID:     share.ShareID,
+		ClientID:    req.ClientID,
+		IssuedAt:    now,
+		ExpiresAt:   now.Add(h.tokenTTL),
+	}
+
+	if err := h.tokenStore.Store(ctx, issuedToken); err != nil {
+		h.logger.Error("failed to store token", "error", err)
+		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token storage failed")
+		return
+	}
+
+	h.logger.Info("token issued",
+		"shareId", share.ShareID,
+		"clientId", req.ClientID,
+		"expiresIn", int(h.tokenTTL.Seconds()))
+
+	// Return token response
+	resp := TokenResponse{
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   int(h.tokenTTL.Seconds()),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// sendOAuthError sends an OAuth-style error response.
+func (h *Handler) sendOAuthError(w http.ResponseWriter, status int, errCode, errDesc string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(OAuthError{
+		Error:            errCode,
+		ErrorDescription: errDesc,
+	})
+}

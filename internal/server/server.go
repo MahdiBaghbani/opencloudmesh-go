@@ -16,6 +16,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
 )
@@ -33,6 +34,7 @@ type Deps struct {
 	OutgoingShareRepo    shares.OutgoingShareRepo
 	OutgoingInviteRepo   invites.OutgoingInviteRepo
 	IncomingInviteRepo   invites.IncomingInviteRepo
+	TokenStore           token.TokenStore
 }
 
 // Server wraps the HTTP server and its dependencies.
@@ -55,6 +57,7 @@ type Server struct {
 	notificationsHandler  *notifications.Handler
 	invitesHandler        *invites.Handler
 	invitesInboxHandler   *invites.InboxHandler
+	tokenHandler          *token.Handler
 }
 
 // New creates a new Server with the given configuration.
@@ -133,6 +136,9 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		logger,
 	)
 
+	// Create token handler
+	tokenHandler := token.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, logger)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -151,6 +157,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		notificationsHandler:  notificationsHandler,
 		invitesHandler:        invitesHandler,
 		invitesInboxHandler:   invitesInboxHandler,
+		tokenHandler:          tokenHandler,
 	}
 
 	router := s.setupRoutes()
