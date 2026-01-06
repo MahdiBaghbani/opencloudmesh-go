@@ -1,13 +1,15 @@
 package server_test
 
 import (
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"log/slog"
-
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
 )
 
@@ -118,5 +120,34 @@ func TestTLSManager_InvalidMode(t *testing.T) {
 	_, err := mgr.GetTLSConfig("localhost")
 	if err == nil {
 		t.Error("expected error for invalid mode")
+	}
+}
+
+func TestTLSManager_ACME_FailFast(t *testing.T) {
+	// ACME mode should fail fast when Server.Start() is called
+	// The TLSManager itself returns a placeholder config, but Server.Start()
+	// should detect acme mode and return ErrACMENotImplemented
+	cfg := config.DefaultConfig()
+	cfg.TLS.Mode = "acme"
+	cfg.ListenAddr = ":0" // Dynamic port
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	deps := &server.Deps{
+		PartyRepo:   identity.NewMemoryPartyRepo(),
+		SessionRepo: identity.NewMemorySessionRepo(),
+		UserAuth:    identity.NewUserAuth(1), // Fast params
+		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
+	}
+
+	srv, err := server.New(cfg, logger, deps)
+	if err != nil {
+		t.Fatalf("server creation failed: %v", err)
+	}
+
+	// Start should fail fast with ACME error
+	err = srv.Start()
+	if !errors.Is(err, server.ErrACMENotImplemented) {
+		t.Errorf("expected ErrACMENotImplemented, got %v", err)
 	}
 }

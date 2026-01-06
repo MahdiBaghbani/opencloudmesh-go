@@ -25,7 +25,8 @@ import (
 )
 
 var (
-	ErrMissingDep = errors.New("missing required dependency")
+	ErrMissingDep          = errors.New("missing required dependency")
+	ErrACMENotImplemented  = errors.New("tls.mode=acme is not implemented; use static or selfsigned")
 )
 
 // Deps holds all server dependencies.
@@ -219,15 +220,37 @@ func (s *Server) Start() error {
 		"tls_mode", s.cfg.TLS.Mode,
 	)
 
-	// For Phase 0, we start with HTTP only. TLS is added in Phase 0d.
-	if s.cfg.TLS.Mode == "off" {
+	switch s.cfg.TLS.Mode {
+	case "off":
 		return s.httpServer.ListenAndServe()
-	}
 
-	// Placeholder for TLS modes - will be implemented in Phase 0d
-	s.logger.Warn("TLS mode not fully implemented yet, falling back to HTTP",
-		"tls_mode", s.cfg.TLS.Mode)
-	return s.httpServer.ListenAndServe()
+	case "acme":
+		// ACME is not implemented - fail fast with a clear error
+		return ErrACMENotImplemented
+
+	case "static", "selfsigned":
+		// Get TLS config from TLS manager
+		tlsManager := NewTLSManager(&s.cfg.TLS, s.logger)
+		hostname := extractHostname(s.cfg.ExternalOrigin)
+		tlsConfig, err := tlsManager.GetTLSConfig(hostname)
+		if err != nil {
+			return fmt.Errorf("failed to configure TLS: %w", err)
+		}
+		if tlsConfig == nil {
+			return fmt.Errorf("TLS config is nil for mode %s", s.cfg.TLS.Mode)
+		}
+
+		// Configure server with TLS
+		s.httpServer.TLSConfig = tlsConfig
+		s.logger.Info("starting server with TLS", "mode", s.cfg.TLS.Mode)
+
+		// For static and selfsigned modes, certs are in TLSConfig.Certificates
+		// ListenAndServeTLS with empty strings uses TLSConfig.Certificates
+		return s.httpServer.ListenAndServeTLS("", "")
+
+	default:
+		return fmt.Errorf("%w: %s", ErrInvalidTLSMode, s.cfg.TLS.Mode)
+	}
 }
 
 // Shutdown gracefully shuts down the server.
@@ -248,6 +271,23 @@ func extractProviderFQDN(externalOrigin string) string {
 	// Remove trailing slash
 	if len(fqdn) > 0 && fqdn[len(fqdn)-1] == '/' {
 		fqdn = fqdn[:len(fqdn)-1]
+	}
+	return fqdn
+}
+
+// extractHostname extracts just the hostname from an external origin URL.
+// For TLS certificate generation, we need the hostname without port.
+func extractHostname(externalOrigin string) string {
+	fqdn := extractProviderFQDN(externalOrigin)
+	// Remove port if present
+	for i := len(fqdn) - 1; i >= 0; i-- {
+		if fqdn[i] == ':' {
+			return fqdn[:i]
+		}
+		if fqdn[i] == ']' {
+			// IPv6 address like [::1]:8080
+			break
+		}
 	}
 	return fqdn
 }
