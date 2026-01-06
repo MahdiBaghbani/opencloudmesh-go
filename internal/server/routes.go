@@ -25,10 +25,10 @@ var routeGroups = []RouteGroup{
 	{Name: "ocm-provider", PathPrefix: "/ocm-provider", RequiresAuth: false, AtHostRoot: true},
 
 	// App endpoints (mounted under external_base_path)
-	{Name: "ocm-api", PathPrefix: "/ocm", RequiresAuth: false, AtHostRoot: false},       // OCM spec endpoints
-	{Name: "ocm-aux", PathPrefix: "/ocm-aux", RequiresAuth: false, AtHostRoot: false},   // Helper endpoints (WAYF, etc)
-	{Name: "api", PathPrefix: "/api", RequiresAuth: false, AtHostRoot: false},           // Mixed auth (healthz public, others protected)
-	{Name: "ui", PathPrefix: "/ui", RequiresAuth: false, AtHostRoot: false},             // Mixed auth (login public, others protected)
+	{Name: "ocm-api", PathPrefix: "/ocm", RequiresAuth: false, AtHostRoot: false},       // OCM spec endpoints (public for federation)
+	{Name: "ocm-aux", PathPrefix: "/ocm-aux", RequiresAuth: false, AtHostRoot: false},   // Helper endpoints (rate-limited but public)
+	{Name: "api", PathPrefix: "/api", RequiresAuth: true, AtHostRoot: false},            // API: auth required (exceptions in publicExceptions)
+	{Name: "ui", PathPrefix: "/ui", RequiresAuth: true, AtHostRoot: false},              // UI: auth required (exceptions in publicExceptions)
 	{Name: "webdav", PathPrefix: "/webdav/ocm", RequiresAuth: true, AtHostRoot: false},  // Bearer token auth
 }
 
@@ -37,15 +37,31 @@ func GetRouteGroups() []RouteGroup {
 	return routeGroups
 }
 
+// publicExceptions are specific paths that don't require auth within otherwise protected groups.
+var publicExceptions = []string{
+	"/api/healthz",
+	"/api/auth/login",
+	"/ui/login",
+	"/ui/static",
+}
+
 // IsAuthRequired checks if a given path requires authentication.
 // This is used by the auth middleware to make gating decisions.
 func IsAuthRequired(path string, basePath string) bool {
 	// Check root-only endpoints first
 	for _, rg := range routeGroups {
 		if rg.AtHostRoot {
-			if path == rg.PathPrefix || (len(path) > len(rg.PathPrefix) && path[:len(rg.PathPrefix)+1] == rg.PathPrefix+"/") {
+			if pathMatchesPrefix(path, rg.PathPrefix) {
 				return rg.RequiresAuth
 			}
+		}
+	}
+
+	// Check public exceptions (paths that are always public)
+	for _, exc := range publicExceptions {
+		fullExc := basePath + exc
+		if pathMatchesPrefix(path, fullExc) {
+			return false
 		}
 	}
 
@@ -53,7 +69,7 @@ func IsAuthRequired(path string, basePath string) bool {
 	for _, rg := range routeGroups {
 		if !rg.AtHostRoot {
 			fullPrefix := basePath + rg.PathPrefix
-			if path == fullPrefix || (len(path) > len(fullPrefix) && path[:len(fullPrefix)+1] == fullPrefix+"/") {
+			if pathMatchesPrefix(path, fullPrefix) {
 				return rg.RequiresAuth
 			}
 		}
@@ -63,15 +79,38 @@ func IsAuthRequired(path string, basePath string) bool {
 	return true
 }
 
+// pathMatchesPrefix checks if path equals or is a subpath of prefix.
+func pathMatchesPrefix(path, prefix string) bool {
+	if path == prefix {
+		return true
+	}
+	if len(path) > len(prefix) && path[:len(prefix)] == prefix {
+		// Check for path separator
+		if path[len(prefix)] == '/' {
+			return true
+		}
+	}
+	return false
+}
+
 // setupRoutes creates the chi router with all route groups mounted.
 func (s *Server) setupRoutes() chi.Router {
 	r := chi.NewRouter()
 
 	// Global middleware stack
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(s.loggingMiddleware)
+
+	// Rate limiting for high-risk public endpoints
+	rateLimitConfig := map[string]RateLimitConfig{
+		"/ocm-aux/discover": {RequestsPerMinute: 10, Burst: 2},
+		"/api/auth/login":   {RequestsPerMinute: 5, Burst: 2},
+	}
+	r.Use(s.rateLimitMiddleware(rateLimitConfig))
+
+	// Auth middleware for all routes (checks IsAuthRequired)
+	r.Use(s.authMiddleware)
 
 	// Mount root-only endpoints at host root
 	s.mountRootOnlyEndpoints(r)

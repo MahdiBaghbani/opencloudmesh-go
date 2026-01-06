@@ -60,6 +60,7 @@ type Server struct {
 	httpServer       *http.Server
 	logger           *slog.Logger
 	deps             *Deps
+	trustedProxies   *TrustedProxies
 	authHandler      *api.AuthHandler
 	uiHandler        *ui.Handler
 	discoveryHandler *discovery.Handler
@@ -165,10 +166,14 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create token handler
 	tokenHandler := token.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, logger)
 
+	// Create trusted proxy handler for X-Forwarded-* header processing
+	trustedProxies := NewTrustedProxies(cfg.Server.TrustedProxies)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
 		deps:             deps,
+		trustedProxies:   trustedProxies,
 		authHandler:      authHandler,
 		uiHandler:        uiHandler,
 		discoveryHandler: discoveryHandler,
