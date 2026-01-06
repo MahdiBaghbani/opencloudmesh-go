@@ -136,12 +136,17 @@ func (s *Server) mountRootOnlyEndpoints(r chi.Router) {
 
 // mountAppEndpoints mounts app endpoints (may be under base path).
 func (s *Server) mountAppEndpoints(r chi.Router) {
-	// OCM API endpoints
+	// OCM API endpoints - with signature verification middleware
 	r.Route("/ocm", func(r chi.Router) {
-		r.Post("/shares", s.sharesHandler.HandleCreate)
-		r.Post("/notifications", s.notificationsHandler.HandleNotification)
-		r.Post("/invite-accepted", s.invitesHandler.HandleInviteAccepted)
-		r.Post("/token", s.tokenHandler.HandleToken)
+		// Apply signature verification middleware with appropriate peer resolver per endpoint
+		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveSharesRequest)).
+			Post("/shares", s.sharesHandler.HandleCreate)
+		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveNotificationsRequest)).
+			Post("/notifications", s.notificationsHandler.HandleNotification)
+		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveInviteAcceptedRequest)).
+			Post("/invite-accepted", s.invitesHandler.HandleInviteAccepted)
+		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveTokenRequest)).
+			Post("/token", s.tokenHandler.HandleToken)
 	})
 
 	// OCM auxiliary endpoints (WAYF helpers) - Phase B

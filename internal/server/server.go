@@ -66,6 +66,7 @@ type Server struct {
 	discoveryHandler *discovery.Handler
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
+	signatureMiddleware *crypto.SignatureMiddleware
 	auxHandler       *federation.AuxHandler
 	sharesHandler         *shares.Handler
 	inboxHandler          *shares.InboxHandler
@@ -169,6 +170,10 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create trusted proxy handler for X-Forwarded-* header processing
 	trustedProxies := NewTrustedProxies(cfg.Server.TrustedProxies)
 
+	// Create signature verification middleware
+	peerDiscoveryAdapter := NewPeerDiscoveryAdapter(deps.DiscoveryClient)
+	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, logger)
+
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
@@ -179,6 +184,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		discoveryHandler: discoveryHandler,
 		signer:           signer,
 		peerResolver:     crypto.NewPeerResolver(),
+		signatureMiddleware: signatureMiddleware,
 		auxHandler:       auxHandler,
 		sharesHandler:         sharesHandler,
 		inboxHandler:          inboxHandler,
