@@ -208,8 +208,6 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 // notImplementedHandler returns a handler that responds with 501 Not Implemented.
 func (s *Server) notImplementedHandler(name string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte(`{"error":{"code":"not_implemented","reason_code":"endpoint_not_implemented","message":"` + name + ` not implemented yet"}}`))
+		api.WriteNotImplemented(w, name)
 	}
 }

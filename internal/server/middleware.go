@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 )
 
@@ -56,27 +56,27 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		// Extract session token from cookie or header
 		sessionToken := extractSessionToken(r)
 		if sessionToken == "" {
-			writeUnauthorized(w, "missing_session", "authentication required")
+			api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
 			return
 		}
 
 		// Validate session
 		session, err := s.deps.SessionRepo.Get(r.Context(), sessionToken)
 		if err != nil {
-			writeUnauthorized(w, "invalid_session", "session not found or expired")
+			api.WriteUnauthorized(w, api.ReasonUnauthenticated, "session not found or expired")
 			return
 		}
 
 		// Check session expiry
 		if session.IsExpired() {
-			writeUnauthorized(w, "session_expired", "session has expired")
+			api.WriteUnauthorized(w, api.ReasonSessionExpired, "session has expired")
 			return
 		}
 
 		// Get associated user
 		user, err := s.deps.PartyRepo.Get(r.Context(), session.UserID)
 		if err != nil {
-			writeUnauthorized(w, "user_not_found", "session user not found")
+			api.WriteUnauthorized(w, api.ReasonUnauthenticated, "session user not found")
 			return
 		}
 
@@ -106,15 +106,6 @@ func extractSessionToken(r *http.Request) string {
 	return ""
 }
 
-// writeUnauthorized writes a 401 response with a JSON error.
-func writeUnauthorized(w http.ResponseWriter, code, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error":       code,
-		"description": message,
-	})
-}
 
 // RateLimitConfig holds configuration for a rate-limited endpoint.
 type RateLimitConfig struct {
@@ -200,13 +191,8 @@ func (s *Server) rateLimitMiddleware(config map[string]RateLimitConfig) func(nex
 						"path", matchedPath,
 						"client_ip", clientIP,
 					)
-					w.Header().Set("Content-Type", "application/json")
 					w.Header().Set("Retry-After", "60")
-					w.WriteHeader(http.StatusTooManyRequests)
-					json.NewEncoder(w).Encode(map[string]string{
-						"error":       "rate_limit_exceeded",
-						"description": "too many requests, please try again later",
-					})
+					api.WriteTooManyRequests(w, "too many requests, please try again later")
 					return
 				}
 			}
