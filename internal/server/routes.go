@@ -90,12 +90,9 @@ func (s *Server) setupRoutes() chi.Router {
 
 // mountRootOnlyEndpoints mounts endpoints that must be at host root.
 func (s *Server) mountRootOnlyEndpoints(r chi.Router) {
-	// Discovery endpoints (Phase A)
+	// Discovery endpoints - both return the same JSON payload (no redirect)
 	r.Get("/.well-known/ocm", s.discoveryHandler.WellKnownHandler())
-	// Legacy endpoint redirects to canonical well-known location
-	r.Get("/ocm-provider", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/.well-known/ocm", http.StatusMovedPermanently)
-	})
+	r.Get("/ocm-provider", s.discoveryHandler.WellKnownHandler())
 }
 
 // mountAppEndpoints mounts app endpoints (may be under base path).

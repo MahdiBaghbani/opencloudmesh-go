@@ -116,4 +116,3 @@ func TestNew_SucceedsWithRequiredDeps(t *testing.T) {
 		t.Fatal("expected non-nil server")
 	}
 }
-
