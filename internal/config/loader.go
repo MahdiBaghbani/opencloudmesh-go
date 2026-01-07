@@ -69,6 +69,13 @@ type fileConfig struct {
 	TLS          *TLSConfig          `toml:"tls"`
 	OutboundHTTP *OutboundHTTPConfig `toml:"outbound_http"`
 	Signature    *SignatureConfig    `toml:"signature"`
+	PeerProfiles *peerProfilesConfig `toml:"peer_profiles"`
+}
+
+// peerProfilesConfig holds peer profile settings from TOML.
+type peerProfilesConfig struct {
+	Mappings       []PeerProfileMapping       `toml:"mappings"`
+	CustomProfiles map[string]PeerProfile     `toml:"custom_profiles"`
 }
 
 // serverConfig holds server-specific settings in TOML.
@@ -319,6 +326,15 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 		// AllowMismatch is bool
 		cfg.Signature.AllowMismatch = fc.Signature.AllowMismatch
+	}
+
+	if fc.PeerProfiles != nil {
+		if len(fc.PeerProfiles.Mappings) > 0 {
+			cfg.PeerProfiles.Mappings = fc.PeerProfiles.Mappings
+		}
+		if len(fc.PeerProfiles.CustomProfiles) > 0 {
+			cfg.PeerProfiles.CustomProfiles = fc.PeerProfiles.CustomProfiles
+		}
 	}
 }
 

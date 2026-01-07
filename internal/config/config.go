@@ -35,6 +35,46 @@ type Config struct {
 
 	// Signature configuration
 	Signature SignatureConfig `json:"signature" toml:"signature"`
+
+	// PeerProfiles configuration for interop with different OCM implementations
+	PeerProfiles PeerProfilesConfig `json:"peer_profiles" toml:"peer_profiles"`
+}
+
+// PeerProfilesConfig holds peer interop profile settings.
+type PeerProfilesConfig struct {
+	// Mappings maps domain patterns to profile names
+	// Example: [{ pattern = "*.nextcloud.com", profile = "nextcloud" }]
+	Mappings []PeerProfileMapping `json:"mappings" toml:"mappings"`
+
+	// CustomProfiles defines custom profile overrides
+	CustomProfiles map[string]PeerProfile `json:"custom_profiles" toml:"custom_profiles"`
+}
+
+// PeerProfileMapping maps a domain pattern to a profile name.
+type PeerProfileMapping struct {
+	// Pattern is a domain pattern (exact or glob like "*.example.com")
+	Pattern string `json:"pattern" toml:"pattern"`
+
+	// Profile is the name of the profile to use
+	Profile string `json:"profile" toml:"profile"`
+}
+
+// PeerProfile defines interop behavior for a class of peers.
+type PeerProfile struct {
+	// AllowUnsignedInbound allows accepting unsigned requests
+	AllowUnsignedInbound bool `json:"allow_unsigned_inbound" toml:"allow_unsigned_inbound"`
+
+	// AllowUnsignedOutbound allows sending unsigned requests
+	AllowUnsignedOutbound bool `json:"allow_unsigned_outbound" toml:"allow_unsigned_outbound"`
+
+	// AllowMismatchedHost allows keyId host to differ from sender
+	AllowMismatchedHost bool `json:"allow_mismatched_host" toml:"allow_mismatched_host"`
+
+	// AllowHTTP allows HTTP connections (dev-only)
+	AllowHTTP bool `json:"allow_http" toml:"allow_http"`
+
+	// TokenExchangeQuirks lists quirks to apply for token exchange
+	TokenExchangeQuirks []string `json:"token_exchange_quirks" toml:"token_exchange_quirks"`
 }
 
 // ServerConfig holds server-level settings.
@@ -175,6 +215,10 @@ func DefaultConfig() *Config {
 			OnDiscoveryError: "reject",
 			AllowMismatch:    false,
 		},
+		PeerProfiles: PeerProfilesConfig{
+			Mappings:       nil, // No default mappings; fall back to "strict" profile
+			CustomProfiles: nil,
+		},
 	}
 }
 
@@ -225,6 +269,10 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
 	sb.WriteString(fmt.Sprintf("    OnDiscoveryError: %q,\n", c.Signature.OnDiscoveryError))
 	sb.WriteString(fmt.Sprintf("    AllowMismatch: %v,\n", c.Signature.AllowMismatch))
+	sb.WriteString("  },\n")
+	sb.WriteString("  PeerProfiles: {\n")
+	sb.WriteString(fmt.Sprintf("    MappingsCount: %d,\n", len(c.PeerProfiles.Mappings)))
+	sb.WriteString(fmt.Sprintf("    CustomProfilesCount: %d,\n", len(c.PeerProfiles.CustomProfiles)))
 	sb.WriteString("  },\n")
 	sb.WriteString("}")
 	return sb.String()
