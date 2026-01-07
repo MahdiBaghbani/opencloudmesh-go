@@ -38,6 +38,19 @@ type WebDAVProtocol struct {
 	Requirements []string `json:"requirements,omitempty"`
 }
 
+// RequirementMustExchangeToken is the requirement indicating token exchange is required.
+const RequirementMustExchangeToken = "must-exchange-token"
+
+// HasRequirement checks if the protocol has a specific requirement.
+func (p *WebDAVProtocol) HasRequirement(req string) bool {
+	for _, r := range p.Requirements {
+		if r == req {
+			return true
+		}
+	}
+	return false
+}
+
 // WebAppProtocol contains webapp access options.
 type WebAppProtocol struct {
 	URI          string `json:"uri"`
@@ -90,6 +103,9 @@ type IncomingShare struct {
 	Status    ShareStatus `json:"status"`
 	CreatedAt time.Time   `json:"createdAt"`
 	UpdatedAt time.Time   `json:"updatedAt"`
+
+	// Token exchange
+	MustExchangeToken bool `json:"mustExchangeToken,omitempty"`
 }
 
 // ShareStatus represents the acceptance state of an incoming share.

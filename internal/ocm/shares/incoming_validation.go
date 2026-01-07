@@ -104,10 +104,11 @@ func validateWebDAVProtocol(webdav *WebDAVProtocol, errs *ValidationErrors, stri
 	}
 
 	// Validate requirements
+	// Note: must-exchange-token is now accepted and stored for enforcement at access time
 	for _, req := range webdav.Requirements {
 		switch req {
 		case "must-exchange-token":
-			errs.Add("protocol.webdav.requirements", "must-exchange-token not yet supported")
+			// Accepted: stored in share.MustExchangeToken, enforced at WebDAV access
 		case "must-use-mfa":
 			// Reject by default, could be bypassed in dev mode
 			errs.Add("protocol.webdav.requirements", "must-use-mfa not supported")

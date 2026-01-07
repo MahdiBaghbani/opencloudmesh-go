@@ -129,6 +129,65 @@ func TestHandler_SetPublicKeys(t *testing.T) {
 	}
 }
 
+func TestHandler_TokenExchangeCapability(t *testing.T) {
+	cfg := &config.Config{
+		ExternalOrigin:   "https://example.com",
+		ExternalBasePath: "",
+	}
+
+	handler := discovery.NewHandler(cfg)
+
+	// Initially token exchange is disabled
+	disc := handler.GetDiscovery()
+	if disc.HasCapability("exchange-token") {
+		t.Error("should not have exchange-token capability initially")
+	}
+	if disc.TokenEndPoint != "" {
+		t.Error("tokenEndPoint should be empty when disabled")
+	}
+
+	// Enable token exchange
+	handler.SetTokenExchangeEnabled(true)
+
+	disc = handler.GetDiscovery()
+	if !disc.HasCapability("exchange-token") {
+		t.Error("should have exchange-token capability when enabled")
+	}
+	if disc.TokenEndPoint != "https://example.com/ocm/token" {
+		t.Errorf("expected tokenEndPoint 'https://example.com/ocm/token', got %q", disc.TokenEndPoint)
+	}
+
+	// Verify IsTokenExchangeEnabled
+	if !handler.IsTokenExchangeEnabled() {
+		t.Error("IsTokenExchangeEnabled should return true")
+	}
+
+	// Disable again
+	handler.SetTokenExchangeEnabled(false)
+	disc = handler.GetDiscovery()
+	if disc.HasCapability("exchange-token") {
+		t.Error("should not have exchange-token capability after disabling")
+	}
+	if disc.TokenEndPoint != "" {
+		t.Error("tokenEndPoint should be empty when disabled")
+	}
+}
+
+func TestHandler_TokenExchangeWithBasePath(t *testing.T) {
+	cfg := &config.Config{
+		ExternalOrigin:   "https://example.com",
+		ExternalBasePath: "/myapp",
+	}
+
+	handler := discovery.NewHandler(cfg)
+	handler.SetTokenExchangeEnabled(true)
+
+	disc := handler.GetDiscovery()
+	if disc.TokenEndPoint != "https://example.com/myapp/ocm/token" {
+		t.Errorf("expected tokenEndPoint 'https://example.com/myapp/ocm/token', got %q", disc.TokenEndPoint)
+	}
+}
+
 func TestDiscovery_Helpers(t *testing.T) {
 	disc := &discovery.Discovery{
 		Enabled:    true,

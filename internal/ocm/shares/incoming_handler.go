@@ -107,6 +107,15 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 
 		share.SharedSecret = webdav.SharedSecret
 		share.Permissions = webdav.Permissions
+
+		// Store must-exchange-token requirement
+		// This is no longer rejected - we store and enforce it at access time
+		if webdav.HasRequirement(RequirementMustExchangeToken) {
+			share.MustExchangeToken = true
+			h.logger.Info("share requires token exchange",
+				"providerId", req.ProviderID,
+				"sender", senderHost)
+		}
 	}
 
 	// Store the share

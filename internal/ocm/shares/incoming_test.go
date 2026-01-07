@@ -84,7 +84,9 @@ func TestValidateNewShareRequest_MissingSharedSecret(t *testing.T) {
 	}
 }
 
-func TestValidateNewShareRequest_MustExchangeToken(t *testing.T) {
+func TestValidateNewShareRequest_MustExchangeToken_Accepted(t *testing.T) {
+	// must-exchange-token is now accepted at validation time
+	// (stored and enforced at WebDAV access time)
 	req := &shares.NewShareRequest{
 		ShareWith:    "user@example.com",
 		Name:         "test.txt",
@@ -104,19 +106,27 @@ func TestValidateNewShareRequest_MustExchangeToken(t *testing.T) {
 	}
 
 	errs := shares.ValidateNewShareRequest(req, false)
-	if !errs.HasErrors() {
-		t.Error("expected validation error for must-exchange-token")
-	}
-
-	found := false
+	// Should not have errors related to must-exchange-token
 	for _, e := range errs.Errors {
-		if e.Field == "protocol.webdav.requirements" {
-			found = true
-			break
+		if e.Field == "protocol.webdav.requirements" && 
+		   (e.Message == "must-exchange-token not yet supported" || e.Message == "must-exchange-token not supported") {
+			t.Error("must-exchange-token should be accepted, not rejected")
 		}
 	}
-	if !found {
-		t.Error("expected specific error for must-exchange-token requirement")
+}
+
+func TestWebDAVProtocol_HasRequirement(t *testing.T) {
+	p := &shares.WebDAVProtocol{
+		URI:          "abc123",
+		Permissions:  []string{"read"},
+		Requirements: []string{"must-exchange-token"},
+	}
+
+	if !p.HasRequirement("must-exchange-token") {
+		t.Error("expected HasRequirement to return true for must-exchange-token")
+	}
+	if p.HasRequirement("must-use-mfa") {
+		t.Error("expected HasRequirement to return false for must-use-mfa")
 	}
 }
 

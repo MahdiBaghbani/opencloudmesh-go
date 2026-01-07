@@ -12,13 +12,14 @@ import (
 // Discovery represents the OCM discovery response.
 // See OCM-API spec: https://github.com/cs3org/OCM-API/blob/develop/spec.yaml
 type Discovery struct {
-	Enabled       bool           `json:"enabled"`
-	APIVersion    string         `json:"apiVersion"`
-	EndPoint      string         `json:"endPoint"`
-	Provider      string         `json:"provider,omitempty"`
-	ResourceTypes []ResourceType `json:"resourceTypes"`
-	Capabilities  []string       `json:"capabilities,omitempty"`
-	PublicKeys    []PublicKey    `json:"publicKeys,omitempty"`
+	Enabled        bool           `json:"enabled"`
+	APIVersion     string         `json:"apiVersion"`
+	EndPoint       string         `json:"endPoint"`
+	Provider       string         `json:"provider,omitempty"`
+	ResourceTypes  []ResourceType `json:"resourceTypes"`
+	Capabilities   []string       `json:"capabilities,omitempty"`
+	PublicKeys     []PublicKey    `json:"publicKeys,omitempty"`
+	TokenEndPoint  string         `json:"tokenEndPoint,omitempty"` // Required when exchange-token capability is advertised
 }
 
 // ResourceType describes a supported resource type.
@@ -37,9 +38,10 @@ type PublicKey struct {
 
 // Handler serves the OCM discovery endpoints.
 type Handler struct {
-	cfg        *config.Config
-	mu         sync.RWMutex
-	publicKeys []PublicKey
+	cfg                  *config.Config
+	mu                   sync.RWMutex
+	publicKeys           []PublicKey
+	tokenExchangeEnabled bool
 }
 
 // NewHandler creates a new discovery handler.
@@ -53,6 +55,21 @@ func (h *Handler) SetPublicKeys(keys []PublicKey) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.publicKeys = keys
+}
+
+// SetTokenExchangeEnabled enables or disables the exchange-token capability.
+// When enabled, the discovery response includes tokenEndPoint.
+func (h *Handler) SetTokenExchangeEnabled(enabled bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.tokenExchangeEnabled = enabled
+}
+
+// IsTokenExchangeEnabled returns whether token exchange is enabled.
+func (h *Handler) IsTokenExchangeEnabled() bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.tokenExchangeEnabled
 }
 
 // GetDiscovery returns the current discovery document.
@@ -73,7 +90,7 @@ func (h *Handler) GetDiscovery() *Discovery {
 	// Build resource types
 	resourceTypes := h.getResourceTypes()
 
-	return &Discovery{
+	discovery := &Discovery{
 		Enabled:       true,
 		APIVersion:    "1.2.2",
 		EndPoint:      endpoint,
@@ -82,19 +99,33 @@ func (h *Handler) GetDiscovery() *Discovery {
 		Capabilities:  capabilities,
 		PublicKeys:    h.publicKeys,
 	}
+
+	// Add tokenEndPoint when exchange-token capability is advertised
+	if h.tokenExchangeEnabled {
+		tokenEndpoint := h.cfg.ExternalOrigin
+		if h.cfg.ExternalBasePath != "" {
+			tokenEndpoint += h.cfg.ExternalBasePath
+		}
+		tokenEndpoint += "/ocm/token"
+		discovery.TokenEndPoint = tokenEndpoint
+	}
+
+	return discovery
 }
 
 // getCapabilities returns the list of capabilities based on implemented phases.
 func (h *Handler) getCapabilities() []string {
 	var caps []string
 
-	// http-sig is added in Phase C when signatures are implemented
+	// http-sig is added when signatures are implemented and keys are available
 	if len(h.publicKeys) > 0 {
 		caps = append(caps, "http-sig")
 	}
 
-	// exchange-token is added in Phase I when token exchange is implemented
-	// TODO: Add when token exchange is implemented
+	// exchange-token is added when token exchange is implemented and enabled
+	if h.tokenExchangeEnabled {
+		caps = append(caps, "exchange-token")
+	}
 
 	return caps
 }
