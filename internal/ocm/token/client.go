@@ -1,0 +1,302 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
+
+package token
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
+)
+
+// Client is an OCM token exchange client.
+type Client struct {
+	httpClient      *httpclient.ContextClient
+	signer          RequestSigner
+	signatureMode   string // off, lenient, strict
+	profileRegistry *federation.ProfileRegistry
+	myClientID      string // This instance's FQDN for client_id
+}
+
+// RequestSigner signs HTTP requests for RFC 9421.
+type RequestSigner interface {
+	Sign(req *http.Request) error
+}
+
+// NewClient creates a new token exchange client.
+func NewClient(
+	httpClient *httpclient.ContextClient,
+	signer RequestSigner,
+	signatureMode string,
+	profileRegistry *federation.ProfileRegistry,
+	myClientID string,
+) *Client {
+	return &Client{
+		httpClient:      httpClient,
+		signer:          signer,
+		signatureMode:   signatureMode,
+		profileRegistry: profileRegistry,
+		myClientID:      myClientID,
+	}
+}
+
+// ExchangeRequest contains parameters for a token exchange.
+type ExchangeRequest struct {
+	TokenEndPoint string // The peer's tokenEndPoint from discovery
+	PeerDomain    string // The peer's domain (for profile lookup)
+	SharedSecret  string // The code/sharedSecret to exchange
+}
+
+// ExchangeResult contains the result of a token exchange.
+type ExchangeResult struct {
+	AccessToken  string
+	TokenType    string
+	ExpiresIn    int
+	QuirkApplied string // Name of quirk applied, if any
+}
+
+// Exchange performs a token exchange with the peer.
+// Uses strict-first orchestration: try strict, then apply quirks if profile allows.
+func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
+	// If signature mode is off, skip strict attempt
+	if c.signatureMode == "off" {
+		return c.exchangeUnsigned(ctx, req)
+	}
+
+	// Get peer profile for quirk gating
+	var profile *federation.Profile
+	if c.profileRegistry != nil {
+		profile = c.profileRegistry.GetProfile(req.PeerDomain)
+	}
+
+	// Step 1: Try strict (signed, form-urlencoded) attempt
+	result, err := c.exchangeSigned(ctx, req, false)
+	if err == nil {
+		return result, nil
+	}
+
+	// Step 2: Classify the error
+	reasonCode := federation.ClassifyError(err)
+
+	// Step 3: Check if we can apply a quirk
+	// In lenient mode, we may try unsigned if the peer doesn't support signatures
+	if c.signatureMode == "lenient" && profile != nil {
+		// Check for accept_plain_token quirk (unsigned request)
+		if profile.HasQuirk("accept_plain_token") &&
+			(reasonCode == federation.ReasonSignatureRequired ||
+				reasonCode == federation.ReasonSignatureInvalid ||
+				reasonCode == federation.ReasonKeyNotFound) {
+			// Try unsigned
+			result, err = c.exchangeUnsigned(ctx, req)
+			if err == nil {
+				result.QuirkApplied = "accept_plain_token"
+				return result, nil
+			}
+		}
+
+		// Check for send_token_in_body quirk (JSON body)
+		if profile.HasQuirk("send_token_in_body") &&
+			(reasonCode == federation.ReasonTokenExchangeFailed ||
+				reasonCode == federation.ReasonProtocolMismatch) {
+			// Try JSON body
+			result, err = c.exchangeJSON(ctx, req, c.signatureMode != "off")
+			if err == nil {
+				result.QuirkApplied = "send_token_in_body"
+				return result, nil
+			}
+		}
+	}
+
+	// Return original strict error
+	return nil, federation.NewClassifiedError(reasonCode, "token exchange failed", err)
+}
+
+// exchangeSigned performs a signed token exchange request.
+func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, useJSON bool) (*ExchangeResult, error) {
+	var httpReq *http.Request
+	var err error
+
+	if useJSON {
+		httpReq, err = c.buildJSONRequest(ctx, req)
+	} else {
+		httpReq, err = c.buildFormRequest(ctx, req)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Sign the request
+	if c.signer != nil {
+		if err := c.signer.Sign(httpReq); err != nil {
+			return nil, federation.NewClassifiedError(
+				federation.ReasonSignatureInvalid,
+				"failed to sign request",
+				err,
+			)
+		}
+	}
+
+	return c.doRequest(ctx, httpReq)
+}
+
+// exchangeUnsigned performs an unsigned token exchange request.
+func (c *Client) exchangeUnsigned(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
+	httpReq, err := c.buildFormRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.doRequest(ctx, httpReq)
+}
+
+// exchangeJSON performs a JSON-body token exchange request (Nextcloud quirk).
+func (c *Client) exchangeJSON(ctx context.Context, req ExchangeRequest, signed bool) (*ExchangeResult, error) {
+	httpReq, err := c.buildJSONRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if signed && c.signer != nil {
+		if err := c.signer.Sign(httpReq); err != nil {
+			return nil, federation.NewClassifiedError(
+				federation.ReasonSignatureInvalid,
+				"failed to sign request",
+				err,
+			)
+		}
+	}
+
+	return c.doRequest(ctx, httpReq)
+}
+
+// buildFormRequest builds a form-urlencoded token request.
+func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest) (*http.Request, error) {
+	form := url.Values{}
+	form.Set("grant_type", GrantTypeOCMShare)
+	form.Set("client_id", c.myClientID)
+	form.Set("code", req.SharedSecret)
+
+	httpReq, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		req.TokenEndPoint,
+		strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	httpReq.Header.Set("Accept", "application/json")
+
+	return httpReq, nil
+}
+
+// buildJSONRequest builds a JSON-body token request (Nextcloud quirk).
+func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest) (*http.Request, error) {
+	body := TokenRequest{
+		GrantType: GrantTypeOCMShare,
+		ClientID:  c.myClientID,
+		Code:      req.SharedSecret,
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		req.TokenEndPoint,
+		bytes.NewReader(bodyBytes),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+
+	return httpReq, nil
+}
+
+// doRequest executes the HTTP request and parses the response.
+func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeResult, error) {
+	resp, err := c.httpClient.Do(ctx, req)
+	if err != nil {
+		return nil, federation.NewClassifiedError(
+			federation.ReasonNetworkError,
+			"token exchange request failed",
+			err,
+		)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit
+	if err != nil {
+		return nil, federation.NewClassifiedError(
+			federation.ReasonNetworkError,
+			"failed to read response",
+			err,
+		)
+	}
+
+	// Check for error response
+	if resp.StatusCode >= 400 {
+		var oauthErr OAuthError
+		if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
+			return nil, c.classifyOAuthError(oauthErr, resp.StatusCode)
+		}
+		return nil, federation.NewClassifiedError(
+			federation.ReasonTokenExchangeFailed,
+			fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
+			nil,
+		)
+	}
+
+	// Parse success response
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, federation.NewClassifiedError(
+			federation.ReasonTokenInvalidFormat,
+			"failed to parse token response",
+			err,
+		)
+	}
+
+	return &ExchangeResult{
+		AccessToken: tokenResp.AccessToken,
+		TokenType:   tokenResp.TokenType,
+		ExpiresIn:   tokenResp.ExpiresIn,
+	}, nil
+}
+
+// classifyOAuthError maps OAuth error codes to reason codes.
+func (c *Client) classifyOAuthError(oauthErr OAuthError, statusCode int) error {
+	var reasonCode string
+	switch oauthErr.Error {
+	case ErrorInvalidGrant:
+		reasonCode = federation.ReasonTokenExchangeFailed
+	case ErrorInvalidClient:
+		reasonCode = federation.ReasonTokenExchangeFailed
+	case ErrorUnauthorized:
+		reasonCode = federation.ReasonSignatureRequired
+	default:
+		reasonCode = federation.ReasonTokenExchangeFailed
+	}
+
+	return federation.NewClassifiedError(
+		reasonCode,
+		oauthErr.ErrorDescription,
+		nil,
+	)
+}

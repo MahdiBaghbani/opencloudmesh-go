@@ -41,6 +41,9 @@ const (
 	ReasonProtocolMismatch      = "protocol_mismatch"
 	ReasonUnsupportedVersion    = "unsupported_version"
 
+	// Remote access
+	ReasonRemoteError           = "remote_error"
+
 	// Unknown/unclassified
 	ReasonUnknown               = "unknown"
 )
