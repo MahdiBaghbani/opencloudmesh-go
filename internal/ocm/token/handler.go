@@ -76,6 +76,13 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Check that the outgoing repo is configured
+	if h.outgoingRepo == nil {
+		h.logger.Error("token exchange attempted but outgoing share repo not configured")
+		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token exchange not available")
+		return
+	}
+
 	// The `code` is the sharedSecret from the share
 	// Look up the share by the sharedSecret
 	share, err := h.outgoingRepo.GetBySharedSecret(ctx, req.Code)

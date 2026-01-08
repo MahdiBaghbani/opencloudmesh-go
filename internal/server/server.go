@@ -88,6 +88,9 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		return nil, err
 	}
 
+	// Initialize default in-memory repos for optional dependencies
+	initializeDefaultRepos(deps)
+
 	// Create UI handler
 	uiHandler, err := ui.NewHandler(cfg.ExternalBasePath)
 	if err != nil {
@@ -136,8 +139,8 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		logger,
 	)
 
-	// Create WebDAV handler
-	webdavHandler := webdav.NewHandler(deps.OutgoingShareRepo, logger)
+	// Create WebDAV handler - pass TokenStore for exchanged token validation
+	webdavHandler := webdav.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, logger)
 
 	// Create notifications handler
 	notificationsHandler := notifications.NewHandler(deps.OutgoingShareRepo, logger)
@@ -316,4 +319,24 @@ func validateDeps(deps *Deps) error {
 
 	// Optional deps are allowed to be nil
 	return nil
+}
+
+// initializeDefaultRepos initializes in-memory repos for optional dependencies
+// that are nil. This ensures handlers always have valid repos to work with.
+func initializeDefaultRepos(deps *Deps) {
+	if deps.IncomingShareRepo == nil {
+		deps.IncomingShareRepo = shares.NewMemoryIncomingShareRepo()
+	}
+	if deps.OutgoingShareRepo == nil {
+		deps.OutgoingShareRepo = shares.NewMemoryOutgoingShareRepo()
+	}
+	if deps.OutgoingInviteRepo == nil {
+		deps.OutgoingInviteRepo = invites.NewMemoryOutgoingInviteRepo()
+	}
+	if deps.IncomingInviteRepo == nil {
+		deps.IncomingInviteRepo = invites.NewMemoryIncomingInviteRepo()
+	}
+	if deps.TokenStore == nil {
+		deps.TokenStore = token.NewMemoryTokenStore()
+	}
 }

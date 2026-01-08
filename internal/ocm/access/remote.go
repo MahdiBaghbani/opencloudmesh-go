@@ -242,4 +242,3 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 
 	return webdavURL, nil
 }
-

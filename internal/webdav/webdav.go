@@ -14,19 +14,22 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"golang.org/x/net/webdav"
 )
 
 // Handler provides WebDAV access to shared files.
 type Handler struct {
 	outgoingRepo shares.OutgoingShareRepo
+	tokenStore   token.TokenStore
 	logger       *slog.Logger
 }
 
 // NewHandler creates a new WebDAV handler.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore token.TokenStore, logger *slog.Logger) *Handler {
 	return &Handler{
 		outgoingRepo: outgoingRepo,
+		tokenStore:   tokenStore,
 		logger:       logger,
 	}
 }
@@ -73,9 +76,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate shared secret
-	if share.SharedSecret != secret {
-		h.logger.Debug("WebDAV invalid secret", "webdavId", webdavID)
+	// Validate authorization - check both exchanged tokens and shared secret
+	// First try exchanged token (if token store is available)
+	authorized := false
+	if h.tokenStore != nil {
+		issuedToken, err := h.tokenStore.Get(r.Context(), secret)
+		if err == nil && issuedToken != nil && issuedToken.ShareID == share.ShareID {
+			// Valid exchanged token for this share
+			authorized = true
+			h.logger.Debug("WebDAV authorized via exchanged token", "webdavId", webdavID)
+		}
+	}
+
+	// Fall back to shared secret
+	if !authorized && share.SharedSecret == secret {
+		authorized = true
+		h.logger.Debug("WebDAV authorized via shared secret", "webdavId", webdavID)
+	}
+
+	if !authorized {
+		h.logger.Debug("WebDAV invalid credentials", "webdavId", webdavID)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
