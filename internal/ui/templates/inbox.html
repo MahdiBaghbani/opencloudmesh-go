@@ -224,10 +224,37 @@
           <p>No shares yet</p>
         </div>
       </div>
+
+      <h2 style="margin-top: 40px;">Federation Invites</h2>
+      <div class="tabs" id="invite-tabs">
+        <button class="tab active" data-filter="all">All</button>
+        <button class="tab" data-filter="pending">Pending</button>
+        <button class="tab" data-filter="accepted">Accepted</button>
+      </div>
+      <div class="share-list" id="invite-list">
+        <div class="empty-state">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
+          </svg>
+          <p>No invites yet</p>
+        </div>
+      </div>
     </main>
     <script>
       let allShares = [];
+      let allInvites = [];
       let currentFilter = "all";
+      let currentInviteFilter = "all";
 
       // Load user info
       fetch("api/auth/me")
@@ -359,8 +386,97 @@
         });
       });
 
-      // Load shares on page load
+      // Load invites
+      async function loadInvites() {
+        try {
+          const resp = await fetch("api/inbox/invites", { credentials: "same-origin" });
+          if (!resp.ok) throw new Error("Failed to load invites");
+          const data = await resp.json();
+          allInvites = data.invites || [];
+          renderInvites();
+        } catch (err) {
+          console.error("Failed to load invites:", err);
+        }
+      }
+
+      // Render invites based on current filter
+      function renderInvites() {
+        const list = document.getElementById("invite-list");
+        let filtered = allInvites;
+
+        if (currentInviteFilter === "pending") {
+          filtered = allInvites.filter((i) => i.status === "pending");
+        } else if (currentInviteFilter === "accepted") {
+          filtered = allInvites.filter((i) => i.status === "accepted");
+        }
+
+        if (filtered.length === 0) {
+          list.innerHTML = '<div class="empty-state"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg><p>No invites yet</p></div>';
+          return;
+        }
+
+        list.innerHTML = filtered
+          .map(
+            (invite) => '<div class="share-item invite-item" data-invite-id="' + invite.id + '">' +
+              '<div class="share-header">' +
+                '<div class="share-name">Invite from ' + escapeHtml(invite.senderFqdn) + '</div>' +
+                '<span class="share-status status-' + invite.status + '">' + invite.status + '</span>' +
+              '</div>' +
+              '<div class="share-meta">Received: ' + new Date(invite.receivedAt).toLocaleDateString() + '</div>' +
+              (invite.status === "pending"
+                ? '<div class="share-actions">' +
+                    '<button class="action-btn btn-accept" onclick="acceptInvite(\'' + invite.id + '\')">Accept</button>' +
+                    '<button class="action-btn btn-decline" onclick="declineInvite(\'' + invite.id + '\')">Decline</button>' +
+                  '</div>'
+                : "") +
+            '</div>'
+          )
+          .join("");
+      }
+
+      // Accept invite
+      async function acceptInvite(inviteId) {
+        try {
+          const resp = await fetch("api/inbox/invites/" + inviteId + "/accept", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+          if (!resp.ok) throw new Error("Failed to accept invite");
+          await loadInvites();
+        } catch (err) {
+          alert("Failed to accept invite: " + err.message);
+        }
+      }
+
+      // Decline invite
+      async function declineInvite(inviteId) {
+        try {
+          const resp = await fetch("api/inbox/invites/" + inviteId + "/decline", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+          if (!resp.ok) throw new Error("Failed to decline invite");
+          await loadInvites();
+        } catch (err) {
+          alert("Failed to decline invite: " + err.message);
+        }
+      }
+
+      // Invite tab filtering
+      document.querySelectorAll("#invite-tabs .tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          document
+            .querySelectorAll("#invite-tabs .tab")
+            .forEach((t) => t.classList.remove("active"));
+          tab.classList.add("active");
+          currentInviteFilter = tab.dataset.filter;
+          renderInvites();
+        });
+      });
+
+      // Load shares and invites on page load
       loadShares();
+      loadInvites();
     </script>
   </body>
 </html>

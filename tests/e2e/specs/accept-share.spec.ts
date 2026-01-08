@@ -177,9 +177,10 @@ test.describe('Accept Share Flow', () => {
   test('empty state shows when no shares match filter', async ({ page }) => {
     await loginAndNavigateToInbox(page);
 
-    // With no shares, should show empty state
-    await expect(page.locator('.empty-state')).toBeVisible();
-    await expect(page.locator('.empty-state')).toContainText('No shares yet');
+    // With no shares, should show empty state in the share list
+    const shareList = page.locator('#share-list');
+    await expect(shareList.locator('.empty-state')).toBeVisible();
+    await expect(shareList).toContainText('No shares yet');
   });
 
   test('multiple shares can be managed', async ({ page, request }) => {

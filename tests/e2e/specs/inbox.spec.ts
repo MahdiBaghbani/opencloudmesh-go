@@ -45,7 +45,7 @@ test.describe('Inbox Page', () => {
     // Verify main elements are present
     await expect(page.locator('.header')).toBeVisible();
     await expect(page.locator('.logo')).toBeVisible();
-    await expect(page.locator('h2')).toContainText('Shared with Me');
+    await expect(page.locator('h2').first()).toContainText('Shared with Me');
   });
 
   test('inbox shows user info in header', async ({ page }) => {
@@ -63,17 +63,17 @@ test.describe('Inbox Page', () => {
   test('inbox has tab filters', async ({ page }) => {
     await loginAndNavigateToInbox(page);
 
-    // Verify tabs are present
-    const tabs = page.locator('.tabs .tab');
-    await expect(tabs).toHaveCount(3);
+    // Verify tabs are present (first set of tabs is for shares)
+    const shareTabs = page.locator('.tabs').first().locator('.tab');
+    await expect(shareTabs).toHaveCount(3);
 
     // Verify tab labels
-    await expect(tabs.nth(0)).toContainText('All');
-    await expect(tabs.nth(1)).toContainText('Pending');
-    await expect(tabs.nth(2)).toContainText('Accepted');
+    await expect(shareTabs.nth(0)).toContainText('All');
+    await expect(shareTabs.nth(1)).toContainText('Pending');
+    await expect(shareTabs.nth(2)).toContainText('Accepted');
 
     // First tab should be active by default
-    await expect(tabs.nth(0)).toHaveClass(/active/);
+    await expect(shareTabs.nth(0)).toHaveClass(/active/);
   });
 
   test('clicking tabs changes active state', async ({ page }) => {
@@ -100,9 +100,10 @@ test.describe('Inbox Page', () => {
   test('inbox shows empty state when no shares', async ({ page }) => {
     await loginAndNavigateToInbox(page);
 
-    // Should show empty state message
-    await expect(page.locator('.empty-state')).toBeVisible();
-    await expect(page.locator('.empty-state')).toContainText('No shares yet');
+    // Should show empty state message in the share list
+    const shareList = page.locator('#share-list');
+    await expect(shareList.locator('.empty-state')).toBeVisible();
+    await expect(shareList.locator('.empty-state')).toContainText('No shares yet');
   });
 
   test('logout button redirects to login', async ({ page }) => {
