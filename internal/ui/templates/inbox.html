@@ -226,6 +226,9 @@
       </div>
     </main>
     <script>
+      let allShares = [];
+      let currentFilter = "all";
+
       // Load user info
       fetch("api/auth/me")
         .then((r) => r.json())
@@ -245,15 +248,119 @@
           window.location.href = "ui/login";
         });
 
-      // Tab filtering (placeholder - shares endpoint not yet implemented)
+      // Load shares
+      async function loadShares() {
+        try {
+          const resp = await fetch("api/inbox/shares", { credentials: "same-origin" });
+          if (!resp.ok) throw new Error("Failed to load shares");
+          const data = await resp.json();
+          allShares = data.shares || [];
+          renderShares();
+        } catch (err) {
+          console.error("Failed to load shares:", err);
+        }
+      }
+
+      // Render shares based on current filter
+      function renderShares() {
+        const list = document.getElementById("share-list");
+        let filtered = allShares;
+
+        if (currentFilter === "pending") {
+          filtered = allShares.filter((s) => s.status === "pending");
+        } else if (currentFilter === "accepted") {
+          filtered = allShares.filter((s) => s.status === "accepted");
+        }
+
+        if (filtered.length === 0) {
+          list.innerHTML = `
+            <div class="empty-state">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+              <p>No shares yet</p>
+            </div>
+          `;
+          return;
+        }
+
+        list.innerHTML = filtered
+          .map(
+            (share) => `
+          <div class="share-item" data-share-id="${share.shareId}">
+            <div class="share-header">
+              <div class="share-name">${escapeHtml(share.name)}</div>
+              <span class="share-status status-${share.status}">${share.status}</span>
+            </div>
+            <div class="share-meta">
+              From: ${escapeHtml(share.sender || share.owner)} | Type: ${escapeHtml(share.resourceType)}
+            </div>
+            ${
+              share.status === "pending"
+                ? `
+              <div class="share-actions">
+                <button class="action-btn btn-accept" onclick="acceptShare('${share.shareId}')">Accept</button>
+                <button class="action-btn btn-decline" onclick="declineShare('${share.shareId}')">Decline</button>
+              </div>
+            `
+                : ""
+            }
+          </div>
+        `
+          )
+          .join("");
+      }
+
+      // Accept share
+      async function acceptShare(shareId) {
+        try {
+          const resp = await fetch("api/inbox/shares/" + shareId + "/accept", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+          if (!resp.ok) throw new Error("Failed to accept share");
+          await loadShares();
+        } catch (err) {
+          alert("Failed to accept share: " + err.message);
+        }
+      }
+
+      // Decline share
+      async function declineShare(shareId) {
+        try {
+          const resp = await fetch("api/inbox/shares/" + shareId + "/decline", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+          if (!resp.ok) throw new Error("Failed to decline share");
+          await loadShares();
+        } catch (err) {
+          alert("Failed to decline share: " + err.message);
+        }
+      }
+
+      // Escape HTML to prevent XSS
+      function escapeHtml(text) {
+        if (!text) return "";
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Tab filtering
       document.querySelectorAll(".tab").forEach((tab) => {
         tab.addEventListener("click", () => {
           document
             .querySelectorAll(".tab")
             .forEach((t) => t.classList.remove("active"));
           tab.classList.add("active");
+          currentFilter = tab.dataset.filter;
+          renderShares();
         });
       });
+
+      // Load shares on page load
+      loadShares();
     </script>
   </body>
 </html>

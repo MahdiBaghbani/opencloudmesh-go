@@ -121,7 +121,8 @@ func (r *MemoryIncomingShareRepo) ListByUser(ctx context.Context, shareWith stri
 
 	var result []*IncomingShare
 	for _, share := range r.shares {
-		if share.ShareWith == shareWith {
+		// If shareWith is empty, return all shares (for development/listing all)
+		if shareWith == "" || share.ShareWith == shareWith {
 			result = append(result, share)
 		}
 	}

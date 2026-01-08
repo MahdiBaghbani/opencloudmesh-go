@@ -36,6 +36,11 @@ func NewClient(httpClient HTTPClient, discoveryClient *discovery.Client, signer 
 
 // SendNotification sends a notification to a remote server.
 func (c *Client) SendNotification(ctx context.Context, targetHost string, notification *NewNotification) error {
+	// Check if discovery client is available
+	if c.discoveryClient == nil {
+		return fmt.Errorf("discovery client not configured, cannot send notification to %s", targetHost)
+	}
+
 	// Discover the target's endpoint
 	baseURL := "https://" + targetHost
 	disc, err := c.discoveryClient.Discover(ctx, baseURL)

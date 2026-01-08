@@ -102,4 +102,3 @@ test.describe('Login Flow', () => {
     await page.waitForURL('**/ui/inbox', { timeout: 5000 });
   });
 });
-
