@@ -365,4 +365,3 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 		})
 	}
 }
-

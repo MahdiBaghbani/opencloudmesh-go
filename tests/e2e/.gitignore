@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Test outputs
+test-results/
+playwright-report/
+
+# TypeScript build
+dist/
+
+# Lock files (regenerate on install)
+package-lock.json
+bun.lockb

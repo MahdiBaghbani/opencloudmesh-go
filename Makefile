@@ -1,4 +1,4 @@
-.PHONY: build test-go test-integration clean
+.PHONY: build test-go test-integration test-e2e test clean
 
 # Build the server binary
 build:
@@ -12,12 +12,22 @@ test-go:
 test-integration:
 	go test -race ./tests/integration/...
 
-# Run all tests
+# Install E2E test dependencies
+test-e2e-install:
+	cd tests/e2e && bun install && bun run install:browsers
+
+# Run E2E tests with Playwright
+test-e2e: build
+	cd tests/e2e && bun run test
+
+# Run all tests (excluding E2E - run separately with test-e2e)
 test: test-go test-integration
 
 # Clean build artifacts
 clean:
 	rm -rf bin/
+	rm -rf tests/e2e/node_modules
+	rm -rf tests/e2e/test-results
 
 # Format code
 fmt:
