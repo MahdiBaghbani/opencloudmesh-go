@@ -1,11 +1,12 @@
 package federation
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 )
 
@@ -96,35 +97,48 @@ type DiscoverResponse struct {
 
 // HandleDiscover handles GET /ocm-aux/discover.
 // Query param: base=<url>
+// Returns:
+//   - 400: missing/invalid base (parse error, unsupported scheme, missing host)
+//   - 403: SSRF blocked target
+//   - 501: discovery client not configured
+//   - 502: upstream/network/discovery failure
 func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	baseURL := r.URL.Query().Get("base")
-	if baseURL == "" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(DiscoverResponse{
-			Success: false,
-			Error:   "missing 'base' query parameter",
-		})
+	ctx := r.Context() // Use request context for cancellation propagation
+
+	baseParam := r.URL.Query().Get("base")
+	if baseParam == "" {
+		h.sendDiscoverError(w, http.StatusBadRequest, "missing 'base' query parameter")
 		return
 	}
 
-	// Normalize URL
-	baseURL = strings.TrimSuffix(baseURL, "/")
-
-	// Fetch discovery
-	disc, err := h.discoveryClient.Discover(context.Background(), baseURL)
+	// Parse and normalize to origin (<scheme>://<host>)
+	originURL, err := normalizeToOrigin(baseParam)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
-		json.NewEncoder(w).Encode(DiscoverResponse{
-			Success: false,
-			Error:   err.Error(),
-		})
+		h.sendDiscoverError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Check if discovery client is configured
+	if h.discoveryClient == nil {
+		h.sendDiscoverError(w, http.StatusNotImplemented, "discovery client not configured")
+		return
+	}
+
+	// Fetch discovery using request context
+	disc, err := h.discoveryClient.Discover(ctx, originURL)
+	if err != nil {
+		// Classify error for status mapping
+		if httpclient.IsSSRFError(err) {
+			h.sendDiscoverError(w, http.StatusForbidden, err.Error())
+			return
+		}
+		// All other errors are upstream failures
+		h.sendDiscoverError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 
@@ -134,3 +148,47 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 		Discovery: disc,
 	})
 }
+
+// sendDiscoverError sends a JSON error response for the discover endpoint.
+func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(DiscoverResponse{
+		Success: false,
+		Error:   message,
+	})
+}
+
+// normalizeToOrigin parses a URL and returns just the origin (<scheme>://<host>).
+// Accepts URLs with path/query/fragment but normalizes to origin only.
+// Requires http or https scheme and non-empty host.
+func normalizeToOrigin(rawURL string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+
+	// Validate scheme
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", &url.Error{Op: "parse", URL: rawURL, Err: errUnsupportedScheme}
+	}
+
+	// Validate host
+	if parsed.Host == "" {
+		return "", &url.Error{Op: "parse", URL: rawURL, Err: errMissingHost}
+	}
+
+	// Return origin only
+	return scheme + "://" + parsed.Host, nil
+}
+
+// Sentinel errors for URL validation
+type validationError string
+
+func (e validationError) Error() string { return string(e) }
+
+const (
+	errUnsupportedScheme = validationError("unsupported scheme: must be http or https")
+	errMissingHost       = validationError("missing host")
+)

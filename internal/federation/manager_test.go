@@ -14,7 +14,7 @@ func TestFederationManager_IsMember(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	// Create manager without DS client (no network calls)
-	fm := federation.NewFederationManager(federation.DefaultCacheConfig(), nil, logger)
+	fm := federation.NewFederationManager(federation.DefaultCacheConfig(), nil, logger, 10*time.Second)
 
 	// Add a federation with pre-populated cache
 	cfg := &federation.FederationConfig{
@@ -58,7 +58,7 @@ func TestFederationManager_IsMember(t *testing.T) {
 func TestFederationManager_DisabledFederation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	fm := federation.NewFederationManager(federation.DefaultCacheConfig(), nil, logger)
+	fm := federation.NewFederationManager(federation.DefaultCacheConfig(), nil, logger, 10*time.Second)
 
 	// Add a disabled federation
 	cfg := &federation.FederationConfig{
@@ -84,7 +84,7 @@ func TestFederationManager_DisabledFederation(t *testing.T) {
 func TestFederationManager_M1UnionAcrossFederations(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	fm := federation.NewFederationManager(federation.DefaultCacheConfig(), nil, logger)
+	fm := federation.NewFederationManager(federation.DefaultCacheConfig(), nil, logger, 10*time.Second)
 
 	// Add two federations
 	fm.AddFederation(&federation.FederationConfig{

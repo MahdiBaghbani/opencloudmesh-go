@@ -38,6 +38,62 @@ type Config struct {
 
 	// PeerProfiles configuration for interop with different OCM implementations
 	PeerProfiles PeerProfilesConfig `toml:"peer_profiles"`
+
+	// Cache configuration
+	Cache CacheConfig `toml:"cache"`
+
+	// Federation configuration
+	Federation FederationConfig `toml:"federation"`
+}
+
+// CacheConfig holds cache settings.
+type CacheConfig struct {
+	// Driver is the cache driver name: "memory" (default). Other drivers may fail validation.
+	Driver string `toml:"driver"`
+
+	// Drivers holds per-driver configuration (Reva-style).
+	// Example: [cache.drivers.memory] ...
+	Drivers map[string]any `toml:"drivers"`
+}
+
+// FederationConfig holds federation settings.
+type FederationConfig struct {
+	// Enabled enables federation features. Default: false.
+	Enabled bool `toml:"enabled"`
+
+	// ConfigPaths is a list of paths to K2 JSON federation config files.
+	// Required when enabled.
+	ConfigPaths []string `toml:"config_paths"`
+
+	// Policy contains trust policy settings.
+	Policy FederationPolicyConfig `toml:"policy"`
+
+	// MembershipCache contains membership cache settings.
+	MembershipCache FederationMembershipCacheConfig `toml:"membership_cache"`
+}
+
+// FederationPolicyConfig holds federation trust policy settings.
+type FederationPolicyConfig struct {
+	// GlobalEnforce enforces membership checks globally.
+	GlobalEnforce bool `toml:"global_enforce"`
+
+	// AllowList is a list of always-allowed hosts.
+	AllowList []string `toml:"allow_list"`
+
+	// DenyList is a list of always-denied hosts.
+	DenyList []string `toml:"deny_list"`
+
+	// ExemptList is a list of hosts exempt from membership checks.
+	ExemptList []string `toml:"exempt_list"`
+}
+
+// FederationMembershipCacheConfig holds membership cache settings.
+type FederationMembershipCacheConfig struct {
+	// TTLSeconds is the cache TTL in seconds. Default: 21600 (6 hours).
+	TTLSeconds int `toml:"ttl_seconds"`
+
+	// MaxStaleSeconds is the max staleness before treating as unavailable. Default: 604800 (7 days).
+	MaxStaleSeconds int `toml:"max_stale_seconds"`
 }
 
 // PeerProfilesConfig holds peer interop profile settings.

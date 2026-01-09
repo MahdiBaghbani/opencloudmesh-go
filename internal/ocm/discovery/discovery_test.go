@@ -1,13 +1,18 @@
 package discovery_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+
+	// Register cache drivers for nil-cache tests
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/loader"
 )
 
 func TestHandler_GetDiscovery(t *testing.T) {
@@ -240,5 +245,54 @@ func TestDiscovery_Helpers(t *testing.T) {
 	}
 	if url != "https://example.com/webdav/ocm/abc123" {
 		t.Errorf("BuildWebDAVURL returned %q", url)
+	}
+}
+
+func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
+	// Create a mock server that returns a valid discovery document
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			disc := discovery.Discovery{
+				Enabled:    true,
+				APIVersion: "1.2.2",
+				EndPoint:   "https://example.com/ocm",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(disc)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	// Create HTTP client
+	httpCfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	httpClient := httpclient.New(httpCfg)
+
+	// Create discovery client with nil cache - should not panic
+	client := discovery.NewClient(httpClient, nil)
+
+	// Should work (uses default in-memory cache)
+	disc, err := client.Discover(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+	if !disc.Enabled {
+		t.Error("expected discovery to be enabled")
+	}
+
+	// Second call should use cache (hit same server, would work even if cache was nil)
+	disc2, err := client.Discover(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("second Discover failed: %v", err)
+	}
+	if disc2.EndPoint != disc.EndPoint {
+		t.Error("expected same discovery result from cache")
 	}
 }

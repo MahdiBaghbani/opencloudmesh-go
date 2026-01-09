@@ -26,11 +26,12 @@ func DefaultCacheConfig() CacheConfig {
 
 // FederationManager manages all configured federations.
 type FederationManager struct {
-	mu           sync.RWMutex
-	federations  map[string]*Federation
-	cacheConfig  CacheConfig
-	dsClient     *DirectoryServiceClient
-	logger       *slog.Logger
+	mu                  sync.RWMutex
+	federations         map[string]*Federation
+	cacheConfig         CacheConfig
+	dsClient            *DirectoryServiceClient
+	logger              *slog.Logger
+	refreshTimeoutPerDS time.Duration // timeout per directory service for refresh operations
 }
 
 // Federation represents a single federation with its state.
@@ -42,12 +43,17 @@ type Federation struct {
 }
 
 // NewFederationManager creates a new federation manager.
-func NewFederationManager(cacheConfig CacheConfig, dsClient *DirectoryServiceClient, logger *slog.Logger) *FederationManager {
+// refreshTimeoutPerDS is the timeout per directory service for refresh operations (e.g., outbound_http.timeout_ms).
+func NewFederationManager(cacheConfig CacheConfig, dsClient *DirectoryServiceClient, logger *slog.Logger, refreshTimeoutPerDS time.Duration) *FederationManager {
+	if refreshTimeoutPerDS <= 0 {
+		refreshTimeoutPerDS = 10 * time.Second // fallback
+	}
 	return &FederationManager{
-		federations: make(map[string]*Federation),
-		cacheConfig: cacheConfig,
-		dsClient:    dsClient,
-		logger:      logger,
+		federations:         make(map[string]*Federation),
+		cacheConfig:         cacheConfig,
+		dsClient:            dsClient,
+		logger:              logger,
+		refreshTimeoutPerDS: refreshTimeoutPerDS,
 	}
 }
 
@@ -111,7 +117,9 @@ func (fm *FederationManager) isMemberOf(host string, cache *MembershipCache) boo
 }
 
 // triggerRefreshIfNeeded triggers an async refresh if the cache is stale.
-func (fm *FederationManager) triggerRefreshIfNeeded(ctx context.Context, fed *Federation) {
+// Uses a detached context with timeout so it isn't canceled when the request ends
+// but still has a bounded duration.
+func (fm *FederationManager) triggerRefreshIfNeeded(_ context.Context, fed *Federation) {
 	if fed.Cache == nil {
 		return
 	}
@@ -119,8 +127,24 @@ func (fm *FederationManager) triggerRefreshIfNeeded(ctx context.Context, fed *Fe
 	age := time.Since(fed.Cache.LastRefresh)
 
 	if age > fm.cacheConfig.TTL {
-		// Stale - trigger async refresh
-		go fm.refreshFederation(ctx, fed)
+		// Stale - trigger async refresh with detached context
+		// Compute timeout: timeoutPerDS * (number of enabled directory services)
+		dsCount := 0
+		for _, ds := range fed.Config.DirectoryServices {
+			if ds.Enabled {
+				dsCount++
+			}
+		}
+		if dsCount == 0 {
+			dsCount = 1 // at least one
+		}
+		timeout := fm.refreshTimeoutPerDS * time.Duration(dsCount)
+
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			fm.refreshFederation(ctx, fed)
+		}()
 	}
 }
 

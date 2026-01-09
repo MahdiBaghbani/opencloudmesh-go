@@ -20,7 +20,13 @@ type Client struct {
 }
 
 // NewClient creates a new discovery client.
+// If cache is nil, it is silently replaced with the default cache (in-memory).
+// This ensures discovery always caches results and callers cannot accidentally
+// create an uncached client.
 func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
+	if c == nil {
+		c = cache.NewDefault()
+	}
 	return &Client{
 		httpClient: httpClient,
 		cache:      c,
@@ -34,14 +40,12 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	// Normalize the base URL
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
-	// Check cache first
+	// Check cache first (cache is always non-nil after NewClient)
 	cacheKey := "discovery:" + baseURL
-	if c.cache != nil {
-		if data, err := c.cache.Get(ctx, cacheKey); err == nil {
-			var disc Discovery
-			if err := json.Unmarshal(data, &disc); err == nil {
-				return &disc, nil
-			}
+	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
+		var disc Discovery
+		if err := json.Unmarshal(data, &disc); err == nil {
+			return &disc, nil
 		}
 	}
 
@@ -56,10 +60,8 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	}
 
 	// Cache the result
-	if c.cache != nil {
-		if data, err := json.Marshal(disc); err == nil {
-			c.cache.Set(ctx, cacheKey, data, c.cacheTTL)
-		}
+	if data, err := json.Marshal(disc); err == nil {
+		c.cache.Set(ctx, cacheKey, data, c.cacheTTL)
 	}
 
 	return disc, nil

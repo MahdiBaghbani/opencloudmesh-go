@@ -75,6 +75,34 @@ type fileConfig struct {
 	OutboundHTTP *OutboundHTTPConfig `toml:"outbound_http"`
 	Signature    *SignatureConfig    `toml:"signature"`
 	PeerProfiles *peerProfilesConfig `toml:"peer_profiles"`
+	Cache        *cacheConfig        `toml:"cache"`
+	Federation   *federationConfig   `toml:"federation"`
+}
+
+// cacheConfig holds cache settings from TOML.
+type cacheConfig struct {
+	Driver  string         `toml:"driver"`
+	Drivers map[string]any `toml:"drivers"`
+}
+
+// federationConfig holds federation settings from TOML.
+type federationConfig struct {
+	Enabled         bool                           `toml:"enabled"`
+	ConfigPaths     []string                       `toml:"config_paths"`
+	Policy          *federationPolicyConfig        `toml:"policy"`
+	MembershipCache *federationMembershipCacheConfig `toml:"membership_cache"`
+}
+
+type federationPolicyConfig struct {
+	GlobalEnforce bool     `toml:"global_enforce"`
+	AllowList     []string `toml:"allow_list"`
+	DenyList      []string `toml:"deny_list"`
+	ExemptList    []string `toml:"exempt_list"`
+}
+
+type federationMembershipCacheConfig struct {
+	TTLSeconds      int `toml:"ttl_seconds"`
+	MaxStaleSeconds int `toml:"max_stale_seconds"`
 }
 
 // peerProfilesConfig holds peer profile settings from TOML.
@@ -214,6 +242,14 @@ func StrictConfig() *Config {
 			OnDiscoveryError: "reject",
 			AllowMismatch:    false,
 		},
+		Federation: FederationConfig{
+			Enabled:     false,
+			ConfigPaths: nil,
+			MembershipCache: FederationMembershipCacheConfig{
+				TTLSeconds:      21600,  // 6 hours
+				MaxStaleSeconds: 604800, // 7 days
+			},
+		},
 	}
 }
 
@@ -260,6 +296,14 @@ func DevConfig() *Config {
 			KeyPath:          ".ocm/keys/signing.pem",
 			OnDiscoveryError: "allow",
 			AllowMismatch:    true,
+		},
+		Federation: FederationConfig{
+			Enabled:     false,
+			ConfigPaths: nil,
+			MembershipCache: FederationMembershipCacheConfig{
+				TTLSeconds:      21600,  // 6 hours
+				MaxStaleSeconds: 604800, // 7 days
+			},
 		},
 	}
 }
@@ -363,6 +407,42 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			cfg.PeerProfiles.CustomProfiles = fc.PeerProfiles.CustomProfiles
 		}
 	}
+
+	if fc.Cache != nil {
+		if fc.Cache.Driver != "" {
+			cfg.Cache.Driver = fc.Cache.Driver
+		}
+		if len(fc.Cache.Drivers) > 0 {
+			cfg.Cache.Drivers = fc.Cache.Drivers
+		}
+	}
+
+	if fc.Federation != nil {
+		cfg.Federation.Enabled = fc.Federation.Enabled
+		if len(fc.Federation.ConfigPaths) > 0 {
+			cfg.Federation.ConfigPaths = fc.Federation.ConfigPaths
+		}
+		if fc.Federation.Policy != nil {
+			cfg.Federation.Policy.GlobalEnforce = fc.Federation.Policy.GlobalEnforce
+			if len(fc.Federation.Policy.AllowList) > 0 {
+				cfg.Federation.Policy.AllowList = fc.Federation.Policy.AllowList
+			}
+			if len(fc.Federation.Policy.DenyList) > 0 {
+				cfg.Federation.Policy.DenyList = fc.Federation.Policy.DenyList
+			}
+			if len(fc.Federation.Policy.ExemptList) > 0 {
+				cfg.Federation.Policy.ExemptList = fc.Federation.Policy.ExemptList
+			}
+		}
+		if fc.Federation.MembershipCache != nil {
+			if fc.Federation.MembershipCache.TTLSeconds > 0 {
+				cfg.Federation.MembershipCache.TTLSeconds = fc.Federation.MembershipCache.TTLSeconds
+			}
+			if fc.Federation.MembershipCache.MaxStaleSeconds > 0 {
+				cfg.Federation.MembershipCache.MaxStaleSeconds = fc.Federation.MembershipCache.MaxStaleSeconds
+			}
+		}
+	}
 }
 
 // overlayFlags applies CLI flag values onto cfg.
@@ -428,6 +508,17 @@ func validateEnums(cfg *Config) error {
 	default:
 		return fmt.Errorf("invalid signature.on_discovery_error %q: must be one of reject, allow", cfg.Signature.OnDiscoveryError)
 	}
+
+	// cache.driver (only memory is supported in this release)
+	switch cfg.Cache.Driver {
+	case "", "memory":
+		// valid (empty defaults to memory)
+	default:
+		return fmt.Errorf("invalid cache.driver %q: only 'memory' is supported in this release", cfg.Cache.Driver)
+	}
+
+	// federation validation (warn-only for missing config_paths when enabled)
+	// Note: actual file existence checking is done at runtime, not here
 
 	return nil
 }

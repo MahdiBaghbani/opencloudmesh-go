@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
@@ -403,6 +404,252 @@ func TestClient_DoPreservesInterface(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
+	// Regression test: localhost:8080 must be blocked as localhost (not unresolvable)
+	cfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "strict",
+		TimeoutMS:        1000,
+		ConnectTimeoutMS: 500,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := httpclient.New(cfg)
+
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{"localhost:8080", "http://localhost:8080/test"},
+		{"localhost:9000", "http://localhost:9000/test"},
+		{"127.0.0.1:8080", "http://127.0.0.1:8080/test"},
+		{"[::1]:8080", "http://[::1]:8080/test"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := client.Get(context.Background(), tt.url)
+			if err == nil {
+				t.Errorf("expected SSRF error for %s", tt.name)
+				return
+			}
+			if !httpclient.IsSSRFError(err) {
+				t.Errorf("expected SSRF error, got: %v", err)
+			}
+			// Ensure the error mentions "localhost" or "blocked", not "unresolvable"
+			if strings.Contains(err.Error(), "could not be resolved") {
+				t.Errorf("localhost should be blocked as localhost, not as unresolvable: %v", err)
+			}
+		})
+	}
+}
+
+func TestSignedNoRedirectViaHeaders(t *testing.T) {
+	// Requests with RFC 9421 signature headers must not follow redirects
+	// even when using the unsigned Do() path
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/redirect" {
+			http.Redirect(w, r, "/target", http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := httpclient.New(cfg)
+
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{"Signature header", "Signature"},
+		{"Signature-Input header", "Signature-Input"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", server.URL+"/redirect", nil)
+			req.Header.Set(tt.header, "sig=()")
+
+			// Use Do() not DoSigned() - central header detection should still catch it
+			_, err := client.Do(req)
+			if err == nil {
+				t.Fatal("expected error for signed request with redirect")
+			}
+			if !httpclient.IsRedirectError(err) {
+				t.Errorf("expected redirect error, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "signed requests cannot follow redirects") {
+				t.Errorf("expected 'signed requests cannot follow redirects', got: %v", err)
+			}
+		})
+	}
+}
+
+// blockingResolver simulates a DNS resolver that blocks until context is canceled.
+type blockingResolver struct {
+	unblockCh chan struct{}
+}
+
+func (r *blockingResolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-r.unblockCh:
+		return []net.IPAddr{{IP: net.ParseIP("1.2.3.4")}}, nil
+	}
+}
+
+func TestContextAwareDNSCancellation(t *testing.T) {
+	cfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "strict",
+		TimeoutMS:        10000, // long timeout
+		ConnectTimeoutMS: 5000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := httpclient.New(cfg)
+
+	// Install a blocking resolver
+	resolver := &blockingResolver{unblockCh: make(chan struct{})}
+	client.SetResolver(resolver)
+
+	// Create a context with a short timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := client.Get(ctx, "http://example.com/test")
+	elapsed := time.Since(start)
+
+	// Should return quickly (around 100ms), not hang
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("DNS cancellation took too long: %v (expected ~100ms)", elapsed)
+	}
+
+	// Should have an error (context deadline exceeded or canceled)
+	if err == nil {
+		t.Fatal("expected error when context is canceled")
+	}
+}
+
+func TestRedirectSameHostSemantics(t *testing.T) {
+	// Test same-host redirect checks use relative URLs so the server host is preserved
+	// This tests that relative redirects work correctly and that port normalization applies
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		if r.URL.Path == "/start" {
+			// Relative redirect - same host by definition
+			http.Redirect(w, r, "/target", http.StatusFound)
+			return
+		}
+		if r.URL.Path == "/target" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("reached"))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := httpclient.New(cfg)
+
+	// Test relative redirect (always same-host)
+	resp, err := client.Get(context.Background(), server.URL+"/start")
+	if err != nil {
+		t.Fatalf("relative redirect should work: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if requestCount != 2 {
+		t.Errorf("expected 2 requests (start + redirect), got %d", requestCount)
+	}
+}
+
+func TestRedirectCrossHostBlocked(t *testing.T) {
+	// Test that redirects to a different host are blocked
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer targetServer.Close()
+
+	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Redirect to different host (target server)
+		http.Redirect(w, r, targetServer.URL+"/target", http.StatusFound)
+	}))
+	defer redirectServer.Close()
+
+	cfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := httpclient.New(cfg)
+
+	_, err := client.Get(context.Background(), redirectServer.URL+"/start")
+	if err == nil {
+		t.Fatal("cross-host redirect should be blocked")
+	}
+	if !strings.Contains(err.Error(), "different host") {
+		t.Errorf("expected 'different host' error, got: %v", err)
+	}
+}
+
+func TestIsSameHostPortNormalization(t *testing.T) {
+	// Test port normalization logic via a test where we inject port in redirect
+	// This simulates: server at :PORT redirects to same host with explicit :PORT
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			// Build absolute URL with explicit port (should still be same-host)
+			targetURL := "http://" + r.Host + "/target"
+			http.Redirect(w, r, targetURL, http.StatusFound)
+			return
+		}
+		if r.URL.Path == "/target" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := httpclient.New(cfg)
+
+	resp, err := client.Get(context.Background(), server.URL+"/start")
+	if err != nil {
+		t.Fatalf("same-host redirect with explicit port should work: %v", err)
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}

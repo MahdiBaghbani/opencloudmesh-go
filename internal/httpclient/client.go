@@ -34,10 +34,16 @@ type RequestOptions struct {
 	IsSigned bool
 }
 
+// Resolver abstracts DNS resolution for testing.
+type Resolver interface {
+	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
+}
+
 // Client is a safe HTTP client with SSRF protections and bounded behavior.
 type Client struct {
 	cfg        *config.OutboundHTTPConfig
 	httpClient *http.Client
+	resolver   Resolver // for context-aware DNS in SSRF checks; nil uses net.DefaultResolver
 }
 
 // New creates a new safe HTTP client.
@@ -65,9 +71,9 @@ func New(cfg *config.OutboundHTTPConfig) *Client {
 		// Explicitly ignore proxy environment variables
 		Proxy: nil,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Check SSRF before dialing
+			// Check SSRF before dialing (addr is host:port from net.SplitHostPort)
 			if cfg.SSRFMode == "strict" {
-				if err := c.checkSSRF(addr); err != nil {
+				if err := c.checkSSRF(ctx, addr); err != nil {
 					return nil, err
 				}
 			}
@@ -95,20 +101,35 @@ func New(cfg *config.OutboundHTTPConfig) *Client {
 	return c
 }
 
+// SetResolver sets a custom DNS resolver (for testing).
+func (c *Client) SetResolver(r Resolver) {
+	c.resolver = r
+}
+
+// getResolver returns the resolver, defaulting to net.DefaultResolver.
+func (c *Client) getResolver() Resolver {
+	if c.resolver != nil {
+		return c.resolver
+	}
+	return net.DefaultResolver
+}
+
 // checkSSRF validates that the address is not a private/loopback address.
-func (c *Client) checkSSRF(addr string) error {
+// The addr is in host:port format from the dialer.
+func (c *Client) checkSSRF(ctx context.Context, addr string) error {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		// No port, use the whole thing as host
 		host = addr
 	}
 
-	return c.checkSSRFHost(host)
+	return c.checkSSRFHost(ctx, host)
 }
 
 // checkSSRFHost validates that the host is not a private/loopback address.
 // Handles IPv6 bracket notation (e.g., "[::1]").
-func (c *Client) checkSSRFHost(host string) error {
+// Uses context-aware DNS resolution so cancellation is respected.
+func (c *Client) checkSSRFHost(ctx context.Context, host string) error {
 	// Strip IPv6 brackets if present
 	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
 		host = host[1 : len(host)-1]
@@ -128,16 +149,16 @@ func (c *Client) checkSSRFHost(host string) error {
 		return nil
 	}
 
-	// Resolve the hostname to IP addresses
-	ips, err := net.LookupIP(host)
+	// Resolve the hostname to IP addresses using context-aware resolver
+	ipAddrs, err := c.getResolver().LookupIPAddr(ctx, host)
 	if err != nil {
 		// Cannot resolve - fail closed (block the request)
 		return fmt.Errorf("%w: %s: %v", ErrHostUnresolvable, host, err)
 	}
 
-	for _, ip := range ips {
-		if !c.isAllowedIP(ip) {
-			return fmt.Errorf("%w: %s resolves to blocked IP %s", ErrSSRFBlocked, host, ip)
+	for _, ipAddr := range ipAddrs {
+		if !c.isAllowedIP(ipAddr.IP) {
+			return fmt.Errorf("%w: %s resolves to blocked IP %s", ErrSSRFBlocked, host, ipAddr.IP)
 		}
 	}
 
@@ -198,12 +219,17 @@ func (c *Client) DoSigned(req *http.Request) (*http.Response, error) {
 
 // DoWithOptions performs an HTTP request with explicit options.
 func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Response, error) {
-	// Pre-flight SSRF check
+	ctx := req.Context()
+
+	// Pre-flight SSRF check using Hostname() (not Host which includes port)
 	if c.cfg.SSRFMode == "strict" {
-		if err := c.checkSSRFHost(req.URL.Host); err != nil {
+		if err := c.checkSSRFHost(ctx, req.URL.Hostname()); err != nil {
 			return nil, err
 		}
 	}
+
+	// Detect signed request via RFC 9421 headers (centralized enforcement)
+	isSigned := opts.IsSigned || hasSignatureHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -212,7 +238,7 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 
 	// Handle redirects based on signing status
 	if isRedirect(resp.StatusCode) {
-		if opts.IsSigned {
+		if isSigned {
 			// Signed requests must not follow redirects
 			resp.Body.Close()
 			return nil, fmt.Errorf("%w: received %d", ErrSignedNoRedirect, resp.StatusCode)
@@ -225,9 +251,15 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 	return resp, nil
 }
 
+// hasSignatureHeaders detects RFC 9421 signature headers.
+func hasSignatureHeaders(req *http.Request) bool {
+	return req.Header.Get("Signature") != "" || req.Header.Get("Signature-Input") != ""
+}
+
 // followRedirect follows a single redirect with strict constraints.
 func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, depth int) (*http.Response, error) {
 	defer resp.Body.Close()
+	ctx := origReq.Context()
 
 	// Check redirect limit (default 1 for unsigned)
 	maxRedirects := c.cfg.MaxRedirects
@@ -253,25 +285,25 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	// Resolve relative URLs
 	redirectURL = origReq.URL.ResolveReference(redirectURL)
 
-	// Constraint: https -> https only (no downgrade)
+	// Constraint: https -> https only (no downgrade); http -> https is allowed
 	if origReq.URL.Scheme == "https" && redirectURL.Scheme != "https" {
 		return nil, fmt.Errorf("%w: %s -> %s", ErrRedirectDowngrade, origReq.URL.Scheme, redirectURL.Scheme)
 	}
 
-	// Constraint: same host only
-	if !sameHost(origReq.URL.Host, redirectURL.Host) {
+	// Constraint: same host only (hostname + effective port must match)
+	if !isSameHost(origReq.URL, redirectURL) {
 		return nil, fmt.Errorf("%w: %s -> %s", ErrRedirectNotSameHost, origReq.URL.Host, redirectURL.Host)
 	}
 
-	// SSRF check on redirect target
+	// SSRF check on redirect target using Hostname() (not Host)
 	if c.cfg.SSRFMode == "strict" {
-		if err := c.checkSSRFHost(redirectURL.Host); err != nil {
+		if err := c.checkSSRFHost(ctx, redirectURL.Hostname()); err != nil {
 			return nil, err
 		}
 	}
 
 	// Create new request for redirect
-	newReq, err := http.NewRequestWithContext(origReq.Context(), origReq.Method, redirectURL.String(), nil)
+	newReq, err := http.NewRequestWithContext(ctx, origReq.Method, redirectURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRedirectBlocked, err)
 	}
@@ -293,21 +325,46 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	return newResp, nil
 }
 
-// sameHost checks if two hosts are the same (case-insensitive, ignores default ports).
-func sameHost(a, b string) bool {
-	// Normalize hosts
-	a = normalizeHost(a)
-	b = normalizeHost(b)
-	return strings.EqualFold(a, b)
+// isSameHost checks if two URLs have the same host (hostname + effective port).
+// Uses url.URL.Hostname() and url.URL.Port() for IPv6-safe comparisons.
+// Effective port: missing port = scheme default (http=80, https=443).
+// Explicit default port is equivalent to missing (https://example.com:443 == https://example.com).
+func isSameHost(a, b *url.URL) bool {
+	// Hostname comparison (case-insensitive)
+	if !strings.EqualFold(a.Hostname(), b.Hostname()) {
+		return false
+	}
+
+	// Effective port comparison
+	portA := effectivePort(a)
+	portB := effectivePort(b)
+	return portA == portB
 }
 
-// normalizeHost strips default ports and lowercases.
-func normalizeHost(host string) string {
-	host = strings.ToLower(host)
-	// Strip default ports
-	host = strings.TrimSuffix(host, ":80")
-	host = strings.TrimSuffix(host, ":443")
-	return host
+// effectivePort returns the effective port for a URL.
+// Missing port = scheme default. Explicit default port = same as missing.
+func effectivePort(u *url.URL) string {
+	port := u.Port()
+	if port == "" {
+		return defaultPort(u.Scheme)
+	}
+	// Normalize explicit default ports to empty (treated as default)
+	if port == defaultPort(u.Scheme) {
+		return defaultPort(u.Scheme)
+	}
+	return port
+}
+
+// defaultPort returns the default port for a scheme.
+func defaultPort(scheme string) string {
+	switch strings.ToLower(scheme) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
 }
 
 // copyRedirectHeaders copies safe headers for redirects.

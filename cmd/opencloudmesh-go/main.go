@@ -9,12 +9,19 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
+
+	// Register cache drivers
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/loader"
 )
 
 func main() {
@@ -107,13 +114,59 @@ func main() {
 	rawHTTPClient := httpclient.New(&cfg.OutboundHTTP)
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
+	// Create cache (defaults to in-memory if not configured)
+	cacheDriver := cfg.Cache.Driver
+	if cacheDriver == "" {
+		cacheDriver = "memory"
+	}
+	cacheInstance, err := cache.NewFromConfig(cacheDriver)
+	if err != nil {
+		logger.Error("failed to create cache", "error", err)
+		os.Exit(1)
+	}
+
+	// Create discovery client (mandatory for /ocm-aux/discover and share sending)
+	discoveryClient := discovery.NewClient(rawHTTPClient, cacheInstance)
+
+	// Create federation manager if enabled
+	var federationMgr *federation.FederationManager
+	if cfg.Federation.Enabled {
+		// Compute refresh timeout from outbound HTTP timeout
+		refreshTimeout := time.Duration(cfg.OutboundHTTP.TimeoutMS) * time.Millisecond
+
+		// Create cache config from TOML
+		cacheConfig := federation.CacheConfig{
+			TTL:      time.Duration(cfg.Federation.MembershipCache.TTLSeconds) * time.Second,
+			MaxStale: time.Duration(cfg.Federation.MembershipCache.MaxStaleSeconds) * time.Second,
+		}
+
+		// Create DS client (uses the safe HTTP client)
+		dsClient := federation.NewDirectoryServiceClient(rawHTTPClient)
+
+		// Create federation manager
+		federationMgr = federation.NewFederationManager(cacheConfig, dsClient, logger, refreshTimeout)
+
+		// Load federation configs from paths (one K2 JSON per file)
+		for _, configPath := range cfg.Federation.ConfigPaths {
+			fedCfg, err := federation.LoadFederationConfig(configPath)
+			if err != nil {
+				logger.Warn("failed to load federation config", "path", configPath, "error", err)
+				continue
+			}
+			federationMgr.AddFederation(fedCfg)
+			logger.Info("loaded federation", "federation_id", fedCfg.FederationID, "enabled", fedCfg.Enabled)
+		}
+	}
+
 	// Create server dependencies
 	deps := &server.Deps{
-		PartyRepo:   partyRepo,
-		SessionRepo: sessionRepo,
-		UserAuth:    userAuth,
-		KeyManager:  keyManager,
-		HTTPClient:  httpClient,
+		PartyRepo:       partyRepo,
+		SessionRepo:     sessionRepo,
+		UserAuth:        userAuth,
+		KeyManager:      keyManager,
+		HTTPClient:      httpClient,
+		DiscoveryClient: discoveryClient,
+		FederationMgr:   federationMgr,
 	}
 
 	// Create and start server

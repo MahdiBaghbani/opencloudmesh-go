@@ -9,6 +9,13 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/cache"
 )
 
+func init() {
+	cache.RegisterDriver("memory", func() cache.Cache {
+		// Default: 15 minute TTL, 5 minute cleanup interval
+		return New(15*time.Minute, 5*time.Minute)
+	})
+}
+
 // item represents a cached value with expiration.
 type item struct {
 	value     []byte
