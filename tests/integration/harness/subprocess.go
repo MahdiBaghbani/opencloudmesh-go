@@ -28,9 +28,10 @@ type SubprocessServer struct {
 
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
-	Name           string
-	Mode           string // dev, interop, strict
-	ExtraConfig    string // Additional TOML config to append
+	Name        string
+	Mode        string            // dev, interop, strict
+	ExtraConfig string            // Additional TOML config to append
+	ExtraFiles  map[string]string // Extra files to write to tempDir: {relativePath: contents}
 }
 
 // BuildBinary builds the opencloudmesh-go binary for testing.
@@ -104,6 +105,22 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to get free port: %v", err)
+	}
+
+	// Write extra files before config.toml (so config can reference them)
+	for relPath, contents := range cfg.ExtraFiles {
+		absPath := filepath.Join(tempDir, relPath)
+		// Ensure parent directory exists
+		if dir := filepath.Dir(absPath); dir != tempDir {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				os.RemoveAll(tempDir)
+				t.Fatalf("failed to create directory for extra file %s: %v", relPath, err)
+			}
+		}
+		if err := os.WriteFile(absPath, []byte(contents), 0644); err != nil {
+			os.RemoveAll(tempDir)
+			t.Fatalf("failed to write extra file %s: %v", relPath, err)
+		}
 	}
 
 	// Create config file

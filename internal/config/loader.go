@@ -517,8 +517,19 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("invalid cache.driver %q: only 'memory' is supported in this release", cfg.Cache.Driver)
 	}
 
-	// federation validation (warn-only for missing config_paths when enabled)
-	// Note: actual file existence checking is done at runtime, not here
+	// federation validation
+	if cfg.Federation.Enabled {
+		// config_paths must be non-empty when federation is enabled
+		if len(cfg.Federation.ConfigPaths) == 0 {
+			return fmt.Errorf("federation.config_paths must be non-empty when federation is enabled")
+		}
+		// each path must be readable
+		for _, path := range cfg.Federation.ConfigPaths {
+			if _, err := os.Stat(path); err != nil {
+				return fmt.Errorf("federation config path %q is not readable: %w", path, err)
+			}
+		}
+	}
 
 	return nil
 }

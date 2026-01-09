@@ -129,8 +129,9 @@ func main() {
 	// Create discovery client (mandatory for /ocm-aux/discover and share sending)
 	discoveryClient := discovery.NewClient(rawHTTPClient, cacheInstance)
 
-	// Create federation manager if enabled
+	// Create federation manager and policy engine if enabled
 	var federationMgr *federation.FederationManager
+	var policyEngine *federation.PolicyEngine
 	if cfg.Federation.Enabled {
 		// Compute refresh timeout from outbound HTTP timeout
 		refreshTimeout := time.Duration(cfg.OutboundHTTP.TimeoutMS) * time.Millisecond
@@ -157,6 +158,16 @@ func main() {
 			federationMgr.AddFederation(fedCfg)
 			logger.Info("loaded federation", "federation_id", fedCfg.FederationID, "enabled", fedCfg.Enabled)
 		}
+
+		// Create policy engine from config
+		policyCfg := &federation.PolicyConfig{
+			GlobalEnforce: cfg.Federation.Policy.GlobalEnforce,
+			AllowList:     cfg.Federation.Policy.AllowList,
+			DenyList:      cfg.Federation.Policy.DenyList,
+			ExemptList:    cfg.Federation.Policy.ExemptList,
+		}
+		policyEngine = federation.NewPolicyEngine(policyCfg, federationMgr, logger)
+		logger.Info("federation enabled", "config_paths", len(cfg.Federation.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
 	}
 
 	// Create server dependencies
@@ -168,6 +179,7 @@ func main() {
 		HTTPClient:      httpClient,
 		DiscoveryClient: discoveryClient,
 		FederationMgr:   federationMgr,
+		PolicyEngine:    policyEngine,
 	}
 
 	// Create and start server

@@ -552,3 +552,126 @@ driver = "redis"
 		t.Errorf("expected error to mention memory as only supported driver, got: %v", err)
 	}
 }
+
+func TestLoad_FederationEnabledNoConfigPathsFails(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "config-fed-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	configPath := filepath.Join(tempDir, "config.toml")
+	tomlContent := `
+mode = "strict"
+
+[federation]
+enabled = true
+config_paths = []
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err = Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for federation enabled with no config_paths")
+	}
+	if !strings.Contains(err.Error(), "config_paths must be non-empty") {
+		t.Errorf("expected error about non-empty config_paths, got: %v", err)
+	}
+}
+
+func TestLoad_FederationEnabledNonExistentPathFails(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "config-fed-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	configPath := filepath.Join(tempDir, "config.toml")
+	tomlContent := `
+mode = "strict"
+
+[federation]
+enabled = true
+config_paths = ["/nonexistent/path/federation.json"]
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err = Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for non-existent federation config path")
+	}
+	if !strings.Contains(err.Error(), "not readable") {
+		t.Errorf("expected error about readable path, got: %v", err)
+	}
+}
+
+func TestLoad_FederationEnabledValidPathSucceeds(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "config-fed-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a valid (empty) federation config file
+	fedPath := filepath.Join(tempDir, "federation.json")
+	if err := os.WriteFile(fedPath, []byte(`{"federation_id":"test"}`), 0644); err != nil {
+		t.Fatalf("failed to write federation config: %v", err)
+	}
+
+	configPath := filepath.Join(tempDir, "config.toml")
+	tomlContent := `
+mode = "strict"
+
+[federation]
+enabled = true
+config_paths = ["` + fedPath + `"]
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.Federation.Enabled {
+		t.Error("expected federation to be enabled")
+	}
+	if len(cfg.Federation.ConfigPaths) != 1 {
+		t.Errorf("expected 1 config path, got %d", len(cfg.Federation.ConfigPaths))
+	}
+}
+
+func TestLoad_FederationDisabledNeedsNoConfigPaths(t *testing.T) {
+	// Federation disabled should not require config_paths
+	tempDir, err := os.MkdirTemp("", "config-fed-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	configPath := filepath.Join(tempDir, "config.toml")
+	tomlContent := `
+mode = "strict"
+
+[federation]
+enabled = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Federation.Enabled {
+		t.Error("expected federation to be disabled")
+	}
+}
