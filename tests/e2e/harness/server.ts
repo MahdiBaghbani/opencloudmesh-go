@@ -95,8 +95,8 @@ export function buildBinary(): string {
 
 /**
  * Generates TOML config for a test server.
- * The mode preset (dev/interop/strict) drives SSRF and signature defaults.
- * Do not write ssrf_mode here; let config.Load() apply the preset.
+ * The mode preset (dev/interop/strict) drives SSRF defaults via config.Load().
+ * Signature mode is forced off for test simplicity (no key management).
  */
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
   let config = `mode = "${mode}"

@@ -206,8 +206,8 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 }
 
 // generateTOMLConfig creates a TOML config for a test server.
-// The mode preset (dev/interop/strict) drives SSRF and signature defaults.
-// Do not write ssrf_mode here; let config.Load() apply the preset.
+// The mode preset (dev/interop/strict) drives SSRF defaults via config.Load().
+// Signature mode is forced off for test simplicity (no key management).
 func generateTOMLConfig(name string, port int, dataDir, mode, extra string) string {
 	// Top-level keys must come before any [section] headers in TOML
 	config := fmt.Sprintf(`mode = "%s"

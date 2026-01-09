@@ -102,7 +102,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 	}
 
 	// Start a single server with strict SSRF mode
-	// Note: we use "strict" mode which enables ssrf_mode="block" in the config generator
+	// Note: "strict" mode preset enables SSRF blocking via config.Load() defaults
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "ssrf-test",
