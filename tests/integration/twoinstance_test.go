@@ -63,8 +63,9 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	defer h.Stop(t)
 
 	// Instance1 should be able to discover instance2 through its /ocm-aux/discover endpoint
-	// This tests the outbound HTTP flow (SSRF protection is off in dev mode)
-	discoverURL := h.Server1.BaseURL + "/ocm-aux/discover?peer=" + h.Server2.BaseURL
+	// Uses base= parameter (not peer=) with the target server's base URL
+	// SSRF protection is off in dev mode, so cross-instance discovery should succeed
+	discoverURL := h.Server1.BaseURL + "/ocm-aux/discover?base=" + h.Server2.BaseURL
 	resp, err := http.Get(discoverURL)
 	if err != nil {
 		h.DumpLogs(t)
@@ -72,26 +73,39 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// The endpoint might not be fully implemented yet, but it should at least not crash
-	// Accept various response codes - what matters is the server handles it gracefully
-	// 200: success, 400: bad request (missing params), 404: not found, 501: not implemented
-	allowedCodes := []int{
-		http.StatusOK,
-		http.StatusBadRequest,      // Expected if peer param is malformed or missing feature
-		http.StatusNotFound,        // Endpoint not implemented
-		http.StatusNotImplemented,  // Explicitly not implemented
+	// Assert 200 status - cross-discovery should succeed in dev mode
+	if resp.StatusCode != http.StatusOK {
+		h.DumpLogs(t)
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
 	}
-	found := false
-	for _, code := range allowedCodes {
-		if resp.StatusCode == code {
-			found = true
-			break
-		}
+
+	// Assert proper JSON response structure
+	var discoverResp struct {
+		Success   bool `json:"success"`
+		Discovery *struct {
+			Enabled  bool   `json:"enabled"`
+			Provider string `json:"provider"`
+			EndPoint string `json:"endPoint"`
+		} `json:"discovery"`
+		Error string `json:"error,omitempty"`
 	}
-	if !found {
-		t.Errorf("unexpected status code: %d", resp.StatusCode)
+	if err := json.NewDecoder(resp.Body).Decode(&discoverResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
 	}
-	t.Logf("cross-discovery returned status %d (acceptable)", resp.StatusCode)
+
+	if !discoverResp.Success {
+		t.Errorf("expected success=true, got error: %s", discoverResp.Error)
+	}
+	if discoverResp.Discovery == nil {
+		t.Fatal("expected discovery object in response")
+	}
+	if !discoverResp.Discovery.Enabled {
+		t.Error("expected discovery.enabled=true")
+	}
+	if discoverResp.Discovery.Provider != "OpenCloudMesh" {
+		t.Errorf("expected provider 'OpenCloudMesh', got %q", discoverResp.Discovery.Provider)
+	}
+	t.Logf("cross-discovery succeeded: endpoint=%s", discoverResp.Discovery.EndPoint)
 }
 
 // TestSSRFBlockingWithIPLiterals verifies SSRF protection blocks private IPs.
@@ -111,34 +125,49 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 	})
 	defer srv.Stop(t)
 
-	// Try to discover a private IP - should be blocked by SSRF protection
+	// Try to discover private IPs - should be blocked by SSRF protection with 403
 	privateIPs := []string{
-		"http://127.0.0.1:8080",      // Loopback
-		"http://10.0.0.1:8080",       // RFC 1918 Class A
-		"http://172.16.0.1:8080",     // RFC 1918 Class B
-		"http://192.168.1.1:8080",    // RFC 1918 Class C
-		"http://169.254.1.1:8080",    // Link-local
-		"http://[::1]:8080",          // IPv6 loopback
+		"http://127.0.0.1:8080",   // Loopback
+		"http://10.0.0.1:8080",    // RFC 1918 Class A
+		"http://172.16.0.1:8080",  // RFC 1918 Class B
+		"http://192.168.1.1:8080", // RFC 1918 Class C
+		"http://169.254.1.1:8080", // Link-local
+		"http://[::1]:8080",       // IPv6 loopback
 	}
 
 	for _, privateIP := range privateIPs {
-		discoverURL := srv.BaseURL + "/ocm-aux/discover?peer=" + privateIP
-		resp, err := http.Get(discoverURL)
-		if err != nil {
-			// Connection error is acceptable - might not have implemented endpoint
-			continue
-		}
-		resp.Body.Close()
+		t.Run(privateIP, func(t *testing.T) {
+			// Use base= parameter (not peer=)
+			discoverURL := srv.BaseURL + "/ocm-aux/discover?base=" + privateIP
+			resp, err := http.Get(discoverURL)
+			if err != nil {
+				t.Fatalf("failed to call /ocm-aux/discover: %v", err)
+			}
+			defer resp.Body.Close()
 
-		// If the endpoint exists and SSRF is working, it should reject with 4xx
-		// 404/501 means endpoint not implemented (acceptable for this phase)
-		// 403/400 means SSRF protection kicked in (the expected behavior once implemented)
-		// 200 with successful connection to private IP would be a security failure
-		if resp.StatusCode == http.StatusOK {
-			// Read response to check if it actually connected
-			// For now, just log - full SSRF test requires the endpoint to be implemented
-			t.Logf("warning: %s returned 200 - verify SSRF protection when endpoint is implemented", privateIP)
-		}
+			// Assert 403 Forbidden - SSRF protection should block private IPs
+			if resp.StatusCode != http.StatusForbidden {
+				srv.DumpLogs(t)
+				t.Fatalf("expected 403 Forbidden for SSRF-blocked IP %s, got %d", privateIP, resp.StatusCode)
+			}
+
+			// Assert proper JSON error response
+			var discoverResp struct {
+				Success bool   `json:"success"`
+				Error   string `json:"error,omitempty"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&discoverResp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+
+			if discoverResp.Success {
+				t.Errorf("expected success=false for SSRF-blocked IP")
+			}
+			if discoverResp.Error == "" {
+				t.Errorf("expected non-empty error message for SSRF-blocked IP")
+			}
+			t.Logf("SSRF blocked %s: %s", privateIP, discoverResp.Error)
+		})
 	}
 }
 

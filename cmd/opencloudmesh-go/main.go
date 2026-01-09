@@ -115,11 +115,12 @@ func main() {
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
 	// Create cache (defaults to in-memory if not configured)
+	// Passes driver-specific config from [cache.drivers.<driver>] section
 	cacheDriver := cfg.Cache.Driver
 	if cacheDriver == "" {
 		cacheDriver = "memory"
 	}
-	cacheInstance, err := cache.NewFromConfig(cacheDriver)
+	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)
 	if err != nil {
 		logger.Error("failed to create cache", "error", err)
 		os.Exit(1)

@@ -10,10 +10,41 @@ import (
 )
 
 func init() {
-	cache.RegisterDriver("memory", func() cache.Cache {
-		// Default: 15 minute TTL, 5 minute cleanup interval
-		return New(15*time.Minute, 5*time.Minute)
+	cache.RegisterDriver("memory", func(config map[string]any) cache.Cache {
+		// Apply defaults (Reva-style)
+		defaultTTL := 15 * time.Minute
+		cleanupInterval := 5 * time.Minute
+
+		// Override from config if present
+		if config != nil {
+			if v, ok := config["default_ttl_seconds"]; ok {
+				if secs, ok := toInt(v); ok && secs > 0 {
+					defaultTTL = time.Duration(secs) * time.Second
+				}
+			}
+			if v, ok := config["cleanup_interval_seconds"]; ok {
+				if secs, ok := toInt(v); ok && secs > 0 {
+					cleanupInterval = time.Duration(secs) * time.Second
+				}
+			}
+		}
+
+		return New(defaultTTL, cleanupInterval)
 	})
+}
+
+// toInt converts various numeric types to int.
+func toInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
 }
 
 // item represents a cached value with expiration.
