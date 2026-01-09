@@ -43,11 +43,10 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to find free port: %v", err)
 	}
 
-	// Create config
-	cfg := config.DefaultConfig()
+	// Create config - DevConfig() has TLS.Mode="off", SSRFMode="off", InsecureSkipVerify=true
+	cfg := config.DevConfig()
 	cfg.ListenAddr = fmt.Sprintf(":%d", port)
 	cfg.ExternalOrigin = fmt.Sprintf("http://localhost:%d", port)
-	cfg.TLS.Mode = "off" // HTTP only for tests
 
 	// Create logger that discards output (or use t.Log if you want to see logs)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{

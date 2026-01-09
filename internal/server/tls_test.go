@@ -127,7 +127,7 @@ func TestTLSManager_ACME_FailFast(t *testing.T) {
 	// ACME mode should fail fast when Server.Start() is called
 	// The TLSManager itself returns a placeholder config, but Server.Start()
 	// should detect acme mode and return ErrACMENotImplemented
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 	cfg.TLS.Mode = "acme"
 	cfg.ListenAddr = ":0" // Dynamic port
 

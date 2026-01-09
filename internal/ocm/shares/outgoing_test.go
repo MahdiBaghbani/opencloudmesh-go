@@ -67,7 +67,7 @@ func TestOutgoingShareRepo_CreateAndLookup(t *testing.T) {
 func TestOutgoingHandler_ValidateLocalPath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 
 	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, cfg, logger)
 	handler.SetAllowedPaths([]string{"/tmp", "/var/shared"})
@@ -95,7 +95,7 @@ func TestOutgoingHandler_ValidateLocalPath(t *testing.T) {
 func TestOutgoingHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 
 	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, cfg, logger)
 
@@ -127,7 +127,7 @@ func TestOutgoingHandler_MissingFields(t *testing.T) {
 func TestOutgoingHandler_FileNotFound(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 
 	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, cfg, logger)
 	handler.SetAllowedPaths([]string{"/tmp"})

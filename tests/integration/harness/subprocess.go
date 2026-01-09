@@ -206,13 +206,9 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 }
 
 // generateTOMLConfig creates a TOML config for a test server.
+// The mode preset (dev/interop/strict) drives SSRF and signature defaults.
+// Do not write ssrf_mode here; let config.Load() apply the preset.
 func generateTOMLConfig(name string, port int, dataDir, mode, extra string) string {
-	// Determine SSRF mode based on operating mode
-	ssrfMode := "off"
-	if mode == "strict" {
-		ssrfMode = "block"
-	}
-
 	// Top-level keys must come before any [section] headers in TOML
 	config := fmt.Sprintf(`mode = "%s"
 listen_addr = ":%d"
@@ -222,9 +218,6 @@ external_base_path = ""
 [tls]
 mode = "off"
 
-[identity]
-session_ttl_hours = 24
-
 [server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
@@ -232,7 +225,6 @@ trusted_proxies = ["127.0.0.0/8", "::1/128"]
 username = "admin"
 
 [outbound_http]
-ssrf_mode = "%s"
 timeout_ms = 5000
 connect_timeout_ms = 2000
 max_redirects = 1
@@ -241,7 +233,7 @@ insecure_skip_verify = true
 
 [signature]
 mode = "off"
-`, mode, port, port, ssrfMode)
+`, mode, port, port)
 
 	if extra != "" {
 		config += "\n" + extra

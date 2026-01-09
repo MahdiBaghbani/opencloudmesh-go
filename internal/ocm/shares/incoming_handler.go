@@ -14,16 +14,15 @@ type IncomingHandler struct {
 	repo         IncomingShareRepo
 	policyEngine *federation.PolicyEngine
 	logger       *slog.Logger
-	strictMode   bool
 }
 
 // NewIncomingHandler creates a new incoming shares handler.
-func NewIncomingHandler(repo IncomingShareRepo, policyEngine *federation.PolicyEngine, logger *slog.Logger, strictMode bool) *IncomingHandler {
+// Validation is always strict (sharedSecret required for WebDAV).
+func NewIncomingHandler(repo IncomingShareRepo, policyEngine *federation.PolicyEngine, logger *slog.Logger) *IncomingHandler {
 	return &IncomingHandler{
 		repo:         repo,
 		policyEngine: policyEngine,
 		logger:       logger,
-		strictMode:   strictMode,
 	}
 }
 
@@ -42,8 +41,8 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate request
-	errs := ValidateNewShareRequest(&req, h.strictMode)
+	// Validate request (always strict)
+	errs := ValidateNewShareRequest(&req)
 	if errs.HasErrors() {
 		h.logger.Warn("share validation failed", "errors", errs.Error())
 		w.Header().Set("Content-Type", "application/json")
@@ -153,20 +152,4 @@ func (h *IncomingHandler) sendError(w http.ResponseWriter, status int, code, mes
 		"error":       code,
 		"description": message,
 	})
-}
-
-// Handler is an alias for backward compatibility.
-// Deprecated: Use IncomingHandler instead.
-type Handler = IncomingHandler
-
-// NewHandler creates a new incoming shares handler.
-// Deprecated: Use NewIncomingHandler instead.
-func NewHandler(repo IncomingShareRepo, policyEngine *federation.PolicyEngine, logger *slog.Logger, strictMode bool) *Handler {
-	return NewIncomingHandler(repo, policyEngine, logger, strictMode)
-}
-
-// HandleCreate is an alias for backward compatibility.
-// Deprecated: Use CreateShare instead.
-func (h *IncomingHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
-	h.CreateShare(w, r)
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func TestNew_FailsWithNilDeps(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	_, err := New(cfg, logger, nil)
@@ -22,7 +22,7 @@ func TestNew_FailsWithNilDeps(t *testing.T) {
 }
 
 func TestNew_FailsWithMissingPartyRepo(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	deps := &Deps{
@@ -41,7 +41,7 @@ func TestNew_FailsWithMissingPartyRepo(t *testing.T) {
 }
 
 func TestNew_FailsWithMissingSessionRepo(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	deps := &Deps{
@@ -60,7 +60,7 @@ func TestNew_FailsWithMissingSessionRepo(t *testing.T) {
 }
 
 func TestNew_FailsWithMissingUserAuth(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	deps := &Deps{
@@ -79,7 +79,7 @@ func TestNew_FailsWithMissingUserAuth(t *testing.T) {
 }
 
 func TestNew_FailsWithMissingHTTPClient(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	deps := &Deps{
@@ -98,7 +98,7 @@ func TestNew_FailsWithMissingHTTPClient(t *testing.T) {
 }
 
 func TestNew_SucceedsWithRequiredDeps(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	deps := &Deps{

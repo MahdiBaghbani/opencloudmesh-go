@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -43,6 +44,10 @@ type LoaderOptions struct {
 
 	// FlagOverrides are CLI flag values that override config file values.
 	FlagOverrides FlagOverrides
+
+	// Logger is used for warning messages (e.g., undecoded keys).
+	// If nil, slog.Default() is used.
+	Logger *slog.Logger
 }
 
 // FlagOverrides holds CLI flag values that override config file values.
@@ -95,10 +100,17 @@ type bootstrapAdmin struct {
 //  2. Start from mode preset defaults
 //  3. Overlay TOML config file values
 //  4. Overlay CLI flags
+//  5. Validate enum fields
 //
 // If ConfigPath is provided but the file is missing, unreadable, or invalid TOML,
-// Load returns an error (fail fast).
+// Load returns an error (fail fast). Unknown/undecoded TOML keys produce a warning
+// but do not fail the load.
 func Load(opts LoaderOptions) (*Config, error) {
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	var fc fileConfig
 
 	// Step 1: Load TOML file if provided
@@ -107,8 +119,18 @@ func Load(opts LoaderOptions) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file %s: %w", opts.ConfigPath, err)
 		}
-		if _, err := toml.Decode(string(data), &fc); err != nil {
+		md, err := toml.Decode(string(data), &fc)
+		if err != nil {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
+		}
+
+		// Warn about undecoded keys (do not fail)
+		if undecoded := md.Undecoded(); len(undecoded) > 0 {
+			keys := make([]string, len(undecoded))
+			for i, k := range undecoded {
+				keys[i] = k.String()
+			}
+			logger.Warn("config file contains undecoded keys", "path", opts.ConfigPath, "keys", keys)
 		}
 	}
 
@@ -136,6 +158,11 @@ func Load(opts LoaderOptions) (*Config, error) {
 
 	// Step 5: Overlay CLI flags
 	overlayFlags(cfg, opts.FlagOverrides)
+
+	// Step 6: Validate enum fields (fatal on invalid values)
+	if err := validateEnums(cfg); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
 }
@@ -364,4 +391,43 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.AdminPassword != nil && *f.AdminPassword != "" {
 		cfg.Server.BootstrapAdmin.Password = *f.AdminPassword
 	}
+}
+
+// validateEnums validates enum-like config fields and returns an error for invalid values.
+func validateEnums(cfg *Config) error {
+	// mode is already validated by ParseMode before we get here
+
+	// tls.mode
+	switch cfg.TLS.Mode {
+	case "off", "static", "selfsigned", "acme":
+		// valid
+	default:
+		return fmt.Errorf("invalid tls.mode %q: must be one of off, static, selfsigned, acme", cfg.TLS.Mode)
+	}
+
+	// outbound_http.ssrf_mode
+	switch cfg.OutboundHTTP.SSRFMode {
+	case "strict", "off":
+		// valid
+	default:
+		return fmt.Errorf("invalid outbound_http.ssrf_mode %q: must be one of strict, off", cfg.OutboundHTTP.SSRFMode)
+	}
+
+	// signature.mode
+	switch cfg.Signature.Mode {
+	case "off", "lenient", "strict":
+		// valid
+	default:
+		return fmt.Errorf("invalid signature.mode %q: must be one of off, lenient, strict", cfg.Signature.Mode)
+	}
+
+	// signature.on_discovery_error
+	switch cfg.Signature.OnDiscoveryError {
+	case "reject", "allow":
+		// valid
+	default:
+		return fmt.Errorf("invalid signature.on_discovery_error %q: must be one of reject, allow", cfg.Signature.OnDiscoveryError)
+	}
+
+	return nil
 }

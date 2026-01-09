@@ -140,7 +140,7 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 	r.Route("/ocm", func(r chi.Router) {
 		// Apply signature verification middleware with appropriate peer resolver per endpoint
 		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveSharesRequest)).
-			Post("/shares", s.sharesHandler.HandleCreate)
+			Post("/shares", s.sharesHandler.CreateShare)
 		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveNotificationsRequest)).
 			Post("/notifications", s.notificationsHandler.HandleNotification)
 		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveInviteAcceptedRequest)).

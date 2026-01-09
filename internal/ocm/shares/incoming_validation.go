@@ -36,7 +36,8 @@ func (v *ValidationErrors) HasErrors() bool {
 
 // ValidateNewShareRequest validates an incoming share creation request.
 // Returns validation errors if the request is invalid.
-func ValidateNewShareRequest(req *NewShareRequest, strictMode bool) *ValidationErrors {
+// Validation is always strict (sharedSecret is required for WebDAV access).
+func ValidateNewShareRequest(req *NewShareRequest) *ValidationErrors {
 	errs := &ValidationErrors{}
 
 	// Required fields
@@ -74,14 +75,15 @@ func ValidateNewShareRequest(req *NewShareRequest, strictMode bool) *ValidationE
 
 	// Validate WebDAV protocol if present
 	if req.Protocol.WebDAV != nil {
-		validateWebDAVProtocol(req.Protocol.WebDAV, errs, strictMode)
+		validateWebDAVProtocol(req.Protocol.WebDAV, errs)
 	}
 
 	return errs
 }
 
 // validateWebDAVProtocol validates the WebDAV protocol section.
-func validateWebDAVProtocol(webdav *WebDAVProtocol, errs *ValidationErrors, strictMode bool) {
+// Validation is always strict: sharedSecret is required for WebDAV access.
+func validateWebDAVProtocol(webdav *WebDAVProtocol, errs *ValidationErrors) {
 	// URI is required
 	if webdav.URI == "" {
 		errs.Add("protocol.webdav.uri", "required field missing")
@@ -98,9 +100,9 @@ func validateWebDAVProtocol(webdav *WebDAVProtocol, errs *ValidationErrors, stri
 		}
 	}
 
-	// In strict mode, sharedSecret is required for WebDAV access
-	if strictMode && webdav.SharedSecret == "" {
-		errs.Add("protocol.webdav.sharedSecret", "required for WebDAV access in strict mode")
+	// sharedSecret is always required for WebDAV access
+	if webdav.SharedSecret == "" {
+		errs.Add("protocol.webdav.sharedSecret", "required for WebDAV access")
 	}
 
 	// Validate requirements

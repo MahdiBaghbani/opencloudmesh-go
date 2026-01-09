@@ -95,10 +95,10 @@ export function buildBinary(): string {
 
 /**
  * Generates TOML config for a test server.
+ * The mode preset (dev/interop/strict) drives SSRF and signature defaults.
+ * Do not write ssrf_mode here; let config.Load() apply the preset.
  */
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
-  const ssrfMode = mode === 'strict' ? 'block' : 'off';
-
   let config = `mode = "${mode}"
 listen_addr = ":${port}"
 external_origin = "http://localhost:${port}"
@@ -106,9 +106,6 @@ external_base_path = ""
 
 [tls]
 mode = "off"
-
-[identity]
-session_ttl_hours = 24
 
 [server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
@@ -118,7 +115,6 @@ username = "admin"
 password = "testpassword123"
 
 [outbound_http]
-ssrf_mode = "${ssrfMode}"
 timeout_ms = 5000
 connect_timeout_ms = 2000
 max_redirects = 1

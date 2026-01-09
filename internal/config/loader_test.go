@@ -323,3 +323,161 @@ func TestConfig_Redacted(t *testing.T) {
 		t.Error("username should be visible")
 	}
 }
+
+func TestLoad_UndecodedKeys_WarnsButSucceeds(t *testing.T) {
+	// Create a TOML config with undecoded keys
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "dev"
+
+[identity]
+session_ttl_hours = 24
+
+[token_exchange]
+enabled = true
+
+[unknown_section]
+random_key = "value"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Load should succeed despite undecoded keys
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() should succeed with undecoded keys, got error: %v", err)
+	}
+
+	// Verify the decoded mode was applied
+	if cfg.Mode != "dev" {
+		t.Errorf("expected mode dev, got %s", cfg.Mode)
+	}
+}
+
+func TestLoad_InvalidTLSMode_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[tls]
+mode = "letsencrypt"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid tls.mode")
+	}
+	if !strings.Contains(err.Error(), "invalid tls.mode") {
+		t.Errorf("expected tls.mode error, got: %v", err)
+	}
+}
+
+func TestLoad_InvalidSSRFMode_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[outbound_http]
+ssrf_mode = "block"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid outbound_http.ssrf_mode")
+	}
+	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf_mode") {
+		t.Errorf("expected ssrf_mode error, got: %v", err)
+	}
+}
+
+func TestLoad_InvalidSignatureMode_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[signature]
+mode = "relaxed"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid signature.mode")
+	}
+	if !strings.Contains(err.Error(), "invalid signature.mode") {
+		t.Errorf("expected signature.mode error, got: %v", err)
+	}
+}
+
+func TestLoad_InvalidOnDiscoveryError_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[signature]
+on_discovery_error = "ignore"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid signature.on_discovery_error")
+	}
+	if !strings.Contains(err.Error(), "invalid signature.on_discovery_error") {
+		t.Errorf("expected on_discovery_error error, got: %v", err)
+	}
+}
+
+func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	// Test all valid enum combinations
+	tomlContent := `
+mode = "strict"
+
+[tls]
+mode = "acme"
+
+[outbound_http]
+ssrf_mode = "off"
+
+[signature]
+mode = "lenient"
+on_discovery_error = "allow"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.TLS.Mode != "acme" {
+		t.Errorf("expected tls.mode acme, got %s", cfg.TLS.Mode)
+	}
+	if cfg.OutboundHTTP.SSRFMode != "off" {
+		t.Errorf("expected ssrf_mode off, got %s", cfg.OutboundHTTP.SSRFMode)
+	}
+	if cfg.Signature.Mode != "lenient" {
+		t.Errorf("expected signature.mode lenient, got %s", cfg.Signature.Mode)
+	}
+	if cfg.Signature.OnDiscoveryError != "allow" {
+		t.Errorf("expected on_discovery_error allow, got %s", cfg.Signature.OnDiscoveryError)
+	}
+}

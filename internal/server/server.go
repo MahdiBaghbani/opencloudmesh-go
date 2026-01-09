@@ -69,7 +69,7 @@ type Server struct {
 	peerResolver     *crypto.PeerResolver
 	signatureMiddleware *crypto.SignatureMiddleware
 	auxHandler       *federation.AuxHandler
-	sharesHandler         *shares.Handler
+	sharesHandler         *shares.IncomingHandler
 	inboxHandler          *shares.InboxHandler
 	inboxActionsHandler   *shares.InboxActionsHandler
 	outgoingHandler       *shares.OutgoingHandler
@@ -123,8 +123,8 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create auxiliary handler for federation endpoints
 	auxHandler := federation.NewAuxHandler(deps.FederationMgr, deps.DiscoveryClient)
 
-	// Create shares handler
-	sharesHandler := shares.NewHandler(deps.IncomingShareRepo, deps.PolicyEngine, logger, true)
+	// Create shares handler (validation is always strict)
+	sharesHandler := shares.NewIncomingHandler(deps.IncomingShareRepo, deps.PolicyEngine, logger)
 
 	// Create inbox handler
 	inboxHandler := shares.NewInboxHandler(deps.IncomingShareRepo)

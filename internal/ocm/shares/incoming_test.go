@@ -15,7 +15,7 @@ import (
 
 func TestValidateNewShareRequest_RequiredFields(t *testing.T) {
 	req := &shares.NewShareRequest{}
-	errs := shares.ValidateNewShareRequest(req, true)
+	errs := shares.ValidateNewShareRequest(req)
 
 	if !errs.HasErrors() {
 		t.Error("expected validation errors for empty request")
@@ -53,10 +53,10 @@ func TestValidateNewShareRequest_MissingSharedSecret(t *testing.T) {
 		},
 	}
 
-	// Strict mode should reject missing sharedSecret
-	errs := shares.ValidateNewShareRequest(req, true)
+	// Validation is always strict - sharedSecret is required
+	errs := shares.ValidateNewShareRequest(req)
 	if !errs.HasErrors() {
-		t.Error("expected validation error for missing sharedSecret in strict mode")
+		t.Error("expected validation error for missing sharedSecret")
 	}
 
 	found := false
@@ -68,19 +68,6 @@ func TestValidateNewShareRequest_MissingSharedSecret(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected specific error for sharedSecret")
-	}
-
-	// Non-strict mode should accept missing sharedSecret
-	errs = shares.ValidateNewShareRequest(req, false)
-	hasSecretError := false
-	for _, e := range errs.Errors {
-		if e.Field == "protocol.webdav.sharedSecret" {
-			hasSecretError = true
-			break
-		}
-	}
-	if hasSecretError {
-		t.Error("should not error on missing sharedSecret in non-strict mode")
 	}
 }
 
@@ -105,11 +92,11 @@ func TestValidateNewShareRequest_MustExchangeToken_Accepted(t *testing.T) {
 		},
 	}
 
-	errs := shares.ValidateNewShareRequest(req, false)
+	errs := shares.ValidateNewShareRequest(req)
 	// Should not have errors related to must-exchange-token
 	for _, e := range errs.Errors {
-		if e.Field == "protocol.webdav.requirements" && 
-		   (e.Message == "must-exchange-token not yet supported" || e.Message == "must-exchange-token not supported") {
+		if e.Field == "protocol.webdav.requirements" &&
+			(e.Message == "must-exchange-token not yet supported" || e.Message == "must-exchange-token not supported") {
 			t.Error("must-exchange-token should be accepted, not rejected")
 		}
 	}
@@ -133,7 +120,7 @@ func TestWebDAVProtocol_HasRequirement(t *testing.T) {
 func TestIncomingHandler_CreateShare(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryIncomingShareRepo()
-	handler := shares.NewIncomingHandler(repo, nil, logger, false)
+	handler := shares.NewIncomingHandler(repo, nil, logger)
 
 	body := `{
 		"shareWith": "user@example.com",
@@ -166,7 +153,7 @@ func TestIncomingHandler_CreateShare(t *testing.T) {
 func TestIncomingHandler_CreateShare_ValidationError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryIncomingShareRepo()
-	handler := shares.NewIncomingHandler(repo, nil, logger, false)
+	handler := shares.NewIncomingHandler(repo, nil, logger)
 
 	// Missing required fields
 	body := `{"name": "test.txt"}`

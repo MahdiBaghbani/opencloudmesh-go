@@ -6,7 +6,6 @@ package integration
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -37,20 +36,14 @@ func TestTokenExchangeFlow(t *testing.T) {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
-	// Start two instances with token exchange enabled
+	// Start two instances
 	// Instance1 = sender (shares the file)
 	// Instance2 = receiver (requests the file)
-	extraCfg := fmt.Sprintf(`
-[token_exchange]
-enabled = true
-
-[shares]
-allowed_paths = ["%s"]
-`, tmpDir)
-
+	// Note: [token_exchange] and [shares] sections were removed - they were phantom knobs
+	// (not decoded by the loader). Token exchange capability is always available.
 	h := harness.StartTwoInstances(t,
-		harness.SubprocessConfig{Name: "sender", Mode: "dev", ExtraConfig: extraCfg},
-		harness.SubprocessConfig{Name: "receiver", Mode: "dev", ExtraConfig: extraCfg},
+		harness.SubprocessConfig{Name: "sender", Mode: "dev"},
+		harness.SubprocessConfig{Name: "receiver", Mode: "dev"},
 	)
 	defer h.Stop(t)
 
@@ -236,16 +229,11 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
-	extraCfg := fmt.Sprintf(`
-[shares]
-allowed_paths = ["%s"]
-`, tmpDir)
-
+	// Note: [shares] allowed_paths section was removed - it was a phantom knob (not decoded).
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:        "webdav-test",
-		Mode:        "dev",
-		ExtraConfig: extraCfg,
+		Name: "webdav-test",
+		Mode: "dev",
 	})
 	defer srv.Stop(t)
 
