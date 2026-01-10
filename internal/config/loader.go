@@ -52,14 +52,17 @@ type LoaderOptions struct {
 
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
-	ListenAddr       *string
-	ExternalOrigin   *string
-	ExternalBasePath *string
-	SSRFMode         *string
-	SignaturePolicy  *string
-	TLSMode          *string
-	AdminUsername    *string
-	AdminPassword    *string
+	ListenAddr                     *string
+	ExternalOrigin                 *string
+	ExternalBasePath               *string
+	SSRFMode                       *string
+	SignatureInboundMode           *string
+	SignatureOutboundMode          *string
+	SignatureAdvertiseHTTPReqSigs  *bool
+	SignaturePeerProfileOverride   *string
+	TLSMode                        *string
+	AdminUsername                  *string
+	AdminPassword                  *string
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -237,10 +240,13 @@ func StrictConfig() *Config {
 			InsecureSkipVerify: false,
 		},
 		Signature: SignatureConfig{
-			Mode:             "strict",
-			KeyPath:          ".ocm/keys/signing.pem",
-			OnDiscoveryError: "reject",
-			AllowMismatch:    false,
+			InboundMode:                    "strict",
+			OutboundMode:                   "strict",
+			AdvertiseHTTPRequestSignatures: true,
+			PeerProfileLevelOverride:       "non-strict",
+			KeyPath:                        ".ocm/keys/signing.pem",
+			OnDiscoveryError:               "reject",
+			AllowMismatch:                  false,
 		},
 		Federation: FederationConfig{
 			Enabled:     false,
@@ -257,7 +263,10 @@ func StrictConfig() *Config {
 func InteropConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeInterop)
-	cfg.Signature.Mode = "lenient"
+	cfg.Signature.InboundMode = "lenient"
+	cfg.Signature.OutboundMode = "criteria-only"
+	cfg.Signature.AdvertiseHTTPRequestSignatures = true
+	cfg.Signature.PeerProfileLevelOverride = "non-strict"
 	// InsecureSkipVerify stays configurable (default false)
 	return cfg
 }
@@ -292,10 +301,13 @@ func DevConfig() *Config {
 			InsecureSkipVerify: true,
 		},
 		Signature: SignatureConfig{
-			Mode:             "lenient",
-			KeyPath:          ".ocm/keys/signing.pem",
-			OnDiscoveryError: "allow",
-			AllowMismatch:    true,
+			InboundMode:                    "lenient",
+			OutboundMode:                   "criteria-only",
+			AdvertiseHTTPRequestSignatures: true,
+			PeerProfileLevelOverride:       "non-strict",
+			KeyPath:                        ".ocm/keys/signing.pem",
+			OnDiscoveryError:               "allow",
+			AllowMismatch:                  true,
 		},
 		Federation: FederationConfig{
 			Enabled:     false,
@@ -386,8 +398,16 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 
 	if fc.Signature != nil {
-		if fc.Signature.Mode != "" {
-			cfg.Signature.Mode = fc.Signature.Mode
+		if fc.Signature.InboundMode != "" {
+			cfg.Signature.InboundMode = fc.Signature.InboundMode
+		}
+		if fc.Signature.OutboundMode != "" {
+			cfg.Signature.OutboundMode = fc.Signature.OutboundMode
+		}
+		// AdvertiseHTTPRequestSignatures is bool, overlay when section present
+		cfg.Signature.AdvertiseHTTPRequestSignatures = fc.Signature.AdvertiseHTTPRequestSignatures
+		if fc.Signature.PeerProfileLevelOverride != "" {
+			cfg.Signature.PeerProfileLevelOverride = fc.Signature.PeerProfileLevelOverride
 		}
 		if fc.Signature.KeyPath != "" {
 			cfg.Signature.KeyPath = fc.Signature.KeyPath
@@ -459,8 +479,17 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.SSRFMode != nil && *f.SSRFMode != "" {
 		cfg.OutboundHTTP.SSRFMode = *f.SSRFMode
 	}
-	if f.SignaturePolicy != nil && *f.SignaturePolicy != "" {
-		cfg.Signature.Mode = *f.SignaturePolicy
+	if f.SignatureInboundMode != nil && *f.SignatureInboundMode != "" {
+		cfg.Signature.InboundMode = *f.SignatureInboundMode
+	}
+	if f.SignatureOutboundMode != nil && *f.SignatureOutboundMode != "" {
+		cfg.Signature.OutboundMode = *f.SignatureOutboundMode
+	}
+	if f.SignatureAdvertiseHTTPReqSigs != nil {
+		cfg.Signature.AdvertiseHTTPRequestSignatures = *f.SignatureAdvertiseHTTPReqSigs
+	}
+	if f.SignaturePeerProfileOverride != nil && *f.SignaturePeerProfileOverride != "" {
+		cfg.Signature.PeerProfileLevelOverride = *f.SignaturePeerProfileOverride
 	}
 	if f.TLSMode != nil && *f.TLSMode != "" {
 		cfg.TLS.Mode = *f.TLSMode
@@ -493,12 +522,33 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("invalid outbound_http.ssrf_mode %q: must be one of strict, off", cfg.OutboundHTTP.SSRFMode)
 	}
 
-	// signature.mode
-	switch cfg.Signature.Mode {
+	// signature.inbound_mode
+	switch cfg.Signature.InboundMode {
 	case "off", "lenient", "strict":
 		// valid
 	default:
-		return fmt.Errorf("invalid signature.mode %q: must be one of off, lenient, strict", cfg.Signature.Mode)
+		return fmt.Errorf("invalid signature.inbound_mode %q: must be one of off, lenient, strict", cfg.Signature.InboundMode)
+	}
+
+	// signature.outbound_mode
+	switch cfg.Signature.OutboundMode {
+	case "off", "token-only", "criteria-only", "strict":
+		// valid
+	default:
+		return fmt.Errorf("invalid signature.outbound_mode %q: must be one of off, token-only, criteria-only, strict", cfg.Signature.OutboundMode)
+	}
+
+	// signature.peer_profile_level_override
+	switch cfg.Signature.PeerProfileLevelOverride {
+	case "off", "non-strict", "all":
+		// valid
+	default:
+		return fmt.Errorf("invalid signature.peer_profile_level_override %q: must be one of off, non-strict, all", cfg.Signature.PeerProfileLevelOverride)
+	}
+
+	// guardrail: inbound_mode=off implies advertise=false
+	if cfg.Signature.InboundMode == "off" && cfg.Signature.AdvertiseHTTPRequestSignatures {
+		return fmt.Errorf("signature.advertise_http_request_signatures cannot be true when signature.inbound_mode is off")
 	}
 
 	// signature.on_discovery_error

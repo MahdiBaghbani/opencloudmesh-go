@@ -122,7 +122,8 @@ max_response_bytes = 1048576
 insecure_skip_verify = true
 
 [signature]
-mode = "off"
+inbound_mode = "off"
+outbound_mode = "off"
 `;
 
   if (extraConfig) {

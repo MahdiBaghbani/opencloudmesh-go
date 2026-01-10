@@ -47,6 +47,9 @@ type Deps struct {
 	DiscoveryClient *discovery.Client
 	PolicyEngine    *federation.PolicyEngine
 
+	// Optional: peer profiles for outbound signing decisions
+	ProfileRegistry *federation.ProfileRegistry
+
 	// Optional: persistence repos (nil uses in-memory or disabled features)
 	IncomingShareRepo  shares.IncomingShareRepo
 	OutgoingShareRepo  shares.OutgoingShareRepo
@@ -103,8 +106,10 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create discovery handler
 	discoveryHandler := discovery.NewHandler(cfg)
 
-	// Set up public keys in discovery if signature mode is not off
-	if cfg.Signature.Mode != "off" && deps.KeyManager != nil {
+	// Set up public keys in discovery per 5A rule:
+	// Keys exist when inbound_mode != off OR outbound_mode != off
+	needsKeys := cfg.Signature.InboundMode != "off" || cfg.Signature.OutboundMode != "off"
+	if needsKeys && deps.KeyManager != nil {
 		discoveryHandler.SetPublicKeys([]discovery.PublicKey{
 			{
 				KeyID:        deps.KeyManager.GetKeyID(),

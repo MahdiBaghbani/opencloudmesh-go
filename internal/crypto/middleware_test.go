@@ -31,7 +31,7 @@ func (m *mockPeerDiscovery) GetPublicKey(ctx context.Context, keyID string) (str
 }
 
 func TestSignatureMiddleware_OffMode(t *testing.T) {
-	cfg := &config.SignatureConfig{Mode: "off"}
+	cfg := &config.SignatureConfig{InboundMode: "off"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
@@ -52,7 +52,7 @@ func TestSignatureMiddleware_OffMode(t *testing.T) {
 }
 
 func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
-	cfg := &config.SignatureConfig{Mode: "strict"}
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
@@ -78,7 +78,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 	km.LoadOrGenerate()
 	signer := crypto.NewRFC9421Signer(km)
 
-	cfg := &config.SignatureConfig{Mode: "strict"}
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		publicKeysPEM: map[string]string{
@@ -116,7 +116,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 }
 
 func TestSignatureMiddleware_LenientMode_AcceptsUnsignedFromNonCapable(t *testing.T) {
-	cfg := &config.SignatureConfig{Mode: "lenient"}
+	cfg := &config.SignatureConfig{InboundMode: "lenient"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	// Peer is NOT signing-capable
@@ -147,7 +147,7 @@ func TestSignatureMiddleware_LenientMode_AcceptsUnsignedFromNonCapable(t *testin
 }
 
 func TestSignatureMiddleware_LenientMode_RejectsUnsignedFromCapable(t *testing.T) {
-	cfg := &config.SignatureConfig{Mode: "lenient"}
+	cfg := &config.SignatureConfig{InboundMode: "lenient"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	// Peer IS signing-capable
@@ -187,7 +187,7 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 
 	signer := crypto.NewRFC9421Signer(kmSender)
 
-	cfg := &config.SignatureConfig{Mode: "strict"}
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	// Return the wrong public key

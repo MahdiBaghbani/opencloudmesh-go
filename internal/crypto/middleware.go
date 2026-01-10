@@ -67,8 +67,8 @@ func NewSignatureMiddleware(cfg *config.SignatureConfig, pd PeerDiscovery, logge
 func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http.Request, body []byte) (string, error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// If signature mode is off, skip verification
-			if m.cfg.Mode == "off" {
+			// If inbound mode is off, skip verification
+			if m.cfg.InboundMode == "off" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -143,13 +143,13 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 				}
 			} else {
 				// No signature present
-				if m.cfg.Mode == "strict" {
+				if m.cfg.InboundMode == "strict" {
 					http.Error(w, "signature required", http.StatusUnauthorized)
 					return
 				}
 
 				// lenient mode - check if peer is signing-capable
-				if m.cfg.Mode == "lenient" && declaredPeer != "" {
+				if m.cfg.InboundMode == "lenient" && declaredPeer != "" {
 					isCapable, err := m.peerDiscovery.IsSigningCapable(r.Context(), declaredPeer)
 					if err != nil {
 						if m.cfg.OnDiscoveryError == "allow" {

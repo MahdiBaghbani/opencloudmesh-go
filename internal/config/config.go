@@ -155,8 +155,19 @@ type BootstrapAdminConfig struct {
 
 // SignatureConfig holds HTTP signature settings.
 type SignatureConfig struct {
-	// Mode is one of: off, lenient, strict
-	Mode string `toml:"mode"`
+	// InboundMode controls inbound signature enforcement: strict, lenient, off
+	InboundMode string `toml:"inbound_mode"`
+
+	// OutboundMode controls outbound signing: strict, criteria-only, token-only, off
+	OutboundMode string `toml:"outbound_mode"`
+
+	// AdvertiseHTTPRequestSignatures controls whether discovery includes
+	// http-request-signatures in criteria (can be true even when inbound is lenient)
+	AdvertiseHTTPRequestSignatures bool `toml:"advertise_http_request_signatures"`
+
+	// PeerProfileLevelOverride controls when peer profile relaxations apply:
+	// all, non-strict, off (default: non-strict)
+	PeerProfileLevelOverride string `toml:"peer_profile_level_override"`
 
 	// KeyPath is where the signing private key is stored
 	KeyPath string `toml:"key_path"`
@@ -274,7 +285,10 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    InsecureSkipVerify: %v,\n", c.OutboundHTTP.InsecureSkipVerify))
 	sb.WriteString("  },\n")
 	sb.WriteString("  Signature: {\n")
-	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.Signature.Mode))
+	sb.WriteString(fmt.Sprintf("    InboundMode: %q,\n", c.Signature.InboundMode))
+	sb.WriteString(fmt.Sprintf("    OutboundMode: %q,\n", c.Signature.OutboundMode))
+	sb.WriteString(fmt.Sprintf("    AdvertiseHTTPRequestSignatures: %v,\n", c.Signature.AdvertiseHTTPRequestSignatures))
+	sb.WriteString(fmt.Sprintf("    PeerProfileLevelOverride: %q,\n", c.Signature.PeerProfileLevelOverride))
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
 	sb.WriteString(fmt.Sprintf("    OnDiscoveryError: %q,\n", c.Signature.OnDiscoveryError))
 	sb.WriteString(fmt.Sprintf("    AllowMismatch: %v,\n", c.Signature.AllowMismatch))

@@ -51,8 +51,11 @@ func TestLoad_NoConfigFile(t *testing.T) {
 	if cfg.OutboundHTTP.SSRFMode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRFMode)
 	}
-	if cfg.Signature.Mode != "strict" {
-		t.Errorf("expected signature mode strict, got %s", cfg.Signature.Mode)
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected signature inbound mode strict, got %s", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Errorf("expected signature outbound mode strict, got %s", cfg.Signature.OutboundMode)
 	}
 }
 
@@ -141,7 +144,8 @@ external_origin = "https://from-toml.com"
 listen_addr = ":9000"
 
 [signature]
-mode = "lenient"
+inbound_mode = "lenient"
+outbound_mode = "criteria-only"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -149,12 +153,12 @@ mode = "lenient"
 
 	// Flags should override TOML
 	origin := "https://from-flag.com"
-	sigPolicy := "strict"
+	sigInbound := "strict"
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
-			ExternalOrigin:  &origin,
-			SignaturePolicy: &sigPolicy,
+			ExternalOrigin:       &origin,
+			SignatureInboundMode: &sigInbound,
 		},
 	})
 	if err != nil {
@@ -167,8 +171,8 @@ mode = "lenient"
 	if cfg.ListenAddr != ":9000" {
 		t.Errorf("expected listen from TOML :9000, got %s", cfg.ListenAddr)
 	}
-	if cfg.Signature.Mode != "strict" {
-		t.Errorf("expected signature mode from flag strict, got %s", cfg.Signature.Mode)
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected signature inbound mode from flag strict, got %s", cfg.Signature.InboundMode)
 	}
 }
 
@@ -249,8 +253,17 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.OutboundHTTP.SSRFMode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRFMode)
 	}
-	if cfg.Signature.Mode != "strict" {
-		t.Errorf("expected signature mode strict, got %s", cfg.Signature.Mode)
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected signature inbound mode strict, got %s", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Errorf("expected signature outbound mode strict, got %s", cfg.Signature.OutboundMode)
+	}
+	if !cfg.Signature.AdvertiseHTTPRequestSignatures {
+		t.Error("expected advertise_http_request_signatures true in strict")
+	}
+	if cfg.Signature.PeerProfileLevelOverride != "non-strict" {
+		t.Errorf("expected peer_profile_level_override non-strict, got %s", cfg.Signature.PeerProfileLevelOverride)
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify false in strict")
@@ -283,8 +296,14 @@ func TestInteropConfig(t *testing.T) {
 	if cfg.Mode != "interop" {
 		t.Errorf("expected mode interop, got %s", cfg.Mode)
 	}
-	if cfg.Signature.Mode != "lenient" {
-		t.Errorf("expected signature mode lenient, got %s", cfg.Signature.Mode)
+	if cfg.Signature.InboundMode != "lenient" {
+		t.Errorf("expected signature inbound mode lenient, got %s", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "criteria-only" {
+		t.Errorf("expected signature outbound mode criteria-only, got %s", cfg.Signature.OutboundMode)
+	}
+	if !cfg.Signature.AdvertiseHTTPRequestSignatures {
+		t.Error("expected advertise_http_request_signatures true in interop")
 	}
 	// SSRF stays strict in interop
 	if cfg.OutboundHTTP.SSRFMode != "strict" {
@@ -304,8 +323,11 @@ func TestConfig_Redacted(t *testing.T) {
 			},
 		},
 		Signature: SignatureConfig{
-			Mode:    "strict",
-			KeyPath: ".ocm/keys/signing.pem",
+			InboundMode:                    "strict",
+			OutboundMode:                   "strict",
+			AdvertiseHTTPRequestSignatures: true,
+			PeerProfileLevelOverride:       "non-strict",
+			KeyPath:                        ".ocm/keys/signing.pem",
 		},
 	}
 
@@ -399,13 +421,13 @@ ssrf_mode = "block"
 	}
 }
 
-func TestLoad_InvalidSignatureMode_FailsFast(t *testing.T) {
+func TestLoad_InvalidSignatureInboundMode_FailsFast(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 [signature]
-mode = "relaxed"
+inbound_mode = "relaxed"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -413,10 +435,54 @@ mode = "relaxed"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for invalid signature.mode")
+		t.Fatal("expected error for invalid signature.inbound_mode")
 	}
-	if !strings.Contains(err.Error(), "invalid signature.mode") {
-		t.Errorf("expected signature.mode error, got: %v", err)
+	if !strings.Contains(err.Error(), "invalid signature.inbound_mode") {
+		t.Errorf("expected signature.inbound_mode error, got: %v", err)
+	}
+}
+
+func TestLoad_InvalidSignatureOutboundMode_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[signature]
+outbound_mode = "relaxed"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid signature.outbound_mode")
+	}
+	if !strings.Contains(err.Error(), "invalid signature.outbound_mode") {
+		t.Errorf("expected signature.outbound_mode error, got: %v", err)
+	}
+}
+
+func TestLoad_AdvertiseGuardrail_InboundOffRejectsAdvertiseTrue(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[signature]
+inbound_mode = "off"
+outbound_mode = "off"
+advertise_http_request_signatures = true
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for advertise=true when inbound_mode=off")
+	}
+	if !strings.Contains(err.Error(), "advertise_http_request_signatures cannot be true") {
+		t.Errorf("expected guardrail error, got: %v", err)
 	}
 }
 
@@ -456,7 +522,9 @@ mode = "acme"
 ssrf_mode = "off"
 
 [signature]
-mode = "lenient"
+inbound_mode = "lenient"
+outbound_mode = "criteria-only"
+peer_profile_level_override = "all"
 on_discovery_error = "allow"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
@@ -474,8 +542,14 @@ on_discovery_error = "allow"
 	if cfg.OutboundHTTP.SSRFMode != "off" {
 		t.Errorf("expected ssrf_mode off, got %s", cfg.OutboundHTTP.SSRFMode)
 	}
-	if cfg.Signature.Mode != "lenient" {
-		t.Errorf("expected signature.mode lenient, got %s", cfg.Signature.Mode)
+	if cfg.Signature.InboundMode != "lenient" {
+		t.Errorf("expected signature.inbound_mode lenient, got %s", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "criteria-only" {
+		t.Errorf("expected signature.outbound_mode criteria-only, got %s", cfg.Signature.OutboundMode)
+	}
+	if cfg.Signature.PeerProfileLevelOverride != "all" {
+		t.Errorf("expected peer_profile_level_override all, got %s", cfg.Signature.PeerProfileLevelOverride)
 	}
 	if cfg.Signature.OnDiscoveryError != "allow" {
 		t.Errorf("expected on_discovery_error allow, got %s", cfg.Signature.OnDiscoveryError)

@@ -32,7 +32,10 @@ func main() {
 	externalOrigin := flag.String("external-origin", "", "External origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
 	ssrfMode := flag.String("ssrf-mode", "", "SSRF protection mode: strict or off (overrides config)")
-	signaturePolicy := flag.String("signature-policy", "", "Signature policy: strict, lenient, or off (overrides config)")
+	signatureInboundMode := flag.String("signature-inbound-mode", "", "Signature inbound mode: strict, lenient, or off (overrides config)")
+	signatureOutboundMode := flag.String("signature-outbound-mode", "", "Signature outbound mode: strict, criteria-only, token-only, or off (overrides config)")
+	signatureAdvertise := flag.Bool("signature-advertise-http-request-signatures", false, "Advertise http-request-signatures in discovery criteria")
+	signaturePeerOverride := flag.String("signature-peer-profile-level-override", "", "Peer profile override level: all, non-strict, or off (overrides config)")
 	tlsMode := flag.String("tls-mode", "", "TLS mode: off, static, selfsigned, or acme (overrides config)")
 	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
@@ -49,14 +52,17 @@ func main() {
 		ConfigPath: *configPath,
 		ModeFlag:   *modeFlag,
 		FlagOverrides: config.FlagOverrides{
-			ListenAddr:       listenAddr,
-			ExternalOrigin:   externalOrigin,
-			ExternalBasePath: externalBasePath,
-			SSRFMode:         ssrfMode,
-			SignaturePolicy:  signaturePolicy,
-			TLSMode:          tlsMode,
-			AdminUsername:    adminUsername,
-			AdminPassword:    adminPassword,
+			ListenAddr:                    listenAddr,
+			ExternalOrigin:                externalOrigin,
+			ExternalBasePath:              externalBasePath,
+			SSRFMode:                      ssrfMode,
+			SignatureInboundMode:          signatureInboundMode,
+			SignatureOutboundMode:         signatureOutboundMode,
+			SignatureAdvertiseHTTPReqSigs: signatureAdvertise,
+			SignaturePeerProfileOverride:  signaturePeerOverride,
+			TLSMode:                       tlsMode,
+			AdminUsername:                 adminUsername,
+			AdminPassword:                 adminPassword,
 		},
 	})
 	if err != nil {
@@ -72,9 +78,11 @@ func main() {
 	sessionRepo := identity.NewMemorySessionRepo()
 	userAuth := identity.NewUserAuth(3) // argon2id time parameter
 
-	// Initialize key manager for HTTP signatures
+	// Initialize key manager for HTTP signatures (5A rule)
+	// Keys exist when inbound_mode != off OR outbound_mode != off
 	var keyManager *crypto.KeyManager
-	if cfg.Signature.Mode != "off" {
+	needsKeys := cfg.Signature.InboundMode != "off" || cfg.Signature.OutboundMode != "off"
+	if needsKeys {
 		// Ensure key directory exists
 		keyDir := filepath.Dir(cfg.Signature.KeyPath)
 		if keyDir != "" && keyDir != "." {
@@ -170,6 +178,35 @@ func main() {
 		logger.Info("federation enabled", "config_paths", len(cfg.Federation.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
 	}
 
+	// Create peer profile registry from config
+	var profileRegistry *federation.ProfileRegistry
+	if len(cfg.PeerProfiles.Mappings) > 0 || len(cfg.PeerProfiles.CustomProfiles) > 0 {
+		// Convert config.PeerProfile to federation.Profile
+		customProfiles := make(map[string]*federation.Profile)
+		for name, p := range cfg.PeerProfiles.CustomProfiles {
+			customProfiles[name] = &federation.Profile{
+				Name:                  name,
+				AllowUnsignedInbound:  p.AllowUnsignedInbound,
+				AllowUnsignedOutbound: p.AllowUnsignedOutbound,
+				AllowMismatchedHost:   p.AllowMismatchedHost,
+				AllowHTTP:             p.AllowHTTP,
+				TokenExchangeQuirks:   p.TokenExchangeQuirks,
+			}
+		}
+		// Convert config.PeerProfileMapping to federation.ProfileMapping
+		mappings := make([]federation.ProfileMapping, len(cfg.PeerProfiles.Mappings))
+		for i, m := range cfg.PeerProfiles.Mappings {
+			mappings[i] = federation.ProfileMapping{
+				Pattern:     m.Pattern,
+				ProfileName: m.Profile,
+			}
+		}
+		profileRegistry = federation.NewProfileRegistry(customProfiles, mappings)
+	} else {
+		// Create registry with just builtin profiles
+		profileRegistry = federation.NewProfileRegistry(nil, nil)
+	}
+
 	// Create server dependencies
 	deps := &server.Deps{
 		PartyRepo:       partyRepo,
@@ -180,6 +217,7 @@ func main() {
 		DiscoveryClient: discoveryClient,
 		FederationMgr:   federationMgr,
 		PolicyEngine:    policyEngine,
+		ProfileRegistry: profileRegistry,
 	}
 
 	// Create and start server
