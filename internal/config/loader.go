@@ -58,7 +58,7 @@ type FlagOverrides struct {
 	SSRFMode                       *string
 	SignatureInboundMode           *string
 	SignatureOutboundMode          *string
-	SignatureAdvertiseHTTPReqSigs  *bool
+	SignatureAdvertiseHTTPReqSigs  *string // "true", "false", or "" (unset)
 	SignaturePeerProfileOverride   *string
 	TLSMode                        *string
 	AdminUsername                  *string
@@ -485,8 +485,9 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.SignatureOutboundMode != nil && *f.SignatureOutboundMode != "" {
 		cfg.Signature.OutboundMode = *f.SignatureOutboundMode
 	}
-	if f.SignatureAdvertiseHTTPReqSigs != nil {
-		cfg.Signature.AdvertiseHTTPRequestSignatures = *f.SignatureAdvertiseHTTPReqSigs
+	if f.SignatureAdvertiseHTTPReqSigs != nil && *f.SignatureAdvertiseHTTPReqSigs != "" {
+		// Parse "true" or "false" string (only apply when explicitly set)
+		cfg.Signature.AdvertiseHTTPRequestSignatures = *f.SignatureAdvertiseHTTPReqSigs == "true"
 	}
 	if f.SignaturePeerProfileOverride != nil && *f.SignaturePeerProfileOverride != "" {
 		cfg.Signature.PeerProfileLevelOverride = *f.SignaturePeerProfileOverride

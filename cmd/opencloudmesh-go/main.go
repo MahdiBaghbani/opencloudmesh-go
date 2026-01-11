@@ -34,7 +34,7 @@ func main() {
 	ssrfMode := flag.String("ssrf-mode", "", "SSRF protection mode: strict or off (overrides config)")
 	signatureInboundMode := flag.String("signature-inbound-mode", "", "Signature inbound mode: strict, lenient, or off (overrides config)")
 	signatureOutboundMode := flag.String("signature-outbound-mode", "", "Signature outbound mode: strict, criteria-only, token-only, or off (overrides config)")
-	signatureAdvertise := flag.Bool("signature-advertise-http-request-signatures", false, "Advertise http-request-signatures in discovery criteria")
+	signatureAdvertise := flag.String("signature-advertise-http-request-signatures", "", "Advertise http-request-signatures in discovery criteria: true or false (overrides config)")
 	signaturePeerOverride := flag.String("signature-peer-profile-level-override", "", "Peer profile override level: all, non-strict, or off (overrides config)")
 	tlsMode := flag.String("tls-mode", "", "TLS mode: off, static, selfsigned, or acme (overrides config)")
 	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
