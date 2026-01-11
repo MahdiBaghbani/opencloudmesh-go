@@ -129,7 +129,23 @@ func (p *OutboundPolicy) decideStrict(
 	// Check if peer profile allows unsigned outbound in strict mode
 	if profile != nil && profile.AllowUnsignedOutbound {
 		if p.PeerProfileOverride == "all" {
-			// Can skip signing even in strict mode for this peer
+			// Guardrail: cannot skip signing if peer requires signatures via criteria
+			peerRequiresSignatures := disc != nil && disc.HasCriteria("http-request-signatures")
+			if peerRequiresSignatures {
+				// Peer declared they require signatures - must sign despite profile
+				if !hasSigner {
+					return SigningDecision{
+						ShouldSign: true,
+						Reason:     "peer requires signatures (criteria) but no signer available",
+						Error:      fmt.Errorf("peer requires http-request-signatures but no signer available"),
+					}
+				}
+				return SigningDecision{
+					ShouldSign: true,
+					Reason:     "peer requires signatures (criteria overrides profile relaxation)",
+				}
+			}
+			// Peer does not require signatures - allow unsigned per profile
 			return SigningDecision{
 				ShouldSign: false,
 				Reason:     "peer profile allows unsigned outbound with peer_profile_level_override=all",

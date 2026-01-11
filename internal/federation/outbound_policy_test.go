@@ -201,22 +201,75 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 	}
 	registry := federation.NewProfileRegistry(profiles, mappings)
 
+	// Discovery doc without criteria requirement
+	discNoCriteria := &discovery.Discovery{
+		Capabilities: []string{},
+		Criteria:     []string{},
+	}
+
 	// With override=all, even strict mode can skip signing for matched peers
+	// (when peer does not require signatures in their criteria)
 	policy := &federation.OutboundPolicy{
 		OutboundMode:        "strict",
 		PeerProfileOverride: "all",
 		ProfileRegistry:     registry,
 	}
 
-	decision := policy.ShouldSign(federation.EndpointShares, "legacy.example.com", nil, true)
+	decision := policy.ShouldSign(federation.EndpointShares, "legacy.example.com", discNoCriteria, true)
 	if decision.ShouldSign {
-		t.Error("peer_profile_level_override=all should allow unsigned even in strict mode")
+		t.Error("peer_profile_level_override=all should allow unsigned even in strict mode when peer has no criteria")
 	}
 
 	// For non-matched peer, should still sign
-	decision = policy.ShouldSign(federation.EndpointShares, "normal.example.com", nil, true)
+	decision = policy.ShouldSign(federation.EndpointShares, "normal.example.com", discNoCriteria, true)
 	if !decision.ShouldSign {
 		t.Error("should sign for non-matched peer in strict mode")
+	}
+}
+
+func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
+	// Test the guardrail: AllowUnsignedOutbound must not override peer's criteria requirement
+	profiles := map[string]*federation.Profile{
+		"compat": {
+			Name:                  "compat",
+			AllowUnsignedOutbound: true,
+		},
+	}
+	mappings := []federation.ProfileMapping{
+		{Pattern: "strict-peer.example.com", ProfileName: "compat"},
+	}
+	registry := federation.NewProfileRegistry(profiles, mappings)
+
+	// Peer requires signatures via criteria
+	discRequiresSigs := &discovery.Discovery{
+		Capabilities: []string{"http-sig"},
+		Criteria:     []string{"http-request-signatures"},
+		PublicKeys:   []discovery.PublicKey{{KeyID: "key1"}},
+	}
+
+	policy := &federation.OutboundPolicy{
+		OutboundMode:        "strict",
+		PeerProfileOverride: "all",
+		ProfileRegistry:     registry,
+	}
+
+	// Even with override=all and AllowUnsignedOutbound=true, must sign because peer requires it
+	decision := policy.ShouldSign(federation.EndpointShares, "strict-peer.example.com", discRequiresSigs, true)
+	if !decision.ShouldSign {
+		t.Error("must sign when peer criteria includes http-request-signatures, regardless of profile")
+	}
+	if decision.Reason != "peer requires signatures (criteria overrides profile relaxation)" {
+		t.Errorf("unexpected reason: %s", decision.Reason)
+	}
+
+	// Peer without criteria requirement should allow unsigned
+	discNoCriteria := &discovery.Discovery{
+		Capabilities: []string{},
+		Criteria:     []string{},
+	}
+	decision = policy.ShouldSign(federation.EndpointShares, "strict-peer.example.com", discNoCriteria, true)
+	if decision.ShouldSign {
+		t.Error("should skip signing when peer has no criteria and profile allows unsigned")
 	}
 }
 
