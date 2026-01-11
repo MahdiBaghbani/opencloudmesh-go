@@ -69,7 +69,7 @@ func TestOutgoingHandler_ValidateLocalPath(t *testing.T) {
 	repo := shares.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 
-	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, cfg, logger)
+	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, nil, cfg, logger)
 	handler.SetAllowedPaths([]string{"/tmp", "/var/shared"})
 
 	tests := []struct {
@@ -97,7 +97,7 @@ func TestOutgoingHandler_MissingFields(t *testing.T) {
 	repo := shares.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 
-	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, cfg, logger)
+	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, nil, cfg, logger)
 
 	tests := []struct {
 		name string
@@ -129,7 +129,7 @@ func TestOutgoingHandler_FileNotFound(t *testing.T) {
 	repo := shares.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 
-	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, cfg, logger)
+	handler := shares.NewOutgoingHandler(repo, nil, nil, nil, nil, cfg, logger)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
 	body := `{

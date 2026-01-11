@@ -18,6 +18,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/google/uuid"
 )
@@ -33,6 +34,7 @@ type OutgoingHandler struct {
 	discoveryClient *discovery.Client
 	httpClient      HTTPClient
 	signer          *crypto.RFC9421Signer
+	outboundPolicy  *federation.OutboundPolicy
 	cfg             *config.Config
 	logger          *slog.Logger
 	allowedPaths    []string // Path prefixes allowed for sharing
@@ -44,6 +46,7 @@ func NewOutgoingHandler(
 	discClient *discovery.Client,
 	httpClient HTTPClient,
 	signer *crypto.RFC9421Signer,
+	outboundPolicy *federation.OutboundPolicy,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) *OutgoingHandler {
@@ -52,6 +55,7 @@ func NewOutgoingHandler(
 		discoveryClient: discClient,
 		httpClient:      httpClient,
 		signer:          signer,
+		outboundPolicy:  outboundPolicy,
 		cfg:             cfg,
 		logger:          logger,
 		allowedPaths:    []string{"/tmp", os.TempDir()}, // Default: only temp dirs
@@ -274,10 +278,26 @@ func (h *OutgoingHandler) sendShareToReceiver(ctx context.Context, endPoint stri
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Sign request if receiver is signing-capable
-	if h.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+	// Apply outbound signing policy
+	if h.outboundPolicy != nil {
+		peerDomain := extractHostFromOrigin(endPoint)
+		decision := h.outboundPolicy.ShouldSign(
+			federation.EndpointShares,
+			peerDomain,
+			disc,
+			h.signer != nil,
+		)
+		if decision.Error != nil {
+			return fmt.Errorf("outbound signing policy error: %w", decision.Error)
+		}
+		if decision.ShouldSign && h.signer != nil {
+			if err := h.signer.SignRequest(req, body); err != nil {
+				return fmt.Errorf("failed to sign request: %w", err)
+			}
+		}
+	} else if h.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+		// Fallback for backward compatibility when no policy is set
 		if err := h.signer.SignRequest(req, body); err != nil {
-			// Signing failure must fail the request - no unsigned fallback
 			return fmt.Errorf("failed to sign request: %w", err)
 		}
 	}

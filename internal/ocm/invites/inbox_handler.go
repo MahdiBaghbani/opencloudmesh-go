@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 )
 
@@ -25,6 +26,7 @@ type InboxHandler struct {
 	discoveryClient *discovery.Client
 	httpClient      HTTPClient
 	signer          *crypto.RFC9421Signer
+	outboundPolicy  *federation.OutboundPolicy
 	ourUserID       string // Our user ID for accept requests
 	ourProviderFQDN string
 	logger          *slog.Logger
@@ -36,6 +38,7 @@ func NewInboxHandler(
 	discoveryClient *discovery.Client,
 	httpClient HTTPClient,
 	signer *crypto.RFC9421Signer,
+	outboundPolicy *federation.OutboundPolicy,
 	ourUserID string,
 	ourProviderFQDN string,
 	logger *slog.Logger,
@@ -45,6 +48,7 @@ func NewInboxHandler(
 		discoveryClient: discoveryClient,
 		httpClient:      httpClient,
 		signer:          signer,
+		outboundPolicy:  outboundPolicy,
 		ourUserID:       ourUserID,
 		ourProviderFQDN: ourProviderFQDN,
 		logger:          logger,
@@ -215,8 +219,24 @@ func (h *InboxHandler) sendInviteAccepted(ctx context.Context, invite *IncomingI
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Sign request if sender supports signatures
-	if h.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+	// Apply outbound signing policy
+	if h.outboundPolicy != nil {
+		decision := h.outboundPolicy.ShouldSign(
+			federation.EndpointInvites,
+			invite.SenderFQDN,
+			disc,
+			h.signer != nil,
+		)
+		if decision.Error != nil {
+			return fmt.Errorf("outbound signing policy error: %w", decision.Error)
+		}
+		if decision.ShouldSign && h.signer != nil {
+			if err := h.signer.SignRequest(req, body); err != nil {
+				return fmt.Errorf("failed to sign request: %w", err)
+			}
+		}
+	} else if h.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+		// Fallback for backward compatibility when no policy is set
 		if err := h.signer.SignRequest(req, body); err != nil {
 			return fmt.Errorf("failed to sign request: %w", err)
 		}

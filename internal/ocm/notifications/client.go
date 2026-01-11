@@ -10,6 +10,7 @@ import (
 	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 )
 
@@ -23,14 +24,21 @@ type Client struct {
 	httpClient      HTTPClient
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
+	outboundPolicy  *federation.OutboundPolicy
 }
 
 // NewClient creates a new notifications client.
-func NewClient(httpClient HTTPClient, discoveryClient *discovery.Client, signer *crypto.RFC9421Signer) *Client {
+func NewClient(
+	httpClient HTTPClient,
+	discoveryClient *discovery.Client,
+	signer *crypto.RFC9421Signer,
+	outboundPolicy *federation.OutboundPolicy,
+) *Client {
 	return &Client{
 		httpClient:      httpClient,
 		discoveryClient: discoveryClient,
 		signer:          signer,
+		outboundPolicy:  outboundPolicy,
 	}
 }
 
@@ -67,8 +75,24 @@ func (c *Client) SendNotification(ctx context.Context, targetHost string, notifi
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Sign request if target supports signatures
-	if c.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+	// Apply outbound signing policy
+	if c.outboundPolicy != nil {
+		decision := c.outboundPolicy.ShouldSign(
+			federation.EndpointNotifications,
+			targetHost,
+			disc,
+			c.signer != nil,
+		)
+		if decision.Error != nil {
+			return fmt.Errorf("outbound signing policy error: %w", decision.Error)
+		}
+		if decision.ShouldSign && c.signer != nil {
+			if err := c.signer.SignRequest(req, body); err != nil {
+				return fmt.Errorf("failed to sign request: %w", err)
+			}
+		}
+	} else if c.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+		// Fallback for backward compatibility when no policy is set
 		if err := c.signer.SignRequest(req, body); err != nil {
 			return fmt.Errorf("failed to sign request: %w", err)
 		}

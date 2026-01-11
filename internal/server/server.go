@@ -125,6 +125,9 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		signer = crypto.NewRFC9421Signer(deps.KeyManager)
 	}
 
+	// Create outbound signing policy
+	outboundPolicy := federation.NewOutboundPolicy(cfg, deps.ProfileRegistry)
+
 	// Create auxiliary handler for federation endpoints
 	auxHandler := federation.NewAuxHandler(deps.FederationMgr, deps.DiscoveryClient)
 
@@ -140,6 +143,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		deps.DiscoveryClient,
 		deps.HTTPClient,
 		signer,
+		outboundPolicy,
 		cfg,
 		logger,
 	)
@@ -151,7 +155,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	notificationsHandler := notifications.NewHandler(deps.OutgoingShareRepo, logger)
 
 	// Create notification client for outbound notifications
-	notificationClient := notifications.NewClient(deps.HTTPClient, deps.DiscoveryClient, signer)
+	notificationClient := notifications.NewClient(deps.HTTPClient, deps.DiscoveryClient, signer, outboundPolicy)
 
 	// Create inbox actions handler
 	inboxActionsHandler := shares.NewInboxActionsHandler(deps.IncomingShareRepo, notificationClient, logger)
@@ -168,6 +172,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		deps.DiscoveryClient,
 		deps.HTTPClient,
 		signer,
+		outboundPolicy,
 		"", // Our user ID - will be set from session context
 		providerFQDN,
 		logger,
