@@ -117,6 +117,16 @@ func (d *Discovery) HasCapability(cap string) bool {
 	return false
 }
 
+// HasCriteria checks if the discovery requires a specific criteria token.
+func (d *Discovery) HasCriteria(token string) bool {
+	for _, c := range d.Criteria {
+		if c == token {
+			return true
+		}
+	}
+	return false
+}
+
 // GetPublicKey returns the first public key, if any.
 func (d *Discovery) GetPublicKey(keyID string) *PublicKey {
 	for i, pk := range d.PublicKeys {

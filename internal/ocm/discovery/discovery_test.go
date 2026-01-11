@@ -193,6 +193,84 @@ func TestHandler_TokenExchangeWithBasePath(t *testing.T) {
 	}
 }
 
+func TestHandler_CriteriaAlwaysPresent(t *testing.T) {
+	cfg := &config.Config{
+		ExternalOrigin: "https://example.com",
+		Signature: config.SignatureConfig{
+			AdvertiseHTTPRequestSignatures: false,
+		},
+	}
+
+	handler := discovery.NewHandler(cfg)
+	disc := handler.GetDiscovery()
+
+	// Criteria must be non-nil even when empty
+	if disc.Criteria == nil {
+		t.Error("Criteria must not be nil")
+	}
+
+	// Should be empty when advertise is false
+	if len(disc.Criteria) != 0 {
+		t.Errorf("expected empty criteria, got %v", disc.Criteria)
+	}
+
+	// Verify JSON serialization produces [] not null
+	data, err := json.Marshal(disc)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	// Check that "criteria":[] is in the JSON, not "criteria":null
+	if !json.Valid(data) {
+		t.Error("invalid JSON")
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	criteriaRaw, ok := parsed["criteria"]
+	if !ok {
+		t.Error("criteria key must be present in JSON")
+	}
+
+	criteriaSlice, ok := criteriaRaw.([]interface{})
+	if !ok {
+		t.Errorf("criteria must be an array, got %T", criteriaRaw)
+	}
+	if len(criteriaSlice) != 0 {
+		t.Errorf("expected empty criteria array, got %v", criteriaSlice)
+	}
+}
+
+func TestHandler_CriteriaAdvertiseHTTPRequestSignatures(t *testing.T) {
+	cfg := &config.Config{
+		ExternalOrigin: "https://example.com",
+		Signature: config.SignatureConfig{
+			AdvertiseHTTPRequestSignatures: true,
+		},
+	}
+
+	handler := discovery.NewHandler(cfg)
+	disc := handler.GetDiscovery()
+
+	if len(disc.Criteria) != 1 {
+		t.Fatalf("expected 1 criteria token, got %d", len(disc.Criteria))
+	}
+	if disc.Criteria[0] != "http-request-signatures" {
+		t.Errorf("expected 'http-request-signatures', got %q", disc.Criteria[0])
+	}
+
+	// HasCriteria helper should work
+	if !disc.HasCriteria("http-request-signatures") {
+		t.Error("HasCriteria should return true for http-request-signatures")
+	}
+	if disc.HasCriteria("unknown-token") {
+		t.Error("HasCriteria should return false for unknown token")
+	}
+}
+
 func TestDiscovery_Helpers(t *testing.T) {
 	disc := &discovery.Discovery{
 		Enabled:    true,
@@ -206,6 +284,7 @@ func TestDiscovery_Helpers(t *testing.T) {
 			},
 		},
 		Capabilities: []string{"http-sig", "exchange-token"},
+		Criteria:     []string{"http-request-signatures"},
 		PublicKeys: []discovery.PublicKey{
 			{KeyID: "key1", PublicKeyPem: "..."},
 		},
@@ -227,6 +306,14 @@ func TestDiscovery_Helpers(t *testing.T) {
 	}
 	if disc.HasCapability("unknown") {
 		t.Error("HasCapability unknown should be false")
+	}
+
+	// HasCriteria
+	if !disc.HasCriteria("http-request-signatures") {
+		t.Error("HasCriteria http-request-signatures should be true")
+	}
+	if disc.HasCriteria("unknown") {
+		t.Error("HasCriteria unknown should be false")
 	}
 
 	// GetPublicKey

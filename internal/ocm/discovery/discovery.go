@@ -18,6 +18,7 @@ type Discovery struct {
 	Provider       string         `json:"provider,omitempty"`
 	ResourceTypes  []ResourceType `json:"resourceTypes"`
 	Capabilities   []string       `json:"capabilities,omitempty"`
+	Criteria       []string       `json:"criteria"` // Always present, serializes as [] when empty
 	PublicKeys     []PublicKey    `json:"publicKeys,omitempty"`
 	TokenEndPoint  string         `json:"tokenEndPoint,omitempty"` // Required when exchange-token capability is advertised
 }
@@ -87,6 +88,9 @@ func (h *Handler) GetDiscovery() *Discovery {
 	// Build capabilities based on implemented phases
 	capabilities := h.getCapabilities()
 
+	// Build criteria based on config (always non-nil to serialize as [])
+	criteria := h.getCriteria()
+
 	// Build resource types
 	resourceTypes := h.getResourceTypes()
 
@@ -97,6 +101,7 @@ func (h *Handler) GetDiscovery() *Discovery {
 		Provider:      "OpenCloudMesh",
 		ResourceTypes: resourceTypes,
 		Capabilities:  capabilities,
+		Criteria:      criteria,
 		PublicKeys:    h.publicKeys,
 	}
 
@@ -128,6 +133,20 @@ func (h *Handler) getCapabilities() []string {
 	}
 
 	return caps
+}
+
+// getCriteria returns the list of criteria tokens.
+// Always returns a non-nil slice so it serializes as [] when empty.
+func (h *Handler) getCriteria() []string {
+	// Initialize as empty slice (not nil) to ensure JSON serializes as []
+	criteria := []string{}
+
+	// Add http-request-signatures when advertise is enabled
+	if h.cfg.Signature.AdvertiseHTTPRequestSignatures {
+		criteria = append(criteria, "http-request-signatures")
+	}
+
+	return criteria
 }
 
 // getResourceTypes returns the supported resource types.
