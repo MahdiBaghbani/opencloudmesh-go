@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -90,72 +89,6 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) (*Disc
 	return &disc, nil
 }
 
-// GetEndpoint returns the OCM endpoint from a discovery document.
-func (d *Discovery) GetEndpoint() string {
-	return d.EndPoint
-}
-
-// GetWebDAVPath returns the WebDAV path for file resources.
-func (d *Discovery) GetWebDAVPath() string {
-	for _, rt := range d.ResourceTypes {
-		if rt.Name == "file" {
-			if path, ok := rt.Protocols["webdav"]; ok {
-				return path
-			}
-		}
-	}
-	return ""
-}
-
-// HasCapability checks if the discovery advertises a capability.
-func (d *Discovery) HasCapability(cap string) bool {
-	for _, c := range d.Capabilities {
-		if c == cap {
-			return true
-		}
-	}
-	return false
-}
-
-// HasCriteria checks if the discovery requires a specific criteria token.
-func (d *Discovery) HasCriteria(token string) bool {
-	for _, c := range d.Criteria {
-		if c == token {
-			return true
-		}
-	}
-	return false
-}
-
-// GetPublicKey returns the first public key, if any.
-func (d *Discovery) GetPublicKey(keyID string) *PublicKey {
-	for i, pk := range d.PublicKeys {
-		if pk.KeyID == keyID {
-			return &d.PublicKeys[i]
-		}
-	}
-	return nil
-}
-
-// BuildWebDAVURL constructs a full WebDAV URL for accessing a shared file.
-func (d *Discovery) BuildWebDAVURL(webdavID string) (string, error) {
-	webdavPath := d.GetWebDAVPath()
-	if webdavPath == "" {
-		return "", fmt.Errorf("no WebDAV path in discovery")
-	}
-
-	// Parse the endpoint to get the base URL
-	endpoint, err := url.Parse(d.EndPoint)
-	if err != nil {
-		return "", fmt.Errorf("invalid endpoint URL: %w", err)
-	}
-
-	// Build the full WebDAV URL
-	webdavURL := fmt.Sprintf("%s://%s%s%s",
-		endpoint.Scheme,
-		endpoint.Host,
-		strings.TrimSuffix(webdavPath, "/"),
-		"/"+webdavID)
-
-	return webdavURL, nil
-}
+// Note: Helper methods (GetEndpoint, GetWebDAVPath, HasCapability, HasCriteria,
+// GetPublicKey, BuildWebDAVURL) are defined on spec.Discovery and available
+// through the type alias.

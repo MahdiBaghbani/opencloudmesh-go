@@ -5,43 +5,28 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/spec"
 )
 
 // DefaultTokenTTL is the default time-to-live for access tokens.
 const DefaultTokenTTL = 1 * time.Hour
 
-// TokenRequest represents an incoming token exchange request.
-// Supports both form-urlencoded (spec) and JSON (Nextcloud interop).
-type TokenRequest struct {
-	GrantType string `json:"grant_type"`
-	ClientID  string `json:"client_id"`
-	Code      string `json:"code"`
-}
-
-// TokenResponse represents a successful token exchange response.
-type TokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
-}
-
-// OAuthError represents an OAuth-style error response.
-type OAuthError struct {
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description,omitempty"`
-}
-
-// GrantType constants.
-const (
-	GrantTypeOCMShare = "ocm_share"
+// Type aliases for spec-shaped types (wire format).
+// These allow existing code to use token.TokenRequest, token.TokenResponse, etc.
+type (
+	TokenRequest  = spec.TokenRequest
+	TokenResponse = spec.TokenResponse
+	OAuthError    = spec.OAuthError
 )
 
-// OAuth error codes.
+// Re-export constants from spec package for backward compatibility.
 const (
-	ErrorInvalidRequest = "invalid_request"
-	ErrorInvalidGrant   = "invalid_grant"
-	ErrorInvalidClient  = "invalid_client"
-	ErrorUnauthorized   = "unauthorized_client"
+	GrantTypeOCMShare   = spec.GrantTypeOCMShare
+	ErrorInvalidRequest = spec.ErrorInvalidRequest
+	ErrorInvalidGrant   = spec.ErrorInvalidGrant
+	ErrorInvalidClient  = spec.ErrorInvalidClient
+	ErrorUnauthorized   = spec.ErrorUnauthorized
 )
 
 // IssuedToken represents a stored issued token.

@@ -7,35 +7,16 @@ import (
 	"sync"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/spec"
 )
 
-// Discovery represents the OCM discovery response.
-// See OCM-API spec: https://github.com/cs3org/OCM-API/blob/develop/spec.yaml
-type Discovery struct {
-	Enabled        bool           `json:"enabled"`
-	APIVersion     string         `json:"apiVersion"`
-	EndPoint       string         `json:"endPoint"`
-	Provider       string         `json:"provider,omitempty"`
-	ResourceTypes  []ResourceType `json:"resourceTypes"`
-	Capabilities   []string       `json:"capabilities,omitempty"`
-	Criteria       []string       `json:"criteria"` // Always present, serializes as [] when empty
-	PublicKeys     []PublicKey    `json:"publicKeys,omitempty"`
-	TokenEndPoint  string         `json:"tokenEndPoint,omitempty"` // Required when exchange-token capability is advertised
-}
-
-// ResourceType describes a supported resource type.
-type ResourceType struct {
-	Name       string              `json:"name"`
-	ShareTypes []string            `json:"shareTypes"`
-	Protocols  map[string]string   `json:"protocols"`
-}
-
-// PublicKey represents a public key for RFC 9421 HTTP signatures.
-type PublicKey struct {
-	KeyID        string `json:"keyId"`
-	PublicKeyPem string `json:"publicKeyPem"`
-	Algorithm    string `json:"algorithm,omitempty"`
-}
+// Type aliases for backward compatibility within this package.
+// These allow existing code to use discovery.Discovery, discovery.ResourceType, etc.
+type (
+	Discovery    = spec.Discovery
+	ResourceType = spec.ResourceType
+	PublicKey    = spec.PublicKey
+)
 
 // Handler serves the OCM discovery endpoints.
 type Handler struct {
