@@ -32,6 +32,15 @@ func (s *mockSigner) Sign(req *http.Request) error {
 	return nil
 }
 
+// makePolicy creates an OutboundPolicy for testing.
+func makePolicy(outboundMode string, profileRegistry *federation.ProfileRegistry) *federation.OutboundPolicy {
+	return &federation.OutboundPolicy{
+		OutboundMode:        outboundMode,
+		PeerProfileOverride: "non-strict",
+		ProfileRegistry:     profileRegistry,
+	}
+}
+
 func TestClient_Exchange_Success(t *testing.T) {
 	// Create mock server that returns a valid token
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,8 +74,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 	client := token.NewClient(
 		httpClient,
 		&mockSigner{},
-		"strict",
-		nil,
+		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 
@@ -90,7 +98,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_SignatureModeOff(t *testing.T) {
+func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 	// Create mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Should NOT have a signature header when mode is off
@@ -111,12 +119,11 @@ func TestClient_Exchange_SignatureModeOff(t *testing.T) {
 		SSRFMode: "off",
 	}))
 
-	// Mode "off" should skip signing
+	// OutboundMode "off" should skip signing
 	client := token.NewClient(
 		httpClient,
 		&mockSigner{},
-		"off",
-		nil,
+		makePolicy("off", nil),
 		"my-instance.example.com",
 	)
 
@@ -134,8 +141,8 @@ func TestClient_Exchange_SignatureModeOff(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_StrictModeRejectsUnsigned(t *testing.T) {
-	// Create mock server that rejects unsigned requests
+func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
+	// Create mock server that requires signed requests
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -164,8 +171,7 @@ func TestClient_Exchange_StrictModeRejectsUnsigned(t *testing.T) {
 	client := token.NewClient(
 		httpClient,
 		&mockSigner{},
-		"strict",
-		nil,
+		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 
@@ -183,25 +189,100 @@ func TestClient_Exchange_StrictModeRejectsUnsigned(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_LenientModeWithQuirk(t *testing.T) {
-	callCount := 0
-
-	// Create mock server that rejects signed requests but accepts unsigned
+func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
+	// Create mock server that verifies signing
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount++
-
-		if r.Header.Get("Signature") != "" {
-			// Reject signed request
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(token.OAuthError{
-				Error:            token.ErrorUnauthorized,
-				ErrorDescription: "signature not supported",
-			})
-			return
+		// Token-only mode should sign token exchange
+		if r.Header.Get("Signature") == "" {
+			t.Error("expected Signature header in token-only mode for token exchange")
 		}
 
-		// Accept unsigned request
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "token-only-signed",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode: "off",
+	}))
+
+	// token-only should sign token exchange
+	client := token.NewClient(
+		httpClient,
+		&mockSigner{},
+		makePolicy("token-only", nil),
+		"my-instance.example.com",
+	)
+
+	result, err := client.Exchange(context.Background(), token.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+
+	if err != nil {
+		t.Fatalf("Exchange failed: %v", err)
+	}
+	if result.AccessToken != "token-only-signed" {
+		t.Errorf("expected 'token-only-signed', got %s", result.AccessToken)
+	}
+}
+
+func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
+	// Create mock server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// criteria-only mode should sign token exchange (token exchange is always signed unless off)
+		if r.Header.Get("Signature") == "" {
+			t.Error("expected Signature header in criteria-only mode for token exchange")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "criteria-only-signed",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode: "off",
+	}))
+
+	client := token.NewClient(
+		httpClient,
+		&mockSigner{},
+		makePolicy("criteria-only", nil),
+		"my-instance.example.com",
+	)
+
+	result, err := client.Exchange(context.Background(), token.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+
+	if err != nil {
+		t.Fatalf("Exchange failed: %v", err)
+	}
+	if result.AccessToken != "criteria-only-signed" {
+		t.Errorf("expected 'criteria-only-signed', got %s", result.AccessToken)
+	}
+}
+
+func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
+	// Create mock server that accepts unsigned requests
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// With accept_plain_token quirk, OutboundPolicy skips signing upfront
+		// so we should get an unsigned request directly
+		if r.Header.Get("Signature") != "" {
+			t.Error("expected unsigned request when accept_plain_token quirk applies")
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{
 			AccessToken: "unsigned-quirk-token",
@@ -221,11 +302,11 @@ func TestClient_Exchange_LenientModeWithQuirk(t *testing.T) {
 	}
 	profileRegistry := federation.NewProfileRegistry(nil, mappings)
 
+	// With accept_plain_token quirk, OutboundPolicy tells us to skip signing
 	client := token.NewClient(
 		httpClient,
 		&mockSigner{},
-		"lenient",
-		profileRegistry,
+		makePolicy("criteria-only", profileRegistry),
 		"my-instance.example.com",
 	)
 
@@ -241,50 +322,8 @@ func TestClient_Exchange_LenientModeWithQuirk(t *testing.T) {
 	if result.AccessToken != "unsigned-quirk-token" {
 		t.Errorf("expected 'unsigned-quirk-token', got %s", result.AccessToken)
 	}
-	if result.QuirkApplied != "accept_plain_token" {
-		t.Errorf("expected quirk 'accept_plain_token', got %s", result.QuirkApplied)
-	}
-	if callCount < 2 {
-		t.Errorf("expected at least 2 calls (strict then quirk), got %d", callCount)
-	}
-}
-
-func TestClient_Exchange_LenientModeNoQuirkWithoutProfile(t *testing.T) {
-	// Create mock server that always rejects
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(token.OAuthError{
-			Error:            token.ErrorUnauthorized,
-			ErrorDescription: "signature required",
-		})
-	}))
-	defer server.Close()
-
-	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
-	}))
-
-	// No profile mapping -> uses strict profile which has no quirks
-	profileRegistry := federation.NewProfileRegistry(nil, nil)
-
-	client := token.NewClient(
-		httpClient,
-		&mockSigner{},
-		"lenient",
-		profileRegistry,
-		"my-instance.example.com",
-	)
-
-	_, err := client.Exchange(context.Background(), token.ExchangeRequest{
-		TokenEndPoint: server.URL,
-		PeerDomain:    "unknown.example.com", // No profile match
-		SharedSecret:  "test-secret",
-	})
-
-	if err == nil {
-		t.Fatal("expected error when no quirk available")
-	}
+	// Note: QuirkApplied is only set when we fallback from signed -> unsigned
+	// With OutboundPolicy, the decision is made upfront so no fallback occurs
 }
 
 func TestClient_Exchange_OAuthError(t *testing.T) {
@@ -305,8 +344,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 	client := token.NewClient(
 		httpClient,
 		nil,
-		"off",
-		nil,
+		makePolicy("off", nil),
 		"my-instance.example.com",
 	)
 

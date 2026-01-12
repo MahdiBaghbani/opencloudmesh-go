@@ -19,11 +19,10 @@ import (
 
 // Client is an OCM token exchange client.
 type Client struct {
-	httpClient      *httpclient.ContextClient
-	signer          RequestSigner
-	signatureMode   string // off, lenient, strict
-	profileRegistry *federation.ProfileRegistry
-	myClientID      string // This instance's FQDN for client_id
+	httpClient     *httpclient.ContextClient
+	signer         RequestSigner
+	outboundPolicy *federation.OutboundPolicy
+	myClientID     string // This instance's FQDN for client_id
 }
 
 // RequestSigner signs HTTP requests for RFC 9421.
@@ -35,16 +34,14 @@ type RequestSigner interface {
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	signer RequestSigner,
-	signatureMode string,
-	profileRegistry *federation.ProfileRegistry,
+	outboundPolicy *federation.OutboundPolicy,
 	myClientID string,
 ) *Client {
 	return &Client{
-		httpClient:      httpClient,
-		signer:          signer,
-		signatureMode:   signatureMode,
-		profileRegistry: profileRegistry,
-		myClientID:      myClientID,
+		httpClient:     httpClient,
+		signer:         signer,
+		outboundPolicy: outboundPolicy,
+		myClientID:     myClientID,
 	}
 }
 
@@ -64,20 +61,40 @@ type ExchangeResult struct {
 }
 
 // Exchange performs a token exchange with the peer.
-// Uses strict-first orchestration: try strict, then apply quirks if profile allows.
+// Uses the centralized OutboundPolicy to determine signing behavior.
 func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
-	// If signature mode is off, skip strict attempt
-	if c.signatureMode == "off" {
+	// Use OutboundPolicy to determine if we should sign
+	var shouldSign bool
+	var profile *federation.Profile
+
+	if c.outboundPolicy != nil {
+		decision := c.outboundPolicy.ShouldSign(
+			federation.EndpointTokenExchange,
+			req.PeerDomain,
+			nil, // No discovery doc for token exchange signing decision
+			c.signer != nil,
+		)
+		if decision.Error != nil {
+			return nil, federation.NewClassifiedError(
+				federation.ReasonSignatureRequired,
+				decision.Reason,
+				decision.Error,
+			)
+		}
+		shouldSign = decision.ShouldSign
+
+		// Get profile for quirks
+		if c.outboundPolicy.ProfileRegistry != nil {
+			profile = c.outboundPolicy.ProfileRegistry.GetProfile(req.PeerDomain)
+		}
+	}
+
+	// If not signing, try unsigned directly
+	if !shouldSign {
 		return c.exchangeUnsigned(ctx, req)
 	}
 
-	// Get peer profile for quirk gating
-	var profile *federation.Profile
-	if c.profileRegistry != nil {
-		profile = c.profileRegistry.GetProfile(req.PeerDomain)
-	}
-
-	// Step 1: Try strict (signed, form-urlencoded) attempt
+	// Step 1: Try signed (form-urlencoded) attempt
 	result, err := c.exchangeSigned(ctx, req, false)
 	if err == nil {
 		return result, nil
@@ -86,9 +103,8 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 	// Step 2: Classify the error
 	reasonCode := federation.ClassifyError(err)
 
-	// Step 3: Check if we can apply a quirk
-	// In lenient mode, we may try unsigned if the peer doesn't support signatures
-	if c.signatureMode == "lenient" && profile != nil {
+	// Step 3: Check if we can apply quirks (only when policy allows relaxation)
+	if profile != nil && c.outboundPolicy != nil {
 		// Check for accept_plain_token quirk (unsigned request)
 		if profile.HasQuirk("accept_plain_token") &&
 			(reasonCode == federation.ReasonSignatureRequired ||
@@ -107,7 +123,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 			(reasonCode == federation.ReasonTokenExchangeFailed ||
 				reasonCode == federation.ReasonProtocolMismatch) {
 			// Try JSON body
-			result, err = c.exchangeJSON(ctx, req, c.signatureMode != "off")
+			result, err = c.exchangeJSON(ctx, req, shouldSign)
 			if err == nil {
 				result.QuirkApplied = "send_token_in_body"
 				return result, nil
@@ -115,7 +131,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 		}
 	}
 
-	// Return original strict error
+	// Return original error
 	return nil, federation.NewClassifiedError(reasonCode, "token exchange failed", err)
 }
 

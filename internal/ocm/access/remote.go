@@ -45,7 +45,6 @@ type Client struct {
 	httpClient      *httpclient.ContextClient
 	discoveryClient *discovery.Client
 	tokenClient     *token.Client
-	profileRegistry *federation.ProfileRegistry
 }
 
 // NewClient creates a new remote access client.
@@ -53,13 +52,11 @@ func NewClient(
 	httpClient *httpclient.ContextClient,
 	discoveryClient *discovery.Client,
 	tokenClient *token.Client,
-	profileRegistry *federation.ProfileRegistry,
 ) *Client {
 	return &Client{
 		httpClient:      httpClient,
 		discoveryClient: discoveryClient,
 		tokenClient:     tokenClient,
-		profileRegistry: profileRegistry,
 	}
 }
 
