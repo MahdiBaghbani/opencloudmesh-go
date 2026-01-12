@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 )
@@ -30,10 +31,13 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get request-scoped logger with request correlation fields
+	log := appctx.GetLogger(r.Context())
+
 	// Parse request body
 	var req NewNotification
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.logger.Warn("failed to parse notification request", "error", err)
+		log.Warn("failed to parse notification request", "error", err)
 		h.sendError(w, http.StatusBadRequest, "invalid_json", "failed to parse request body")
 		return
 	}
@@ -70,19 +74,19 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 		if senderHost == "" {
 			// Check if there's exactly one share with this providerId
 			// Since our repo is keyed by providerId globally, we either find it or not
-			h.logger.Warn("notification for unknown share", "providerId", req.ProviderID)
+			log.Warn("notification for unknown share", "provider_id", req.ProviderID)
 			h.sendError(w, http.StatusNotFound, "share_not_found", "no share found for providerId")
 			return
 		}
-		h.logger.Warn("notification for unknown share", "providerId", req.ProviderID, "sender", senderHost)
+		log.Warn("notification for unknown share", "provider_id", req.ProviderID, "sender", senderHost)
 		h.sendError(w, http.StatusNotFound, "share_not_found", "no share found for providerId")
 		return
 	}
 
 	// If we have a verified sender, validate it matches the share's receiver
 	if senderHost != "" && share.ReceiverHost != senderHost {
-		h.logger.Warn("notification sender mismatch",
-			"providerId", req.ProviderID,
+		log.Warn("notification sender mismatch",
+			"provider_id", req.ProviderID,
 			"expected", share.ReceiverHost,
 			"got", senderHost)
 		h.sendError(w, http.StatusForbidden, "sender_mismatch", "notification sender does not match share receiver")
@@ -92,24 +96,24 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 	// Process the notification
 	switch req.NotificationType {
 	case NotificationShareAccepted:
-		h.logger.Info("share accepted notification",
-			"providerId", req.ProviderID,
-			"shareId", share.ShareID,
+		log.Info("share accepted notification",
+			"provider_id", req.ProviderID,
+			"share_id", share.ShareID,
 			"receiver", share.ReceiverHost)
 		// Update share status (in a real implementation, would update persistence)
 		// For now, just log the acceptance
 
 	case NotificationShareDeclined:
-		h.logger.Info("share declined notification",
-			"providerId", req.ProviderID,
-			"shareId", share.ShareID,
+		log.Info("share declined notification",
+			"provider_id", req.ProviderID,
+			"share_id", share.ShareID,
 			"receiver", share.ReceiverHost)
 		// Update share status
 
 	case NotificationShareUnshared:
-		h.logger.Info("share unshared notification",
-			"providerId", req.ProviderID,
-			"shareId", share.ShareID,
+		log.Info("share unshared notification",
+			"provider_id", req.ProviderID,
+			"share_id", share.ShareID,
 			"receiver", share.ReceiverHost)
 	}
 

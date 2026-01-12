@@ -116,17 +116,17 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 						return
 					}
 
-					// Check for mismatch between declared peer and keyId host
-					if declaredPeer != "" && !m.cfg.AllowMismatch {
-						declaredHost := normalizeHost(declaredPeer)
-						if declaredHost != keyHost {
-							m.logger.Warn("peer identity mismatch",
-								"declared", declaredHost,
-								"keyId_host", keyHost)
-							http.Error(w, "peer identity mismatch", http.StatusForbidden)
-							return
-						}
+				// Check for mismatch between declared peer and keyId host
+				if declaredPeer != "" && !m.cfg.AllowMismatch {
+					declaredHost := normalizeHost(declaredPeer)
+					if declaredHost != keyHost {
+						m.logger.Warn("peer identity mismatch",
+							"declared", declaredHost,
+							"key_id_host", keyHost)
+						http.Error(w, "peer identity mismatch", http.StatusForbidden)
+						return
 					}
+				}
 
 					peerIdentity = &PeerIdentity{
 						Host:          keyHost,

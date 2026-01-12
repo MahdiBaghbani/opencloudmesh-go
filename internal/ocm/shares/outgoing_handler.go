@@ -212,8 +212,8 @@ func (h *OutgoingHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	h.repo.Update(r.Context(), share)
 
 	h.logger.Info("outgoing share created and sent",
-		"shareId", share.ShareID,
-		"providerId", share.ProviderID,
+		"share_id", share.ShareID,
+		"provider_id", share.ProviderID,
 		"receiver", req.ReceiverDomain)
 
 	w.Header().Set("Content-Type", "application/json")

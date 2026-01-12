@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 )
 
 // NotificationSender is an interface for sending notifications to remote servers.
@@ -36,6 +38,9 @@ func (h *InboxActionsHandler) HandleAccept(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Get request-scoped logger with request correlation fields
+	log := appctx.GetLogger(r.Context())
 
 	shareID := extractShareID(r.URL.Path, "/accept")
 	if shareID == "" {
@@ -70,7 +75,7 @@ func (h *InboxActionsHandler) HandleAccept(w http.ResponseWriter, r *http.Reques
 
 	// Update status
 	if err := h.repo.UpdateStatus(ctx, shareID, ShareStatusAccepted); err != nil {
-		h.logger.Error("failed to update share status", "shareId", shareID, "error", err)
+		log.Error("failed to update share status", "share_id", shareID, "error", err)
 		h.sendError(w, http.StatusInternalServerError, "update_failed", "failed to update share status")
 		return
 	}
@@ -79,15 +84,15 @@ func (h *InboxActionsHandler) HandleAccept(w http.ResponseWriter, r *http.Reques
 	if h.notificationSender != nil {
 		if err := h.notificationSender.SendShareAccepted(ctx, share.SenderHost, share.ProviderID, share.ResourceType); err != nil {
 			// Log but don't fail - the share is already accepted locally
-			h.logger.Warn("failed to send accept notification",
-				"shareId", shareID,
-				"senderHost", share.SenderHost,
+			log.Warn("failed to send accept notification",
+				"share_id", shareID,
+				"sender_host", share.SenderHost,
 				"error", err)
 		} else {
-			h.logger.Info("share accepted notification sent",
-				"shareId", shareID,
-				"providerId", share.ProviderID,
-				"senderHost", share.SenderHost)
+			log.Info("share accepted notification sent",
+				"share_id", shareID,
+				"provider_id", share.ProviderID,
+				"sender_host", share.SenderHost)
 		}
 	}
 
@@ -104,6 +109,9 @@ func (h *InboxActionsHandler) HandleDecline(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Get request-scoped logger with request correlation fields
+	log := appctx.GetLogger(r.Context())
 
 	shareID := extractShareID(r.URL.Path, "/decline")
 	if shareID == "" {
@@ -138,7 +146,7 @@ func (h *InboxActionsHandler) HandleDecline(w http.ResponseWriter, r *http.Reque
 
 	// Update status
 	if err := h.repo.UpdateStatus(ctx, shareID, ShareStatusDeclined); err != nil {
-		h.logger.Error("failed to update share status", "shareId", shareID, "error", err)
+		log.Error("failed to update share status", "share_id", shareID, "error", err)
 		h.sendError(w, http.StatusInternalServerError, "update_failed", "failed to update share status")
 		return
 	}
@@ -147,15 +155,15 @@ func (h *InboxActionsHandler) HandleDecline(w http.ResponseWriter, r *http.Reque
 	if h.notificationSender != nil {
 		if err := h.notificationSender.SendShareDeclined(ctx, share.SenderHost, share.ProviderID, share.ResourceType); err != nil {
 			// Log but don't fail - the share is already declined locally
-			h.logger.Warn("failed to send decline notification",
-				"shareId", shareID,
-				"senderHost", share.SenderHost,
+			log.Warn("failed to send decline notification",
+				"share_id", shareID,
+				"sender_host", share.SenderHost,
 				"error", err)
 		} else {
-			h.logger.Info("share declined notification sent",
-				"shareId", shareID,
-				"providerId", share.ProviderID,
-				"senderHost", share.SenderHost)
+			log.Info("share declined notification sent",
+				"share_id", shareID,
+				"provider_id", share.ProviderID,
+				"sender_host", share.SenderHost)
 		}
 	}
 

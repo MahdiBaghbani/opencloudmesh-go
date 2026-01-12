@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 )
 
@@ -38,6 +39,9 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get request-scoped logger with request correlation fields
+	log := appctx.GetLogger(r.Context())
+
 	// Strict mode: only accept JSON
 	ct := r.Header.Get("Content-Type")
 	if !strings.HasPrefix(ct, "application/json") {
@@ -47,7 +51,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 
 	var req InviteAcceptedRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.logger.Warn("failed to parse invite-accepted request", "error", err)
+		log.Warn("failed to parse invite-accepted request", "error", err)
 		h.sendError(w, http.StatusBadRequest, "invalid_json", "failed to parse request body")
 		return
 	}
@@ -73,14 +77,15 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	// Look up the invite by token
 	invite, err := h.outgoingRepo.GetByToken(ctx, req.Token)
 	if err != nil {
-		h.logger.Warn("invite-accepted for unknown token", "recipientProvider", req.RecipientProvider)
+		log.Warn("invite-accepted for unknown token", "recipient_provider", req.RecipientProvider)
 		h.sendError(w, http.StatusNotFound, "token_not_found", "no invite found for token")
 		return
 	}
 
 	// Check if already accepted
 	if invite.Status == InviteStatusAccepted {
-		h.logger.Info("duplicate invite-accepted", "token", req.Token, "recipientProvider", req.RecipientProvider)
+		// Note: Do not log token here (secret). Only log recipient_provider for correlation.
+		log.Info("duplicate invite-accepted", "recipient_provider", req.RecipientProvider)
 		// Idempotent success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(InviteAcceptedResponse{
@@ -101,9 +106,9 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	peerIdentity := crypto.GetPeerIdentity(ctx)
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		if peerIdentity.Host != req.RecipientProvider {
-			h.logger.Warn("invite-accepted sender mismatch",
-				"signatureHost", peerIdentity.Host,
-				"recipientProvider", req.RecipientProvider)
+			log.Warn("invite-accepted sender mismatch",
+				"signature_host", peerIdentity.Host,
+				"recipient_provider", req.RecipientProvider)
 			// In strict mode, this would be a rejection
 			// For now, log but allow
 		}
@@ -111,15 +116,15 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 
 	// Update invite status
 	if err := h.outgoingRepo.UpdateStatus(ctx, invite.ID, InviteStatusAccepted, req.RecipientProvider); err != nil {
-		h.logger.Error("failed to update invite status", "id", invite.ID, "error", err)
+		log.Error("failed to update invite status", "id", invite.ID, "error", err)
 		h.sendError(w, http.StatusInternalServerError, "update_failed", "failed to update invite status")
 		return
 	}
 
-	h.logger.Info("invite accepted",
-		"token", req.Token,
-		"recipientProvider", req.RecipientProvider,
-		"userId", req.UserID)
+	// Note: Do not log token here (secret). Only log recipient_provider and user_id for correlation.
+	log.Info("invite accepted",
+		"recipient_provider", req.RecipientProvider,
+		"user_id", req.UserID)
 
 	// Return success with user info
 	w.Header().Set("Content-Type", "application/json")
@@ -173,7 +178,8 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("invite created", "id", invite.ID, "token", token)
+	// Note: Do not log token here (secret). Only log invite ID for correlation.
+	h.logger.Info("invite created", "id", invite.ID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

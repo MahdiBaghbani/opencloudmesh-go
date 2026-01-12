@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 )
@@ -33,10 +34,13 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get request-scoped logger with request correlation fields
+	log := appctx.GetLogger(r.Context())
+
 	// Parse request body
 	var req NewShareRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.logger.Warn("failed to parse share request", "error", err)
+		log.Warn("failed to parse share request", "error", err)
 		h.sendError(w, http.StatusBadRequest, "invalid_json", "failed to parse request body")
 		return
 	}
@@ -44,7 +48,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	// Validate request (always strict)
 	errs := ValidateNewShareRequest(&req)
 	if errs.HasErrors() {
-		h.logger.Warn("share validation failed", "errors", errs.Error())
+		log.Warn("share validation failed", "errors", errs.Error())
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(errs)
@@ -66,7 +70,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)
 		if !decision.Allowed {
-			h.logger.Warn("share rejected by policy",
+			log.Warn("share rejected by policy",
 				"sender", senderHost,
 				"reason", decision.Reason,
 				"authenticated", authenticated)
@@ -111,15 +115,15 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		// This is no longer rejected - we store and enforce it at access time
 		if webdav.HasRequirement(RequirementMustExchangeToken) {
 			share.MustExchangeToken = true
-			h.logger.Info("share requires token exchange",
-				"providerId", req.ProviderID,
+			log.Info("share requires token exchange",
+				"provider_id", req.ProviderID,
 				"sender", senderHost)
 		}
 	}
 
 	// Store the share
 	if err := h.repo.Create(r.Context(), share); err != nil {
-		h.logger.Error("failed to store share", "error", err)
+		log.Error("failed to store share", "error", err)
 		// Check if it's a duplicate
 		if err.Error() != "" {
 			h.sendError(w, http.StatusConflict, "duplicate_share", err.Error())
@@ -129,11 +133,11 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("share created",
-		"shareId", share.ShareID,
-		"providerId", share.ProviderID,
+	log.Info("share created",
+		"share_id", share.ShareID,
+		"provider_id", share.ProviderID,
 		"sender", senderHost,
-		"shareWith", share.ShareWith)
+		"share_with", share.ShareWith)
 
 	// Return success response
 	resp := ShareCreatedResponse{}

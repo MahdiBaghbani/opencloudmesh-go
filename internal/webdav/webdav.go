@@ -40,21 +40,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Path format: /webdav/ocm/{webdavId} or /webdav/ocm/{webdavId}/...
 	webdavID := extractWebDAVID(r.URL.Path)
 	if webdavID == "" {
-		h.logger.Debug("WebDAV request missing webdavId", "path", r.URL.Path)
+		h.logger.Debug("WebDAV request missing webdav_id", "path", r.URL.Path)
 		http.Error(w, "webdavId required", http.StatusBadRequest)
 		return
 	}
 
 	// Validate webdavId format (should be a UUID)
 	if !isValidWebDAVID(webdavID) {
-		h.logger.Debug("WebDAV request with invalid webdavId", "webdavId", webdavID)
+		h.logger.Debug("WebDAV request with invalid webdav_id", "webdav_id", webdavID)
 		http.Error(w, "invalid webdavId", http.StatusBadRequest)
 		return
 	}
 
 	// Check for write methods and reject with 501
 	if isWriteMethod(r.Method) {
-		h.logger.Debug("WebDAV write method rejected", "method", r.Method, "webdavId", webdavID)
+		h.logger.Debug("WebDAV write method rejected", "method", r.Method, "webdav_id", webdavID)
 		http.Error(w, "write operations not supported", http.StatusNotImplemented)
 		return
 	}
@@ -62,7 +62,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Extract and validate bearer token
 	secret := extractBearerToken(r)
 	if secret == "" {
-		h.logger.Debug("WebDAV request missing authorization", "webdavId", webdavID)
+		h.logger.Debug("WebDAV request missing authorization", "webdav_id", webdavID)
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "authorization required", http.StatusUnauthorized)
 		return
@@ -71,7 +71,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Look up share by webdavId
 	share, err := h.outgoingRepo.GetByWebDAVID(r.Context(), webdavID)
 	if err != nil {
-		h.logger.Debug("WebDAV share not found", "webdavId", webdavID)
+		h.logger.Debug("WebDAV share not found", "webdav_id", webdavID)
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -84,18 +84,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err == nil && issuedToken != nil && issuedToken.ShareID == share.ShareID {
 			// Valid exchanged token for this share
 			authorized = true
-			h.logger.Debug("WebDAV authorized via exchanged token", "webdavId", webdavID)
+			h.logger.Debug("WebDAV authorized via exchanged token", "webdav_id", webdavID)
 		}
 	}
 
 	// Fall back to shared secret
 	if !authorized && share.SharedSecret == secret {
 		authorized = true
-		h.logger.Debug("WebDAV authorized via shared secret", "webdavId", webdavID)
+		h.logger.Debug("WebDAV authorized via shared secret", "webdav_id", webdavID)
 	}
 
 	if !authorized {
-		h.logger.Debug("WebDAV invalid credentials", "webdavId", webdavID)
+		h.logger.Debug("WebDAV invalid credentials", "webdav_id", webdavID)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}

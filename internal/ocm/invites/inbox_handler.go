@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
@@ -93,6 +94,9 @@ func (h *InboxHandler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get request-scoped logger with request correlation fields
+	log := appctx.GetLogger(r.Context())
+
 	inviteID := extractInviteID(r.URL.Path, "/accept")
 	if inviteID == "" {
 		h.sendError(w, http.StatusBadRequest, "missing_invite_id", "inviteId is required")
@@ -124,18 +128,18 @@ func (h *InboxHandler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	// Send invite-accepted to sender
 	if err := h.sendInviteAccepted(ctx, invite); err != nil {
-		h.logger.Error("failed to send invite-accepted", "inviteId", inviteID, "error", err)
+		log.Error("failed to send invite-accepted", "invite_id", inviteID, "error", err)
 		h.sendError(w, http.StatusBadGateway, "accept_failed", "failed to notify sender")
 		return
 	}
 
 	// Update local status
 	if err := h.incomingRepo.UpdateStatus(ctx, inviteID, InviteStatusAccepted); err != nil {
-		h.logger.Error("failed to update invite status", "inviteId", inviteID, "error", err)
+		log.Error("failed to update invite status", "invite_id", inviteID, "error", err)
 		// Already accepted on sender side, log but return success
 	}
 
-	h.logger.Info("invite accepted", "inviteId", inviteID, "senderFqdn", invite.SenderFQDN)
+	log.Info("invite accepted", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
@@ -150,6 +154,9 @@ func (h *InboxHandler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Get request-scoped logger with request correlation fields
+	log := appctx.GetLogger(r.Context())
 
 	inviteID := extractInviteID(r.URL.Path, "/decline")
 	if inviteID == "" {
@@ -177,10 +184,10 @@ func (h *InboxHandler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	// Decline is local only - just delete the invite
 	if err := h.incomingRepo.Delete(ctx, inviteID); err != nil {
-		h.logger.Error("failed to delete invite", "inviteId", inviteID, "error", err)
+		log.Error("failed to delete invite", "invite_id", inviteID, "error", err)
 	}
 
-	h.logger.Info("invite declined", "inviteId", inviteID, "senderFqdn", invite.SenderFQDN)
+	log.Info("invite declined", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{

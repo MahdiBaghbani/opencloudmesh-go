@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 )
 
@@ -34,6 +35,9 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Get request-scoped logger with request correlation fields
+	log := appctx.GetLogger(r.Context())
 
 	// Parse request - support both form-urlencoded (spec) and JSON (Nextcloud interop)
 	var req TokenRequest
@@ -78,7 +82,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	// Check that the outgoing repo is configured
 	if h.outgoingRepo == nil {
-		h.logger.Error("token exchange attempted but outgoing share repo not configured")
+		log.Error("token exchange attempted but outgoing share repo not configured")
 		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token exchange not available")
 		return
 	}
@@ -87,7 +91,8 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	// Look up the share by the sharedSecret
 	share, err := h.outgoingRepo.GetBySharedSecret(ctx, req.Code)
 	if err != nil {
-		h.logger.Warn("token exchange for unknown secret", "clientId", req.ClientID)
+		// Note: Do not log the code (secret). Only log client_id for correlation.
+		log.Warn("token exchange for unknown secret", "client_id", req.ClientID)
 		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidGrant, "invalid code")
 		return
 	}
@@ -95,7 +100,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	// Verify client_id matches the receiver
 	// client_id should be the receiver's provider FQDN
 	if share.ReceiverHost != req.ClientID {
-		h.logger.Warn("token exchange client mismatch",
+		log.Warn("token exchange client mismatch",
 			"expected", share.ReceiverHost,
 			"got", req.ClientID)
 		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidClient, "client_id mismatch")
@@ -105,7 +110,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	// Generate access token
 	accessToken, err := GenerateAccessToken()
 	if err != nil {
-		h.logger.Error("failed to generate access token", "error", err)
+		log.Error("failed to generate access token", "error", err)
 		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token generation failed")
 		return
 	}
@@ -121,15 +126,16 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.tokenStore.Store(ctx, issuedToken); err != nil {
-		h.logger.Error("failed to store token", "error", err)
+		log.Error("failed to store token", "error", err)
 		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token storage failed")
 		return
 	}
 
-	h.logger.Info("token issued",
-		"shareId", share.ShareID,
-		"clientId", req.ClientID,
-		"expiresIn", int(h.tokenTTL.Seconds()))
+	// Note: Do not log access token (secret). Only log share_id and client_id for correlation.
+	log.Info("token issued",
+		"share_id", share.ShareID,
+		"client_id", req.ClientID,
+		"expires_in", int(h.tokenTTL.Seconds()))
 
 	// Return token response
 	resp := TokenResponse{
