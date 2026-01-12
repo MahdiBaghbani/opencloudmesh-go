@@ -7,6 +7,7 @@ require (
 	github.com/go-acme/lego/v4 v4.30.1
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.6.0
+	github.com/mitchellh/mapstructure v1.5.0
 	golang.org/x/crypto v0.46.0
 	golang.org/x/net v0.48.0
 	gorm.io/driver/sqlite v1.6.0
