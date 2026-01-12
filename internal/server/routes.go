@@ -97,10 +97,14 @@ func pathMatchesPrefix(path, prefix string) bool {
 func (s *Server) setupRoutes() chi.Router {
 	r := chi.NewRouter()
 
-	// Global middleware stack
+	// Global middleware stack (order matters for correct logging)
+	// RequestID must come first so GetReqID works in RequestLoggerMiddleware.
+	// loggingMiddleware wraps response, Recoverer writes through wrapper,
+	// so access log captures correct status for panics.
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
+	r.Use(RequestLoggerMiddleware(s.logger, s.trustedProxies))
 	r.Use(s.loggingMiddleware)
+	r.Use(middleware.Recoverer)
 
 	// Rate limiting for high-risk public endpoints
 	rateLimitConfig := map[string]RateLimitConfig{

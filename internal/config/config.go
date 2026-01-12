@@ -44,6 +44,20 @@ type Config struct {
 
 	// Federation configuration
 	Federation FederationConfig `toml:"federation"`
+
+	// Logging configuration
+	Logging LoggingConfig `toml:"logging"`
+}
+
+// LoggingConfig holds logging settings.
+type LoggingConfig struct {
+	// Level is the minimum log level: trace, debug, info, warn, error.
+	// Default: info in strict/interop mode, debug in dev mode.
+	Level string `toml:"level"`
+
+	// AllowSensitive permits logging of sensitive values (tokens, secrets).
+	// Default: false. Use only for debugging.
+	AllowSensitive bool `toml:"allow_sensitive"`
 }
 
 // CacheConfig holds cache settings.
@@ -296,6 +310,10 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  PeerProfiles: {\n")
 	sb.WriteString(fmt.Sprintf("    MappingsCount: %d,\n", len(c.PeerProfiles.Mappings)))
 	sb.WriteString(fmt.Sprintf("    CustomProfilesCount: %d,\n", len(c.PeerProfiles.CustomProfiles)))
+	sb.WriteString("  },\n")
+	sb.WriteString("  Logging: {\n")
+	sb.WriteString(fmt.Sprintf("    Level: %q,\n", c.Logging.Level))
+	sb.WriteString(fmt.Sprintf("    AllowSensitive: %v,\n", c.Logging.AllowSensitive))
 	sb.WriteString("  },\n")
 	sb.WriteString("}")
 	return sb.String()

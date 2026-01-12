@@ -39,13 +39,14 @@ func main() {
 	tlsMode := flag.String("tls-mode", "", "TLS mode: off, static, selfsigned, or acme (overrides config)")
 	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
+	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
+	loggingAllowSensitive := flag.String("logging-allow-sensitive", "", "Allow sensitive values in logs: true or false (overrides config)")
 	flag.Parse()
 
-	// Setup logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	// Bootstrap logger for config loading errors (uses default level)
+	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
-	slog.SetDefault(logger)
 
 	// Load config with precedence: mode preset -> TOML file -> CLI flags
 	cfg, err := config.Load(config.LoaderOptions{
@@ -63,12 +64,35 @@ func main() {
 			TLSMode:                       tlsMode,
 			AdminUsername:                 adminUsername,
 			AdminPassword:                 adminPassword,
+			LoggingLevel:                  loggingLevel,
+			LoggingAllowSensitive:         loggingAllowSensitive,
 		},
+		Logger: bootstrapLogger,
 	})
 	if err != nil {
-		logger.Error("failed to load config", "error", err)
+		bootstrapLogger.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
+
+	// Create logger with configured level
+	var level slog.Level
+	switch cfg.Logging.Level {
+	case "trace":
+		level = slog.LevelDebug - 4 // slog has no trace, use debug-4
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	slog.SetDefault(logger)
 
 	// Log effective config with secrets redacted
 	logger.Info("effective configuration", "config", cfg.Redacted())

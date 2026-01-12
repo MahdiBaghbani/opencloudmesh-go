@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 )
 
@@ -23,19 +24,40 @@ const (
 )
 
 // loggingMiddleware logs request information using slog.
+// It uses the request-scoped logger from context (set by RequestLoggerMiddleware)
+// which already has request_id, method, path, client_ip attached.
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		defer func() {
-			s.logger.Info("request",
-				"method", r.Method,
-				"path", r.URL.Path,
+			// Get logger from context (has request_id, method, path, client_ip)
+			logger, ok := appctx.LoggerFromContext(r.Context())
+
+			// Fallback: if context logger missing, recompute base fields
+			if !ok {
+				reqID := middleware.GetReqID(r.Context())
+				clientIP := s.trustedProxies.GetClientIPString(r)
+				logger = s.logger.With(
+					"request_id", reqID,
+					"method", r.Method,
+					"path", r.URL.Path,
+					"client_ip", clientIP,
+				)
+			}
+
+			// Add response fields (access log contract). Do not attempt to include:
+			// - user_id (auth middleware runs after logging middleware)
+			// - peer fields (signature middleware runs inside /ocm route groups)
+			//
+			// IMPORTANT: The context logger already has request_id, method, path,
+			// client_ip attached by RequestLoggerMiddleware. We only add response
+			// fields here. Do NOT re-add base fields or you will get duplicate keys.
+			logger.Info("request",
 				"status", ww.Status(),
 				"bytes", ww.BytesWritten(),
 				"duration_ms", time.Since(start).Milliseconds(),
-				"request_id", middleware.GetReqID(r.Context()),
 			)
 		}()
 
@@ -84,6 +106,10 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, SessionContextKey, session)
 		ctx = context.WithValue(ctx, UserContextKey, user)
+
+		// Enrich handler logger with user_id (not used by access log, handler-only)
+		reqLogger := appctx.GetLogger(ctx).With("user_id", session.UserID)
+		ctx = appctx.WithLogger(ctx, reqLogger)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

@@ -63,6 +63,8 @@ type FlagOverrides struct {
 	TLSMode                        *string
 	AdminUsername                  *string
 	AdminPassword                  *string
+	LoggingLevel                   *string
+	LoggingAllowSensitive          *string // "true", "false", or "" (unset)
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -80,6 +82,13 @@ type fileConfig struct {
 	PeerProfiles *peerProfilesConfig `toml:"peer_profiles"`
 	Cache        *cacheConfig        `toml:"cache"`
 	Federation   *federationConfig   `toml:"federation"`
+	Logging      *loggingConfig      `toml:"logging"`
+}
+
+// loggingConfig holds logging settings from TOML.
+type loggingConfig struct {
+	Level          string `toml:"level"`
+	AllowSensitive bool   `toml:"allow_sensitive"`
 }
 
 // cacheConfig holds cache settings from TOML.
@@ -256,6 +265,10 @@ func StrictConfig() *Config {
 				MaxStaleSeconds: 604800, // 7 days
 			},
 		},
+		Logging: LoggingConfig{
+			Level:          "info",
+			AllowSensitive: false,
+		},
 	}
 }
 
@@ -316,6 +329,10 @@ func DevConfig() *Config {
 				TTLSeconds:      21600,  // 6 hours
 				MaxStaleSeconds: 604800, // 7 days
 			},
+		},
+		Logging: LoggingConfig{
+			Level:          "debug",
+			AllowSensitive: false,
 		},
 	}
 }
@@ -463,6 +480,14 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			}
 		}
 	}
+
+	if fc.Logging != nil {
+		if fc.Logging.Level != "" {
+			cfg.Logging.Level = fc.Logging.Level
+		}
+		// AllowSensitive is a bool, overlay when section present
+		cfg.Logging.AllowSensitive = fc.Logging.AllowSensitive
+	}
 }
 
 // overlayFlags applies CLI flag values onto cfg.
@@ -500,6 +525,13 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.AdminPassword != nil && *f.AdminPassword != "" {
 		cfg.Server.BootstrapAdmin.Password = *f.AdminPassword
+	}
+	if f.LoggingLevel != nil && *f.LoggingLevel != "" {
+		cfg.Logging.Level = *f.LoggingLevel
+	}
+	if f.LoggingAllowSensitive != nil && *f.LoggingAllowSensitive != "" {
+		// Parse "true" or "false" string (only apply when explicitly set)
+		cfg.Logging.AllowSensitive = *f.LoggingAllowSensitive == "true"
 	}
 }
 
@@ -580,6 +612,14 @@ func validateEnums(cfg *Config) error {
 				return fmt.Errorf("federation config path %q is not readable: %w", path, err)
 			}
 		}
+	}
+
+	// logging.level validation
+	switch cfg.Logging.Level {
+	case "trace", "debug", "info", "warn", "error":
+		// valid
+	default:
+		return fmt.Errorf("invalid logging.level %q: must be one of trace, debug, info, warn, error", cfg.Logging.Level)
 	}
 
 	return nil
