@@ -19,11 +19,12 @@ type (
 )
 
 // Handler serves the OCM discovery endpoints.
+// NOTE: This legacy handler is being phased out. The wellknown service now owns
+// discovery endpoints. This handler remains temporarily for SetPublicKeys().
 type Handler struct {
-	cfg                  *config.Config
-	mu                   sync.RWMutex
-	publicKeys           []PublicKey
-	tokenExchangeEnabled bool
+	cfg        *config.Config
+	mu         sync.RWMutex
+	publicKeys []PublicKey
 }
 
 // NewHandler creates a new discovery handler.
@@ -33,28 +34,16 @@ func NewHandler(cfg *config.Config) *Handler {
 
 // SetPublicKeys updates the public keys for RFC 9421 signatures.
 // This is called by the signature module when keys are generated/loaded.
+// NOTE: This method is deprecated. The wellknown service computes keys at init.
 func (h *Handler) SetPublicKeys(keys []PublicKey) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.publicKeys = keys
 }
 
-// SetTokenExchangeEnabled enables or disables the exchange-token capability.
-// When enabled, the discovery response includes tokenEndPoint.
-func (h *Handler) SetTokenExchangeEnabled(enabled bool) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.tokenExchangeEnabled = enabled
-}
-
-// IsTokenExchangeEnabled returns whether token exchange is enabled.
-func (h *Handler) IsTokenExchangeEnabled() bool {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return h.tokenExchangeEnabled
-}
-
 // GetDiscovery returns the current discovery document.
+// NOTE: This method is deprecated. The wellknown service now owns discovery.
+// This method remains for backward compatibility with existing tests.
 func (h *Handler) GetDiscovery() *Discovery {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -86,20 +75,14 @@ func (h *Handler) GetDiscovery() *Discovery {
 		PublicKeys:    h.publicKeys,
 	}
 
-	// Add tokenEndPoint when exchange-token capability is advertised
-	if h.tokenExchangeEnabled {
-		tokenEndpoint := h.cfg.ExternalOrigin
-		if h.cfg.ExternalBasePath != "" {
-			tokenEndpoint += h.cfg.ExternalBasePath
-		}
-		tokenEndpoint += "/ocm/token"
-		discovery.TokenEndPoint = tokenEndpoint
-	}
+	// NOTE: Token exchange is now handled by the wellknown service.
+	// This legacy handler does not advertise token exchange.
 
 	return discovery
 }
 
 // getCapabilities returns the list of capabilities based on implemented phases.
+// NOTE: Token exchange capability is now handled by the wellknown service.
 func (h *Handler) getCapabilities() []string {
 	var caps []string
 
@@ -108,10 +91,7 @@ func (h *Handler) getCapabilities() []string {
 		caps = append(caps, "http-sig")
 	}
 
-	// exchange-token is added when token exchange is implemented and enabled
-	if h.tokenExchangeEnabled {
-		caps = append(caps, "exchange-token")
-	}
+	// NOTE: exchange-token is now advertised by the wellknown service, not here.
 
 	return caps
 }

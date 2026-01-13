@@ -116,8 +116,11 @@ func (s *Server) setupRoutes() chi.Router {
 	// Auth middleware for all routes (checks IsAuthRequired)
 	r.Use(s.authMiddleware)
 
-	// Mount root-only endpoints at host root
-	s.mountRootOnlyEndpoints(r)
+	// Mount wellknown service at root (Reva-aligned)
+	// This replaces the legacy mountRootOnlyEndpoints().
+	if s.wellknownSvc != nil {
+		r.Mount("/", s.wellknownSvc.Handler())
+	}
 
 	// Mount app endpoints under external_base_path
 	if s.cfg.ExternalBasePath != "" {
@@ -129,13 +132,6 @@ func (s *Server) setupRoutes() chi.Router {
 	}
 
 	return r
-}
-
-// mountRootOnlyEndpoints mounts endpoints that must be at host root.
-func (s *Server) mountRootOnlyEndpoints(r chi.Router) {
-	// Discovery endpoints - both return the same JSON payload (no redirect)
-	r.Get("/.well-known/ocm", s.discoveryHandler.WellKnownHandler())
-	r.Get("/ocm-provider", s.discoveryHandler.WellKnownHandler())
 }
 
 // mountAppEndpoints mounts app endpoints (may be under base path).

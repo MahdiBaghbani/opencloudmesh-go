@@ -14,7 +14,14 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+
+	// Register services (triggers init() registration)
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
 )
 
 // TestServer wraps a server instance for testing.
@@ -82,16 +89,70 @@ func StartTestServer(t *testing.T) *TestServer {
 	})
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
+	// Create repos for SharedDeps and server.Deps (dual-use)
+	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
+	outgoingShareRepo := shares.NewMemoryOutgoingShareRepo()
+	outgoingInviteRepo := invites.NewMemoryOutgoingInviteRepo()
+	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
+	tokenStore := token.NewMemoryTokenStore()
+
+	// Reset and set SharedDeps for this test (important for test isolation)
+	services.ResetDeps()
+	services.SetDeps(&services.Deps{
+		IncomingShareRepo:  incomingShareRepo,
+		OutgoingShareRepo:  outgoingShareRepo,
+		OutgoingInviteRepo: outgoingInviteRepo,
+		IncomingInviteRepo: incomingInviteRepo,
+		TokenStore:         tokenStore,
+		HTTPClient:         httpClient,
+		// KeyManager is nil (no signatures in basic tests)
+	})
+
+	// Compute token exchange enabled from config
+	isTokenExchangeEnabled := cfg.TokenExchange.Enabled != nil && *cfg.TokenExchange.Enabled
+
+	// Build wellknown service config
+	wellknownConfig := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint":    cfg.ExternalOrigin + cfg.ExternalBasePath,
+			"ocm_prefix":  "ocm",
+			"provider":    "OpenCloudMesh",
+			"webdav_root": cfg.ExternalBasePath + "/webdav/ocm/",
+			"advertise_http_request_signatures": cfg.Signature.AdvertiseHTTPRequestSignatures,
+			"token_exchange": map[string]any{
+				"enabled": isTokenExchangeEnabled,
+				"path":    cfg.TokenExchange.Path,
+			},
+		},
+	}
+
+	// Construct wellknown service from registry
+	wellknownNew := services.Get("wellknown")
+	if wellknownNew == nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("wellknown service not registered")
+	}
+	wellknownSvc, err := wellknownNew(wellknownConfig, logger)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create wellknown service: %v", err)
+	}
+
 	// Create server dependencies
 	deps := &server.Deps{
-		PartyRepo:   partyRepo,
-		SessionRepo: sessionRepo,
-		UserAuth:    userAuth,
-		HTTPClient:  httpClient,
+		PartyRepo:          partyRepo,
+		SessionRepo:        sessionRepo,
+		UserAuth:           userAuth,
+		HTTPClient:         httpClient,
+		IncomingShareRepo:  incomingShareRepo,
+		OutgoingShareRepo:  outgoingShareRepo,
+		OutgoingInviteRepo: outgoingInviteRepo,
+		IncomingInviteRepo: incomingInviteRepo,
+		TokenStore:         tokenStore,
 	}
 
 	// Create server
-	srv, err := server.New(cfg, logger, deps)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)

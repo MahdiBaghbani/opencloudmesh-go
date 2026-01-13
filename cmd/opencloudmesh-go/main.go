@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -18,10 +19,17 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/loader"
+
+	// Register services (triggers init() registration)
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
 )
 
 func main() {
@@ -237,21 +245,89 @@ func main() {
 		profileRegistry = federation.NewProfileRegistry(nil, nil)
 	}
 
-	// Create server dependencies
+	// Create signer for outbound requests (needed for SharedDeps)
+	var signer *crypto.RFC9421Signer
+	if keyManager != nil {
+		signer = crypto.NewRFC9421Signer(keyManager)
+	}
+
+	// Create outbound signing policy (needed for SharedDeps)
+	outboundPolicy := federation.NewOutboundPolicy(cfg, profileRegistry)
+
+	// Create repos ONCE for dual-use (SharedDeps and server.Deps)
+	// This is temporary until Phase 3 completes the migration.
+	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
+	outgoingShareRepo := shares.NewMemoryOutgoingShareRepo()
+	outgoingInviteRepo := invites.NewMemoryOutgoingInviteRepo()
+	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
+	tokenStore := token.NewMemoryTokenStore()
+
+	// Set SharedDeps for registry-based services (wellknown, ocm in future phases)
+	services.SetDeps(&services.Deps{
+		IncomingShareRepo:  incomingShareRepo,
+		OutgoingShareRepo:  outgoingShareRepo,
+		OutgoingInviteRepo: outgoingInviteRepo,
+		IncomingInviteRepo: incomingInviteRepo,
+		TokenStore:         tokenStore,
+		HTTPClient:         httpClient,
+		DiscoveryClient:    discoveryClient,
+		KeyManager:         keyManager,
+		Signer:             signer,
+		OutboundPolicy:     outboundPolicy,
+		FederationMgr:      federationMgr,
+		PolicyEngine:       policyEngine,
+		ProfileRegistry:    profileRegistry,
+	})
+
+	// Build wellknown service config map from typed config (config bridging)
+	// The service constructor decodes via svccfg.Decode + ApplyDefaults
+	isTokenExchangeEnabled := cfg.TokenExchange.Enabled != nil && *cfg.TokenExchange.Enabled
+	wellknownConfig := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint":    cfg.ExternalOrigin + cfg.ExternalBasePath,
+			"ocm_prefix":  "ocm",
+			"provider":    "OpenCloudMesh",
+			"webdav_root": cfg.ExternalBasePath + "/webdav/ocm/",
+			"advertise_http_request_signatures": cfg.Signature.AdvertiseHTTPRequestSignatures,
+			"token_exchange": map[string]any{
+				"enabled": isTokenExchangeEnabled,
+				"path":    cfg.TokenExchange.Path,
+			},
+		},
+	}
+
+	// Construct wellknown service from registry
+	wellknownNew := services.Get("wellknown")
+	if wellknownNew == nil {
+		logger.Error("wellknown service not registered")
+		os.Exit(1)
+	}
+	wellknownSvc, err := wellknownNew(wellknownConfig, logger)
+	if err != nil {
+		logger.Error("failed to create wellknown service", "error", fmt.Errorf("wellknown: %w", err))
+		os.Exit(1)
+	}
+
+	// Create server dependencies (uses same repos for dual-use)
 	deps := &server.Deps{
-		PartyRepo:       partyRepo,
-		SessionRepo:     sessionRepo,
-		UserAuth:        userAuth,
-		KeyManager:      keyManager,
-		HTTPClient:      httpClient,
-		DiscoveryClient: discoveryClient,
-		FederationMgr:   federationMgr,
-		PolicyEngine:    policyEngine,
-		ProfileRegistry: profileRegistry,
+		PartyRepo:          partyRepo,
+		SessionRepo:        sessionRepo,
+		UserAuth:           userAuth,
+		KeyManager:         keyManager,
+		HTTPClient:         httpClient,
+		DiscoveryClient:    discoveryClient,
+		FederationMgr:      federationMgr,
+		PolicyEngine:       policyEngine,
+		ProfileRegistry:    profileRegistry,
+		IncomingShareRepo:  incomingShareRepo,
+		OutgoingShareRepo:  outgoingShareRepo,
+		OutgoingInviteRepo: outgoingInviteRepo,
+		IncomingInviteRepo: incomingInviteRepo,
+		TokenStore:         tokenStore,
 	}
 
 	// Create and start server
-	srv, err := server.New(cfg, logger, deps)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)

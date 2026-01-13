@@ -20,6 +20,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
 )
@@ -67,7 +68,7 @@ type Server struct {
 	trustedProxies   *TrustedProxies
 	authHandler      *api.AuthHandler
 	uiHandler        *ui.Handler
-	discoveryHandler *discovery.Handler
+	wellknownSvc     services.Service // Reva-aligned wellknown service for discovery
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	signatureMiddleware *crypto.SignatureMiddleware
@@ -85,7 +86,8 @@ type Server struct {
 
 // New creates a new Server with the given configuration.
 // Returns an error if required dependencies are missing.
-func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
+// wellknownSvc is the Reva-aligned wellknown service for discovery endpoints.
+func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service) (*Server, error) {
 	// Fail fast: validate required dependencies
 	if err := validateDeps(deps); err != nil {
 		return nil, err
@@ -103,21 +105,8 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 	// Create auth handler
 	authHandler := api.NewAuthHandler(deps.PartyRepo, deps.SessionRepo, deps.UserAuth)
 
-	// Create discovery handler
-	discoveryHandler := discovery.NewHandler(cfg)
-
-	// Set up public keys in discovery per 5A rule:
-	// Keys exist when inbound_mode != off OR outbound_mode != off
-	needsKeys := cfg.Signature.InboundMode != "off" || cfg.Signature.OutboundMode != "off"
-	if needsKeys && deps.KeyManager != nil {
-		discoveryHandler.SetPublicKeys([]discovery.PublicKey{
-			{
-				KeyID:        deps.KeyManager.GetKeyID(),
-				PublicKeyPem: deps.KeyManager.GetPublicKeyPEM(),
-				Algorithm:    "ed25519",
-			},
-		})
-	}
+	// NOTE: Discovery is now handled by the wellknown service (Reva-aligned).
+	// Public keys are computed at wellknown service construction time via SharedDeps.
 
 	// Create signer for outgoing requests
 	var signer *crypto.RFC9421Signer
@@ -195,7 +184,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps) (*Server, error) {
 		trustedProxies:   trustedProxies,
 		authHandler:      authHandler,
 		uiHandler:        uiHandler,
-		discoveryHandler: discoveryHandler,
+		wellknownSvc:     wellknownSvc,
 		signer:           signer,
 		peerResolver:     crypto.NewPeerResolver(),
 		signatureMiddleware: signatureMiddleware,
