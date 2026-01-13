@@ -2,6 +2,7 @@ package webdav_test
 
 import (
 	"context"
+	"encoding/base64"
 	"io"
 	"log/slog"
 	"net/http"
@@ -97,8 +98,9 @@ func TestAuthRequired(t *testing.T) {
 		t.Errorf("expected 401, got %d", w.Code)
 	}
 
-	if w.Header().Get("WWW-Authenticate") != "Bearer" {
-		t.Error("expected WWW-Authenticate: Bearer header")
+	wwwAuth := w.Header().Get("WWW-Authenticate")
+	if wwwAuth != `Bearer, Basic realm="OCM WebDAV"` {
+		t.Errorf("expected WWW-Authenticate: Bearer, Basic realm=\"OCM WebDAV\", got %q", wwwAuth)
 	}
 }
 
@@ -345,4 +347,126 @@ func TestExchangedTokenAuth(t *testing.T) {
 			t.Errorf("expected 401 for token belonging to wrong share, got %d", w.Code)
 		}
 	})
+}
+
+func TestExtractCredential(t *testing.T) {
+	tests := []struct {
+		name           string
+		authHeader     string
+		wantToken      string
+		wantSource     string
+		wantNil        bool
+	}{
+		// No auth header
+		{
+			name:       "no auth header",
+			authHeader: "",
+			wantNil:    true,
+		},
+
+		// Bearer auth
+		{
+			name:       "bearer token",
+			authHeader: "Bearer my-secret-token",
+			wantToken:  "my-secret-token",
+			wantSource: "bearer",
+		},
+		{
+			name:       "bearer empty token",
+			authHeader: "Bearer ",
+			wantNil:    true,
+		},
+
+		// Basic: token: (OCM spec pattern)
+		{
+			name:       "basic token colon (OCM spec)",
+			authHeader: "Basic " + base64Encode("my-secret:"),
+			wantToken:  "my-secret",
+			wantSource: "basic:token:",
+		},
+
+		// Basic: token:token (some implementations)
+		{
+			name:       "basic token token",
+			authHeader: "Basic " + base64Encode("my-secret:my-secret"),
+			wantToken:  "my-secret",
+			wantSource: "basic:token:token",
+		},
+
+		// Basic: :token (empty username)
+		{
+			name:       "basic colon token",
+			authHeader: "Basic " + base64Encode(":my-secret"),
+			wantToken:  "my-secret",
+			wantSource: "basic::token",
+		},
+
+		// Basic: id:token (Reva/OpenCloudMesh-rs style)
+		{
+			name:       "basic id token",
+			authHeader: "Basic " + base64Encode("provider-id:my-secret"),
+			wantToken:  "my-secret",
+			wantSource: "basic:id:token",
+		},
+
+		// Basic: id:token with trailing colon (OpenCloudMesh-rs quirk)
+		{
+			name:       "basic id token trailing colon",
+			authHeader: "Basic " + base64Encode("provider-id:my-secret:"),
+			wantToken:  "my-secret",
+			wantSource: "basic:id:token",
+		},
+
+		// Invalid basic auth
+		{
+			name:       "basic invalid base64",
+			authHeader: "Basic not-valid-base64!!!",
+			wantNil:    true,
+		},
+		{
+			name:       "basic no colon",
+			authHeader: "Basic " + base64Encode("no-colon-here"),
+			wantNil:    true,
+		},
+
+		// Unknown auth type
+		{
+			name:       "unknown auth type",
+			authHeader: "Digest something",
+			wantNil:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/test", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+
+			result := webdav.ExtractCredentialForTest(req)
+
+			if tt.wantNil {
+				if result != nil {
+					t.Errorf("expected nil, got token=%q source=%q", result.Token, result.Source)
+				}
+				return
+			}
+
+			if result == nil {
+				t.Fatal("expected non-nil result")
+			}
+
+			if result.Token != tt.wantToken {
+				t.Errorf("token = %q, want %q", result.Token, tt.wantToken)
+			}
+			if result.Source != tt.wantSource {
+				t.Errorf("source = %q, want %q", result.Source, tt.wantSource)
+			}
+		})
+	}
+}
+
+func base64Encode(s string) string {
+	return base64.StdEncoding.EncodeToString([]byte(s))
 }

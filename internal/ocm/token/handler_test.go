@@ -16,11 +16,18 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 )
 
+// enabledSettings returns token exchange settings with enabled=true for testing.
+func enabledSettings() *token.TokenExchangeSettings {
+	s := &token.TokenExchangeSettings{Enabled: true}
+	s.ApplyDefaults()
+	return s
+}
+
 func TestHandler_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := shares.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, logger)
+	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), logger)
 
 	// Create a share
 	share := &shares.OutgoingShare{
@@ -77,7 +84,7 @@ func TestHandler_JSON_NextcloudInterop(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := shares.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, logger)
+	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), logger)
 
 	// Create a share
 	share := &shares.OutgoingShare{
@@ -116,7 +123,7 @@ func TestHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := shares.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, logger)
+	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), logger)
 
 	tests := []struct {
 		name string
@@ -152,7 +159,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := shares.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, logger)
+	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "password")
@@ -180,7 +187,7 @@ func TestHandler_InvalidCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := shares.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, logger)
+	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "ocm_share")
@@ -208,7 +215,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := shares.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, logger)
+	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), logger)
 
 	// Create a share
 	share := &shares.OutgoingShare{
@@ -280,5 +287,40 @@ func TestGenerateAccessToken(t *testing.T) {
 
 	if len(token1) != 64 { // 32 bytes = 64 hex chars
 		t.Errorf("expected 64 char token, got %d", len(token1))
+	}
+}
+
+func TestHandler_DisabledReturns501(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+
+	// Create handler with token exchange disabled
+	disabledSettings := &token.TokenExchangeSettings{Enabled: false}
+	disabledSettings.ApplyDefaults()
+	handler := token.NewHandler(shareRepo, tokenStore, disabledSettings, logger)
+
+	form := url.Values{}
+	form.Set("grant_type", "ocm_share")
+	form.Set("client_id", "receiver.example.com")
+	form.Set("code", "secret-code")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Errorf("expected 501, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.Error != "not_implemented" {
+		t.Errorf("expected error 'not_implemented', got %q", resp.Error)
 	}
 }

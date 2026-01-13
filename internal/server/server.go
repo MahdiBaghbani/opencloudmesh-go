@@ -167,8 +167,15 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 		logger,
 	)
 
-	// Create token handler
-	tokenHandler := token.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, logger)
+	// Create token handler with settings from config
+	// Default settings when not configured: enabled=true, path=token
+	tokenSettings := &token.TokenExchangeSettings{
+		Enabled: true,
+		Path:    "token",
+	}
+	// Apply defaults (in case fields are zero-valued)
+	tokenSettings.ApplyDefaults()
+	tokenHandler := token.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, tokenSettings, logger)
 
 	// Create trusted proxy handler for X-Forwarded-* header processing
 	trustedProxies := NewTrustedProxies(cfg.Server.TrustedProxies)

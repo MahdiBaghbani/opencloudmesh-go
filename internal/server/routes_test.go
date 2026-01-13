@@ -117,17 +117,18 @@ func TestIsAuthRequired(t *testing.T) {
 			basePath: "",
 			want:     true,
 		},
+		// WebDAV uses bearer/basic auth, not session auth
 		{
-			name:     "webdav requires auth (no base path)",
+			name:     "webdav uses bearer auth not session (no base path)",
 			path:     "/webdav/ocm/somefile",
 			basePath: "",
-			want:     true,
+			want:     false,
 		},
 		{
-			name:     "webdav requires auth (with base path)",
+			name:     "webdav uses bearer auth not session (with base path)",
 			path:     "/ocm/webdav/ocm/somefile",
 			basePath: "/ocm",
-			want:     true,
+			want:     false,
 		},
 		{
 			name:     "unknown path requires auth",

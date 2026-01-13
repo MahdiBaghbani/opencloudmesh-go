@@ -4,6 +4,7 @@ package webdav
 
 import (
 	"context"
+	"encoding/base64"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -59,14 +60,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract and validate bearer token
-	secret := extractBearerToken(r)
-	if secret == "" {
+	// Extract credential (Bearer or Basic auth)
+	cred := extractCredential(r)
+	if cred == nil {
 		h.logger.Debug("WebDAV request missing authorization", "webdav_id", webdavID)
-		w.Header().Set("WWW-Authenticate", "Bearer")
+		w.Header().Set("WWW-Authenticate", `Bearer, Basic realm="OCM WebDAV"`)
 		http.Error(w, "authorization required", http.StatusUnauthorized)
 		return
 	}
+
+	// Log auth source only - NEVER log the actual token
+	h.logger.Debug("WebDAV auth attempt", "webdav_id", webdavID, "auth_source", cred.Source)
 
 	// Look up share by webdavId
 	share, err := h.outgoingRepo.GetByWebDAVID(r.Context(), webdavID)
@@ -76,32 +80,44 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate authorization - check both exchanged tokens and shared secret
-	// First try exchanged token (if token store is available)
-	authorized := false
-	if h.tokenStore != nil {
-		issuedToken, err := h.tokenStore.Get(r.Context(), secret)
-		if err == nil && issuedToken != nil && issuedToken.ShareID == share.ShareID {
-			// Valid exchanged token for this share
-			authorized = true
-			h.logger.Debug("WebDAV authorized via exchanged token", "webdav_id", webdavID)
-		}
-	}
-
-	// Fall back to shared secret
-	if !authorized && share.SharedSecret == secret {
-		authorized = true
-		h.logger.Debug("WebDAV authorized via shared secret", "webdav_id", webdavID)
-	}
-
+	// Validate credential with must-exchange-token enforcement
+	authorized, authMethod := h.validateCredential(r.Context(), share, cred.Token)
 	if !authorized {
 		h.logger.Debug("WebDAV invalid credentials", "webdav_id", webdavID)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
+	h.logger.Debug("WebDAV authorized", "webdav_id", webdavID, "auth_method", authMethod)
+
 	// Serve the file using webdav package
 	h.serveFile(w, r, share)
+}
+
+// validateCredential validates the token against the share.
+// Returns (authorized bool, method string) where method is "exchanged_token" or "shared_secret".
+func (h *Handler) validateCredential(ctx context.Context, share *shares.OutgoingShare, token string) (bool, string) {
+	// Try exchanged token first (always valid if found)
+	if h.tokenStore != nil {
+		issuedToken, err := h.tokenStore.Get(ctx, token)
+		if err == nil && issuedToken != nil && issuedToken.ShareID == share.ShareID {
+			return true, "exchanged_token"
+		}
+	}
+
+	// Check must-exchange-token enforcement
+	if share.MustExchangeToken {
+		// When must-exchange-token is set, raw sharedSecret is NOT accepted
+		// (unless webdav_token_exchange.mode=lenient relaxes for that peer - future work)
+		return false, ""
+	}
+
+	// Fall back to shared secret
+	if share.SharedSecret == token {
+		return true, "shared_secret"
+	}
+
+	return false, ""
 }
 
 // serveFile serves the file at share.LocalPath via WebDAV.
@@ -200,7 +216,79 @@ func isWriteMethod(method string) bool {
 	return false
 }
 
+// credentialResult holds extracted auth credentials.
+type credentialResult struct {
+	Token  string
+	Source string // for logging: "bearer", "basic:token:", "basic::token", "basic:token:token", "basic:id:token"
+}
+
+// extractCredential extracts authentication credential from Bearer or Basic auth.
+// Returns nil if no valid auth header is present.
+// Patterns supported (per OCM landscape - Amity, Reva, OpenCloudMesh-rs):
+//   - Bearer <token>
+//   - Basic <base64(token:)>        -> username=token, password=empty (OCM spec)
+//   - Basic <base64(token:token)>   -> username=password (some implementations)
+//   - Basic <base64(:token)>        -> empty username (some implementations)
+//   - Basic <base64(id:token)>      -> provider_id:sharedSecret or share_id:sharedSecret
+func extractCredential(r *http.Request) *credentialResult {
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return nil
+	}
+
+	// Bearer auth (preferred)
+	if strings.HasPrefix(auth, "Bearer ") {
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if token != "" {
+			return &credentialResult{Token: token, Source: "bearer"}
+		}
+		return nil
+	}
+
+	// Basic auth (legacy interop)
+	if strings.HasPrefix(auth, "Basic ") {
+		encoded := strings.TrimPrefix(auth, "Basic ")
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			return nil
+		}
+		parts := strings.SplitN(string(decoded), ":", 2)
+		if len(parts) != 2 {
+			return nil
+		}
+		username, password := parts[0], parts[1]
+
+		// Pattern 1: token: (OCM spec - username is sharedSecret, password empty)
+		if password == "" && username != "" {
+			return &credentialResult{Token: username, Source: "basic:token:"}
+		}
+
+		// Pattern 2: token:token (some implementations send same value twice)
+		if username != "" && username == password {
+			return &credentialResult{Token: username, Source: "basic:token:token"}
+		}
+
+		// Pattern 3: :token (empty username, password is token)
+		if username == "" && password != "" {
+			return &credentialResult{Token: password, Source: "basic::token"}
+		}
+
+		// Pattern 4: id:token (Reva/OpenCloudMesh-rs style - provider_id:sharedSecret)
+		// Treat password as the token candidate (id is just context)
+		if username != "" && password != "" {
+			// Tolerate trailing ":" on password (OpenCloudMesh-rs quirk)
+			token := strings.TrimSuffix(password, ":")
+			return &credentialResult{Token: token, Source: "basic:id:token"}
+		}
+
+		return nil
+	}
+
+	return nil
+}
+
 // extractBearerToken extracts the bearer token from the Authorization header.
+// Deprecated: Use extractCredential for full auth support.
 func extractBearerToken(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {

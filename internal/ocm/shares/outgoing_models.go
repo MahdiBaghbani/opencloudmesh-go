@@ -45,6 +45,10 @@ type OutgoingShare struct {
 	CreatedAt time.Time  `json:"createdAt"`
 	SentAt    *time.Time `json:"sentAt,omitempty"`
 	Error     string     `json:"error,omitempty"`
+
+	// MustExchangeToken indicates we advertised must-exchange-token requirement.
+	// When true, /webdav/ocm/* rejects raw sharedSecret and accepts only exchanged tokens.
+	MustExchangeToken bool `json:"mustExchangeToken"`
 }
 
 // OutgoingShareRequest is the request for POST /api/shares/outgoing.

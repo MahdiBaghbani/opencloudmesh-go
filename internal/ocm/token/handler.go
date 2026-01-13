@@ -16,15 +16,18 @@ type Handler struct {
 	outgoingRepo shares.OutgoingShareRepo
 	tokenStore   TokenStore
 	tokenTTL     time.Duration
+	settings     *TokenExchangeSettings
 	logger       *slog.Logger
 }
 
-// NewHandler creates a new token handler.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, logger *slog.Logger) *Handler {
+// NewHandler creates a new token handler with the given settings.
+// Settings must have ApplyDefaults() called before passing (done by cfg.Decode).
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, settings *TokenExchangeSettings, logger *slog.Logger) *Handler {
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		tokenStore:   tokenStore,
 		tokenTTL:     DefaultTokenTTL,
+		settings:     settings,
 		logger:       logger,
 	}
 }
@@ -33,6 +36,12 @@ func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, lo
 func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Check if token exchange is enabled
+	if h.settings == nil || !h.settings.Enabled {
+		h.sendOAuthError(w, http.StatusNotImplemented, "not_implemented", "token exchange is disabled")
 		return
 	}
 

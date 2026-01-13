@@ -29,7 +29,7 @@ var routeGroups = []RouteGroup{
 	{Name: "ocm-aux", PathPrefix: "/ocm-aux", RequiresAuth: false, AtHostRoot: false},   // Helper endpoints (rate-limited but public)
 	{Name: "api", PathPrefix: "/api", RequiresAuth: true, AtHostRoot: false},            // API: auth required (exceptions in publicExceptions)
 	{Name: "ui", PathPrefix: "/ui", RequiresAuth: true, AtHostRoot: false},              // UI: auth required (exceptions in publicExceptions)
-	{Name: "webdav", PathPrefix: "/webdav/ocm", RequiresAuth: true, AtHostRoot: false},  // Bearer token auth
+	{Name: "webdav", PathPrefix: "/webdav/ocm", RequiresAuth: false, AtHostRoot: false}, // OCM WebDAV uses bearer/basic auth, not session
 }
 
 // GetRouteGroups returns the route group definitions for testing.
