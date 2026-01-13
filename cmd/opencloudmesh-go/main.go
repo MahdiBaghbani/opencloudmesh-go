@@ -41,6 +41,9 @@ func main() {
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
 	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
 	loggingAllowSensitive := flag.String("logging-allow-sensitive", "", "Allow sensitive values in logs: true or false (overrides config)")
+	tokenExchangeEnabled := flag.String("token-exchange-enabled", "", "Enable token exchange: true or false (overrides config)")
+	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
+	webdavTokenExchangeMode := flag.String("webdav-token-exchange-mode", "", "WebDAV token exchange enforcement mode: strict, lenient, or off (overrides config)")
 	flag.Parse()
 
 	// Bootstrap logger for config loading errors (uses default level)
@@ -66,6 +69,9 @@ func main() {
 			AdminPassword:                 adminPassword,
 			LoggingLevel:                  loggingLevel,
 			LoggingAllowSensitive:         loggingAllowSensitive,
+			TokenExchangeEnabled:          tokenExchangeEnabled,
+			TokenExchangePath:             tokenExchangePath,
+			WebDAVTokenExchangeMode:       webdavTokenExchangeMode,
 		},
 		Logger: bootstrapLogger,
 	})

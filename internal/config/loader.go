@@ -65,6 +65,9 @@ type FlagOverrides struct {
 	AdminPassword                  *string
 	LoggingLevel                   *string
 	LoggingAllowSensitive          *string // "true", "false", or "" (unset)
+	TokenExchangeEnabled           *string // "true", "false", or "" (unset)
+	TokenExchangePath              *string
+	WebDAVTokenExchangeMode        *string
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -80,15 +83,28 @@ type fileConfig struct {
 	OutboundHTTP *OutboundHTTPConfig `toml:"outbound_http"`
 	Signature    *SignatureConfig    `toml:"signature"`
 	PeerProfiles *peerProfilesConfig `toml:"peer_profiles"`
-	Cache        *cacheConfig        `toml:"cache"`
-	Federation   *federationConfig   `toml:"federation"`
-	Logging      *loggingConfig      `toml:"logging"`
+	Cache               *cacheConfig               `toml:"cache"`
+	Federation          *federationConfig          `toml:"federation"`
+	Logging             *loggingConfig             `toml:"logging"`
+	TokenExchange       *tokenExchangeConfig       `toml:"token_exchange"`
+	WebDAVTokenExchange *webdavTokenExchangeConfig `toml:"webdav_token_exchange"`
 }
 
 // loggingConfig holds logging settings from TOML.
 type loggingConfig struct {
 	Level          string `toml:"level"`
 	AllowSensitive bool   `toml:"allow_sensitive"`
+}
+
+// tokenExchangeConfig holds token exchange settings from TOML.
+type tokenExchangeConfig struct {
+	Enabled *bool  `toml:"enabled"`
+	Path    string `toml:"path"`
+}
+
+// webdavTokenExchangeConfig holds WebDAV token exchange enforcement settings from TOML.
+type webdavTokenExchangeConfig struct {
+	Mode string `toml:"mode"`
 }
 
 // cacheConfig holds cache settings from TOML.
@@ -207,6 +223,9 @@ func Load(opts LoaderOptions) (*Config, error) {
 	return cfg, nil
 }
 
+// ptrBool returns a pointer to the given bool value.
+func ptrBool(b bool) *bool { return &b }
+
 // presetForMode returns the base config for a given mode.
 func presetForMode(mode Mode) *Config {
 	switch mode {
@@ -269,6 +288,13 @@ func StrictConfig() *Config {
 			Level:          "info",
 			AllowSensitive: false,
 		},
+		TokenExchange: TokenExchangeConfig{
+			Enabled: ptrBool(true),
+			Path:    "token",
+		},
+		WebDAVTokenExchange: WebDAVTokenExchangeConfig{
+			Mode: "strict",
+		},
 	}
 }
 
@@ -280,6 +306,7 @@ func InteropConfig() *Config {
 	cfg.Signature.OutboundMode = "criteria-only"
 	cfg.Signature.AdvertiseHTTPRequestSignatures = true
 	cfg.Signature.PeerProfileLevelOverride = "non-strict"
+	cfg.WebDAVTokenExchange.Mode = "lenient"
 	// InsecureSkipVerify stays configurable (default false)
 	return cfg
 }
@@ -333,6 +360,13 @@ func DevConfig() *Config {
 		Logging: LoggingConfig{
 			Level:          "debug",
 			AllowSensitive: false,
+		},
+		TokenExchange: TokenExchangeConfig{
+			Enabled: ptrBool(true),
+			Path:    "token",
+		},
+		WebDAVTokenExchange: WebDAVTokenExchangeConfig{
+			Mode: "lenient",
 		},
 	}
 }
@@ -488,6 +522,21 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		// AllowSensitive is a bool, overlay when section present
 		cfg.Logging.AllowSensitive = fc.Logging.AllowSensitive
 	}
+
+	if fc.TokenExchange != nil {
+		if fc.TokenExchange.Enabled != nil {
+			cfg.TokenExchange.Enabled = fc.TokenExchange.Enabled
+		}
+		if fc.TokenExchange.Path != "" {
+			cfg.TokenExchange.Path = fc.TokenExchange.Path
+		}
+	}
+
+	if fc.WebDAVTokenExchange != nil {
+		if fc.WebDAVTokenExchange.Mode != "" {
+			cfg.WebDAVTokenExchange.Mode = fc.WebDAVTokenExchange.Mode
+		}
+	}
 }
 
 // overlayFlags applies CLI flag values onto cfg.
@@ -532,6 +581,17 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.LoggingAllowSensitive != nil && *f.LoggingAllowSensitive != "" {
 		// Parse "true" or "false" string (only apply when explicitly set)
 		cfg.Logging.AllowSensitive = *f.LoggingAllowSensitive == "true"
+	}
+	if f.TokenExchangeEnabled != nil && *f.TokenExchangeEnabled != "" {
+		// Parse "true" or "false" string (only apply when explicitly set)
+		enabled := *f.TokenExchangeEnabled == "true"
+		cfg.TokenExchange.Enabled = &enabled
+	}
+	if f.TokenExchangePath != nil && *f.TokenExchangePath != "" {
+		cfg.TokenExchange.Path = *f.TokenExchangePath
+	}
+	if f.WebDAVTokenExchangeMode != nil && *f.WebDAVTokenExchangeMode != "" {
+		cfg.WebDAVTokenExchange.Mode = *f.WebDAVTokenExchangeMode
 	}
 }
 
@@ -620,6 +680,31 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid logging.level %q: must be one of trace, debug, info, warn, error", cfg.Logging.Level)
+	}
+
+	// token_exchange.path validation (if path is set)
+	if cfg.TokenExchange.Path != "" {
+		path := cfg.TokenExchange.Path
+		if strings.TrimSpace(path) == "" {
+			return fmt.Errorf("invalid token_exchange.path: must not be empty")
+		}
+		if strings.Contains(path, "..") {
+			return fmt.Errorf("invalid token_exchange.path: must not contain '..'")
+		}
+		if strings.HasPrefix(path, "/") {
+			return fmt.Errorf("invalid token_exchange.path: must be relative (no leading slash)")
+		}
+		if strings.Contains(path, "://") {
+			return fmt.Errorf("invalid token_exchange.path: must not contain a scheme")
+		}
+	}
+
+	// webdav_token_exchange.mode validation
+	switch cfg.WebDAVTokenExchange.Mode {
+	case "off", "lenient", "strict":
+		// valid
+	default:
+		return fmt.Errorf("invalid webdav_token_exchange.mode %q: must be one of off, lenient, strict", cfg.WebDAVTokenExchange.Mode)
 	}
 
 	return nil

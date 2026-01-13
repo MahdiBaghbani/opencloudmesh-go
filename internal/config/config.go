@@ -47,6 +47,12 @@ type Config struct {
 
 	// Logging configuration
 	Logging LoggingConfig `toml:"logging"`
+
+	// TokenExchange configuration
+	TokenExchange TokenExchangeConfig `toml:"token_exchange"`
+
+	// WebDAVTokenExchange configuration for must-exchange-token enforcement
+	WebDAVTokenExchange WebDAVTokenExchangeConfig `toml:"webdav_token_exchange"`
 }
 
 // LoggingConfig holds logging settings.
@@ -58,6 +64,28 @@ type LoggingConfig struct {
 	// AllowSensitive permits logging of sensitive values (tokens, secrets).
 	// Default: false. Use only for debugging.
 	AllowSensitive bool `toml:"allow_sensitive"`
+}
+
+// TokenExchangeConfig holds token exchange settings.
+type TokenExchangeConfig struct {
+	// Enabled controls whether token exchange is enabled.
+	// Pointer for presence detection; nil = use preset default.
+	// Default: true in all modes.
+	Enabled *bool `toml:"enabled"`
+
+	// Path is the token exchange endpoint path (relative to /ocm/).
+	// Default: "token"
+	Path string `toml:"path"`
+}
+
+// WebDAVTokenExchangeConfig holds must-exchange-token enforcement settings.
+type WebDAVTokenExchangeConfig struct {
+	// Mode controls enforcement: strict, lenient, off.
+	// - strict: always enforce must-exchange-token
+	// - lenient: enforce with peer profile relaxations
+	// - off: never enforce must-exchange-token
+	// Default: strict in strict mode, lenient in interop/dev mode.
+	Mode string `toml:"mode"`
 }
 
 // CacheConfig holds cache settings.
@@ -314,6 +342,17 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  Logging: {\n")
 	sb.WriteString(fmt.Sprintf("    Level: %q,\n", c.Logging.Level))
 	sb.WriteString(fmt.Sprintf("    AllowSensitive: %v,\n", c.Logging.AllowSensitive))
+	sb.WriteString("  },\n")
+	sb.WriteString("  TokenExchange: {\n")
+	enabledStr := "<nil>"
+	if c.TokenExchange.Enabled != nil {
+		enabledStr = fmt.Sprintf("%v", *c.TokenExchange.Enabled)
+	}
+	sb.WriteString(fmt.Sprintf("    Enabled: %s,\n", enabledStr))
+	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
+	sb.WriteString("  },\n")
+	sb.WriteString("  WebDAVTokenExchange: {\n")
+	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.WebDAVTokenExchange.Mode))
 	sb.WriteString("  },\n")
 	sb.WriteString("}")
 	return sb.String()
