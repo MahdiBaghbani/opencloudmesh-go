@@ -53,6 +53,17 @@ type Config struct {
 
 	// WebDAVTokenExchange configuration for must-exchange-token enforcement
 	WebDAVTokenExchange WebDAVTokenExchangeConfig `toml:"webdav_token_exchange"`
+
+	// HTTP holds per-service HTTP configuration (Reva-style).
+	HTTP HTTPConfig `toml:"http"`
+}
+
+// HTTPConfig holds per-service HTTP configuration.
+// Services are configured under [http.services.<svcname>].
+type HTTPConfig struct {
+	// Services maps service names to their raw config maps.
+	// Each service decodes its own config via cfg.Decode() with Setter interface.
+	Services map[string]map[string]any `toml:"services"`
 }
 
 // LoggingConfig holds logging settings.
@@ -296,6 +307,112 @@ func OutboundHTTPConfigStrict() OutboundHTTPConfig {
 	}
 }
 
+// BuildServiceConfig returns the raw service config map for a given service name.
+// Returns nil if the service is not configured in [http.services.<name>].
+func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
+	if c.HTTP.Services == nil {
+		return nil
+	}
+	svcCfg, ok := c.HTTP.Services[serviceName]
+	if !ok {
+		return nil
+	}
+	// Return a copy to prevent mutation
+	result := make(map[string]any)
+	for k, v := range svcCfg {
+		result[k] = v
+	}
+	return result
+}
+
+// BuildWellknownServiceConfig constructs the wellknown service config map.
+// This injects global values needed by the wellknown service (endpoint, signature settings, etc.)
+// and merges with any explicit [http.services.wellknown] configuration.
+func (c *Config) BuildWellknownServiceConfig() map[string]any {
+	// Start with explicit service config (if any)
+	base := c.BuildServiceConfig("wellknown")
+	if base == nil {
+		base = make(map[string]any)
+	}
+
+	// Build ocmprovider config with global values
+	ocmProvider := make(map[string]any)
+	if existing, ok := base["ocmprovider"].(map[string]any); ok {
+		for k, v := range existing {
+			ocmProvider[k] = v
+		}
+	}
+
+	// Inject global endpoint (can be overridden by explicit config)
+	if _, ok := ocmProvider["endpoint"]; !ok {
+		ocmProvider["endpoint"] = c.ExternalOrigin + c.ExternalBasePath
+	}
+	if _, ok := ocmProvider["ocm_prefix"]; !ok {
+		ocmProvider["ocm_prefix"] = "ocm"
+	}
+	if _, ok := ocmProvider["provider"]; !ok {
+		ocmProvider["provider"] = "OpenCloudMesh"
+	}
+	if _, ok := ocmProvider["webdav_root"]; !ok {
+		webdavRoot := "/webdav/ocm/"
+		if c.ExternalBasePath != "" {
+			webdavRoot = c.ExternalBasePath + "/webdav/ocm/"
+		}
+		ocmProvider["webdav_root"] = webdavRoot
+	}
+
+	// Inject signature settings
+	if _, ok := ocmProvider["advertise_http_request_signatures"]; !ok {
+		ocmProvider["advertise_http_request_signatures"] = c.Signature.AdvertiseHTTPRequestSignatures
+	}
+
+	// Inject token exchange settings
+	tokenExchange := make(map[string]any)
+	if existing, ok := ocmProvider["token_exchange"].(map[string]any); ok {
+		for k, v := range existing {
+			tokenExchange[k] = v
+		}
+	}
+	if _, ok := tokenExchange["enabled"]; !ok {
+		tokenExchange["enabled"] = c.TokenExchange.Enabled != nil && *c.TokenExchange.Enabled
+	}
+	if _, ok := tokenExchange["path"]; !ok {
+		tokenExchange["path"] = c.TokenExchange.Path
+	}
+	ocmProvider["token_exchange"] = tokenExchange
+
+	base["ocmprovider"] = ocmProvider
+	return base
+}
+
+// BuildOCMServiceConfig constructs the OCM protocol service config map.
+// This injects token exchange settings and merges with any explicit
+// [http.services.ocm] configuration.
+func (c *Config) BuildOCMServiceConfig() map[string]any {
+	// Start with explicit service config (if any)
+	base := c.BuildServiceConfig("ocm")
+	if base == nil {
+		base = make(map[string]any)
+	}
+
+	// Inject token exchange settings
+	tokenExchange := make(map[string]any)
+	if existing, ok := base["token_exchange"].(map[string]any); ok {
+		for k, v := range existing {
+			tokenExchange[k] = v
+		}
+	}
+	if _, ok := tokenExchange["enabled"]; !ok {
+		tokenExchange["enabled"] = c.TokenExchange.Enabled != nil && *c.TokenExchange.Enabled
+	}
+	if _, ok := tokenExchange["path"]; !ok {
+		tokenExchange["path"] = c.TokenExchange.Path
+	}
+	base["token_exchange"] = tokenExchange
+
+	return base
+}
+
 // Redacted returns a string representation of the config with secrets redacted.
 func (c *Config) Redacted() string {
 	var sb strings.Builder
@@ -353,6 +470,21 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  },\n")
 	sb.WriteString("  WebDAVTokenExchange: {\n")
 	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.WebDAVTokenExchange.Mode))
+	sb.WriteString("  },\n")
+	sb.WriteString("  HTTP: {\n")
+	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))
+	if len(c.HTTP.Services) > 0 {
+		sb.WriteString("    Services: [")
+		first := true
+		for name := range c.HTTP.Services {
+			if !first {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(fmt.Sprintf("%q", name))
+			first = false
+		}
+		sb.WriteString("],\n")
+	}
 	sb.WriteString("  },\n")
 	sb.WriteString("}")
 	return sb.String()

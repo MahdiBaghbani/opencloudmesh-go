@@ -88,6 +88,12 @@ type fileConfig struct {
 	Logging             *loggingConfig             `toml:"logging"`
 	TokenExchange       *tokenExchangeConfig       `toml:"token_exchange"`
 	WebDAVTokenExchange *webdavTokenExchangeConfig `toml:"webdav_token_exchange"`
+	HTTP                *httpFileConfig            `toml:"http"`
+}
+
+// httpFileConfig holds per-service HTTP configuration from TOML.
+type httpFileConfig struct {
+	Services map[string]map[string]any `toml:"services"`
 }
 
 // loggingConfig holds logging settings from TOML.
@@ -535,6 +541,17 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	if fc.WebDAVTokenExchange != nil {
 		if fc.WebDAVTokenExchange.Mode != "" {
 			cfg.WebDAVTokenExchange.Mode = fc.WebDAVTokenExchange.Mode
+		}
+	}
+
+	if fc.HTTP != nil {
+		if len(fc.HTTP.Services) > 0 {
+			if cfg.HTTP.Services == nil {
+				cfg.HTTP.Services = make(map[string]map[string]any)
+			}
+			for name, svcCfg := range fc.HTTP.Services {
+				cfg.HTTP.Services[name] = svcCfg
+			}
 		}
 	}
 }

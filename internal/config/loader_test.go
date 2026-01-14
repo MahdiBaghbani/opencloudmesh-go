@@ -1155,3 +1155,256 @@ func TestLoad_TokenExchangeConfig_DefaultEnabledWhenSectionMissing(t *testing.T)
 		t.Errorf("expected token_exchange.path 'token' by default, got %q", cfg.TokenExchange.Path)
 	}
 }
+
+func TestLoad_HTTPServices_FromTOML(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+
+[http.services.wellknown]
+[http.services.wellknown.ocmprovider]
+provider = "CustomProvider"
+endpoint = "https://custom.example.com"
+
+[http.services.ocm]
+[http.services.ocm.token_exchange]
+enabled = true
+path = "auth/token"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(cfg.HTTP.Services) != 2 {
+		t.Errorf("expected 2 services, got %d", len(cfg.HTTP.Services))
+	}
+
+	wellknown, ok := cfg.HTTP.Services["wellknown"]
+	if !ok {
+		t.Fatal("expected wellknown service in config")
+	}
+
+	ocmProvider, ok := wellknown["ocmprovider"].(map[string]any)
+	if !ok {
+		t.Fatal("expected ocmprovider in wellknown config")
+	}
+	if ocmProvider["provider"] != "CustomProvider" {
+		t.Errorf("expected provider 'CustomProvider', got %v", ocmProvider["provider"])
+	}
+
+	ocm, ok := cfg.HTTP.Services["ocm"]
+	if !ok {
+		t.Fatal("expected ocm service in config")
+	}
+
+	tokenExchange, ok := ocm["token_exchange"].(map[string]any)
+	if !ok {
+		t.Fatal("expected token_exchange in ocm config")
+	}
+	if tokenExchange["path"] != "auth/token" {
+		t.Errorf("expected path 'auth/token', got %v", tokenExchange["path"])
+	}
+}
+
+func TestBuildServiceConfig_ReturnsNilForUnconfiguredService(t *testing.T) {
+	cfg := StrictConfig()
+
+	result := cfg.BuildServiceConfig("nonexistent")
+	if result != nil {
+		t.Errorf("expected nil for unconfigured service, got %v", result)
+	}
+}
+
+func TestBuildServiceConfig_ReturnsCopyForConfiguredService(t *testing.T) {
+	cfg := StrictConfig()
+	cfg.HTTP.Services = map[string]map[string]any{
+		"testservice": {
+			"key1": "value1",
+			"key2": 42,
+		},
+	}
+
+	result := cfg.BuildServiceConfig("testservice")
+	if result == nil {
+		t.Fatal("expected non-nil result for configured service")
+	}
+
+	if result["key1"] != "value1" {
+		t.Errorf("expected key1='value1', got %v", result["key1"])
+	}
+	if result["key2"] != 42 {
+		t.Errorf("expected key2=42, got %v", result["key2"])
+	}
+
+	// Verify it's a copy (mutation doesn't affect original)
+	result["key1"] = "modified"
+	if cfg.HTTP.Services["testservice"]["key1"] != "value1" {
+		t.Error("BuildServiceConfig should return a copy, not the original map")
+	}
+}
+
+func TestBuildWellknownServiceConfig_InjectsGlobalValues(t *testing.T) {
+	cfg := StrictConfig()
+	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.ExternalBasePath = "/api"
+	cfg.Signature.AdvertiseHTTPRequestSignatures = true
+	enabled := true
+	cfg.TokenExchange.Enabled = &enabled
+	cfg.TokenExchange.Path = "custom-token"
+
+	result := cfg.BuildWellknownServiceConfig()
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	ocmProvider, ok := result["ocmprovider"].(map[string]any)
+	if !ok {
+		t.Fatal("expected ocmprovider in result")
+	}
+
+	// Check injected values
+	if ocmProvider["endpoint"] != "https://ocm.example.com/api" {
+		t.Errorf("expected endpoint 'https://ocm.example.com/api', got %v", ocmProvider["endpoint"])
+	}
+	if ocmProvider["ocm_prefix"] != "ocm" {
+		t.Errorf("expected ocm_prefix 'ocm', got %v", ocmProvider["ocm_prefix"])
+	}
+	if ocmProvider["provider"] != "OpenCloudMesh" {
+		t.Errorf("expected provider 'OpenCloudMesh', got %v", ocmProvider["provider"])
+	}
+	if ocmProvider["webdav_root"] != "/api/webdav/ocm/" {
+		t.Errorf("expected webdav_root '/api/webdav/ocm/', got %v", ocmProvider["webdav_root"])
+	}
+	if ocmProvider["advertise_http_request_signatures"] != true {
+		t.Errorf("expected advertise_http_request_signatures true, got %v", ocmProvider["advertise_http_request_signatures"])
+	}
+
+	tokenExchange, ok := ocmProvider["token_exchange"].(map[string]any)
+	if !ok {
+		t.Fatal("expected token_exchange in ocmprovider")
+	}
+	if tokenExchange["enabled"] != true {
+		t.Errorf("expected token_exchange.enabled true, got %v", tokenExchange["enabled"])
+	}
+	if tokenExchange["path"] != "custom-token" {
+		t.Errorf("expected token_exchange.path 'custom-token', got %v", tokenExchange["path"])
+	}
+}
+
+func TestBuildWellknownServiceConfig_ExplicitConfigOverridesDefaults(t *testing.T) {
+	cfg := StrictConfig()
+	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.HTTP.Services = map[string]map[string]any{
+		"wellknown": {
+			"ocmprovider": map[string]any{
+				"provider": "CustomProvider",
+				"endpoint": "https://custom.example.com",
+			},
+		},
+	}
+
+	result := cfg.BuildWellknownServiceConfig()
+	ocmProvider, ok := result["ocmprovider"].(map[string]any)
+	if !ok {
+		t.Fatal("expected ocmprovider in result")
+	}
+
+	// Explicit values should override defaults
+	if ocmProvider["provider"] != "CustomProvider" {
+		t.Errorf("expected provider 'CustomProvider', got %v", ocmProvider["provider"])
+	}
+	if ocmProvider["endpoint"] != "https://custom.example.com" {
+		t.Errorf("expected endpoint 'https://custom.example.com', got %v", ocmProvider["endpoint"])
+	}
+}
+
+func TestBuildOCMServiceConfig_InjectsTokenExchangeSettings(t *testing.T) {
+	cfg := StrictConfig()
+	enabled := true
+	cfg.TokenExchange.Enabled = &enabled
+	cfg.TokenExchange.Path = "auth/token"
+
+	result := cfg.BuildOCMServiceConfig()
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	tokenExchange, ok := result["token_exchange"].(map[string]any)
+	if !ok {
+		t.Fatal("expected token_exchange in result")
+	}
+
+	if tokenExchange["enabled"] != true {
+		t.Errorf("expected enabled true, got %v", tokenExchange["enabled"])
+	}
+	if tokenExchange["path"] != "auth/token" {
+		t.Errorf("expected path 'auth/token', got %v", tokenExchange["path"])
+	}
+}
+
+func TestBuildOCMServiceConfig_ExplicitConfigOverridesDefaults(t *testing.T) {
+	cfg := StrictConfig()
+	enabled := true
+	cfg.TokenExchange.Enabled = &enabled
+	cfg.TokenExchange.Path = "default-token"
+	cfg.HTTP.Services = map[string]map[string]any{
+		"ocm": {
+			"token_exchange": map[string]any{
+				"enabled": false,
+				"path":    "custom-path",
+			},
+		},
+	}
+
+	result := cfg.BuildOCMServiceConfig()
+	tokenExchange, ok := result["token_exchange"].(map[string]any)
+	if !ok {
+		t.Fatal("expected token_exchange in result")
+	}
+
+	// Explicit values should override defaults
+	if tokenExchange["enabled"] != false {
+		t.Errorf("expected enabled false from explicit config, got %v", tokenExchange["enabled"])
+	}
+	if tokenExchange["path"] != "custom-path" {
+		t.Errorf("expected path 'custom-path' from explicit config, got %v", tokenExchange["path"])
+	}
+}
+
+func TestBuildWellknownServiceConfig_NoBasePath(t *testing.T) {
+	cfg := StrictConfig()
+	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.ExternalBasePath = "" // no base path
+
+	result := cfg.BuildWellknownServiceConfig()
+	ocmProvider, ok := result["ocmprovider"].(map[string]any)
+	if !ok {
+		t.Fatal("expected ocmprovider in result")
+	}
+
+	if ocmProvider["endpoint"] != "https://ocm.example.com" {
+		t.Errorf("expected endpoint 'https://ocm.example.com', got %v", ocmProvider["endpoint"])
+	}
+	if ocmProvider["webdav_root"] != "/webdav/ocm/" {
+		t.Errorf("expected webdav_root '/webdav/ocm/', got %v", ocmProvider["webdav_root"])
+	}
+}
+
+func TestHTTPConfig_EmptyServicesDoesNotBreakLoading(t *testing.T) {
+	cfg, err := Load(LoaderOptions{})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// HTTP.Services should be nil or empty by default
+	if cfg.HTTP.Services != nil && len(cfg.HTTP.Services) > 0 {
+		t.Errorf("expected empty HTTP.Services by default, got %d services", len(cfg.HTTP.Services))
+	}
+}
