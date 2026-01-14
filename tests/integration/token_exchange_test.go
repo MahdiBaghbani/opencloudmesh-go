@@ -82,6 +82,11 @@ func TestTokenExchangeFlow(t *testing.T) {
 		if !hasExchangeToken {
 			t.Errorf("exchange-token capability MUST be advertised when token exchange is enabled (default)")
 		}
+
+		// Verify tokenEndPoint is present when enabled (regression: must not be empty)
+		if disc.TokenEndPoint == "" {
+			t.Errorf("tokenEndPoint MUST be present when token exchange is enabled; got empty string")
+		}
 	})
 
 	t.Run("TokenEndpointExists", func(t *testing.T) {
@@ -352,4 +357,190 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestTokenExchangeDisabled tests that when token exchange is disabled,
+// the endpoint returns 501 Not Implemented and discovery omits the capability.
+func TestTokenExchangeDisabled(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name: "token-disabled",
+		Mode: "dev", // dev mode so signature middleware doesn't interfere
+		ExtraConfig: `
+[token_exchange]
+enabled = false
+`,
+	})
+	defer srv.Stop(t)
+
+	t.Run("EndpointReturns501", func(t *testing.T) {
+		// When disabled, POST to token endpoint should return 501 Not Implemented
+		data := url.Values{}
+		data.Set("grant_type", "ocm_share")
+		data.Set("client_id", "receiver.example.com")
+		data.Set("code", "some-secret")
+
+		resp, err := http.Post(
+			srv.BaseURL+"/ocm/token",
+			"application/x-www-form-urlencoded",
+			strings.NewReader(data.Encode()),
+		)
+		if err != nil {
+			t.Fatalf("failed to call token endpoint: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotImplemented {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 501 Not Implemented when disabled, got %d: %s", resp.StatusCode, body)
+		}
+
+		// Verify error response body
+		var errResp struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+			t.Fatalf("failed to decode error response: %v", err)
+		}
+
+		if errResp.Error != "not_implemented" {
+			t.Errorf("expected error=not_implemented, got %q", errResp.Error)
+		}
+	})
+
+	t.Run("DiscoveryOmitsCapability", func(t *testing.T) {
+		resp, err := http.Get(srv.BaseURL + "/.well-known/ocm")
+		if err != nil {
+			t.Fatalf("failed to get discovery: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("discovery returned %d", resp.StatusCode)
+		}
+
+		// Read raw JSON to check field presence
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("failed to read discovery body: %v", err)
+		}
+
+		var disc map[string]any
+		if err := json.Unmarshal(body, &disc); err != nil {
+			t.Fatalf("failed to decode discovery: %v", err)
+		}
+
+		// tokenEndPoint should be absent or empty when disabled
+		if tokenEndPoint, ok := disc["tokenEndPoint"]; ok && tokenEndPoint != "" {
+			t.Errorf("tokenEndPoint should be absent or empty when disabled, got %q", tokenEndPoint)
+		}
+
+		// capabilities should NOT include exchange-token
+		if caps, ok := disc["capabilities"].([]any); ok {
+			for _, cap := range caps {
+				if capStr, ok := cap.(string); ok && strings.Contains(capStr, "exchange-token") {
+					t.Errorf("exchange-token capability should NOT be advertised when disabled")
+				}
+			}
+		}
+	})
+}
+
+// TestTokenExchangeNestedPath tests that a custom nested path (token/v2) routes correctly.
+func TestTokenExchangeNestedPath(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name: "token-nested-path",
+		Mode: "dev",
+		ExtraConfig: `
+[token_exchange]
+enabled = true
+path = "token/v2"
+`,
+	})
+	defer srv.Stop(t)
+
+	t.Run("DiscoveryAdvertisesNestedPath", func(t *testing.T) {
+		resp, err := http.Get(srv.BaseURL + "/.well-known/ocm")
+		if err != nil {
+			t.Fatalf("failed to get discovery: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("discovery returned %d", resp.StatusCode)
+		}
+
+		var disc struct {
+			TokenEndPoint string `json:"tokenEndPoint"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
+			t.Fatalf("failed to decode discovery: %v", err)
+		}
+
+		// tokenEndPoint should end with /ocm/token/v2
+		if !strings.HasSuffix(disc.TokenEndPoint, "/ocm/token/v2") {
+			t.Errorf("tokenEndPoint should end with /ocm/token/v2, got %q", disc.TokenEndPoint)
+		}
+	})
+
+	t.Run("NestedPathRoutesToHandler", func(t *testing.T) {
+		// POST to /ocm/token/v2 should route to handler (not 404)
+		data := url.Values{}
+		data.Set("grant_type", "ocm_share")
+		data.Set("client_id", "receiver.example.com")
+		data.Set("code", "nonexistent-secret")
+
+		resp, err := http.Post(
+			srv.BaseURL+"/ocm/token/v2",
+			"application/x-www-form-urlencoded",
+			strings.NewReader(data.Encode()),
+		)
+		if err != nil {
+			t.Fatalf("failed to call nested token endpoint: %v", err)
+		}
+		defer resp.Body.Close()
+
+		// Should return 400 (invalid_grant for nonexistent code), not 404
+		if resp.StatusCode == http.StatusNotFound {
+			t.Fatal("nested path /ocm/token/v2 returned 404 - route not mounted correctly")
+		}
+
+		if resp.StatusCode != http.StatusBadRequest {
+			body, _ := io.ReadAll(resp.Body)
+			t.Logf("nested path returned %d (expected 400): %s", resp.StatusCode, body)
+		}
+	})
+
+	t.Run("DefaultPathReturns404", func(t *testing.T) {
+		// POST to /ocm/token (default path) should return 404 when custom path is configured
+		data := url.Values{}
+		data.Set("grant_type", "ocm_share")
+		data.Set("client_id", "receiver.example.com")
+		data.Set("code", "some-secret")
+
+		resp, err := http.Post(
+			srv.BaseURL+"/ocm/token",
+			"application/x-www-form-urlencoded",
+			strings.NewReader(data.Encode()),
+		)
+		if err != nil {
+			t.Fatalf("failed to call default token endpoint: %v", err)
+		}
+		defer resp.Body.Close()
+
+		// Should return 404 because the route is now at /ocm/token/v2
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("default path /ocm/token should return 404 when custom path is configured, got %d", resp.StatusCode)
+		}
+	})
 }

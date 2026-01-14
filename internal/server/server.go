@@ -82,6 +82,7 @@ type Server struct {
 	invitesHandler        *invites.Handler
 	invitesInboxHandler   *invites.InboxHandler
 	tokenHandler          *token.Handler
+	tokenSettings         *token.TokenExchangeSettings
 }
 
 // New creates a new Server with the given configuration.
@@ -168,13 +169,11 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 	)
 
 	// Create token handler with settings from config
-	// Default settings when not configured: enabled=true, path=token
 	tokenSettings := &token.TokenExchangeSettings{
-		Enabled: true,
-		Path:    "token",
+		Enabled: cfg.TokenExchange.Enabled == nil || *cfg.TokenExchange.Enabled, // default true
+		Path:    cfg.TokenExchange.Path,
 	}
-	// Apply defaults (in case fields are zero-valued)
-	tokenSettings.ApplyDefaults()
+	tokenSettings.ApplyDefaults() // sets path to "token" if empty
 	tokenHandler := token.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, tokenSettings, logger)
 
 	// Create trusted proxy handler for X-Forwarded-* header processing
@@ -205,6 +204,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 		invitesHandler:        invitesHandler,
 		invitesInboxHandler:   invitesInboxHandler,
 		tokenHandler:          tokenHandler,
+		tokenSettings:         tokenSettings,
 	}
 
 	router := s.setupRoutes()

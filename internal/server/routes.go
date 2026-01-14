@@ -146,7 +146,7 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveInviteAcceptedRequest)).
 			Post("/invite-accepted", s.invitesHandler.HandleInviteAccepted)
 		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveTokenRequest)).
-			Post("/token", s.tokenHandler.HandleToken)
+			Post(s.tokenSettings.RoutePath(), s.tokenHandler.HandleToken)
 	})
 
 	// OCM auxiliary endpoints (WAYF helpers) - Phase B
