@@ -80,7 +80,7 @@ func TestTokenExchangeFlow(t *testing.T) {
 			}
 		}
 		if !hasExchangeToken {
-			t.Logf("Note: exchange-token capability not advertised (may need explicit enablement)")
+			t.Errorf("exchange-token capability MUST be advertised when token exchange is enabled (default)")
 		}
 	})
 

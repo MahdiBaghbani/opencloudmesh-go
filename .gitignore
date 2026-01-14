@@ -6,6 +6,7 @@ bin/
 .vscode/
 *.swp
 *.swo
+.ocm/
 
 # OS
 .DS_Store

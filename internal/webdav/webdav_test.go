@@ -470,3 +470,82 @@ func TestExtractCredential(t *testing.T) {
 func base64Encode(s string) string {
 	return base64.StdEncoding.EncodeToString([]byte(s))
 }
+
+func TestMustExchangeTokenEnforcement(t *testing.T) {
+	// Create a temp file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.txt")
+	content := []byte("hello from must-exchange-token test")
+	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := shares.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+
+	// Create a share with MustExchangeToken=true
+	share := &shares.OutgoingShare{
+		ProviderID:        "provider-123",
+		WebDAVID:          "550e8400-e29b-41d4-a716-446655440001",
+		SharedSecret:      "shared-secret",
+		LocalPath:         tmpFile,
+		MustExchangeToken: true, // Require token exchange
+	}
+	repo.Create(context.Background(), share)
+
+	// Get the shareID (set by Create)
+	createdShare, _ := repo.GetByWebDAVID(context.Background(), share.WebDAVID)
+
+	// Store a valid exchanged token
+	exchangedToken := "valid-exchanged-token"
+	issuedToken := &token.IssuedToken{
+		AccessToken: exchangedToken,
+		ShareID:     createdShare.ShareID,
+		ClientID:    "receiver.example.com",
+		IssuedAt:    time.Now(),
+		ExpiresAt:   time.Now().Add(1 * time.Hour),
+	}
+	tokenStore.Store(context.Background(), issuedToken)
+
+	handler := webdav.NewHandler(repo, tokenStore, logger)
+
+	t.Run("SharedSecretRejectedWhenMustExchangeToken", func(t *testing.T) {
+		// When MustExchangeToken=true, raw sharedSecret should be rejected
+		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440001/test.txt", nil)
+		req.Header.Set("Authorization", "Bearer shared-secret") // Raw shared secret
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401 when using raw sharedSecret with MustExchangeToken=true, got %d", w.Code)
+		}
+	})
+
+	t.Run("ExchangedTokenAcceptedWhenMustExchangeToken", func(t *testing.T) {
+		// When MustExchangeToken=true, exchanged token should work
+		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440001/test.txt", nil)
+		req.Header.Set("Authorization", "Bearer "+exchangedToken)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 with exchanged token when MustExchangeToken=true, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("BasicAuthSharedSecretRejectedWhenMustExchangeToken", func(t *testing.T) {
+		// Basic auth with shared secret should also be rejected
+		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440001/test.txt", nil)
+		req.Header.Set("Authorization", "Basic "+base64Encode("shared-secret:"))
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401 when using Basic auth with sharedSecret and MustExchangeToken=true, got %d", w.Code)
+		}
+	})
+}
