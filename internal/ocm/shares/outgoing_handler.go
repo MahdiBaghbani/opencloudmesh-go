@@ -138,21 +138,26 @@ func (h *OutgoingHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	owner := "owner@" + senderHost  // Placeholder - should come from auth
 	sender := "sender@" + senderHost // Placeholder - should come from auth
 
+	// Determine if we require token exchange for this share.
+	// When enabled, we advertise must-exchange-token and enforce it on /webdav/ocm/*.
+	mustExchangeToken := h.cfg.TokenExchange.Enabled != nil && *h.cfg.TokenExchange.Enabled
+
 	// Create outgoing share record
 	share := &OutgoingShare{
-		ProviderID:   providerID.String(),
-		WebDAVID:     webdavID.String(),
-		SharedSecret: sharedSecret,
-		LocalPath:    cleanPath,
-		ReceiverHost: req.ReceiverDomain,
-		ShareWith:    req.ShareWith,
-		Name:         name,
-		ResourceType: resourceType,
-		ShareType:    "user",
-		Permissions:  req.Permissions,
-		Owner:        owner,
-		Sender:       sender,
-		Status:       "pending",
+		ProviderID:        providerID.String(),
+		WebDAVID:          webdavID.String(),
+		SharedSecret:      sharedSecret,
+		LocalPath:         cleanPath,
+		ReceiverHost:      req.ReceiverDomain,
+		ShareWith:         req.ShareWith,
+		Name:              name,
+		ResourceType:      resourceType,
+		ShareType:         "user",
+		Permissions:       req.Permissions,
+		Owner:             owner,
+		Sender:            sender,
+		Status:            "pending",
+		MustExchangeToken: mustExchangeToken,
 	}
 
 	// Store locally
@@ -176,6 +181,17 @@ func (h *OutgoingHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	share.ReceiverEndPoint = disc.EndPoint
 
+	// Build WebDAV protocol options
+	webdavProto := &WebDAVProtocol{
+		URI:          share.WebDAVID,
+		SharedSecret: sharedSecret,
+		Permissions:  req.Permissions,
+	}
+	// Advertise must-exchange-token requirement if enabled
+	if mustExchangeToken {
+		webdavProto.Requirements = []string{RequirementMustExchangeToken}
+	}
+
 	// Build share payload for receiver
 	payload := NewShareRequest{
 		ShareWith:    req.ShareWith,
@@ -186,12 +202,8 @@ func (h *OutgoingHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		ShareType:    "user",
 		ResourceType: resourceType,
 		Protocol: Protocol{
-			Name: "multi",
-			WebDAV: &WebDAVProtocol{
-				URI:          share.WebDAVID,
-				SharedSecret: sharedSecret,
-				Permissions:  req.Permissions,
-			},
+			Name:   "multi",
+			WebDAV: webdavProto,
 		},
 	}
 
