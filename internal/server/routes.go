@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm"
 )
 
 // RouteGroup defines an endpoint group with its auth requirements.
@@ -136,18 +137,31 @@ func (s *Server) setupRoutes() chi.Router {
 
 // mountAppEndpoints mounts app endpoints (may be under base path).
 func (s *Server) mountAppEndpoints(r chi.Router) {
-	// OCM API endpoints - with signature verification middleware
-	r.Route("/ocm", func(r chi.Router) {
-		// Apply signature verification middleware with appropriate peer resolver per endpoint
-		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveSharesRequest)).
-			Post("/shares", s.sharesHandler.CreateShare)
-		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveNotificationsRequest)).
-			Post("/notifications", s.notificationsHandler.HandleNotification)
-		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveInviteAcceptedRequest)).
-			Post("/invite-accepted", s.invitesHandler.HandleInviteAccepted)
-		r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveTokenRequest)).
-			Post(s.tokenSettings.RoutePath(), s.tokenHandler.HandleToken)
-	})
+	// Type assert OCM service once for reuse in multiple route groups.
+	// The OCM service constructs handlers using SharedDeps (Reva-aligned).
+	var ocmService *ocm.Service
+	if s.ocmSvc != nil {
+		var ok bool
+		ocmService, ok = s.ocmSvc.(*ocm.Service)
+		if !ok {
+			s.logger.Error("ocmSvc is not *ocm.Service, OCM endpoints will not be mounted")
+		}
+	}
+
+	// OCM API endpoints - apply signature middleware at mount time (server-layer concern)
+	if ocmService != nil {
+		r.Route("/ocm", func(r chi.Router) {
+			// Apply signature verification middleware with appropriate peer resolver per endpoint
+			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveSharesRequest)).
+				Post("/shares", ocmService.SharesHandler.CreateShare)
+			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveNotificationsRequest)).
+				Post("/notifications", ocmService.NotificationsHandler.HandleNotification)
+			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveInviteAcceptedRequest)).
+				Post("/invite-accepted", ocmService.InvitesHandler.HandleInviteAccepted)
+			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveTokenRequest)).
+				Post(ocmService.TokenSettings.RoutePath(), ocmService.TokenHandler.HandleToken)
+		})
+	}
 
 	// OCM auxiliary endpoints (WAYF helpers) - Phase B
 	r.Route("/ocm-aux", func(r chi.Router) {
@@ -182,10 +196,12 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 			r.Post("/outgoing", s.outgoingHandler.HandleCreate)
 		})
 
-		// Outgoing invites (authenticated)
-		r.Route("/invites", func(r chi.Router) {
-			r.Post("/outgoing", s.invitesHandler.HandleCreateOutgoing)
-		})
+		// Outgoing invites (authenticated) - uses OCM service's invites handler
+		if ocmService != nil {
+			r.Route("/invites", func(r chi.Router) {
+				r.Post("/outgoing", ocmService.InvitesHandler.HandleCreateOutgoing)
+			})
+		}
 
 		// Admin endpoints (authenticated)
 		r.Route("/admin", func(r chi.Router) {

@@ -108,23 +108,8 @@ func StartTestServer(t *testing.T) *TestServer {
 		// KeyManager is nil (no signatures in basic tests)
 	})
 
-	// Compute token exchange enabled from config
-	isTokenExchangeEnabled := cfg.TokenExchange.Enabled != nil && *cfg.TokenExchange.Enabled
-
-	// Build wellknown service config
-	wellknownConfig := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint":    cfg.ExternalOrigin + cfg.ExternalBasePath,
-			"ocm_prefix":  "ocm",
-			"provider":    "OpenCloudMesh",
-			"webdav_root": cfg.ExternalBasePath + "/webdav/ocm/",
-			"advertise_http_request_signatures": cfg.Signature.AdvertiseHTTPRequestSignatures,
-			"token_exchange": map[string]any{
-				"enabled": isTokenExchangeEnabled,
-				"path":    cfg.TokenExchange.Path,
-			},
-		},
-	}
+	// Build wellknown service config using config helpers
+	wellknownConfig := cfg.BuildWellknownServiceConfig()
 
 	// Construct wellknown service from registry
 	wellknownNew := services.Get("wellknown")
@@ -136,6 +121,24 @@ func StartTestServer(t *testing.T) *TestServer {
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create wellknown service: %v", err)
+	}
+
+	// Build OCM service config using config helpers
+	ocmConfig := cfg.BuildOCMServiceConfig()
+	// Add provider_fqdn for invites handler
+	providerFQDN := extractProviderFQDN(cfg.ExternalOrigin)
+	ocmConfig["provider_fqdn"] = providerFQDN
+
+	// Construct OCM service from registry
+	ocmNew := services.Get("ocm")
+	if ocmNew == nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("ocm service not registered")
+	}
+	ocmSvc, err := ocmNew(ocmConfig, logger)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create ocm service: %v", err)
 	}
 
 	// Create server dependencies
@@ -152,7 +155,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Create server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)
@@ -230,4 +233,20 @@ func waitForServer(baseURL string, timeout time.Duration) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 	return fmt.Errorf("server not ready after %v", timeout)
+}
+
+// extractProviderFQDN extracts the host:port from an external origin URL.
+func extractProviderFQDN(externalOrigin string) string {
+	// Remove scheme
+	fqdn := externalOrigin
+	if idx := len("https://"); len(fqdn) > idx && fqdn[:idx] == "https://" {
+		fqdn = fqdn[idx:]
+	} else if idx := len("http://"); len(fqdn) > idx && fqdn[:idx] == "http://" {
+		fqdn = fqdn[idx:]
+	}
+	// Remove trailing slash
+	if len(fqdn) > 0 && fqdn[len(fqdn)-1] == '/' {
+		fqdn = fqdn[:len(fqdn)-1]
+	}
+	return fqdn
 }

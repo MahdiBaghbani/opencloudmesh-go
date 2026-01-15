@@ -279,24 +279,11 @@ func main() {
 		ProfileRegistry:    profileRegistry,
 	})
 
-	// Build wellknown service config map from typed config (config bridging)
-	// The service constructor decodes via svccfg.Decode + ApplyDefaults
-	isTokenExchangeEnabled := cfg.TokenExchange.Enabled != nil && *cfg.TokenExchange.Enabled
-	wellknownConfig := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint":    cfg.ExternalOrigin + cfg.ExternalBasePath,
-			"ocm_prefix":  "ocm",
-			"provider":    "OpenCloudMesh",
-			"webdav_root": cfg.ExternalBasePath + "/webdav/ocm/",
-			"advertise_http_request_signatures": cfg.Signature.AdvertiseHTTPRequestSignatures,
-			"token_exchange": map[string]any{
-				"enabled": isTokenExchangeEnabled,
-				"path":    cfg.TokenExchange.Path,
-			},
-		},
-	}
+	// Build service configs using config helpers (Reva-aligned)
+	// The service constructors decode via svccfg.Decode + ApplyDefaults
 
 	// Construct wellknown service from registry
+	wellknownConfig := cfg.BuildWellknownServiceConfig()
 	wellknownNew := services.Get("wellknown")
 	if wellknownNew == nil {
 		logger.Error("wellknown service not registered")
@@ -305,6 +292,23 @@ func main() {
 	wellknownSvc, err := wellknownNew(wellknownConfig, logger)
 	if err != nil {
 		logger.Error("failed to create wellknown service", "error", fmt.Errorf("wellknown: %w", err))
+		os.Exit(1)
+	}
+
+	// Construct OCM service from registry
+	// Add provider_fqdn which is needed for invites handler
+	providerFQDN := extractProviderFQDN(cfg.ExternalOrigin)
+	ocmConfig := cfg.BuildOCMServiceConfig()
+	ocmConfig["provider_fqdn"] = providerFQDN
+
+	ocmNew := services.Get("ocm")
+	if ocmNew == nil {
+		logger.Error("ocm service not registered")
+		os.Exit(1)
+	}
+	ocmSvc, err := ocmNew(ocmConfig, logger)
+	if err != nil {
+		logger.Error("failed to create ocm service", "error", fmt.Errorf("ocm: %w", err))
 		os.Exit(1)
 	}
 
@@ -327,7 +331,7 @@ func main() {
 	}
 
 	// Create and start server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
@@ -360,4 +364,20 @@ func main() {
 	}
 
 	logger.Info("server stopped")
+}
+
+// extractProviderFQDN extracts the host:port from an external origin URL.
+func extractProviderFQDN(externalOrigin string) string {
+	// Remove scheme
+	fqdn := externalOrigin
+	if idx := len("https://"); len(fqdn) > idx && fqdn[:idx] == "https://" {
+		fqdn = fqdn[idx:]
+	} else if idx := len("http://"); len(fqdn) > idx && fqdn[:idx] == "http://" {
+		fqdn = fqdn[idx:]
+	}
+	// Remove trailing slash
+	if len(fqdn) > 0 && fqdn[len(fqdn)-1] == '/' {
+		fqdn = fqdn[:len(fqdn)-1]
+	}
+	return fqdn
 }

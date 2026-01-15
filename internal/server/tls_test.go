@@ -140,7 +140,7 @@ func TestTLSManager_ACME_FailFast(t *testing.T) {
 		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
 	}
 
-	srv, err := server.New(cfg, logger, deps, nil) // nil wellknownSvc is acceptable for this test
+	srv, err := server.New(cfg, logger, deps, nil, nil) // nil wellknownSvc and ocmSvc acceptable for this test
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}
