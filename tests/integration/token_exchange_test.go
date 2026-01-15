@@ -439,9 +439,9 @@ enabled = false
 			t.Fatalf("failed to decode discovery: %v", err)
 		}
 
-		// tokenEndPoint should be absent or empty when disabled
-		if tokenEndPoint, ok := disc["tokenEndPoint"]; ok && tokenEndPoint != "" {
-			t.Errorf("tokenEndPoint should be absent or empty when disabled, got %q", tokenEndPoint)
+		// tokenEndPoint key should be ABSENT when disabled (not just empty)
+		if _, ok := disc["tokenEndPoint"]; ok {
+			t.Errorf("tokenEndPoint key should be ABSENT from JSON when disabled, but key is present")
 		}
 
 		// capabilities should NOT include exchange-token

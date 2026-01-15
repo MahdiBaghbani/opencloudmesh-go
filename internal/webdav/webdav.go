@@ -23,14 +23,21 @@ import (
 type Handler struct {
 	outgoingRepo shares.OutgoingShareRepo
 	tokenStore   token.TokenStore
+	settings     *Settings
 	logger       *slog.Logger
 }
 
 // NewHandler creates a new WebDAV handler.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore token.TokenStore, logger *slog.Logger) *Handler {
+// Settings controls must-exchange-token enforcement behavior.
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, logger *slog.Logger) *Handler {
+	if settings == nil {
+		settings = &Settings{}
+		settings.ApplyDefaults()
+	}
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		tokenStore:   tokenStore,
+		settings:     settings,
 		logger:       logger,
 	}
 }
@@ -105,10 +112,12 @@ func (h *Handler) validateCredential(ctx context.Context, share *shares.Outgoing
 		}
 	}
 
-	// Check must-exchange-token enforcement
-	if share.MustExchangeToken {
-		// When must-exchange-token is set, raw sharedSecret is NOT accepted
-		// (unless webdav_token_exchange.mode=lenient relaxes for that peer - future work)
+	// Check must-exchange-token enforcement based on settings mode
+	// When mode is "off", we never enforce must-exchange-token (raw sharedSecret is accepted)
+	// When mode is "strict" or "lenient", we enforce (lenient will support peer relaxations in future)
+	if share.MustExchangeToken && h.settings.EnforceMustExchangeToken() {
+		// When must-exchange-token is set and enforcement is enabled,
+		// raw sharedSecret is NOT accepted
 		return false, ""
 	}
 

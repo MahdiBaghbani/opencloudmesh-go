@@ -66,7 +66,7 @@ func TestIsValidWebDAVID(t *testing.T) {
 func TestWriteMethodsRejected(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := webdav.NewHandler(repo, nil, logger)
+	handler := webdav.NewHandler(repo, nil, nil, logger)
 
 	writeMethods := []string{http.MethodPut, http.MethodDelete, "MKCOL", "MOVE", "COPY", "PROPPATCH"}
 	
@@ -87,7 +87,7 @@ func TestWriteMethodsRejected(t *testing.T) {
 func TestAuthRequired(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := webdav.NewHandler(repo, nil, logger)
+	handler := webdav.NewHandler(repo, nil, nil, logger)
 
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
 	w := httptest.NewRecorder()
@@ -117,7 +117,7 @@ func TestInvalidSecret(t *testing.T) {
 	}
 	repo.Create(context.Background(), share)
 
-	handler := webdav.NewHandler(repo, nil, logger)
+	handler := webdav.NewHandler(repo, nil, nil, logger)
 
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
 	req.Header.Set("Authorization", "Bearer wrong-secret")
@@ -133,7 +133,7 @@ func TestInvalidSecret(t *testing.T) {
 func TestShareNotFound(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := webdav.NewHandler(repo, nil, logger)
+	handler := webdav.NewHandler(repo, nil, nil, logger)
 
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
 	req.Header.Set("Authorization", "Bearer some-secret")
@@ -167,7 +167,7 @@ func TestSuccessfulFileAccess(t *testing.T) {
 	}
 	repo.Create(context.Background(), share)
 
-	handler := webdav.NewHandler(repo, nil, logger)
+	handler := webdav.NewHandler(repo, nil, nil, logger)
 
 	// Test GET request
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000/test.txt", nil)
@@ -206,7 +206,7 @@ func TestPROPFIND(t *testing.T) {
 	}
 	repo.Create(context.Background(), share)
 
-	handler := webdav.NewHandler(repo, nil, logger)
+	handler := webdav.NewHandler(repo, nil, nil, logger)
 
 	// Test PROPFIND request
 	req := httptest.NewRequest("PROPFIND", "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
@@ -258,7 +258,7 @@ func TestExchangedTokenAuth(t *testing.T) {
 	}
 	tokenStore.Store(context.Background(), issuedToken)
 
-	handler := webdav.NewHandler(repo, tokenStore, logger)
+	handler := webdav.NewHandler(repo, tokenStore, nil, logger)
 
 	t.Run("ExchangedTokenWorks", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000/test.txt", nil)
@@ -508,7 +508,8 @@ func TestMustExchangeTokenEnforcement(t *testing.T) {
 	}
 	tokenStore.Store(context.Background(), issuedToken)
 
-	handler := webdav.NewHandler(repo, tokenStore, logger)
+	// Default settings (nil) should default to strict mode
+	handler := webdav.NewHandler(repo, tokenStore, nil, logger)
 
 	t.Run("SharedSecretRejectedWhenMustExchangeToken", func(t *testing.T) {
 		// When MustExchangeToken=true, raw sharedSecret should be rejected
@@ -548,4 +549,120 @@ func TestMustExchangeTokenEnforcement(t *testing.T) {
 			t.Errorf("expected 401 when using Basic auth with sharedSecret and MustExchangeToken=true, got %d", w.Code)
 		}
 	})
+}
+
+func TestMustExchangeTokenEnforcementModeOff(t *testing.T) {
+	// Test that webdav_token_exchange.mode=off disables must-exchange-token enforcement
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.txt")
+	content := []byte("hello from mode=off test")
+	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := shares.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+
+	// Create a share with MustExchangeToken=true (advertised requirement)
+	share := &shares.OutgoingShare{
+		ProviderID:        "provider-123",
+		WebDAVID:          "550e8400-e29b-41d4-a716-446655440002",
+		SharedSecret:      "shared-secret",
+		LocalPath:         tmpFile,
+		MustExchangeToken: true, // Requirement is advertised, but mode=off disables enforcement
+	}
+	repo.Create(context.Background(), share)
+
+	// Create handler with mode=off settings
+	settings := &webdav.Settings{
+		WebDAVTokenExchangeMode: "off",
+	}
+	handler := webdav.NewHandler(repo, tokenStore, settings, logger)
+
+	t.Run("SharedSecretAcceptedWhenModeOff", func(t *testing.T) {
+		// Even though MustExchangeToken=true, mode=off allows raw sharedSecret
+		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440002/test.txt", nil)
+		req.Header.Set("Authorization", "Bearer shared-secret")
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 when mode=off, even with MustExchangeToken=true, got %d: %s", w.Code, w.Body.String())
+		}
+
+		body, _ := io.ReadAll(w.Body)
+		if string(body) != string(content) {
+			t.Errorf("content mismatch: got %q, want %q", string(body), string(content))
+		}
+	})
+
+	t.Run("BasicAuthAcceptedWhenModeOff", func(t *testing.T) {
+		// Basic auth with shared secret should also work when mode=off
+		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440002/test.txt", nil)
+		req.Header.Set("Authorization", "Basic "+base64Encode("shared-secret:"))
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 when mode=off with Basic auth, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestMustExchangeTokenEnforcementModes(t *testing.T) {
+	// Test all three modes: strict, lenient, off
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(tmpFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	modes := []struct {
+		mode            string
+		expectEnforced  bool
+	}{
+		{"strict", true},
+		{"lenient", true},  // lenient behaves like strict until peer relaxations are implemented
+		{"off", false},
+	}
+
+	for _, tc := range modes {
+		t.Run("mode="+tc.mode, func(t *testing.T) {
+			repo := shares.NewMemoryOutgoingShareRepo()
+			share := &shares.OutgoingShare{
+				ProviderID:        "provider-123",
+				WebDAVID:          "550e8400-e29b-41d4-a716-446655440003",
+				SharedSecret:      "shared-secret",
+				LocalPath:         tmpFile,
+				MustExchangeToken: true,
+			}
+			repo.Create(context.Background(), share)
+
+			settings := &webdav.Settings{
+				WebDAVTokenExchangeMode: tc.mode,
+			}
+			handler := webdav.NewHandler(repo, nil, settings, logger)
+
+			req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440003/test.txt", nil)
+			req.Header.Set("Authorization", "Bearer shared-secret")
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if tc.expectEnforced {
+				if w.Code != http.StatusUnauthorized {
+					t.Errorf("mode=%s: expected 401 (enforcement enabled), got %d", tc.mode, w.Code)
+				}
+			} else {
+				if w.Code != http.StatusOK {
+					t.Errorf("mode=%s: expected 200 (enforcement disabled), got %d: %s", tc.mode, w.Code, w.Body.String())
+				}
+			}
+		})
+	}
 }

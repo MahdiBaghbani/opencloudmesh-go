@@ -136,7 +136,12 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 	)
 
 	// Create WebDAV handler - pass TokenStore for exchanged token validation
-	webdavHandler := webdav.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, logger)
+	// Settings controls must-exchange-token enforcement based on webdav_token_exchange.mode
+	webdavSettings := &webdav.Settings{
+		WebDAVTokenExchangeMode: cfg.WebDAVTokenExchange.Mode,
+	}
+	webdavSettings.ApplyDefaults()
+	webdavHandler := webdav.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, webdavSettings, logger)
 
 	// Create notification client for outbound notifications
 	notificationClient := notifications.NewClient(deps.HTTPClient, deps.DiscoveryClient, signer, outboundPolicy)
