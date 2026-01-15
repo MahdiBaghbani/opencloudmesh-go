@@ -55,8 +55,12 @@ type Service struct {
 // Implements services.NewService signature.
 func New(m map[string]any, log *slog.Logger) (services.Service, error) {
 	var c Config
-	if err := svccfg.Decode(m, &c); err != nil {
+	unused, err := svccfg.DecodeWithUnused(m, &c)
+	if err != nil {
 		return nil, err
+	}
+	if len(unused) > 0 {
+		log.Warn("unused config keys", "service", "ocm", "unused_keys", unused)
 	}
 
 	if err := c.TokenExchange.Validate(); err != nil {

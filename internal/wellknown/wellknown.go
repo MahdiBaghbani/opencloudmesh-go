@@ -36,8 +36,12 @@ type svc struct {
 // New creates a new wellknown service. Implements services.NewService.
 func New(m map[string]any, log *slog.Logger) (services.Service, error) {
 	var c Config
-	if err := svccfg.Decode(m, &c); err != nil {
+	unused, err := svccfg.DecodeWithUnused(m, &c)
+	if err != nil {
 		return nil, err
+	}
+	if len(unused) > 0 {
+		log.Warn("unused config keys", "service", "wellknown", "unused_keys", unused)
 	}
 
 	// Hard requirement: SharedDeps must be initialized before any service is constructed.
