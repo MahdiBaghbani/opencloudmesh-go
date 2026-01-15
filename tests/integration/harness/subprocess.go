@@ -223,13 +223,17 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 }
 
 // generateTOMLConfig creates a TOML config for a test server.
-// The mode preset (dev/interop/strict) drives SSRF defaults via config.Load().
-// Signature mode is forced off for test simplicity (no key management).
+// Uses the new Reva-aligned TOML shape with per-service configuration under
+// [http.services.*] sections. The mode preset (dev/interop/strict) drives
+// defaults via config.Load(). Signature mode is forced off for test simplicity.
 func generateTOMLConfig(name string, port int, dataDir, mode, extra string) string {
+	externalOrigin := fmt.Sprintf("http://localhost:%d", port)
+
 	// Top-level keys must come before any [section] headers in TOML
-	config := fmt.Sprintf(`mode = "%s"
+	config := fmt.Sprintf(`# Generated config for test server: %s
+mode = "%s"
 listen_addr = ":%d"
-external_origin = "http://localhost:%d"
+external_origin = "%s"
 external_base_path = ""
 
 [tls]
@@ -251,10 +255,29 @@ insecure_skip_verify = true
 [signature]
 inbound_mode = "off"
 outbound_mode = "off"
-`, mode, port, port)
+advertise_http_request_signatures = false
+
+# Per-service configuration (Reva-aligned)
+[http.services.wellknown]
+[http.services.wellknown.ocmprovider]
+endpoint = "%s"
+ocm_prefix = "ocm"
+provider = "OpenCloudMesh"
+webdav_root = "/webdav/ocm/"
+advertise_http_request_signatures = false
+
+[http.services.wellknown.ocmprovider.token_exchange]
+enabled = true
+path = "token"
+
+[http.services.ocm]
+[http.services.ocm.token_exchange]
+enabled = true
+path = "token"
+`, name, mode, port, externalOrigin, externalOrigin)
 
 	if extra != "" {
-		config += "\n" + extra
+		config += "\n# Extra config appended by test\n" + extra
 	}
 
 	return config

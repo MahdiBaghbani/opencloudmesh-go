@@ -371,7 +371,11 @@ func TestTokenExchangeDisabled(t *testing.T) {
 		Name: "token-disabled",
 		Mode: "dev", // dev mode so signature middleware doesn't interfere
 		ExtraConfig: `
-[token_exchange]
+# Override per-service config to disable token exchange
+[http.services.wellknown.ocmprovider.token_exchange]
+enabled = false
+
+[http.services.ocm.token_exchange]
 enabled = false
 `,
 	})
@@ -451,6 +455,96 @@ enabled = false
 	})
 }
 
+// TestTokenExchangeWithPerServiceConfig tests that the new [http.services.*] TOML shape works.
+// This verifies Phase 3.D: the per-service config model is functional end-to-end.
+func TestTokenExchangeWithPerServiceConfig(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+
+	// Use the new per-service config shape instead of flat [token_exchange]
+	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name: "per-service-config",
+		Mode: "dev",
+		ExtraConfig: `
+# Per-service configuration (new Reva-aligned shape)
+[http.services.wellknown]
+[http.services.wellknown.ocmprovider]
+provider = "TestProvider"
+
+[http.services.wellknown.ocmprovider.token_exchange]
+enabled = true
+path = "auth/exchange"
+
+[http.services.ocm]
+[http.services.ocm.token_exchange]
+enabled = true
+path = "auth/exchange"
+`,
+	})
+	defer srv.Stop(t)
+
+	t.Run("DiscoveryShowsCustomProvider", func(t *testing.T) {
+		resp, err := http.Get(srv.BaseURL + "/.well-known/ocm")
+		if err != nil {
+			t.Fatalf("failed to get discovery: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("discovery returned %d", resp.StatusCode)
+		}
+
+		var disc struct {
+			Provider      string `json:"provider"`
+			TokenEndPoint string `json:"tokenEndPoint"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
+			t.Fatalf("failed to decode discovery: %v", err)
+		}
+
+		// Provider should be overridden by per-service config
+		if disc.Provider != "TestProvider" {
+			t.Errorf("expected provider 'TestProvider' from per-service config, got %q", disc.Provider)
+		}
+
+		// tokenEndPoint should use the per-service path
+		if !strings.HasSuffix(disc.TokenEndPoint, "/ocm/auth/exchange") {
+			t.Errorf("tokenEndPoint should end with /ocm/auth/exchange, got %q", disc.TokenEndPoint)
+		}
+	})
+
+	t.Run("PerServicePathRoutesToHandler", func(t *testing.T) {
+		// POST to /ocm/auth/exchange should route to handler (not 404)
+		data := url.Values{}
+		data.Set("grant_type", "ocm_share")
+		data.Set("client_id", "receiver.example.com")
+		data.Set("code", "nonexistent-secret")
+
+		resp, err := http.Post(
+			srv.BaseURL+"/ocm/auth/exchange",
+			"application/x-www-form-urlencoded",
+			strings.NewReader(data.Encode()),
+		)
+		if err != nil {
+			t.Fatalf("failed to call per-service token endpoint: %v", err)
+		}
+		defer resp.Body.Close()
+
+		// Should return 400 (invalid_grant for nonexistent code), not 404
+		if resp.StatusCode == http.StatusNotFound {
+			t.Fatal("per-service path /ocm/auth/exchange returned 404 - route not mounted correctly")
+		}
+
+		if resp.StatusCode != http.StatusBadRequest {
+			body, _ := io.ReadAll(resp.Body)
+			t.Logf("per-service path returned %d (expected 400): %s", resp.StatusCode, body)
+		}
+	})
+}
+
 // TestTokenExchangeNestedPath tests that a custom nested path (token/v2) routes correctly.
 func TestTokenExchangeNestedPath(t *testing.T) {
 	if testing.Short() {
@@ -462,7 +556,12 @@ func TestTokenExchangeNestedPath(t *testing.T) {
 		Name: "token-nested-path",
 		Mode: "dev",
 		ExtraConfig: `
-[token_exchange]
+# Override per-service config for nested path
+[http.services.wellknown.ocmprovider.token_exchange]
+enabled = true
+path = "token/v2"
+
+[http.services.ocm.token_exchange]
 enabled = true
 path = "token/v2"
 `,
