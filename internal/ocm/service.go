@@ -16,6 +16,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/httpwrap"
 )
 
 func init() {
@@ -93,10 +94,12 @@ func New(m map[string]any, log *slog.Logger) (services.Service, error) {
 }
 
 // Handler returns the service's HTTP handler.
+// Wraps router with RawPath clearing to match Reva pattern and avoid chi routing
+// mismatches on percent-encoded path segments.
 // Note: Signature middleware is applied by the server at mount time,
 // not inside this handler. This is a hybrid pattern during migration.
 func (s *Service) Handler() http.Handler {
-	return s.router
+	return httpwrap.ClearRawPath(s.router)
 }
 
 // Prefix returns the URL prefix for this service.

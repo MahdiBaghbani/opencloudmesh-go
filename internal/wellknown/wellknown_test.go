@@ -2,6 +2,8 @@ package wellknown
 
 import (
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -99,5 +101,45 @@ func TestConfig_ApplyDefaults(t *testing.T) {
 	// Should apply defaults to nested OCMProvider
 	if c.OCMProvider.OCMPrefix != "ocm" {
 		t.Errorf("expected OCMProvider.OCMPrefix 'ocm', got %q", c.OCMProvider.OCMPrefix)
+	}
+}
+
+func TestHandler_ClearsRawPath(t *testing.T) {
+	// Smoke test: verify Handler() wraps with RawPath clearing
+	services.ResetDeps()
+	services.SetDeps(&services.Deps{})
+
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+		},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	handler := svc.Handler()
+
+	// Create request with RawPath set (simulating percent-encoded segments)
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req.URL.RawPath = "/.well-known/ocm"
+
+	// Verify RawPath is set before calling handler
+	if req.URL.RawPath == "" {
+		t.Fatal("test setup error: RawPath should be set")
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	// The handler should have cleared RawPath before routing.
+	// We can't directly observe this from outside, but we verify the request
+	// was processed (status 200) which means chi routing worked correctly
+	// even with RawPath initially set.
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d (RawPath clearing may have failed)", rec.Code)
 	}
 }

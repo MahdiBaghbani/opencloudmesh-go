@@ -4,13 +4,14 @@ package wellknown
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"log/slog"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/httpwrap"
 )
 
 func init() {
@@ -81,4 +82,6 @@ func (s *svc) Unprotected() []string {
 }
 
 // Handler implements services.Service.
-func (s *svc) Handler() http.Handler { return s.router }
+// Wraps router with RawPath clearing to match Reva pattern and avoid chi routing
+// mismatches on percent-encoded path segments.
+func (s *svc) Handler() http.Handler { return httpwrap.ClearRawPath(s.router) }
