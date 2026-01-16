@@ -98,7 +98,7 @@ func TestProfileRegistry_GetProfile_StripsPort(t *testing.T) {
 func TestProfileRegistry_GetProfile_FirstMatchWins(t *testing.T) {
 	mappings := []ProfileMapping{
 		{Pattern: "cloud.example.com", ProfileName: "owncloud"},  // First match
-		{Pattern: "*.example.com", ProfileName: "nextcloud"},      // Would also match
+		{Pattern: "*.example.com", ProfileName: "nextcloud"},     // Would also match
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -233,5 +233,100 @@ func TestMatchPattern(t *testing.T) {
 		if result != tt.match {
 			t.Errorf("matchPattern(%q, %q) = %v, expected %v", tt.pattern, tt.domain, result, tt.match)
 		}
+	}
+}
+
+// Phase 2 tests: peer profile extensions
+
+func TestProfile_RelaxMustExchangeToken(t *testing.T) {
+	profiles := BuiltinProfiles()
+
+	tests := []struct {
+		name     string
+		expected bool
+	}{
+		{"strict", false},
+		{"nextcloud", true},
+		{"owncloud", true},
+		{"dev", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p, ok := profiles[tc.name]
+			if !ok {
+				t.Fatalf("profile %q not found", tc.name)
+			}
+			if p.RelaxMustExchangeToken != tc.expected {
+				t.Errorf("RelaxMustExchangeToken = %v, want %v", p.RelaxMustExchangeToken, tc.expected)
+			}
+		})
+	}
+}
+
+func TestProfile_IsBasicAuthPatternAllowed_EmptyAllowsAll(t *testing.T) {
+	p := &Profile{
+		Name:                     "test",
+		AllowedBasicAuthPatterns: nil, // empty means allow all
+	}
+
+	patterns := []string{"token:", "token:token", ":token", "id:token", "unknown"}
+	for _, pattern := range patterns {
+		if !p.IsBasicAuthPatternAllowed(pattern) {
+			t.Errorf("IsBasicAuthPatternAllowed(%q) = false, want true (empty list should allow all)", pattern)
+		}
+	}
+
+	// Also test empty slice (not nil)
+	p.AllowedBasicAuthPatterns = []string{}
+	for _, pattern := range patterns {
+		if !p.IsBasicAuthPatternAllowed(pattern) {
+			t.Errorf("IsBasicAuthPatternAllowed(%q) = false, want true (empty slice should allow all)", pattern)
+		}
+	}
+}
+
+func TestProfile_IsBasicAuthPatternAllowed_PopulatedList(t *testing.T) {
+	p := &Profile{
+		Name:                     "test",
+		AllowedBasicAuthPatterns: []string{"token:", "id:token"},
+	}
+
+	tests := []struct {
+		pattern string
+		allowed bool
+	}{
+		{"token:", true},
+		{"id:token", true},
+		{"token:token", false},
+		{":token", false},
+		{"unknown", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.pattern, func(t *testing.T) {
+			got := p.IsBasicAuthPatternAllowed(tc.pattern)
+			if got != tc.allowed {
+				t.Errorf("IsBasicAuthPatternAllowed(%q) = %v, want %v", tc.pattern, got, tc.allowed)
+			}
+		})
+	}
+}
+
+func TestProfile_BuiltinProfilesAllowAllPatterns(t *testing.T) {
+	profiles := BuiltinProfiles()
+
+	for name, p := range profiles {
+		t.Run(name, func(t *testing.T) {
+			if len(p.AllowedBasicAuthPatterns) != 0 {
+				t.Errorf("AllowedBasicAuthPatterns = %v, want nil/empty (all builtins should allow all)", p.AllowedBasicAuthPatterns)
+			}
+			// Verify the profile allows all standard patterns
+			for _, pattern := range []string{"token:", "token:token", ":token", "id:token"} {
+				if !p.IsBasicAuthPatternAllowed(pattern) {
+					t.Errorf("IsBasicAuthPatternAllowed(%q) = false, want true", pattern)
+				}
+			}
+		})
 	}
 }

@@ -31,6 +31,19 @@ type Profile struct {
 
 	// TokenExchangeQuirks lists token exchange quirks to apply
 	TokenExchangeQuirks []string `json:"token_exchange_quirks" toml:"token_exchange_quirks"`
+
+	// RelaxMustExchangeToken allows sharedSecret even when must-exchange-token is set.
+	// Only applies in lenient mode; ignored in strict mode.
+	RelaxMustExchangeToken bool `json:"relax_must_exchange_token" toml:"relax_must_exchange_token"`
+
+	// AllowedBasicAuthPatterns whitelists specific Basic auth patterns.
+	// Empty means allow all implemented patterns.
+	// Patterns correspond to webdav.credentialResult.Source values with the "basic:" prefix removed:
+	//   - "token:"      (from source "basic:token:")     - OCM spec: username=token, password=empty
+	//   - "token:token" (from source "basic:token:token") - interop: same value twice
+	//   - ":token"      (from source "basic::token")     - interop: empty username
+	//   - "id:token"    (from source "basic:id:token")   - Reva/OCM-rs: provider_id:sharedSecret
+	AllowedBasicAuthPatterns []string `json:"allowed_basic_auth_patterns" toml:"allowed_basic_auth_patterns"`
 }
 
 // ProfileMapping maps a domain pattern to a profile name.
@@ -109,12 +122,14 @@ func BuiltinProfiles() map[string]*Profile {
 	return map[string]*Profile{
 		// Strict profile: full RFC 9421 compliance expected
 		"strict": {
-			Name:                  "strict",
-			AllowUnsignedInbound:  false,
-			AllowUnsignedOutbound: false,
-			AllowMismatchedHost:   false,
-			AllowHTTP:             false,
-			TokenExchangeQuirks:   nil,
+			Name:                     "strict",
+			AllowUnsignedInbound:     false,
+			AllowUnsignedOutbound:    false,
+			AllowMismatchedHost:      false,
+			AllowHTTP:                false,
+			TokenExchangeQuirks:      nil,
+			RelaxMustExchangeToken:   false,
+			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
 
 		// Nextcloud profile: common Nextcloud interop quirks
@@ -125,10 +140,12 @@ func BuiltinProfiles() map[string]*Profile {
 			AllowMismatchedHost:   true, // Nextcloud keyId may not match sender
 			AllowHTTP:             false,
 			TokenExchangeQuirks: []string{
-				"accept_plain_token",      // Accept token in request body
-				"send_token_in_body",      // Send token in request body
-				"skip_digest_validation",  // Skip Content-Digest check
+				"accept_plain_token",     // Accept token in request body
+				"send_token_in_body",     // Send token in request body
+				"skip_digest_validation", // Skip Content-Digest check
 			},
+			RelaxMustExchangeToken:   true, // Nextcloud may not support token exchange
+			AllowedBasicAuthPatterns: nil,  // allow all patterns
 		},
 
 		// ownCloud profile: similar to Nextcloud with minor differences
@@ -142,6 +159,8 @@ func BuiltinProfiles() map[string]*Profile {
 				"accept_plain_token",
 				"send_token_in_body",
 			},
+			RelaxMustExchangeToken:   true,
+			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
 
 		// Dev profile: allows everything for local testing
@@ -156,6 +175,8 @@ func BuiltinProfiles() map[string]*Profile {
 				"send_token_in_body",
 				"skip_digest_validation",
 			},
+			RelaxMustExchangeToken:   true,
+			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
 	}
 }
@@ -218,6 +239,21 @@ func matchPattern(pattern, domain string) bool {
 func (p *Profile) HasQuirk(quirk string) bool {
 	for _, q := range p.TokenExchangeQuirks {
 		if q == quirk {
+			return true
+		}
+	}
+	return false
+}
+
+// IsBasicAuthPatternAllowed checks if a Basic auth pattern is allowed by this profile.
+// Returns true if the pattern is in AllowedBasicAuthPatterns or if the list is empty
+// (empty means allow all implemented patterns).
+func (p *Profile) IsBasicAuthPatternAllowed(pattern string) bool {
+	if len(p.AllowedBasicAuthPatterns) == 0 {
+		return true // empty means allow all
+	}
+	for _, allowed := range p.AllowedBasicAuthPatterns {
+		if allowed == pattern {
 			return true
 		}
 	}
