@@ -163,11 +163,10 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		})
 	}
 
-	// OCM auxiliary endpoints (WAYF helpers) - Phase B
-	r.Route("/ocm-aux", func(r chi.Router) {
-		r.Get("/federations", s.auxHandler.HandleFederations)
-		r.Get("/discover", s.auxHandler.HandleDiscover)
-	})
+	// OCM auxiliary endpoints (WAYF helpers) - migrated to registry service
+	if s.ocmauxSvc != nil {
+		r.Mount("/"+s.ocmauxSvc.Prefix(), s.ocmauxSvc.Handler())
+	}
 
 	// API endpoints
 	r.Route("/api", func(r chi.Router) {

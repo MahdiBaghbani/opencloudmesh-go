@@ -70,10 +70,10 @@ type Server struct {
 	uiHandler        *ui.Handler
 	wellknownSvc     services.Service // Reva-aligned wellknown service for discovery
 	ocmSvc           services.Service // Reva-aligned OCM protocol service
+	ocmauxSvc        services.Service // Reva-aligned ocm-aux service for WAYF helpers
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	signatureMiddleware *crypto.SignatureMiddleware
-	auxHandler       *federation.AuxHandler
 	inboxHandler          *shares.InboxHandler
 	inboxActionsHandler   *shares.InboxActionsHandler
 	outgoingHandler       *shares.OutgoingHandler
@@ -85,7 +85,8 @@ type Server struct {
 // Returns an error if required dependencies are missing.
 // wellknownSvc is the Reva-aligned wellknown service for discovery endpoints.
 // ocmSvc is the Reva-aligned OCM protocol service for /ocm/* endpoints.
-func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service) (*Server, error) {
+// ocmauxSvc is the Reva-aligned ocm-aux service for WAYF helper endpoints.
+func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service) (*Server, error) {
 	// Fail fast: validate required dependencies
 	if err := validateDeps(deps); err != nil {
 		return nil, err
@@ -115,8 +116,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 	// Create outbound signing policy
 	outboundPolicy := federation.NewOutboundPolicy(cfg, deps.ProfileRegistry)
 
-	// Create auxiliary handler for federation endpoints
-	auxHandler := federation.NewAuxHandler(deps.FederationMgr, deps.DiscoveryClient)
+	// NOTE: OCM auxiliary endpoints (/ocm-aux/*) are now handled by the ocmaux service.
 
 	// NOTE: OCM protocol handlers (shares, notifications, invites/invite-accepted, token)
 	// are now constructed by the OCM service (Reva-aligned pattern).
@@ -181,10 +181,10 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 		uiHandler:           uiHandler,
 		wellknownSvc:        wellknownSvc,
 		ocmSvc:              ocmSvc,
+		ocmauxSvc:           ocmauxSvc,
 		signer:              signer,
 		peerResolver:        crypto.NewPeerResolver(),
 		signatureMiddleware: signatureMiddleware,
-		auxHandler:          auxHandler,
 		inboxHandler:        inboxHandler,
 		inboxActionsHandler: inboxActionsHandler,
 		outgoingHandler:     outgoingHandler,

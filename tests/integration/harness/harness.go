@@ -141,6 +141,19 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to create ocm service: %v", err)
 	}
 
+	// Construct ocmaux service from registry
+	ocmauxConfig := map[string]any{}
+	ocmauxNew := services.Get("ocmaux")
+	if ocmauxNew == nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("ocmaux service not registered")
+	}
+	ocmauxSvc, err := ocmauxNew(ocmauxConfig, logger)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create ocmaux service: %v", err)
+	}
+
 	// Create server dependencies
 	deps := &server.Deps{
 		PartyRepo:          partyRepo,
@@ -155,7 +168,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Create server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)

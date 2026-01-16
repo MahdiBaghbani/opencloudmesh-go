@@ -312,6 +312,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Construct ocmaux service from registry
+	ocmauxConfig := map[string]any{} // No config fields needed
+	ocmauxNew := services.Get("ocmaux")
+	if ocmauxNew == nil {
+		logger.Error("ocmaux service not registered")
+		os.Exit(1)
+	}
+	ocmauxSvc, err := ocmauxNew(ocmauxConfig, logger)
+	if err != nil {
+		logger.Error("failed to create ocmaux service", "error", fmt.Errorf("ocmaux: %w", err))
+		os.Exit(1)
+	}
+
 	// Create server dependencies (uses same repos for dual-use)
 	deps := &server.Deps{
 		PartyRepo:          partyRepo,
@@ -331,7 +344,7 @@ func main() {
 	}
 
 	// Create and start server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
