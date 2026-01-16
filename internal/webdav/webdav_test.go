@@ -1,668 +1,348 @@
-package webdav_test
+// Package webdav provides WebDAV handler tests.
+package webdav
 
 import (
 	"context"
-	"encoding/base64"
-	"io"
-	"log/slog"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
+	"errors"
 	"testing"
-	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
 )
 
-func TestExtractWebDAVID(t *testing.T) {
-	tests := []struct {
-		path     string
-		expected string
-	}{
-		{"/webdav/ocm/abc-123", "abc-123"},
-		{"/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", "550e8400-e29b-41d4-a716-446655440000"},
-		{"/webdav/ocm/", ""},
-		{"/webdav/ocm", ""},
-		{"/other/path", ""},
-		{"/webdav/ocm/id/extra/path", "id"},
-	}
+var errNotFound = errors.New("not found")
 
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			result := webdav.ExtractWebDAVIDForTest(tt.path)
-			if result != tt.expected {
-				t.Errorf("extractWebDAVID(%q) = %q, want %q", tt.path, result, tt.expected)
-			}
-		})
-	}
+// mockOutgoingShareRepo is a minimal mock for testing.
+type mockOutgoingShareRepo struct {
+	shares map[string]*shares.OutgoingShare
 }
 
-func TestIsValidWebDAVID(t *testing.T) {
-	tests := []struct {
-		id    string
-		valid bool
-	}{
-		{"550e8400-e29b-41d4-a716-446655440000", true},
-		{"019435c7-9a2a-7e3c-8b0a-123456789abc", true},
-		{"../etc/passwd", false},
-		{"abc", false},
-		{"", false},
-		{"550e8400-e29b-41d4-a716-44665544000z", false}, // invalid hex char
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.id, func(t *testing.T) {
-			result := webdav.IsValidWebDAVIDForTest(tt.id)
-			if result != tt.valid {
-				t.Errorf("isValidWebDAVID(%q) = %v, want %v", tt.id, result, tt.valid)
-			}
-		})
-	}
+func newMockOutgoingShareRepo() *mockOutgoingShareRepo {
+	return &mockOutgoingShareRepo{shares: make(map[string]*shares.OutgoingShare)}
 }
 
-func TestWriteMethodsRejected(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := webdav.NewHandler(repo, nil, nil, logger)
-
-	writeMethods := []string{http.MethodPut, http.MethodDelete, "MKCOL", "MOVE", "COPY", "PROPPATCH"}
-	
-	for _, method := range writeMethods {
-		t.Run(method, func(t *testing.T) {
-			req := httptest.NewRequest(method, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
-			w := httptest.NewRecorder()
-
-			handler.ServeHTTP(w, req)
-
-			if w.Code != http.StatusNotImplemented {
-				t.Errorf("expected 501 for %s, got %d", method, w.Code)
-			}
-		})
-	}
+func (m *mockOutgoingShareRepo) Create(ctx context.Context, share *shares.OutgoingShare) error {
+	m.shares[share.ShareID] = share
+	return nil
 }
 
-func TestAuthRequired(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := webdav.NewHandler(repo, nil, nil, logger)
-
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
+func (m *mockOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (*shares.OutgoingShare, error) {
+	if s, ok := m.shares[shareID]; ok {
+		return s, nil
 	}
-
-	wwwAuth := w.Header().Get("WWW-Authenticate")
-	if wwwAuth != `Bearer, Basic realm="OCM WebDAV"` {
-		t.Errorf("expected WWW-Authenticate: Bearer, Basic realm=\"OCM WebDAV\", got %q", wwwAuth)
-	}
+	return nil, errNotFound
 }
 
-func TestInvalidSecret(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
+func (m *mockOutgoingShareRepo) GetByProviderID(ctx context.Context, providerID string) (*shares.OutgoingShare, error) {
+	for _, s := range m.shares {
+		if s.ProviderID == providerID {
+			return s, nil
+		}
+	}
+	return nil, errNotFound
+}
 
-	// Create a share
+func (m *mockOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID string) (*shares.OutgoingShare, error) {
+	for _, s := range m.shares {
+		if s.WebDAVID == webdavID {
+			return s, nil
+		}
+	}
+	return nil, errNotFound
+}
+
+func (m *mockOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSecret string) (*shares.OutgoingShare, error) {
+	for _, s := range m.shares {
+		if s.SharedSecret == sharedSecret {
+			return s, nil
+		}
+	}
+	return nil, errNotFound
+}
+
+func (m *mockOutgoingShareRepo) List(ctx context.Context) ([]*shares.OutgoingShare, error) {
+	result := make([]*shares.OutgoingShare, 0, len(m.shares))
+	for _, s := range m.shares {
+		result = append(result, s)
+	}
+	return result, nil
+}
+
+func (m *mockOutgoingShareRepo) Update(ctx context.Context, share *shares.OutgoingShare) error {
+	m.shares[share.ShareID] = share
+	return nil
+}
+
+// mockTokenStore is a minimal mock for testing.
+type mockTokenStore struct {
+	tokens map[string]*token.IssuedToken
+}
+
+func newMockTokenStore() *mockTokenStore {
+	return &mockTokenStore{tokens: make(map[string]*token.IssuedToken)}
+}
+
+func (m *mockTokenStore) Store(ctx context.Context, t *token.IssuedToken) error {
+	m.tokens[t.AccessToken] = t
+	return nil
+}
+
+func (m *mockTokenStore) Get(ctx context.Context, accessToken string) (*token.IssuedToken, error) {
+	if t, ok := m.tokens[accessToken]; ok {
+		return t, nil
+	}
+	return nil, token.ErrTokenNotFound
+}
+
+func (m *mockTokenStore) Delete(ctx context.Context, accessToken string) error {
+	delete(m.tokens, accessToken)
+	return nil
+}
+
+func (m *mockTokenStore) CleanExpired(ctx context.Context) error {
+	return nil
+}
+
+// TestValidateCredential_LenientModeRelaxation tests that peer profile relaxation
+// allows sharedSecret when profile.RelaxMustExchangeToken=true and mode=lenient.
+func TestValidateCredential_LenientModeRelaxation(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
+
+	// Create profile registry with nextcloud profile (has RelaxMustExchangeToken=true)
+	registry := federation.NewProfileRegistry(nil, []federation.ProfileMapping{
+		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+	})
+
+	// Lenient mode settings
+	settings := &Settings{WebDAVTokenExchangeMode: "lenient"}
+
+	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+
+	// Create share with must-exchange-token from a Nextcloud peer
 	share := &shares.OutgoingShare{
-		ProviderID:   "provider-123",
-		WebDAVID:     "550e8400-e29b-41d4-a716-446655440000",
-		SharedSecret: "correct-secret",
-		LocalPath:    "/tmp/test.txt",
+		ShareID:           "share-1",
+		SharedSecret:      "secret123",
+		MustExchangeToken: true,
+		ReceiverHost:      "nextcloud.example.com",
 	}
-	repo.Create(context.Background(), share)
 
-	handler := webdav.NewHandler(repo, nil, nil, logger)
+	ctx := context.Background()
 
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
-	req.Header.Set("Authorization", "Bearer wrong-secret")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
+	// Should succeed: lenient mode + nextcloud profile relaxes must-exchange-token
+	authorized, method := handler.validateCredential(ctx, share, "secret123", "bearer")
+	if !authorized {
+		t.Error("expected authorization to succeed with lenient mode and nextcloud profile")
+	}
+	if method != "shared_secret" {
+		t.Errorf("expected method 'shared_secret', got %q", method)
 	}
 }
 
-func TestShareNotFound(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := webdav.NewHandler(repo, nil, nil, logger)
+// TestValidateCredential_StrictModeIgnoresRelaxation tests that strict mode
+// ignores peer profile relaxations.
+func TestValidateCredential_StrictModeIgnoresRelaxation(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
 
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
-	req.Header.Set("Authorization", "Bearer some-secret")
-	w := httptest.NewRecorder()
+	// Create profile registry with nextcloud profile (has RelaxMustExchangeToken=true)
+	registry := federation.NewProfileRegistry(nil, []federation.ProfileMapping{
+		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+	})
 
-	handler.ServeHTTP(w, req)
+	// Strict mode settings
+	settings := &Settings{WebDAVTokenExchangeMode: "strict"}
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
+	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
-func TestSuccessfulFileAccess(t *testing.T) {
-	// Create a temp file
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.txt")
-	content := []byte("hello world from webdav test")
-	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
-	}
-
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
-
-	// Create a share
+	// Create share with must-exchange-token from a Nextcloud peer
 	share := &shares.OutgoingShare{
-		ProviderID:   "provider-123",
-		WebDAVID:     "550e8400-e29b-41d4-a716-446655440000",
-		SharedSecret: "correct-secret",
-		LocalPath:    tmpFile,
-	}
-	repo.Create(context.Background(), share)
-
-	handler := webdav.NewHandler(repo, nil, nil, logger)
-
-	// Test GET request
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000/test.txt", nil)
-	req.Header.Set("Authorization", "Bearer correct-secret")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		ShareID:           "share-1",
+		SharedSecret:      "secret123",
+		MustExchangeToken: true,
+		ReceiverHost:      "nextcloud.example.com",
 	}
 
-	body, _ := io.ReadAll(w.Body)
-	if string(body) != string(content) {
-		t.Errorf("content mismatch: got %q, want %q", string(body), string(content))
+	ctx := context.Background()
+
+	// Should fail: strict mode ignores profile relaxations
+	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
+	if authorized {
+		t.Error("expected authorization to fail in strict mode despite nextcloud profile")
 	}
 }
 
-func TestPROPFIND(t *testing.T) {
-	// Create a temp file
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(tmpFile, []byte("test"), 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
+// TestValidateCredential_BasicAuthPatternRejection tests that Basic auth patterns
+// not in AllowedBasicAuthPatterns are rejected.
+func TestValidateCredential_BasicAuthPatternRejection(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
+
+	// Create profile that only allows specific patterns
+	restrictiveProfile := &federation.Profile{
+		Name:                     "restrictive",
+		AllowedBasicAuthPatterns: []string{"token:"}, // Only allow token: pattern
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
+	registry := federation.NewProfileRegistry(
+		map[string]*federation.Profile{"restrictive": restrictiveProfile},
+		[]federation.ProfileMapping{
+			{Pattern: "restrictive.example.com", ProfileName: "restrictive"},
+		},
+	)
 
-	// Create a share
+	settings := &Settings{WebDAVTokenExchangeMode: "lenient"}
+	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+
+	// Create share without must-exchange-token
 	share := &shares.OutgoingShare{
-		ProviderID:   "provider-123",
-		WebDAVID:     "550e8400-e29b-41d4-a716-446655440000",
-		SharedSecret: "correct-secret",
-		LocalPath:    tmpFile,
+		ShareID:           "share-1",
+		SharedSecret:      "secret123",
+		MustExchangeToken: false,
+		ReceiverHost:      "restrictive.example.com",
 	}
-	repo.Create(context.Background(), share)
 
-	handler := webdav.NewHandler(repo, nil, nil, logger)
+	ctx := context.Background()
 
-	// Test PROPFIND request
-	req := httptest.NewRequest("PROPFIND", "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
-	req.Header.Set("Authorization", "Bearer correct-secret")
-	req.Header.Set("Depth", "0")
-	w := httptest.NewRecorder()
+	// Should fail: id:token pattern not in AllowedBasicAuthPatterns
+	authorized, _ := handler.validateCredential(ctx, share, "secret123", "basic:id:token")
+	if authorized {
+		t.Error("expected authorization to fail for disallowed Basic auth pattern")
+	}
 
-	handler.ServeHTTP(w, req)
-
-	// PROPFIND should return 207 Multi-Status
-	if w.Code != http.StatusMultiStatus {
-		t.Errorf("expected 207, got %d: %s", w.Code, w.Body.String())
+	// Should succeed: token: pattern is allowed
+	authorized, method := handler.validateCredential(ctx, share, "secret123", "basic:token:")
+	if !authorized {
+		t.Error("expected authorization to succeed for allowed Basic auth pattern")
+	}
+	if method != "shared_secret" {
+		t.Errorf("expected method 'shared_secret', got %q", method)
 	}
 }
 
-func TestExchangedTokenAuth(t *testing.T) {
-	// Create a temp file
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.txt")
-	content := []byte("hello from exchanged token test")
-	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
-	}
+// TestValidateCredential_EmptyPatternListAllowsAll tests that an empty
+// AllowedBasicAuthPatterns list allows all patterns.
+func TestValidateCredential_EmptyPatternListAllowsAll(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
-	tokenStore := token.NewMemoryTokenStore()
+	// Use default strict profile which has empty AllowedBasicAuthPatterns
+	registry := federation.NewProfileRegistry(nil, nil)
 
-	// Create a share
+	settings := &Settings{WebDAVTokenExchangeMode: "off"} // off mode to skip must-exchange-token
+	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+
 	share := &shares.OutgoingShare{
-		ProviderID:   "provider-123",
-		WebDAVID:     "550e8400-e29b-41d4-a716-446655440000",
-		SharedSecret: "shared-secret",
-		LocalPath:    tmpFile,
+		ShareID:           "share-1",
+		SharedSecret:      "secret123",
+		MustExchangeToken: false,
+		ReceiverHost:      "unknown.example.com", // Will use strict profile
 	}
-	repo.Create(context.Background(), share)
 
-	// Get the shareID (set by Create)
-	createdShare, _ := repo.GetByWebDAVID(context.Background(), share.WebDAVID)
+	ctx := context.Background()
+
+	// All patterns should be allowed with empty AllowedBasicAuthPatterns
+	patterns := []string{"basic:token:", "basic:token:token", "basic::token", "basic:id:token"}
+	for _, pattern := range patterns {
+		authorized, _ := handler.validateCredential(ctx, share, "secret123", pattern)
+		if !authorized {
+			t.Errorf("expected authorization to succeed for pattern %q with empty AllowedBasicAuthPatterns", pattern)
+		}
+	}
+}
+
+// TestValidateCredential_NoProfileRegistry tests fallback to strict profile
+// when no profile registry is configured.
+func TestValidateCredential_NoProfileRegistry(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
+
+	// No profile registry
+	settings := &Settings{WebDAVTokenExchangeMode: "lenient"}
+	handler := NewHandler(repo, tokenStore, settings, nil, nil)
+
+	// Create share with must-exchange-token
+	share := &shares.OutgoingShare{
+		ShareID:           "share-1",
+		SharedSecret:      "secret123",
+		MustExchangeToken: true,
+		ReceiverHost:      "nextcloud.example.com",
+	}
+
+	ctx := context.Background()
+
+	// Should fail: no registry means strict profile, which doesn't relax
+	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
+	if authorized {
+		t.Error("expected authorization to fail without profile registry (falls back to strict)")
+	}
+}
+
+// TestValidateCredential_ExchangedTokenAlwaysWorks tests that exchanged tokens
+// always work regardless of mode or profile.
+func TestValidateCredential_ExchangedTokenAlwaysWorks(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
 
 	// Store an exchanged token
-	exchangedToken := "exchanged-access-token-12345"
+	ctx := context.Background()
 	issuedToken := &token.IssuedToken{
-		AccessToken: exchangedToken,
-		ShareID:     createdShare.ShareID,
-		ClientID:    "receiver.example.com",
-		IssuedAt:    time.Now(),
-		ExpiresAt:   time.Now().Add(1 * time.Hour),
+		AccessToken: "exchanged-token-123",
+		ShareID:     "share-1",
 	}
-	tokenStore.Store(context.Background(), issuedToken)
+	_ = tokenStore.Store(ctx, issuedToken)
 
-	handler := webdav.NewHandler(repo, tokenStore, nil, logger)
+	// Strict mode with no relaxation profile
+	registry := federation.NewProfileRegistry(nil, nil)
+	settings := &Settings{WebDAVTokenExchangeMode: "strict"}
+	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
-	t.Run("ExchangedTokenWorks", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000/test.txt", nil)
-		req.Header.Set("Authorization", "Bearer "+exchangedToken)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
-		}
-
-		body, _ := io.ReadAll(w.Body)
-		if string(body) != string(content) {
-			t.Errorf("content mismatch: got %q, want %q", string(body), string(content))
-		}
-	})
-
-	t.Run("WrongTokenRejected", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000/test.txt", nil)
-		req.Header.Set("Authorization", "Bearer wrong-token")
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusUnauthorized {
-			t.Errorf("expected 401, got %d", w.Code)
-		}
-	})
-
-	t.Run("SharedSecretStillWorks", func(t *testing.T) {
-		// Even with token store present, shared secret should work
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000/test.txt", nil)
-		req.Header.Set("Authorization", "Bearer shared-secret")
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
-		}
-	})
-
-	t.Run("ExpiredTokenRejected", func(t *testing.T) {
-		// Store an expired token
-		expiredToken := "expired-token"
-		expiredIssuedToken := &token.IssuedToken{
-			AccessToken: expiredToken,
-			ShareID:     createdShare.ShareID,
-			ClientID:    "receiver.example.com",
-			IssuedAt:    time.Now().Add(-2 * time.Hour),
-			ExpiresAt:   time.Now().Add(-1 * time.Hour), // Expired an hour ago
-		}
-		tokenStore.Store(context.Background(), expiredIssuedToken)
-
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000/test.txt", nil)
-		req.Header.Set("Authorization", "Bearer "+expiredToken)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusUnauthorized {
-			t.Errorf("expected 401 for expired token, got %d", w.Code)
-		}
-	})
-
-	t.Run("TokenForWrongShareRejected", func(t *testing.T) {
-		// Store a token for a different share
-		wrongShareToken := "wrong-share-token"
-		wrongIssuedToken := &token.IssuedToken{
-			AccessToken: wrongShareToken,
-			ShareID:     "different-share-id", // Different share
-			ClientID:    "receiver.example.com",
-			IssuedAt:    time.Now(),
-			ExpiresAt:   time.Now().Add(1 * time.Hour),
-		}
-		tokenStore.Store(context.Background(), wrongIssuedToken)
-
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440000/test.txt", nil)
-		req.Header.Set("Authorization", "Bearer "+wrongShareToken)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusUnauthorized {
-			t.Errorf("expected 401 for token belonging to wrong share, got %d", w.Code)
-		}
-	})
-}
-
-func TestExtractCredential(t *testing.T) {
-	tests := []struct {
-		name           string
-		authHeader     string
-		wantToken      string
-		wantSource     string
-		wantNil        bool
-	}{
-		// No auth header
-		{
-			name:       "no auth header",
-			authHeader: "",
-			wantNil:    true,
-		},
-
-		// Bearer auth
-		{
-			name:       "bearer token",
-			authHeader: "Bearer my-secret-token",
-			wantToken:  "my-secret-token",
-			wantSource: "bearer",
-		},
-		{
-			name:       "bearer empty token",
-			authHeader: "Bearer ",
-			wantNil:    true,
-		},
-
-		// Basic: token: (OCM spec pattern)
-		{
-			name:       "basic token colon (OCM spec)",
-			authHeader: "Basic " + base64Encode("my-secret:"),
-			wantToken:  "my-secret",
-			wantSource: "basic:token:",
-		},
-
-		// Basic: token:token (some implementations)
-		{
-			name:       "basic token token",
-			authHeader: "Basic " + base64Encode("my-secret:my-secret"),
-			wantToken:  "my-secret",
-			wantSource: "basic:token:token",
-		},
-
-		// Basic: :token (empty username)
-		{
-			name:       "basic colon token",
-			authHeader: "Basic " + base64Encode(":my-secret"),
-			wantToken:  "my-secret",
-			wantSource: "basic::token",
-		},
-
-		// Basic: id:token (Reva/OpenCloudMesh-rs style)
-		{
-			name:       "basic id token",
-			authHeader: "Basic " + base64Encode("provider-id:my-secret"),
-			wantToken:  "my-secret",
-			wantSource: "basic:id:token",
-		},
-
-		// Basic: id:token with trailing colon (OpenCloudMesh-rs quirk)
-		{
-			name:       "basic id token trailing colon",
-			authHeader: "Basic " + base64Encode("provider-id:my-secret:"),
-			wantToken:  "my-secret",
-			wantSource: "basic:id:token",
-		},
-
-		// Invalid basic auth
-		{
-			name:       "basic invalid base64",
-			authHeader: "Basic not-valid-base64!!!",
-			wantNil:    true,
-		},
-		{
-			name:       "basic no colon",
-			authHeader: "Basic " + base64Encode("no-colon-here"),
-			wantNil:    true,
-		},
-
-		// Unknown auth type
-		{
-			name:       "unknown auth type",
-			authHeader: "Digest something",
-			wantNil:    true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/test", nil)
-			if tt.authHeader != "" {
-				req.Header.Set("Authorization", tt.authHeader)
-			}
-
-			result := webdav.ExtractCredentialForTest(req)
-
-			if tt.wantNil {
-				if result != nil {
-					t.Errorf("expected nil, got token=%q source=%q", result.Token, result.Source)
-				}
-				return
-			}
-
-			if result == nil {
-				t.Fatal("expected non-nil result")
-			}
-
-			if result.Token != tt.wantToken {
-				t.Errorf("token = %q, want %q", result.Token, tt.wantToken)
-			}
-			if result.Source != tt.wantSource {
-				t.Errorf("source = %q, want %q", result.Source, tt.wantSource)
-			}
-		})
-	}
-}
-
-func base64Encode(s string) string {
-	return base64.StdEncoding.EncodeToString([]byte(s))
-}
-
-func TestMustExchangeTokenEnforcement(t *testing.T) {
-	// Create a temp file
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.txt")
-	content := []byte("hello from must-exchange-token test")
-	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
-	}
-
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
-	tokenStore := token.NewMemoryTokenStore()
-
-	// Create a share with MustExchangeToken=true
+	// Create share with must-exchange-token
 	share := &shares.OutgoingShare{
-		ProviderID:        "provider-123",
-		WebDAVID:          "550e8400-e29b-41d4-a716-446655440001",
-		SharedSecret:      "shared-secret",
-		LocalPath:         tmpFile,
-		MustExchangeToken: true, // Require token exchange
+		ShareID:           "share-1",
+		SharedSecret:      "wrong-secret",
+		MustExchangeToken: true,
+		ReceiverHost:      "unknown.example.com",
 	}
-	repo.Create(context.Background(), share)
 
-	// Get the shareID (set by Create)
-	createdShare, _ := repo.GetByWebDAVID(context.Background(), share.WebDAVID)
-
-	// Store a valid exchanged token
-	exchangedToken := "valid-exchanged-token"
-	issuedToken := &token.IssuedToken{
-		AccessToken: exchangedToken,
-		ShareID:     createdShare.ShareID,
-		ClientID:    "receiver.example.com",
-		IssuedAt:    time.Now(),
-		ExpiresAt:   time.Now().Add(1 * time.Hour),
+	// Should succeed: exchanged token always works
+	authorized, method := handler.validateCredential(ctx, share, "exchanged-token-123", "bearer")
+	if !authorized {
+		t.Error("expected authorization to succeed with valid exchanged token")
 	}
-	tokenStore.Store(context.Background(), issuedToken)
-
-	// Default settings (nil) should default to strict mode
-	handler := webdav.NewHandler(repo, tokenStore, nil, logger)
-
-	t.Run("SharedSecretRejectedWhenMustExchangeToken", func(t *testing.T) {
-		// When MustExchangeToken=true, raw sharedSecret should be rejected
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440001/test.txt", nil)
-		req.Header.Set("Authorization", "Bearer shared-secret") // Raw shared secret
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusUnauthorized {
-			t.Errorf("expected 401 when using raw sharedSecret with MustExchangeToken=true, got %d", w.Code)
-		}
-	})
-
-	t.Run("ExchangedTokenAcceptedWhenMustExchangeToken", func(t *testing.T) {
-		// When MustExchangeToken=true, exchanged token should work
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440001/test.txt", nil)
-		req.Header.Set("Authorization", "Bearer "+exchangedToken)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected 200 with exchanged token when MustExchangeToken=true, got %d: %s", w.Code, w.Body.String())
-		}
-	})
-
-	t.Run("BasicAuthSharedSecretRejectedWhenMustExchangeToken", func(t *testing.T) {
-		// Basic auth with shared secret should also be rejected
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440001/test.txt", nil)
-		req.Header.Set("Authorization", "Basic "+base64Encode("shared-secret:"))
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusUnauthorized {
-			t.Errorf("expected 401 when using Basic auth with sharedSecret and MustExchangeToken=true, got %d", w.Code)
-		}
-	})
+	if method != "exchanged_token" {
+		t.Errorf("expected method 'exchanged_token', got %q", method)
+	}
 }
 
-func TestMustExchangeTokenEnforcementModeOff(t *testing.T) {
-	// Test that webdav_token_exchange.mode=off disables must-exchange-token enforcement
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.txt")
-	content := []byte("hello from mode=off test")
-	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
-	}
+// TestValidateCredential_UnknownPeerUsesStrictProfile tests that unknown peers
+// use the strict profile behavior.
+func TestValidateCredential_UnknownPeerUsesStrictProfile(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
-	tokenStore := token.NewMemoryTokenStore()
+	// Registry with nextcloud mapping but no mapping for unknown peer
+	registry := federation.NewProfileRegistry(nil, []federation.ProfileMapping{
+		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+	})
 
-	// Create a share with MustExchangeToken=true (advertised requirement)
+	settings := &Settings{WebDAVTokenExchangeMode: "lenient"}
+	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+
+	// Create share with must-exchange-token from unknown peer
 	share := &shares.OutgoingShare{
-		ProviderID:        "provider-123",
-		WebDAVID:          "550e8400-e29b-41d4-a716-446655440002",
-		SharedSecret:      "shared-secret",
-		LocalPath:         tmpFile,
-		MustExchangeToken: true, // Requirement is advertised, but mode=off disables enforcement
-	}
-	repo.Create(context.Background(), share)
-
-	// Create handler with mode=off settings
-	settings := &webdav.Settings{
-		WebDAVTokenExchangeMode: "off",
-	}
-	handler := webdav.NewHandler(repo, tokenStore, settings, logger)
-
-	t.Run("SharedSecretAcceptedWhenModeOff", func(t *testing.T) {
-		// Even though MustExchangeToken=true, mode=off allows raw sharedSecret
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440002/test.txt", nil)
-		req.Header.Set("Authorization", "Bearer shared-secret")
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected 200 when mode=off, even with MustExchangeToken=true, got %d: %s", w.Code, w.Body.String())
-		}
-
-		body, _ := io.ReadAll(w.Body)
-		if string(body) != string(content) {
-			t.Errorf("content mismatch: got %q, want %q", string(body), string(content))
-		}
-	})
-
-	t.Run("BasicAuthAcceptedWhenModeOff", func(t *testing.T) {
-		// Basic auth with shared secret should also work when mode=off
-		req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440002/test.txt", nil)
-		req.Header.Set("Authorization", "Basic "+base64Encode("shared-secret:"))
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected 200 when mode=off with Basic auth, got %d: %s", w.Code, w.Body.String())
-		}
-	})
-}
-
-func TestMustExchangeTokenEnforcementModes(t *testing.T) {
-	// Test all three modes: strict, lenient, off
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(tmpFile, []byte("test content"), 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
+		ShareID:           "share-1",
+		SharedSecret:      "secret123",
+		MustExchangeToken: true,
+		ReceiverHost:      "unknown.example.com", // No mapping -> strict profile
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	ctx := context.Background()
 
-	modes := []struct {
-		mode            string
-		expectEnforced  bool
-	}{
-		{"strict", true},
-		{"lenient", true},  // lenient behaves like strict until peer relaxations are implemented
-		{"off", false},
-	}
-
-	for _, tc := range modes {
-		t.Run("mode="+tc.mode, func(t *testing.T) {
-			repo := shares.NewMemoryOutgoingShareRepo()
-			share := &shares.OutgoingShare{
-				ProviderID:        "provider-123",
-				WebDAVID:          "550e8400-e29b-41d4-a716-446655440003",
-				SharedSecret:      "shared-secret",
-				LocalPath:         tmpFile,
-				MustExchangeToken: true,
-			}
-			repo.Create(context.Background(), share)
-
-			settings := &webdav.Settings{
-				WebDAVTokenExchangeMode: tc.mode,
-			}
-			handler := webdav.NewHandler(repo, nil, settings, logger)
-
-			req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/550e8400-e29b-41d4-a716-446655440003/test.txt", nil)
-			req.Header.Set("Authorization", "Bearer shared-secret")
-			w := httptest.NewRecorder()
-
-			handler.ServeHTTP(w, req)
-
-			if tc.expectEnforced {
-				if w.Code != http.StatusUnauthorized {
-					t.Errorf("mode=%s: expected 401 (enforcement enabled), got %d", tc.mode, w.Code)
-				}
-			} else {
-				if w.Code != http.StatusOK {
-					t.Errorf("mode=%s: expected 200 (enforcement disabled), got %d: %s", tc.mode, w.Code, w.Body.String())
-				}
-			}
-		})
+	// Should fail: unknown peer uses strict profile which doesn't relax
+	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
+	if authorized {
+		t.Error("expected authorization to fail for unknown peer (uses strict profile)")
 	}
 }

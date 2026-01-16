@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"golang.org/x/net/webdav"
@@ -21,24 +22,27 @@ import (
 
 // Handler provides WebDAV access to shared files.
 type Handler struct {
-	outgoingRepo shares.OutgoingShareRepo
-	tokenStore   token.TokenStore
-	settings     *Settings
-	logger       *slog.Logger
+	outgoingRepo    shares.OutgoingShareRepo
+	tokenStore      token.TokenStore
+	settings        *Settings
+	profileRegistry *federation.ProfileRegistry
+	logger          *slog.Logger
 }
 
 // NewHandler creates a new WebDAV handler.
 // Settings controls must-exchange-token enforcement behavior.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, logger *slog.Logger) *Handler {
+// ProfileRegistry enables peer-specific relaxations in lenient mode.
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *federation.ProfileRegistry, logger *slog.Logger) *Handler {
 	if settings == nil {
 		settings = &Settings{}
 		settings.ApplyDefaults()
 	}
 	return &Handler{
-		outgoingRepo: outgoingRepo,
-		tokenStore:   tokenStore,
-		settings:     settings,
-		logger:       logger,
+		outgoingRepo:    outgoingRepo,
+		tokenStore:      tokenStore,
+		settings:        settings,
+		profileRegistry: profileRegistry,
+		logger:          logger,
 	}
 }
 
@@ -87,8 +91,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate credential with must-exchange-token enforcement
-	authorized, authMethod := h.validateCredential(r.Context(), share, cred.Token)
+	// Validate credential with must-exchange-token enforcement and peer profile checks
+	authorized, authMethod := h.validateCredential(r.Context(), share, cred.Token, cred.Source)
 	if !authorized {
 		h.logger.Debug("WebDAV invalid credentials", "webdav_id", webdavID)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
@@ -103,7 +107,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // validateCredential validates the token against the share.
 // Returns (authorized bool, method string) where method is "exchanged_token" or "shared_secret".
-func (h *Handler) validateCredential(ctx context.Context, share *shares.OutgoingShare, token string) (bool, string) {
+// authSource is the credential source (e.g., "bearer", "basic:token:", "basic:id:token").
+func (h *Handler) validateCredential(ctx context.Context, share *shares.OutgoingShare, token string, authSource string) (bool, string) {
 	// Try exchanged token first (always valid if found)
 	if h.tokenStore != nil {
 		issuedToken, err := h.tokenStore.Get(ctx, token)
@@ -112,13 +117,26 @@ func (h *Handler) validateCredential(ctx context.Context, share *shares.Outgoing
 		}
 	}
 
+	// Get peer profile for relaxation checks
+	profile := h.getProfileForShare(share)
+
+	// Check Basic auth pattern allowed by profile
+	if strings.HasPrefix(authSource, "basic:") {
+		patternKey := strings.TrimPrefix(authSource, "basic:")
+		if !profile.IsBasicAuthPatternAllowed(patternKey) {
+			return false, ""
+		}
+	}
+
 	// Check must-exchange-token enforcement based on settings mode
-	// When mode is "off", we never enforce must-exchange-token (raw sharedSecret is accepted)
-	// When mode is "strict" or "lenient", we enforce (lenient will support peer relaxations in future)
 	if share.MustExchangeToken && h.settings.EnforceMustExchangeToken() {
-		// When must-exchange-token is set and enforcement is enabled,
-		// raw sharedSecret is NOT accepted
-		return false, ""
+		// In lenient mode, check for peer profile relaxation
+		if h.settings.WebDAVTokenExchangeMode == "lenient" && profile.RelaxMustExchangeToken {
+			// Relaxation allowed - continue to shared secret check
+		} else {
+			// Strict mode or profile does not relax - reject
+			return false, ""
+		}
 	}
 
 	// Fall back to shared secret
@@ -127,6 +145,15 @@ func (h *Handler) validateCredential(ctx context.Context, share *shares.Outgoing
 	}
 
 	return false, ""
+}
+
+// getProfileForShare returns the peer profile for a share's receiver.
+// Falls back to the strict profile if no registry is configured.
+func (h *Handler) getProfileForShare(share *shares.OutgoingShare) *federation.Profile {
+	if h.profileRegistry == nil {
+		return federation.BuiltinProfiles()["strict"]
+	}
+	return h.profileRegistry.GetProfile(share.ReceiverHost)
 }
 
 // serveFile serves the file at share.LocalPath via WebDAV.
