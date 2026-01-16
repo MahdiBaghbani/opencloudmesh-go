@@ -68,8 +68,12 @@ func (s *svc) routerInit(deps *services.Deps, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// Primary routes
 	s.router.Get("/.well-known/ocm", handler.ServeHTTP)
 	s.router.Get("/ocm-provider", handler.ServeHTTP)
+	// Trailing-slash aliases (no redirect, avoid changing signature inputs)
+	s.router.Get("/.well-known/ocm/", handler.ServeHTTP)
+	s.router.Get("/ocm-provider/", handler.ServeHTTP)
 	return nil
 }
 
@@ -82,7 +86,7 @@ func (s *svc) Prefix() string { return "" }
 
 // Unprotected implements services.Service.
 func (s *svc) Unprotected() []string {
-	return []string{"/.well-known/ocm", "/ocm-provider"}
+	return []string{"/.well-known/ocm", "/.well-known/ocm/", "/ocm-provider", "/ocm-provider/"}
 }
 
 // Handler implements services.Service.

@@ -381,6 +381,19 @@ func (c *Config) BuildWellknownServiceConfig() map[string]any {
 	}
 	ocmProvider["token_exchange"] = tokenExchange
 
+	// Inject apiVersion overrides for interop/dev mode (Nextcloud crawler compatibility)
+	// Only inject if not already explicitly configured
+	if _, ok := ocmProvider["api_version_overrides"]; !ok {
+		if c.Mode == "interop" || c.Mode == "dev" {
+			ocmProvider["api_version_overrides"] = []map[string]any{
+				{
+					"user_agent_contains": "Nextcloud Server Crawler",
+					"api_version":         "1.1",
+				},
+			}
+		}
+	}
+
 	base["ocmprovider"] = ocmProvider
 	return base
 }

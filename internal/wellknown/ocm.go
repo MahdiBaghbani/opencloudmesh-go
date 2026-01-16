@@ -4,12 +4,20 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"log/slog"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
+
+// APIVersionOverride allows overriding apiVersion based on User-Agent.
+// Used for Nextcloud Server Crawler compatibility (expects apiVersion 1.1).
+type APIVersionOverride struct {
+	UserAgentContains string `mapstructure:"user_agent_contains"`
+	APIVersion        string `mapstructure:"api_version"`
+}
 
 // OCMProviderConfig holds OCM discovery configuration.
 type OCMProviderConfig struct {
@@ -23,6 +31,10 @@ type OCMProviderConfig struct {
 		Enabled bool   `mapstructure:"enabled"`
 		Path    string `mapstructure:"path"`
 	} `mapstructure:"token_exchange"`
+
+	// APIVersionOverrides allows overriding apiVersion based on User-Agent.
+	// Used for Nextcloud Server Crawler compatibility.
+	APIVersionOverrides []APIVersionOverride `mapstructure:"api_version_overrides"`
 }
 
 // ApplyDefaults sets default values for unset fields.
@@ -42,8 +54,9 @@ func (c *OCMProviderConfig) ApplyDefaults() {
 }
 
 type ocmHandler struct {
-	data *spec.Discovery // static, computed once at init
-	log  *slog.Logger
+	data      *spec.Discovery      // static, computed once at init
+	overrides []APIVersionOverride // User-Agent based apiVersion overrides
+	log       *slog.Logger
 }
 
 func newOCMHandler(c *OCMProviderConfig, deps *services.Deps, log *slog.Logger) (*ocmHandler, error) {
@@ -58,12 +71,12 @@ func newOCMHandler(c *OCMProviderConfig, deps *services.Deps, log *slog.Logger) 
 	}
 
 	if c.Endpoint == "" {
-		return &ocmHandler{data: d, log: log}, nil
+		return &ocmHandler{data: d, overrides: c.APIVersionOverrides, log: log}, nil
 	}
 
 	endpointURL, err := url.Parse(c.Endpoint)
 	if err != nil {
-		return &ocmHandler{data: d, log: log}, nil
+		return &ocmHandler{data: d, overrides: c.APIVersionOverrides, log: log}, nil
 	}
 
 	// Build enabled discovery
@@ -109,11 +122,27 @@ func newOCMHandler(c *OCMProviderConfig, deps *services.Deps, log *slog.Logger) 
 	}
 
 	_ = endpointURL // parsed for validation only (keep for future use)
-	return &ocmHandler{data: d, log: log}, nil
+	return &ocmHandler{data: d, overrides: c.APIVersionOverrides, log: log}, nil
 }
 
 func (h *ocmHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	data := h.data
+
+	// Check for User-Agent based apiVersion override (Nextcloud crawler compatibility)
+	if len(h.overrides) > 0 {
+		ua := r.Header.Get("User-Agent")
+		for _, override := range h.overrides {
+			if override.UserAgentContains != "" && strings.Contains(ua, override.UserAgentContains) {
+				// Clone and override apiVersion
+				clone := *data
+				clone.APIVersion = override.APIVersion
+				data = &clone
+				break
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(h.data)
+	json.NewEncoder(w).Encode(data)
 }

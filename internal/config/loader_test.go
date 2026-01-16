@@ -1408,3 +1408,65 @@ func TestHTTPConfig_EmptyServicesDoesNotBreakLoading(t *testing.T) {
 		t.Errorf("expected empty HTTP.Services by default, got %d services", len(cfg.HTTP.Services))
 	}
 }
+
+func TestBuildWellknownServiceConfig_APIVersionOverrides_InteropMode(t *testing.T) {
+	cfg := InteropConfig()
+	cfg.ExternalOrigin = "https://ocm.example.com"
+
+	result := cfg.BuildWellknownServiceConfig()
+	ocmProvider, ok := result["ocmprovider"].(map[string]any)
+	if !ok {
+		t.Fatal("expected ocmprovider in result")
+	}
+
+	// In interop mode, should inject Nextcloud crawler override
+	overrides, ok := ocmProvider["api_version_overrides"].([]map[string]any)
+	if !ok {
+		t.Fatal("expected api_version_overrides in ocmprovider for interop mode")
+	}
+	if len(overrides) != 1 {
+		t.Fatalf("expected 1 override, got %d", len(overrides))
+	}
+	if overrides[0]["user_agent_contains"] != "Nextcloud Server Crawler" {
+		t.Errorf("expected user_agent_contains 'Nextcloud Server Crawler', got %v", overrides[0]["user_agent_contains"])
+	}
+	if overrides[0]["api_version"] != "1.1" {
+		t.Errorf("expected api_version '1.1', got %v", overrides[0]["api_version"])
+	}
+}
+
+func TestBuildWellknownServiceConfig_APIVersionOverrides_DevMode(t *testing.T) {
+	cfg := DevConfig()
+	cfg.ExternalOrigin = "https://ocm.example.com"
+
+	result := cfg.BuildWellknownServiceConfig()
+	ocmProvider, ok := result["ocmprovider"].(map[string]any)
+	if !ok {
+		t.Fatal("expected ocmprovider in result")
+	}
+
+	// In dev mode, should also inject Nextcloud crawler override
+	overrides, ok := ocmProvider["api_version_overrides"].([]map[string]any)
+	if !ok {
+		t.Fatal("expected api_version_overrides in ocmprovider for dev mode")
+	}
+	if len(overrides) != 1 {
+		t.Fatalf("expected 1 override, got %d", len(overrides))
+	}
+}
+
+func TestBuildWellknownServiceConfig_APIVersionOverrides_StrictMode(t *testing.T) {
+	cfg := StrictConfig()
+	cfg.ExternalOrigin = "https://ocm.example.com"
+
+	result := cfg.BuildWellknownServiceConfig()
+	ocmProvider, ok := result["ocmprovider"].(map[string]any)
+	if !ok {
+		t.Fatal("expected ocmprovider in result")
+	}
+
+	// In strict mode, should NOT inject overrides
+	if _, ok := ocmProvider["api_version_overrides"]; ok {
+		t.Error("expected no api_version_overrides in strict mode")
+	}
+}
