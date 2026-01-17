@@ -1,12 +1,9 @@
 package server
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm"
 )
 
@@ -168,45 +165,10 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		r.Mount("/"+s.ocmauxSvc.Prefix(), s.ocmauxSvc.Handler())
 	}
 
-	// API endpoints
-	r.Route("/api", func(r chi.Router) {
-		// Health endpoint (public)
-		r.Get("/healthz", api.HealthHandler)
-
-		// Auth endpoints (public)
-		r.Route("/auth", func(r chi.Router) {
-			r.Post("/login", s.authHandler.Login)
-			r.Post("/logout", s.authHandler.Logout)
-			r.Get("/me", s.authHandler.GetCurrentUser)
-		})
-
-		// Inbox endpoints (authenticated)
-		r.Route("/inbox", func(r chi.Router) {
-			r.Get("/shares", s.inboxHandler.HandleList)
-			r.Post("/shares/{shareId}/accept", s.inboxActionsHandler.HandleAccept)
-			r.Post("/shares/{shareId}/decline", s.inboxActionsHandler.HandleDecline)
-			r.Get("/invites", s.invitesInboxHandler.HandleList)
-			r.Post("/invites/{inviteId}/accept", s.invitesInboxHandler.HandleAccept)
-			r.Post("/invites/{inviteId}/decline", s.invitesInboxHandler.HandleDecline)
-		})
-
-		// Outgoing shares (authenticated)
-		r.Route("/shares", func(r chi.Router) {
-			r.Post("/outgoing", s.outgoingHandler.HandleCreate)
-		})
-
-		// Outgoing invites (authenticated) - uses OCM service's invites handler
-		if ocmService != nil {
-			r.Route("/invites", func(r chi.Router) {
-				r.Post("/outgoing", ocmService.InvitesHandler.HandleCreateOutgoing)
-			})
-		}
-
-		// Admin endpoints (authenticated)
-		r.Route("/admin", func(r chi.Router) {
-			r.Get("/federations", s.notImplementedHandler("admin-federations"))
-		})
-	})
+	// API endpoints - migrated to registry service
+	if s.apiserviceSvc != nil {
+		r.Mount("/"+s.apiserviceSvc.Prefix(), s.apiserviceSvc.Handler())
+	}
 
 	// UI endpoints
 	r.Route("/ui", func(r chi.Router) {
@@ -218,11 +180,4 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 	r.Route("/webdav/ocm", func(r chi.Router) {
 		r.HandleFunc("/*", s.webdavHandler.ServeHTTP)
 	})
-}
-
-// notImplementedHandler returns a handler that responds with 501 Not Implemented.
-func (s *Server) notImplementedHandler(name string) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		api.WriteNotImplemented(w, name)
-	}
 }

@@ -262,21 +262,31 @@ func main() {
 	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
-	// Set SharedDeps for registry-based services (wellknown, ocm in future phases)
+	// Set SharedDeps for registry-based services (wellknown, ocm, apiservice, etc.)
 	services.SetDeps(&services.Deps{
+		// Identity
+		PartyRepo:   partyRepo,
+		SessionRepo: sessionRepo,
+		UserAuth:    userAuth,
+		// Repos
 		IncomingShareRepo:  incomingShareRepo,
 		OutgoingShareRepo:  outgoingShareRepo,
 		OutgoingInviteRepo: outgoingInviteRepo,
 		IncomingInviteRepo: incomingInviteRepo,
 		TokenStore:         tokenStore,
-		HTTPClient:         httpClient,
-		DiscoveryClient:    discoveryClient,
-		KeyManager:         keyManager,
-		Signer:             signer,
-		OutboundPolicy:     outboundPolicy,
-		FederationMgr:      federationMgr,
-		PolicyEngine:       policyEngine,
-		ProfileRegistry:    profileRegistry,
+		// Clients
+		HTTPClient:      httpClient,
+		DiscoveryClient: discoveryClient,
+		// Crypto
+		KeyManager:     keyManager,
+		Signer:         signer,
+		OutboundPolicy: outboundPolicy,
+		// Federation
+		FederationMgr:   federationMgr,
+		PolicyEngine:    policyEngine,
+		ProfileRegistry: profileRegistry,
+		// Config
+		Config: cfg,
 	})
 
 	// Build service configs using config helpers (Reva-aligned)
@@ -325,6 +335,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Construct apiservice from registry
+	apiserviceConfig := map[string]any{
+		"provider_fqdn": providerFQDN,
+	}
+	apiserviceNew := services.Get("apiservice")
+	if apiserviceNew == nil {
+		logger.Error("apiservice not registered")
+		os.Exit(1)
+	}
+	apiserviceSvc, err := apiserviceNew(apiserviceConfig, logger)
+	if err != nil {
+		logger.Error("failed to create apiservice", "error", fmt.Errorf("apiservice: %w", err))
+		os.Exit(1)
+	}
+
 	// Create server dependencies (uses same repos for dual-use)
 	deps := &server.Deps{
 		PartyRepo:          partyRepo,
@@ -344,7 +369,7 @@ func main() {
 	}
 
 	// Create and start server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)

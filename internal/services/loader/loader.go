@@ -5,6 +5,7 @@ package loader
 import (
 	// Import services here to trigger their init() registration.
 	// Services are added incrementally as they are migrated.
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/apiservice"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/ocmaux"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/wellknown"

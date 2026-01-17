@@ -5,9 +5,11 @@ package services
 import (
 	"sync"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
@@ -23,6 +25,11 @@ var (
 // This is the opencloudmesh-go equivalent of Reva's sharedconf,
 // adapted for a monolith where services share in-memory repos.
 type Deps struct {
+	// Identity (for session-gated endpoints)
+	PartyRepo   identity.PartyRepo
+	SessionRepo identity.SessionRepo
+	UserAuth    *identity.UserAuth
+
 	// Repos
 	IncomingShareRepo  shares.IncomingShareRepo
 	OutgoingShareRepo  shares.OutgoingShareRepo
@@ -43,6 +50,9 @@ type Deps struct {
 	FederationMgr   *federation.FederationManager
 	PolicyEngine    *federation.PolicyEngine
 	ProfileRegistry *federation.ProfileRegistry
+
+	// Config (for handlers that need config values)
+	Config *config.Config
 }
 
 // SetDeps sets the shared dependencies. Must be called once at startup

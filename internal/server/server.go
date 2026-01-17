@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
@@ -17,7 +16,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
@@ -66,19 +64,15 @@ type Server struct {
 	logger           *slog.Logger
 	deps             *Deps
 	trustedProxies   *TrustedProxies
-	authHandler      *api.AuthHandler
 	uiHandler        *ui.Handler
 	wellknownSvc     services.Service // Reva-aligned wellknown service for discovery
 	ocmSvc           services.Service // Reva-aligned OCM protocol service
 	ocmauxSvc        services.Service // Reva-aligned ocm-aux service for WAYF helpers
+	apiserviceSvc    services.Service // Reva-aligned API service for /api/* endpoints
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	signatureMiddleware *crypto.SignatureMiddleware
-	inboxHandler          *shares.InboxHandler
-	inboxActionsHandler   *shares.InboxActionsHandler
-	outgoingHandler       *shares.OutgoingHandler
 	webdavHandler         *webdav.Handler
-	invitesInboxHandler   *invites.InboxHandler
 }
 
 // New creates a new Server with the given configuration.
@@ -86,7 +80,8 @@ type Server struct {
 // wellknownSvc is the Reva-aligned wellknown service for discovery endpoints.
 // ocmSvc is the Reva-aligned OCM protocol service for /ocm/* endpoints.
 // ocmauxSvc is the Reva-aligned ocm-aux service for WAYF helper endpoints.
-func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service) (*Server, error) {
+// apiserviceSvc is the Reva-aligned API service for /api/* endpoints.
+func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service, apiserviceSvc services.Service) (*Server, error) {
 	// Fail fast: validate required dependencies
 	if err := validateDeps(deps); err != nil {
 		return nil, err
@@ -101,9 +96,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 		return nil, err
 	}
 
-	// Create auth handler
-	authHandler := api.NewAuthHandler(deps.PartyRepo, deps.SessionRepo, deps.UserAuth)
-
+	// NOTE: Auth handler is now constructed by apiservice (Reva-aligned).
 	// NOTE: Discovery is now handled by the wellknown service (Reva-aligned).
 	// Public keys are computed at wellknown service construction time via SharedDeps.
 
@@ -113,27 +106,11 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 		signer = crypto.NewRFC9421Signer(deps.KeyManager)
 	}
 
-	// Create outbound signing policy
-	outboundPolicy := federation.NewOutboundPolicy(cfg, deps.ProfileRegistry)
-
 	// NOTE: OCM auxiliary endpoints (/ocm-aux/*) are now handled by the ocmaux service.
+	// NOTE: API endpoints (/api/*) are now handled by the apiservice.
 
 	// NOTE: OCM protocol handlers (shares, notifications, invites/invite-accepted, token)
 	// are now constructed by the OCM service (Reva-aligned pattern).
-
-	// Create inbox handler (not yet migrated to service)
-	inboxHandler := shares.NewInboxHandler(deps.IncomingShareRepo)
-
-	// Create outgoing share handler (not yet migrated to service)
-	outgoingHandler := shares.NewOutgoingHandler(
-		deps.OutgoingShareRepo,
-		deps.DiscoveryClient,
-		deps.HTTPClient,
-		signer,
-		outboundPolicy,
-		cfg,
-		logger,
-	)
 
 	// Create WebDAV handler - pass TokenStore for exchanged token validation
 	// Settings controls must-exchange-token enforcement based on webdav_token_exchange.mode
@@ -143,27 +120,6 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 	}
 	webdavSettings.ApplyDefaults()
 	webdavHandler := webdav.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, webdavSettings, deps.ProfileRegistry, logger)
-
-	// Create notification client for outbound notifications
-	notificationClient := notifications.NewClient(deps.HTTPClient, deps.DiscoveryClient, signer, outboundPolicy)
-
-	// Create inbox actions handler (not yet migrated to service)
-	inboxActionsHandler := shares.NewInboxActionsHandler(deps.IncomingShareRepo, notificationClient, logger)
-
-	// Extract provider FQDN from external origin
-	providerFQDN := extractProviderFQDN(cfg.ExternalOrigin)
-
-	// Create invites inbox handler (not yet migrated to service)
-	invitesInboxHandler := invites.NewInboxHandler(
-		deps.IncomingInviteRepo,
-		deps.DiscoveryClient,
-		deps.HTTPClient,
-		signer,
-		outboundPolicy,
-		"", // Our user ID - will be set from session context
-		providerFQDN,
-		logger,
-	)
 
 	// Create trusted proxy handler for X-Forwarded-* header processing
 	trustedProxies := NewTrustedProxies(cfg.Server.TrustedProxies)
@@ -177,19 +133,15 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 		logger:              logger,
 		deps:                deps,
 		trustedProxies:      trustedProxies,
-		authHandler:         authHandler,
 		uiHandler:           uiHandler,
 		wellknownSvc:        wellknownSvc,
 		ocmSvc:              ocmSvc,
 		ocmauxSvc:           ocmauxSvc,
+		apiserviceSvc:       apiserviceSvc,
 		signer:              signer,
 		peerResolver:        crypto.NewPeerResolver(),
 		signatureMiddleware: signatureMiddleware,
-		inboxHandler:        inboxHandler,
-		inboxActionsHandler: inboxActionsHandler,
-		outgoingHandler:     outgoingHandler,
 		webdavHandler:       webdavHandler,
-		invitesInboxHandler: invitesInboxHandler,
 	}
 
 	router := s.setupRoutes()

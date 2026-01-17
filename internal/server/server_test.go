@@ -15,7 +15,7 @@ func TestNew_FailsWithNilDeps(t *testing.T) {
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	_, err := New(cfg, logger, nil, nil, nil, nil) // nil services acceptable for tests
+	_, err := New(cfg, logger, nil, nil, nil, nil, nil) // nil services acceptable for tests
 	if err == nil {
 		t.Fatal("expected error for nil deps")
 	}
@@ -31,7 +31,7 @@ func TestNew_FailsWithMissingPartyRepo(t *testing.T) {
 		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
 	}
 
-	_, err := New(cfg, logger, deps, nil, nil, nil) // nil services acceptable for tests
+	_, err := New(cfg, logger, deps, nil, nil, nil, nil) // nil services acceptable for tests
 	if err == nil {
 		t.Fatal("expected error for missing PartyRepo")
 	}
@@ -50,7 +50,7 @@ func TestNew_FailsWithMissingSessionRepo(t *testing.T) {
 		HTTPClient: httpclient.NewContextClient(httpclient.New(nil)),
 	}
 
-	_, err := New(cfg, logger, deps, nil, nil, nil)
+	_, err := New(cfg, logger, deps, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for missing SessionRepo")
 	}
@@ -69,7 +69,7 @@ func TestNew_FailsWithMissingUserAuth(t *testing.T) {
 		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
 	}
 
-	_, err := New(cfg, logger, deps, nil, nil, nil)
+	_, err := New(cfg, logger, deps, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for missing UserAuth")
 	}
@@ -88,7 +88,7 @@ func TestNew_FailsWithMissingHTTPClient(t *testing.T) {
 		UserAuth:    identity.NewUserAuth(1),
 	}
 
-	_, err := New(cfg, logger, deps, nil, nil, nil)
+	_, err := New(cfg, logger, deps, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for missing HTTPClient")
 	}
@@ -108,7 +108,7 @@ func TestNew_SucceedsWithRequiredDeps(t *testing.T) {
 		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
 	}
 
-	srv, err := New(cfg, logger, deps, nil, nil, nil) // nil services acceptable for tests
+	srv, err := New(cfg, logger, deps, nil, nil, nil, nil) // nil services acceptable for tests
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}

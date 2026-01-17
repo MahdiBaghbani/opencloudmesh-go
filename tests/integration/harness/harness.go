@@ -99,12 +99,20 @@ func StartTestServer(t *testing.T) *TestServer {
 	// Reset and set SharedDeps for this test (important for test isolation)
 	services.ResetDeps()
 	services.SetDeps(&services.Deps{
+		// Identity
+		PartyRepo:   partyRepo,
+		SessionRepo: sessionRepo,
+		UserAuth:    userAuth,
+		// Repos
 		IncomingShareRepo:  incomingShareRepo,
 		OutgoingShareRepo:  outgoingShareRepo,
 		OutgoingInviteRepo: outgoingInviteRepo,
 		IncomingInviteRepo: incomingInviteRepo,
 		TokenStore:         tokenStore,
-		HTTPClient:         httpClient,
+		// Clients
+		HTTPClient: httpClient,
+		// Config
+		Config: cfg,
 		// KeyManager is nil (no signatures in basic tests)
 	})
 
@@ -154,6 +162,21 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to create ocmaux service: %v", err)
 	}
 
+	// Construct apiservice from registry
+	apiserviceConfig := map[string]any{
+		"provider_fqdn": providerFQDN,
+	}
+	apiserviceNew := services.Get("apiservice")
+	if apiserviceNew == nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("apiservice not registered")
+	}
+	apiserviceSvc, err := apiserviceNew(apiserviceConfig, logger)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create apiservice: %v", err)
+	}
+
 	// Create server dependencies
 	deps := &server.Deps{
 		PartyRepo:          partyRepo,
@@ -168,7 +191,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Create server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)
