@@ -170,11 +170,10 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		r.Mount("/"+s.apiserviceSvc.Prefix(), s.apiserviceSvc.Handler())
 	}
 
-	// UI endpoints
-	r.Route("/ui", func(r chi.Router) {
-		r.Get("/login", s.uiHandler.Login)
-		r.Get("/inbox", s.uiHandler.Inbox)
-	})
+	// UI endpoints - migrated to registry service
+	if s.uiserviceSvc != nil {
+		r.Mount("/"+s.uiserviceSvc.Prefix(), s.uiserviceSvc.Handler())
+	}
 
 	// WebDAV endpoint - serves shared files
 	r.Route("/webdav/ocm", func(r chi.Router) {

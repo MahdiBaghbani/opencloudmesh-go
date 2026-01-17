@@ -350,6 +350,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Construct uiservice from registry
+	uiserviceConfig := map[string]any{
+		"external_base_path": cfg.ExternalBasePath,
+	}
+	uiserviceNew := services.Get("uiservice")
+	if uiserviceNew == nil {
+		logger.Error("uiservice not registered")
+		os.Exit(1)
+	}
+	uiserviceSvc, err := uiserviceNew(uiserviceConfig, logger)
+	if err != nil {
+		logger.Error("failed to create uiservice", "error", fmt.Errorf("uiservice: %w", err))
+		os.Exit(1)
+	}
+
 	// Create server dependencies (uses same repos for dual-use)
 	deps := &server.Deps{
 		PartyRepo:          partyRepo,
@@ -369,7 +384,7 @@ func main() {
 	}
 
 	// Create and start server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)

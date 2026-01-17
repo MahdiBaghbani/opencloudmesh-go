@@ -177,6 +177,21 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to create apiservice: %v", err)
 	}
 
+	// Construct uiservice from registry
+	uiserviceConfig := map[string]any{
+		"external_base_path": cfg.ExternalBasePath,
+	}
+	uiserviceNew := services.Get("uiservice")
+	if uiserviceNew == nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("uiservice not registered")
+	}
+	uiserviceSvc, err := uiserviceNew(uiserviceConfig, logger)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create uiservice: %v", err)
+	}
+
 	// Create server dependencies
 	deps := &server.Deps{
 		PartyRepo:          partyRepo,
@@ -191,7 +206,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Create server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)

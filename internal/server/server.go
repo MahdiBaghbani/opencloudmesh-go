@@ -19,7 +19,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
 )
 
@@ -64,11 +63,11 @@ type Server struct {
 	logger           *slog.Logger
 	deps             *Deps
 	trustedProxies   *TrustedProxies
-	uiHandler        *ui.Handler
 	wellknownSvc     services.Service // Reva-aligned wellknown service for discovery
 	ocmSvc           services.Service // Reva-aligned OCM protocol service
 	ocmauxSvc        services.Service // Reva-aligned ocm-aux service for WAYF helpers
 	apiserviceSvc    services.Service // Reva-aligned API service for /api/* endpoints
+	uiserviceSvc     services.Service // Reva-aligned UI service for /ui/* endpoints
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	signatureMiddleware *crypto.SignatureMiddleware
@@ -81,7 +80,8 @@ type Server struct {
 // ocmSvc is the Reva-aligned OCM protocol service for /ocm/* endpoints.
 // ocmauxSvc is the Reva-aligned ocm-aux service for WAYF helper endpoints.
 // apiserviceSvc is the Reva-aligned API service for /api/* endpoints.
-func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service, apiserviceSvc services.Service) (*Server, error) {
+// uiserviceSvc is the Reva-aligned UI service for /ui/* endpoints.
+func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service, apiserviceSvc services.Service, uiserviceSvc services.Service) (*Server, error) {
 	// Fail fast: validate required dependencies
 	if err := validateDeps(deps); err != nil {
 		return nil, err
@@ -90,12 +90,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 	// Initialize default in-memory repos for optional dependencies
 	initializeDefaultRepos(deps)
 
-	// Create UI handler
-	uiHandler, err := ui.NewHandler(cfg.ExternalBasePath)
-	if err != nil {
-		return nil, err
-	}
-
+	// NOTE: UI handler is now constructed by uiservice (Reva-aligned).
 	// NOTE: Auth handler is now constructed by apiservice (Reva-aligned).
 	// NOTE: Discovery is now handled by the wellknown service (Reva-aligned).
 	// Public keys are computed at wellknown service construction time via SharedDeps.
@@ -133,11 +128,11 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 		logger:              logger,
 		deps:                deps,
 		trustedProxies:      trustedProxies,
-		uiHandler:           uiHandler,
 		wellknownSvc:        wellknownSvc,
 		ocmSvc:              ocmSvc,
 		ocmauxSvc:           ocmauxSvc,
 		apiserviceSvc:       apiserviceSvc,
+		uiserviceSvc:        uiserviceSvc,
 		signer:              signer,
 		peerResolver:        crypto.NewPeerResolver(),
 		signatureMiddleware: signatureMiddleware,
