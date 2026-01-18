@@ -9,5 +9,6 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/ocmaux"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/uiservice"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/webdavservice"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/wellknown"
 )

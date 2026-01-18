@@ -19,7 +19,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
 )
 
 var (
@@ -68,10 +67,10 @@ type Server struct {
 	ocmauxSvc        services.Service // Reva-aligned ocm-aux service for WAYF helpers
 	apiserviceSvc    services.Service // Reva-aligned API service for /api/* endpoints
 	uiserviceSvc     services.Service // Reva-aligned UI service for /ui/* endpoints
+	webdavserviceSvc services.Service // Reva-aligned WebDAV service for /webdav/* endpoints
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	signatureMiddleware *crypto.SignatureMiddleware
-	webdavHandler         *webdav.Handler
 }
 
 // New creates a new Server with the given configuration.
@@ -81,7 +80,8 @@ type Server struct {
 // ocmauxSvc is the Reva-aligned ocm-aux service for WAYF helper endpoints.
 // apiserviceSvc is the Reva-aligned API service for /api/* endpoints.
 // uiserviceSvc is the Reva-aligned UI service for /ui/* endpoints.
-func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service, apiserviceSvc services.Service, uiserviceSvc services.Service) (*Server, error) {
+// webdavserviceSvc is the Reva-aligned WebDAV service for /webdav/* endpoints.
+func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service, apiserviceSvc services.Service, uiserviceSvc services.Service, webdavserviceSvc services.Service) (*Server, error) {
 	// Fail fast: validate required dependencies
 	if err := validateDeps(deps); err != nil {
 		return nil, err
@@ -93,6 +93,7 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 	// NOTE: UI handler is now constructed by uiservice (Reva-aligned).
 	// NOTE: Auth handler is now constructed by apiservice (Reva-aligned).
 	// NOTE: Discovery is now handled by the wellknown service (Reva-aligned).
+	// NOTE: WebDAV handler is now constructed by webdavservice (Reva-aligned).
 	// Public keys are computed at wellknown service construction time via SharedDeps.
 
 	// Create signer for outgoing requests
@@ -103,18 +104,10 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 
 	// NOTE: OCM auxiliary endpoints (/ocm-aux/*) are now handled by the ocmaux service.
 	// NOTE: API endpoints (/api/*) are now handled by the apiservice.
+	// NOTE: WebDAV endpoints (/webdav/*) are now handled by the webdavservice.
 
 	// NOTE: OCM protocol handlers (shares, notifications, invites/invite-accepted, token)
 	// are now constructed by the OCM service (Reva-aligned pattern).
-
-	// Create WebDAV handler - pass TokenStore for exchanged token validation
-	// Settings controls must-exchange-token enforcement based on webdav_token_exchange.mode
-	// ProfileRegistry enables peer-specific relaxations in lenient mode
-	webdavSettings := &webdav.Settings{
-		WebDAVTokenExchangeMode: cfg.WebDAVTokenExchange.Mode,
-	}
-	webdavSettings.ApplyDefaults()
-	webdavHandler := webdav.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, webdavSettings, deps.ProfileRegistry, logger)
 
 	// Create trusted proxy handler for X-Forwarded-* header processing
 	trustedProxies := NewTrustedProxies(cfg.Server.TrustedProxies)
@@ -133,10 +126,10 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 		ocmauxSvc:           ocmauxSvc,
 		apiserviceSvc:       apiserviceSvc,
 		uiserviceSvc:        uiserviceSvc,
+		webdavserviceSvc:    webdavserviceSvc,
 		signer:              signer,
 		peerResolver:        crypto.NewPeerResolver(),
 		signatureMiddleware: signatureMiddleware,
-		webdavHandler:       webdavHandler,
 	}
 
 	router := s.setupRoutes()

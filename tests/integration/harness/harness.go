@@ -192,6 +192,21 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to create uiservice: %v", err)
 	}
 
+	// Construct webdavservice from registry
+	webdavserviceConfig := map[string]any{
+		"webdav_token_exchange_mode": cfg.WebDAVTokenExchange.Mode,
+	}
+	webdavserviceNew := services.Get("webdavservice")
+	if webdavserviceNew == nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("webdavservice not registered")
+	}
+	webdavserviceSvc, err := webdavserviceNew(webdavserviceConfig, logger)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create webdavservice: %v", err)
+	}
+
 	// Create server dependencies
 	deps := &server.Deps{
 		PartyRepo:          partyRepo,
@@ -206,7 +221,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Create server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc, webdavserviceSvc)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)

@@ -365,6 +365,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Construct webdavservice from registry
+	webdavserviceConfig := map[string]any{
+		"webdav_token_exchange_mode": cfg.WebDAVTokenExchange.Mode,
+	}
+	webdavserviceNew := services.Get("webdavservice")
+	if webdavserviceNew == nil {
+		logger.Error("webdavservice not registered")
+		os.Exit(1)
+	}
+	webdavserviceSvc, err := webdavserviceNew(webdavserviceConfig, logger)
+	if err != nil {
+		logger.Error("failed to create webdavservice", "error", fmt.Errorf("webdavservice: %w", err))
+		os.Exit(1)
+	}
+
 	// Create server dependencies (uses same repos for dual-use)
 	deps := &server.Deps{
 		PartyRepo:          partyRepo,
@@ -384,7 +399,7 @@ func main() {
 	}
 
 	// Create and start server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc)
+	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc, webdavserviceSvc)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)

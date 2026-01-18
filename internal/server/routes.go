@@ -175,8 +175,8 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 		r.Mount("/"+s.uiserviceSvc.Prefix(), s.uiserviceSvc.Handler())
 	}
 
-	// WebDAV endpoint - serves shared files
-	r.Route("/webdav/ocm", func(r chi.Router) {
-		r.HandleFunc("/*", s.webdavHandler.ServeHTTP)
-	})
+	// WebDAV endpoints - migrated to registry service
+	if s.webdavserviceSvc != nil {
+		r.Mount("/"+s.webdavserviceSvc.Prefix(), s.webdavserviceSvc.Handler())
+	}
 }
