@@ -207,21 +207,8 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to create webdavservice: %v", err)
 	}
 
-	// Create server dependencies
-	deps := &server.Deps{
-		PartyRepo:          partyRepo,
-		SessionRepo:        sessionRepo,
-		UserAuth:           userAuth,
-		HTTPClient:         httpClient,
-		IncomingShareRepo:  incomingShareRepo,
-		OutgoingShareRepo:  outgoingShareRepo,
-		OutgoingInviteRepo: outgoingInviteRepo,
-		IncomingInviteRepo: incomingInviteRepo,
-		TokenStore:         tokenStore,
-	}
-
-	// Create server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc, webdavserviceSvc)
+	// Create server (all dependencies come from SharedDeps)
+	srv, err := server.New(cfg, logger, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc, webdavserviceSvc)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)

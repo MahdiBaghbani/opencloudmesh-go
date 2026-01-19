@@ -11,7 +11,23 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
+
+// setupTestSharedDeps sets up SharedDeps for testing and returns a cleanup function.
+func setupTestSharedDeps(t *testing.T) func() {
+	t.Helper()
+	services.ResetDeps()
+	services.SetDeps(&services.Deps{
+		PartyRepo:   identity.NewMemoryPartyRepo(),
+		SessionRepo: identity.NewMemorySessionRepo(),
+		UserAuth:    identity.NewUserAuth(1),
+		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
+	})
+	return func() {
+		services.ResetDeps()
+	}
+}
 
 func TestTLSManager_Off(t *testing.T) {
 	cfg := &config.TLSConfig{Mode: "off"}
@@ -133,14 +149,10 @@ func TestTLSManager_ACME_FailFast(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	deps := &server.Deps{
-		PartyRepo:   identity.NewMemoryPartyRepo(),
-		SessionRepo: identity.NewMemorySessionRepo(),
-		UserAuth:    identity.NewUserAuth(1), // Fast params
-		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
-	}
+	cleanup := setupTestSharedDeps(t)
+	defer cleanup()
 
-	srv, err := server.New(cfg, logger, deps, nil, nil, nil, nil, nil, nil) // nil services acceptable for this test
+	srv, err := server.New(cfg, logger, nil, nil, nil, nil, nil, nil) // nil services acceptable for this test
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
 
 // testSessionRepo is a simple session repo for testing that returns a predefined session.
@@ -127,7 +128,15 @@ func TestAuthMiddleware_EnrichesLoggerWithUserID(t *testing.T) {
 		},
 	}
 
-	// Create server with mock deps
+	// Set up SharedDeps for auth middleware
+	services.ResetDeps()
+	services.SetDeps(&services.Deps{
+		SessionRepo: sessionRepo,
+		PartyRepo:   partyRepo,
+	})
+	defer services.ResetDeps()
+
+	// Create server
 	cfg := config.StrictConfig()
 	cfg.ExternalBasePath = ""
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
@@ -136,10 +145,6 @@ func TestAuthMiddleware_EnrichesLoggerWithUserID(t *testing.T) {
 		cfg:            cfg,
 		logger:         logger,
 		trustedProxies: tp,
-		deps: &Deps{
-			SessionRepo: sessionRepo,
-			PartyRepo:   partyRepo,
-		},
 	}
 
 	// Track the captured user_id from the handler's logger
@@ -196,6 +201,14 @@ func TestAuthMiddleware_NoUserIDForPublicEndpoints(t *testing.T) {
 	recorder := newRecordingHandler()
 	logger := slog.New(recorder)
 
+	// Set up SharedDeps for auth middleware
+	services.ResetDeps()
+	services.SetDeps(&services.Deps{
+		SessionRepo: &testSessionRepo{},
+		PartyRepo:   newTestPartyRepo(),
+	})
+	defer services.ResetDeps()
+
 	cfg := config.StrictConfig()
 	cfg.ExternalBasePath = ""
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
@@ -204,10 +217,6 @@ func TestAuthMiddleware_NoUserIDForPublicEndpoints(t *testing.T) {
 		cfg:            cfg,
 		logger:         logger,
 		trustedProxies: tp,
-		deps: &Deps{
-			SessionRepo: &testSessionRepo{},
-			PartyRepo:   newTestPartyRepo(),
-		},
 	}
 
 	var hasUserID bool

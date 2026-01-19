@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
 
 type contextKey string
@@ -82,8 +83,11 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Get deps from SharedDeps
+		deps := services.GetDeps()
+
 		// Validate session
-		session, err := s.deps.SessionRepo.Get(r.Context(), sessionToken)
+		session, err := deps.SessionRepo.Get(r.Context(), sessionToken)
 		if err != nil {
 			api.WriteUnauthorized(w, api.ReasonUnauthenticated, "session not found or expired")
 			return
@@ -96,7 +100,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Get associated user
-		user, err := s.deps.PartyRepo.Get(r.Context(), session.UserID)
+		user, err := deps.PartyRepo.Get(r.Context(), session.UserID)
 		if err != nil {
 			api.WriteUnauthorized(w, api.ReasonUnauthenticated, "session user not found")
 			return

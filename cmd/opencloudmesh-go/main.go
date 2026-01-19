@@ -380,26 +380,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create server dependencies (uses same repos for dual-use)
-	deps := &server.Deps{
-		PartyRepo:          partyRepo,
-		SessionRepo:        sessionRepo,
-		UserAuth:           userAuth,
-		KeyManager:         keyManager,
-		HTTPClient:         httpClient,
-		DiscoveryClient:    discoveryClient,
-		FederationMgr:      federationMgr,
-		PolicyEngine:       policyEngine,
-		ProfileRegistry:    profileRegistry,
-		IncomingShareRepo:  incomingShareRepo,
-		OutgoingShareRepo:  outgoingShareRepo,
-		OutgoingInviteRepo: outgoingInviteRepo,
-		IncomingInviteRepo: incomingInviteRepo,
-		TokenStore:         tokenStore,
-	}
-
-	// Create and start server
-	srv, err := server.New(cfg, logger, deps, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc, webdavserviceSvc)
+	// Create and start server (all dependencies come from SharedDeps)
+	srv, err := server.New(cfg, logger, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc, webdavserviceSvc)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)

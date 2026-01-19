@@ -29,104 +29,46 @@ func (t *trackingService) Close() error {
 	return nil
 }
 
-func TestNew_FailsWithNilDeps(t *testing.T) {
-	cfg := config.DevConfig()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	_, err := New(cfg, logger, nil, nil, nil, nil, nil, nil, nil) // nil services acceptable for tests
-	if err == nil {
-		t.Fatal("expected error for nil deps")
-	}
-}
-
-func TestNew_FailsWithMissingPartyRepo(t *testing.T) {
-	cfg := config.DevConfig()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	deps := &Deps{
-		SessionRepo: identity.NewMemorySessionRepo(),
-		UserAuth:    identity.NewUserAuth(1),
-		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
-	}
-
-	_, err := New(cfg, logger, deps, nil, nil, nil, nil, nil, nil) // nil services acceptable for tests
-	if err == nil {
-		t.Fatal("expected error for missing PartyRepo")
-	}
-	if !errors.Is(err, ErrMissingDep) {
-		t.Errorf("expected ErrMissingDep, got: %v", err)
-	}
-}
-
-func TestNew_FailsWithMissingSessionRepo(t *testing.T) {
-	cfg := config.DevConfig()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	deps := &Deps{
-		PartyRepo:  identity.NewMemoryPartyRepo(),
-		UserAuth:   identity.NewUserAuth(1),
-		HTTPClient: httpclient.NewContextClient(httpclient.New(nil)),
-	}
-
-	_, err := New(cfg, logger, deps, nil, nil, nil, nil, nil, nil)
-	if err == nil {
-		t.Fatal("expected error for missing SessionRepo")
-	}
-	if !errors.Is(err, ErrMissingDep) {
-		t.Errorf("expected ErrMissingDep, got: %v", err)
-	}
-}
-
-func TestNew_FailsWithMissingUserAuth(t *testing.T) {
-	cfg := config.DevConfig()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	deps := &Deps{
-		PartyRepo:   identity.NewMemoryPartyRepo(),
-		SessionRepo: identity.NewMemorySessionRepo(),
-		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
-	}
-
-	_, err := New(cfg, logger, deps, nil, nil, nil, nil, nil, nil)
-	if err == nil {
-		t.Fatal("expected error for missing UserAuth")
-	}
-	if !errors.Is(err, ErrMissingDep) {
-		t.Errorf("expected ErrMissingDep, got: %v", err)
-	}
-}
-
-func TestNew_FailsWithMissingHTTPClient(t *testing.T) {
-	cfg := config.DevConfig()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	deps := &Deps{
-		PartyRepo:   identity.NewMemoryPartyRepo(),
-		SessionRepo: identity.NewMemorySessionRepo(),
-		UserAuth:    identity.NewUserAuth(1),
-	}
-
-	_, err := New(cfg, logger, deps, nil, nil, nil, nil, nil, nil)
-	if err == nil {
-		t.Fatal("expected error for missing HTTPClient")
-	}
-	if !errors.Is(err, ErrMissingDep) {
-		t.Errorf("expected ErrMissingDep, got: %v", err)
-	}
-}
-
-func TestNew_SucceedsWithRequiredDeps(t *testing.T) {
-	cfg := config.DevConfig()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	deps := &Deps{
+// setupTestSharedDeps sets up SharedDeps for testing and returns a cleanup function.
+func setupTestSharedDeps(t *testing.T) func() {
+	t.Helper()
+	services.ResetDeps()
+	services.SetDeps(&services.Deps{
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
 		UserAuth:    identity.NewUserAuth(1),
 		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
+	})
+	return func() {
+		services.ResetDeps()
 	}
+}
 
-	srv, err := New(cfg, logger, deps, nil, nil, nil, nil, nil, nil) // nil services acceptable for tests
+func TestNew_FailsWithNilSharedDeps(t *testing.T) {
+	cfg := config.DevConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	// Ensure SharedDeps is nil
+	services.ResetDeps()
+	defer services.ResetDeps()
+
+	_, err := New(cfg, logger, nil, nil, nil, nil, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for nil SharedDeps")
+	}
+	if !errors.Is(err, ErrMissingSharedDeps) {
+		t.Errorf("expected ErrMissingSharedDeps, got: %v", err)
+	}
+}
+
+func TestNew_SucceedsWithSharedDeps(t *testing.T) {
+	cfg := config.DevConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cleanup := setupTestSharedDeps(t)
+	defer cleanup()
+
+	srv, err := New(cfg, logger, nil, nil, nil, nil, nil, nil) // nil services acceptable for tests
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
@@ -139,12 +81,8 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	deps := &Deps{
-		PartyRepo:   identity.NewMemoryPartyRepo(),
-		SessionRepo: identity.NewMemorySessionRepo(),
-		UserAuth:    identity.NewUserAuth(1),
-		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
-	}
+	cleanup := setupTestSharedDeps(t)
+	defer cleanup()
 
 	// Track close order
 	var closeOrder []string
@@ -156,7 +94,7 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 
 	// Create server with services
 	// wellknown=nil, ocm=nil, ocmaux=svc1, apiservice=svc2, uiservice=svc3, webdav=nil
-	srv, err := New(cfg, logger, deps, nil, nil, svc1, svc2, svc3, nil)
+	srv, err := New(cfg, logger, nil, nil, svc1, svc2, svc3, nil)
 	if err != nil {
 		t.Fatalf("failed to create server: %v", err)
 	}

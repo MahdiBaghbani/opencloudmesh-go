@@ -11,56 +11,19 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
 
 var (
-	ErrMissingDep          = errors.New("missing required dependency")
+	ErrMissingSharedDeps   = errors.New("shared deps not initialized: call services.SetDeps() before server.New()")
 	ErrACMENotImplemented  = errors.New("tls.mode=acme is not implemented; use static or selfsigned")
 )
-
-// Deps holds all server dependencies.
-type Deps struct {
-	// Required: identity and auth
-	PartyRepo   identity.PartyRepo
-	SessionRepo identity.SessionRepo
-	UserAuth    *identity.UserAuth
-
-	// Required: outbound HTTP client for server-to-server communication
-	HTTPClient *httpclient.ContextClient
-
-	// Optional: signature key manager (nil if signature mode is off)
-	KeyManager *crypto.KeyManager
-
-	// Optional: federation (nil if federation is not configured)
-	FederationMgr   *federation.FederationManager
-	DiscoveryClient *discovery.Client
-	PolicyEngine    *federation.PolicyEngine
-
-	// Optional: peer profiles for outbound signing decisions
-	ProfileRegistry *federation.ProfileRegistry
-
-	// Optional: persistence repos (nil uses in-memory or disabled features)
-	IncomingShareRepo  shares.IncomingShareRepo
-	OutgoingShareRepo  shares.OutgoingShareRepo
-	OutgoingInviteRepo invites.OutgoingInviteRepo
-	IncomingInviteRepo invites.IncomingInviteRepo
-	TokenStore         token.TokenStore
-}
 
 // Server wraps the HTTP server and its dependencies.
 type Server struct {
 	cfg              *config.Config
 	httpServer       *http.Server
 	logger           *slog.Logger
-	deps             *Deps
 	trustedProxies   *TrustedProxies
 	wellknownSvc     services.Service // Reva-aligned wellknown service for discovery
 	ocmSvc           services.Service // Reva-aligned OCM protocol service
@@ -78,40 +41,29 @@ type Server struct {
 }
 
 // New creates a new Server with the given configuration.
-// Returns an error if required dependencies are missing.
+// All dependencies are obtained from services.GetDeps() (SharedDeps).
+// Returns an error if SharedDeps is not initialized.
 // wellknownSvc is the Reva-aligned wellknown service for discovery endpoints.
 // ocmSvc is the Reva-aligned OCM protocol service for /ocm/* endpoints.
 // ocmauxSvc is the Reva-aligned ocm-aux service for WAYF helper endpoints.
 // apiserviceSvc is the Reva-aligned API service for /api/* endpoints.
 // uiserviceSvc is the Reva-aligned UI service for /ui/* endpoints.
 // webdavserviceSvc is the Reva-aligned WebDAV service for /webdav/* endpoints.
-func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service, apiserviceSvc services.Service, uiserviceSvc services.Service, webdavserviceSvc services.Service) (*Server, error) {
-	// Fail fast: validate required dependencies
-	if err := validateDeps(deps); err != nil {
-		return nil, err
+func New(cfg *config.Config, logger *slog.Logger, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service, apiserviceSvc services.Service, uiserviceSvc services.Service, webdavserviceSvc services.Service) (*Server, error) {
+	// Fail fast: SharedDeps must be initialized before server creation
+	deps := services.GetDeps()
+	if deps == nil {
+		return nil, ErrMissingSharedDeps
 	}
 
-	// Initialize default in-memory repos for optional dependencies
-	initializeDefaultRepos(deps)
+	// NOTE: All handlers are now constructed by their respective services (Reva-aligned).
+	// Services access dependencies via services.GetDeps().
 
-	// NOTE: UI handler is now constructed by uiservice (Reva-aligned).
-	// NOTE: Auth handler is now constructed by apiservice (Reva-aligned).
-	// NOTE: Discovery is now handled by the wellknown service (Reva-aligned).
-	// NOTE: WebDAV handler is now constructed by webdavservice (Reva-aligned).
-	// Public keys are computed at wellknown service construction time via SharedDeps.
-
-	// Create signer for outgoing requests
+	// Create signer for outgoing requests (from SharedDeps)
 	var signer *crypto.RFC9421Signer
 	if deps.KeyManager != nil {
 		signer = crypto.NewRFC9421Signer(deps.KeyManager)
 	}
-
-	// NOTE: OCM auxiliary endpoints (/ocm-aux/*) are now handled by the ocmaux service.
-	// NOTE: API endpoints (/api/*) are now handled by the apiservice.
-	// NOTE: WebDAV endpoints (/webdav/*) are now handled by the webdavservice.
-
-	// NOTE: OCM protocol handlers (shares, notifications, invites/invite-accepted, token)
-	// are now constructed by the OCM service (Reva-aligned pattern).
 
 	// Create trusted proxy handler for X-Forwarded-* header processing
 	trustedProxies := NewTrustedProxies(cfg.Server.TrustedProxies)
@@ -123,7 +75,6 @@ func New(cfg *config.Config, logger *slog.Logger, deps *Deps, wellknownSvc servi
 	s := &Server{
 		cfg:                 cfg,
 		logger:              logger,
-		deps:                deps,
 		trustedProxies:      trustedProxies,
 		wellknownSvc:        wellknownSvc,
 		ocmSvc:              ocmSvc,
@@ -252,48 +203,3 @@ func extractHostname(externalOrigin string) string {
 	return fqdn
 }
 
-// validateDeps checks that all required dependencies are provided.
-func validateDeps(deps *Deps) error {
-	if deps == nil {
-		return errors.New("deps is nil")
-	}
-
-	// Required: identity and auth
-	if deps.PartyRepo == nil {
-		return fmt.Errorf("%w: PartyRepo", ErrMissingDep)
-	}
-	if deps.SessionRepo == nil {
-		return fmt.Errorf("%w: SessionRepo", ErrMissingDep)
-	}
-	if deps.UserAuth == nil {
-		return fmt.Errorf("%w: UserAuth", ErrMissingDep)
-	}
-
-	// Required: outbound HTTP client
-	if deps.HTTPClient == nil {
-		return fmt.Errorf("%w: HTTPClient", ErrMissingDep)
-	}
-
-	// Optional deps are allowed to be nil
-	return nil
-}
-
-// initializeDefaultRepos initializes in-memory repos for optional dependencies
-// that are nil. This ensures handlers always have valid repos to work with.
-func initializeDefaultRepos(deps *Deps) {
-	if deps.IncomingShareRepo == nil {
-		deps.IncomingShareRepo = shares.NewMemoryIncomingShareRepo()
-	}
-	if deps.OutgoingShareRepo == nil {
-		deps.OutgoingShareRepo = shares.NewMemoryOutgoingShareRepo()
-	}
-	if deps.OutgoingInviteRepo == nil {
-		deps.OutgoingInviteRepo = invites.NewMemoryOutgoingInviteRepo()
-	}
-	if deps.IncomingInviteRepo == nil {
-		deps.IncomingInviteRepo = invites.NewMemoryIncomingInviteRepo()
-	}
-	if deps.TokenStore == nil {
-		deps.TokenStore = token.NewMemoryTokenStore()
-	}
-}
