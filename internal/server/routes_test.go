@@ -1,8 +1,40 @@
 package server
 
 import (
+	"net/http"
 	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
+
+// mockService is a minimal Service implementation for testing.
+type mockService struct {
+	prefix      string
+	unprotected []string
+}
+
+func (m *mockService) Handler() http.Handler           { return nil }
+func (m *mockService) Prefix() string                  { return m.prefix }
+func (m *mockService) Unprotected() []string           { return m.unprotected }
+func (m *mockService) Close() error                    { return nil }
+
+// testServices returns a slice of mock services matching the actual service declarations.
+func testServices() []services.Service {
+	return []services.Service{
+		// wellknown service (root-mounted, no prefix)
+		&mockService{prefix: "", unprotected: []string{"/.well-known/ocm", "/ocm-provider"}},
+		// ocm service (public via routeGroups)
+		&mockService{prefix: "ocm", unprotected: []string{"/shares", "/notifications", "/invite-accepted", "/token"}},
+		// ocmaux service
+		&mockService{prefix: "ocm-aux", unprotected: []string{"/federations", "/discover"}},
+		// apiservice
+		&mockService{prefix: "api", unprotected: []string{"/healthz", "/auth/login"}},
+		// uiservice
+		&mockService{prefix: "ui", unprotected: []string{"/login", "/static"}},
+		// webdavservice (uses bearer/basic, not session)
+		&mockService{prefix: "webdav", unprotected: []string{"/ocm"}},
+	}
+}
 
 func TestRouteGroups(t *testing.T) {
 	groups := GetRouteGroups()
@@ -138,11 +170,14 @@ func TestIsAuthRequired(t *testing.T) {
 		},
 	}
 
+	// Create mock services for testing
+	svcs := testServices()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := IsAuthRequired(tt.path, tt.basePath)
+			got := IsAuthRequired(tt.path, tt.basePath, svcs)
 			if got != tt.want {
-				t.Errorf("IsAuthRequired(%q, %q) = %v, want %v", tt.path, tt.basePath, got, tt.want)
+				t.Errorf("IsAuthRequired(%q, %q, svcs) = %v, want %v", tt.path, tt.basePath, got, tt.want)
 			}
 		})
 	}

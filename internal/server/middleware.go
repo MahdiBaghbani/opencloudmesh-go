@@ -70,7 +70,7 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if this path requires authentication
-		if !IsAuthRequired(r.URL.Path, s.cfg.ExternalBasePath) {
+		if !IsAuthRequired(r.URL.Path, s.cfg.ExternalBasePath, s.mountedServices) {
 			next.ServeHTTP(w, r)
 			return
 		}

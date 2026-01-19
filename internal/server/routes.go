@@ -1,10 +1,13 @@
 package server
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
 
 // RouteGroup defines an endpoint group with its auth requirements.
@@ -25,8 +28,8 @@ var routeGroups = []RouteGroup{
 	// App endpoints (mounted under external_base_path)
 	{Name: "ocm-api", PathPrefix: "/ocm", RequiresAuth: false, AtHostRoot: false},       // OCM spec endpoints (public for federation)
 	{Name: "ocm-aux", PathPrefix: "/ocm-aux", RequiresAuth: false, AtHostRoot: false},   // Helper endpoints (rate-limited but public)
-	{Name: "api", PathPrefix: "/api", RequiresAuth: true, AtHostRoot: false},            // API: auth required (exceptions in publicExceptions)
-	{Name: "ui", PathPrefix: "/ui", RequiresAuth: true, AtHostRoot: false},              // UI: auth required (exceptions in publicExceptions)
+	{Name: "api", PathPrefix: "/api", RequiresAuth: true, AtHostRoot: false},            // API: auth required (exceptions via Service.Unprotected())
+	{Name: "ui", PathPrefix: "/ui", RequiresAuth: true, AtHostRoot: false},              // UI: auth required (exceptions via Service.Unprotected())
 	{Name: "webdav", PathPrefix: "/webdav/ocm", RequiresAuth: false, AtHostRoot: false}, // OCM WebDAV uses bearer/basic auth, not session
 }
 
@@ -35,17 +38,10 @@ func GetRouteGroups() []RouteGroup {
 	return routeGroups
 }
 
-// publicExceptions are specific paths that don't require auth within otherwise protected groups.
-var publicExceptions = []string{
-	"/api/healthz",
-	"/api/auth/login",
-	"/ui/login",
-	"/ui/static",
-}
-
 // IsAuthRequired checks if a given path requires authentication.
 // This is used by the auth middleware to make gating decisions.
-func IsAuthRequired(path string, basePath string) bool {
+// The mountedServices slice is used to compute unprotected paths from Service.Unprotected().
+func IsAuthRequired(path string, basePath string, mountedServices []services.Service) bool {
 	// Check root-only endpoints first
 	for _, rg := range routeGroups {
 		if rg.AtHostRoot {
@@ -55,11 +51,23 @@ func IsAuthRequired(path string, basePath string) bool {
 		}
 	}
 
-	// Check public exceptions (paths that are always public)
-	for _, exc := range publicExceptions {
-		fullExc := basePath + exc
-		if pathMatchesPrefix(path, fullExc) {
-			return false
+	// Compute unprotected paths from mounted services
+	for _, svc := range mountedServices {
+		if svc == nil {
+			continue
+		}
+		// Build full service base path
+		svcBase := basePath
+		prefix := svc.Prefix()
+		if prefix != "" {
+			svcBase += "/" + prefix
+		}
+		// Check each unprotected path declared by the service
+		for _, unprotected := range svc.Unprotected() {
+			fullPath := svcBase + unprotected
+			if pathMatchesPrefix(path, fullPath) {
+				return false
+			}
 		}
 	}
 
@@ -75,6 +83,24 @@ func IsAuthRequired(path string, basePath string) bool {
 
 	// Default: require auth for unknown paths
 	return true
+}
+
+// mountService mounts a service and tracks it for lifecycle management.
+func (s *Server) mountService(r chi.Router, svc services.Service, atRoot bool) {
+	if svc == nil {
+		return
+	}
+
+	var handler http.Handler = svc.Handler()
+	prefix := svc.Prefix()
+
+	if atRoot || prefix == "" {
+		r.Mount("/", handler)
+	} else {
+		r.Mount("/"+prefix, handler)
+	}
+
+	s.mountedServices = append(s.mountedServices, svc)
 }
 
 // pathMatchesPrefix checks if path equals or is a subpath of prefix.
@@ -116,9 +142,7 @@ func (s *Server) setupRoutes() chi.Router {
 
 	// Mount wellknown service at root (Reva-aligned)
 	// This replaces the legacy mountRootOnlyEndpoints().
-	if s.wellknownSvc != nil {
-		r.Mount("/", s.wellknownSvc.Handler())
-	}
+	s.mountService(r, s.wellknownSvc, true)
 
 	// Mount app endpoints under external_base_path
 	if s.cfg.ExternalBasePath != "" {
@@ -146,6 +170,8 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 	}
 
 	// OCM API endpoints - apply signature middleware at mount time (server-layer concern)
+	// NOTE: Phase 9 will move signature middleware into the OCM service itself.
+	// For now, we mount it with per-endpoint wiring but still track it for lifecycle.
 	if ocmService != nil {
 		r.Route("/ocm", func(r chi.Router) {
 			// Apply signature verification middleware with appropriate peer resolver per endpoint
@@ -158,25 +184,19 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveTokenRequest)).
 				Post(ocmService.TokenSettings.RoutePath(), ocmService.TokenHandler.HandleToken)
 		})
+		// Track OCM service for lifecycle management even though it uses special mounting
+		s.mountedServices = append(s.mountedServices, s.ocmSvc)
 	}
 
 	// OCM auxiliary endpoints (WAYF helpers) - migrated to registry service
-	if s.ocmauxSvc != nil {
-		r.Mount("/"+s.ocmauxSvc.Prefix(), s.ocmauxSvc.Handler())
-	}
+	s.mountService(r, s.ocmauxSvc, false)
 
 	// API endpoints - migrated to registry service
-	if s.apiserviceSvc != nil {
-		r.Mount("/"+s.apiserviceSvc.Prefix(), s.apiserviceSvc.Handler())
-	}
+	s.mountService(r, s.apiserviceSvc, false)
 
 	// UI endpoints - migrated to registry service
-	if s.uiserviceSvc != nil {
-		r.Mount("/"+s.uiserviceSvc.Prefix(), s.uiserviceSvc.Handler())
-	}
+	s.mountService(r, s.uiserviceSvc, false)
 
 	// WebDAV endpoints - migrated to registry service
-	if s.webdavserviceSvc != nil {
-		r.Mount("/"+s.webdavserviceSvc.Prefix(), s.webdavserviceSvc.Handler())
-	}
+	s.mountService(r, s.webdavserviceSvc, false)
 }

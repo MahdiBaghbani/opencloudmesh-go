@@ -71,6 +71,10 @@ type Server struct {
 	signer           *crypto.RFC9421Signer
 	peerResolver     *crypto.PeerResolver
 	signatureMiddleware *crypto.SignatureMiddleware
+
+	// mountedServices tracks services for lifecycle management (Close on shutdown).
+	// Stored in mount order; closed in reverse order during shutdown.
+	mountedServices []services.Service
 }
 
 // New creates a new Server with the given configuration.
@@ -187,10 +191,32 @@ func (s *Server) Start() error {
 	}
 }
 
-// Shutdown gracefully shuts down the server.
+// Shutdown gracefully shuts down the server and all mounted services.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down server")
-	return s.httpServer.Shutdown(ctx)
+
+	// Shutdown HTTP server first
+	httpErr := s.httpServer.Shutdown(ctx)
+
+	// Close services in reverse mount order (last mounted = first closed)
+	for i := len(s.mountedServices) - 1; i >= 0; i-- {
+		svc := s.mountedServices[i]
+		prefix := svc.Prefix()
+		if prefix == "" {
+			prefix = "(root)"
+		}
+		if err := svc.Close(); err != nil {
+			s.logger.Warn("service close error",
+				"service", prefix,
+				"error", err,
+			)
+			// Continue closing other services (best-effort)
+		} else {
+			s.logger.Debug("service closed", "service", prefix)
+		}
+	}
+
+	return httpErr
 }
 
 // extractProviderFQDN extracts the host:port from an external origin URL.
