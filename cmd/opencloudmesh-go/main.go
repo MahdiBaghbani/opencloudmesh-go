@@ -254,6 +254,10 @@ func main() {
 	// Create outbound signing policy (needed for SharedDeps)
 	outboundPolicy := federation.NewOutboundPolicy(cfg, profileRegistry)
 
+	// Create signature middleware (needed by OCM service for per-endpoint verification)
+	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
+	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, logger)
+
 	// Create repos ONCE for dual-use (SharedDeps and server.Deps)
 	// This is temporary until Phase 3 completes the migration.
 	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
@@ -278,9 +282,10 @@ func main() {
 		HTTPClient:      httpClient,
 		DiscoveryClient: discoveryClient,
 		// Crypto
-		KeyManager:     keyManager,
-		Signer:         signer,
-		OutboundPolicy: outboundPolicy,
+		KeyManager:          keyManager,
+		Signer:              signer,
+		OutboundPolicy:      outboundPolicy,
+		SignatureMiddleware: signatureMiddleware,
 		// Federation
 		FederationMgr:   federationMgr,
 		PolicyEngine:    policyEngine,

@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
 
@@ -158,45 +157,18 @@ func (s *Server) setupRoutes() chi.Router {
 
 // mountAppEndpoints mounts app endpoints (may be under base path).
 func (s *Server) mountAppEndpoints(r chi.Router) {
-	// Type assert OCM service once for reuse in multiple route groups.
-	// The OCM service constructs handlers using SharedDeps (Reva-aligned).
-	var ocmService *ocm.Service
-	if s.ocmSvc != nil {
-		var ok bool
-		ocmService, ok = s.ocmSvc.(*ocm.Service)
-		if !ok {
-			s.logger.Error("ocmSvc is not *ocm.Service, OCM endpoints will not be mounted")
-		}
-	}
+	// OCM API endpoints - signature middleware is applied internally by the OCM service (Reva-aligned)
+	s.mountService(r, s.ocmSvc, false)
 
-	// OCM API endpoints - apply signature middleware at mount time (server-layer concern)
-	// NOTE: Phase 9 will move signature middleware into the OCM service itself.
-	// For now, we mount it with per-endpoint wiring but still track it for lifecycle.
-	if ocmService != nil {
-		r.Route("/ocm", func(r chi.Router) {
-			// Apply signature verification middleware with appropriate peer resolver per endpoint
-			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveSharesRequest)).
-				Post("/shares", ocmService.SharesHandler.CreateShare)
-			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveNotificationsRequest)).
-				Post("/notifications", ocmService.NotificationsHandler.HandleNotification)
-			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveInviteAcceptedRequest)).
-				Post("/invite-accepted", ocmService.InvitesHandler.HandleInviteAccepted)
-			r.With(s.signatureMiddleware.VerifyOCMRequest(s.peerResolver.ResolveTokenRequest)).
-				Post(ocmService.TokenSettings.RoutePath(), ocmService.TokenHandler.HandleToken)
-		})
-		// Track OCM service for lifecycle management even though it uses special mounting
-		s.mountedServices = append(s.mountedServices, s.ocmSvc)
-	}
-
-	// OCM auxiliary endpoints (WAYF helpers) - migrated to registry service
+	// OCM auxiliary endpoints (WAYF helpers)
 	s.mountService(r, s.ocmauxSvc, false)
 
-	// API endpoints - migrated to registry service
+	// API endpoints
 	s.mountService(r, s.apiserviceSvc, false)
 
-	// UI endpoints - migrated to registry service
+	// UI endpoints
 	s.mountService(r, s.uiserviceSvc, false)
 
-	// WebDAV endpoints - migrated to registry service
+	// WebDAV endpoints
 	s.mountService(r, s.webdavserviceSvc, false)
 }

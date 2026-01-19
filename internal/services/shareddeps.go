@@ -42,9 +42,10 @@ type Deps struct {
 	DiscoveryClient *discovery.Client
 
 	// Crypto
-	KeyManager     *crypto.KeyManager
-	Signer         *crypto.RFC9421Signer
-	OutboundPolicy *federation.OutboundPolicy
+	KeyManager          *crypto.KeyManager
+	Signer              *crypto.RFC9421Signer
+	OutboundPolicy      *federation.OutboundPolicy
+	SignatureMiddleware *crypto.SignatureMiddleware
 
 	// Federation (optional)
 	FederationMgr   *federation.FederationManager

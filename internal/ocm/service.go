@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
@@ -36,19 +37,12 @@ func (c *Config) ApplyDefaults() {
 
 // Service is the OCM protocol service.
 // It implements services.Service and provides handlers for /ocm/* endpoints.
+// The service owns signature middleware application internally (Reva-aligned).
 type Service struct {
-	router chi.Router
-	conf   *Config
-	log    *slog.Logger
-
-	// Handlers are exposed for server to mount with signature middleware.
-	// This is a hybrid pattern: handler construction is Reva-aligned (in service),
-	// but route mounting with signature middleware stays in server layer.
-	SharesHandler        *shares.IncomingHandler
-	NotificationsHandler *notifications.Handler
-	InvitesHandler       *invites.Handler
-	TokenHandler         *token.Handler
-	TokenSettings        *token.TokenExchangeSettings
+	router        chi.Router
+	conf          *Config
+	log           *slog.Logger
+	tokenSettings *token.TokenExchangeSettings // kept for Unprotected() computation
 }
 
 // New creates a new OCM protocol service.
@@ -78,30 +72,43 @@ func New(m map[string]any, log *slog.Logger) (services.Service, error) {
 	invitesHandler := invites.NewHandler(deps.OutgoingInviteRepo, c.ProviderFQDN, log)
 	tokenHandler := token.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, &c.TokenExchange, log)
 
-	// Build router with handlers (signature middleware applied by server at mount time)
+	// Create peer resolver for signature verification (service-local, per-endpoint extraction)
+	peerResolver := crypto.NewPeerResolver()
+
+	// Build router with handlers
+	// Apply signature middleware internally (Reva-aligned: service owns signature verification)
 	r := chi.NewRouter()
-	r.Post("/shares", sharesHandler.CreateShare)
-	r.Post("/notifications", notifHandler.HandleNotification)
-	r.Post("/invite-accepted", invitesHandler.HandleInviteAccepted)
-	r.Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
+
+	if deps.SignatureMiddleware != nil {
+		// Signed OCM endpoints - apply per-endpoint signature verification
+		r.With(deps.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveSharesRequest)).
+			Post("/shares", sharesHandler.CreateShare)
+		r.With(deps.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveNotificationsRequest)).
+			Post("/notifications", notifHandler.HandleNotification)
+		r.With(deps.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveInviteAcceptedRequest)).
+			Post("/invite-accepted", invitesHandler.HandleInviteAccepted)
+		r.With(deps.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveTokenRequest)).
+			Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
+	} else {
+		// No signature verification (signature mode off)
+		r.Post("/shares", sharesHandler.CreateShare)
+		r.Post("/notifications", notifHandler.HandleNotification)
+		r.Post("/invite-accepted", invitesHandler.HandleInviteAccepted)
+		r.Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
+	}
 
 	return &Service{
-		router:               r,
-		conf:                 &c,
-		log:                  log,
-		SharesHandler:        sharesHandler,
-		NotificationsHandler: notifHandler,
-		InvitesHandler:       invitesHandler,
-		TokenHandler:         tokenHandler,
-		TokenSettings:        &c.TokenExchange,
+		router:        r,
+		conf:          &c,
+		log:           log,
+		tokenSettings: &c.TokenExchange,
 	}, nil
 }
 
 // Handler returns the service's HTTP handler.
 // Wraps router with RawPath clearing to match Reva pattern and avoid chi routing
 // mismatches on percent-encoded path segments.
-// Note: Signature middleware is applied by the server at mount time,
-// not inside this handler. This is a hybrid pattern during migration.
+// Signature middleware is applied internally per endpoint (Reva-aligned).
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
@@ -118,7 +125,7 @@ func (s *Service) Unprotected() []string {
 		"/shares",
 		"/notifications",
 		"/invite-accepted",
-		s.TokenSettings.RoutePath(),
+		s.tokenSettings.RoutePath(),
 	}
 }
 

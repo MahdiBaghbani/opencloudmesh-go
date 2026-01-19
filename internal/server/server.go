@@ -32,8 +32,6 @@ type Server struct {
 	uiserviceSvc     services.Service // Reva-aligned UI service for /ui/* endpoints
 	webdavserviceSvc services.Service // Reva-aligned WebDAV service for /webdav/* endpoints
 	signer           *crypto.RFC9421Signer
-	peerResolver     *crypto.PeerResolver
-	signatureMiddleware *crypto.SignatureMiddleware
 
 	// mountedServices tracks services for lifecycle management (Close on shutdown).
 	// Stored in mount order; closed in reverse order during shutdown.
@@ -68,23 +66,20 @@ func New(cfg *config.Config, logger *slog.Logger, wellknownSvc services.Service,
 	// Create trusted proxy handler for X-Forwarded-* header processing
 	trustedProxies := NewTrustedProxies(cfg.Server.TrustedProxies)
 
-	// Create signature verification middleware
-	peerDiscoveryAdapter := NewPeerDiscoveryAdapter(deps.DiscoveryClient)
-	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, logger)
+	// NOTE: SignatureMiddleware is now owned by services (OCM service applies it internally).
+	// It is constructed in main.go and available via SharedDeps.SignatureMiddleware.
 
 	s := &Server{
-		cfg:                 cfg,
-		logger:              logger,
-		trustedProxies:      trustedProxies,
-		wellknownSvc:        wellknownSvc,
-		ocmSvc:              ocmSvc,
-		ocmauxSvc:           ocmauxSvc,
-		apiserviceSvc:       apiserviceSvc,
-		uiserviceSvc:        uiserviceSvc,
-		webdavserviceSvc:    webdavserviceSvc,
-		signer:              signer,
-		peerResolver:        crypto.NewPeerResolver(),
-		signatureMiddleware: signatureMiddleware,
+		cfg:              cfg,
+		logger:           logger,
+		trustedProxies:   trustedProxies,
+		wellknownSvc:     wellknownSvc,
+		ocmSvc:           ocmSvc,
+		ocmauxSvc:        ocmauxSvc,
+		apiserviceSvc:    apiserviceSvc,
+		uiserviceSvc:     uiserviceSvc,
+		webdavserviceSvc: webdavserviceSvc,
+		signer:           signer,
 	}
 
 	router := s.setupRoutes()
