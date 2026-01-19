@@ -258,8 +258,7 @@ func main() {
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
 	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, logger)
 
-	// Create repos ONCE for dual-use (SharedDeps and server.Deps)
-	// This is temporary until Phase 3 completes the migration.
+	// Create repos once for SharedDeps.
 	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
 	outgoingShareRepo := shares.NewMemoryOutgoingShareRepo()
 	outgoingInviteRepo := invites.NewMemoryOutgoingInviteRepo()
