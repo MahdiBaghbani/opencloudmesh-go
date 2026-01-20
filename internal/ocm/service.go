@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
@@ -21,7 +22,7 @@ import (
 )
 
 func init() {
-	services.MustRegister("ocm", New)
+	service.MustRegister("ocm", New)
 }
 
 // Config holds OCM service configuration.
@@ -36,7 +37,7 @@ func (c *Config) ApplyDefaults() {
 }
 
 // Service is the OCM protocol service.
-// It implements services.Service and provides handlers for /ocm/* endpoints.
+// It implements service.Service and provides handlers for /ocm/* endpoints.
 // The service owns signature middleware application internally (Reva-aligned).
 type Service struct {
 	router        chi.Router
@@ -46,8 +47,8 @@ type Service struct {
 }
 
 // New creates a new OCM protocol service.
-// Implements services.NewService signature.
-func New(m map[string]any, log *slog.Logger) (services.Service, error) {
+// Implements service.NewService signature.
+func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {

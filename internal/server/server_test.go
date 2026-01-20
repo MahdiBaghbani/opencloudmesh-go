@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
@@ -118,5 +119,5 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 	}
 }
 
-// Verify trackingService implements services.Service
-var _ services.Service = (*trackingService)(nil)
+// Verify trackingService implements service.Service
+var _ service.Service = (*trackingService)(nil)

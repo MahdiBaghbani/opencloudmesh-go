@@ -9,13 +9,14 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/httpwrap"
 )
 
 func init() {
-	services.MustRegister("ocmaux", New)
+	service.MustRegister("ocmaux", New)
 }
 
 // Config holds ocmaux service configuration.
@@ -34,7 +35,7 @@ type Service struct {
 }
 
 // New creates a new ocm-aux service.
-func New(m map[string]any, log *slog.Logger) (services.Service, error) {
+func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {

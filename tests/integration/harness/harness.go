@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
@@ -120,7 +121,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	wellknownConfig := cfg.BuildWellknownServiceConfig()
 
 	// Construct wellknown service from registry
-	wellknownNew := services.Get("wellknown")
+	wellknownNew := service.Get("wellknown")
 	if wellknownNew == nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("wellknown service not registered")
@@ -138,7 +139,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	ocmConfig["provider_fqdn"] = providerFQDN
 
 	// Construct OCM service from registry
-	ocmNew := services.Get("ocm")
+	ocmNew := service.Get("ocm")
 	if ocmNew == nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("ocm service not registered")
@@ -151,7 +152,7 @@ func StartTestServer(t *testing.T) *TestServer {
 
 	// Construct ocmaux service from registry
 	ocmauxConfig := map[string]any{}
-	ocmauxNew := services.Get("ocmaux")
+	ocmauxNew := service.Get("ocmaux")
 	if ocmauxNew == nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("ocmaux service not registered")
@@ -166,7 +167,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	apiserviceConfig := map[string]any{
 		"provider_fqdn": providerFQDN,
 	}
-	apiserviceNew := services.Get("apiservice")
+	apiserviceNew := service.Get("apiservice")
 	if apiserviceNew == nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("apiservice not registered")
@@ -181,7 +182,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	uiserviceConfig := map[string]any{
 		"external_base_path": cfg.ExternalBasePath,
 	}
-	uiserviceNew := services.Get("uiservice")
+	uiserviceNew := service.Get("uiservice")
 	if uiserviceNew == nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("uiservice not registered")
@@ -196,7 +197,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	webdavserviceConfig := map[string]any{
 		"webdav_token_exchange_mode": cfg.WebDAVTokenExchange.Mode,
 	}
-	webdavserviceNew := services.Get("webdavservice")
+	webdavserviceNew := service.Get("webdavservice")
 	if webdavserviceNew == nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("webdavservice not registered")

@@ -16,6 +16,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
@@ -298,7 +299,7 @@ func main() {
 
 	// Construct wellknown service from registry
 	wellknownConfig := cfg.BuildWellknownServiceConfig()
-	wellknownNew := services.Get("wellknown")
+	wellknownNew := service.Get("wellknown")
 	if wellknownNew == nil {
 		logger.Error("wellknown service not registered")
 		os.Exit(1)
@@ -315,7 +316,7 @@ func main() {
 	ocmConfig := cfg.BuildOCMServiceConfig()
 	ocmConfig["provider_fqdn"] = providerFQDN
 
-	ocmNew := services.Get("ocm")
+	ocmNew := service.Get("ocm")
 	if ocmNew == nil {
 		logger.Error("ocm service not registered")
 		os.Exit(1)
@@ -328,7 +329,7 @@ func main() {
 
 	// Construct ocmaux service from registry
 	ocmauxConfig := map[string]any{} // No config fields needed
-	ocmauxNew := services.Get("ocmaux")
+	ocmauxNew := service.Get("ocmaux")
 	if ocmauxNew == nil {
 		logger.Error("ocmaux service not registered")
 		os.Exit(1)
@@ -343,7 +344,7 @@ func main() {
 	apiserviceConfig := map[string]any{
 		"provider_fqdn": providerFQDN,
 	}
-	apiserviceNew := services.Get("apiservice")
+	apiserviceNew := service.Get("apiservice")
 	if apiserviceNew == nil {
 		logger.Error("apiservice not registered")
 		os.Exit(1)
@@ -358,7 +359,7 @@ func main() {
 	uiserviceConfig := map[string]any{
 		"external_base_path": cfg.ExternalBasePath,
 	}
-	uiserviceNew := services.Get("uiservice")
+	uiserviceNew := service.Get("uiservice")
 	if uiserviceNew == nil {
 		logger.Error("uiservice not registered")
 		os.Exit(1)
@@ -373,7 +374,7 @@ func main() {
 	webdavserviceConfig := map[string]any{
 		"webdav_token_exchange_mode": cfg.WebDAVTokenExchange.Mode,
 	}
-	webdavserviceNew := services.Get("webdavservice")
+	webdavserviceNew := service.Get("webdavservice")
 	if webdavserviceNew == nil {
 		logger.Error("webdavservice not registered")
 		os.Exit(1)

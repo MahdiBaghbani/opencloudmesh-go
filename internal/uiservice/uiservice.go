@@ -8,15 +8,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/httpwrap"
-
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 )
 
 func init() {
-	services.MustRegister("uiservice", New)
+	service.MustRegister("uiservice", New)
 }
 
 // Config holds uiservice configuration.
@@ -35,7 +35,7 @@ type Service struct {
 }
 
 // New creates a new UI service.
-func New(m map[string]any, log *slog.Logger) (services.Service, error) {
+func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {

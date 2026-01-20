@@ -9,13 +9,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/httpwrap"
 )
 
 func init() {
-	services.MustRegister("wellknown", New)
+	service.MustRegister("wellknown", New)
 }
 
 // Config holds wellknown service configuration.
@@ -33,8 +34,8 @@ type svc struct {
 	conf   *Config
 }
 
-// New creates a new wellknown service. Implements services.NewService.
-func New(m map[string]any, log *slog.Logger) (services.Service, error) {
+// New creates a new wellknown service. Implements service.NewService.
+func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
@@ -77,19 +78,19 @@ func (s *svc) routerInit(deps *services.Deps, log *slog.Logger) error {
 	return nil
 }
 
-// Close implements services.Service.
+// Close implements service.Service.
 func (s *svc) Close() error { return nil }
 
-// Prefix implements services.Service.
+// Prefix implements service.Service.
 // Wellknown mounts at root (empty prefix).
 func (s *svc) Prefix() string { return "" }
 
-// Unprotected implements services.Service.
+// Unprotected implements service.Service.
 func (s *svc) Unprotected() []string {
 	return []string{"/.well-known/ocm", "/.well-known/ocm/", "/ocm-provider", "/ocm-provider/"}
 }
 
-// Handler implements services.Service.
+// Handler implements service.Service.
 // Wraps router with RawPath clearing to match Reva pattern and avoid chi routing
 // mismatches on percent-encoded path segments.
 func (s *svc) Handler() http.Handler { return httpwrap.ClearRawPath(s.router) }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
 
@@ -25,17 +26,17 @@ type Server struct {
 	httpServer       *http.Server
 	logger           *slog.Logger
 	trustedProxies   *TrustedProxies
-	wellknownSvc     services.Service // Reva-aligned wellknown service for discovery
-	ocmSvc           services.Service // Reva-aligned OCM protocol service
-	ocmauxSvc        services.Service // Reva-aligned ocm-aux service for WAYF helpers
-	apiserviceSvc    services.Service // Reva-aligned API service for /api/* endpoints
-	uiserviceSvc     services.Service // Reva-aligned UI service for /ui/* endpoints
-	webdavserviceSvc services.Service // Reva-aligned WebDAV service for /webdav/* endpoints
+	wellknownSvc     service.Service // Reva-aligned wellknown service for discovery
+	ocmSvc           service.Service // Reva-aligned OCM protocol service
+	ocmauxSvc        service.Service // Reva-aligned ocm-aux service for WAYF helpers
+	apiserviceSvc    service.Service // Reva-aligned API service for /api/* endpoints
+	uiserviceSvc     service.Service // Reva-aligned UI service for /ui/* endpoints
+	webdavserviceSvc service.Service // Reva-aligned WebDAV service for /webdav/* endpoints
 	signer           *crypto.RFC9421Signer
 
 	// mountedServices tracks services for lifecycle management (Close on shutdown).
 	// Stored in mount order; closed in reverse order during shutdown.
-	mountedServices []services.Service
+	mountedServices []service.Service
 }
 
 // New creates a new Server with the given configuration.
@@ -47,7 +48,7 @@ type Server struct {
 // apiserviceSvc is the Reva-aligned API service for /api/* endpoints.
 // uiserviceSvc is the Reva-aligned UI service for /ui/* endpoints.
 // webdavserviceSvc is the Reva-aligned WebDAV service for /webdav/* endpoints.
-func New(cfg *config.Config, logger *slog.Logger, wellknownSvc services.Service, ocmSvc services.Service, ocmauxSvc services.Service, apiserviceSvc services.Service, uiserviceSvc services.Service, webdavserviceSvc services.Service) (*Server, error) {
+func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, ocmSvc service.Service, ocmauxSvc service.Service, apiserviceSvc service.Service, uiserviceSvc service.Service, webdavserviceSvc service.Service) (*Server, error) {
 	// Fail fast: SharedDeps must be initialized before server creation
 	deps := services.GetDeps()
 	if deps == nil {

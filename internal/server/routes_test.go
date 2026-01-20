@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
 
 // mockService is a minimal Service implementation for testing.
@@ -19,8 +19,8 @@ func (m *mockService) Unprotected() []string           { return m.unprotected }
 func (m *mockService) Close() error                    { return nil }
 
 // testServices returns a slice of mock services matching the actual service declarations.
-func testServices() []services.Service {
-	return []services.Service{
+func testServices() []service.Service {
+	return []service.Service{
 		// wellknown service (root-mounted, no prefix)
 		&mockService{prefix: "", unprotected: []string{"/.well-known/ocm", "/ocm-provider"}},
 		// ocm service (public via routeGroups)

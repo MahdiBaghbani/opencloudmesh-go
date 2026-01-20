@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
 
 // RouteGroup defines an endpoint group with its auth requirements.
@@ -40,7 +40,7 @@ func GetRouteGroups() []RouteGroup {
 // IsAuthRequired checks if a given path requires authentication.
 // This is used by the auth middleware to make gating decisions.
 // The mountedServices slice is used to compute unprotected paths from Service.Unprotected().
-func IsAuthRequired(path string, basePath string, mountedServices []services.Service) bool {
+func IsAuthRequired(path string, basePath string, mountedServices []service.Service) bool {
 	// Check root-only endpoints first
 	for _, rg := range routeGroups {
 		if rg.AtHostRoot {
@@ -85,7 +85,7 @@ func IsAuthRequired(path string, basePath string, mountedServices []services.Ser
 }
 
 // mountService mounts a service and tracks it for lifecycle management.
-func (s *Server) mountService(r chi.Router, svc services.Service, atRoot bool) {
+func (s *Server) mountService(r chi.Router, svc service.Service, atRoot bool) {
 	if svc == nil {
 		return
 	}
