@@ -10,7 +10,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/server"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
 
