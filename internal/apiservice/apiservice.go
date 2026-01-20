@@ -15,7 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/httpwrap"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 )
 
 func init() {
