@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
 // mockPeerDiscovery implements crypto.PeerDiscovery for testing.

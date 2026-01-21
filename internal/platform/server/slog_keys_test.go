@@ -22,7 +22,7 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 	packagesToScan := []string{
 		"internal/ocm",
 		"internal/webdav",
-		"internal/crypto",
+		"internal/platform/crypto",
 		"internal/federation",
 		"internal/identity",
 		"internal/server",

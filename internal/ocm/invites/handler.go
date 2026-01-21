@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
 // DefaultInviteTTL is the default time-to-live for invites.
