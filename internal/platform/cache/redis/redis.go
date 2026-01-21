@@ -34,14 +34,9 @@ func init() {
 					cfg.DialTimeout = time.Duration(ms) * time.Millisecond
 				}
 			}
-			if v, ok := config["read_timeout_ms"]; ok {
+			if v, ok := config["conn_timeout_ms"]; ok {
 				if ms, ok := toInt(v); ok && ms > 0 {
-					cfg.ReadTimeout = time.Duration(ms) * time.Millisecond
-				}
-			}
-			if v, ok := config["write_timeout_ms"]; ok {
-				if ms, ok := toInt(v); ok && ms > 0 {
-					cfg.WriteTimeout = time.Duration(ms) * time.Millisecond
+					cfg.ConnTimeout = time.Duration(ms) * time.Millisecond
 				}
 			}
 			if v, ok := config["default_ttl_seconds"]; ok {
@@ -75,25 +70,23 @@ func toInt(v any) (int, bool) {
 
 // Config holds Redis connection configuration.
 type Config struct {
-	Addr         string        // Redis address (host:port)
-	Password     string        // Optional password
-	DB           int           // Database number
-	DialTimeout  time.Duration // Connection timeout
-	ReadTimeout  time.Duration // Read timeout
-	WriteTimeout time.Duration // Write timeout
-	DefaultTTL   time.Duration // Default TTL for cache entries
+	Addr            string        // Redis address (host:port)
+	Password        string        // Optional password
+	DB              int           // Database number
+	DialTimeout     time.Duration // Connection timeout
+	ConnTimeout     time.Duration // Read/write timeout per connection (valkey-go uses one timeout for both)
+	DefaultTTL      time.Duration // Default TTL for cache entries
 }
 
 // DefaultConfig returns sensible defaults for Redis connection.
 func DefaultConfig() *Config {
 	return &Config{
-		Addr:         "localhost:6379",
-		Password:     "",
-		DB:           0,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-		DefaultTTL:   15 * time.Minute,
+		Addr:        "localhost:6379",
+		Password:    "",
+		DB:          0,
+		DialTimeout: 5 * time.Second,
+		ConnTimeout: 3 * time.Second,
+		DefaultTTL:  15 * time.Minute,
 	}
 }
 
@@ -131,7 +124,8 @@ func New(cfg *Config) (*Cache, error) {
 			Timeout:   cfg.DialTimeout,
 			KeepAlive: 30 * time.Second,
 		},
-		ConnWriteTimeout: cfg.WriteTimeout,
+		ConnWriteTimeout: cfg.ConnTimeout, // valkey-go uses this for both read and write
+		DisableCache:     true,            // disable client-side caching (not needed for our use case)
 	}
 
 	client, err := valkey.NewClient(opts)
