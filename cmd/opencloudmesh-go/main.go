@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
@@ -27,7 +27,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 
 	// Register cache drivers
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/loader"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 
 	// Register services (triggers init() registration)
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"

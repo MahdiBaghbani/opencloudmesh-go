@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 )
 
 var (

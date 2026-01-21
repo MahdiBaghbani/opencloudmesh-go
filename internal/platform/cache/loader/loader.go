@@ -3,10 +3,10 @@
 //
 // Usage in main.go:
 //
-//	import _ "github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/loader"
+//	import _ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 package loader
 
 import (
 	// Register the memory cache driver
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/memory"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/memory"
 )

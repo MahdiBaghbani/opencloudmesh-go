@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/memory"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/memory"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ratelimit"
 )
 

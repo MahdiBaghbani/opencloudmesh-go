@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/cache"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/memory"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/memory"
 )
 
 // Config holds Redis connection configuration.

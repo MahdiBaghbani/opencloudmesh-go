@@ -12,7 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 
 	// Register cache drivers for nil-cache tests
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/cache/loader"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func TestHandler_GetDiscovery(t *testing.T) {
