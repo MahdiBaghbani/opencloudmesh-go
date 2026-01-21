@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 // contextKey is used for storing values in request context.

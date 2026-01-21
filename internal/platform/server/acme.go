@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge/http01"

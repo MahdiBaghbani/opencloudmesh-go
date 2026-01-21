@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 )
 
 // Client is an OCM token exchange client.

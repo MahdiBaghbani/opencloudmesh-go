@@ -60,10 +60,16 @@ type Config struct {
 
 // HTTPConfig holds per-service HTTP configuration.
 // Services are configured under [http.services.<svcname>].
+// Interceptors are configured under [http.interceptors.<name>].
 type HTTPConfig struct {
 	// Services maps service names to their raw config maps.
 	// Each service decodes its own config via cfg.Decode() with Setter interface.
 	Services map[string]map[string]any `toml:"services"`
+
+	// Interceptors maps interceptor names to their raw config maps.
+	// Ratelimit profiles live at [http.interceptors.ratelimit.profiles.<name>].
+	// Per-service opt-in is [http.services.<svc>.ratelimit] with profile = "<name>".
+	Interceptors map[string]map[string]any `toml:"interceptors"`
 }
 
 // LoggingConfig holds logging settings.

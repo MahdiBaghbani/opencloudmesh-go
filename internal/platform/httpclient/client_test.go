@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 )
 
 func TestClient_SSRFProtection(t *testing.T) {

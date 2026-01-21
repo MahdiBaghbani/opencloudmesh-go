@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 var (

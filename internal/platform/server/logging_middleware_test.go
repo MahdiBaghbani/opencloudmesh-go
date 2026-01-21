@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 // accessLogRecorder captures access log records with all their attributes.

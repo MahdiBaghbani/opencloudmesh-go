@@ -1,4 +1,4 @@
-package sqlite_test
+package json_test
 
 import (
 	"context"
@@ -6,33 +6,33 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/store"
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/store/sqlite"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/store/testutil"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/json"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
 )
 
-func TestSQLiteDriver(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-sqlite-*")
+func TestJSONDriver(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "ocm-test-json-*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tempDir)
 
 	cfg := &store.DriverConfig{
-		Driver:  "sqlite",
+		Driver:  "json",
 		DataDir: tempDir,
 	}
 
-	testutil.RunDriverTests(t, "sqlite", cfg)
+	testutil.RunDriverTests(t, "json", cfg)
 
-	// Verify database file was created
-	if _, err := os.Stat(filepath.Join(tempDir, "ocm.db")); os.IsNotExist(err) {
-		t.Error("ocm.db not created")
+	// Verify JSON files were created
+	if _, err := os.Stat(filepath.Join(tempDir, "outgoing_shares.json")); os.IsNotExist(err) {
+		t.Log("outgoing_shares.json not created (expected if no shares remain)")
 	}
 }
 
-func TestSQLiteDriverSurvivesRestart(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-sqlite-restart-*")
+func TestJSONDriverAtomicWrite(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "ocm-test-json-atomic-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestSQLiteDriverSurvivesRestart(t *testing.T) {
 
 	ctx := context.Background()
 	cfg := &store.DriverConfig{
-		Driver:  "sqlite",
+		Driver:  "json",
 		DataDir: tempDir,
 	}
 

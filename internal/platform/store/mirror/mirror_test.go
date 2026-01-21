@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/store"
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/store/mirror"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/store/testutil"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
 )
 
 func TestMirrorDriver(t *testing.T) {

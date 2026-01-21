@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/store"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 // TestOutgoingShare creates a test outgoing share.

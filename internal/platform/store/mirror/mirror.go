@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/store"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 func init() {

@@ -3,10 +3,10 @@ package store_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/store"
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/store/json"
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/store/mirror"
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/store/sqlite"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/json"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlite"
 )
 
 func TestDriverRegistry(t *testing.T) {

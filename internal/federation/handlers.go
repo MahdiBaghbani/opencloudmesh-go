@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 )
 

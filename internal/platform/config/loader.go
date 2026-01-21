@@ -93,7 +93,8 @@ type fileConfig struct {
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
 type httpFileConfig struct {
-	Services map[string]map[string]any `toml:"services"`
+	Services     map[string]map[string]any `toml:"services"`
+	Interceptors map[string]map[string]any `toml:"interceptors"`
 }
 
 // loggingConfig holds logging settings from TOML.
@@ -553,6 +554,14 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 				cfg.HTTP.Services[name] = svcCfg
 			}
 		}
+		if len(fc.HTTP.Interceptors) > 0 {
+			if cfg.HTTP.Interceptors == nil {
+				cfg.HTTP.Interceptors = make(map[string]map[string]any)
+			}
+			for name, intCfg := range fc.HTTP.Interceptors {
+				cfg.HTTP.Interceptors[name] = intCfg
+			}
+		}
 	}
 }
 
@@ -722,6 +731,56 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid webdav_token_exchange.mode %q: must be one of off, lenient, strict", cfg.WebDAVTokenExchange.Mode)
+	}
+
+	// http.interceptors.ratelimit validation (fail fast)
+	if err := validateRatelimitConfig(cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateRatelimitConfig validates ratelimit interceptor configuration.
+// Profiles are defined at [http.interceptors.ratelimit.profiles.<name>].
+// Services opt-in via [http.services.<svc>.ratelimit] with profile = "<name>".
+// If a service references a profile, that profile must exist.
+func validateRatelimitConfig(cfg *Config) error {
+	// Collect available profile names from http.interceptors.ratelimit.profiles
+	profiles := make(map[string]bool)
+	if cfg.HTTP.Interceptors != nil {
+		if rlCfg, ok := cfg.HTTP.Interceptors["ratelimit"]; ok {
+			if profilesRaw, ok := rlCfg["profiles"]; ok {
+				if profilesMap, ok := profilesRaw.(map[string]any); ok {
+					for name, profile := range profilesMap {
+						// Each profile must be a map
+						if _, ok := profile.(map[string]any); !ok {
+							return fmt.Errorf("http.interceptors.ratelimit.profiles.%s must be a map", name)
+						}
+						profiles[name] = true
+					}
+				} else {
+					return fmt.Errorf("http.interceptors.ratelimit.profiles must be a map")
+				}
+			}
+		}
+	}
+
+	// Validate per-service ratelimit references
+	if cfg.HTTP.Services != nil {
+		for svcName, svcCfg := range cfg.HTTP.Services {
+			if rlCfg, ok := svcCfg["ratelimit"]; ok {
+				if rlMap, ok := rlCfg.(map[string]any); ok {
+					if profileName, ok := rlMap["profile"]; ok {
+						if profileStr, ok := profileName.(string); ok {
+							if !profiles[profileStr] {
+								return fmt.Errorf("http.services.%s.ratelimit references undefined profile %q", svcName, profileStr)
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return nil

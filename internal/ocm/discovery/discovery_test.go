@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/httpclient"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 
 	// Register cache drivers for nil-cache tests
