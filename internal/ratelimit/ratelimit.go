@@ -65,8 +65,8 @@ type Result struct {
 func (l *Limiter) Allow(ctx context.Context, key string) (*Result, error) {
 	fullKey := l.config.KeyPrefix + key
 
-	// Increment the counter
-	count, err := l.cache.Increment(ctx, fullKey, 1, l.config.Window)
+	// Increment the counter - now returns (count, resetAt, err)
+	count, resetAt, err := l.cache.Increment(ctx, fullKey, 1, l.config.Window)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (l *Limiter) Allow(ctx context.Context, key string) (*Result, error) {
 	return &Result{
 		Allowed:   count <= l.config.RequestsPerWindow,
 		Remaining: remaining,
-		ResetAt:   time.Now().Add(l.config.Window),
+		ResetAt:   resetAt,
 	}, nil
 }
 

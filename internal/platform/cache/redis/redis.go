@@ -1,15 +1,77 @@
-// Package redis provides a Redis/Valkey cache driver with failover to in-memory.
+// Package redis provides a Redis/Valkey cache driver using valkey-go.
+// Fail-fast: when cache.driver=redis is configured, startup fails if Redis is unreachable.
 package redis
 
 import (
 	"context"
-	"log/slog"
-	"sync"
+	"fmt"
+	"net"
+	"strconv"
 	"time"
 
+	"github.com/valkey-io/valkey-go"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/memory"
 )
+
+func init() {
+	cache.RegisterDriver("redis", func(config map[string]any) cache.Cache {
+		cfg := DefaultConfig()
+		if config != nil {
+			if v, ok := config["addr"].(string); ok && v != "" {
+				cfg.Addr = v
+			}
+			if v, ok := config["password"].(string); ok {
+				cfg.Password = v
+			}
+			if v, ok := config["db"]; ok {
+				if db, ok := toInt(v); ok {
+					cfg.DB = db
+				}
+			}
+			if v, ok := config["dial_timeout_ms"]; ok {
+				if ms, ok := toInt(v); ok && ms > 0 {
+					cfg.DialTimeout = time.Duration(ms) * time.Millisecond
+				}
+			}
+			if v, ok := config["read_timeout_ms"]; ok {
+				if ms, ok := toInt(v); ok && ms > 0 {
+					cfg.ReadTimeout = time.Duration(ms) * time.Millisecond
+				}
+			}
+			if v, ok := config["write_timeout_ms"]; ok {
+				if ms, ok := toInt(v); ok && ms > 0 {
+					cfg.WriteTimeout = time.Duration(ms) * time.Millisecond
+				}
+			}
+			if v, ok := config["default_ttl_seconds"]; ok {
+				if secs, ok := toInt(v); ok && secs > 0 {
+					cfg.DefaultTTL = time.Duration(secs) * time.Second
+				}
+			}
+		}
+
+		c, err := New(cfg)
+		if err != nil {
+			// Fail-fast: panic on connection failure when redis driver is explicitly configured
+			panic(fmt.Sprintf("redis cache driver failed to initialize: %v", err))
+		}
+		return c
+	})
+}
+
+func toInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
 
 // Config holds Redis connection configuration.
 type Config struct {
@@ -19,7 +81,7 @@ type Config struct {
 	DialTimeout  time.Duration // Connection timeout
 	ReadTimeout  time.Duration // Read timeout
 	WriteTimeout time.Duration // Write timeout
-	PoolSize     int           // Connection pool size
+	DefaultTTL   time.Duration // Default TTL for cache entries
 }
 
 // DefaultConfig returns sensible defaults for Redis connection.
@@ -31,157 +93,197 @@ func DefaultConfig() *Config {
 		DialTimeout:  5 * time.Second,
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,
-		PoolSize:     10,
+		DefaultTTL:   15 * time.Minute,
 	}
 }
 
-// Cache wraps a Redis client with automatic failover to in-memory cache.
-// When Redis is unavailable, operations transparently fall back to memory.
+// Cache implements cache.CacheWithCounter using Redis/Valkey.
 type Cache struct {
-	mu       sync.RWMutex
-	config   *Config
-	fallback *memory.Cache
-	logger   *slog.Logger
-	useFallback bool
+	client        valkey.Client
+	defaultTTL    time.Duration
+	counterScript *valkey.Lua
 }
 
-// New creates a new Redis cache with in-memory fallback.
-// For this reference implementation, we start with the fallback enabled
-// since Redis integration requires an external dependency (go-redis).
-// The architecture is ready for Redis when needed.
-func New(cfg *Config, logger *slog.Logger) *Cache {
+// Lua script for atomic counter increment with TTL only on first create.
+// Returns [count, ttl_ms]. TTL is set only when key is new (count equals delta).
+const counterLuaScript = `
+local current = redis.call('INCRBY', KEYS[1], ARGV[1])
+if current == tonumber(ARGV[1]) then
+    redis.call('PEXPIRE', KEYS[1], ARGV[2])
+end
+local ttl = redis.call('PTTL', KEYS[1])
+return {current, ttl}
+`
+
+// New creates a new Redis cache with fail-fast behavior.
+// Returns an error if Redis is unreachable or the counter script fails validation.
+func New(cfg *Config) (*Cache, error) {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
-	// Create fallback cache with 1-minute cleanup interval
-	fallback := memory.New(cache.TTLDiscovery, time.Minute)
+	// Build valkey client options
+	opts := valkey.ClientOption{
+		InitAddress: []string{cfg.Addr},
+		Password:    cfg.Password,
+		SelectDB:    cfg.DB,
+		Dialer: net.Dialer{
+			Timeout:   cfg.DialTimeout,
+			KeepAlive: 30 * time.Second,
+		},
+		ConnWriteTimeout: cfg.WriteTimeout,
+	}
+
+	client, err := valkey.NewClient(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create redis client: %w", err)
+	}
 
 	c := &Cache{
-		config:      cfg,
-		fallback:    fallback,
-		logger:      logger,
-		useFallback: true, // Start with fallback until Redis is connected
+		client:        client,
+		defaultTTL:    cfg.DefaultTTL,
+		counterScript: valkey.NewLuaScript(counterLuaScript),
 	}
 
-	// Log that we're using fallback mode
-	if logger != nil {
-		logger.Info("cache initialized in memory-fallback mode",
-			"redis_addr", cfg.Addr,
-			"reason", "redis client not yet implemented")
+	// Fail-fast: verify connection and script execution work
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.DialTimeout)
+	defer cancel()
+
+	if err := c.healthCheck(ctx); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("redis health check failed: %w", err)
 	}
 
-	return c
+	return c, nil
+}
+
+// healthCheck verifies Redis is reachable and the counter script can execute.
+func (c *Cache) healthCheck(ctx context.Context) error {
+	// Test basic connectivity with PING
+	resp := c.client.Do(ctx, c.client.B().Ping().Build())
+	if err := resp.Error(); err != nil {
+		return fmt.Errorf("PING failed: %w", err)
+	}
+
+	// Test counter script execution with a temporary key
+	testKey := "__ocm_cache_health_check__"
+	result := c.counterScript.Exec(ctx, c.client, []string{testKey}, []string{"1", "1000"})
+	if err := result.Error(); err != nil {
+		return fmt.Errorf("counter script test failed: %w", err)
+	}
+
+	// Clean up test key
+	c.client.Do(ctx, c.client.B().Del().Key(testKey).Build())
+
+	return nil
 }
 
 // Get retrieves a value by key.
 func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
-	c.mu.RLock()
-	useFallback := c.useFallback
-	c.mu.RUnlock()
-
-	if useFallback {
-		return c.fallback.Get(ctx, key)
+	resp := c.client.Do(ctx, c.client.B().Get().Key(key).Build())
+	if err := resp.Error(); err != nil {
+		if valkey.IsValkeyNil(err) {
+			return nil, cache.ErrNotFound
+		}
+		return nil, err
 	}
 
-	// TODO: Implement Redis get when go-redis is added
-	return c.fallback.Get(ctx, key)
+	data, err := resp.AsBytes()
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 // Set stores a value with the given TTL.
 func (c *Cache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
-	c.mu.RLock()
-	useFallback := c.useFallback
-	c.mu.RUnlock()
-
-	if useFallback {
-		return c.fallback.Set(ctx, key, value, ttl)
+	if ttl == 0 {
+		ttl = c.defaultTTL
 	}
 
-	// TODO: Implement Redis set when go-redis is added
-	return c.fallback.Set(ctx, key, value, ttl)
+	resp := c.client.Do(ctx, c.client.B().Set().Key(key).Value(string(value)).Px(ttl).Build())
+	return resp.Error()
 }
 
 // Delete removes a key.
 func (c *Cache) Delete(ctx context.Context, key string) error {
-	c.mu.RLock()
-	useFallback := c.useFallback
-	c.mu.RUnlock()
-
-	if useFallback {
-		return c.fallback.Delete(ctx, key)
-	}
-
-	// TODO: Implement Redis delete when go-redis is added
-	return c.fallback.Delete(ctx, key)
+	resp := c.client.Do(ctx, c.client.B().Del().Key(key).Build())
+	return resp.Error()
 }
 
 // Exists checks if a key exists.
 func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
-	c.mu.RLock()
-	useFallback := c.useFallback
-	c.mu.RUnlock()
-
-	if useFallback {
-		return c.fallback.Exists(ctx, key)
+	resp := c.client.Do(ctx, c.client.B().Exists().Key(key).Build())
+	if err := resp.Error(); err != nil {
+		return false, err
 	}
-
-	// TODO: Implement Redis exists when go-redis is added
-	return c.fallback.Exists(ctx, key)
+	count, err := resp.AsInt64()
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
-// Increment adds delta to a counter.
-func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, error) {
-	c.mu.RLock()
-	useFallback := c.useFallback
-	c.mu.RUnlock()
-
-	if useFallback {
-		return c.fallback.Increment(ctx, key, delta, ttl)
+// Increment adds delta to a counter and returns the new value and reset time.
+func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, time.Time, error) {
+	if ttl == 0 {
+		ttl = c.defaultTTL
 	}
 
-	// TODO: Implement Redis INCRBY when go-redis is added
-	return c.fallback.Increment(ctx, key, delta, ttl)
+	ttlMs := ttl.Milliseconds()
+	result := c.counterScript.Exec(ctx, c.client, []string{key}, []string{
+		strconv.FormatInt(delta, 10),
+		strconv.FormatInt(ttlMs, 10),
+	})
+
+	if err := result.Error(); err != nil {
+		return 0, time.Time{}, err
+	}
+
+	arr, err := result.AsIntSlice()
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("unexpected script result: %w", err)
+	}
+	if len(arr) != 2 {
+		return 0, time.Time{}, fmt.Errorf("unexpected script result length: %d", len(arr))
+	}
+
+	count := arr[0]
+	remainingTTLMs := arr[1]
+
+	// Compute resetAt from remaining TTL
+	resetAt := time.Now().Add(time.Duration(remainingTTLMs) * time.Millisecond)
+
+	return count, resetAt, nil
 }
 
 // GetCount returns the current counter value.
 func (c *Cache) GetCount(ctx context.Context, key string) (int64, error) {
-	c.mu.RLock()
-	useFallback := c.useFallback
-	c.mu.RUnlock()
-
-	if useFallback {
-		return c.fallback.GetCount(ctx, key)
+	resp := c.client.Do(ctx, c.client.B().Get().Key(key).Build())
+	if err := resp.Error(); err != nil {
+		if valkey.IsValkeyNil(err) {
+			return 0, nil
+		}
+		return 0, err
 	}
 
-	// TODO: Implement Redis get counter when go-redis is added
-	return c.fallback.GetCount(ctx, key)
+	val, err := resp.AsInt64()
+	if err != nil {
+		// Key exists but is not an integer (shouldn't happen for counters)
+		return 0, err
+	}
+	return val, nil
 }
 
-// Reset sets a counter to 0.
+// Reset sets a counter to 0 by deleting the key.
 func (c *Cache) Reset(ctx context.Context, key string) error {
-	c.mu.RLock()
-	useFallback := c.useFallback
-	c.mu.RUnlock()
-
-	if useFallback {
-		return c.fallback.Reset(ctx, key)
-	}
-
-	// TODO: Implement Redis reset when go-redis is added
-	return c.fallback.Reset(ctx, key)
+	return c.Delete(ctx, key)
 }
 
 // Close releases resources.
 func (c *Cache) Close() error {
-	return c.fallback.Close()
-}
-
-// IsUsingFallback returns true if the cache is using in-memory fallback.
-func (c *Cache) IsUsingFallback() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.useFallback
+	c.client.Close()
+	return nil
 }
 
 // Ensure Cache implements CacheWithCounter.

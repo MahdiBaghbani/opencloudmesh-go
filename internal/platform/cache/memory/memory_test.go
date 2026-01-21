@@ -120,18 +120,27 @@ func TestCounter_Increment(t *testing.T) {
 	ctx := context.Background()
 
 	// First increment creates counter
-	count, err := c.Increment(ctx, "counter1", 1, time.Minute)
+	count, resetAt, err := c.Increment(ctx, "counter1", 1, time.Minute)
 	if err != nil {
 		t.Fatalf("Increment failed: %v", err)
 	}
 	if count != 1 {
 		t.Errorf("expected 1, got %d", count)
 	}
+	// resetAt should be approximately 1 minute from now
+	expectedReset := time.Now().Add(time.Minute)
+	if resetAt.Before(expectedReset.Add(-time.Second)) || resetAt.After(expectedReset.Add(time.Second)) {
+		t.Errorf("resetAt %v not within expected range around %v", resetAt, expectedReset)
+	}
 
-	// Second increment adds to it
-	count, _ = c.Increment(ctx, "counter1", 5, time.Minute)
+	// Second increment adds to it (same window, same resetAt)
+	count, resetAt2, _ := c.Increment(ctx, "counter1", 5, time.Minute)
 	if count != 6 {
 		t.Errorf("expected 6, got %d", count)
+	}
+	// resetAt should be unchanged (same window)
+	if resetAt2.Sub(resetAt) > time.Second {
+		t.Errorf("resetAt changed unexpectedly: was %v, now %v", resetAt, resetAt2)
 	}
 
 	// GetCount should return same value
@@ -147,7 +156,7 @@ func TestCounter_Expiration(t *testing.T) {
 	ctx := context.Background()
 
 	// Create counter with short TTL
-	c.Increment(ctx, "counter1", 10, 10*time.Millisecond)
+	_, _, _ = c.Increment(ctx, "counter1", 10, 10*time.Millisecond)
 
 	// Wait for expiration
 	time.Sleep(20 * time.Millisecond)
@@ -159,7 +168,7 @@ func TestCounter_Expiration(t *testing.T) {
 	}
 
 	// New increment should start fresh
-	count, _ = c.Increment(ctx, "counter1", 1, time.Minute)
+	count, _, _ = c.Increment(ctx, "counter1", 1, time.Minute)
 	if count != 1 {
 		t.Errorf("expected 1 after expired increment, got %d", count)
 	}
@@ -170,12 +179,49 @@ func TestCounter_Reset(t *testing.T) {
 	defer c.Close()
 	ctx := context.Background()
 
-	c.Increment(ctx, "counter1", 100, time.Minute)
+	_, _, _ = c.Increment(ctx, "counter1", 100, time.Minute)
 	c.Reset(ctx, "counter1")
 
 	count, _ := c.GetCount(ctx, "counter1")
 	if count != 0 {
 		t.Errorf("expected 0 after reset, got %d", count)
+	}
+}
+
+func TestCounter_ResetAt(t *testing.T) {
+	c := memory.New(time.Minute, 0)
+	defer c.Close()
+	ctx := context.Background()
+
+	ttl := 30 * time.Second
+	now := time.Now()
+
+	// First increment establishes the window
+	count, resetAt, err := c.Increment(ctx, "counter_resetat", 1, ttl)
+	if err != nil {
+		t.Fatalf("Increment failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected count 1, got %d", count)
+	}
+
+	// resetAt should be approximately ttl from now
+	expectedReset := now.Add(ttl)
+	if resetAt.Before(expectedReset.Add(-2*time.Second)) || resetAt.After(expectedReset.Add(2*time.Second)) {
+		t.Errorf("resetAt %v not within 2s of expected %v", resetAt, expectedReset)
+	}
+
+	// Subsequent increments should return the same resetAt (within the same window)
+	time.Sleep(10 * time.Millisecond)
+	_, resetAt2, _ := c.Increment(ctx, "counter_resetat", 1, ttl)
+
+	// resetAt2 should be close to original resetAt (not reset)
+	diff := resetAt2.Sub(resetAt)
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > time.Second {
+		t.Errorf("resetAt changed unexpectedly: first %v, second %v (diff: %v)", resetAt, resetAt2, diff)
 	}
 }
 

@@ -54,7 +54,7 @@ func NewFromConfig(driver string, driversConfig map[string]any) (Cache, error) {
 	driversMu.RUnlock()
 
 	if !ok {
-		return nil, fmt.Errorf("unknown cache driver %q: only 'memory' is supported in this release", driver)
+		return nil, fmt.Errorf("unknown cache driver %q: available drivers are 'memory' and 'redis'", driver)
 	}
 
 	// Extract driver-specific config (may be nil)
@@ -103,11 +103,12 @@ type Cache interface {
 
 // Counter provides atomic increment/decrement operations for rate limiting.
 type Counter interface {
-	// Increment adds delta to the counter and returns the new value.
+	// Increment adds delta to the counter and returns the new value and reset time.
 	// If the key doesn't exist, it's created with the given TTL.
-	Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, error)
+	// resetAt is the time when this window expires (used for Retry-After header).
+	Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (count int64, resetAt time.Time, err error)
 
-	// Get returns the current counter value. Returns 0 if not found.
+	// GetCount returns the current counter value. Returns 0 if not found.
 	GetCount(ctx context.Context, key string) (int64, error)
 
 	// Reset sets the counter to 0.

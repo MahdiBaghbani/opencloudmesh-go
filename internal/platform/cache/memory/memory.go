@@ -187,8 +187,8 @@ func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
 	return !item.isExpired(), nil
 }
 
-// Increment adds delta to a counter and returns the new value.
-func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, error) {
+// Increment adds delta to a counter and returns the new value and reset time.
+func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, time.Time, error) {
 	if ttl == 0 {
 		ttl = c.defaultTTL
 	}
@@ -199,15 +199,16 @@ func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time
 	counter, ok := c.counters[key]
 	if !ok || counter.isExpired() {
 		// Create new counter
+		expiresAt := time.Now().Add(ttl)
 		c.counters[key] = &counterItem{
 			value:     delta,
-			expiresAt: time.Now().Add(ttl),
+			expiresAt: expiresAt,
 		}
-		return delta, nil
+		return delta, expiresAt, nil
 	}
 
 	counter.value += delta
-	return counter.value, nil
+	return counter.value, counter.expiresAt, nil
 }
 
 // GetCount returns the current counter value.
