@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 // MockNotificationSender is a mock for testing.

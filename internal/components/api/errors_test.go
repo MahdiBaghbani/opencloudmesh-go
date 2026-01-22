@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 )
 
 func TestWriteError_EnvelopeShape(t *testing.T) {

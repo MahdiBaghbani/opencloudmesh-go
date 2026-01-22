@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/api"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"

@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 // DefaultTokenTTL is the default time-to-live for access tokens.

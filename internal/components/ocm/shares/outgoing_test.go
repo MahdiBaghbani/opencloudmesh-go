@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 func TestOutgoingShareRepo_CreateAndLookup(t *testing.T) {

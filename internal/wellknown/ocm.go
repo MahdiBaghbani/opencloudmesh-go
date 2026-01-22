@@ -8,7 +8,7 @@ import (
 
 	"log/slog"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 

@@ -12,8 +12,8 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
 
 // Share status constants (duplicated to avoid cycle).

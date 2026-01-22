@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 )
 
 // AuxHandler serves the /ocm-aux endpoints.

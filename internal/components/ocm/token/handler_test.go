@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
 
 // enabledSettings returns token exchange settings with enabled=true for testing.

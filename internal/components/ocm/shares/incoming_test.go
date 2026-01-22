@@ -10,7 +10,7 @@ import (
 
 	"log/slog"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 func TestValidateNewShareRequest_RequiredFields(t *testing.T) {

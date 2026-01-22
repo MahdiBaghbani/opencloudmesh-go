@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
 
 func TestParseInviteString(t *testing.T) {

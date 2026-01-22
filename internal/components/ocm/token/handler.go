@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 // Handler handles the OCM token endpoint.

@@ -11,7 +11,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 )
 
 // HTTPClient interface for outbound requests.

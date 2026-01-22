@@ -12,7 +12,7 @@ import (
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/webdav"
 )
 
 func init() {

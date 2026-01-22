@@ -5,7 +5,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 )
 
 // MockDiscoveryClient is a test helper that wraps discovery functionality.

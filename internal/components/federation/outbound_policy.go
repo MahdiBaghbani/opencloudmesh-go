@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 )
 
 // EndpointKind represents the type of outbound OCM endpoint.

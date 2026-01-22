@@ -9,7 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 
 	// Register cache drivers for nil-cache tests
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"

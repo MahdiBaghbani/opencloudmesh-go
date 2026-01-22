@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 )
 
 // PeerDiscoveryAdapter is an alias for discovery.PeerDiscoveryAdapter.

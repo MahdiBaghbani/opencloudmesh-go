@@ -10,8 +10,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 func TestHandler_MissingFields(t *testing.T) {

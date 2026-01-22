@@ -13,7 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
 
 // mockSigner is a test signer that adds a mock signature header.

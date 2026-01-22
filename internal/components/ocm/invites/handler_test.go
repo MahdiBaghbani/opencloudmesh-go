@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
 
 func TestHandler_CreateOutgoing(t *testing.T) {
