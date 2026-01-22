@@ -292,6 +292,8 @@ func main() {
 		ProfileRegistry: profileRegistry,
 		// Config
 		Config: cfg,
+		// Cache (for interceptors like rate limiting)
+		Cache: cacheInstance,
 	})
 
 	// Build service configs using config helpers (Reva-aligned)

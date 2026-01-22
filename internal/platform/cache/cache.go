@@ -24,7 +24,8 @@ var (
 // DriverFactory creates a new cache instance with driver-specific config.
 // The config map comes from [cache.drivers.<name>] in TOML. May be nil.
 // Factory must apply its own defaults (Reva-style ApplyDefaults).
-type DriverFactory func(config map[string]any) Cache
+// Returns CacheWithCounter so drivers can provide both key-value and counter operations.
+type DriverFactory func(config map[string]any) CacheWithCounter
 
 // RegisterDriver registers a cache driver by name. Called from driver init().
 func RegisterDriver(name string, factory DriverFactory) {
@@ -35,7 +36,7 @@ func RegisterDriver(name string, factory DriverFactory) {
 
 // NewDefault returns the default cache (in-memory with default settings).
 // Panics if the memory driver is not registered (caller must blank-import internal/cache/loader).
-func NewDefault() Cache {
+func NewDefault() CacheWithCounter {
 	return newByDriver("memory", nil)
 }
 
@@ -44,7 +45,7 @@ func NewDefault() Cache {
 // The driversConfig map contains per-driver configs keyed by driver name (from [cache.drivers.*]).
 // If driversConfig is nil or missing the driver key, the driver's defaults are used.
 // Returns an error if the driver is unknown.
-func NewFromConfig(driver string, driversConfig map[string]any) (Cache, error) {
+func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounter, error) {
 	if driver == "" {
 		driver = "memory"
 	}
@@ -71,7 +72,7 @@ func NewFromConfig(driver string, driversConfig map[string]any) (Cache, error) {
 }
 
 // newByDriver returns a cache for the named driver, panicking if not found.
-func newByDriver(name string, config map[string]any) Cache {
+func newByDriver(name string, config map[string]any) CacheWithCounter {
 	driversMu.RLock()
 	factory, ok := drivers[name]
 	driversMu.RUnlock()

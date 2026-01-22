@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
@@ -54,6 +55,9 @@ type Deps struct {
 
 	// Config (for handlers that need config values)
 	Config *config.Config
+
+	// Cache provides cache access for interceptors (rate limiting)
+	Cache cache.CacheWithCounter
 }
 
 // SetDeps sets the shared dependencies. Must be called once at startup

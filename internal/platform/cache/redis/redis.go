@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	cache.RegisterDriver("redis", func(config map[string]any) cache.Cache {
+	cache.RegisterDriver("redis", func(config map[string]any) cache.CacheWithCounter {
 		cfg := DefaultConfig()
 		if config != nil {
 			if v, ok := config["addr"].(string); ok && v != "" {

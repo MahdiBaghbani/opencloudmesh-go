@@ -11,15 +11,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/server"
+
+	// Register cache drivers
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 
 	// Register services (triggers init() registration)
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
@@ -97,6 +101,9 @@ func StartTestServer(t *testing.T) *TestServer {
 	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
+	// Create memory cache for tests (required for rate limiting interceptor)
+	cacheInstance := cache.NewDefault()
+
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
@@ -114,6 +121,8 @@ func StartTestServer(t *testing.T) *TestServer {
 		HTTPClient: httpClient,
 		// Config
 		Config: cfg,
+		// Cache (for interceptors like rate limiting)
+		Cache: cacheInstance,
 		// KeyManager is nil (no signatures in basic tests)
 	})
 
