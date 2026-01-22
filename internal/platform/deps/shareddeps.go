@@ -1,19 +1,19 @@
-// Package services provides Reva-aligned service registry infrastructure.
+// Package deps provides shared dependencies for all services.
 // See docs/concepts/service-registry.md for details.
-package services
+package deps
 
 import (
 	"sync"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 )
 
 var (

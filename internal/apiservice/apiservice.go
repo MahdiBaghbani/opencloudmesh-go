@@ -13,7 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 )
@@ -48,42 +48,42 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "apiservice", "unused_keys", unused)
 	}
 
-	deps := services.GetDeps()
-	if deps == nil {
+	d := deps.GetDeps()
+	if d == nil {
 		return nil, errors.New("shared deps not initialized")
 	}
 
 	// Create handlers using SharedDeps
-	authHandler := api.NewAuthHandler(deps.PartyRepo, deps.SessionRepo, deps.UserAuth)
-	inboxHandler := shares.NewInboxHandler(deps.IncomingShareRepo)
+	authHandler := api.NewAuthHandler(d.PartyRepo, d.SessionRepo, d.UserAuth)
+	inboxHandler := shares.NewInboxHandler(d.IncomingShareRepo)
 
 	// Create notification client for outbound notifications
 	notificationClient := notifications.NewClient(
-		deps.HTTPClient,
-		deps.DiscoveryClient,
-		deps.Signer,
-		deps.OutboundPolicy,
+		d.HTTPClient,
+		d.DiscoveryClient,
+		d.Signer,
+		d.OutboundPolicy,
 	)
-	inboxActionsHandler := shares.NewInboxActionsHandler(deps.IncomingShareRepo, notificationClient, log)
+	inboxActionsHandler := shares.NewInboxActionsHandler(d.IncomingShareRepo, notificationClient, log)
 
 	// Create outgoing share handler
 	outgoingHandler := shares.NewOutgoingHandler(
-		deps.OutgoingShareRepo,
-		deps.DiscoveryClient,
-		deps.HTTPClient,
-		deps.Signer,
-		deps.OutboundPolicy,
-		deps.Config,
+		d.OutgoingShareRepo,
+		d.DiscoveryClient,
+		d.HTTPClient,
+		d.Signer,
+		d.OutboundPolicy,
+		d.Config,
 		log,
 	)
 
 	// Create invites inbox handler
 	invitesInboxHandler := invites.NewInboxHandler(
-		deps.IncomingInviteRepo,
-		deps.DiscoveryClient,
-		deps.HTTPClient,
-		deps.Signer,
-		deps.OutboundPolicy,
+		d.IncomingInviteRepo,
+		d.DiscoveryClient,
+		d.HTTPClient,
+		d.Signer,
+		d.OutboundPolicy,
 		"", // User ID set from session context
 		c.ProviderFQDN,
 		log,
@@ -91,7 +91,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 
 	// Create outgoing invites handler (local-user API, uses OCM invites package)
 	outgoingInvitesHandler := invites.NewHandler(
-		deps.OutgoingInviteRepo,
+		d.OutgoingInviteRepo,
 		c.ProviderFQDN,
 		log,
 	)

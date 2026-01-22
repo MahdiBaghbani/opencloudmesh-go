@@ -16,7 +16,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 )
@@ -62,16 +62,16 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, err
 	}
 
-	deps := services.GetDeps()
-	if deps == nil {
-		return nil, errors.New("shared deps not initialized: call services.SetDeps() before New()")
+	d := deps.GetDeps()
+	if d == nil {
+		return nil, errors.New("shared deps not initialized: call deps.SetDeps() before New()")
 	}
 
 	// Construct handlers using SharedDeps (Reva-aligned)
-	sharesHandler := shares.NewIncomingHandler(deps.IncomingShareRepo, deps.PolicyEngine, log)
-	notifHandler := notifications.NewHandler(deps.OutgoingShareRepo, log)
-	invitesHandler := invites.NewHandler(deps.OutgoingInviteRepo, c.ProviderFQDN, log)
-	tokenHandler := token.NewHandler(deps.OutgoingShareRepo, deps.TokenStore, &c.TokenExchange, log)
+	sharesHandler := shares.NewIncomingHandler(d.IncomingShareRepo, d.PolicyEngine, log)
+	notifHandler := notifications.NewHandler(d.OutgoingShareRepo, log)
+	invitesHandler := invites.NewHandler(d.OutgoingInviteRepo, c.ProviderFQDN, log)
+	tokenHandler := token.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, log)
 
 	// Create peer resolver for signature verification (service-local, per-endpoint extraction)
 	peerResolver := crypto.NewPeerResolver()
@@ -80,15 +80,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	// Apply signature middleware internally (Reva-aligned: service owns signature verification)
 	r := chi.NewRouter()
 
-	if deps.SignatureMiddleware != nil {
+	if d.SignatureMiddleware != nil {
 		// Signed OCM endpoints - apply per-endpoint signature verification
-		r.With(deps.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveSharesRequest)).
+		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveSharesRequest)).
 			Post("/shares", sharesHandler.CreateShare)
-		r.With(deps.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveNotificationsRequest)).
+		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveNotificationsRequest)).
 			Post("/notifications", notifHandler.HandleNotification)
-		r.With(deps.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveInviteAcceptedRequest)).
+		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveInviteAcceptedRequest)).
 			Post("/invite-accepted", invitesHandler.HandleInviteAccepted)
-		r.With(deps.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveTokenRequest)).
+		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveTokenRequest)).
 			Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
 	} else {
 		// No signature verification (signature mode off)

@@ -23,8 +23,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/server"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -267,7 +267,7 @@ func main() {
 	tokenStore := token.NewMemoryTokenStore()
 
 	// Set SharedDeps for registry-based services (wellknown, ocm, apiservice, etc.)
-	services.SetDeps(&services.Deps{
+	deps.SetDeps(&deps.Deps{
 		// Identity
 		PartyRepo:   partyRepo,
 		SessionRepo: sessionRepo,

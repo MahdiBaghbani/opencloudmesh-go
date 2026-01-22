@@ -14,7 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 // testSessionRepo is a simple session repo for testing that returns a predefined session.
@@ -129,12 +129,12 @@ func TestAuthMiddleware_EnrichesLoggerWithUserID(t *testing.T) {
 	}
 
 	// Set up SharedDeps for auth middleware
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		SessionRepo: sessionRepo,
 		PartyRepo:   partyRepo,
 	})
-	defer services.ResetDeps()
+	defer deps.ResetDeps()
 
 	// Create server
 	cfg := config.StrictConfig()
@@ -202,12 +202,12 @@ func TestAuthMiddleware_NoUserIDForPublicEndpoints(t *testing.T) {
 	logger := slog.New(recorder)
 
 	// Set up SharedDeps for auth middleware
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		SessionRepo: &testSessionRepo{},
 		PartyRepo:   newTestPartyRepo(),
 	})
-	defer services.ResetDeps()
+	defer deps.ResetDeps()
 
 	cfg := config.StrictConfig()
 	cfg.ExternalBasePath = ""

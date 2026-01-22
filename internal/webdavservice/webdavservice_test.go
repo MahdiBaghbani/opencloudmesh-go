@@ -7,12 +7,12 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 	// Ensure deps are not set
-	services.ResetDeps()
+	deps.ResetDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -24,8 +24,8 @@ func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 }
 
 func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
@@ -44,8 +44,8 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 }
 
 func TestNew_AcceptsConfigOptions(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
@@ -72,8 +72,8 @@ func TestNew_AcceptsConfigOptions(t *testing.T) {
 }
 
 func TestNew_DefaultsToStrictMode(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
@@ -93,8 +93,8 @@ func TestNew_DefaultsToStrictMode(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
@@ -113,8 +113,8 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Unprotected(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
@@ -138,8 +138,8 @@ func TestService_Unprotected(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
@@ -158,8 +158,8 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
@@ -183,8 +183,8 @@ func TestService_Close(t *testing.T) {
 // Full end-to-end tests with proper path handling are in tests/integration/.
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})

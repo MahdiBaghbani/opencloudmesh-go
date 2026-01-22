@@ -7,12 +7,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 	// Ensure deps are not set
-	services.ResetDeps()
+	deps.ResetDeps()
 
 	m := map[string]any{
 		"ocmprovider": map[string]any{
@@ -28,8 +28,8 @@ func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 }
 
 func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{
 		"ocmprovider": map[string]any{
@@ -81,8 +81,8 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 }
 
 func TestNew_ConfigDecodeError(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	// Pass invalid config structure
 	m := map[string]any{
@@ -108,8 +108,8 @@ func TestConfig_ApplyDefaults(t *testing.T) {
 
 func TestHandler_ClearsRawPath(t *testing.T) {
 	// Smoke test: verify Handler() wraps with RawPath clearing
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{
 		"ocmprovider": map[string]any{
@@ -147,8 +147,8 @@ func TestHandler_ClearsRawPath(t *testing.T) {
 }
 
 func TestTrailingSlashAliases_ReturnSameResponse(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{
 		"ocmprovider": map[string]any{
@@ -199,8 +199,8 @@ func TestTrailingSlashAliases_ReturnSameResponse(t *testing.T) {
 }
 
 func TestAPIVersionOverride_MatchingUserAgent(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{
 		"ocmprovider": map[string]any{
@@ -240,8 +240,8 @@ func TestAPIVersionOverride_MatchingUserAgent(t *testing.T) {
 }
 
 func TestAPIVersionOverride_NoMatch_UsesDefault(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{
 		"ocmprovider": map[string]any{
@@ -281,8 +281,8 @@ func TestAPIVersionOverride_NoMatch_UsesDefault(t *testing.T) {
 }
 
 func TestAPIVersionOverride_NoOverrides_UsesDefault(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{
 		"ocmprovider": map[string]any{

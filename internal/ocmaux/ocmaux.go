@@ -10,8 +10,8 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 )
 
@@ -45,13 +45,13 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "ocmaux", "unused_keys", unused)
 	}
 
-	deps := services.GetDeps()
-	if deps == nil {
+	d := deps.GetDeps()
+	if d == nil {
 		return nil, errors.New("shared deps not initialized")
 	}
 
 	// Create aux handler using SharedDeps
-	auxHandler := federation.NewAuxHandler(deps.FederationMgr, deps.DiscoveryClient)
+	auxHandler := federation.NewAuxHandler(d.FederationMgr, d.DiscoveryClient)
 
 	r := chi.NewRouter()
 	r.Get("/federations", auxHandler.HandleFederations)

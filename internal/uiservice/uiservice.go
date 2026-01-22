@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ui"
 )
@@ -45,10 +45,11 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "uiservice", "unused_keys", unused)
 	}
 
-	deps := services.GetDeps()
-	if deps == nil {
+	d := deps.GetDeps()
+	if d == nil {
 		return nil, errors.New("shared deps not initialized")
 	}
+	_ = d // deps available for future use
 
 	// Create UI handler (templates are embedded in the ui package)
 	uiHandler, err := ui.NewHandler(c.ExternalBasePath)

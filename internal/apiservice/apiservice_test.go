@@ -14,13 +14,13 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 // setupTestDeps creates minimal SharedDeps for testing.
 func setupTestDeps() {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		// Identity (required for apiservice)
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
@@ -39,7 +39,7 @@ func setupTestDeps() {
 }
 
 func TestNew_FailsWithoutSharedDeps(t *testing.T) {
-	services.ResetDeps()
+	deps.ResetDeps()
 
 	m := map[string]any{
 		"provider_fqdn": "test.example.com",

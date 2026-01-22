@@ -12,11 +12,11 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 var (
-	ErrMissingSharedDeps   = errors.New("shared deps not initialized: call services.SetDeps() before server.New()")
+	ErrMissingSharedDeps   = errors.New("shared deps not initialized: call deps.SetDeps() before server.New()")
 	ErrACMENotImplemented  = errors.New("tls.mode=acme is not implemented; use static or selfsigned")
 )
 
@@ -40,7 +40,7 @@ type Server struct {
 }
 
 // New creates a new Server with the given configuration.
-// All dependencies are obtained from services.GetDeps() (SharedDeps).
+// All dependencies are obtained from deps.GetDeps() (SharedDeps).
 // Returns an error if SharedDeps is not initialized.
 // wellknownSvc is the Reva-aligned wellknown service for discovery endpoints.
 // ocmSvc is the Reva-aligned OCM protocol service for /ocm/* endpoints.
@@ -50,18 +50,18 @@ type Server struct {
 // webdavserviceSvc is the Reva-aligned WebDAV service for /webdav/* endpoints.
 func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, ocmSvc service.Service, ocmauxSvc service.Service, apiserviceSvc service.Service, uiserviceSvc service.Service, webdavserviceSvc service.Service) (*Server, error) {
 	// Fail fast: SharedDeps must be initialized before server creation
-	deps := services.GetDeps()
-	if deps == nil {
+	d := deps.GetDeps()
+	if d == nil {
 		return nil, ErrMissingSharedDeps
 	}
 
 	// NOTE: All handlers are now constructed by their respective services (Reva-aligned).
-	// Services access dependencies via services.GetDeps().
+	// Services access dependencies via deps.GetDeps().
 
 	// Create signer for outgoing requests (from SharedDeps)
 	var signer *crypto.RFC9421Signer
-	if deps.KeyManager != nil {
-		signer = crypto.NewRFC9421Signer(deps.KeyManager)
+	if d.KeyManager != nil {
+		signer = crypto.NewRFC9421Signer(d.KeyManager)
 	}
 
 	// Create trusted proxy handler for X-Forwarded-* header processing

@@ -10,7 +10,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 func testLogger() *slog.Logger {
@@ -60,7 +60,7 @@ func TestOCMProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
 
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 	c := &OCMProviderConfig{}
-	deps := &services.Deps{}
+	deps := &deps.Deps{}
 
 	h, err := newOCMHandler(c, deps, testLogger())
 	if err != nil {
@@ -82,7 +82,7 @@ func TestNewOCMHandler_EnabledWithEndpoint(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "https://example.com/myapp",
 	}
-	deps := &services.Deps{}
+	deps := &deps.Deps{}
 
 	h, err := newOCMHandler(c, deps, testLogger())
 	if err != nil {
@@ -114,7 +114,7 @@ func TestNewOCMHandler_TokenExchangeDisabled(t *testing.T) {
 		Endpoint: "https://example.com",
 	}
 	c.TokenExchange.Enabled = false
-	deps := &services.Deps{}
+	deps := &deps.Deps{}
 
 	h, err := newOCMHandler(c, deps, testLogger())
 	if err != nil {
@@ -140,7 +140,7 @@ func TestNewOCMHandler_TokenExchangeEnabled(t *testing.T) {
 	}
 	c.TokenExchange.Enabled = true
 	c.TokenExchange.Path = "exchange"
-	deps := &services.Deps{}
+	deps := &deps.Deps{}
 
 	h, err := newOCMHandler(c, deps, testLogger())
 	if err != nil {
@@ -172,7 +172,7 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 	}
 	c.TokenExchange.Enabled = true
 	// Path is empty, should default to "token"
-	deps := &services.Deps{}
+	deps := &deps.Deps{}
 
 	h, err := newOCMHandler(c, deps, testLogger())
 	if err != nil {
@@ -196,11 +196,11 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 		t.Fatalf("failed to generate key: %v", err)
 	}
 
-	deps := &services.Deps{
+	d := &deps.Deps{
 		KeyManager: km,
 	}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		deps := &services.Deps{}
+		deps := &deps.Deps{}
 
 		h, err := newOCMHandler(c, deps, testLogger())
 		if err != nil {
@@ -259,7 +259,7 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 			Endpoint:                       "https://example.com",
 			AdvertiseHTTPRequestSignatures: true,
 		}
-		deps := &services.Deps{}
+		deps := &deps.Deps{}
 
 		h, err := newOCMHandler(c, deps, testLogger())
 		if err != nil {
@@ -283,7 +283,7 @@ func TestNewOCMHandler_InvalidEndpointURL(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "://invalid-url",
 	}
-	deps := &services.Deps{}
+	deps := &deps.Deps{}
 
 	h, err := newOCMHandler(c, deps, testLogger())
 	if err != nil {
@@ -302,7 +302,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 		Provider: "TestProvider",
 	}
 	c.TokenExchange.Enabled = true
-	deps := &services.Deps{}
+	deps := &deps.Deps{}
 
 	h, err := newOCMHandler(c, deps, testLogger())
 	if err != nil {
@@ -341,7 +341,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 	c := &OCMProviderConfig{} // no endpoint
-	deps := &services.Deps{}
+	deps := &deps.Deps{}
 
 	h, err := newOCMHandler(c, deps, testLogger())
 	if err != nil {

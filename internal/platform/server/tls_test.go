@@ -10,22 +10,22 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/server"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 )
 
 // setupTestSharedDeps sets up SharedDeps for testing and returns a cleanup function.
 func setupTestSharedDeps(t *testing.T) func() {
 	t.Helper()
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
 		UserAuth:    identity.NewUserAuth(1),
 		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
 	})
 	return func() {
-		services.ResetDeps()
+		deps.ResetDeps()
 	}
 }
 

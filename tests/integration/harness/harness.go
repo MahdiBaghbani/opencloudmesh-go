@@ -18,8 +18,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/server"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 
 	// Register services (triggers init() registration)
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
@@ -98,8 +98,8 @@ func StartTestServer(t *testing.T) *TestServer {
 	tokenStore := token.NewMemoryTokenStore()
 
 	// Reset and set SharedDeps for this test (important for test isolation)
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		// Identity
 		PartyRepo:   partyRepo,
 		SessionRepo: sessionRepo,

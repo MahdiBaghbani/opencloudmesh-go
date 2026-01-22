@@ -9,7 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 // APIVersionOverride allows overriding apiVersion based on User-Agent.
@@ -59,11 +59,11 @@ type ocmHandler struct {
 	log       *slog.Logger
 }
 
-func newOCMHandler(c *OCMProviderConfig, deps *services.Deps, log *slog.Logger) (*ocmHandler, error) {
+func newOCMHandler(c *OCMProviderConfig, d *deps.Deps, log *slog.Logger) (*ocmHandler, error) {
 	c.ApplyDefaults()
 
 	// Build static discovery data (Reva pattern: computed once, not at runtime)
-	d := &spec.Discovery{
+	disc := &spec.Discovery{
 		Enabled:    false,
 		APIVersion: "1.2.2",
 		Provider:   c.Provider,
@@ -71,20 +71,20 @@ func newOCMHandler(c *OCMProviderConfig, deps *services.Deps, log *slog.Logger) 
 	}
 
 	if c.Endpoint == "" {
-		return &ocmHandler{data: d, overrides: c.APIVersionOverrides, log: log}, nil
+		return &ocmHandler{data: disc, overrides: c.APIVersionOverrides, log: log}, nil
 	}
 
 	endpointURL, err := url.Parse(c.Endpoint)
 	if err != nil {
-		return &ocmHandler{data: d, overrides: c.APIVersionOverrides, log: log}, nil
+		return &ocmHandler{data: disc, overrides: c.APIVersionOverrides, log: log}, nil
 	}
 
 	// Build enabled discovery
-	d.Enabled = true
-	d.EndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix)
+	disc.Enabled = true
+	disc.EndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix)
 
 	// Resource types with WebDAV protocol
-	d.ResourceTypes = []spec.ResourceType{{
+	disc.ResourceTypes = []spec.ResourceType{{
 		Name:       "file",
 		ShareTypes: []string{"user"},
 		Protocols:  map[string]string{"webdav": c.WebDAVRoot},
@@ -94,10 +94,10 @@ func newOCMHandler(c *OCMProviderConfig, deps *services.Deps, log *slog.Logger) 
 	capabilities := []string{}
 
 	// Add public keys when available from SharedDeps
-	if deps != nil && deps.KeyManager != nil {
-		d.PublicKeys = []spec.PublicKey{{
-			KeyID:        deps.KeyManager.GetKeyID(),
-			PublicKeyPem: deps.KeyManager.GetPublicKeyPEM(),
+	if d != nil && d.KeyManager != nil {
+		disc.PublicKeys = []spec.PublicKey{{
+			KeyID:        d.KeyManager.GetKeyID(),
+			PublicKeyPem: d.KeyManager.GetPublicKeyPEM(),
 			Algorithm:    "ed25519",
 		}}
 		capabilities = append(capabilities, "http-sig")
@@ -111,18 +111,18 @@ func newOCMHandler(c *OCMProviderConfig, deps *services.Deps, log *slog.Logger) 
 		if tokenPath == "" {
 			tokenPath = "token"
 		}
-		d.TokenEndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix, tokenPath)
+		disc.TokenEndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix, tokenPath)
 	}
 
-	d.Capabilities = capabilities
+	disc.Capabilities = capabilities
 
 	// Criteria (always present, serializes as [] when empty)
 	if c.AdvertiseHTTPRequestSignatures {
-		d.Criteria = append(d.Criteria, "http-request-signatures")
+		disc.Criteria = append(disc.Criteria, "http-request-signatures")
 	}
 
 	_ = endpointURL // parsed for validation only (keep for future use)
-	return &ocmHandler{data: d, overrides: c.APIVersionOverrides, log: log}, nil
+	return &ocmHandler{data: disc, overrides: c.APIVersionOverrides, log: log}, nil
 }
 
 func (h *ocmHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

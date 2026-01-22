@@ -8,12 +8,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 	// Ensure deps are not set
-	services.ResetDeps()
+	deps.ResetDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -25,8 +25,8 @@ func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 }
 
 func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -42,8 +42,8 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -59,8 +59,8 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Unprotected(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -92,8 +92,8 @@ func TestService_Unprotected(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -109,8 +109,8 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -126,8 +126,8 @@ func TestService_Close(t *testing.T) {
 }
 
 func TestService_FederationsEndpoint(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		// FederationMgr is nil - handler should still work
 	})
 
@@ -160,8 +160,8 @@ func TestService_FederationsEndpoint(t *testing.T) {
 }
 
 func TestService_DiscoverEndpoint_MissingBase(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -192,8 +192,8 @@ func TestService_DiscoverEndpoint_MissingBase(t *testing.T) {
 }
 
 func TestService_DiscoverEndpoint_NoDiscoveryClient(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		// DiscoveryClient is nil
 	})
 
@@ -217,8 +217,8 @@ func TestService_DiscoverEndpoint_NoDiscoveryClient(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{})
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
 
 	// Create a logger that captures output
 	var logBuf testLogBuffer

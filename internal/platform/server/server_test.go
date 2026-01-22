@@ -12,7 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 // trackingService is a test service that records when Close() is called.
@@ -33,15 +33,15 @@ func (t *trackingService) Close() error {
 // setupTestSharedDeps sets up SharedDeps for testing and returns a cleanup function.
 func setupTestSharedDeps(t *testing.T) func() {
 	t.Helper()
-	services.ResetDeps()
-	services.SetDeps(&services.Deps{
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
 		UserAuth:    identity.NewUserAuth(1),
 		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
 	})
 	return func() {
-		services.ResetDeps()
+		deps.ResetDeps()
 	}
 }
 
@@ -50,8 +50,8 @@ func TestNew_FailsWithNilSharedDeps(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	// Ensure SharedDeps is nil
-	services.ResetDeps()
-	defer services.ResetDeps()
+	deps.ResetDeps()
+	defer deps.ResetDeps()
 
 	_, err := New(cfg, logger, nil, nil, nil, nil, nil, nil)
 	if err == nil {

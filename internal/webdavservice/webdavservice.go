@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/webdav"
 )
@@ -50,8 +50,8 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "webdavservice", "unused_keys", unused)
 	}
 
-	deps := services.GetDeps()
-	if deps == nil {
+	d := deps.GetDeps()
+	if d == nil {
 		return nil, errors.New("shared deps not initialized")
 	}
 
@@ -63,10 +63,10 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 
 	// Create WebDAV handler with ProfileRegistry for peer relaxations
 	handler := webdav.NewHandler(
-		deps.OutgoingShareRepo,
-		deps.TokenStore,
+		d.OutgoingShareRepo,
+		d.TokenStore,
 		settings,
-		deps.ProfileRegistry,
+		d.ProfileRegistry,
 		log.With("component", "webdav"),
 	)
 

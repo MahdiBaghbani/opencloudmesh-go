@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 )
 
@@ -46,9 +46,9 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	}
 
 	// Hard requirement: SharedDeps must be initialized before any service is constructed.
-	deps := services.GetDeps()
-	if deps == nil {
-		return nil, errors.New("shared deps not initialized: call services.SetDeps() before New()")
+	d := deps.GetDeps()
+	if d == nil {
+		return nil, errors.New("shared deps not initialized: call deps.SetDeps() before New()")
 	}
 
 	r := chi.NewRouter()
@@ -57,15 +57,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		conf:   &c,
 	}
 
-	if err := s.routerInit(deps, log); err != nil {
+	if err := s.routerInit(d, log); err != nil {
 		return nil, err
 	}
 
 	return s, nil
 }
 
-func (s *svc) routerInit(deps *services.Deps, log *slog.Logger) error {
-	handler, err := newOCMHandler(&s.conf.OCMProvider, deps, log)
+func (s *svc) routerInit(d *deps.Deps, log *slog.Logger) error {
+	handler, err := newOCMHandler(&s.conf.OCMProvider, d, log)
 	if err != nil {
 		return err
 	}
