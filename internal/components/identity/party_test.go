@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 )
 
 func TestMemoryPartyRepo_CRUD(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 )
 
 // SessionTTL is the default session duration.

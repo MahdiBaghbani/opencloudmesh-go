@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 )
 
 func TestBootstrap_Run(t *testing.T) {

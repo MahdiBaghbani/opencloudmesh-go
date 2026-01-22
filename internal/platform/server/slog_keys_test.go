@@ -23,8 +23,8 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 		"internal/ocm",
 		"internal/webdav",
 		"internal/platform/crypto",
-		"internal/federation",
-		"internal/identity",
+		"internal/components/federation",
+		"internal/components/identity",
 		"internal/server",
 	}
 

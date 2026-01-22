@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 )
 
 func TestFederationManager_IsMember(t *testing.T) {

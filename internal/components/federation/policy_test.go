@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 )
 
 func TestPolicyEngine_DenylistWins(t *testing.T) {

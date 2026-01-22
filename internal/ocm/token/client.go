@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 )
 

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 )
 
 func TestUserAuth_HashAndVerify(t *testing.T) {
