@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 )
 
@@ -58,6 +59,10 @@ type Deps struct {
 
 	// Cache provides cache access for interceptors (rate limiting)
 	Cache cache.CacheWithCounter
+
+	// RealIP provides trusted-proxy-aware client IP extraction.
+	// This is the single source of truth for client identity in logging and rate limiting.
+	RealIP *realip.TrustedProxies
 }
 
 // SetDeps sets the shared dependencies. Must be called once at startup

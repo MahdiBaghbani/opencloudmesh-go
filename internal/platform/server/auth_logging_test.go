@@ -13,8 +13,9 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 )
 
 // testSessionRepo is a simple session repo for testing that returns a predefined session.
@@ -128,23 +129,23 @@ func TestAuthMiddleware_EnrichesLoggerWithUserID(t *testing.T) {
 		},
 	}
 
-	// Set up SharedDeps for auth middleware
+	// Create server
+	cfg := config.StrictConfig()
+	cfg.ExternalBasePath = ""
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
+
+	// Set up SharedDeps for auth middleware with RealIP
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
 		SessionRepo: sessionRepo,
 		PartyRepo:   partyRepo,
+		RealIP:      tp,
 	})
 	defer deps.ResetDeps()
 
-	// Create server
-	cfg := config.StrictConfig()
-	cfg.ExternalBasePath = ""
-	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
-
 	srv := &Server{
-		cfg:            cfg,
-		logger:         logger,
-		trustedProxies: tp,
+		cfg:    cfg,
+		logger: logger,
 	}
 
 	// Track the captured user_id from the handler's logger
@@ -201,22 +202,22 @@ func TestAuthMiddleware_NoUserIDForPublicEndpoints(t *testing.T) {
 	recorder := newRecordingHandler()
 	logger := slog.New(recorder)
 
-	// Set up SharedDeps for auth middleware
+	cfg := config.StrictConfig()
+	cfg.ExternalBasePath = ""
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
+
+	// Set up SharedDeps for auth middleware with RealIP
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
 		SessionRepo: &testSessionRepo{},
 		PartyRepo:   newTestPartyRepo(),
+		RealIP:      tp,
 	})
 	defer deps.ResetDeps()
 
-	cfg := config.StrictConfig()
-	cfg.ExternalBasePath = ""
-	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
-
 	srv := &Server{
-		cfg:            cfg,
-		logger:         logger,
-		trustedProxies: tp,
+		cfg:    cfg,
+		logger: logger,
 	}
 
 	var hasUserID bool

@@ -25,7 +25,6 @@ type Server struct {
 	cfg              *config.Config
 	httpServer       *http.Server
 	logger           *slog.Logger
-	trustedProxies   *TrustedProxies
 	wellknownSvc     service.Service // Reva-aligned wellknown service for discovery
 	ocmSvc           service.Service // Reva-aligned OCM protocol service
 	ocmauxSvc        service.Service // Reva-aligned ocm-aux service for WAYF helpers
@@ -64,16 +63,14 @@ func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, 
 		signer = crypto.NewRFC9421Signer(d.KeyManager)
 	}
 
-	// Create trusted proxy handler for X-Forwarded-* header processing
-	trustedProxies := NewTrustedProxies(cfg.Server.TrustedProxies)
-
 	// NOTE: SignatureMiddleware is now owned by services (OCM service applies it internally).
 	// It is constructed in main.go and available via SharedDeps.SignatureMiddleware.
+	// NOTE: RealIP extractor is owned by SharedDeps (deps.RealIP), not by Server.
+	// All client IP extraction for logging and rate limiting uses deps.GetDeps().RealIP.
 
 	s := &Server{
 		cfg:              cfg,
 		logger:           logger,
-		trustedProxies:   trustedProxies,
 		wellknownSvc:     wellknownSvc,
 		ocmSvc:           ocmSvc,
 		ocmauxSvc:        ocmauxSvc,

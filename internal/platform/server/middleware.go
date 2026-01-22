@@ -39,7 +39,10 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 			// Fallback: if context logger missing, recompute base fields
 			if !ok {
 				reqID := middleware.GetReqID(r.Context())
-				clientIP := s.trustedProxies.GetClientIPString(r)
+				clientIP := "unknown"
+				if d := deps.GetDeps(); d != nil && d.RealIP != nil {
+					clientIP = d.RealIP.GetClientIPString(r)
+				}
 				logger = s.logger.With(
 					"request_id", reqID,
 					"method", r.Method,
@@ -213,8 +216,11 @@ func (s *Server) rateLimitMiddleware(config map[string]RateLimitConfig) func(nex
 			}
 
 			if limiter != nil {
-				// Get client IP key
-				clientIP := s.trustedProxies.GetClientIPString(r)
+				// Get client IP key using deps.RealIP
+				clientIP := "unknown"
+				if d := deps.GetDeps(); d != nil && d.RealIP != nil {
+					clientIP = d.RealIP.GetClientIPString(r)
+				}
 
 				if !limiter.allow(clientIP) {
 					s.logger.Warn("rate limit exceeded",

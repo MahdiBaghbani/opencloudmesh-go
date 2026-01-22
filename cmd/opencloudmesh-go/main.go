@@ -17,6 +17,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocm/discovery"
@@ -266,6 +267,9 @@ func main() {
 	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
+	// Create RealIP extractor for trusted-proxy-aware client identity
+	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
+
 	// Set SharedDeps for registry-based services (wellknown, ocm, apiservice, etc.)
 	deps.SetDeps(&deps.Deps{
 		// Identity
@@ -294,6 +298,8 @@ func main() {
 		Config: cfg,
 		// Cache (for interceptors like rate limiting)
 		Cache: cacheInstance,
+		// RealIP (for trusted-proxy-aware client identity)
+		RealIP: realIPExtractor,
 	})
 
 	// Build service configs using config helpers (Reva-aligned)

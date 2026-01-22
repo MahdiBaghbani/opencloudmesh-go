@@ -19,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/server"
 
@@ -104,6 +105,9 @@ func StartTestServer(t *testing.T) *TestServer {
 	// Create memory cache for tests (required for rate limiting interceptor)
 	cacheInstance := cache.NewDefault()
 
+	// Create RealIP extractor for trusted-proxy-aware client identity
+	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
+
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
@@ -123,6 +127,8 @@ func StartTestServer(t *testing.T) *TestServer {
 		Config: cfg,
 		// Cache (for interceptors like rate limiting)
 		Cache: cacheInstance,
+		// RealIP (for trusted-proxy-aware client identity)
+		RealIP: realIPExtractor,
 		// KeyManager is nil (no signatures in basic tests)
 	})
 

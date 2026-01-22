@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 // RouteGroup defines an endpoint group with its auth requirements.
@@ -125,7 +126,7 @@ func (s *Server) setupRoutes() chi.Router {
 	// loggingMiddleware wraps response, Recoverer writes through wrapper,
 	// so access log captures correct status for panics.
 	r.Use(middleware.RequestID)
-	r.Use(RequestLoggerMiddleware(s.logger, s.trustedProxies))
+	r.Use(RequestLoggerMiddleware(s.logger, deps.GetDeps().RealIP))
 	r.Use(s.loggingMiddleware)
 	r.Use(middleware.Recoverer)
 

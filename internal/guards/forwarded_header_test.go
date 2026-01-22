@@ -19,14 +19,12 @@ func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 
 	// This allowlist exists to keep make test-go passing in every phase.
 	// It must shrink over time:
-	// - Remove trustedproxy allowances in Phase 12 (after the move to realip).
+	// - Phase 12 complete: trustedproxy allowances removed (moved to realip).
 	// - Remove ratelimit allowance in Phase 18 (when internal/ratelimit is deleted).
 	allowedSubstrings := []string{
 		"/platform/http/realip/",
 		"/guards/",
-		"/server/trustedproxy",          // allowed until Phase 12 completes
-		"/platform/server/trustedproxy", // allowed until Phase 12 completes
-		"/ratelimit/",                   // allowed until Phase 18 deletes internal/ratelimit
+		"/ratelimit/", // allowed until Phase 18 deletes internal/ratelimit
 	}
 
 	root := filepath.Clean("../")

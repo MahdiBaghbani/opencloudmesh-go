@@ -1,5 +1,7 @@
-// Package server provides trusted proxy utilities.
-package server
+// Package realip provides trusted proxy utilities for extracting real client IP.
+// This is the single authoritative location for X-Forwarded-For and X-Real-IP parsing.
+// No other code in the repository should parse these headers directly.
+package realip
 
 import (
 	"net"

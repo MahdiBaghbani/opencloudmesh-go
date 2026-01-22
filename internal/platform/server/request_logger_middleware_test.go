@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
 // recordingHandler captures slog records for testing without JSON parsing.
@@ -70,7 +71,7 @@ func (h *recordingHandler) getAttr(key string) (any, bool) {
 func TestRequestLoggerMiddleware_AttachesRequiredFields(t *testing.T) {
 	handler := newRecordingHandler()
 	logger := slog.New(handler)
-	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	var capturedLogger *slog.Logger
 	var capturedHandler *recordingHandler
@@ -142,7 +143,7 @@ func TestRequestLoggerMiddleware_ClientIPFromXForwardedFor(t *testing.T) {
 	handler := newRecordingHandler()
 	logger := slog.New(handler)
 	// Trust localhost so X-Forwarded-For is honored
-	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	var capturedHandler *recordingHandler
 
@@ -213,7 +214,7 @@ func TestRequestLoggerMiddleware_NilTrustedProxies(t *testing.T) {
 func TestRequestLoggerMiddleware_PathOnly_NoQueryString(t *testing.T) {
 	handler := newRecordingHandler()
 	logger := slog.New(handler)
-	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	var capturedHandler *recordingHandler
 

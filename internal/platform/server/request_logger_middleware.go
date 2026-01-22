@@ -8,16 +8,17 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
 // RequestLoggerMiddleware attaches a request-scoped logger to the request context.
 //
-// This is server-layer wiring (Reva-like): it depends on TrustedProxies and chi's RequestID.
+// This is server-layer wiring (Reva-like): it depends on realip.TrustedProxies and chi's RequestID.
 // Keep it as a function (not a Server method) so it remains composable and easy to reuse.
 //
 // IMPORTANT: This middleware must run AFTER middleware.RequestID so that
 // middleware.GetReqID(r.Context()) returns a non-empty value.
-func RequestLoggerMiddleware(base *slog.Logger, trustedProxies *TrustedProxies) func(http.Handler) http.Handler {
+func RequestLoggerMiddleware(base *slog.Logger, trustedProxies *realip.TrustedProxies) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			reqID := middleware.GetReqID(r.Context())

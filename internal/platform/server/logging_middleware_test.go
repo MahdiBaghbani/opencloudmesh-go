@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
 // accessLogRecorder captures access log records with all their attributes.
@@ -124,14 +126,20 @@ func (r *accessLogRecorderWithAttrs) WithGroup(name string) slog.Handler {
 }
 
 // createTestServer creates a minimal server for middleware testing.
+// Also sets up deps.RealIP for the test.
 func createTestServer(logger *slog.Logger, handler http.HandlerFunc) *Server {
-	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 	cfg := config.StrictConfig()
 
+	// Set up SharedDeps with RealIP
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
+		RealIP: tp,
+	})
+
 	return &Server{
-		cfg:            cfg,
-		logger:         logger,
-		trustedProxies: tp,
+		cfg:    cfg,
+		logger: logger,
 	}
 }
 
@@ -149,7 +157,7 @@ func TestLoggingMiddleware_AccessLogHas7RequiredFields(t *testing.T) {
 	// Build the middleware chain as in routes.go
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(RequestLoggerMiddleware(logger, srv.trustedProxies))
+	r.Use(RequestLoggerMiddleware(logger, deps.GetDeps().RealIP))
 	r.Use(srv.loggingMiddleware)
 	r.Use(middleware.Recoverer)
 	r.Get("/test", handler)
@@ -287,7 +295,7 @@ func TestLoggingMiddleware_PanicProducesStatus500(t *testing.T) {
 	// Order: RequestID -> RequestLoggerMiddleware -> loggingMiddleware -> Recoverer
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(RequestLoggerMiddleware(logger, srv.trustedProxies))
+	r.Use(RequestLoggerMiddleware(logger, deps.GetDeps().RealIP))
 	r.Use(srv.loggingMiddleware)
 	r.Use(middleware.Recoverer)
 	r.Get("/panic-test", handler)
