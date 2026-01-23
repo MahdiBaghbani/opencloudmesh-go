@@ -136,7 +136,7 @@ func TestHandler_SetPublicKeys(t *testing.T) {
 
 // NOTE: Token exchange capability tests have been moved to the wellknown service.
 // The legacy discovery handler no longer handles token exchange.
-// See internal/wellknown/ocm_test.go for token exchange tests.
+// See internal/services/wellknown/ocm_test.go for token exchange tests.
 
 func TestHandler_CriteriaAlwaysPresent(t *testing.T) {
 	cfg := &config.Config{

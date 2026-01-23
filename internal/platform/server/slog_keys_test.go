@@ -20,12 +20,12 @@ import (
 func TestSlogKeysAreSnakeCase(t *testing.T) {
 	// Packages to scan (relative to repo root)
 	packagesToScan := []string{
-		"internal/ocm",
-		"internal/webdav",
+		"internal/services/ocm",
+		"internal/components/webdav",
 		"internal/platform/crypto",
 		"internal/components/federation",
 		"internal/components/identity",
-		"internal/server",
+		"internal/platform/server",
 	}
 
 	// Allowed exceptions (RFC terms, etc.)
