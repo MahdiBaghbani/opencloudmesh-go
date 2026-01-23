@@ -12,19 +12,17 @@ import (
 // library parses X-Forwarded-For or X-Real-IP headers directly.
 //
 // This test uses an allowlist that must shrink over time:
-// - Remove trustedproxy allowances in Phase 12 (after the move to realip).
-// - Remove ratelimit allowance in Phase 18 (when internal/ratelimit is deleted).
+// - Phase 12 complete: trustedproxy allowances removed (moved to realip).
+// - Phase 18 complete: ratelimit allowance removed (internal/ratelimit deleted).
 func TestNoDirectForwardedHeaderParsing(t *testing.T) {
 	forbidden := []string{"X-Forwarded-For", "X-Real-IP"}
 
 	// This allowlist exists to keep make test-go passing in every phase.
-	// It must shrink over time:
-	// - Phase 12 complete: trustedproxy allowances removed (moved to realip).
-	// - Remove ratelimit allowance in Phase 18 (when internal/ratelimit is deleted).
+	// Phase 12 complete: trustedproxy allowances removed (moved to realip).
+	// Phase 18 complete: ratelimit allowance removed (internal/ratelimit deleted).
 	allowedSubstrings := []string{
 		"/platform/http/realip/",
 		"/guards/",
-		"/ratelimit/", // allowed until Phase 18 deletes internal/ratelimit
 	}
 
 	root := filepath.Clean("../")

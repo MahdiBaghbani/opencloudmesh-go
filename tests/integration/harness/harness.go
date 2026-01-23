@@ -26,6 +26,9 @@ import (
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 
+	// Register interceptors (triggers init() registration)
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/loader"
+
 	// Register services (triggers init() registration)
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
 )
