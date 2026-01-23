@@ -3,6 +3,7 @@ package ocmaux
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -11,8 +12,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 func init() {
@@ -21,7 +23,15 @@ func init() {
 
 // Config holds ocmaux service configuration.
 type Config struct {
-	// No config fields needed initially
+	// Ratelimit holds rate limiting configuration for this service.
+	Ratelimit RatelimitConfig `mapstructure:"ratelimit"`
+}
+
+// RatelimitConfig holds the per-service rate limiting opt-in.
+type RatelimitConfig struct {
+	// Profile is the name of the ratelimit profile to use from
+	// [http.interceptors.ratelimit.profiles.<name>].
+	Profile string `mapstructure:"profile"`
 }
 
 // ApplyDefaults implements cfg.Setter.
@@ -53,11 +63,66 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	// Create aux handler using SharedDeps
 	auxHandler := federation.NewAuxHandler(d.FederationMgr, d.DiscoveryClient)
 
+	// Build ratelimit middleware for /discover if profile is configured
+	var discoverMiddleware func(http.Handler) http.Handler
+	if c.Ratelimit.Profile != "" {
+		profileConfig, err := getRatelimitProfileConfig(d, c.Ratelimit.Profile)
+		if err != nil {
+			return nil, fmt.Errorf("ocmaux: %w", err)
+		}
+		newInterceptor, ok := interceptors.Get("ratelimit")
+		if !ok {
+			return nil, errors.New("ocmaux: ratelimit interceptor not registered")
+		}
+		discoverMiddleware, err = newInterceptor(profileConfig, log)
+		if err != nil {
+			return nil, fmt.Errorf("ocmaux: failed to create ratelimit interceptor: %w", err)
+		}
+	}
+
 	r := chi.NewRouter()
 	r.Get("/federations", auxHandler.HandleFederations)
-	r.Get("/discover", auxHandler.HandleDiscover)
+
+	// Apply ratelimit middleware only to /discover
+	if discoverMiddleware != nil {
+		r.With(discoverMiddleware).Get("/discover", auxHandler.HandleDiscover)
+	} else {
+		r.Get("/discover", auxHandler.HandleDiscover)
+	}
 
 	return &Service{router: r, conf: &c, log: log}, nil
+}
+
+// getRatelimitProfileConfig looks up a ratelimit profile config from the global config.
+func getRatelimitProfileConfig(d *deps.Deps, profileName string) (map[string]any, error) {
+	if d.Config == nil {
+		return nil, errors.New("config not available in deps")
+	}
+	interceptorsCfg := d.Config.HTTP.Interceptors
+	if interceptorsCfg == nil {
+		return nil, fmt.Errorf("no interceptors configured, cannot find ratelimit profile %q", profileName)
+	}
+	ratelimitCfg, ok := interceptorsCfg["ratelimit"]
+	if !ok {
+		return nil, fmt.Errorf("no ratelimit interceptor configured, cannot find profile %q", profileName)
+	}
+	profilesRaw, ok := ratelimitCfg["profiles"]
+	if !ok {
+		return nil, fmt.Errorf("no ratelimit profiles configured, cannot find profile %q", profileName)
+	}
+	profiles, ok := profilesRaw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("ratelimit profiles is not a map, cannot find profile %q", profileName)
+	}
+	profileRaw, ok := profiles[profileName]
+	if !ok {
+		return nil, fmt.Errorf("ratelimit profile %q not found", profileName)
+	}
+	profileConfig, ok := profileRaw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("ratelimit profile %q is not a map", profileName)
+	}
+	return profileConfig, nil
 }
 
 // Handler returns the service's HTTP handler with RawPath clearing.

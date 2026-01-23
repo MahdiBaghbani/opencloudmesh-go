@@ -130,12 +130,8 @@ func (s *Server) setupRoutes() chi.Router {
 	r.Use(s.loggingMiddleware)
 	r.Use(middleware.Recoverer)
 
-	// Rate limiting for high-risk public endpoints
-	rateLimitConfig := map[string]RateLimitConfig{
-		"/ocm-aux/discover": {RequestsPerMinute: 10, Burst: 2},
-		"/api/auth/login":   {RequestsPerMinute: 5, Burst: 2},
-	}
-	r.Use(s.rateLimitMiddleware(rateLimitConfig))
+	// Rate limiting is now service-local (applied by ocmaux and apiservice).
+	// The server-level limiter has been removed per Reva-aligned taxonomy refactor.
 
 	// Auth middleware for all routes (checks IsAuthRequired)
 	r.Use(s.authMiddleware)
