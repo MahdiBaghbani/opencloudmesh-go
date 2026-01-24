@@ -66,7 +66,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	// Build ratelimit middleware for /discover if profile is configured
 	var discoverMiddleware func(http.Handler) http.Handler
 	if c.Ratelimit.Profile != "" {
-		profileConfig, err := getRatelimitProfileConfig(d, c.Ratelimit.Profile)
+		profileConfig, err := interceptors.GetProfileConfig(d.Config.HTTP.Interceptors, "ratelimit", c.Ratelimit.Profile)
 		if err != nil {
 			return nil, fmt.Errorf("ocmaux: %w", err)
 		}
@@ -93,38 +93,6 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	return &Service{router: r, conf: &c, log: log}, nil
 }
 
-// getRatelimitProfileConfig looks up a ratelimit profile config from the global config.
-func getRatelimitProfileConfig(d *deps.Deps, profileName string) (map[string]any, error) {
-	if d.Config == nil {
-		return nil, errors.New("config not available in deps")
-	}
-	interceptorsCfg := d.Config.HTTP.Interceptors
-	if interceptorsCfg == nil {
-		return nil, fmt.Errorf("no interceptors configured, cannot find ratelimit profile %q", profileName)
-	}
-	ratelimitCfg, ok := interceptorsCfg["ratelimit"]
-	if !ok {
-		return nil, fmt.Errorf("no ratelimit interceptor configured, cannot find profile %q", profileName)
-	}
-	profilesRaw, ok := ratelimitCfg["profiles"]
-	if !ok {
-		return nil, fmt.Errorf("no ratelimit profiles configured, cannot find profile %q", profileName)
-	}
-	profiles, ok := profilesRaw.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("ratelimit profiles is not a map, cannot find profile %q", profileName)
-	}
-	profileRaw, ok := profiles[profileName]
-	if !ok {
-		return nil, fmt.Errorf("ratelimit profile %q not found", profileName)
-	}
-	profileConfig, ok := profileRaw.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("ratelimit profile %q is not a map", profileName)
-	}
-	return profileConfig, nil
-}
-
 // Handler returns the service's HTTP handler with RawPath clearing.
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
@@ -136,7 +104,7 @@ func (s *Service) Prefix() string {
 }
 
 // Unprotected returns paths that don't require session authentication.
-// All ocm-aux endpoints are public (rate limiting is applied by server).
+// All ocm-aux endpoints are public (rate limiting is applied service-locally).
 func (s *Service) Unprotected() []string {
 	return []string{"/federations", "/discover"}
 }
