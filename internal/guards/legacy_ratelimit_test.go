@@ -14,12 +14,10 @@ import (
 // This test uses an allowlist that must shrink over time:
 // - Remove the server middleware allowances in Phase 20 when the legacy limiter is deleted.
 func TestNoLegacyRateLimitCode(t *testing.T) {
-	// This allowlist exists to keep make test-go passing in every phase.
-	// Remove the server middleware allowances in Phase 20 when the legacy limiter is deleted.
+	// Phase 20 complete: legacy server limiter deleted.
+	// Only the guards directory itself is allowed (to avoid self-match on test file comments).
 	allowedSubstrings := []string{
 		"/guards/",
-		"/server/middleware.go",          // allowed until Phase 20 completes (pre-move)
-		"/platform/server/middleware.go", // allowed until Phase 20 completes (post-move)
 	}
 
 	root := filepath.Clean("../")
