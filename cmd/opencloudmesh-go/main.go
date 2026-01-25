@@ -339,7 +339,10 @@ func main() {
 	}
 
 	// Construct ocmaux service from registry
-	ocmauxConfig := map[string]any{} // No config fields needed
+	ocmauxConfig := cfg.BuildServiceConfig("ocmaux")
+	if ocmauxConfig == nil {
+		ocmauxConfig = make(map[string]any)
+	}
 	ocmauxNew := service.Get("ocmaux")
 	if ocmauxNew == nil {
 		logger.Error("ocmaux service not registered")
@@ -352,9 +355,11 @@ func main() {
 	}
 
 	// Construct api service from registry
-	apiConfig := map[string]any{
-		"provider_fqdn": providerFQDN,
+	apiConfig := cfg.BuildServiceConfig("api")
+	if apiConfig == nil {
+		apiConfig = make(map[string]any)
 	}
+	apiConfig["provider_fqdn"] = providerFQDN
 	apiNew := service.Get("api")
 	if apiNew == nil {
 		logger.Error("api service not registered")
@@ -367,9 +372,11 @@ func main() {
 	}
 
 	// Construct ui service from registry
-	uiConfig := map[string]any{
-		"external_base_path": cfg.ExternalBasePath,
+	uiConfig := cfg.BuildServiceConfig("ui")
+	if uiConfig == nil {
+		uiConfig = make(map[string]any)
 	}
+	uiConfig["external_base_path"] = cfg.ExternalBasePath
 	uiNew := service.Get("ui")
 	if uiNew == nil {
 		logger.Error("ui service not registered")
@@ -382,9 +389,11 @@ func main() {
 	}
 
 	// Construct webdav service from registry
-	webdavConfig := map[string]any{
-		"webdav_token_exchange_mode": cfg.WebDAVTokenExchange.Mode,
+	webdavConfig := cfg.BuildServiceConfig("webdav")
+	if webdavConfig == nil {
+		webdavConfig = make(map[string]any)
 	}
+	webdavConfig["webdav_token_exchange_mode"] = cfg.WebDAVTokenExchange.Mode
 	webdavNew := service.Get("webdav")
 	if webdavNew == nil {
 		logger.Error("webdav service not registered")

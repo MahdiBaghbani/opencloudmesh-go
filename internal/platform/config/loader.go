@@ -678,12 +678,12 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("invalid signature.on_discovery_error %q: must be one of reject, allow", cfg.Signature.OnDiscoveryError)
 	}
 
-	// cache.driver (only memory is supported in this release)
+	// cache.driver (empty defaults to memory)
 	switch cfg.Cache.Driver {
-	case "", "memory":
+	case "", "memory", "redis":
 		// valid (empty defaults to memory)
 	default:
-		return fmt.Errorf("invalid cache.driver %q: only 'memory' is supported in this release", cfg.Cache.Driver)
+		return fmt.Errorf("invalid cache.driver %q: must be one of memory or redis", cfg.Cache.Driver)
 	}
 
 	// federation validation

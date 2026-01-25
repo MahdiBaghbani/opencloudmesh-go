@@ -169,7 +169,10 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Construct ocmaux service from registry
-	ocmauxConfig := map[string]any{}
+	ocmauxConfig := cfg.BuildServiceConfig("ocmaux")
+	if ocmauxConfig == nil {
+		ocmauxConfig = make(map[string]any)
+	}
 	ocmauxNew := service.Get("ocmaux")
 	if ocmauxNew == nil {
 		os.RemoveAll(tempDir)
@@ -182,9 +185,11 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Construct api service from registry
-	apiConfig := map[string]any{
-		"provider_fqdn": providerFQDN,
+	apiConfig := cfg.BuildServiceConfig("api")
+	if apiConfig == nil {
+		apiConfig = make(map[string]any)
 	}
+	apiConfig["provider_fqdn"] = providerFQDN
 	apiNew := service.Get("api")
 	if apiNew == nil {
 		os.RemoveAll(tempDir)
@@ -197,9 +202,11 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Construct ui service from registry
-	uiConfig := map[string]any{
-		"external_base_path": cfg.ExternalBasePath,
+	uiConfig := cfg.BuildServiceConfig("ui")
+	if uiConfig == nil {
+		uiConfig = make(map[string]any)
 	}
+	uiConfig["external_base_path"] = cfg.ExternalBasePath
 	uiNew := service.Get("ui")
 	if uiNew == nil {
 		os.RemoveAll(tempDir)
@@ -212,9 +219,11 @@ func StartTestServer(t *testing.T) *TestServer {
 	}
 
 	// Construct webdav service from registry
-	webdavConfig := map[string]any{
-		"webdav_token_exchange_mode": cfg.WebDAVTokenExchange.Mode,
+	webdavConfig := cfg.BuildServiceConfig("webdav")
+	if webdavConfig == nil {
+		webdavConfig = make(map[string]any)
 	}
+	webdavConfig["webdav_token_exchange_mode"] = cfg.WebDAVTokenExchange.Mode
 	webdavNew := service.Get("webdav")
 	if webdavNew == nil {
 		os.RemoveAll(tempDir)

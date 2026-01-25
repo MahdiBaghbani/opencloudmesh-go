@@ -597,7 +597,7 @@ driver = "memory"
 	}
 }
 
-func TestLoad_CacheDriverUnknownFails(t *testing.T) {
+func TestLoad_CacheDriverRedisValid(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "config-cache-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -615,6 +615,34 @@ driver = "redis"
 		t.Fatalf("failed to write config: %v", err)
 	}
 
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Cache.Driver != "redis" {
+		t.Errorf("expected cache.driver redis, got %q", cfg.Cache.Driver)
+	}
+}
+
+func TestLoad_CacheDriverUnknownFails(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "config-cache-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	configPath := filepath.Join(tempDir, "config.toml")
+	tomlContent := `
+mode = "strict"
+
+[cache]
+driver = "unknown"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
 	_, err = Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error for unknown cache driver")
@@ -622,8 +650,8 @@ driver = "redis"
 	if !strings.Contains(err.Error(), "cache.driver") {
 		t.Errorf("expected error to mention cache.driver, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "memory") {
-		t.Errorf("expected error to mention memory as only supported driver, got: %v", err)
+	if !strings.Contains(err.Error(), "memory") || !strings.Contains(err.Error(), "redis") {
+		t.Errorf("expected error to mention memory and redis as supported drivers, got: %v", err)
 	}
 }
 
