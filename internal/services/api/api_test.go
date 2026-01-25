@@ -1,4 +1,4 @@
-package apiservice
+package api
 
 import (
 	"encoding/json"
@@ -21,7 +21,7 @@ import (
 func setupTestDeps() {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		// Identity (required for apiservice)
+		// Identity (required for api service)
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
 		UserAuth:    identity.NewUserAuthFast(),

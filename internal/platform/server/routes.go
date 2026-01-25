@@ -130,7 +130,7 @@ func (s *Server) setupRoutes() chi.Router {
 	r.Use(s.loggingMiddleware)
 	r.Use(middleware.Recoverer)
 
-	// Rate limiting is now service-local (applied by ocmaux and apiservice).
+	// Rate limiting is now service-local (applied by ocmaux and api services).
 	// The server-level limiter has been removed per Reva-aligned taxonomy refactor.
 
 	// Auth middleware for all routes (checks IsAuthRequired)
@@ -161,11 +161,11 @@ func (s *Server) mountAppEndpoints(r chi.Router) {
 	s.mountService(r, s.ocmauxSvc, false)
 
 	// API endpoints
-	s.mountService(r, s.apiserviceSvc, false)
+	s.mountService(r, s.apiSvc, false)
 
 	// UI endpoints
-	s.mountService(r, s.uiserviceSvc, false)
+	s.mountService(r, s.uiSvc, false)
 
 	// WebDAV endpoints
-	s.mountService(r, s.webdavserviceSvc, false)
+	s.mountService(r, s.webdavSvc, false)
 }

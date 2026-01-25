@@ -1,5 +1,5 @@
-// Package uiservice provides the /ui/* endpoints as a registry service.
-package uiservice
+// Package ui provides the /ui/* endpoints as a registry service.
+package ui
 
 import (
 	"errors"
@@ -16,10 +16,10 @@ import (
 )
 
 func init() {
-	service.MustRegister("uiservice", New)
+	service.MustRegister("ui", New)
 }
 
-// Config holds uiservice configuration.
+// Config holds ui service configuration.
 type Config struct {
 	ExternalBasePath string `mapstructure:"external_base_path"`
 }
@@ -42,7 +42,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, err
 	}
 	if len(unused) > 0 {
-		log.Warn("unused config keys", "service", "uiservice", "unused_keys", unused)
+		log.Warn("unused config keys", "service", "ui", "unused_keys", unused)
 	}
 
 	d := deps.GetDeps()

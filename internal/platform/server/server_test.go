@@ -94,7 +94,7 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 	svc3 := &trackingService{name: "svc3", prefix: "svc3", closeOrder: &closeOrder}
 
 	// Create server with services
-	// wellknown=nil, ocm=nil, ocmaux=svc1, apiservice=svc2, uiservice=svc3, webdav=nil
+	// wellknown=nil, ocm=nil, ocmaux=svc1, api=svc2, ui=svc3, webdav=nil
 	srv, err := New(cfg, logger, nil, nil, svc1, svc2, svc3, nil)
 	if err != nil {
 		t.Fatalf("failed to create server: %v", err)

@@ -1,4 +1,4 @@
-package uiservice
+package ui
 
 import (
 	"log/slog"

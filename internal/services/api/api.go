@@ -1,5 +1,5 @@
-// Package apiservice provides the /api/* endpoints.
-package apiservice
+// Package api provides the /api/* endpoints.
+package api
 
 import (
 	"errors"
@@ -21,10 +21,10 @@ import (
 )
 
 func init() {
-	service.MustRegister("apiservice", New)
+	service.MustRegister("api", New)
 }
 
-// Config holds apiservice configuration.
+// Config holds api service configuration.
 type Config struct {
 	ProviderFQDN string `mapstructure:"provider_fqdn"`
 	// Ratelimit holds rate limiting configuration for this service.
@@ -56,7 +56,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, err
 	}
 	if len(unused) > 0 {
-		log.Warn("unused config keys", "service", "apiservice", "unused_keys", unused)
+		log.Warn("unused config keys", "service", "api", "unused_keys", unused)
 	}
 
 	d := deps.GetDeps()
@@ -112,15 +112,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	if c.Ratelimit.Profile != "" {
 		profileConfig, err := interceptors.GetProfileConfig(d.Config.HTTP.Interceptors, "ratelimit", c.Ratelimit.Profile)
 		if err != nil {
-			return nil, fmt.Errorf("apiservice: %w", err)
+			return nil, fmt.Errorf("api: %w", err)
 		}
 		newInterceptor, ok := interceptors.Get("ratelimit")
 		if !ok {
-			return nil, errors.New("apiservice: ratelimit interceptor not registered")
+			return nil, errors.New("api: ratelimit interceptor not registered")
 		}
 		loginMiddleware, err = newInterceptor(profileConfig, log)
 		if err != nil {
-			return nil, fmt.Errorf("apiservice: failed to create ratelimit interceptor: %w", err)
+			return nil, fmt.Errorf("api: failed to create ratelimit interceptor: %w", err)
 		}
 	}
 

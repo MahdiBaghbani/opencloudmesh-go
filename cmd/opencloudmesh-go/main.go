@@ -273,7 +273,7 @@ func main() {
 	// Create RealIP extractor for trusted-proxy-aware client identity
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
 
-	// Set SharedDeps for registry-based services (wellknown, ocm, apiservice, etc.)
+	// Set SharedDeps for registry-based services (wellknown, ocm, api, ui, webdav, etc.)
 	deps.SetDeps(&deps.Deps{
 		// Identity
 		PartyRepo:   partyRepo,
@@ -351,53 +351,53 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Construct apiservice from registry
-	apiserviceConfig := map[string]any{
+	// Construct api service from registry
+	apiConfig := map[string]any{
 		"provider_fqdn": providerFQDN,
 	}
-	apiserviceNew := service.Get("apiservice")
-	if apiserviceNew == nil {
-		logger.Error("apiservice not registered")
+	apiNew := service.Get("api")
+	if apiNew == nil {
+		logger.Error("api service not registered")
 		os.Exit(1)
 	}
-	apiserviceSvc, err := apiserviceNew(apiserviceConfig, logger)
+	apiSvc, err := apiNew(apiConfig, logger)
 	if err != nil {
-		logger.Error("failed to create apiservice", "error", fmt.Errorf("apiservice: %w", err))
+		logger.Error("failed to create api service", "error", fmt.Errorf("api: %w", err))
 		os.Exit(1)
 	}
 
-	// Construct uiservice from registry
-	uiserviceConfig := map[string]any{
+	// Construct ui service from registry
+	uiConfig := map[string]any{
 		"external_base_path": cfg.ExternalBasePath,
 	}
-	uiserviceNew := service.Get("uiservice")
-	if uiserviceNew == nil {
-		logger.Error("uiservice not registered")
+	uiNew := service.Get("ui")
+	if uiNew == nil {
+		logger.Error("ui service not registered")
 		os.Exit(1)
 	}
-	uiserviceSvc, err := uiserviceNew(uiserviceConfig, logger)
+	uiSvc, err := uiNew(uiConfig, logger)
 	if err != nil {
-		logger.Error("failed to create uiservice", "error", fmt.Errorf("uiservice: %w", err))
+		logger.Error("failed to create ui service", "error", fmt.Errorf("ui: %w", err))
 		os.Exit(1)
 	}
 
-	// Construct webdavservice from registry
-	webdavserviceConfig := map[string]any{
+	// Construct webdav service from registry
+	webdavConfig := map[string]any{
 		"webdav_token_exchange_mode": cfg.WebDAVTokenExchange.Mode,
 	}
-	webdavserviceNew := service.Get("webdavservice")
-	if webdavserviceNew == nil {
-		logger.Error("webdavservice not registered")
+	webdavNew := service.Get("webdav")
+	if webdavNew == nil {
+		logger.Error("webdav service not registered")
 		os.Exit(1)
 	}
-	webdavserviceSvc, err := webdavserviceNew(webdavserviceConfig, logger)
+	webdavSvc, err := webdavNew(webdavConfig, logger)
 	if err != nil {
-		logger.Error("failed to create webdavservice", "error", fmt.Errorf("webdavservice: %w", err))
+		logger.Error("failed to create webdav service", "error", fmt.Errorf("webdav: %w", err))
 		os.Exit(1)
 	}
 
 	// Create and start server (all dependencies come from SharedDeps)
-	srv, err := server.New(cfg, logger, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc, webdavserviceSvc)
+	srv, err := server.New(cfg, logger, wellknownSvc, ocmSvc, ocmauxSvc, apiSvc, uiSvc, webdavSvc)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)

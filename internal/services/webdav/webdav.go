@@ -1,5 +1,5 @@
-// Package webdavservice provides the /webdav/* endpoints as a registry service.
-package webdavservice
+// Package webdav provides the /webdav/* endpoints as a registry service.
+package webdav
 
 import (
 	"errors"
@@ -16,10 +16,10 @@ import (
 )
 
 func init() {
-	service.MustRegister("webdavservice", New)
+	service.MustRegister("webdav", New)
 }
 
-// Config holds webdavservice configuration.
+// Config holds webdav service configuration.
 type Config struct {
 	WebDAVTokenExchangeMode string `mapstructure:"webdav_token_exchange_mode"`
 }
@@ -47,7 +47,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, err
 	}
 	if len(unused) > 0 {
-		log.Warn("unused config keys", "service", "webdavservice", "unused_keys", unused)
+		log.Warn("unused config keys", "service", "webdav", "unused_keys", unused)
 	}
 
 	d := deps.GetDeps()

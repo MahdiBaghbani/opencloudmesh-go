@@ -181,53 +181,53 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to create ocmaux service: %v", err)
 	}
 
-	// Construct apiservice from registry
-	apiserviceConfig := map[string]any{
+	// Construct api service from registry
+	apiConfig := map[string]any{
 		"provider_fqdn": providerFQDN,
 	}
-	apiserviceNew := service.Get("apiservice")
-	if apiserviceNew == nil {
+	apiNew := service.Get("api")
+	if apiNew == nil {
 		os.RemoveAll(tempDir)
-		t.Fatalf("apiservice not registered")
+		t.Fatalf("api service not registered")
 	}
-	apiserviceSvc, err := apiserviceNew(apiserviceConfig, logger)
+	apiSvc, err := apiNew(apiConfig, logger)
 	if err != nil {
 		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create apiservice: %v", err)
+		t.Fatalf("failed to create api service: %v", err)
 	}
 
-	// Construct uiservice from registry
-	uiserviceConfig := map[string]any{
+	// Construct ui service from registry
+	uiConfig := map[string]any{
 		"external_base_path": cfg.ExternalBasePath,
 	}
-	uiserviceNew := service.Get("uiservice")
-	if uiserviceNew == nil {
+	uiNew := service.Get("ui")
+	if uiNew == nil {
 		os.RemoveAll(tempDir)
-		t.Fatalf("uiservice not registered")
+		t.Fatalf("ui service not registered")
 	}
-	uiserviceSvc, err := uiserviceNew(uiserviceConfig, logger)
+	uiSvc, err := uiNew(uiConfig, logger)
 	if err != nil {
 		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create uiservice: %v", err)
+		t.Fatalf("failed to create ui service: %v", err)
 	}
 
-	// Construct webdavservice from registry
-	webdavserviceConfig := map[string]any{
+	// Construct webdav service from registry
+	webdavConfig := map[string]any{
 		"webdav_token_exchange_mode": cfg.WebDAVTokenExchange.Mode,
 	}
-	webdavserviceNew := service.Get("webdavservice")
-	if webdavserviceNew == nil {
+	webdavNew := service.Get("webdav")
+	if webdavNew == nil {
 		os.RemoveAll(tempDir)
-		t.Fatalf("webdavservice not registered")
+		t.Fatalf("webdav service not registered")
 	}
-	webdavserviceSvc, err := webdavserviceNew(webdavserviceConfig, logger)
+	webdavSvc, err := webdavNew(webdavConfig, logger)
 	if err != nil {
 		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create webdavservice: %v", err)
+		t.Fatalf("failed to create webdav service: %v", err)
 	}
 
 	// Create server (all dependencies come from SharedDeps)
-	srv, err := server.New(cfg, logger, wellknownSvc, ocmSvc, ocmauxSvc, apiserviceSvc, uiserviceSvc, webdavserviceSvc)
+	srv, err := server.New(cfg, logger, wellknownSvc, ocmSvc, ocmauxSvc, apiSvc, uiSvc, webdavSvc)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)

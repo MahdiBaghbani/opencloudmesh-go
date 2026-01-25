@@ -1,4 +1,4 @@
-package webdavservice
+package webdav
 
 import (
 	"log/slog"

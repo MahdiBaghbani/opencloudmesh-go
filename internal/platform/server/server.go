@@ -28,9 +28,9 @@ type Server struct {
 	wellknownSvc     service.Service // Reva-aligned wellknown service for discovery
 	ocmSvc           service.Service // Reva-aligned OCM protocol service
 	ocmauxSvc        service.Service // Reva-aligned ocm-aux service for WAYF helpers
-	apiserviceSvc    service.Service // Reva-aligned API service for /api/* endpoints
-	uiserviceSvc     service.Service // Reva-aligned UI service for /ui/* endpoints
-	webdavserviceSvc service.Service // Reva-aligned WebDAV service for /webdav/* endpoints
+	apiSvc    service.Service // Reva-aligned API service for /api/* endpoints
+	uiSvc     service.Service // Reva-aligned UI service for /ui/* endpoints
+	webdavSvc service.Service // Reva-aligned WebDAV service for /webdav/* endpoints
 	signer           *crypto.RFC9421Signer
 
 	// mountedServices tracks services for lifecycle management (Close on shutdown).
@@ -44,10 +44,10 @@ type Server struct {
 // wellknownSvc is the Reva-aligned wellknown service for discovery endpoints.
 // ocmSvc is the Reva-aligned OCM protocol service for /ocm/* endpoints.
 // ocmauxSvc is the Reva-aligned ocm-aux service for WAYF helper endpoints.
-// apiserviceSvc is the Reva-aligned API service for /api/* endpoints.
-// uiserviceSvc is the Reva-aligned UI service for /ui/* endpoints.
-// webdavserviceSvc is the Reva-aligned WebDAV service for /webdav/* endpoints.
-func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, ocmSvc service.Service, ocmauxSvc service.Service, apiserviceSvc service.Service, uiserviceSvc service.Service, webdavserviceSvc service.Service) (*Server, error) {
+// apiSvc is the Reva-aligned API service for /api/* endpoints.
+// uiSvc is the Reva-aligned UI service for /ui/* endpoints.
+// webdavSvc is the Reva-aligned WebDAV service for /webdav/* endpoints.
+func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, ocmSvc service.Service, ocmauxSvc service.Service, apiSvc service.Service, uiSvc service.Service, webdavSvc service.Service) (*Server, error) {
 	// Fail fast: SharedDeps must be initialized before server creation
 	d := deps.GetDeps()
 	if d == nil {
@@ -74,9 +74,9 @@ func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, 
 		wellknownSvc:     wellknownSvc,
 		ocmSvc:           ocmSvc,
 		ocmauxSvc:        ocmauxSvc,
-		apiserviceSvc:    apiserviceSvc,
-		uiserviceSvc:     uiserviceSvc,
-		webdavserviceSvc: webdavserviceSvc,
+		apiSvc:    apiSvc,
+		uiSvc:     uiSvc,
+		webdavSvc: webdavSvc,
 		signer:           signer,
 	}
 

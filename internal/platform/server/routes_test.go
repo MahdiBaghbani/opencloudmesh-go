@@ -27,11 +27,11 @@ func testServices() []service.Service {
 		&mockService{prefix: "ocm", unprotected: []string{"/shares", "/notifications", "/invite-accepted", "/token"}},
 		// ocmaux service
 		&mockService{prefix: "ocm-aux", unprotected: []string{"/federations", "/discover"}},
-		// apiservice
+		// api service
 		&mockService{prefix: "api", unprotected: []string{"/healthz", "/auth/login"}},
-		// uiservice
+		// ui service
 		&mockService{prefix: "ui", unprotected: []string{"/login", "/static"}},
-		// webdavservice (uses bearer/basic, not session)
+		// webdav service (uses bearer/basic, not session)
 		&mockService{prefix: "webdav", unprotected: []string{"/ocm"}},
 	}
 }
