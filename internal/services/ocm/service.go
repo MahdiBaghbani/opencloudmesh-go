@@ -69,8 +69,8 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 
 	// Construct handlers using SharedDeps (Reva-aligned)
 	sharesHandler := shares.NewIncomingHandler(d.IncomingShareRepo, d.PolicyEngine, log)
-	notifHandler := notifications.NewHandler(d.OutgoingShareRepo, log)
-	invitesHandler := invites.NewHandler(d.OutgoingInviteRepo, c.ProviderFQDN, log)
+	notifHandler := notifications.NewHandler(d.OutgoingShareRepo, d.Config.ExternalOrigin, log)
+	invitesHandler := invites.NewHandler(d.OutgoingInviteRepo, c.ProviderFQDN, d.Config.ExternalOrigin, log)
 	tokenHandler := token.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, log)
 
 	// Create peer resolver for signature verification (service-local, per-endpoint extraction)

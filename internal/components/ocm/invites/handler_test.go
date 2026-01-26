@@ -17,7 +17,7 @@ import (
 func TestHandler_CreateOutgoing(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := invites.NewHandler(repo, "example.com:9200", logger)
+	handler := invites.NewHandler(repo, "example.com:9200", "https://example.com:9200", logger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
@@ -56,7 +56,7 @@ func TestHandler_CreateOutgoing(t *testing.T) {
 func TestHandler_InviteAccepted_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := invites.NewHandler(repo, "example.com", logger)
+	handler := invites.NewHandler(repo, "example.com", "https://example.com", logger)
 
 	tests := []struct {
 		name string
@@ -84,7 +84,7 @@ func TestHandler_InviteAccepted_MissingFields(t *testing.T) {
 func TestHandler_InviteAccepted_TokenNotFound(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := invites.NewHandler(repo, "example.com", logger)
+	handler := invites.NewHandler(repo, "example.com", "https://example.com", logger)
 
 	body := `{"token":"nonexistent","recipientProvider":"other.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
@@ -101,7 +101,7 @@ func TestHandler_InviteAccepted_TokenNotFound(t *testing.T) {
 func TestHandler_InviteAccepted_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := invites.NewHandler(repo, "example.com", logger)
+	handler := invites.NewHandler(repo, "example.com", "https://example.com", logger)
 
 	// Create an invite first
 	invite := &invites.OutgoingInvite{
@@ -136,7 +136,7 @@ func TestHandler_InviteAccepted_Success(t *testing.T) {
 func TestHandler_InviteAccepted_RecipientProviderWithScheme(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := invites.NewHandler(repo, "example.com", logger)
+	handler := invites.NewHandler(repo, "example.com", "https://example.com", logger)
 
 	body := `{"token":"abc","recipientProvider":"https://other.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
@@ -159,7 +159,7 @@ func TestHandler_InviteAccepted_RecipientProviderWithScheme(t *testing.T) {
 func TestHandler_InviteAccepted_StrictContentType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := invites.NewHandler(repo, "example.com", logger)
+	handler := invites.NewHandler(repo, "example.com", "https://example.com", logger)
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString("token=abc&recipientProvider=other.com"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -175,7 +175,7 @@ func TestHandler_InviteAccepted_StrictContentType(t *testing.T) {
 func TestHandler_InviteAccepted_Idempotent(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := invites.NewHandler(repo, "example.com", logger)
+	handler := invites.NewHandler(repo, "example.com", "https://example.com", logger)
 
 	// Create an already accepted invite
 	invite := &invites.OutgoingInvite{

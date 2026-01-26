@@ -4,23 +4,33 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
 // Handler handles OCM notification endpoints.
 type Handler struct {
 	outgoingRepo shares.OutgoingShareRepo
 	logger       *slog.Logger
+	localScheme  string // scheme from ExternalOrigin for comparison normalization
 }
 
 // NewHandler creates a new notifications handler.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, logger *slog.Logger) *Handler {
+// externalOrigin is the local instance's ExternalOrigin (validated at config load).
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, externalOrigin string, logger *slog.Logger) *Handler {
+	var localScheme string
+	if u, err := url.Parse(externalOrigin); err == nil && u.Scheme != "" {
+		localScheme = u.Scheme
+	}
+
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		logger:       logger,
+		localScheme:  localScheme,
 	}
 }
 
@@ -61,36 +71,43 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get sender identity from signature (if available)
-	var senderHost string
+	var senderAuthority string
 	peerIdentity := crypto.GetPeerIdentity(r.Context())
 	if peerIdentity != nil && peerIdentity.Authenticated {
-		senderHost = peerIdentity.Host
+		senderAuthority = peerIdentity.AuthorityForCompare
 	}
 
 	// Look up the outgoing share by providerId
 	share, err := h.outgoingRepo.GetByProviderID(r.Context(), req.ProviderID)
 	if err != nil {
 		// If no signature verified, we can't verify the sender
-		if senderHost == "" {
+		if senderAuthority == "" {
 			// Check if there's exactly one share with this providerId
 			// Since our repo is keyed by providerId globally, we either find it or not
 			log.Warn("notification for unknown share", "provider_id", req.ProviderID)
 			h.sendError(w, http.StatusNotFound, "share_not_found", "no share found for providerId")
 			return
 		}
-		log.Warn("notification for unknown share", "provider_id", req.ProviderID, "sender", senderHost)
+		log.Warn("notification for unknown share", "provider_id", req.ProviderID, "sender", senderAuthority)
 		h.sendError(w, http.StatusNotFound, "share_not_found", "no share found for providerId")
 		return
 	}
 
 	// If we have a verified sender, validate it matches the share's receiver
-	if senderHost != "" && share.ReceiverHost != senderHost {
-		log.Warn("notification sender mismatch",
-			"provider_id", req.ProviderID,
-			"expected", share.ReceiverHost,
-			"got", senderHost)
-		h.sendError(w, http.StatusForbidden, "sender_mismatch", "notification sender does not match share receiver")
-		return
+	if senderAuthority != "" {
+		normalizedReceiver, err := keyid.AuthorityForCompareFromDeclaredPeer(share.ReceiverHost, h.localScheme)
+		if err != nil {
+			log.Warn("failed to normalize share receiver host",
+				"host", share.ReceiverHost, "error", err)
+			// Skip mismatch enforcement on normalization error (no new rejection path)
+		} else if normalizedReceiver != senderAuthority {
+			log.Warn("notification sender mismatch",
+				"provider_id", req.ProviderID,
+				"expected", normalizedReceiver,
+				"got", senderAuthority)
+			h.sendError(w, http.StatusForbidden, "sender_mismatch", "notification sender does not match share receiver")
+			return
+		}
 	}
 
 	// Process the notification

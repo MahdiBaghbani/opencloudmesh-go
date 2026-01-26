@@ -104,6 +104,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	outgoingInvitesHandler := invites.NewHandler(
 		d.OutgoingInviteRepo,
 		c.ProviderFQDN,
+		d.Config.ExternalOrigin,
 		log,
 	)
 

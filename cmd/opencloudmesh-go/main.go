@@ -262,7 +262,7 @@ func main() {
 
 	// Create signature middleware (needed by OCM service for per-endpoint verification)
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
-	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, logger)
+	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.ExternalOrigin, logger)
 
 	// Create repos once for SharedDeps.
 	incomingShareRepo := shares.NewMemoryIncomingShareRepo()

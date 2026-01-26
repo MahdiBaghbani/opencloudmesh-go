@@ -17,7 +17,7 @@ import (
 func TestHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := notifications.NewHandler(repo, logger)
+	handler := notifications.NewHandler(repo, "https://example.com", logger)
 
 	tests := []struct {
 		name string
@@ -46,7 +46,7 @@ func TestHandler_MissingFields(t *testing.T) {
 func TestHandler_InvalidNotificationType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := notifications.NewHandler(repo, logger)
+	handler := notifications.NewHandler(repo, "https://example.com", logger)
 
 	body := `{"notificationType":"UNKNOWN_TYPE","resourceType":"file","providerId":"abc"}`
 
@@ -70,7 +70,7 @@ func TestHandler_InvalidNotificationType(t *testing.T) {
 func TestHandler_ShareNotFound(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	repo := shares.NewMemoryOutgoingShareRepo()
-	handler := notifications.NewHandler(repo, logger)
+	handler := notifications.NewHandler(repo, "https://example.com", logger)
 
 	body := `{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"nonexistent"}`
 
@@ -99,7 +99,7 @@ func TestHandler_SuccessfulNotification(t *testing.T) {
 	}
 	repo.Create(context.Background(), share)
 
-	handler := notifications.NewHandler(repo, logger)
+	handler := notifications.NewHandler(repo, "https://example.com", logger)
 
 	body := `{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-123"}`
 

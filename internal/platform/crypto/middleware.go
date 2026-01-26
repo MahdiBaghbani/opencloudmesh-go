@@ -5,9 +5,10 @@ import (
 	"crypto/ed25519"
 	"log/slog"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
 // contextKey is used for storing values in request context.
@@ -20,11 +21,15 @@ const (
 
 // PeerIdentity represents the authenticated or declared peer identity.
 type PeerIdentity struct {
-	// Host is the peer's host (from keyId if verified, from request if declared)
-	Host string
-	// Authenticated is true if the identity was verified via signature
+	// Authority is the raw authority from keyId (lowercased host[:port]) if
+	// verified, otherwise the raw declared peer authority.
+	Authority string
+	// AuthorityForCompare is the scheme-aware normalized authority for identity
+	// comparison (default ports stripped).
+	AuthorityForCompare string
+	// Authenticated is true if the identity was verified via signature.
 	Authenticated bool
-	// KeyID is the keyId from the signature (if any)
+	// KeyID is the keyId from the signature (if any).
 	KeyID string
 }
 
@@ -50,15 +55,23 @@ type SignatureMiddleware struct {
 	verifier      *RFC9421Verifier
 	peerDiscovery PeerDiscovery
 	logger        *slog.Logger
+	localScheme   string // scheme from ExternalOrigin for unverified peer normalization
 }
 
 // NewSignatureMiddleware creates a new signature verification middleware.
-func NewSignatureMiddleware(cfg *config.SignatureConfig, pd PeerDiscovery, logger *slog.Logger) *SignatureMiddleware {
+// externalOrigin is the local instance's ExternalOrigin (validated at config load).
+func NewSignatureMiddleware(cfg *config.SignatureConfig, pd PeerDiscovery, externalOrigin string, logger *slog.Logger) *SignatureMiddleware {
+	var localScheme string
+	if u, err := url.Parse(externalOrigin); err == nil && u.Scheme != "" {
+		localScheme = u.Scheme
+	}
+
 	return &SignatureMiddleware{
 		cfg:           cfg,
 		verifier:      NewRFC9421Verifier(),
 		peerDiscovery: pd,
 		logger:        logger,
+		localScheme:   localScheme,
 	}
 }
 
@@ -108,30 +121,35 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 				})
 
 				if result.Verified {
-					// Extract host from keyId
-					keyHost, err := ExtractHostFromKeyID(result.KeyID)
+					// Parse keyId using canonical keyid module
+					parsed, err := keyid.Parse(result.KeyID)
 					if err != nil {
-						m.logger.Error("failed to extract host from keyId", "keyId", result.KeyID, "error", err)
+						m.logger.Error("failed to parse keyId", "keyId", result.KeyID, "error", err)
 						http.Error(w, "invalid signature keyId", http.StatusBadRequest)
 						return
 					}
 
-				// Check for mismatch between declared peer and keyId host
-				if declaredPeer != "" && !m.cfg.AllowMismatch {
-					declaredHost := normalizeHost(declaredPeer)
-					if declaredHost != keyHost {
-						m.logger.Warn("peer identity mismatch",
-							"declared", declaredHost,
-							"key_id_host", keyHost)
-						http.Error(w, "peer identity mismatch", http.StatusForbidden)
-						return
+					// Check for mismatch between declared peer and keyId authority
+					if declaredPeer != "" && !m.cfg.AllowMismatch {
+						normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, parsed.Scheme)
+						if err != nil {
+							m.logger.Warn("failed to normalize declared peer for comparison",
+								"declared_peer", declaredPeer, "error", err)
+							// Skip mismatch enforcement on error (no new rejection path)
+						} else if normalizedDeclared != keyid.AuthorityForCompareFromKeyID(parsed) {
+							m.logger.Warn("peer identity mismatch",
+								"declared", normalizedDeclared,
+								"key_id_authority", keyid.AuthorityForCompareFromKeyID(parsed))
+							http.Error(w, "peer identity mismatch", http.StatusForbidden)
+							return
+						}
 					}
-				}
 
 					peerIdentity = &PeerIdentity{
-						Host:          keyHost,
-						Authenticated: true,
-						KeyID:         result.KeyID,
+						Authority:           keyid.Authority(parsed),
+						AuthorityForCompare: keyid.AuthorityForCompareFromKeyID(parsed),
+						Authenticated:       true,
+						KeyID:               result.KeyID,
 					}
 				} else {
 					// Signature present but verification failed - always reject
@@ -171,9 +189,22 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 				}
 
 				// Set unverified peer identity
+				var authorityForCompare string
+				if declaredPeer != "" {
+					normalized, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, m.localScheme)
+					if err != nil {
+						m.logger.Warn("failed to normalize declared peer",
+							"declared_peer", declaredPeer, "error", err)
+						authorityForCompare = declaredPeer // fallback to raw
+					} else {
+						authorityForCompare = normalized
+					}
+				}
+
 				peerIdentity = &PeerIdentity{
-					Host:          normalizeHost(declaredPeer),
-					Authenticated: false,
+					Authority:           declaredPeer,
+					AuthorityForCompare: authorityForCompare,
+					Authenticated:       false,
 				}
 			}
 
@@ -189,13 +220,4 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-// normalizeHost normalizes a host string for comparison.
-func normalizeHost(host string) string {
-	host = strings.ToLower(host)
-	// Remove default ports
-	host = strings.TrimSuffix(host, ":443")
-	host = strings.TrimSuffix(host, ":80")
-	return host
 }

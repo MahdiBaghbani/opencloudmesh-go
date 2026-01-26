@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
 // DefaultInviteTTL is the default time-to-live for invites.
@@ -21,14 +23,22 @@ type Handler struct {
 	outgoingRepo OutgoingInviteRepo
 	providerFQDN string
 	logger       *slog.Logger
+	localScheme  string // scheme from ExternalOrigin for comparison normalization
 }
 
 // NewHandler creates a new invites handler.
-func NewHandler(outgoingRepo OutgoingInviteRepo, providerFQDN string, logger *slog.Logger) *Handler {
+// externalOrigin is the local instance's ExternalOrigin (validated at config load).
+func NewHandler(outgoingRepo OutgoingInviteRepo, providerFQDN string, externalOrigin string, logger *slog.Logger) *Handler {
+	var localScheme string
+	if u, err := url.Parse(externalOrigin); err == nil && u.Scheme != "" {
+		localScheme = u.Scheme
+	}
+
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		providerFQDN: providerFQDN,
 		logger:       logger,
+		localScheme:  localScheme,
 	}
 }
 
@@ -105,9 +115,13 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	// Verify sender identity from signature if available
 	peerIdentity := crypto.GetPeerIdentity(ctx)
 	if peerIdentity != nil && peerIdentity.Authenticated {
-		if peerIdentity.Host != req.RecipientProvider {
+		normalizedRecipient, err := keyid.AuthorityForCompareFromDeclaredPeer(req.RecipientProvider, h.localScheme)
+		if err != nil {
+			log.Warn("failed to normalize recipient provider",
+				"recipient_provider", req.RecipientProvider, "error", err)
+		} else if peerIdentity.AuthorityForCompare != normalizedRecipient {
 			log.Warn("invite-accepted sender mismatch",
-				"signature_host", peerIdentity.Host,
+				"signature_authority", peerIdentity.AuthorityForCompare,
 				"recipient_provider", req.RecipientProvider)
 			// In strict mode, this would be a rejection
 			// For now, log but allow
