@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
@@ -323,7 +324,11 @@ func main() {
 
 	// Construct OCM service from registry
 	// Add provider_fqdn which is needed for invites handler
-	providerFQDN := extractProviderFQDN(cfg.ExternalOrigin)
+	providerFQDN, err := instanceid.ProviderFQDN(cfg.ExternalOrigin)
+	if err != nil {
+		logger.Error("failed to derive provider FQDN", "error", err)
+		os.Exit(1)
+	}
 	ocmConfig := cfg.BuildOCMServiceConfig()
 	ocmConfig["provider_fqdn"] = providerFQDN
 
@@ -441,18 +446,3 @@ func main() {
 	logger.Info("server stopped")
 }
 
-// extractProviderFQDN extracts the host:port from an external origin URL.
-func extractProviderFQDN(externalOrigin string) string {
-	// Remove scheme
-	fqdn := externalOrigin
-	if idx := len("https://"); len(fqdn) > idx && fqdn[:idx] == "https://" {
-		fqdn = fqdn[idx:]
-	} else if idx := len("http://"); len(fqdn) > idx && fqdn[:idx] == "http://" {
-		fqdn = fqdn[idx:]
-	}
-	// Remove trailing slash
-	if len(fqdn) > 0 && fqdn[len(fqdn)-1] == '/' {
-		fqdn = fqdn[:len(fqdn)-1]
-	}
-	return fqdn
-}

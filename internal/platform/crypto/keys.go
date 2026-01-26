@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
 // SigningKey holds an Ed25519 keypair for RFC 9421 signatures.
@@ -43,16 +45,16 @@ func NewKeyManager(keyPath, externalOrigin string) *KeyManager {
 }
 
 // deriveKeyID creates a stable keyId URI from external_origin.
+// Uses instanceid.NormalizeExternalOrigin as the single source of truth
+// for ExternalOrigin parsing, then appends the OCM key path.
 func deriveKeyID(externalOrigin string) string {
-	// Parse to ensure it's a valid URL
-	u, err := url.Parse(externalOrigin)
+	normalized, err := instanceid.NormalizeExternalOrigin(externalOrigin)
 	if err != nil {
 		// Fall back to simple construction
 		return externalOrigin + "/ocm#key-1"
 	}
 
-	// Construct stable keyId: scheme://host/ocm#key-1
-	return fmt.Sprintf("%s://%s/ocm#key-1", u.Scheme, u.Host)
+	return normalized + "/ocm#key-1"
 }
 
 // LoadOrGenerate loads existing key from disk or generates a new one.

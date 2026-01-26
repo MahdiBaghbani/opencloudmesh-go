@@ -18,6 +18,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/google/uuid"
@@ -134,7 +135,12 @@ func (h *OutgoingHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	sharedSecret := generateSharedSecret()
 
 	// Build sender identity
-	senderHost := extractHostFromOrigin(h.cfg.ExternalOrigin)
+	senderHost, err := instanceid.ProviderFQDN(h.cfg.ExternalOrigin)
+	if err != nil {
+		h.logger.Error("failed to derive sender host", "error", err)
+		h.sendError(w, http.StatusInternalServerError, "config_error", "invalid external origin")
+		return
+	}
 	owner := "owner@" + senderHost  // Placeholder - should come from auth
 	sender := "sender@" + senderHost // Placeholder - should come from auth
 
@@ -292,7 +298,13 @@ func (h *OutgoingHandler) sendShareToReceiver(ctx context.Context, endPoint stri
 
 	// Apply outbound signing policy
 	if h.outboundPolicy != nil {
-		peerDomain := extractHostFromOrigin(endPoint)
+		peerURL, parseErr := url.Parse(endPoint)
+		var peerDomain string
+		if parseErr != nil || peerURL.Host == "" {
+			peerDomain = endPoint // best-effort fallback
+		} else {
+			peerDomain = peerURL.Host
+		}
 		decision := h.outboundPolicy.ShouldSign(
 			federation.EndpointShares,
 			peerDomain,
@@ -346,11 +358,3 @@ func generateSharedSecret() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// extractHostFromOrigin extracts the host from an origin URL.
-func extractHostFromOrigin(origin string) string {
-	u, err := url.Parse(origin)
-	if err != nil {
-		return origin
-	}
-	return u.Host
-}

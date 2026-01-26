@@ -60,6 +60,12 @@ func TestKeyManager_StableKeyID(t *testing.T) {
 		{"https://example.com:443", "https://example.com:443/ocm#key-1"},
 		{"https://example.com:9200", "https://example.com:9200/ocm#key-1"},
 		{"http://localhost:8080", "http://localhost:8080/ocm#key-1"},
+		// Default-port preservation: :443 is NOT stripped from the emitted keyId
+		{"https://cloud.example.org:443", "https://cloud.example.org:443/ocm#key-1"},
+		// Trailing slash is normalized away
+		{"https://example.com/", "https://example.com/ocm#key-1"},
+		// Uppercase host is lowercased
+		{"https://EXAMPLE.COM", "https://example.com/ocm#key-1"},
 	}
 
 	for _, tt := range tests {

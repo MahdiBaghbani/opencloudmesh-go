@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
 var (
@@ -113,7 +114,10 @@ func (s *Server) Start() error {
 	case "static", "selfsigned":
 		// Get TLS config from TLS manager
 		tlsManager := NewTLSManager(&s.cfg.TLS, s.logger)
-		hostname := extractHostname(s.cfg.ExternalOrigin)
+		hostname, err := instanceid.Hostname(s.cfg.ExternalOrigin)
+		if err != nil {
+			return fmt.Errorf("failed to derive TLS hostname: %w", err)
+		}
 		tlsConfig, err := tlsManager.GetTLSConfig(hostname)
 		if err != nil {
 			return fmt.Errorf("failed to configure TLS: %w", err)
@@ -163,36 +167,4 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return httpErr
 }
 
-// extractProviderFQDN extracts the host:port from an external origin URL.
-func extractProviderFQDN(externalOrigin string) string {
-	// Remove scheme
-	fqdn := externalOrigin
-	if idx := len("https://"); len(fqdn) > idx && fqdn[:idx] == "https://" {
-		fqdn = fqdn[idx:]
-	} else if idx := len("http://"); len(fqdn) > idx && fqdn[:idx] == "http://" {
-		fqdn = fqdn[idx:]
-	}
-	// Remove trailing slash
-	if len(fqdn) > 0 && fqdn[len(fqdn)-1] == '/' {
-		fqdn = fqdn[:len(fqdn)-1]
-	}
-	return fqdn
-}
-
-// extractHostname extracts just the hostname from an external origin URL.
-// For TLS certificate generation, we need the hostname without port.
-func extractHostname(externalOrigin string) string {
-	fqdn := extractProviderFQDN(externalOrigin)
-	// Remove port if present
-	for i := len(fqdn) - 1; i >= 0; i-- {
-		if fqdn[i] == ':' {
-			return fqdn[:i]
-		}
-		if fqdn[i] == ']' {
-			// IPv6 address like [::1]:8080
-			break
-		}
-	}
-	return fqdn
-}
 
