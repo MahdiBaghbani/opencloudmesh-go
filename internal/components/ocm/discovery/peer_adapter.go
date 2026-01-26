@@ -3,6 +3,8 @@ package discovery
 import (
 	"context"
 	"fmt"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
 // PeerDiscoveryAdapter implements crypto.PeerDiscovery using the discovery.Client.
@@ -41,17 +43,18 @@ func (p *PeerDiscoveryAdapter) GetPublicKey(ctx context.Context, keyID string) (
 		return "", fmt.Errorf("no discovery client configured")
 	}
 
-	// Extract host from keyId (e.g., "https://example.com/ocm#key1")
-	host, err := ExtractHostFromKeyID(keyID)
+	// Extract authority from keyId (e.g., "https://example.com/ocm#key1")
+	parsed, err := keyid.Parse(keyID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid keyId %q: %w", keyID, err)
 	}
 
-	// Discover the peer
-	baseURL := "https://" + host
+	// Discover the peer (always https-forced for discovery lookups)
+	authority := keyid.Authority(parsed)
+	baseURL := "https://" + authority
 	disc, err := p.client.Discover(ctx, baseURL)
 	if err != nil {
-		return "", fmt.Errorf("discovery failed for %s: %w", host, err)
+		return "", fmt.Errorf("discovery failed for %s: %w", authority, err)
 	}
 
 	// Find the key
@@ -63,35 +66,3 @@ func (p *PeerDiscoveryAdapter) GetPublicKey(ctx context.Context, keyID string) (
 	return pk.PublicKeyPem, nil
 }
 
-// ExtractHostFromKeyID extracts the host from a keyId URL.
-// Example: "https://example.com/ocm#key1" -> "example.com"
-func ExtractHostFromKeyID(keyID string) (string, error) {
-	// Simple extraction - keyId is typically "https://host/path#keyname"
-	if len(keyID) < 8 {
-		return "", fmt.Errorf("invalid keyId format: too short")
-	}
-
-	// Skip scheme
-	rest := keyID
-	if len(rest) > 8 && rest[:8] == "https://" {
-		rest = rest[8:]
-	} else if len(rest) > 7 && rest[:7] == "http://" {
-		rest = rest[7:]
-	}
-
-	// Find end of host (first / or #)
-	end := len(rest)
-	for i, c := range rest {
-		if c == '/' || c == '#' {
-			end = i
-			break
-		}
-	}
-
-	host := rest[:end]
-	if host == "" {
-		return "", fmt.Errorf("invalid keyId format: no host")
-	}
-
-	return host, nil
-}

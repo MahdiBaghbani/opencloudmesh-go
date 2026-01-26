@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
 // Handler handles the OCM token endpoint.
@@ -18,17 +20,26 @@ type Handler struct {
 	tokenTTL     time.Duration
 	settings     *TokenExchangeSettings
 	logger       *slog.Logger
+	localScheme  string // "http" or "https", derived from ExternalOrigin
 }
 
 // NewHandler creates a new token handler with the given settings.
 // Settings must have ApplyDefaults() called before passing (done by cfg.Decode).
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, settings *TokenExchangeSettings, logger *slog.Logger) *Handler {
+// externalOrigin is used to derive localScheme for scheme-aware client_id comparison.
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, settings *TokenExchangeSettings, externalOrigin string, logger *slog.Logger) *Handler {
+	// Parse localScheme from ExternalOrigin (validated at config load time, cannot fail)
+	localScheme := "https"
+	if u, err := url.Parse(externalOrigin); err == nil && u.Scheme != "" {
+		localScheme = strings.ToLower(u.Scheme)
+	}
+
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		tokenStore:   tokenStore,
 		tokenTTL:     DefaultTokenTTL,
 		settings:     settings,
 		logger:       logger,
+		localScheme:  localScheme,
 	}
 }
 
@@ -106,9 +117,21 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify client_id matches the receiver
-	// client_id should be the receiver's provider FQDN
-	if share.ReceiverHost != req.ClientID {
+	// Verify client_id matches the receiver using scheme-aware normalization.
+	// Default ports are equivalent: example.com == example.com:443 for https.
+	normalizedReceiver, errReceiver := keyid.AuthorityForCompareFromDeclaredPeer(share.ReceiverHost, h.localScheme)
+	normalizedClient, errClient := keyid.AuthorityForCompareFromDeclaredPeer(req.ClientID, h.localScheme)
+
+	if errReceiver != nil || errClient != nil {
+		// Normalization failed -- log and skip mismatch enforcement (no new rejection path)
+		log.Warn("token exchange client_id normalization failed, falling back to raw comparison",
+			"receiver_err", errReceiver,
+			"client_err", errClient)
+		normalizedReceiver = share.ReceiverHost
+		normalizedClient = req.ClientID
+	}
+
+	if normalizedReceiver != normalizedClient {
 		log.Warn("token exchange client mismatch",
 			"expected", share.ReceiverHost,
 			"got", req.ClientID)

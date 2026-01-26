@@ -118,34 +118,3 @@ func TestParsePublicKeyPEM(t *testing.T) {
 	}
 }
 
-func TestExtractHostFromKeyID(t *testing.T) {
-	tests := []struct {
-		keyID    string
-		expected string
-		wantErr  bool
-	}{
-		{"https://example.com/ocm#key-1", "example.com", false},
-		{"https://EXAMPLE.COM/ocm#key-1", "example.com", false},
-		{"https://example.com:9200/ocm#key-1", "example.com:9200", false},
-		{"invalid", "", true},
-		{"", "", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.keyID, func(t *testing.T) {
-			host, err := crypto.ExtractHostFromKeyID(tt.keyID)
-			if tt.wantErr {
-				if err == nil {
-					t.Error("expected error")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
-				if host != tt.expected {
-					t.Errorf("expected %q, got %q", tt.expected, host)
-				}
-			}
-		})
-	}
-}

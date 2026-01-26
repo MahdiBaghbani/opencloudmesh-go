@@ -9,9 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
@@ -218,16 +216,3 @@ func ParsePublicKeyPEM(pemData string) (ed25519.PublicKey, error) {
 	return edPub, nil
 }
 
-// ExtractHostFromKeyID parses a keyId URI and returns the host.
-func ExtractHostFromKeyID(keyID string) (string, error) {
-	u, err := url.Parse(keyID)
-	if err != nil {
-		return "", fmt.Errorf("invalid keyId URI: %w", err)
-	}
-
-	if u.Host == "" {
-		return "", errors.New("keyId has no host")
-	}
-
-	return strings.ToLower(u.Host), nil
-}
