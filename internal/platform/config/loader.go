@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strings"
 
@@ -224,6 +225,11 @@ func Load(opts LoaderOptions) (*Config, error) {
 
 	// Step 6: Validate enum fields (fatal on invalid values)
 	if err := validateEnums(cfg); err != nil {
+		return nil, err
+	}
+
+	// Step 7: Validate external_origin format (fail fast on invalid URL)
+	if err := validateExternalOrigin(cfg); err != nil {
 		return nil, err
 	}
 
@@ -781,6 +787,59 @@ func validateRatelimitConfig(cfg *Config) error {
 				}
 			}
 		}
+	}
+
+	return nil
+}
+
+// validateExternalOrigin checks the external_origin config value when set.
+// Must be an absolute URL with http/https scheme, a host, no userinfo,
+// query, fragment, or base path. Whitespace is rejected, not trimmed.
+func validateExternalOrigin(cfg *Config) error {
+	if cfg.ExternalOrigin == "" {
+		return nil
+	}
+
+	origin := cfg.ExternalOrigin
+
+	if origin != strings.TrimSpace(origin) {
+		return fmt.Errorf("invalid external_origin %q: must not contain leading or trailing whitespace", origin)
+	}
+
+	u, err := url.Parse(origin)
+	if err != nil {
+		return fmt.Errorf("invalid external_origin %q: %w", origin, err)
+	}
+
+	if !u.IsAbs() {
+		return fmt.Errorf("invalid external_origin %q: must be an absolute URL with http or https scheme", origin)
+	}
+
+	switch u.Scheme {
+	case "http", "https":
+		// valid
+	default:
+		return fmt.Errorf("invalid external_origin %q: scheme must be http or https, got %q", origin, u.Scheme)
+	}
+
+	if u.Host == "" {
+		return fmt.Errorf("invalid external_origin %q: must include a host", origin)
+	}
+
+	if u.User != nil {
+		return fmt.Errorf("invalid external_origin %q: must not include userinfo", origin)
+	}
+
+	if u.RawQuery != "" {
+		return fmt.Errorf("invalid external_origin %q: must not include a query string", origin)
+	}
+
+	if u.Fragment != "" {
+		return fmt.Errorf("invalid external_origin %q: must not include a fragment", origin)
+	}
+
+	if u.Path != "" && u.Path != "/" {
+		return fmt.Errorf("invalid external_origin %q: must not include a path (use external_base_path for base path)", origin)
 	}
 
 	return nil
