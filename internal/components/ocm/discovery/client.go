@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 // Client fetches and caches remote OCM discovery documents.

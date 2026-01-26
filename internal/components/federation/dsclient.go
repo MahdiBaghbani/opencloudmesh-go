@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/httpclient"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 // DirectoryServiceClient fetches and verifies DS membership.

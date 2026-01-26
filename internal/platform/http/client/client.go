@@ -1,5 +1,5 @@
-// Package httpclient provides a safe HTTP client with SSRF protections.
-package httpclient
+// Package client provides a safe outbound HTTP client with SSRF protections.
+package client
 
 import (
 	"context"
