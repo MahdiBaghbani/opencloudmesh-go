@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
@@ -74,7 +74,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	tokenHandler := token.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, d.Config.PublicOrigin, log)
 
 	// Create peer resolver for signature verification (service-local, per-endpoint extraction)
-	peerResolver := crypto.NewPeerResolver()
+	peerResolver := peer.NewResolver()
 
 	// Build router with handlers
 	// Apply signature middleware internally (Reva-aligned: service owns signature verification)

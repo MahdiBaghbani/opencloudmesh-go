@@ -3,6 +3,8 @@ package shares
 import (
 	"fmt"
 	"strings"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 )
 
 // ValidationError represents a field-level validation error.
@@ -146,14 +148,14 @@ func isKnownRequirement(r string) bool {
 	return false
 }
 
-// ExtractSenderHost extracts the host from an OCM address.
+// ExtractSenderHost extracts the host (provider) from an OCM address using last-@ semantics.
+// The identifier part may contain '@' (e.g. email addresses).
 func ExtractSenderHost(sender string) string {
-	// OCM address format: user@host or user@host:port
-	parts := strings.SplitN(sender, "@", 2)
-	if len(parts) == 2 {
-		return strings.ToLower(parts[1])
+	_, provider, err := address.Parse(sender)
+	if err != nil {
+		return ""
 	}
-	return ""
+	return strings.ToLower(provider)
 }
 
 // IsAbsoluteURI checks if a URI is absolute (contains ://).

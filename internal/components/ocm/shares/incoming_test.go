@@ -235,17 +235,22 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 
 func TestExtractSenderHost(t *testing.T) {
 	tests := []struct {
+		name     string
 		sender   string
 		expected string
 	}{
-		{"user@example.com", "example.com"},
-		{"user@example.com:9200", "example.com:9200"},
-		{"user@EXAMPLE.COM", "example.com"},
-		{"invalid", ""},
+		{"simple address", "user@example.com", "example.com"},
+		{"with port", "user@example.com:9200", "example.com:9200"},
+		{"uppercase host", "user@EXAMPLE.COM", "example.com"},
+		{"no @ separator", "invalid", ""},
+		{"empty string", "", ""},
+		// Last-@ semantics: email-style identifier with @ in the identifier part
+		{"email identifier (last-@)", "alice@university.edu@provider.net", "provider.net"},
+		{"email identifier with port (last-@)", "alice@uni.edu@provider.net:443", "provider.net:443"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.sender, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			result := shares.ExtractSenderHost(tt.sender)
 			if result != tt.expected {
 				t.Errorf("ExtractSenderHost(%q) = %q, want %q", tt.sender, result, tt.expected)
