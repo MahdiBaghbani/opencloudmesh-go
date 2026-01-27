@@ -26,7 +26,6 @@ func init() {
 
 // Config holds api service configuration.
 type Config struct {
-	ProviderFQDN string `mapstructure:"provider_fqdn"`
 	// Ratelimit holds rate limiting configuration for this service.
 	Ratelimit RatelimitConfig `mapstructure:"ratelimit"`
 }
@@ -96,14 +95,14 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.Signer,
 		d.OutboundPolicy,
 		"", // User ID set from session context
-		c.ProviderFQDN,
+		d.LocalProviderFQDN,
 		log,
 	)
 
 	// Create outgoing invites handler (local-user API, uses OCM invites package)
 	outgoingInvitesHandler := invites.NewHandler(
 		d.OutgoingInviteRepo,
-		c.ProviderFQDN,
+		d.LocalProviderFQDN,
 		d.Config.PublicOrigin,
 		log,
 	)

@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -274,6 +275,18 @@ func main() {
 	// Create RealIP extractor for trusted-proxy-aware client identity
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
 
+	// Derive local provider identity from PublicOrigin once at startup
+	localProviderFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
+	if err != nil {
+		logger.Error("failed to derive provider FQDN", "error", err)
+		os.Exit(1)
+	}
+	localProviderFQDNForCompare, err := hostport.Normalize(localProviderFQDN, cfg.PublicScheme())
+	if err != nil {
+		logger.Error("failed to normalize provider FQDN for comparison", "error", err)
+		os.Exit(1)
+	}
+
 	// Set SharedDeps for registry-based services (wellknown, ocm, api, ui, webdav, etc.)
 	deps.SetDeps(&deps.Deps{
 		// Identity
@@ -298,6 +311,9 @@ func main() {
 		FederationMgr:   federationMgr,
 		PolicyEngine:    policyEngine,
 		ProfileRegistry: profileRegistry,
+		// Provider identity
+		LocalProviderFQDN:           localProviderFQDN,
+		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
 		// Config
 		Config: cfg,
 		// Cache (for interceptors like rate limiting)
@@ -323,15 +339,7 @@ func main() {
 	}
 
 	// Construct OCM service from registry
-	// Add provider_fqdn which is needed for invites handler
-	providerFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
-	if err != nil {
-		logger.Error("failed to derive provider FQDN", "error", err)
-		os.Exit(1)
-	}
 	ocmConfig := cfg.BuildOCMServiceConfig()
-	ocmConfig["provider_fqdn"] = providerFQDN
-
 	ocmNew := service.Get("ocm")
 	if ocmNew == nil {
 		logger.Error("ocm service not registered")
@@ -364,7 +372,6 @@ func main() {
 	if apiConfig == nil {
 		apiConfig = make(map[string]any)
 	}
-	apiConfig["provider_fqdn"] = providerFQDN
 	apiNew := service.Get("api")
 	if apiNew == nil {
 		logger.Error("api service not registered")

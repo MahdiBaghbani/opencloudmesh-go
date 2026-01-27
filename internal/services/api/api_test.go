@@ -33,6 +33,9 @@ func setupTestDeps() {
 		TokenStore:         token.NewMemoryTokenStore(),
 		// Clients
 		HTTPClient: httpclient.NewContextClient(httpclient.New(nil)),
+		// Provider identity
+		LocalProviderFQDN:           "localhost",
+		LocalProviderFQDNForCompare: "localhost",
 		// Config
 		Config: config.DevConfig(),
 	})
@@ -41,9 +44,7 @@ func setupTestDeps() {
 func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 	deps.ResetDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	_, err := New(m, log)
@@ -55,9 +56,7 @@ func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -73,9 +72,7 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 func TestService_Prefix(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -91,9 +88,7 @@ func TestService_Prefix(t *testing.T) {
 func TestService_Unprotected(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -125,9 +120,7 @@ func TestService_Unprotected(t *testing.T) {
 func TestService_Handler(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -143,9 +136,7 @@ func TestService_Handler(t *testing.T) {
 func TestService_Close(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -161,9 +152,7 @@ func TestService_Close(t *testing.T) {
 func TestService_HealthzEndpoint(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -194,9 +183,7 @@ func TestService_HealthzEndpoint(t *testing.T) {
 func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -219,9 +206,7 @@ func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -244,9 +229,7 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 func TestService_AdminFederationsEndpoint_NotImplemented(t *testing.T) {
 	setupTestDeps()
 
-	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -272,8 +255,7 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	m := map[string]any{
-		"provider_fqdn": "test.example.com",
-		"unknown_key":   "value",
+		"unknown_key": "value",
 	}
 
 	_, err := New(m, log)

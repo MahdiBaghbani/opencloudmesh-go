@@ -19,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -112,6 +113,18 @@ func StartTestServer(t *testing.T) *TestServer {
 	// Create RealIP extractor for trusted-proxy-aware client identity
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
 
+	// Derive local provider identity from PublicOrigin
+	localProviderFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to derive provider FQDN: %v", err)
+	}
+	localProviderFQDNForCompare, err := hostport.Normalize(localProviderFQDN, cfg.PublicScheme())
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to normalize provider FQDN: %v", err)
+	}
+
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
@@ -127,6 +140,9 @@ func StartTestServer(t *testing.T) *TestServer {
 		TokenStore:         tokenStore,
 		// Clients
 		HTTPClient: httpClient,
+		// Provider identity
+		LocalProviderFQDN:           localProviderFQDN,
+		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
 		// Config
 		Config: cfg,
 		// Cache (for interceptors like rate limiting)
@@ -153,13 +169,6 @@ func StartTestServer(t *testing.T) *TestServer {
 
 	// Build OCM service config using config helpers
 	ocmConfig := cfg.BuildOCMServiceConfig()
-	// Add provider_fqdn for invites handler
-	providerFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to derive provider FQDN: %v", err)
-	}
-	ocmConfig["provider_fqdn"] = providerFQDN
 
 	// Construct OCM service from registry
 	ocmNew := service.Get("ocm")
@@ -194,7 +203,6 @@ func StartTestServer(t *testing.T) *TestServer {
 	if apiConfig == nil {
 		apiConfig = make(map[string]any)
 	}
-	apiConfig["provider_fqdn"] = providerFQDN
 	apiNew := service.Get("api")
 	if apiNew == nil {
 		os.RemoveAll(tempDir)

@@ -54,6 +54,10 @@ type Deps struct {
 	PolicyEngine    *federation.PolicyEngine
 	ProfileRegistry *federation.ProfileRegistry
 
+	// Provider identity derived from PublicOrigin at startup
+	LocalProviderFQDN           string // raw host[:port] from PublicOrigin (lowercased)
+	LocalProviderFQDNForCompare string // scheme-aware normalized (default port stripped)
+
 	// Config (for handlers that need config values)
 	Config *config.Config
 
