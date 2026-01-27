@@ -135,7 +135,7 @@ func (h *OutgoingHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	sharedSecret := generateSharedSecret()
 
 	// Build sender identity
-	senderHost, err := instanceid.ProviderFQDN(h.cfg.ExternalOrigin)
+	senderHost, err := instanceid.ProviderFQDN(h.cfg.PublicOrigin)
 	if err != nil {
 		h.logger.Error("failed to derive sender host", "error", err)
 		h.sendError(w, http.StatusInternalServerError, "config_error", "invalid external origin")

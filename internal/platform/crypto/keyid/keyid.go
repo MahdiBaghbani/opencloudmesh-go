@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/url"
 	"strings"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 // Parsed holds the decomposed components of a keyId URI.
@@ -57,12 +59,15 @@ func Parse(keyID string) (Parsed, error) {
 	}, nil
 }
 
-// Authority returns the raw authority string from a parsed keyId.
-// Returns "hostname" when no port is present, or "hostname:port" when a port
-// is explicitly specified. IPv6 hostnames are not bracketed in the output
-// (consistent with url.Hostname() behavior).
+// Authority returns the authority string from a parsed keyId.
+// IPv6 hostnames are always bracketed (e.g. [::1] or [::1]:9200) since
+// authority strings require brackets per RFC 3986.
 func Authority(p Parsed) string {
 	if p.Port == "" {
+		// IPv6 addresses must be bracketed in authority form.
+		if strings.Contains(p.Hostname, ":") {
+			return "[" + p.Hostname + "]"
+		}
 		return p.Hostname
 	}
 
@@ -72,67 +77,31 @@ func Authority(p Parsed) string {
 // AuthorityForCompareFromKeyID returns a scheme-aware normalized authority
 // for identity comparison. Default ports are stripped based on the keyId's
 // own scheme: :443 for https, :80 for http.
+//
+// Uses hostport.Normalize internally to ensure a single normalization
+// implementation across the codebase.
 func AuthorityForCompareFromKeyID(p Parsed) string {
-	return authorityForCompare(p.Hostname, p.Port, p.Scheme)
+	authority := Authority(p)
+	normalized, err := hostport.Normalize(authority, p.Scheme)
+	if err != nil {
+		// Authority was already parsed from a valid keyId URI, so this
+		// should not fail. Fall back to the raw authority on error.
+		return authority
+	}
+	return normalized
 }
 
 // AuthorityForCompareFromDeclaredPeer normalizes a schemeless declared peer
 // authority (host or host:port) for identity comparison. The scheme parameter
 // determines which default port is stripped (:443 for https, :80 for http).
 //
-// Leading and trailing whitespace is trimmed before parsing. The hostname is
-// lowercased. Bracketed IPv6 addresses are supported.
+// This is a convenience wrapper around hostport.Normalize. Non-keyId call
+// sites (token handler, notifications, invites, shareWith provider match)
+// should use hostport.Normalize directly instead of importing this package.
 //
 // On parse failure, an error is returned. Call sites that enforce mismatch
 // must log and skip mismatch enforcement on error (do not introduce a new
 // rejection path).
 func AuthorityForCompareFromDeclaredPeer(peer string, scheme string) (string, error) {
-	peer = strings.TrimSpace(peer)
-	if peer == "" {
-		return "", errors.New("keyid: empty peer authority")
-	}
-
-	// Parse the peer as a host or host:port. We prepend a dummy scheme so
-	// url.Parse can handle IPv6 brackets and port splitting correctly.
-	dummy := "dummy://" + peer
-	u, err := url.Parse(dummy)
-	if err != nil {
-		return "", fmt.Errorf("keyid: invalid peer authority %q: %w", peer, err)
-	}
-
-	hostname := strings.ToLower(u.Hostname())
-	if hostname == "" {
-		return "", fmt.Errorf("keyid: peer authority %q has no host", peer)
-	}
-
-	port := u.Port()
-	scheme = strings.ToLower(scheme)
-
-	return authorityForCompare(hostname, port, scheme), nil
-}
-
-// authorityForCompare strips the default port for the given scheme and
-// returns the normalized authority for comparison.
-func authorityForCompare(hostname, port, scheme string) string {
-	if isDefaultPort(port, scheme) {
-		return hostname
-	}
-
-	if port == "" {
-		return hostname
-	}
-
-	return net.JoinHostPort(hostname, port)
-}
-
-// isDefaultPort returns true if the port is the default for the scheme.
-func isDefaultPort(port, scheme string) bool {
-	switch scheme {
-	case "https":
-		return port == "443"
-	case "http":
-		return port == "80"
-	default:
-		return false
-	}
+	return hostport.Normalize(peer, scheme)
 }

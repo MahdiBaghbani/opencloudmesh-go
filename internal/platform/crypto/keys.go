@@ -28,13 +28,13 @@ type KeyManager struct {
 	mu         sync.RWMutex
 	signingKey *SigningKey
 	keyPath    string // path to persist private key
-	keyID      string // stable keyId derived from external_origin
+	keyID      string // stable keyId derived from public_origin
 }
 
 // NewKeyManager creates a new key manager.
-// keyPath is where the private key is stored. keyID is derived from external_origin.
+// keyPath is where the private key is stored. keyID is derived from public_origin.
 func NewKeyManager(keyPath, externalOrigin string) *KeyManager {
-	// Derive stable keyId from external_origin
+	// Derive stable keyId from public_origin
 	keyID := deriveKeyID(externalOrigin)
 	return &KeyManager{
 		keyPath: keyPath,
@@ -42,9 +42,9 @@ func NewKeyManager(keyPath, externalOrigin string) *KeyManager {
 	}
 }
 
-// deriveKeyID creates a stable keyId URI from external_origin.
+// deriveKeyID creates a stable keyId URI from the public origin.
 // Uses instanceid.NormalizeExternalOrigin as the single source of truth
-// for ExternalOrigin parsing, then appends the OCM key path.
+// for origin parsing, then appends the OCM key path.
 func deriveKeyID(externalOrigin string) string {
 	normalized, err := instanceid.NormalizeExternalOrigin(externalOrigin)
 	if err != nil {

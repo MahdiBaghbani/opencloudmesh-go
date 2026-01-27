@@ -84,7 +84,7 @@ func TestLoad_ConfigFile(t *testing.T) {
 
 	tomlContent := `
 mode = "interop"
-external_origin = "https://example.com:8443"
+public_origin = "https://example.com:8443"
 listen_addr = ":8443"
 
 [server]
@@ -110,8 +110,8 @@ timeout_ms = 5000
 	if cfg.Mode != "interop" {
 		t.Errorf("expected mode interop, got %s", cfg.Mode)
 	}
-	if cfg.ExternalOrigin != "https://example.com:8443" {
-		t.Errorf("expected origin https://example.com:8443, got %s", cfg.ExternalOrigin)
+	if cfg.PublicOrigin != "https://example.com:8443" {
+		t.Errorf("expected origin https://example.com:8443, got %s", cfg.PublicOrigin)
 	}
 	if cfg.ListenAddr != ":8443" {
 		t.Errorf("expected listen :8443, got %s", cfg.ListenAddr)
@@ -140,7 +140,7 @@ func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
-external_origin = "https://from-toml.com"
+public_origin = "https://from-toml.com"
 listen_addr = ":9000"
 
 [signature]
@@ -157,7 +157,7 @@ outbound_mode = "criteria-only"
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
-			ExternalOrigin:       &origin,
+			PublicOrigin:       &origin,
 			SignatureInboundMode: &sigInbound,
 		},
 	})
@@ -165,8 +165,8 @@ outbound_mode = "criteria-only"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.ExternalOrigin != "https://from-flag.com" {
-		t.Errorf("expected origin from flag, got %s", cfg.ExternalOrigin)
+	if cfg.PublicOrigin != "https://from-flag.com" {
+		t.Errorf("expected origin from flag, got %s", cfg.PublicOrigin)
 	}
 	if cfg.ListenAddr != ":9000" {
 		t.Errorf("expected listen from TOML :9000, got %s", cfg.ListenAddr)
@@ -314,7 +314,7 @@ func TestInteropConfig(t *testing.T) {
 func TestConfig_Redacted(t *testing.T) {
 	cfg := &Config{
 		Mode:           "strict",
-		ExternalOrigin: "https://example.com",
+		PublicOrigin: "https://example.com",
 		Server: ServerConfig{
 			TrustedProxies: []string{"127.0.0.0/8"},
 			BootstrapAdmin: BootstrapAdminConfig{
@@ -1280,7 +1280,7 @@ func TestBuildServiceConfig_ReturnsCopyForConfiguredService(t *testing.T) {
 
 func TestBuildWellknownServiceConfig_InjectsGlobalValues(t *testing.T) {
 	cfg := StrictConfig()
-	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.PublicOrigin = "https://ocm.example.com"
 	cfg.ExternalBasePath = "/api"
 	cfg.Signature.AdvertiseHTTPRequestSignatures = true
 	enabled := true
@@ -1328,7 +1328,7 @@ func TestBuildWellknownServiceConfig_InjectsGlobalValues(t *testing.T) {
 
 func TestBuildWellknownServiceConfig_ExplicitConfigOverridesDefaults(t *testing.T) {
 	cfg := StrictConfig()
-	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.PublicOrigin = "https://ocm.example.com"
 	cfg.HTTP.Services = map[string]map[string]any{
 		"wellknown": {
 			"ocmprovider": map[string]any{
@@ -1408,7 +1408,7 @@ func TestBuildOCMServiceConfig_ExplicitConfigOverridesDefaults(t *testing.T) {
 
 func TestBuildWellknownServiceConfig_NoBasePath(t *testing.T) {
 	cfg := StrictConfig()
-	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.PublicOrigin = "https://ocm.example.com"
 	cfg.ExternalBasePath = "" // no base path
 
 	result := cfg.BuildWellknownServiceConfig()
@@ -1439,7 +1439,7 @@ func TestHTTPConfig_EmptyServicesDoesNotBreakLoading(t *testing.T) {
 
 func TestBuildWellknownServiceConfig_APIVersionOverrides_InteropMode(t *testing.T) {
 	cfg := InteropConfig()
-	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.PublicOrigin = "https://ocm.example.com"
 
 	result := cfg.BuildWellknownServiceConfig()
 	ocmProvider, ok := result["ocmprovider"].(map[string]any)
@@ -1465,7 +1465,7 @@ func TestBuildWellknownServiceConfig_APIVersionOverrides_InteropMode(t *testing.
 
 func TestBuildWellknownServiceConfig_APIVersionOverrides_DevMode(t *testing.T) {
 	cfg := DevConfig()
-	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.PublicOrigin = "https://ocm.example.com"
 
 	result := cfg.BuildWellknownServiceConfig()
 	ocmProvider, ok := result["ocmprovider"].(map[string]any)
@@ -1485,7 +1485,7 @@ func TestBuildWellknownServiceConfig_APIVersionOverrides_DevMode(t *testing.T) {
 
 func TestBuildWellknownServiceConfig_APIVersionOverrides_StrictMode(t *testing.T) {
 	cfg := StrictConfig()
-	cfg.ExternalOrigin = "https://ocm.example.com"
+	cfg.PublicOrigin = "https://ocm.example.com"
 
 	result := cfg.BuildWellknownServiceConfig()
 	ocmProvider, ok := result["ocmprovider"].(map[string]any)
@@ -1499,7 +1499,7 @@ func TestBuildWellknownServiceConfig_APIVersionOverrides_StrictMode(t *testing.T
 	}
 }
 
-func TestValidateExternalOrigin_ValidValues(t *testing.T) {
+func TestValidatePublicOrigin_ValidValues(t *testing.T) {
 	valid := []struct {
 		name   string
 		origin string
@@ -1523,15 +1523,15 @@ func TestValidateExternalOrigin_ValidValues(t *testing.T) {
 
 	for _, tt := range valid {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{ExternalOrigin: tt.origin}
-			if err := validateExternalOrigin(cfg); err != nil {
-				t.Errorf("validateExternalOrigin(%q) unexpected error: %v", tt.origin, err)
+			cfg := &Config{PublicOrigin: tt.origin}
+			if err := validatePublicOrigin(cfg); err != nil {
+				t.Errorf("validatePublicOrigin(%q) unexpected error: %v", tt.origin, err)
 			}
 		})
 	}
 }
 
-func TestValidateExternalOrigin_InvalidValues(t *testing.T) {
+func TestValidatePublicOrigin_InvalidValues(t *testing.T) {
 	tests := []struct {
 		name      string
 		origin    string
@@ -1591,25 +1591,25 @@ func TestValidateExternalOrigin_InvalidValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{ExternalOrigin: tt.origin}
-			err := validateExternalOrigin(cfg)
+			cfg := &Config{PublicOrigin: tt.origin}
+			err := validatePublicOrigin(cfg)
 			if err == nil {
-				t.Fatalf("validateExternalOrigin(%q) expected error, got nil", tt.origin)
+				t.Fatalf("validatePublicOrigin(%q) expected error, got nil", tt.origin)
 			}
 			if !strings.Contains(err.Error(), tt.wantInErr) {
-				t.Errorf("validateExternalOrigin(%q) error = %q, want substring %q", tt.origin, err.Error(), tt.wantInErr)
+				t.Errorf("validatePublicOrigin(%q) error = %q, want substring %q", tt.origin, err.Error(), tt.wantInErr)
 			}
 		})
 	}
 }
 
-func TestLoad_ExternalOrigin_InvalidViaConfigFile_FailsFast(t *testing.T) {
+func TestLoad_PublicOrigin_InvalidViaConfigFile_FailsFast(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 mode = "dev"
-external_origin = "https://example.com/app"
+public_origin = "https://example.com/app"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1617,35 +1617,56 @@ external_origin = "https://example.com/app"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for external_origin with a path")
+		t.Fatal("expected error for public_origin with a path")
 	}
-	if !strings.Contains(err.Error(), "external_origin") {
-		t.Errorf("expected error to mention external_origin, got: %v", err)
+	if !strings.Contains(err.Error(), "public_origin") {
+		t.Errorf("expected error to mention public_origin, got: %v", err)
 	}
 }
 
-func TestLoad_ExternalOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
+func TestLoad_ExternalOrigin_StrictBreak_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "dev"
+external_origin = "https://example.com"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for old external_origin key")
+	}
+	if !strings.Contains(err.Error(), "external_origin") || !strings.Contains(err.Error(), "public_origin") {
+		t.Errorf("expected error to mention both external_origin and public_origin, got: %v", err)
+	}
+}
+
+func TestLoad_PublicOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
 	origin := "ftp://example.com"
 	_, err := Load(LoaderOptions{
 		FlagOverrides: FlagOverrides{
-			ExternalOrigin: &origin,
+			PublicOrigin: &origin,
 		},
 	})
 	if err == nil {
-		t.Fatal("expected error for ftp scheme in external_origin")
+		t.Fatal("expected error for ftp scheme in public_origin")
 	}
 	if !strings.Contains(err.Error(), "scheme must be http or https") {
 		t.Errorf("expected scheme error, got: %v", err)
 	}
 }
 
-func TestLoad_ExternalOrigin_ValidViaConfigFile_Succeeds(t *testing.T) {
+func TestLoad_PublicOrigin_ValidViaConfigFile_Succeeds(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 mode = "dev"
-external_origin = "https://example.com:9200"
+public_origin = "https://example.com:9200"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1656,7 +1677,7 @@ external_origin = "https://example.com:9200"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.ExternalOrigin != "https://example.com:9200" {
-		t.Errorf("expected external_origin https://example.com:9200, got %s", cfg.ExternalOrigin)
+	if cfg.PublicOrigin != "https://example.com:9200" {
+		t.Errorf("expected public_origin https://example.com:9200, got %s", cfg.PublicOrigin)
 	}
 }

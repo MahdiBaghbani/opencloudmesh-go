@@ -238,7 +238,7 @@ func generateTOMLConfig(name string, port int, dataDir, mode, extra string) stri
 	config := fmt.Sprintf(`# Generated config for test server: %s
 mode = "%s"
 listen_addr = ":%d"
-external_origin = "%s"
+public_origin = "%s"
 external_base_path = ""
 
 [tls]

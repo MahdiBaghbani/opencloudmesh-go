@@ -10,7 +10,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 // Handler handles the OCM token endpoint.
@@ -20,16 +20,16 @@ type Handler struct {
 	tokenTTL     time.Duration
 	settings     *TokenExchangeSettings
 	logger       *slog.Logger
-	localScheme  string // "http" or "https", derived from ExternalOrigin
+	localScheme  string // "http" or "https", derived from PublicOrigin
 }
 
 // NewHandler creates a new token handler with the given settings.
 // Settings must have ApplyDefaults() called before passing (done by cfg.Decode).
-// externalOrigin is used to derive localScheme for scheme-aware client_id comparison.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, settings *TokenExchangeSettings, externalOrigin string, logger *slog.Logger) *Handler {
-	// Parse localScheme from ExternalOrigin (validated at config load time, cannot fail)
+// publicOrigin is used to derive localScheme for scheme-aware client_id comparison.
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
+	// Parse localScheme from PublicOrigin (validated at config load time, cannot fail)
 	localScheme := "https"
-	if u, err := url.Parse(externalOrigin); err == nil && u.Scheme != "" {
+	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
 		localScheme = strings.ToLower(u.Scheme)
 	}
 
@@ -119,8 +119,8 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	// Verify client_id matches the receiver using scheme-aware normalization.
 	// Default ports are equivalent: example.com == example.com:443 for https.
-	normalizedReceiver, errReceiver := keyid.AuthorityForCompareFromDeclaredPeer(share.ReceiverHost, h.localScheme)
-	normalizedClient, errClient := keyid.AuthorityForCompareFromDeclaredPeer(req.ClientID, h.localScheme)
+	normalizedReceiver, errReceiver := hostport.Normalize(share.ReceiverHost, h.localScheme)
+	normalizedClient, errClient := hostport.Normalize(req.ClientID, h.localScheme)
 
 	if errReceiver != nil || errClient != nil {
 		// Normalization failed -- log and skip mismatch enforcement (no new rejection path)

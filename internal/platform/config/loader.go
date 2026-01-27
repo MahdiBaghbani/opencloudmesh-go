@@ -54,7 +54,7 @@ type LoaderOptions struct {
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
 	ListenAddr                     *string
-	ExternalOrigin                 *string
+	PublicOrigin                   *string
 	ExternalBasePath               *string
 	SSRFMode                       *string
 	SignatureInboundMode           *string
@@ -76,7 +76,7 @@ type fileConfig struct {
 	Mode   string        `toml:"mode"`
 	Server *serverConfig `toml:"server"`
 
-	ExternalOrigin   string `toml:"external_origin"`
+	PublicOrigin     string `toml:"public_origin"`
 	ExternalBasePath string `toml:"external_base_path"`
 	ListenAddr       string `toml:"listen_addr"`
 
@@ -188,13 +188,20 @@ func Load(opts LoaderOptions) (*Config, error) {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
 		}
 
-		// Warn about undecoded keys (do not fail)
+		// Strict break: reject the old external_origin key with a clear error.
 		if undecoded := md.Undecoded(); len(undecoded) > 0 {
-			keys := make([]string, len(undecoded))
-			for i, k := range undecoded {
-				keys[i] = k.String()
+			keys := make([]string, 0, len(undecoded))
+			for _, k := range undecoded {
+				keyStr := k.String()
+				if keyStr == "external_origin" {
+					return nil, fmt.Errorf("config key 'external_origin' has been renamed to 'public_origin'; please update your configuration")
+				}
+				keys = append(keys, keyStr)
 			}
-			logger.Warn("config file contains undecoded keys", "path", opts.ConfigPath, "keys", keys)
+			// Warn about remaining undecoded keys (do not fail)
+			if len(keys) > 0 {
+				logger.Warn("config file contains undecoded keys", "path", opts.ConfigPath, "keys", keys)
+			}
 		}
 	}
 
@@ -228,8 +235,8 @@ func Load(opts LoaderOptions) (*Config, error) {
 		return nil, err
 	}
 
-	// Step 7: Validate external_origin format (fail fast on invalid URL)
-	if err := validateExternalOrigin(cfg); err != nil {
+	// Step 7: Validate public_origin format (fail fast on invalid URL)
+	if err := validatePublicOrigin(cfg); err != nil {
 		return nil, err
 	}
 
@@ -255,7 +262,7 @@ func presetForMode(mode Mode) *Config {
 func StrictConfig() *Config {
 	return &Config{
 		Mode:             string(ModeStrict),
-		ExternalOrigin:   "https://localhost:9200",
+		PublicOrigin:     "https://localhost:9200",
 		ExternalBasePath: "",
 		ListenAddr:       ":9200",
 		Server: ServerConfig{
@@ -328,7 +335,7 @@ func InteropConfig() *Config {
 func DevConfig() *Config {
 	return &Config{
 		Mode:             string(ModeDev),
-		ExternalOrigin:   "https://localhost:9200",
+		PublicOrigin:     "https://localhost:9200",
 		ExternalBasePath: "",
 		ListenAddr:       ":9200",
 		Server: ServerConfig{
@@ -386,8 +393,8 @@ func DevConfig() *Config {
 
 // overlayFileConfig applies TOML file values onto cfg.
 func overlayFileConfig(cfg *Config, fc *fileConfig) {
-	if fc.ExternalOrigin != "" {
-		cfg.ExternalOrigin = fc.ExternalOrigin
+	if fc.PublicOrigin != "" {
+		cfg.PublicOrigin = fc.PublicOrigin
 	}
 	if fc.ExternalBasePath != "" {
 		cfg.ExternalBasePath = fc.ExternalBasePath
@@ -576,8 +583,8 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.ListenAddr != nil && *f.ListenAddr != "" {
 		cfg.ListenAddr = *f.ListenAddr
 	}
-	if f.ExternalOrigin != nil && *f.ExternalOrigin != "" {
-		cfg.ExternalOrigin = *f.ExternalOrigin
+	if f.PublicOrigin != nil && *f.PublicOrigin != "" {
+		cfg.PublicOrigin = *f.PublicOrigin
 	}
 	if f.ExternalBasePath != nil && *f.ExternalBasePath != "" {
 		cfg.ExternalBasePath = *f.ExternalBasePath
@@ -792,54 +799,54 @@ func validateRatelimitConfig(cfg *Config) error {
 	return nil
 }
 
-// validateExternalOrigin checks the external_origin config value when set.
+// validatePublicOrigin checks the public_origin config value when set.
 // Must be an absolute URL with http/https scheme, a host, no userinfo,
 // query, fragment, or base path. Whitespace is rejected, not trimmed.
-func validateExternalOrigin(cfg *Config) error {
-	if cfg.ExternalOrigin == "" {
+func validatePublicOrigin(cfg *Config) error {
+	if cfg.PublicOrigin == "" {
 		return nil
 	}
 
-	origin := cfg.ExternalOrigin
+	origin := cfg.PublicOrigin
 
 	if origin != strings.TrimSpace(origin) {
-		return fmt.Errorf("invalid external_origin %q: must not contain leading or trailing whitespace", origin)
+		return fmt.Errorf("invalid public_origin %q: must not contain leading or trailing whitespace", origin)
 	}
 
 	u, err := url.Parse(origin)
 	if err != nil {
-		return fmt.Errorf("invalid external_origin %q: %w", origin, err)
+		return fmt.Errorf("invalid public_origin %q: %w", origin, err)
 	}
 
 	if !u.IsAbs() {
-		return fmt.Errorf("invalid external_origin %q: must be an absolute URL with http or https scheme", origin)
+		return fmt.Errorf("invalid public_origin %q: must be an absolute URL with http or https scheme", origin)
 	}
 
 	switch u.Scheme {
 	case "http", "https":
 		// valid
 	default:
-		return fmt.Errorf("invalid external_origin %q: scheme must be http or https, got %q", origin, u.Scheme)
+		return fmt.Errorf("invalid public_origin %q: scheme must be http or https, got %q", origin, u.Scheme)
 	}
 
 	if u.Host == "" {
-		return fmt.Errorf("invalid external_origin %q: must include a host", origin)
+		return fmt.Errorf("invalid public_origin %q: must include a host", origin)
 	}
 
 	if u.User != nil {
-		return fmt.Errorf("invalid external_origin %q: must not include userinfo", origin)
+		return fmt.Errorf("invalid public_origin %q: must not include userinfo", origin)
 	}
 
 	if u.RawQuery != "" {
-		return fmt.Errorf("invalid external_origin %q: must not include a query string", origin)
+		return fmt.Errorf("invalid public_origin %q: must not include a query string", origin)
 	}
 
 	if u.Fragment != "" {
-		return fmt.Errorf("invalid external_origin %q: must not include a fragment", origin)
+		return fmt.Errorf("invalid public_origin %q: must not include a fragment", origin)
 	}
 
 	if u.Path != "" && u.Path != "/" {
-		return fmt.Errorf("invalid external_origin %q: must not include a path (use external_base_path for base path)", origin)
+		return fmt.Errorf("invalid public_origin %q: must not include a path (use external_base_path for base path)", origin)
 	}
 
 	return nil

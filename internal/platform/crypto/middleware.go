@@ -55,11 +55,11 @@ type SignatureMiddleware struct {
 	verifier      *RFC9421Verifier
 	peerDiscovery PeerDiscovery
 	logger        *slog.Logger
-	localScheme   string // scheme from ExternalOrigin for unverified peer normalization
+	localScheme   string // scheme from PublicOrigin for unverified peer normalization
 }
 
 // NewSignatureMiddleware creates a new signature verification middleware.
-// externalOrigin is the local instance's ExternalOrigin (validated at config load).
+// publicOrigin is the local instance's PublicOrigin (validated at config load).
 func NewSignatureMiddleware(cfg *config.SignatureConfig, pd PeerDiscovery, externalOrigin string, logger *slog.Logger) *SignatureMiddleware {
 	var localScheme string
 	if u, err := url.Parse(externalOrigin); err == nil && u.Scheme != "" {

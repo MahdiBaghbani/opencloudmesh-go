@@ -3,7 +3,10 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
 // Config holds the server configuration.
@@ -11,9 +14,9 @@ type Config struct {
 	// Mode is the operating mode: strict, interop, or dev.
 	Mode string `toml:"mode"`
 
-	// ExternalOrigin is the public origin (scheme + host + port) for this instance.
+	// PublicOrigin is the public origin (scheme + host + port) for this instance.
 	// Example: "https://localhost:9200"
-	ExternalOrigin string `toml:"external_origin"`
+	PublicOrigin string `toml:"public_origin"`
 
 	// ExternalBasePath is the optional path prefix for app endpoints.
 	// Root-only endpoints (/.well-known/ocm, /ocm-provider) are never under this path.
@@ -351,7 +354,7 @@ func (c *Config) BuildWellknownServiceConfig() map[string]any {
 
 	// Inject global endpoint (can be overridden by explicit config)
 	if _, ok := ocmProvider["endpoint"]; !ok {
-		ocmProvider["endpoint"] = c.ExternalOrigin + c.ExternalBasePath
+		ocmProvider["endpoint"] = c.PublicOrigin + c.ExternalBasePath
 	}
 	if _, ok := ocmProvider["ocm_prefix"]; !ok {
 		ocmProvider["ocm_prefix"] = "ocm"
@@ -437,7 +440,7 @@ func (c *Config) Redacted() string {
 	var sb strings.Builder
 	sb.WriteString("Config{\n")
 	sb.WriteString(fmt.Sprintf("  Mode: %q,\n", c.Mode))
-	sb.WriteString(fmt.Sprintf("  ExternalOrigin: %q,\n", c.ExternalOrigin))
+	sb.WriteString(fmt.Sprintf("  PublicOrigin: %q,\n", c.PublicOrigin))
 	sb.WriteString(fmt.Sprintf("  ExternalBasePath: %q,\n", c.ExternalBasePath))
 	sb.WriteString(fmt.Sprintf("  ListenAddr: %q,\n", c.ListenAddr))
 	sb.WriteString("  Server: {\n")
@@ -507,4 +510,26 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  },\n")
 	sb.WriteString("}")
 	return sb.String()
+}
+
+// PublicScheme returns "http" or "https" from PublicOrigin.
+// Returns "https" if PublicOrigin is empty or unparseable.
+func (c *Config) PublicScheme() string {
+	if c.PublicOrigin == "" {
+		return "https"
+	}
+	u, err := url.Parse(c.PublicOrigin)
+	if err != nil || u.Scheme == "" {
+		return "https"
+	}
+	return strings.ToLower(u.Scheme)
+}
+
+// PublicAuthority returns the lowercased host[:port] from PublicOrigin.
+func (c *Config) PublicAuthority() string {
+	fqdn, err := instanceid.ProviderFQDN(c.PublicOrigin)
+	if err != nil {
+		return ""
+	}
+	return fqdn
 }

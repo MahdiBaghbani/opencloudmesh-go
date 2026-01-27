@@ -247,7 +247,7 @@ func TestAuthority(t *testing.T) {
 		{"with port", "https://example.com:9200/ocm#key-1", "example.com:9200"},
 		{"default port preserved", "https://example.com:443/ocm#key-1", "example.com:443"},
 		{"IPv6 with port", "https://[::1]:9200/ocm#key-1", "[::1]:9200"},
-		{"IPv6 without port", "https://[::1]/ocm#key-1", "::1"},
+		{"IPv6 without port", "https://[::1]/ocm#key-1", "[::1]"},
 	}
 
 	for _, tt := range tests {
@@ -283,7 +283,8 @@ func TestAuthorityForCompareFromKeyID(t *testing.T) {
 		{"http with 443 kept (not default for http)", "http://example.com:443/ocm#signature", "example.com:443"},
 		// IPv6
 		{"IPv6 with non-default port", "https://[::1]:9200/ocm#key-1", "[::1]:9200"},
-		{"IPv6 with 443 stripped", "https://[::1]:443/ocm#key-1", "::1"},
+		{"IPv6 with 443 stripped", "https://[::1]:443/ocm#key-1", "[::1]"},
+		{"IPv6 without port", "https://[::1]/ocm#key-1", "[::1]"},
 	}
 
 	for _, tt := range tests {
@@ -319,9 +320,9 @@ func TestAuthorityForCompareFromDeclaredPeer(t *testing.T) {
 		{"non-default port kept", "example.com:9200", "https", "example.com:9200"},
 		{"uppercase host lowercased", "EXAMPLE.COM", "https", "example.com"},
 		{"uppercase with port", "EXAMPLE.COM:9200", "https", "example.com:9200"},
-		{"IPv6 bare", "[::1]", "https", "::1"},
+		{"IPv6 bare", "[::1]", "https", "[::1]"},
 		{"IPv6 with port", "[::1]:9200", "https", "[::1]:9200"},
-		{"IPv6 with 443 stripped", "[::1]:443", "https", "::1"},
+		{"IPv6 with 443 stripped", "[::1]:443", "https", "[::1]"},
 		{"leading whitespace trimmed", "  example.com", "https", "example.com"},
 		{"trailing whitespace trimmed", "example.com  ", "https", "example.com"},
 		{"both whitespace trimmed", "  example.com  ", "https", "example.com"},

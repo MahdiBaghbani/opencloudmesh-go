@@ -49,7 +49,7 @@ func (h *Handler) GetDiscovery() *Discovery {
 	defer h.mu.RUnlock()
 
 	// Build endpoint URL
-	endpoint := h.cfg.ExternalOrigin
+	endpoint := h.cfg.PublicOrigin
 	if h.cfg.ExternalBasePath != "" {
 		endpoint += h.cfg.ExternalBasePath
 	}

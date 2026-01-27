@@ -101,7 +101,7 @@ export function buildBinary(): string {
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
   let config = `mode = "${mode}"
 listen_addr = ":${port}"
-external_origin = "http://localhost:${port}"
+public_origin = "http://localhost:${port}"
 external_base_path = ""
 
 [tls]

@@ -12,7 +12,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 // DefaultInviteTTL is the default time-to-live for invites.
@@ -23,14 +23,14 @@ type Handler struct {
 	outgoingRepo OutgoingInviteRepo
 	providerFQDN string
 	logger       *slog.Logger
-	localScheme  string // scheme from ExternalOrigin for comparison normalization
+	localScheme  string // scheme from PublicOrigin for comparison normalization
 }
 
 // NewHandler creates a new invites handler.
-// externalOrigin is the local instance's ExternalOrigin (validated at config load).
-func NewHandler(outgoingRepo OutgoingInviteRepo, providerFQDN string, externalOrigin string, logger *slog.Logger) *Handler {
+// publicOrigin is the local instance's PublicOrigin (validated at config load).
+func NewHandler(outgoingRepo OutgoingInviteRepo, providerFQDN string, publicOrigin string, logger *slog.Logger) *Handler {
 	var localScheme string
-	if u, err := url.Parse(externalOrigin); err == nil && u.Scheme != "" {
+	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
 		localScheme = u.Scheme
 	}
 
@@ -115,7 +115,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	// Verify sender identity from signature if available
 	peerIdentity := crypto.GetPeerIdentity(ctx)
 	if peerIdentity != nil && peerIdentity.Authenticated {
-		normalizedRecipient, err := keyid.AuthorityForCompareFromDeclaredPeer(req.RecipientProvider, h.localScheme)
+		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
 		if err != nil {
 			log.Warn("failed to normalize recipient provider",
 				"recipient_provider", req.RecipientProvider, "error", err)

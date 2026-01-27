@@ -43,7 +43,7 @@ func main() {
 	configPath := flag.String("config", "", "Path to TOML config file (optional)")
 	modeFlag := flag.String("mode", "", "Operating mode: strict, interop, or dev (overrides config)")
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
-	externalOrigin := flag.String("external-origin", "", "External origin (overrides config)")
+	publicOrigin := flag.String("public-origin", "", "Public origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
 	ssrfMode := flag.String("ssrf-mode", "", "SSRF protection mode: strict or off (overrides config)")
 	signatureInboundMode := flag.String("signature-inbound-mode", "", "Signature inbound mode: strict, lenient, or off (overrides config)")
@@ -71,7 +71,7 @@ func main() {
 		ModeFlag:   *modeFlag,
 		FlagOverrides: config.FlagOverrides{
 			ListenAddr:                    listenAddr,
-			ExternalOrigin:                externalOrigin,
+			PublicOrigin:                  publicOrigin,
 			ExternalBasePath:              externalBasePath,
 			SSRFMode:                      ssrfMode,
 			SignatureInboundMode:          signatureInboundMode,
@@ -136,7 +136,7 @@ func main() {
 			}
 		}
 
-		keyManager = crypto.NewKeyManager(cfg.Signature.KeyPath, cfg.ExternalOrigin)
+		keyManager = crypto.NewKeyManager(cfg.Signature.KeyPath, cfg.PublicOrigin)
 		if err := keyManager.LoadOrGenerate(); err != nil {
 			logger.Error("failed to initialize signing key", "error", err)
 			os.Exit(1)
@@ -262,7 +262,7 @@ func main() {
 
 	// Create signature middleware (needed by OCM service for per-endpoint verification)
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
-	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.ExternalOrigin, logger)
+	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
 
 	// Create repos once for SharedDeps.
 	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
@@ -324,7 +324,7 @@ func main() {
 
 	// Construct OCM service from registry
 	// Add provider_fqdn which is needed for invites handler
-	providerFQDN, err := instanceid.ProviderFQDN(cfg.ExternalOrigin)
+	providerFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
 	if err != nil {
 		logger.Error("failed to derive provider FQDN", "error", err)
 		os.Exit(1)

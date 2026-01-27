@@ -63,7 +63,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	// Create config - DevConfig() has TLS.Mode="off", SSRFMode="off", InsecureSkipVerify=true
 	cfg := config.DevConfig()
 	cfg.ListenAddr = fmt.Sprintf(":%d", port)
-	cfg.ExternalOrigin = fmt.Sprintf("http://localhost:%d", port)
+	cfg.PublicOrigin = fmt.Sprintf("http://localhost:%d", port)
 
 	// Create logger that discards output (or use t.Log if you want to see logs)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -154,7 +154,7 @@ func StartTestServer(t *testing.T) *TestServer {
 	// Build OCM service config using config helpers
 	ocmConfig := cfg.BuildOCMServiceConfig()
 	// Add provider_fqdn for invites handler
-	providerFQDN, err := instanceid.ProviderFQDN(cfg.ExternalOrigin)
+	providerFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to derive provider FQDN: %v", err)

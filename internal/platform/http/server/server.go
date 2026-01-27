@@ -83,7 +83,7 @@ func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, 
 func (s *Server) Start() error {
 	s.logger.Info("starting server",
 		"addr", s.cfg.ListenAddr,
-		"external_origin", s.cfg.ExternalOrigin,
+		"public_origin", s.cfg.PublicOrigin,
 		"external_base_path", s.cfg.ExternalBasePath,
 		"tls_mode", s.cfg.TLS.Mode,
 	)
@@ -99,7 +99,7 @@ func (s *Server) Start() error {
 	case "static", "selfsigned":
 		// Get TLS config from TLS manager
 		tlsManager := tlspkg.NewTLSManager(&s.cfg.TLS, s.logger)
-		hostname, err := instanceid.Hostname(s.cfg.ExternalOrigin)
+		hostname, err := instanceid.Hostname(s.cfg.PublicOrigin)
 		if err != nil {
 			return fmt.Errorf("failed to derive TLS hostname: %w", err)
 		}

@@ -1,5 +1,5 @@
 // Package instanceid is the single source of truth for deriving instance
-// public identity from config.ExternalOrigin.
+// public identity from config.PublicOrigin.
 package instanceid
 
 import (

@@ -17,7 +17,7 @@ import (
 
 func TestHandler_GetDiscovery(t *testing.T) {
 	cfg := &config.Config{
-		ExternalOrigin:   "https://example.com",
+		PublicOrigin:   "https://example.com",
 		ExternalBasePath: "/ocm-app",
 	}
 
@@ -56,7 +56,7 @@ func TestHandler_GetDiscovery(t *testing.T) {
 
 func TestHandler_ServeHTTP(t *testing.T) {
 	cfg := &config.Config{
-		ExternalOrigin:   "https://example.com",
+		PublicOrigin:   "https://example.com",
 		ExternalBasePath: "",
 	}
 
@@ -102,7 +102,7 @@ func TestHandler_MethodNotAllowed(t *testing.T) {
 
 func TestHandler_SetPublicKeys(t *testing.T) {
 	cfg := &config.Config{
-		ExternalOrigin: "https://example.com",
+		PublicOrigin: "https://example.com",
 	}
 
 	handler := discovery.NewHandler(cfg)
@@ -140,7 +140,7 @@ func TestHandler_SetPublicKeys(t *testing.T) {
 
 func TestHandler_CriteriaAlwaysPresent(t *testing.T) {
 	cfg := &config.Config{
-		ExternalOrigin: "https://example.com",
+		PublicOrigin: "https://example.com",
 		Signature: config.SignatureConfig{
 			AdvertiseHTTPRequestSignatures: false,
 		},
@@ -191,7 +191,7 @@ func TestHandler_CriteriaAlwaysPresent(t *testing.T) {
 
 func TestHandler_CriteriaAdvertiseHTTPRequestSignatures(t *testing.T) {
 	cfg := &config.Config{
-		ExternalOrigin: "https://example.com",
+		PublicOrigin: "https://example.com",
 		Signature: config.SignatureConfig{
 			AdvertiseHTTPRequestSignatures: true,
 		},
