@@ -131,6 +131,10 @@ func (r *testPartyRepo) GetByUsername(_ context.Context, username string) (*iden
 	return nil, identity.ErrUserNotFound
 }
 
+func (r *testPartyRepo) GetByEmail(_ context.Context, _ string) (*identity.User, error) {
+	return nil, identity.ErrUserNotFound
+}
+
 func (r *testPartyRepo) Update(_ context.Context, user *identity.User) error {
 	r.users[user.ID] = user
 	return nil

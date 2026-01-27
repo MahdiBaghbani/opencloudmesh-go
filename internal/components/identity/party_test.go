@@ -139,6 +139,183 @@ func TestMemoryPartyRepo_DeleteExpired(t *testing.T) {
 	}
 }
 
+func TestMemoryPartyRepo_GetByEmail(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	ctx := context.Background()
+
+	user := &identity.User{
+		Username: "alice",
+		Email:    "Alice@Example.COM",
+		Role:     "user",
+	}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Lookup by exact email
+	got, err := repo.GetByEmail(ctx, "Alice@Example.COM")
+	if err != nil {
+		t.Fatalf("GetByEmail exact failed: %v", err)
+	}
+	if got.ID != user.ID {
+		t.Errorf("ID mismatch: got %q, want %q", got.ID, user.ID)
+	}
+
+	// Lookup is case-insensitive and trims whitespace
+	got, err = repo.GetByEmail(ctx, "  alice@example.com  ")
+	if err != nil {
+		t.Fatalf("GetByEmail normalized failed: %v", err)
+	}
+	if got.ID != user.ID {
+		t.Error("expected same user from case-insensitive email lookup")
+	}
+
+	// Unknown email returns ErrUserNotFound
+	_, err = repo.GetByEmail(ctx, "bob@example.com")
+	if err != identity.ErrUserNotFound {
+		t.Errorf("expected ErrUserNotFound, got %v", err)
+	}
+
+	// Empty email returns ErrUserNotFound (not indexed)
+	_, err = repo.GetByEmail(ctx, "")
+	if err != identity.ErrUserNotFound {
+		t.Errorf("expected ErrUserNotFound for empty email, got %v", err)
+	}
+}
+
+func TestMemoryPartyRepo_DuplicateEmail(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	ctx := context.Background()
+
+	user1 := &identity.User{Username: "alice", Email: "shared@example.com", Role: "user"}
+	user2 := &identity.User{Username: "bob", Email: "SHARED@Example.COM", Role: "user"}
+
+	if err := repo.Create(ctx, user1); err != nil {
+		t.Fatalf("Create user1 failed: %v", err)
+	}
+
+	err := repo.Create(ctx, user2)
+	if err != identity.ErrEmailExists {
+		t.Errorf("expected ErrEmailExists for duplicate email, got %v", err)
+	}
+}
+
+func TestMemoryPartyRepo_EmptyEmailNotIndexed(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	ctx := context.Background()
+
+	// Two users with empty emails should not conflict
+	user1 := &identity.User{Username: "alice", Email: "", Role: "user"}
+	user2 := &identity.User{Username: "bob", Email: "", Role: "user"}
+
+	if err := repo.Create(ctx, user1); err != nil {
+		t.Fatalf("Create user1 failed: %v", err)
+	}
+	if err := repo.Create(ctx, user2); err != nil {
+		t.Fatalf("Create user2 failed: %v", err)
+	}
+
+	// Whitespace-only email is treated as empty (not indexed)
+	user3 := &identity.User{Username: "carol", Email: "  ", Role: "user"}
+	if err := repo.Create(ctx, user3); err != nil {
+		t.Fatalf("Create user3 with whitespace email failed: %v", err)
+	}
+}
+
+func TestMemoryPartyRepo_UpdateMaintainsEmailIndex(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	ctx := context.Background()
+
+	user := &identity.User{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Role:     "user",
+	}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Change email
+	user.Email = "newalice@example.com"
+	if err := repo.Update(ctx, user); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	// Old email should not resolve
+	_, err := repo.GetByEmail(ctx, "alice@example.com")
+	if err != identity.ErrUserNotFound {
+		t.Errorf("expected ErrUserNotFound for old email, got %v", err)
+	}
+
+	// New email should resolve
+	got, err := repo.GetByEmail(ctx, "newalice@example.com")
+	if err != nil {
+		t.Fatalf("GetByEmail for new email failed: %v", err)
+	}
+	if got.ID != user.ID {
+		t.Error("ID mismatch after email update")
+	}
+
+	// Update to empty email removes from index
+	user.Email = ""
+	if err := repo.Update(ctx, user); err != nil {
+		t.Fatalf("Update to empty email failed: %v", err)
+	}
+	_, err = repo.GetByEmail(ctx, "newalice@example.com")
+	if err != identity.ErrUserNotFound {
+		t.Errorf("expected ErrUserNotFound after clearing email, got %v", err)
+	}
+}
+
+func TestMemoryPartyRepo_UpdateEmailUniqueness(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	ctx := context.Background()
+
+	user1 := &identity.User{Username: "alice", Email: "alice@example.com", Role: "user"}
+	user2 := &identity.User{Username: "bob", Email: "bob@example.com", Role: "user"}
+
+	if err := repo.Create(ctx, user1); err != nil {
+		t.Fatalf("Create user1 failed: %v", err)
+	}
+	if err := repo.Create(ctx, user2); err != nil {
+		t.Fatalf("Create user2 failed: %v", err)
+	}
+
+	// Bob tries to take Alice's email
+	user2.Email = "alice@example.com"
+	err := repo.Update(ctx, user2)
+	if err != identity.ErrEmailExists {
+		t.Errorf("expected ErrEmailExists, got %v", err)
+	}
+}
+
+func TestMemoryPartyRepo_DeleteRemovesEmailIndex(t *testing.T) {
+	repo := identity.NewMemoryPartyRepo()
+	ctx := context.Background()
+
+	user := &identity.User{Username: "alice", Email: "alice@example.com", Role: "user"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Delete user
+	if err := repo.Delete(ctx, user.ID); err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+
+	// Email should no longer resolve
+	_, err := repo.GetByEmail(ctx, "alice@example.com")
+	if err != identity.ErrUserNotFound {
+		t.Errorf("expected ErrUserNotFound after delete, got %v", err)
+	}
+
+	// Another user can now use the same email
+	user2 := &identity.User{Username: "bob", Email: "alice@example.com", Role: "user"}
+	if err := repo.Create(ctx, user2); err != nil {
+		t.Fatalf("Create with freed email failed: %v", err)
+	}
+}
+
 func TestUUIDv7(t *testing.T) {
 	id1 := identity.UUIDv7()
 	id2 := identity.UUIDv7()

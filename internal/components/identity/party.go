@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 )
@@ -13,6 +14,7 @@ import (
 var (
 	ErrUserNotFound           = errors.New("user not found")
 	ErrUserExists             = errors.New("user already exists")
+	ErrEmailExists            = errors.New("email already in use")
 	ErrInvalidPassword        = errors.New("invalid password")
 	ErrSessionExpired         = errors.New("session expired")
 	ErrSessionNotFound        = errors.New("session not found")
@@ -76,6 +78,10 @@ type PartyRepo interface {
 	// GetByUsername retrieves a user by username. Returns ErrUserNotFound if not found.
 	GetByUsername(ctx context.Context, username string) (*User, error)
 
+	// GetByEmail retrieves a user by email (case-insensitive, trimmed).
+	// Returns ErrUserNotFound if not found or if email is empty.
+	GetByEmail(ctx context.Context, email string) (*User, error)
+
 	// Update updates an existing user.
 	Update(ctx context.Context, user *User) error
 
@@ -126,11 +132,16 @@ func hexEncode(src []byte) []byte {
 	return dst
 }
 
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
 // MemoryPartyRepo is an in-memory implementation of PartyRepo.
 type MemoryPartyRepo struct {
 	mu          sync.RWMutex
 	users       map[string]*User // by ID
 	byUsername  map[string]string // username -> ID
+	byEmail    map[string]string // normalized email -> ID (only non-empty emails)
 }
 
 // NewMemoryPartyRepo creates a new in-memory party repository.
@@ -138,6 +149,7 @@ func NewMemoryPartyRepo() *MemoryPartyRepo {
 	return &MemoryPartyRepo{
 		users:      make(map[string]*User),
 		byUsername: make(map[string]string),
+		byEmail:   make(map[string]string),
 	}
 }
 
@@ -147,6 +159,13 @@ func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
 
 	if _, exists := r.byUsername[user.Username]; exists {
 		return ErrUserExists
+	}
+
+	// Enforce email uniqueness when email is non-empty.
+	if norm := normalizeEmail(user.Email); norm != "" {
+		if _, exists := r.byEmail[norm]; exists {
+			return ErrEmailExists
+		}
 	}
 
 	if user.ID == "" {
@@ -160,6 +179,10 @@ func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
 	u := *user
 	r.users[user.ID] = &u
 	r.byUsername[user.Username] = user.ID
+
+	if norm := normalizeEmail(user.Email); norm != "" {
+		r.byEmail[norm] = user.ID
+	}
 
 	return nil
 }
@@ -192,6 +215,25 @@ func (r *MemoryPartyRepo) GetByUsername(ctx context.Context, username string) (*
 	return &u, nil
 }
 
+func (r *MemoryPartyRepo) GetByEmail(ctx context.Context, email string) (*User, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	norm := normalizeEmail(email)
+	if norm == "" {
+		return nil, ErrUserNotFound
+	}
+
+	id, ok := r.byEmail[norm]
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+
+	user := r.users[id]
+	u := *user
+	return &u, nil
+}
+
 func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -210,6 +252,22 @@ func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 	if existing.Username != user.Username {
 		delete(r.byUsername, existing.Username)
 		r.byUsername[user.Username] = user.ID
+	}
+
+	// Maintain email index
+	oldNorm := normalizeEmail(existing.Email)
+	newNorm := normalizeEmail(user.Email)
+	if oldNorm != newNorm {
+		if oldNorm != "" {
+			delete(r.byEmail, oldNorm)
+		}
+		if newNorm != "" {
+			// Check uniqueness against other users
+			if ownerID, exists := r.byEmail[newNorm]; exists && ownerID != user.ID {
+				return ErrEmailExists
+			}
+			r.byEmail[newNorm] = user.ID
+		}
 	}
 
 	u := *user
@@ -232,6 +290,9 @@ func (r *MemoryPartyRepo) Delete(ctx context.Context, id string) error {
 	}
 
 	delete(r.byUsername, user.Username)
+	if norm := normalizeEmail(user.Email); norm != "" {
+		delete(r.byEmail, norm)
+	}
 	delete(r.users, id)
 	return nil
 }
@@ -259,6 +320,9 @@ func (r *MemoryPartyRepo) DeleteExpired(ctx context.Context) (int, error) {
 	for id, user := range r.users {
 		if user.ExpiresAt != nil && now.After(*user.ExpiresAt) {
 			delete(r.byUsername, user.Username)
+			if norm := normalizeEmail(user.Email); norm != "" {
+				delete(r.byEmail, norm)
+			}
 			delete(r.users, id)
 			count++
 		}
