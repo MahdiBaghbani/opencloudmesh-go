@@ -1,11 +1,11 @@
-// Package server provides HTTP server wiring and lifecycle management.
-package server
+// Package tls provides TLS certificate management for HTTP servers.
+package tls
 
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/tls"
+	cryptotls "crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -22,8 +22,9 @@ import (
 )
 
 var (
-	ErrInvalidTLSMode = errors.New("invalid TLS mode")
-	ErrMissingCert    = errors.New("missing certificate or key file")
+	ErrACMENotImplemented = errors.New("tls.mode=acme is not implemented; use static or selfsigned")
+	ErrInvalidTLSMode     = errors.New("invalid TLS mode")
+	ErrMissingCert        = errors.New("missing certificate or key file")
 )
 
 // TLSManager handles TLS certificate loading and generation.
@@ -39,7 +40,7 @@ func NewTLSManager(cfg *config.TLSConfig, logger *slog.Logger) *TLSManager {
 
 // GetTLSConfig returns a tls.Config based on the configured mode.
 // Returns nil for "off" mode.
-func (m *TLSManager) GetTLSConfig(hostname string) (*tls.Config, error) {
+func (m *TLSManager) GetTLSConfig(hostname string) (*cryptotls.Config, error) {
 	switch m.cfg.Mode {
 	case "off":
 		return nil, nil
@@ -59,12 +60,12 @@ func (m *TLSManager) GetTLSConfig(hostname string) (*tls.Config, error) {
 }
 
 // loadStaticCert loads a certificate from files.
-func (m *TLSManager) loadStaticCert() (*tls.Config, error) {
+func (m *TLSManager) loadStaticCert() (*cryptotls.Config, error) {
 	if m.cfg.CertFile == "" || m.cfg.KeyFile == "" {
 		return nil, ErrMissingCert
 	}
 
-	cert, err := tls.LoadX509KeyPair(m.cfg.CertFile, m.cfg.KeyFile)
+	cert, err := cryptotls.LoadX509KeyPair(m.cfg.CertFile, m.cfg.KeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load certificate: %w", err)
 	}
@@ -73,14 +74,14 @@ func (m *TLSManager) loadStaticCert() (*tls.Config, error) {
 		"cert_file", m.cfg.CertFile,
 		"key_file", m.cfg.KeyFile)
 
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
+	return &cryptotls.Config{
+		Certificates: []cryptotls.Certificate{cert},
+		MinVersion:   cryptotls.VersionTLS12,
 	}, nil
 }
 
 // getOrCreateSelfSigned loads or generates a self-signed certificate.
-func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*tls.Config, error) {
+func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*cryptotls.Config, error) {
 	dir := m.cfg.SelfSignedDir
 	if dir == "" {
 		dir = ".ocm/certs"
@@ -90,12 +91,12 @@ func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*tls.Config, error)
 	keyFile := filepath.Join(dir, "server.key")
 
 	// Try to load existing cert
-	if cert, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil {
+	if cert, err := cryptotls.LoadX509KeyPair(certFile, keyFile); err == nil {
 		m.logger.Info("loaded existing self-signed certificate",
 			"cert_file", certFile)
-		return &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			MinVersion:   tls.VersionTLS12,
+		return &cryptotls.Config{
+			Certificates: []cryptotls.Certificate{cert},
+			MinVersion:   cryptotls.VersionTLS12,
 		}, nil
 	}
 
@@ -107,24 +108,24 @@ func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*tls.Config, error)
 		return nil, err
 	}
 
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
+	return &cryptotls.Config{
+		Certificates: []cryptotls.Certificate{cert},
+		MinVersion:   cryptotls.VersionTLS12,
 	}, nil
 }
 
 // generateSelfSigned creates a new self-signed certificate.
-func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (tls.Certificate, error) {
+func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cryptotls.Certificate, error) {
 	// Generate private key
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("failed to generate key: %w", err)
+		return cryptotls.Certificate{}, fmt.Errorf("failed to generate key: %w", err)
 	}
 
 	// Create certificate template
 	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("failed to generate serial: %w", err)
+		return cryptotls.Certificate{}, fmt.Errorf("failed to generate serial: %w", err)
 	}
 
 	now := time.Now()
@@ -155,28 +156,28 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (tls
 	// Create certificate
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("failed to create certificate: %w", err)
+		return cryptotls.Certificate{}, fmt.Errorf("failed to create certificate: %w", err)
 	}
 
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(certFile), 0700); err != nil {
-		return tls.Certificate{}, fmt.Errorf("failed to create cert directory: %w", err)
+		return cryptotls.Certificate{}, fmt.Errorf("failed to create cert directory: %w", err)
 	}
 
 	// Write certificate
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	if err := os.WriteFile(certFile, certPEM, 0644); err != nil {
-		return tls.Certificate{}, fmt.Errorf("failed to write certificate: %w", err)
+		return cryptotls.Certificate{}, fmt.Errorf("failed to write certificate: %w", err)
 	}
 
 	// Write private key
 	keyDER, err := x509.MarshalECPrivateKey(privateKey)
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("failed to marshal key: %w", err)
+		return cryptotls.Certificate{}, fmt.Errorf("failed to marshal key: %w", err)
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	if err := os.WriteFile(keyFile, keyPEM, 0600); err != nil {
-		return tls.Certificate{}, fmt.Errorf("failed to write key: %w", err)
+		return cryptotls.Certificate{}, fmt.Errorf("failed to write key: %w", err)
 	}
 
 	m.logger.Info("generated self-signed certificate",
@@ -184,12 +185,12 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (tls
 		"key_file", keyFile,
 		"expires", template.NotAfter)
 
-	return tls.X509KeyPair(certPEM, keyPEM)
+	return cryptotls.X509KeyPair(certPEM, keyPEM)
 }
 
 // getACMEConfig returns TLS config for ACME mode.
 // This is a placeholder - full ACME implementation uses lego.
-func (m *TLSManager) getACMEConfig() (*tls.Config, error) {
+func (m *TLSManager) getACMEConfig() (*cryptotls.Config, error) {
 	// For now, return a config that will be populated by the ACME manager
 	// The actual certificate fetching is done by the ACMEManager
 	m.logger.Info("ACME mode enabled",
@@ -197,8 +198,8 @@ func (m *TLSManager) getACMEConfig() (*tls.Config, error) {
 		"email", m.cfg.ACME.Email,
 		"staging", m.cfg.ACME.UseStaging)
 
-	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
+	return &cryptotls.Config{
+		MinVersion: cryptotls.VersionTLS12,
 		// GetCertificate will be set by ACMEManager
 	}, nil
 }

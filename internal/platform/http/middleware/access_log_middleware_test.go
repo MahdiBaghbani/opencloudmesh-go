@@ -1,4 +1,4 @@
-package server
+package middleware
 
 import (
 	"context"
@@ -9,10 +9,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
@@ -125,28 +123,10 @@ func (r *accessLogRecorderWithAttrs) WithGroup(name string) slog.Handler {
 	return r
 }
 
-// createTestServer creates a minimal server for middleware testing.
-// Also sets up deps.RealIP for the test.
-func createTestServer(logger *slog.Logger, handler http.HandlerFunc) *Server {
-	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
-	cfg := config.StrictConfig()
-
-	// Set up SharedDeps with RealIP
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		RealIP: tp,
-	})
-
-	return &Server{
-		cfg:    cfg,
-		logger: logger,
-	}
-}
-
-func TestLoggingMiddleware_AccessLogHas7RequiredFields(t *testing.T) {
+func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	recorder := newAccessLogRecorder(slog.LevelInfo)
 	logger := slog.New(recorder)
-	srv := createTestServer(logger, nil)
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a simple handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -156,10 +136,10 @@ func TestLoggingMiddleware_AccessLogHas7RequiredFields(t *testing.T) {
 
 	// Build the middleware chain as in routes.go
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(RequestLoggerMiddleware(logger, deps.GetDeps().RealIP))
-	r.Use(srv.loggingMiddleware)
-	r.Use(middleware.Recoverer)
+	r.Use(chimw.RequestID)
+	r.Use(RequestLoggerMiddleware(logger, tp))
+	r.Use(AccessLogMiddleware(logger, tp))
+	r.Use(chimw.Recoverer)
 	r.Get("/test", handler)
 
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -222,10 +202,10 @@ func TestLoggingMiddleware_AccessLogHas7RequiredFields(t *testing.T) {
 	}
 }
 
-func TestLoggingMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
+func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 	recorder := newAccessLogRecorder(slog.LevelInfo)
 	logger := slog.New(recorder)
-	srv := createTestServer(logger, nil)
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -234,10 +214,10 @@ func TestLoggingMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 
 	// Build chain WITHOUT RequestLoggerMiddleware to test fallback
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
+	r.Use(chimw.RequestID)
 	// Skip RequestLoggerMiddleware to trigger fallback
-	r.Use(srv.loggingMiddleware)
-	r.Use(middleware.Recoverer)
+	r.Use(AccessLogMiddleware(logger, tp))
+	r.Use(chimw.Recoverer)
 	r.Get("/fallback-test", handler)
 
 	req := httptest.NewRequest("POST", "/fallback-test", nil)
@@ -281,10 +261,10 @@ func TestLoggingMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 	}
 }
 
-func TestLoggingMiddleware_PanicProducesStatus500(t *testing.T) {
+func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 	recorder := newAccessLogRecorder(slog.LevelInfo)
 	logger := slog.New(recorder)
-	srv := createTestServer(logger, nil)
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a handler that panics
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -292,12 +272,12 @@ func TestLoggingMiddleware_PanicProducesStatus500(t *testing.T) {
 	})
 
 	// Build the middleware chain as in routes.go
-	// Order: RequestID -> RequestLoggerMiddleware -> loggingMiddleware -> Recoverer
+	// Order: RequestID -> RequestLoggerMiddleware -> AccessLogMiddleware -> Recoverer
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(RequestLoggerMiddleware(logger, deps.GetDeps().RealIP))
-	r.Use(srv.loggingMiddleware)
-	r.Use(middleware.Recoverer)
+	r.Use(chimw.RequestID)
+	r.Use(RequestLoggerMiddleware(logger, tp))
+	r.Use(AccessLogMiddleware(logger, tp))
+	r.Use(chimw.Recoverer)
 	r.Get("/panic-test", handler)
 
 	req := httptest.NewRequest("GET", "/panic-test", nil)
@@ -330,8 +310,6 @@ func TestLoggingMiddleware_PanicProducesStatus500(t *testing.T) {
 	}
 
 	// Verify the access log captured status 500
-	// This proves the middleware order is correct: loggingMiddleware wraps,
-	// Recoverer writes 500 through the wrapped writer
 	statusVal, ok := accessLog.attrs["status"]
 	if !ok {
 		t.Fatal("expected 'status' field in access log")

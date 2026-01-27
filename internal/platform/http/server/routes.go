@@ -4,10 +4,12 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/auth"
+	httpmw "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/middleware"
 )
 
 // RouteGroup defines an endpoint group with its auth requirements.
@@ -119,25 +121,30 @@ func pathMatchesPrefix(path, prefix string) bool {
 
 // setupRoutes creates the chi router with all route groups mounted.
 func (s *Server) setupRoutes() chi.Router {
+	d := deps.GetDeps()
 	r := chi.NewRouter()
 
-	// Global middleware stack (order matters for correct logging)
-	// RequestID must come first so GetReqID works in RequestLoggerMiddleware.
-	// loggingMiddleware wraps response, Recoverer writes through wrapper,
-	// so access log captures correct status for panics.
-	r.Use(middleware.RequestID)
-	r.Use(RequestLoggerMiddleware(s.logger, deps.GetDeps().RealIP))
-	r.Use(s.loggingMiddleware)
-	r.Use(middleware.Recoverer)
+	// Always-on transport middleware (order is invariant):
+	// RequestID -> request-scoped logger -> access log -> recoverer -> auth gate
+	r.Use(chimw.RequestID)
+	r.Use(httpmw.RequestLoggerMiddleware(s.logger, d.RealIP))
+	r.Use(httpmw.AccessLogMiddleware(s.logger, d.RealIP))
+	r.Use(chimw.Recoverer)
 
-	// Rate limiting is now service-local (applied by ocmaux and api services).
-	// The server-level limiter has been removed per Reva-aligned taxonomy refactor.
-
-	// Auth middleware for all routes (checks IsAuthRequired)
-	r.Use(s.authMiddleware)
+	// Auth gate: single middleware, checks requireAuth once per request.
+	// The closure captures s.mountedServices which is evaluated at request time,
+	// ensuring newly mounted services are always reflected.
+	requireAuth := func(path string) bool {
+		return IsAuthRequired(path, s.cfg.ExternalBasePath, s.mountedServices)
+	}
+	r.Use(auth.NewAuthGate(auth.AuthGateConfig{
+		RequireAuth: requireAuth,
+		Log:         s.logger,
+		SessionRepo: d.SessionRepo,
+		PartyRepo:   d.PartyRepo,
+	}))
 
 	// Mount wellknown service at root (Reva-aligned)
-	// This replaces the legacy mountRootOnlyEndpoints().
 	s.mountService(r, s.wellknownSvc, true)
 
 	// Mount app endpoints under external_base_path

@@ -1,11 +1,11 @@
-// Package server provides HTTP server and middleware.
-package server
+// Package middleware provides always-on transport middleware for HTTP servers.
+package middleware
 
 import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/chi/v5/middleware"
+	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
@@ -21,14 +21,14 @@ import (
 func RequestLoggerMiddleware(base *slog.Logger, trustedProxies *realip.TrustedProxies) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			reqID := middleware.GetReqID(r.Context())
+			reqID := chimw.GetReqID(r.Context())
 			clientIP := "unknown"
 			if trustedProxies != nil {
 				clientIP = trustedProxies.GetClientIPString(r)
 			}
 
 			// Attach base request fields to the logger. These fields will be
-			// inherited by the access log (loggingMiddleware) and any handler
+			// inherited by the access log (AccessLogMiddleware) and any handler
 			// that uses appctx.GetLogger(r.Context()).
 			reqLogger := base.With(
 				"request_id", reqID,

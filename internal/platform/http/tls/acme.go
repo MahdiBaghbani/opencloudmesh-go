@@ -1,4 +1,4 @@
-package server
+package tls
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/tls"
+	cryptotls "crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,7 +45,7 @@ type ACMEManager struct {
 	cfg           *config.ACMEConfig
 	logger        *slog.Logger
 	mu            sync.RWMutex
-	cert          *tls.Certificate
+	cert          *cryptotls.Certificate
 	httpHandler   http.Handler
 	legoClient    *lego.Client
 	user          *ACMEUser
@@ -142,7 +142,7 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 }
 
 // GetCertificate returns the current certificate for use with tls.Config.GetCertificate.
-func (m *ACMEManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (m *ACMEManager) GetCertificate(hello *cryptotls.ClientHelloInfo) (*cryptotls.Certificate, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -153,10 +153,10 @@ func (m *ACMEManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certifica
 }
 
 // GetTLSConfig returns a TLS config that uses this manager's certificates.
-func (m *ACMEManager) GetTLSConfig() *tls.Config {
-	return &tls.Config{
+func (m *ACMEManager) GetTLSConfig() *cryptotls.Config {
+	return &cryptotls.Config{
 		GetCertificate: m.GetCertificate,
-		MinVersion:     tls.VersionTLS12,
+		MinVersion:     cryptotls.VersionTLS12,
 	}
 }
 
@@ -213,11 +213,11 @@ func (m *ACMEManager) saveUser(user *ACMEUser) error {
 	return os.WriteFile(keyFile, keyPEM, 0600)
 }
 
-func (m *ACMEManager) loadCertificate() (*tls.Certificate, error) {
+func (m *ACMEManager) loadCertificate() (*cryptotls.Certificate, error) {
 	certFile := filepath.Join(m.cfg.StorageDir, "cert.pem")
 	keyFile := filepath.Join(m.cfg.StorageDir, "key.pem")
 
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	cert, err := cryptotls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +247,7 @@ func (m *ACMEManager) obtainCertificate() error {
 	}
 
 	// Load the certificate
-	cert, err := tls.X509KeyPair(certificates.Certificate, certificates.PrivateKey)
+	cert, err := cryptotls.X509KeyPair(certificates.Certificate, certificates.PrivateKey)
 	if err != nil {
 		return fmt.Errorf("failed to parse certificate: %w", err)
 	}

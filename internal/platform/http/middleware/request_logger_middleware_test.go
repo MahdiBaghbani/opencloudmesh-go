@@ -1,4 +1,4 @@
-package server
+package middleware
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5/middleware"
+	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
@@ -87,7 +87,7 @@ func TestRequestLoggerMiddleware_AttachesRequiredFields(t *testing.T) {
 	})
 
 	// Wrap with RequestID and RequestLoggerMiddleware
-	chain := middleware.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
+	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
 	req := httptest.NewRequest("GET", "/test/path", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
@@ -111,7 +111,7 @@ func TestRequestLoggerMiddleware_AttachesRequiredFields(t *testing.T) {
 		}
 	}
 
-	// Verify request_id is non-empty (middleware.RequestID ran first)
+	// Verify request_id is non-empty (chimw.RequestID ran first)
 	if reqID, ok := capturedHandler.getAttr("request_id"); ok {
 		if reqID == "" {
 			t.Error("request_id should not be empty")
@@ -155,7 +155,7 @@ func TestRequestLoggerMiddleware_ClientIPFromXForwardedFor(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	chain := middleware.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
+	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
@@ -191,7 +191,7 @@ func TestRequestLoggerMiddleware_NilTrustedProxies(t *testing.T) {
 	})
 
 	// Pass nil trustedProxies
-	chain := middleware.RequestID(RequestLoggerMiddleware(logger, nil)(nextHandler))
+	chain := chimw.RequestID(RequestLoggerMiddleware(logger, nil)(nextHandler))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
@@ -226,7 +226,7 @@ func TestRequestLoggerMiddleware_PathOnly_NoQueryString(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	chain := middleware.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
+	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
 	// Request with query string
 	req := httptest.NewRequest("GET", "/test/path?secret=value&token=abc", nil)

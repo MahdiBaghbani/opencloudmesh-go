@@ -26,7 +26,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"

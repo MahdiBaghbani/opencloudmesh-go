@@ -8,23 +8,24 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 // trackingService is a test service that records when Close() is called.
 type trackingService struct {
-	name        string
-	prefix      string
-	closeOrder  *[]string
+	name       string
+	prefix     string
+	closeOrder *[]string
 }
 
-func (t *trackingService) Handler() http.Handler   { return http.NotFoundHandler() }
-func (t *trackingService) Prefix() string          { return t.prefix }
-func (t *trackingService) Unprotected() []string   { return nil }
+func (t *trackingService) Handler() http.Handler { return http.NotFoundHandler() }
+func (t *trackingService) Prefix() string        { return t.prefix }
+func (t *trackingService) Unprotected() []string  { return nil }
 func (t *trackingService) Close() error {
 	*t.closeOrder = append(*t.closeOrder, t.name)
 	return nil
@@ -121,3 +122,26 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 
 // Verify trackingService implements service.Service
 var _ service.Service = (*trackingService)(nil)
+
+func TestACME_FailFast(t *testing.T) {
+	// ACME mode should fail fast when Server.Start() is called
+	cfg := config.DevConfig()
+	cfg.TLS.Mode = "acme"
+	cfg.ListenAddr = ":0" // Dynamic port
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cleanup := setupTestSharedDeps(t)
+	defer cleanup()
+
+	srv, err := New(cfg, logger, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("server creation failed: %v", err)
+	}
+
+	// Start should fail fast with ACME error
+	err = srv.Start()
+	if !errors.Is(err, tlspkg.ErrACMENotImplemented) {
+		t.Errorf("expected ErrACMENotImplemented, got %v", err)
+	}
+}

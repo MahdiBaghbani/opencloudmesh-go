@@ -9,30 +9,29 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
+
+	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 )
 
-var (
-	ErrMissingSharedDeps   = errors.New("shared deps not initialized: call deps.SetDeps() before server.New()")
-	ErrACMENotImplemented  = errors.New("tls.mode=acme is not implemented; use static or selfsigned")
-)
+var ErrMissingSharedDeps = errors.New("shared deps not initialized: call deps.SetDeps() before server.New()")
 
 // Server wraps the HTTP server and its dependencies.
 type Server struct {
-	cfg              *config.Config
-	httpServer       *http.Server
-	logger           *slog.Logger
-	wellknownSvc     service.Service // Reva-aligned wellknown service for discovery
-	ocmSvc           service.Service // Reva-aligned OCM protocol service
-	ocmauxSvc        service.Service // Reva-aligned ocm-aux service for WAYF helpers
-	apiSvc    service.Service // Reva-aligned API service for /api/* endpoints
-	uiSvc     service.Service // Reva-aligned UI service for /ui/* endpoints
-	webdavSvc service.Service // Reva-aligned WebDAV service for /webdav/* endpoints
-	signer           *crypto.RFC9421Signer
+	cfg          *config.Config
+	httpServer   *http.Server
+	logger       *slog.Logger
+	wellknownSvc service.Service // Reva-aligned wellknown service for discovery
+	ocmSvc       service.Service // Reva-aligned OCM protocol service
+	ocmauxSvc    service.Service // Reva-aligned ocm-aux service for WAYF helpers
+	apiSvc       service.Service // Reva-aligned API service for /api/* endpoints
+	uiSvc        service.Service // Reva-aligned UI service for /ui/* endpoints
+	webdavSvc    service.Service // Reva-aligned WebDAV service for /webdav/* endpoints
+	signer       *crypto.RFC9421Signer
 
 	// mountedServices tracks services for lifecycle management (Close on shutdown).
 	// Stored in mount order; closed in reverse order during shutdown.
@@ -42,12 +41,6 @@ type Server struct {
 // New creates a new Server with the given configuration.
 // All dependencies are obtained from deps.GetDeps() (SharedDeps).
 // Returns an error if SharedDeps is not initialized.
-// wellknownSvc is the Reva-aligned wellknown service for discovery endpoints.
-// ocmSvc is the Reva-aligned OCM protocol service for /ocm/* endpoints.
-// ocmauxSvc is the Reva-aligned ocm-aux service for WAYF helper endpoints.
-// apiSvc is the Reva-aligned API service for /api/* endpoints.
-// uiSvc is the Reva-aligned UI service for /ui/* endpoints.
-// webdavSvc is the Reva-aligned WebDAV service for /webdav/* endpoints.
 func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, ocmSvc service.Service, ocmauxSvc service.Service, apiSvc service.Service, uiSvc service.Service, webdavSvc service.Service) (*Server, error) {
 	// Fail fast: SharedDeps must be initialized before server creation
 	d := deps.GetDeps()
@@ -55,30 +48,22 @@ func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, 
 		return nil, ErrMissingSharedDeps
 	}
 
-	// NOTE: All handlers are now constructed by their respective services (Reva-aligned).
-	// Services access dependencies via deps.GetDeps().
-
 	// Create signer for outgoing requests (from SharedDeps)
 	var signer *crypto.RFC9421Signer
 	if d.KeyManager != nil {
 		signer = crypto.NewRFC9421Signer(d.KeyManager)
 	}
 
-	// NOTE: SignatureMiddleware is now owned by services (OCM service applies it internally).
-	// It is constructed in main.go and available via SharedDeps.SignatureMiddleware.
-	// NOTE: RealIP extractor is owned by SharedDeps (deps.RealIP), not by Server.
-	// All client IP extraction for logging and rate limiting uses deps.GetDeps().RealIP.
-
 	s := &Server{
-		cfg:              cfg,
-		logger:           logger,
-		wellknownSvc:     wellknownSvc,
-		ocmSvc:           ocmSvc,
-		ocmauxSvc:        ocmauxSvc,
-		apiSvc:    apiSvc,
-		uiSvc:     uiSvc,
-		webdavSvc: webdavSvc,
-		signer:           signer,
+		cfg:          cfg,
+		logger:       logger,
+		wellknownSvc: wellknownSvc,
+		ocmSvc:       ocmSvc,
+		ocmauxSvc:    ocmauxSvc,
+		apiSvc:       apiSvc,
+		uiSvc:        uiSvc,
+		webdavSvc:    webdavSvc,
+		signer:       signer,
 	}
 
 	router := s.setupRoutes()
@@ -109,11 +94,11 @@ func (s *Server) Start() error {
 
 	case "acme":
 		// ACME is not implemented - fail fast with a clear error
-		return ErrACMENotImplemented
+		return tlspkg.ErrACMENotImplemented
 
 	case "static", "selfsigned":
 		// Get TLS config from TLS manager
-		tlsManager := NewTLSManager(&s.cfg.TLS, s.logger)
+		tlsManager := tlspkg.NewTLSManager(&s.cfg.TLS, s.logger)
 		hostname, err := instanceid.Hostname(s.cfg.ExternalOrigin)
 		if err != nil {
 			return fmt.Errorf("failed to derive TLS hostname: %w", err)
@@ -135,7 +120,7 @@ func (s *Server) Start() error {
 		return s.httpServer.ListenAndServeTLS("", "")
 
 	default:
-		return fmt.Errorf("%w: %s", ErrInvalidTLSMode, s.cfg.TLS.Mode)
+		return fmt.Errorf("%w: %s", tlspkg.ErrInvalidTLSMode, s.cfg.TLS.Mode)
 	}
 }
 
@@ -166,5 +151,3 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	return httpErr
 }
-
-

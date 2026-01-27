@@ -1,4 +1,4 @@
-package server
+package guards
 
 import (
 	"go/ast"
@@ -25,7 +25,11 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 		"internal/platform/crypto",
 		"internal/components/federation",
 		"internal/components/identity",
-		"internal/platform/server",
+		"internal/platform/http/server",
+		"internal/platform/http/middleware",
+		"internal/platform/http/auth",
+		"internal/platform/http/tls",
+		"internal/platform/http/client",
 	}
 
 	// Allowed exceptions (RFC terms, etc.)
@@ -86,7 +90,7 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 					if !snakeCaseRegex.MatchString(key) {
 						relPath, _ := filepath.Rel(repoRoot, path)
 						pos := fset.Position(call.Pos())
-						violations = append(violations, 
+						violations = append(violations,
 							relPath+":"+itoa(pos.Line)+": slog key \""+key+"\" is not snake_case")
 					}
 				}
@@ -102,7 +106,7 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 	}
 
 	if len(violations) > 0 {
-		t.Errorf("Found %d slog keys that are not snake_case:\n%s", 
+		t.Errorf("Found %d slog keys that are not snake_case:\n%s",
 			len(violations), strings.Join(violations, "\n"))
 	}
 }

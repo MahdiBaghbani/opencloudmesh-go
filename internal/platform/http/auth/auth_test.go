@@ -1,4 +1,4 @@
-package server
+package auth
 
 import (
 	"context"
@@ -9,14 +9,67 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	httpmw "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/middleware"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 )
+
+// recordingHandler captures slog records for testing without JSON parsing.
+type recordingHandler struct {
+	records []slog.Record
+	attrs   map[string]any
+	groups  []string
+}
+
+func newRecordingHandler() *recordingHandler {
+	return &recordingHandler{
+		attrs: make(map[string]any),
+	}
+}
+
+func (h *recordingHandler) Enabled(_ context.Context, _ slog.Level) bool {
+	return true
+}
+
+func (h *recordingHandler) Handle(_ context.Context, r slog.Record) error {
+	h.records = append(h.records, r)
+	return nil
+}
+
+func (h *recordingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	nh := &recordingHandler{
+		records: h.records,
+		attrs:   make(map[string]any),
+		groups:  h.groups,
+	}
+	for k, v := range h.attrs {
+		nh.attrs[k] = v
+	}
+	for _, a := range attrs {
+		nh.attrs[a.Key] = a.Value.Any()
+	}
+	return nh
+}
+
+func (h *recordingHandler) WithGroup(name string) slog.Handler {
+	nh := &recordingHandler{
+		records: h.records,
+		attrs:   make(map[string]any),
+		groups:  append(h.groups, name),
+	}
+	for k, v := range h.attrs {
+		nh.attrs[k] = v
+	}
+	return nh
+}
+
+func (h *recordingHandler) getAttr(key string) (any, bool) {
+	v, ok := h.attrs[key]
+	return v, ok
+}
 
 // testSessionRepo is a simple session repo for testing that returns a predefined session.
 type testSessionRepo struct {
@@ -100,10 +153,10 @@ func (r *testPartyRepo) DeleteExpired(_ context.Context) (int, error) {
 	return 0, nil
 }
 
-func TestAuthMiddleware_EnrichesLoggerWithUserID(t *testing.T) {
-	// Create a recording handler to capture logger attributes
+func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
 	recorder := newRecordingHandler()
 	logger := slog.New(recorder)
+	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create test user
 	testUserID := "user-123"
@@ -129,32 +182,12 @@ func TestAuthMiddleware_EnrichesLoggerWithUserID(t *testing.T) {
 		},
 	}
 
-	// Create server
-	cfg := config.StrictConfig()
-	cfg.ExternalBasePath = ""
-	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
-
-	// Set up SharedDeps for auth middleware with RealIP
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		SessionRepo: sessionRepo,
-		PartyRepo:   partyRepo,
-		RealIP:      tp,
-	})
-	defer deps.ResetDeps()
-
-	srv := &Server{
-		cfg:    cfg,
-		logger: logger,
-	}
-
 	// Track the captured user_id from the handler's logger
 	var capturedUserID string
 	var capturedHandler *recordingHandler
 
 	// Create a handler that captures the enriched logger
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get the logger from context - should have user_id attached
 		handlerLogger := appctx.GetLogger(r.Context())
 		if rh, ok := handlerLogger.Handler().(*recordingHandler); ok {
 			capturedHandler = rh
@@ -162,18 +195,23 @@ func TestAuthMiddleware_EnrichesLoggerWithUserID(t *testing.T) {
 				capturedUserID = uid.(string)
 			}
 		}
-
-		// Also test that the logger works by logging something
 		handlerLogger.Info("handler executed")
 		w.WriteHeader(http.StatusOK)
 	})
 
 	// Build the middleware chain
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(RequestLoggerMiddleware(logger, tp))
-	r.Use(srv.authMiddleware)
-	r.Get("/api/protected", testHandler) // /api/* requires auth
+	r.Use(chimw.RequestID)
+	r.Use(httpmw.RequestLoggerMiddleware(logger, tp))
+	r.Use(NewAuthGate(AuthGateConfig{
+		RequireAuth: func(path string) bool {
+			return path == "/api/protected"
+		},
+		Log:         logger,
+		SessionRepo: sessionRepo,
+		PartyRepo:   partyRepo,
+	}))
+	r.Get("/api/protected", testHandler)
 
 	// Make request with valid session
 	req := httptest.NewRequest("GET", "/api/protected", nil)
@@ -198,27 +236,10 @@ func TestAuthMiddleware_EnrichesLoggerWithUserID(t *testing.T) {
 	}
 }
 
-func TestAuthMiddleware_NoUserIDForPublicEndpoints(t *testing.T) {
+func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 	recorder := newRecordingHandler()
 	logger := slog.New(recorder)
-
-	cfg := config.StrictConfig()
-	cfg.ExternalBasePath = ""
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
-
-	// Set up SharedDeps for auth middleware with RealIP
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		SessionRepo: &testSessionRepo{},
-		PartyRepo:   newTestPartyRepo(),
-		RealIP:      tp,
-	})
-	defer deps.ResetDeps()
-
-	srv := &Server{
-		cfg:    cfg,
-		logger: logger,
-	}
 
 	var hasUserID bool
 
@@ -231,9 +252,16 @@ func TestAuthMiddleware_NoUserIDForPublicEndpoints(t *testing.T) {
 	})
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(RequestLoggerMiddleware(logger, tp))
-	r.Use(srv.authMiddleware)
+	r.Use(chimw.RequestID)
+	r.Use(httpmw.RequestLoggerMiddleware(logger, tp))
+	r.Use(NewAuthGate(AuthGateConfig{
+		RequireAuth: func(path string) bool {
+			return false // all paths are public for this test
+		},
+		Log:         logger,
+		SessionRepo: &testSessionRepo{},
+		PartyRepo:   newTestPartyRepo(),
+	}))
 	r.Get("/.well-known/ocm", testHandler) // Public endpoint
 
 	req := httptest.NewRequest("GET", "/.well-known/ocm", nil)
@@ -249,5 +277,34 @@ func TestAuthMiddleware_NoUserIDForPublicEndpoints(t *testing.T) {
 	// Public endpoints should NOT have user_id in logger
 	if hasUserID {
 		t.Error("expected no user_id in logger for public endpoint")
+	}
+}
+
+func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	r := chi.NewRouter()
+	r.Use(NewAuthGate(AuthGateConfig{
+		RequireAuth: func(path string) bool {
+			return false // all paths are public
+		},
+		Log:         logger,
+		SessionRepo: nil, // nil is safe when RequireAuth returns false
+		PartyRepo:   nil, // nil is safe when RequireAuth returns false
+	}))
+	r.Get("/public", testHandler)
+
+	req := httptest.NewRequest("GET", "/public", nil)
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for public endpoint with nil repos, got %d", rr.Code)
 	}
 }

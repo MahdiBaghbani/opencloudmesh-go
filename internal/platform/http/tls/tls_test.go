@@ -1,38 +1,19 @@
-package server_test
+package tls_test
 
 import (
-	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/server"
+	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 )
-
-// setupTestSharedDeps sets up SharedDeps for testing and returns a cleanup function.
-func setupTestSharedDeps(t *testing.T) func() {
-	t.Helper()
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		PartyRepo:   identity.NewMemoryPartyRepo(),
-		SessionRepo: identity.NewMemorySessionRepo(),
-		UserAuth:    identity.NewUserAuth(1),
-		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
-	})
-	return func() {
-		deps.ResetDeps()
-	}
-}
 
 func TestTLSManager_Off(t *testing.T) {
 	cfg := &config.TLSConfig{Mode: "off"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	mgr := server.NewTLSManager(cfg, logger)
+	mgr := tlspkg.NewTLSManager(cfg, logger)
 
 	tlsCfg, err := mgr.GetTLSConfig("localhost")
 	if err != nil {
@@ -50,10 +31,10 @@ func TestTLSManager_Static_MissingFiles(t *testing.T) {
 		KeyFile:  "",
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	mgr := server.NewTLSManager(cfg, logger)
+	mgr := tlspkg.NewTLSManager(cfg, logger)
 
 	_, err := mgr.GetTLSConfig("localhost")
-	if err != server.ErrMissingCert {
+	if err != tlspkg.ErrMissingCert {
 		t.Errorf("expected ErrMissingCert, got %v", err)
 	}
 }
@@ -71,7 +52,7 @@ func TestTLSManager_SelfSigned_Generate(t *testing.T) {
 		SelfSignedDir: tempDir,
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	mgr := server.NewTLSManager(cfg, logger)
+	mgr := tlspkg.NewTLSManager(cfg, logger)
 
 	tlsCfg, err := mgr.GetTLSConfig("localhost")
 	if err != nil {
@@ -108,7 +89,7 @@ func TestTLSManager_SelfSigned_Reload(t *testing.T) {
 		SelfSignedDir: tempDir,
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	mgr := server.NewTLSManager(cfg, logger)
+	mgr := tlspkg.NewTLSManager(cfg, logger)
 
 	// First call generates cert
 	tlsCfg1, err := mgr.GetTLSConfig("localhost")
@@ -131,35 +112,10 @@ func TestTLSManager_SelfSigned_Reload(t *testing.T) {
 func TestTLSManager_InvalidMode(t *testing.T) {
 	cfg := &config.TLSConfig{Mode: "invalid"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	mgr := server.NewTLSManager(cfg, logger)
+	mgr := tlspkg.NewTLSManager(cfg, logger)
 
 	_, err := mgr.GetTLSConfig("localhost")
 	if err == nil {
 		t.Error("expected error for invalid mode")
-	}
-}
-
-func TestTLSManager_ACME_FailFast(t *testing.T) {
-	// ACME mode should fail fast when Server.Start() is called
-	// The TLSManager itself returns a placeholder config, but Server.Start()
-	// should detect acme mode and return ErrACMENotImplemented
-	cfg := config.DevConfig()
-	cfg.TLS.Mode = "acme"
-	cfg.ListenAddr = ":0" // Dynamic port
-
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	cleanup := setupTestSharedDeps(t)
-	defer cleanup()
-
-	srv, err := server.New(cfg, logger, nil, nil, nil, nil, nil, nil) // nil services acceptable for this test
-	if err != nil {
-		t.Fatalf("server creation failed: %v", err)
-	}
-
-	// Start should fail fast with ACME error
-	err = srv.Start()
-	if !errors.Is(err, server.ErrACMENotImplemented) {
-		t.Errorf("expected ErrACMENotImplemented, got %v", err)
 	}
 }
