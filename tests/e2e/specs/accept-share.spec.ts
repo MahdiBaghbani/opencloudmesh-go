@@ -39,15 +39,21 @@ test.describe('Accept Share Flow', () => {
   /**
    * Helper to create a test share via API.
    * This simulates receiving a share from another server.
+   * shareWith provider part must match the server's public_origin host:port.
    */
   async function createTestShare(request: import('@playwright/test').APIRequestContext, options: {
     name: string;
     sender?: string;
     status?: string;
   }) {
+    // Derive provider from the running server's base URL so the shareWith
+    // provider part matches the public_origin host:port used for provider matching.
+    const serverURL = new URL(server.baseURL);
+    const provider = serverURL.host; // includes port when non-default
+
     // The /ocm/shares endpoint accepts incoming shares from other servers
     const sharePayload = {
-      shareWith: 'admin@localhost',
+      shareWith: `admin@${provider}`,
       name: options.name,
       providerId: `provider-${Date.now()}`,
       owner: options.sender || 'sender@remote.example.com',
