@@ -1,135 +1,247 @@
 package shares
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
-// IncomingHandler handles incoming OCM share endpoints.
+// IncomingHandler handles incoming OCM share endpoints (POST /ocm/shares).
 type IncomingHandler struct {
-	repo         IncomingShareRepo
-	policyEngine *federation.PolicyEngine
-	logger       *slog.Logger
+	repo                        IncomingShareRepo
+	partyRepo                   identity.PartyRepo
+	policyEngine                *federation.PolicyEngine
+	localProviderFQDNForCompare string
+	localScheme                 string
+	signatureInboundMode        string
+	logger                      *slog.Logger
 }
 
 // NewIncomingHandler creates a new incoming shares handler.
-// Validation is always strict (sharedSecret required for WebDAV).
-func NewIncomingHandler(repo IncomingShareRepo, policyEngine *federation.PolicyEngine, logger *slog.Logger) *IncomingHandler {
+func NewIncomingHandler(
+	repo IncomingShareRepo,
+	partyRepo identity.PartyRepo,
+	policyEngine *federation.PolicyEngine,
+	localProviderFQDNForCompare string,
+	localScheme string,
+	signatureInboundMode string,
+	logger *slog.Logger,
+) *IncomingHandler {
 	return &IncomingHandler{
-		repo:         repo,
-		policyEngine: policyEngine,
-		logger:       logger,
+		repo:                        repo,
+		partyRepo:                   partyRepo,
+		policyEngine:                policyEngine,
+		localProviderFQDNForCompare: localProviderFQDNForCompare,
+		localScheme:                 localScheme,
+		signatureInboundMode:        signatureInboundMode,
+		logger:                      logger,
 	}
 }
 
-// CreateShare handles POST /ocm/shares.
+// CreateShare handles POST /ocm/shares following the spec-aligned inbound flow.
 func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Get request-scoped logger with request correlation fields
 	log := appctx.GetLogger(r.Context())
 
 	// Parse request body
 	var req NewShareRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Warn("failed to parse share request", "error", err)
-		h.sendError(w, http.StatusBadRequest, "invalid_json", "failed to parse request body")
+		writeOCMError(w, http.StatusBadRequest, "INVALID_JSON")
 		return
 	}
 
-	// Validate request (always strict)
-	errs := ValidateNewShareRequest(&req)
-	if errs.HasErrors() {
-		log.Warn("share validation failed", "errors", errs.Error())
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(errs)
+	// Step 1: Compute strictPayloadValidation (per-peer strict vs lenient)
+	peerIdentity := crypto.GetPeerIdentity(r.Context())
+	strictPayloadValidation := h.signatureInboundMode == "strict"
+	if h.signatureInboundMode == "lenient" {
+		strictPayloadValidation = peerIdentity != nil && peerIdentity.Authenticated
+	}
+
+	// Step 2: Validate required fields (F1=A)
+	validationErrs := ValidateRequiredFields(&req)
+
+	// protocol.name validation depends on strictPayloadValidation
+	if strictPayloadValidation {
+		if req.Protocol.Name == "" && (req.Protocol.WebDAV != nil || req.Protocol.WebApp != nil) {
+			validationErrs = append(validationErrs, ValidationError{Name: "protocol.name", Message: "REQUIRED"})
+		}
+	}
+	// In lenient mode: missing protocol.name is allowed when protocol.webdav is present
+
+	if len(validationErrs) > 0 {
+		log.Warn("share validation failed", "errors", len(validationErrs))
+		WriteValidationError(w, "MISSING_REQUIRED_FIELDS", validationErrs)
+		return
+	}
+
+	// Step 3: Validate owner and sender OCM address format (F2=A)
+	var formatErrs []ValidationError
+	if _, _, err := address.Parse(req.Owner); err != nil {
+		formatErrs = append(formatErrs, ValidationError{Name: "owner", Message: "INVALID_FORMAT"})
+	}
+	if _, _, err := address.Parse(req.Sender); err != nil {
+		formatErrs = append(formatErrs, ValidationError{Name: "sender", Message: "INVALID_FORMAT"})
+	}
+	if len(formatErrs) > 0 {
+		log.Warn("share owner/sender format invalid", "errors", len(formatErrs))
+		WriteValidationError(w, "INVALID_FIELD_FORMAT", formatErrs)
+		return
+	}
+
+	// Step 4: Enforce protocol support (WebDAV only)
+	if req.Protocol.WebDAV == nil {
+		log.Warn("share rejected: no webdav protocol")
+		WriteProtocolNotSupported(w)
+		return
+	}
+
+	// Determine effective protocol name
+	effectiveProtocolName := req.Protocol.Name
+	if effectiveProtocolName == "" && !strictPayloadValidation {
+		effectiveProtocolName = "multi"
+	}
+	if effectiveProtocolName != "webdav" && effectiveProtocolName != "multi" {
+		log.Warn("share rejected: unsupported protocol name", "protocol_name", effectiveProtocolName)
+		WriteProtocolNotSupported(w)
 		return
 	}
 
 	// Extract sender host for policy check and storage
 	senderHost := ExtractSenderHost(req.Sender)
-	if senderHost == "" {
-		h.sendError(w, http.StatusBadRequest, "invalid_sender", "could not extract host from sender")
-		return
-	}
 
-	// Check trust policy if policy engine is available
+	// Trust validation: check policy if policy engine is available
 	if h.policyEngine != nil {
-		// Get peer identity from context (set by signature middleware)
-		peerIdentity := crypto.GetPeerIdentity(r.Context())
 		authenticated := peerIdentity != nil && peerIdentity.Authenticated
-
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)
 		if !decision.Allowed {
 			log.Warn("share rejected by policy",
 				"sender", senderHost,
 				"reason", decision.Reason,
 				"authenticated", authenticated)
-			h.sendError(w, http.StatusForbidden, decision.ReasonCode, decision.Reason)
+			msg := decision.ReasonCode
+			if msg == "" {
+				msg = "SENDER_NOT_AUTHORIZED"
+			}
+			writeOCMError(w, http.StatusForbidden, msg)
 			return
 		}
 	}
 
-	// Build incoming share record
-	share := &IncomingShare{
-		ProviderID:        req.ProviderID,
-		SenderHost:        senderHost,
-		Owner:             req.Owner,
-		Sender:            req.Sender,
-		ShareWith:         req.ShareWith,
-		Name:              req.Name,
-		Description:       req.Description,
-		ResourceType:      req.ResourceType,
-		ShareType:         req.ShareType,
-		OwnerDisplayName:  req.OwnerDisplayName,
-		SenderDisplayName: req.SenderDisplayName,
-		Expiration:        req.Expiration,
-		Status:            ShareStatusPending,
+	// Step 5: Parse shareWith using last-@ semantics
+	identifier, shareWithProvider, err := address.Parse(req.ShareWith)
+	if err != nil {
+		log.Warn("invalid shareWith format", "shareWith", req.ShareWith, "error", err)
+		WriteValidationError(w, "INVALID_SHARE_WITH", []ValidationError{
+			{Name: "shareWith", Message: "INVALID_FORMAT"},
+		})
+		return
 	}
 
-	// Handle WebDAV protocol
+	// Step 6: Provider match via hostport normalization
+	normalizedProvider, err := hostport.Normalize(shareWithProvider, h.localScheme)
+	if err != nil {
+		log.Warn("failed to normalize shareWith provider", "provider", shareWithProvider, "error", err)
+		WriteValidationError(w, "PROVIDER_MISMATCH", []ValidationError{
+			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
+		})
+		return
+	}
+
+	if !strings.EqualFold(normalizedProvider, h.localProviderFQDNForCompare) {
+		log.Warn("provider mismatch",
+			"shareWith_provider", normalizedProvider,
+			"local_provider", h.localProviderFQDNForCompare)
+		WriteValidationError(w, "PROVIDER_MISMATCH", []ValidationError{
+			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
+		})
+		return
+	}
+
+	// Step 7: Reject unsupported share types with 501; accept all resourceType values (F7=A)
+	if req.ShareType != "user" {
+		log.Warn("unsupported share type", "shareType", req.ShareType)
+		WriteShareTypeNotSupported(w)
+		return
+	}
+
+	// Step 8: Resolve recipient identity (triple resolution)
+	resolvedUser, err := h.resolveRecipient(r.Context(), identifier)
+	if err != nil {
+		log.Warn("recipient not found", "identifier", identifier)
+		WriteValidationError(w, "RECIPIENT_NOT_FOUND", []ValidationError{
+			{Name: "shareWith", Message: "NOT_FOUND"},
+		})
+		return
+	}
+
+	// Step 9: Duplicate check (E9, F10=A)
+	existing, err := h.repo.GetByProviderID(r.Context(), senderHost, req.ProviderID)
+	if err == nil && existing != nil {
+		// Idempotent: return 200 with CreateShareResponse
+		log.Info("duplicate share, returning existing",
+			"provider_id", req.ProviderID,
+			"sender", senderHost)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(CreateShareResponse{
+			RecipientDisplayName: existing.RecipientDisplayName,
+		})
+		return
+	}
+
+	// Step 10: Build and store the inbox record
+	share := &IncomingShare{
+		ProviderID:           req.ProviderID,
+		SenderHost:           senderHost,
+		Owner:                req.Owner,
+		Sender:               req.Sender,
+		ShareWith:            req.ShareWith, // raw, for audit/debug (Q1=A)
+		Name:                 req.Name,
+		Description:          req.Description,
+		ResourceType:         req.ResourceType,
+		ShareType:            req.ShareType,
+		OwnerDisplayName:     req.OwnerDisplayName,
+		SenderDisplayName:    req.SenderDisplayName,
+		Expiration:           req.Expiration,
+		Status:               ShareStatusPending,
+		RecipientUserID:      resolvedUser.ID,
+		RecipientDisplayName: resolvedUser.DisplayName,
+	}
+
+	// Handle WebDAV protocol details
 	if req.Protocol.WebDAV != nil {
 		webdav := req.Protocol.WebDAV
-
-		// Determine if URI is absolute or relative
 		if IsAbsoluteURI(webdav.URI) {
 			share.WebDAVURIAbsolute = webdav.URI
-			// Leave WebDAVID empty for absolute URIs
 		} else {
 			share.WebDAVID = webdav.URI
 		}
-
 		share.SharedSecret = webdav.SharedSecret
 		share.Permissions = webdav.Permissions
 
-		// Store must-exchange-token requirement
-		// This is no longer rejected - we store and enforce it at access time
 		if webdav.HasRequirement(RequirementMustExchangeToken) {
 			share.MustExchangeToken = true
-			log.Info("share requires token exchange",
-				"provider_id", req.ProviderID,
-				"sender", senderHost)
 		}
 	}
 
-	// Store the share
 	if err := h.repo.Create(r.Context(), share); err != nil {
 		log.Error("failed to store share", "error", err)
-		// Check if it's a duplicate
-		if err.Error() != "" {
-			h.sendError(w, http.StatusConflict, "duplicate_share", err.Error())
-			return
-		}
-		h.sendError(w, http.StatusInternalServerError, "storage_error", "failed to store share")
+		writeOCMError(w, http.StatusInternalServerError, "STORAGE_ERROR")
 		return
 	}
 
@@ -137,23 +249,38 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		"share_id", share.ShareID,
 		"provider_id", share.ProviderID,
 		"sender", senderHost,
-		"share_with", share.ShareWith)
+		"recipient_user_id", share.RecipientUserID)
 
-	// Return success response
-	resp := ShareCreatedResponse{}
-	// TODO: Add recipientDisplayName lookup in future
-
+	// Step 11: Return 201 with CreateShareResponse DTO (E4=A, E10=A)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(CreateShareResponse{
+		RecipientDisplayName: share.RecipientDisplayName,
+	})
 }
 
-// sendError sends a JSON error response.
-func (h *IncomingHandler) sendError(w http.ResponseWriter, status int, code, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error":       code,
-		"description": message,
-	})
+// resolveRecipient tries to find a local user by triple resolution order:
+// 1. PartyRepo.Get(identifier) - treat as canonical internal user id
+// 2. PartyRepo.GetByUsername(identifier)
+// 3. PartyRepo.GetByEmail(identifier) - repo normalizes email internally
+func (h *IncomingHandler) resolveRecipient(ctx context.Context, identifier string) (*identity.User, error) {
+	// Try by canonical ID first
+	user, err := h.partyRepo.Get(ctx, identifier)
+	if err == nil {
+		return user, nil
+	}
+
+	// Try by username
+	user, err = h.partyRepo.GetByUsername(ctx, identifier)
+	if err == nil {
+		return user, nil
+	}
+
+	// Try by email (repo handles normalization internally)
+	user, err = h.partyRepo.GetByEmail(ctx, identifier)
+	if err == nil {
+		return user, nil
+	}
+
+	return nil, errors.New("recipient not found")
 }

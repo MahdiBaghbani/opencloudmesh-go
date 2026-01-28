@@ -2,6 +2,7 @@ package shares
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -9,25 +10,33 @@ import (
 	"github.com/google/uuid"
 )
 
+// ErrShareNotFound is returned when a share is not found (including cross-user mismatch).
+var ErrShareNotFound = errors.New("share not found")
+
 // IncomingShareRepo manages incoming share storage.
+// All lookup and mutation methods are scoped by recipientUserID.
+// Cross-user access behaves as not found (confidentiality invariant).
 type IncomingShareRepo interface {
 	// Create stores a new incoming share.
 	Create(ctx context.Context, share *IncomingShare) error
 
-	// GetByID retrieves a share by local share ID.
-	GetByID(ctx context.Context, shareID string) (*IncomingShare, error)
+	// GetByIDForRecipientUserID retrieves a share scoped to a specific recipient.
+	// Returns ErrShareNotFound if the share does not exist or belongs to another user.
+	GetByIDForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) (*IncomingShare, error)
 
-	// GetByProviderID retrieves a share by sender-scoped providerId.
+	// GetByProviderID retrieves a share by sender-scoped providerId (unscoped, for duplicate detection).
 	GetByProviderID(ctx context.Context, senderHost, providerID string) (*IncomingShare, error)
 
-	// ListByUser retrieves all shares for a recipient user.
-	ListByUser(ctx context.Context, shareWith string) ([]*IncomingShare, error)
+	// ListByRecipientUserID retrieves all shares owned by a specific recipient.
+	ListByRecipientUserID(ctx context.Context, recipientUserID string) ([]*IncomingShare, error)
 
-	// UpdateStatus updates the acceptance status of a share.
-	UpdateStatus(ctx context.Context, shareID string, status ShareStatus) error
+	// UpdateStatusForRecipientUserID updates acceptance status, scoped by recipient.
+	// Returns ErrShareNotFound if the share does not exist or belongs to another user.
+	UpdateStatusForRecipientUserID(ctx context.Context, shareID string, recipientUserID string, status ShareStatus) error
 
-	// Delete removes a share.
-	Delete(ctx context.Context, shareID string) error
+	// DeleteForRecipientUserID removes a share, scoped by recipient.
+	// Returns ErrShareNotFound if the share does not exist or belongs to another user.
+	DeleteForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) error
 }
 
 // MemoryIncomingShareRepo is an in-memory implementation of IncomingShareRepo.
@@ -35,24 +44,26 @@ type MemoryIncomingShareRepo struct {
 	mu     sync.RWMutex
 	shares map[string]*IncomingShare // keyed by shareID
 
-	// Index for sender-scoped providerId lookup
+	// Index for sender-scoped providerId lookup (duplicate detection)
 	providerIndex map[string]string // "senderHost:providerId" -> shareID
+
+	// Index for per-user listing
+	byRecipientUserID map[string]map[string]struct{} // recipientUserID -> set of shareIDs
 }
 
 // NewMemoryIncomingShareRepo creates a new in-memory share repository.
 func NewMemoryIncomingShareRepo() *MemoryIncomingShareRepo {
 	return &MemoryIncomingShareRepo{
-		shares:        make(map[string]*IncomingShare),
-		providerIndex: make(map[string]string),
+		shares:            make(map[string]*IncomingShare),
+		providerIndex:     make(map[string]string),
+		byRecipientUserID: make(map[string]map[string]struct{}),
 	}
 }
 
 // generateUUIDv7 generates a UUIDv7 for share IDs.
 func generateUUIDv7() string {
-	// uuid.NewV7 returns a time-ordered UUID
 	id, err := uuid.NewV7()
 	if err != nil {
-		// Fallback to V4 if V7 fails
 		return uuid.New().String()
 	}
 	return id.String()
@@ -67,7 +78,6 @@ func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingSha
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Generate share ID if not set
 	if share.ShareID == "" {
 		share.ShareID = generateUUIDv7()
 	}
@@ -78,25 +88,31 @@ func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingSha
 		return fmt.Errorf("share with providerId %s from sender %s already exists", share.ProviderID, share.SenderHost)
 	}
 
-	// Set timestamps
 	now := time.Now()
 	share.CreatedAt = now
 	share.UpdatedAt = now
 
-	// Store
 	r.shares[share.ShareID] = share
 	r.providerIndex[key] = share.ShareID
+
+	// Maintain byRecipientUserID index
+	if share.RecipientUserID != "" {
+		if r.byRecipientUserID[share.RecipientUserID] == nil {
+			r.byRecipientUserID[share.RecipientUserID] = make(map[string]struct{})
+		}
+		r.byRecipientUserID[share.RecipientUserID][share.ShareID] = struct{}{}
+	}
 
 	return nil
 }
 
-func (r *MemoryIncomingShareRepo) GetByID(ctx context.Context, shareID string) (*IncomingShare, error) {
+func (r *MemoryIncomingShareRepo) GetByIDForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) (*IncomingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	share, exists := r.shares[shareID]
-	if !exists {
-		return nil, fmt.Errorf("share not found: %s", shareID)
+	if !exists || share.RecipientUserID != recipientUserID {
+		return nil, ErrShareNotFound
 	}
 
 	return share, nil
@@ -109,20 +125,24 @@ func (r *MemoryIncomingShareRepo) GetByProviderID(ctx context.Context, senderHos
 	key := incomingProviderKey(senderHost, providerID)
 	shareID, exists := r.providerIndex[key]
 	if !exists {
-		return nil, fmt.Errorf("share not found for providerId %s from sender %s", providerID, senderHost)
+		return nil, ErrShareNotFound
 	}
 
 	return r.shares[shareID], nil
 }
 
-func (r *MemoryIncomingShareRepo) ListByUser(ctx context.Context, shareWith string) ([]*IncomingShare, error) {
+func (r *MemoryIncomingShareRepo) ListByRecipientUserID(ctx context.Context, recipientUserID string) ([]*IncomingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var result []*IncomingShare
-	for _, share := range r.shares {
-		// If shareWith is empty, return all shares (for development/listing all)
-		if shareWith == "" || share.ShareWith == shareWith {
+	ids, exists := r.byRecipientUserID[recipientUserID]
+	if !exists {
+		return nil, nil
+	}
+
+	result := make([]*IncomingShare, 0, len(ids))
+	for id := range ids {
+		if share, ok := r.shares[id]; ok {
 			result = append(result, share)
 		}
 	}
@@ -130,13 +150,13 @@ func (r *MemoryIncomingShareRepo) ListByUser(ctx context.Context, shareWith stri
 	return result, nil
 }
 
-func (r *MemoryIncomingShareRepo) UpdateStatus(ctx context.Context, shareID string, status ShareStatus) error {
+func (r *MemoryIncomingShareRepo) UpdateStatusForRecipientUserID(ctx context.Context, shareID string, recipientUserID string, status ShareStatus) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	share, exists := r.shares[shareID]
-	if !exists {
-		return fmt.Errorf("share not found: %s", shareID)
+	if !exists || share.RecipientUserID != recipientUserID {
+		return ErrShareNotFound
 	}
 
 	share.Status = status
@@ -145,20 +165,26 @@ func (r *MemoryIncomingShareRepo) UpdateStatus(ctx context.Context, shareID stri
 	return nil
 }
 
-func (r *MemoryIncomingShareRepo) Delete(ctx context.Context, shareID string) error {
+func (r *MemoryIncomingShareRepo) DeleteForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	share, exists := r.shares[shareID]
-	if !exists {
-		return fmt.Errorf("share not found: %s", shareID)
+	if !exists || share.RecipientUserID != recipientUserID {
+		return ErrShareNotFound
 	}
 
-	// Remove from index
+	// Remove from indexes
 	key := incomingProviderKey(share.SenderHost, share.ProviderID)
 	delete(r.providerIndex, key)
 
-	// Remove share
+	if ids, ok := r.byRecipientUserID[share.RecipientUserID]; ok {
+		delete(ids, shareID)
+		if len(ids) == 0 {
+			delete(r.byRecipientUserID, share.RecipientUserID)
+		}
+	}
+
 	delete(r.shares, shareID)
 
 	return nil

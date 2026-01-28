@@ -67,7 +67,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	}
 
 	// Construct handlers using SharedDeps (Reva-aligned)
-	sharesHandler := shares.NewIncomingHandler(d.IncomingShareRepo, d.PolicyEngine, log)
+	sharesHandler := shares.NewIncomingHandler(
+		d.IncomingShareRepo,
+		d.PartyRepo,
+		d.PolicyEngine,
+		d.LocalProviderFQDNForCompare,
+		d.Config.PublicScheme(),
+		d.Config.Signature.InboundMode,
+		log,
+	)
 	notifHandler := notifications.NewHandler(d.OutgoingShareRepo, d.Config.PublicOrigin, log)
 	invitesHandler := invites.NewHandler(d.OutgoingInviteRepo, d.LocalProviderFQDN, d.Config.PublicOrigin, log)
 	tokenHandler := token.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, d.Config.PublicOrigin, log)

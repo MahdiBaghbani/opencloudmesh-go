@@ -17,6 +17,7 @@ type NotificationSender interface {
 }
 
 // InboxActionsHandler handles accept/decline actions on inbox shares.
+// Temporary: will be replaced by internal/components/api/inbox/shares in p07.
 type InboxActionsHandler struct {
 	repo               IncomingShareRepo
 	notificationSender NotificationSender
@@ -33,13 +34,13 @@ func NewInboxActionsHandler(repo IncomingShareRepo, sender NotificationSender, l
 }
 
 // HandleAccept handles POST /api/inbox/shares/{shareId}/accept.
+// Temporary: passes empty recipientUserID. p07 will inject CurrentUser.
 func (h *InboxActionsHandler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Get request-scoped logger with request correlation fields
 	log := appctx.GetLogger(r.Context())
 
 	shareID := extractShareID(r.URL.Path, "/accept")
@@ -50,16 +51,14 @@ func (h *InboxActionsHandler) HandleAccept(w http.ResponseWriter, r *http.Reques
 
 	ctx := r.Context()
 
-	// Get the share
-	share, err := h.repo.GetByID(ctx, shareID)
+	// Temporary: empty recipientUserID until p07 CurrentUser injection
+	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, "")
 	if err != nil {
 		h.sendError(w, http.StatusNotFound, "share_not_found", "share not found")
 		return
 	}
 
-	// Check current status
 	if share.Status == ShareStatusAccepted {
-		// Already accepted, idempotent success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  string(ShareStatusAccepted),
@@ -73,17 +72,14 @@ func (h *InboxActionsHandler) HandleAccept(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Update status
-	if err := h.repo.UpdateStatus(ctx, shareID, ShareStatusAccepted); err != nil {
+	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, "", ShareStatusAccepted); err != nil {
 		log.Error("failed to update share status", "share_id", shareID, "error", err)
 		h.sendError(w, http.StatusInternalServerError, "update_failed", "failed to update share status")
 		return
 	}
 
-	// Send notification to sender
 	if h.notificationSender != nil {
 		if err := h.notificationSender.SendShareAccepted(ctx, share.SenderHost, share.ProviderID, share.ResourceType); err != nil {
-			// Log but don't fail - the share is already accepted locally
 			log.Warn("failed to send accept notification",
 				"share_id", shareID,
 				"sender_host", share.SenderHost,
@@ -104,13 +100,13 @@ func (h *InboxActionsHandler) HandleAccept(w http.ResponseWriter, r *http.Reques
 }
 
 // HandleDecline handles POST /api/inbox/shares/{shareId}/decline.
+// Temporary: passes empty recipientUserID. p07 will inject CurrentUser.
 func (h *InboxActionsHandler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Get request-scoped logger with request correlation fields
 	log := appctx.GetLogger(r.Context())
 
 	shareID := extractShareID(r.URL.Path, "/decline")
@@ -121,16 +117,13 @@ func (h *InboxActionsHandler) HandleDecline(w http.ResponseWriter, r *http.Reque
 
 	ctx := r.Context()
 
-	// Get the share
-	share, err := h.repo.GetByID(ctx, shareID)
+	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, "")
 	if err != nil {
 		h.sendError(w, http.StatusNotFound, "share_not_found", "share not found")
 		return
 	}
 
-	// Check current status
 	if share.Status == ShareStatusDeclined {
-		// Already declined, idempotent success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  string(ShareStatusDeclined),
@@ -144,17 +137,14 @@ func (h *InboxActionsHandler) HandleDecline(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Update status
-	if err := h.repo.UpdateStatus(ctx, shareID, ShareStatusDeclined); err != nil {
+	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, "", ShareStatusDeclined); err != nil {
 		log.Error("failed to update share status", "share_id", shareID, "error", err)
 		h.sendError(w, http.StatusInternalServerError, "update_failed", "failed to update share status")
 		return
 	}
 
-	// Send notification to sender
 	if h.notificationSender != nil {
 		if err := h.notificationSender.SendShareDeclined(ctx, share.SenderHost, share.ProviderID, share.ResourceType); err != nil {
-			// Log but don't fail - the share is already declined locally
 			log.Warn("failed to send decline notification",
 				"share_id", shareID,
 				"sender_host", share.SenderHost,
@@ -174,22 +164,15 @@ func (h *InboxActionsHandler) HandleDecline(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// extractShareID extracts the shareId from the request path.
-// Expected path format: /api/inbox/shares/{shareId}/accept or /api/inbox/shares/{shareId}/decline
 func extractShareID(path, suffix string) string {
-	// Remove the suffix (/accept or /decline)
 	path = strings.TrimSuffix(path, suffix)
-
-	// Find the last path segment
 	parts := strings.Split(path, "/")
 	if len(parts) < 1 {
 		return ""
 	}
-
 	return parts[len(parts)-1]
 }
 
-// sendError sends a JSON error response.
 func (h *InboxActionsHandler) sendError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

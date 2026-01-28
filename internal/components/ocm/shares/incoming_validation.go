@@ -1,151 +1,88 @@
 package shares
 
 import (
-	"fmt"
+	"encoding/json"
+	"net/http"
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 )
 
-// ValidationError represents a field-level validation error.
+// ValidationError is a spec-aligned field-level validation error.
 type ValidationError struct {
-	Field   string `json:"field"`
+	Name    string `json:"name"`
 	Message string `json:"message"`
 }
 
-// ValidationErrors is a list of validation errors.
-type ValidationErrors struct {
-	Errors []ValidationError `json:"validationErrors"`
+// OCMErrorResponse is the spec base Error schema (used for 400/403/501).
+type OCMErrorResponse struct {
+	Message          string            `json:"message"`
+	ValidationErrors []ValidationError `json:"validationErrors,omitempty"`
 }
 
-func (v *ValidationErrors) Error() string {
-	var msgs []string
-	for _, e := range v.Errors {
-		msgs = append(msgs, fmt.Sprintf("%s: %s", e.Field, e.Message))
-	}
-	return strings.Join(msgs, "; ")
-}
+// ValidateRequiredFields checks that all spec-required NewShare fields are present.
+// Returns a non-nil slice of ValidationError for each missing field.
+// Does NOT check protocol.name (that is handled by the share handler after
+// computing strictPayloadValidation).
+func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
+	var errs []ValidationError
 
-// Add adds a validation error.
-func (v *ValidationErrors) Add(field, message string) {
-	v.Errors = append(v.Errors, ValidationError{Field: field, Message: message})
-}
-
-// HasErrors returns true if there are validation errors.
-func (v *ValidationErrors) HasErrors() bool {
-	return len(v.Errors) > 0
-}
-
-// ValidateNewShareRequest validates an incoming share creation request.
-// Returns validation errors if the request is invalid.
-// Validation is always strict (sharedSecret is required for WebDAV access).
-func ValidateNewShareRequest(req *NewShareRequest) *ValidationErrors {
-	errs := &ValidationErrors{}
-
-	// Required fields
 	if req.ShareWith == "" {
-		errs.Add("shareWith", "required field missing")
+		errs = append(errs, ValidationError{Name: "shareWith", Message: "REQUIRED"})
 	}
 	if req.Name == "" {
-		errs.Add("name", "required field missing")
+		errs = append(errs, ValidationError{Name: "name", Message: "REQUIRED"})
 	}
 	if req.ProviderID == "" {
-		errs.Add("providerId", "required field missing")
+		errs = append(errs, ValidationError{Name: "providerId", Message: "REQUIRED"})
 	}
 	if req.Owner == "" {
-		errs.Add("owner", "required field missing")
+		errs = append(errs, ValidationError{Name: "owner", Message: "REQUIRED"})
 	}
 	if req.Sender == "" {
-		errs.Add("sender", "required field missing")
+		errs = append(errs, ValidationError{Name: "sender", Message: "REQUIRED"})
 	}
 	if req.ShareType == "" {
-		errs.Add("shareType", "required field missing")
-	} else if !isValidShareType(req.ShareType) {
-		errs.Add("shareType", "must be one of: user, group, federation")
+		errs = append(errs, ValidationError{Name: "shareType", Message: "REQUIRED"})
 	}
 	if req.ResourceType == "" {
-		errs.Add("resourceType", "required field missing")
+		errs = append(errs, ValidationError{Name: "resourceType", Message: "REQUIRED"})
 	}
 
-	// Validate protocol
-	if req.Protocol.WebDAV == nil && req.Protocol.WebApp == nil {
-		// If name is "multi" or empty, we need at least webdav for file resources
-		if req.ResourceType == "file" {
-			errs.Add("protocol.webdav", "required for file resources")
-		}
-	}
-
-	// Validate WebDAV protocol if present
-	if req.Protocol.WebDAV != nil {
-		validateWebDAVProtocol(req.Protocol.WebDAV, errs)
+	// Protocol is required: must have at least one of Name, WebDAV, or WebApp.
+	if req.Protocol.Name == "" && req.Protocol.WebDAV == nil && req.Protocol.WebApp == nil {
+		errs = append(errs, ValidationError{Name: "protocol", Message: "REQUIRED"})
 	}
 
 	return errs
 }
 
-// validateWebDAVProtocol validates the WebDAV protocol section.
-// Validation is always strict: sharedSecret is required for WebDAV access.
-func validateWebDAVProtocol(webdav *WebDAVProtocol, errs *ValidationErrors) {
-	// URI is required
-	if webdav.URI == "" {
-		errs.Add("protocol.webdav.uri", "required field missing")
-	}
-
-	// Permissions is required
-	if len(webdav.Permissions) == 0 {
-		errs.Add("protocol.webdav.permissions", "required field missing")
-	} else {
-		for _, perm := range webdav.Permissions {
-			if !isValidPermission(perm) {
-				errs.Add("protocol.webdav.permissions", fmt.Sprintf("invalid permission: %s", perm))
-			}
-		}
-	}
-
-	// sharedSecret is always required for WebDAV access
-	if webdav.SharedSecret == "" {
-		errs.Add("protocol.webdav.sharedSecret", "required for WebDAV access")
-	}
-
-	// Validate requirements
-	// Note: must-exchange-token is now accepted and stored for enforcement at access time
-	for _, req := range webdav.Requirements {
-		switch req {
-		case "must-exchange-token":
-			// Accepted: stored in share.MustExchangeToken, enforced at WebDAV access
-		case "must-use-mfa":
-			// Reject by default, could be bypassed in dev mode
-			errs.Add("protocol.webdav.requirements", "must-use-mfa not supported")
-		default:
-			if !isKnownRequirement(req) {
-				errs.Add("protocol.webdav.requirements", fmt.Sprintf("unknown requirement: %s", req))
-			}
-		}
-	}
+// WriteValidationError writes a 400 response with the spec's validationErrors format.
+// Used only by POST /ocm/shares. Local API endpoints use api.WriteBadRequest instead.
+func WriteValidationError(w http.ResponseWriter, message string, errors []ValidationError) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(OCMErrorResponse{
+		Message:          message,
+		ValidationErrors: errors,
+	})
 }
 
-func isValidShareType(t string) bool {
-	switch t {
-	case "user", "group", "federation":
-		return true
-	}
-	return false
+// WriteShareTypeNotSupported writes a 501 response for unsupported share types.
+func WriteShareTypeNotSupported(w http.ResponseWriter) {
+	writeOCMError(w, http.StatusNotImplemented, "SHARE_TYPE_NOT_SUPPORTED")
 }
 
-func isValidPermission(p string) bool {
-	switch p {
-	case "read", "write", "share":
-		return true
-	}
-	return false
+// WriteProtocolNotSupported writes a 501 response for unsupported protocols.
+func WriteProtocolNotSupported(w http.ResponseWriter) {
+	writeOCMError(w, http.StatusNotImplemented, "PROTOCOL_NOT_SUPPORTED")
 }
 
-func isKnownRequirement(r string) bool {
-	switch r {
-	case "must-exchange-token", "must-use-mfa", "mfa-enforced":
-		return true
-	}
-	return false
+// writeOCMError writes a base Error schema response (no validationErrors).
+func writeOCMError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(OCMErrorResponse{Message: message})
 }
 
 // ExtractSenderHost extracts the host (provider) from an OCM address using last-@ semantics.

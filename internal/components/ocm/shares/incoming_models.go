@@ -58,10 +58,10 @@ type WebAppProtocol struct {
 	ViewMode     string `json:"viewMode,omitempty"`
 }
 
-// ShareCreatedResponse is the response for successful share creation.
-type ShareCreatedResponse struct {
-	RecipientDisplayName string   `json:"recipientDisplayName,omitempty"`
-	RecipientPublicKeys  []string `json:"recipientPublicKeys,omitempty"`
+// CreateShareResponse is the spec-aligned 201/200 response for POST /ocm/shares.
+// Only includes spec-required fields; do not serialize the full IncomingShare.
+type CreateShareResponse struct {
+	RecipientDisplayName string `json:"recipientDisplayName"`
 }
 
 // IncomingShare represents a stored incoming share in the inbox.
@@ -98,6 +98,10 @@ type IncomingShare struct {
 	OwnerDisplayName  string `json:"ownerDisplayName,omitempty"`
 	SenderDisplayName string `json:"senderDisplayName,omitempty"`
 	Expiration        *int64 `json:"expiration,omitempty"`
+
+	// Recipient identity (set at ingest time from resolved local user)
+	RecipientUserID     string `json:"-"` // canonical local user id that owns this inbox entry
+	RecipientDisplayName string `json:"-"` // resolved display name for 201 response
 
 	// State
 	Status    ShareStatus `json:"status"`
