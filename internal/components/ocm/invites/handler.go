@@ -81,15 +81,47 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Empty/missing token -> TOKEN_REQUIRED
+	// Spec-required field checks: all five AcceptedInvite fields are required.
+
+	// 1. Empty/missing recipientProvider
+	if req.RecipientProvider == "" {
+		h.sendOCMError(w, http.StatusBadRequest, "RECIPIENT_PROVIDER_REQUIRED")
+		return
+	}
+
+	// 2. recipientProvider must be an FQDN (no scheme)
+	if strings.Contains(req.RecipientProvider, "://") {
+		h.sendOCMError(w, http.StatusBadRequest, "INVALID_RECIPIENT_PROVIDER")
+		return
+	}
+
+	// 3. Empty/missing token
 	if req.Token == "" {
 		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_REQUIRED")
 		return
 	}
 
+	// 4. Empty/missing userID
+	if req.UserID == "" {
+		h.sendOCMError(w, http.StatusBadRequest, "USERID_REQUIRED")
+		return
+	}
+
+	// 5. Empty/missing email (spec: required in AcceptedInvite schema)
+	if req.Email == "" {
+		h.sendOCMError(w, http.StatusBadRequest, "EMAIL_REQUIRED")
+		return
+	}
+
+	// 6. Empty/missing name (spec: required in AcceptedInvite schema)
+	if req.Name == "" {
+		h.sendOCMError(w, http.StatusBadRequest, "NAME_REQUIRED")
+		return
+	}
+
 	ctx := r.Context()
 
-	// 2. Token not found -> TOKEN_INVALID (spec: 400, not 404)
+	// 7. Token not found -> TOKEN_INVALID (spec: 400, not 404)
 	invite, err := h.outgoingRepo.GetByToken(ctx, req.Token)
 	if err != nil {
 		log.Warn("invite-accepted for unknown token", "recipient_provider", req.RecipientProvider)
@@ -97,42 +129,35 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Token expired -> TOKEN_EXPIRED
+	// 8. Token expired -> TOKEN_EXPIRED
 	if !invite.ExpiresAt.IsZero() && time.Now().After(invite.ExpiresAt) {
 		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_EXPIRED")
 		return
 	}
 
-	// 4. Empty/missing userID -> USERID_REQUIRED
-	if req.UserID == "" {
-		h.sendOCMError(w, http.StatusBadRequest, "USERID_REQUIRED")
-		return
-	}
-
-	// 5. Invalid recipientProvider (contains scheme) -> INVALID_RECIPIENT_PROVIDER
-	if strings.Contains(req.RecipientProvider, "://") {
-		h.sendOCMError(w, http.StatusBadRequest, "INVALID_RECIPIENT_PROVIDER")
-		return
-	}
-
-	// 6. Already accepted -> 409 INVITE_ALREADY_ACCEPTED (spec-mandated)
+	// 9. Already accepted -> 409 INVITE_ALREADY_ACCEPTED (spec-mandated)
 	if invite.Status == InviteStatusAccepted {
 		log.Info("duplicate invite-accepted", "recipient_provider", req.RecipientProvider)
 		h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
 		return
 	}
 
-	// Verify sender identity from signature if available
+	// 10. Verify sender identity from signature (spec: 403 if not trusted)
 	peerIdentity := crypto.GetPeerIdentity(ctx)
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
 		if err != nil {
 			log.Warn("failed to normalize recipient provider",
 				"recipient_provider", req.RecipientProvider, "error", err)
-		} else if peerIdentity.AuthorityForCompare != normalizedRecipient {
+			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+			return
+		}
+		if peerIdentity.AuthorityForCompare != normalizedRecipient {
 			log.Warn("invite-accepted sender mismatch",
 				"signature_authority", peerIdentity.AuthorityForCompare,
 				"recipient_provider", req.RecipientProvider)
+			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+			return
 		}
 	}
 

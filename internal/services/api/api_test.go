@@ -219,10 +219,10 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 
 	svc.Handler().ServeHTTP(w, req)
 
-	// The endpoint exists (returns 200 with empty list, not 404)
-	// Auth gating is handled by server middleware, not the service itself
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
+	// The handler enforces auth via CurrentUser injection; no user in
+	// context means 401. Server middleware provides the outer auth gate.
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", w.Code)
 	}
 }
 

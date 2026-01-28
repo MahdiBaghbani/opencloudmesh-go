@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -55,11 +56,45 @@ func decodeOCMError(t *testing.T, w *httptest.ResponseRecorder) string {
 
 // --- HandleInviteAccepted error table tests (F3=A) ---
 
+// validAcceptedBody returns a complete AcceptedInvite JSON body.
+// All five spec-required fields are present.
+func validAcceptedBody(token string) string {
+	return `{"recipientProvider":"other.com","token":"` + token + `","userID":"u@host","email":"remote@other.com","name":"Remote User"}`
+}
+
+func TestHandleInviteAccepted_RecipientProviderRequired(t *testing.T) {
+	repo := invites.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	w := postInviteAccepted(handler, `{"recipientProvider":"","token":"t","userID":"u@host","email":"e","name":"n"}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	if msg := decodeOCMError(t, w); msg != "RECIPIENT_PROVIDER_REQUIRED" {
+		t.Errorf("expected RECIPIENT_PROVIDER_REQUIRED, got %q", msg)
+	}
+}
+
+func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
+	repo := invites.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	w := postInviteAccepted(handler, `{"recipientProvider":"https://other.com","token":"t","userID":"u@host","email":"e","name":"n"}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	if msg := decodeOCMError(t, w); msg != "INVALID_RECIPIENT_PROVIDER" {
+		t.Errorf("expected INVALID_RECIPIENT_PROVIDER, got %q", msg)
+	}
+}
+
 func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
 	repo := invites.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","userID":"u@host"}`)
+	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"","userID":"u@host","email":"e","name":"n"}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -69,11 +104,53 @@ func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
 	}
 }
 
+func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
+	repo := invites.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"","email":"e","name":"n"}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	if msg := decodeOCMError(t, w); msg != "USERID_REQUIRED" {
+		t.Errorf("expected USERID_REQUIRED, got %q", msg)
+	}
+}
+
+func TestHandleInviteAccepted_EmailRequired(t *testing.T) {
+	repo := invites.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","email":"","name":"n"}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	if msg := decodeOCMError(t, w); msg != "EMAIL_REQUIRED" {
+		t.Errorf("expected EMAIL_REQUIRED, got %q", msg)
+	}
+}
+
+func TestHandleInviteAccepted_NameRequired(t *testing.T) {
+	repo := invites.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","email":"e","name":""}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	if msg := decodeOCMError(t, w); msg != "NAME_REQUIRED" {
+		t.Errorf("expected NAME_REQUIRED, got %q", msg)
+	}
+}
+
 func TestHandleInviteAccepted_TokenInvalid(t *testing.T) {
 	repo := invites.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	w := postInviteAccepted(handler, `{"token":"nonexistent","recipientProvider":"other.com","userID":"u@host"}`)
+	w := postInviteAccepted(handler, validAcceptedBody("nonexistent"))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 (not 404), got %d", w.Code)
@@ -87,7 +164,6 @@ func TestHandleInviteAccepted_TokenExpired(t *testing.T) {
 	repo := invites.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	// Create an expired invite
 	invite := &invites.OutgoingInvite{
 		Token:        "expired-token",
 		ProviderFQDN: testProvider,
@@ -96,58 +172,13 @@ func TestHandleInviteAccepted_TokenExpired(t *testing.T) {
 	}
 	repo.Create(context.Background(), invite)
 
-	w := postInviteAccepted(handler, `{"token":"expired-token","recipientProvider":"other.com","userID":"u@host"}`)
+	w := postInviteAccepted(handler, validAcceptedBody("expired-token"))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
 	if msg := decodeOCMError(t, w); msg != "TOKEN_EXPIRED" {
 		t.Errorf("expected TOKEN_EXPIRED, got %q", msg)
-	}
-}
-
-func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := newTestHandler(repo, nil)
-
-	invite := &invites.OutgoingInvite{
-		Token:        "valid-token",
-		ProviderFQDN: testProvider,
-		ExpiresAt:    time.Now().Add(24 * time.Hour),
-		Status:       invites.InviteStatusPending,
-	}
-	repo.Create(context.Background(), invite)
-
-	// Send with empty userID
-	w := postInviteAccepted(handler, `{"token":"valid-token","recipientProvider":"other.com","userID":""}`)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-	if msg := decodeOCMError(t, w); msg != "USERID_REQUIRED" {
-		t.Errorf("expected USERID_REQUIRED, got %q", msg)
-	}
-}
-
-func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := newTestHandler(repo, nil)
-
-	invite := &invites.OutgoingInvite{
-		Token:        "valid-token",
-		ProviderFQDN: testProvider,
-		ExpiresAt:    time.Now().Add(24 * time.Hour),
-		Status:       invites.InviteStatusPending,
-	}
-	repo.Create(context.Background(), invite)
-
-	w := postInviteAccepted(handler, `{"token":"valid-token","recipientProvider":"https://other.com","userID":"u@host"}`)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-	if msg := decodeOCMError(t, w); msg != "INVALID_RECIPIENT_PROVIDER" {
-		t.Errorf("expected INVALID_RECIPIENT_PROVIDER, got %q", msg)
 	}
 }
 
@@ -162,7 +193,7 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 	}
 	repo.Create(context.Background(), invite)
 
-	w := postInviteAccepted(handler, `{"token":"accepted-token","recipientProvider":"other.com","userID":"u@host"}`)
+	w := postInviteAccepted(handler, validAcceptedBody("accepted-token"))
 
 	// Spec-mandated: 409, not 200 (fixes old bug)
 	if w.Code != http.StatusConflict {
@@ -170,6 +201,42 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 	}
 	if msg := decodeOCMError(t, w); msg != "INVITE_ALREADY_ACCEPTED" {
 		t.Errorf("expected INVITE_ALREADY_ACCEPTED, got %q", msg)
+	}
+}
+
+func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
+	repo := invites.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	invite := &invites.OutgoingInvite{
+		Token:        "trust-token",
+		ProviderFQDN: testProvider,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+		Status:       invites.InviteStatusPending,
+	}
+	repo.Create(context.Background(), invite)
+
+	// Build a request with a mismatched authenticated peer identity
+	body := validAcceptedBody("trust-token")
+	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	// Inject a verified peer identity that does NOT match the recipientProvider
+	peerCtx := context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+		Authority:           "attacker.com",
+		AuthorityForCompare: "attacker.com",
+		Authenticated:       true,
+	})
+	req = req.WithContext(peerCtx)
+
+	w := httptest.NewRecorder()
+	handler.HandleInviteAccepted(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+	if msg := decodeOCMError(t, w); msg != "UNTRUSTED_PROVIDER" {
+		t.Errorf("expected UNTRUSTED_PROVIDER, got %q", msg)
 	}
 }
 

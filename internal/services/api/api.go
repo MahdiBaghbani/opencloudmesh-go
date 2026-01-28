@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
+	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
@@ -68,7 +69,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 
 	// Create handlers using SharedDeps
 	authHandler := api.NewAuthHandler(d.PartyRepo, d.SessionRepo, d.UserAuth)
-	inboxHandler := shares.NewInboxHandler(d.IncomingShareRepo)
+
+	// CurrentUser adapter for session-gated handlers
+	currentUser := func(ctx context.Context) (*identity.User, error) {
+		u := auth.GetUserFromContext(ctx)
+		if u == nil {
+			return nil, fmt.Errorf("no authenticated user in context")
+		}
+		return u, nil
+	}
 
 	// Create notification client for outbound notifications
 	notificationClient := notifications.NewClient(
@@ -77,7 +86,9 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.Signer,
 		d.OutboundPolicy,
 	)
-	inboxActionsHandler := shares.NewInboxActionsHandler(d.IncomingShareRepo, notificationClient, log)
+
+	// Inbox shares handler (per-user scoped, Chi route params)
+	inboxSharesHandler := inboxshares.NewHandler(d.IncomingShareRepo, notificationClient, currentUser, log)
 
 	// Create outgoing share handler
 	outgoingHandler := shares.NewOutgoingHandler(
@@ -101,15 +112,6 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.LocalProviderFQDN,
 		log,
 	)
-
-	// CurrentUser adapter for session-gated handlers
-	currentUser := func(ctx context.Context) (*identity.User, error) {
-		u := auth.GetUserFromContext(ctx)
-		if u == nil {
-			return nil, fmt.Errorf("no authenticated user in context")
-		}
-		return u, nil
-	}
 
 	// Create outgoing invites handler (local-user API, uses OCM invites package)
 	outgoingInvitesHandler := invites.NewHandler(
@@ -155,11 +157,12 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		r.Get("/me", authHandler.GetCurrentUser) // session
 	})
 
-	// Inbox endpoints (session-gated)
+	// Inbox endpoints (session-gated, per-user scoped)
+	// Flat routes inside /inbox to avoid Chi subrouter redirect from /shares to /shares/
 	r.Route("/inbox", func(r chi.Router) {
-		r.Get("/shares", inboxHandler.HandleList)
-		r.Post("/shares/{shareId}/accept", inboxActionsHandler.HandleAccept)
-		r.Post("/shares/{shareId}/decline", inboxActionsHandler.HandleDecline)
+		r.Get("/shares", inboxSharesHandler.HandleList)
+		r.Post("/shares/{shareId}/accept", inboxSharesHandler.HandleAccept)
+		r.Post("/shares/{shareId}/decline", inboxSharesHandler.HandleDecline)
 		r.Get("/invites", invitesInboxHandler.HandleList)
 		r.Post("/invites/{inviteId}/accept", invitesInboxHandler.HandleAccept)
 		r.Post("/invites/{inviteId}/decline", invitesInboxHandler.HandleDecline)
