@@ -20,16 +20,17 @@ const (
 
 // OutgoingInvite represents an invite we sent to another server.
 type OutgoingInvite struct {
-	ID             string       `json:"id"`
-	Token          string       `json:"token"`
-	ProviderFQDN   string       `json:"providerFqdn"`
-	InviteString   string       `json:"inviteString"`
-	RecipientEmail string       `json:"recipientEmail,omitempty"`
-	CreatedAt      time.Time    `json:"createdAt"`
-	ExpiresAt      time.Time    `json:"expiresAt"`
-	Status         InviteStatus `json:"status"`
-	AcceptedBy     string       `json:"acceptedBy,omitempty"`
-	AcceptedAt     *time.Time   `json:"acceptedAt,omitempty"`
+	ID              string       `json:"id"`
+	Token           string       `json:"token"`
+	ProviderFQDN    string       `json:"providerFqdn"`
+	InviteString    string       `json:"inviteString"`
+	RecipientEmail  string       `json:"recipientEmail,omitempty"`
+	CreatedByUserID string       `json:"-"` // local user id who created this invite
+	CreatedAt       time.Time    `json:"createdAt"`
+	ExpiresAt       time.Time    `json:"expiresAt"`
+	Status          InviteStatus `json:"status"`
+	AcceptedBy      string       `json:"acceptedBy,omitempty"`
+	AcceptedAt      *time.Time   `json:"acceptedAt,omitempty"`
 }
 
 // IncomingInvite represents an invite we received (via pasting an invite string).
@@ -43,19 +44,21 @@ type IncomingInvite struct {
 }
 
 // InviteAcceptedRequest is the server-to-server POST /ocm/invite-accepted body.
+// All fields are spec-required (no omitempty).
 type InviteAcceptedRequest struct {
 	RecipientProvider string `json:"recipientProvider"`
 	Token             string `json:"token"`
-	UserID            string `json:"userID,omitempty"`
-	Email             string `json:"email,omitempty"`
-	Name              string `json:"name,omitempty"`
+	UserID            string `json:"userID"`
+	Email             string `json:"email"`
+	Name              string `json:"name"`
 }
 
 // InviteAcceptedResponse is returned after successful invite acceptance.
+// All fields are spec-required (no omitempty).
 type InviteAcceptedResponse struct {
 	UserID string `json:"userID"`
-	Email  string `json:"email,omitempty"`
-	Name   string `json:"name,omitempty"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
 }
 
 // CreateOutgoingRequest is the request for POST /api/invites/outgoing.

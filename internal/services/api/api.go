@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
@@ -18,6 +20,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/auth"
 )
 
 func init() {
@@ -99,11 +102,22 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log,
 	)
 
+	// CurrentUser adapter for session-gated handlers
+	currentUser := func(ctx context.Context) (*identity.User, error) {
+		u := auth.GetUserFromContext(ctx)
+		if u == nil {
+			return nil, fmt.Errorf("no authenticated user in context")
+		}
+		return u, nil
+	}
+
 	// Create outgoing invites handler (local-user API, uses OCM invites package)
 	outgoingInvitesHandler := invites.NewHandler(
 		d.OutgoingInviteRepo,
+		nil, // partyRepo not needed for HandleCreateOutgoing
 		d.LocalProviderFQDN,
 		d.Config.PublicOrigin,
+		currentUser,
 		log,
 	)
 
