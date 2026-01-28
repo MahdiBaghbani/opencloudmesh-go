@@ -226,6 +226,29 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 	}
 }
 
+func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
+	setupTestDeps()
+
+	m := map[string]any{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/inbox/invites", nil)
+	w := httptest.NewRecorder()
+
+	svc.Handler().ServeHTTP(w, req)
+
+	// The handler enforces auth via CurrentUser injection; no user in
+	// context means 401. Server middleware provides the outer auth gate.
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", w.Code)
+	}
+}
+
 func TestService_AdminFederationsEndpoint_NotImplemented(t *testing.T) {
 	setupTestDeps()
 

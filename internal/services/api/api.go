@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
+	inboxinvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/invites"
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
@@ -101,15 +102,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log,
 	)
 
-	// Create invites inbox handler
-	invitesInboxHandler := invites.NewInboxHandler(
+	// Inbox invites handler (per-user scoped, Chi route params)
+	inboxInvitesHandler := inboxinvites.NewHandler(
 		d.IncomingInviteRepo,
-		d.DiscoveryClient,
 		d.HTTPClient,
+		d.DiscoveryClient,
 		d.Signer,
 		d.OutboundPolicy,
-		"", // User ID set from session context
 		d.LocalProviderFQDN,
+		currentUser,
 		log,
 	)
 
@@ -163,9 +164,10 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		r.Get("/shares", inboxSharesHandler.HandleList)
 		r.Post("/shares/{shareId}/accept", inboxSharesHandler.HandleAccept)
 		r.Post("/shares/{shareId}/decline", inboxSharesHandler.HandleDecline)
-		r.Get("/invites", invitesInboxHandler.HandleList)
-		r.Post("/invites/{inviteId}/accept", invitesInboxHandler.HandleAccept)
-		r.Post("/invites/{inviteId}/decline", invitesInboxHandler.HandleDecline)
+		r.Get("/invites", inboxInvitesHandler.HandleList)
+		r.Post("/invites/import", inboxInvitesHandler.HandleImport)
+		r.Post("/invites/{inviteId}/accept", inboxInvitesHandler.HandleAccept)
+		r.Post("/invites/{inviteId}/decline", inboxInvitesHandler.HandleDecline)
 	})
 
 	// Outgoing shares (session-gated)
