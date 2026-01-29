@@ -21,12 +21,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
-
-// HTTPClient interface for outbound requests.
-type HTTPClient interface {
-	Do(ctx context.Context, req *http.Request) (*http.Response, error)
-}
 
 // InboxListResponse wraps the invite views returned by HandleList.
 type InboxListResponse struct {
@@ -49,7 +45,7 @@ type InviteImportResponse struct {
 // Handler handles inbox invite list, import, accept, and decline endpoints.
 type Handler struct {
 	incomingRepo    invites.IncomingInviteRepo
-	httpClient      HTTPClient
+	httpClient      httpclient.HTTPClient
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *federation.OutboundPolicy
@@ -61,7 +57,7 @@ type Handler struct {
 // NewHandler creates a new inbox invites handler.
 func NewHandler(
 	incomingRepo invites.IncomingInviteRepo,
-	httpClient HTTPClient,
+	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
 	outboundPolicy *federation.OutboundPolicy,

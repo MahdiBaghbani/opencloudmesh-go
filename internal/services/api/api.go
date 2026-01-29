@@ -13,10 +13,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	inboxinvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/invites"
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
+	outgoinginvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/invites"
+	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
@@ -91,14 +91,16 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	// Inbox shares handler (per-user scoped, Chi route params)
 	inboxSharesHandler := inboxshares.NewHandler(d.IncomingShareRepo, notificationClient, currentUser, log)
 
-	// Create outgoing share handler
-	outgoingHandler := shares.NewOutgoingHandler(
+	// Outgoing shares handler (session-gated, uses FormatOutgoing for identity)
+	outgoingHandler := outgoingshares.NewHandler(
 		d.OutgoingShareRepo,
 		d.DiscoveryClient,
 		d.HTTPClient,
 		d.Signer,
 		d.OutboundPolicy,
 		d.Config,
+		d.LocalProviderFQDN,
+		currentUser,
 		log,
 	)
 
@@ -114,12 +116,10 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log,
 	)
 
-	// Create outgoing invites handler (local-user API, uses OCM invites package)
-	outgoingInvitesHandler := invites.NewHandler(
+	// Outgoing invites handler (session-gated, tracks CreatedByUserID)
+	outgoingInvitesHandler := outgoinginvites.NewHandler(
 		d.OutgoingInviteRepo,
-		nil, // partyRepo not needed for HandleCreateOutgoing
 		d.LocalProviderFQDN,
-		d.Config.PublicOrigin,
 		currentUser,
 		log,
 	)

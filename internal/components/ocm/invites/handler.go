@@ -2,8 +2,6 @@ package invites
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -18,29 +16,23 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
-// DefaultInviteTTL is the default time-to-live for invites.
-const DefaultInviteTTL = 7 * 24 * time.Hour // 7 days
-
-// Handler handles OCM invite endpoints.
+// Handler handles OCM invite-accepted protocol endpoint.
 type Handler struct {
 	outgoingRepo OutgoingInviteRepo
 	partyRepo    identity.PartyRepo // for invite-accepted (look up local inviting user)
 	providerFQDN string
 	logger       *slog.Logger
 	localScheme  string // scheme from PublicOrigin for comparison normalization
-	currentUser  func(context.Context) (*identity.User, error) // for create-outgoing (session user)
 }
 
-// NewHandler creates a new invites handler.
+// NewHandler creates a new invites handler for the OCM protocol endpoint.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
 // partyRepo is used by HandleInviteAccepted to look up the local inviting user (may be nil).
-// currentUser is used by HandleCreateOutgoing to track the creating user (may be nil).
 func NewHandler(
 	outgoingRepo OutgoingInviteRepo,
 	partyRepo identity.PartyRepo,
 	providerFQDN string,
 	publicOrigin string,
-	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
 ) *Handler {
 	var localScheme string
@@ -54,7 +46,6 @@ func NewHandler(
 		providerFQDN: providerFQDN,
 		logger:       logger,
 		localScheme:  localScheme,
-		currentUser:  currentUser,
 	}
 }
 
@@ -219,79 +210,6 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *Outgo
 	}
 }
 
-// HandleCreateOutgoing handles POST /api/invites/outgoing.
-func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req CreateOutgoingRequest
-	if r.Body != nil && r.ContentLength > 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			h.sendError(w, http.StatusBadRequest, "invalid_json", "failed to parse request body")
-			return
-		}
-	}
-
-	ctx := r.Context()
-
-	// Track the creating user for invite-accepted response generation
-	var createdByUserID string
-	if h.currentUser != nil {
-		if user, err := h.currentUser(ctx); err == nil {
-			createdByUserID = user.ID
-		}
-	}
-
-	// Generate a secure random token
-	token, err := generateToken()
-	if err != nil {
-		h.logger.Error("failed to generate invite token", "error", err)
-		h.sendError(w, http.StatusInternalServerError, "token_generation_failed", "failed to generate token")
-		return
-	}
-
-	// Build the invite string
-	inviteString := BuildInviteString(token, h.providerFQDN)
-
-	invite := &OutgoingInvite{
-		Token:           token,
-		ProviderFQDN:    h.providerFQDN,
-		InviteString:    inviteString,
-		RecipientEmail:  req.RecipientEmail,
-		CreatedByUserID: createdByUserID,
-		ExpiresAt:       time.Now().Add(DefaultInviteTTL),
-		Status:          InviteStatusPending,
-	}
-
-	if err := h.outgoingRepo.Create(ctx, invite); err != nil {
-		h.logger.Error("failed to create invite", "error", err)
-		h.sendError(w, http.StatusInternalServerError, "create_failed", "failed to create invite")
-		return
-	}
-
-	h.logger.Info("invite created", "id", invite.ID)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(CreateOutgoingResponse{
-		InviteString: inviteString,
-		Token:        token,
-		ProviderFQDN: h.providerFQDN,
-		ExpiresAt:    invite.ExpiresAt,
-	})
-}
-
-// generateToken creates a cryptographically secure random token.
-func generateToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
-}
-
 // sendOCMError sends an OCM-API spec base Error response: {"message":"..."}.
 // Used by OCM protocol endpoints (invite-accepted).
 func (h *Handler) sendOCMError(w http.ResponseWriter, status int, message string) {
@@ -302,12 +220,3 @@ func (h *Handler) sendOCMError(w http.ResponseWriter, status int, message string
 	})
 }
 
-// sendError sends a JSON error response for local API endpoints.
-func (h *Handler) sendError(w http.ResponseWriter, status int, code, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error":       code,
-		"description": message,
-	})
-}

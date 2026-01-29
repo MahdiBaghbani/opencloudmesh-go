@@ -24,17 +24,9 @@ const (
 	testPublicOrigin = "https://example.com"
 )
 
-// newTestHandler creates a handler with repo and optional partyRepo/currentUser.
+// newTestHandler creates a handler with repo and optional partyRepo.
 func newTestHandler(repo *invites.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *invites.Handler {
-	return invites.NewHandler(repo, partyRepo, testProvider, testPublicOrigin, nil, testLogger)
-}
-
-// newTestHandlerWithCurrentUser creates a handler with a CurrentUser injector for HandleCreateOutgoing tests.
-func newTestHandlerWithCurrentUser(repo *invites.MemoryOutgoingInviteRepo, user *identity.User) *invites.Handler {
-	currentUser := func(ctx context.Context) (*identity.User, error) {
-		return user, nil
-	}
-	return invites.NewHandler(repo, nil, testProvider, testPublicOrigin, currentUser, testLogger)
+	return invites.NewHandler(repo, partyRepo, testProvider, testPublicOrigin, testLogger)
 }
 
 func postInviteAccepted(handler *invites.Handler, body string) *httptest.ResponseRecorder {
@@ -401,97 +393,7 @@ func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
 	}
 }
 
-// --- HandleCreateOutgoing tests ---
-
-func TestHandleCreateOutgoing_Success(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
-	handler := invites.NewHandler(repo, nil, "example.com:9200", "https://example.com:9200", nil, testLogger)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
-	w := httptest.NewRecorder()
-
-	handler.HandleCreateOutgoing(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp invites.CreateOutgoingResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if resp.InviteString == "" {
-		t.Error("inviteString is empty")
-	}
-	if resp.Token == "" {
-		t.Error("token is empty")
-	}
-	if resp.ProviderFQDN != "example.com:9200" {
-		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, "example.com:9200")
-	}
-
-	// Verify token is stored
-	stored, err := repo.GetByToken(context.Background(), resp.Token)
-	if err != nil {
-		t.Errorf("failed to get stored invite: %v", err)
-	}
-	if stored.InviteString != resp.InviteString {
-		t.Errorf("stored inviteString mismatch")
-	}
-}
-
-func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
-	user := &identity.User{
-		ID:       "creator-uuid",
-		Username: "alice",
-	}
-	handler := newTestHandlerWithCurrentUser(repo, user)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
-	w := httptest.NewRecorder()
-
-	handler.HandleCreateOutgoing(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp invites.CreateOutgoingResponse
-	json.NewDecoder(w.Body).Decode(&resp)
-
-	// Verify CreatedByUserID is stored
-	stored, err := repo.GetByToken(context.Background(), resp.Token)
-	if err != nil {
-		t.Fatalf("failed to get stored invite: %v", err)
-	}
-	if stored.CreatedByUserID != "creator-uuid" {
-		t.Errorf("CreatedByUserID = %q, want %q", stored.CreatedByUserID, "creator-uuid")
-	}
-}
-
-func TestHandleCreateOutgoing_NilCurrentUser_NoCreatedByUserID(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
-	// handler without currentUser (like the OCM service instance)
-	handler := invites.NewHandler(repo, nil, testProvider, testPublicOrigin, nil, testLogger)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
-	w := httptest.NewRecorder()
-
-	handler.HandleCreateOutgoing(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp invites.CreateOutgoingResponse
-	json.NewDecoder(w.Body).Decode(&resp)
-
-	stored, _ := repo.GetByToken(context.Background(), resp.Token)
-	if stored.CreatedByUserID != "" {
-		t.Errorf("CreatedByUserID = %q, want empty (no currentUser)", stored.CreatedByUserID)
-	}
-}
+// HandleCreateOutgoing tests have been moved to internal/components/api/outgoing/invites/handler_test.go
 
 // --- Response field presence test ---
 
