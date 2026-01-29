@@ -18,6 +18,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -182,45 +184,45 @@ func main() {
 	// Create discovery client (mandatory for /ocm-aux/discover and share sending)
 	discoveryClient := discovery.NewClient(rawHTTPClient, cacheInstance)
 
-	// Create federation manager and policy engine if enabled
-	var federationMgr *federation.FederationManager
-	var policyEngine *federation.PolicyEngine
+	// Create trust group manager and policy engine if enabled
+	var trustGroupMgr *peertrust.TrustGroupManager
+	var policyEngine *peertrust.PolicyEngine
 	if cfg.Federation.Enabled {
 		// Compute refresh timeout from outbound HTTP timeout
 		refreshTimeout := time.Duration(cfg.OutboundHTTP.TimeoutMS) * time.Millisecond
 
 		// Create cache config from TOML
-		cacheConfig := federation.CacheConfig{
+		cacheConfig := peertrust.CacheConfig{
 			TTL:      time.Duration(cfg.Federation.MembershipCache.TTLSeconds) * time.Second,
 			MaxStale: time.Duration(cfg.Federation.MembershipCache.MaxStaleSeconds) * time.Second,
 		}
 
-		// Create DS client (uses the safe HTTP client)
-		dsClient := federation.NewDirectoryServiceClient(rawHTTPClient)
+		// Create directory service client (uses the safe HTTP client)
+		dsClient := directoryservice.NewClient(rawHTTPClient)
 
-		// Create federation manager
-		federationMgr = federation.NewFederationManager(cacheConfig, dsClient, logger, refreshTimeout)
+		// Create trust group manager
+		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dsClient, cfg.PublicScheme(), logger, refreshTimeout)
 
-		// Load federation configs from paths (one K2 JSON per file)
+		// Load trust group configs from paths (one K2 JSON per file)
 		for _, configPath := range cfg.Federation.ConfigPaths {
-			fedCfg, err := federation.LoadFederationConfig(configPath)
+			tgCfg, err := peertrust.LoadTrustGroupConfig(configPath)
 			if err != nil {
-				logger.Warn("failed to load federation config", "path", configPath, "error", err)
+				logger.Warn("failed to load trust group config", "path", configPath, "error", err)
 				continue
 			}
-			federationMgr.AddFederation(fedCfg)
-			logger.Info("loaded federation", "federation_id", fedCfg.FederationID, "enabled", fedCfg.Enabled)
+			trustGroupMgr.AddTrustGroup(tgCfg)
+			logger.Info("loaded trust group", "trust_group_id", tgCfg.TrustGroupID, "enabled", tgCfg.Enabled)
 		}
 
 		// Create policy engine from config
-		policyCfg := &federation.PolicyConfig{
+		policyCfg := &peertrust.PolicyConfig{
 			GlobalEnforce: cfg.Federation.Policy.GlobalEnforce,
 			AllowList:     cfg.Federation.Policy.AllowList,
 			DenyList:      cfg.Federation.Policy.DenyList,
 			ExemptList:    cfg.Federation.Policy.ExemptList,
 		}
-		policyEngine = federation.NewPolicyEngine(policyCfg, federationMgr, logger)
-		logger.Info("federation enabled", "config_paths", len(cfg.Federation.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
+		policyEngine = peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
+		logger.Info("peer trust enabled", "config_paths", len(cfg.Federation.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
 	}
 
 	// Create peer profile registry from config
@@ -307,8 +309,8 @@ func main() {
 		Signer:              signer,
 		OutboundPolicy:      outboundPolicy,
 		SignatureMiddleware: signatureMiddleware,
-		// Federation
-		FederationMgr:   federationMgr,
+		// Peer trust
+		TrustGroupMgr:   trustGroupMgr,
 		PolicyEngine:    policyEngine,
 		ProfileRegistry: profileRegistry,
 		// Provider identity

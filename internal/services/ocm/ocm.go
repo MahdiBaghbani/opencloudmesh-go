@@ -77,7 +77,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log,
 	)
 	notifHandler := notifications.NewHandler(d.OutgoingShareRepo, d.Config.PublicOrigin, log)
-	invitesHandler := invites.NewHandler(d.OutgoingInviteRepo, d.PartyRepo, d.LocalProviderFQDN, d.Config.PublicOrigin, log)
+	invitesHandler := invites.NewHandler(d.OutgoingInviteRepo, d.PartyRepo, d.PolicyEngine, d.LocalProviderFQDN, d.Config.PublicOrigin, log)
 	tokenHandler := token.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, d.Config.PublicOrigin, log)
 
 	// Create peer resolver for signature verification (service-local, per-endpoint extraction)

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -20,7 +20,7 @@ import (
 type IncomingHandler struct {
 	repo                        IncomingShareRepo
 	partyRepo                   identity.PartyRepo
-	policyEngine                *federation.PolicyEngine
+	policyEngine                *peertrust.PolicyEngine
 	localProviderFQDNForCompare string
 	localScheme                 string
 	signatureInboundMode        string
@@ -31,7 +31,7 @@ type IncomingHandler struct {
 func NewIncomingHandler(
 	repo IncomingShareRepo,
 	partyRepo identity.PartyRepo,
-	policyEngine *federation.PolicyEngine,
+	policyEngine *peertrust.PolicyEngine,
 	localProviderFQDNForCompare string,
 	localScheme string,
 	signatureInboundMode string,

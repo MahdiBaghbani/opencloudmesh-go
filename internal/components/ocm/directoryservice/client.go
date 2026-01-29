@@ -1,4 +1,6 @@
-package federation
+// Package directoryservice handles JWS fetch, verification, and Appendix C parsing
+// for OCM directory service listings.
+package directoryservice
 
 import (
 	"context"
@@ -16,18 +18,44 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
-// DirectoryServiceClient fetches and verifies DS membership.
-type DirectoryServiceClient struct {
+// EndpointConfig is a Directory Service endpoint configured in a trust group.
+type EndpointConfig struct {
+	URL     string `json:"url"`
+	Enabled bool   `json:"enabled"`
+}
+
+// VerificationKey is a public key used to verify Directory Service JWS payloads.
+type VerificationKey struct {
+	KeyID        string `json:"key_id"`
+	PublicKeyPEM string `json:"public_key_pem"`
+	Algorithm    string `json:"algorithm"` // RS256, ES256, Ed25519
+	Active       bool   `json:"active"`
+}
+
+// Listing is a verified Directory Service listing (strict Appendix C format).
+type Listing struct {
+	Federation string   `json:"federation"`
+	Servers    []Server `json:"servers"`
+}
+
+// Server is a server entry in a Directory Service listing.
+type Server struct {
+	URL         string `json:"url"`
+	DisplayName string `json:"displayName"`
+}
+
+// Client fetches and verifies Directory Service listings.
+type Client struct {
 	httpClient *httpclient.Client
 }
 
-// NewDirectoryServiceClient creates a new DS client.
-func NewDirectoryServiceClient(httpClient *httpclient.Client) *DirectoryServiceClient {
-	return &DirectoryServiceClient{httpClient: httpClient}
+// NewClient creates a new Directory Service client.
+func NewClient(httpClient *httpclient.Client) *Client {
+	return &Client{httpClient: httpClient}
 }
 
-// AppendixCPayload represents the Appendix C JWS payload format.
-type AppendixCPayload struct {
+// appendixCPayload represents the Appendix C JWS envelope format.
+type appendixCPayload struct {
 	Payload    string `json:"payload"`
 	Protected  string `json:"protected"`
 	Signature  string `json:"signature"`
@@ -37,37 +65,29 @@ type AppendixCPayload struct {
 	} `json:"signatures,omitempty"`
 }
 
-// DSMemberEntry represents an entry in the DS membership list.
-type DSMemberEntry struct {
-	Domain string `json:"domain"`
-	Name   string `json:"name,omitempty"`
-}
-
-// FetchMembership fetches and verifies membership from a DS URL.
-func (c *DirectoryServiceClient) FetchMembership(ctx context.Context, dsURL string, keys []FederationKey) ([]Member, error) {
-	// Fetch the DS response
-	body, resp, err := c.httpClient.GetJSON(ctx, dsURL)
+// FetchListing fetches, verifies, and parses the Directory Service listing.
+// Strict Appendix C format only: {federation: "...", servers: [{url, displayName}]}.
+func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, keys []VerificationKey) (*Listing, error) {
+	body, resp, err := c.httpClient.GetJSON(ctx, directoryServiceURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch DS: %w", err)
+		return nil, fmt.Errorf("failed to fetch directory service: %w", err)
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("DS returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("directory service returned status %d", resp.StatusCode)
 	}
 
-	// Try to parse as Appendix C JWS format
-	members, err := c.parseAndVerifyJWS(body, keys)
+	listing, err := c.parseAndVerifyJWS(body, keys)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify DS response: %w", err)
+		return nil, fmt.Errorf("failed to verify directory service response: %w", err)
 	}
 
-	return members, nil
+	return listing, nil
 }
 
-// parseAndVerifyJWS parses and verifies the JWS response.
-func (c *DirectoryServiceClient) parseAndVerifyJWS(body []byte, keys []FederationKey) ([]Member, error) {
+func (c *Client) parseAndVerifyJWS(body []byte, keys []VerificationKey) (*Listing, error) {
 	// Try Appendix C JSON format first
-	var payload AppendixCPayload
+	var payload appendixCPayload
 	if err := json.Unmarshal(body, &payload); err == nil && payload.Payload != "" {
 		return c.verifyAppendixC(payload, keys)
 	}
@@ -79,21 +99,17 @@ func (c *DirectoryServiceClient) parseAndVerifyJWS(body []byte, keys []Federatio
 		return c.verifyCompactJWS(parts, keys)
 	}
 
-	return nil, fmt.Errorf("unrecognized DS response format")
+	return nil, fmt.Errorf("unrecognized directory service response format")
 }
 
-// verifyAppendixC verifies an Appendix C format JWS.
-func (c *DirectoryServiceClient) verifyAppendixC(payload AppendixCPayload, keys []FederationKey) ([]Member, error) {
-	// Build signing input
+func (c *Client) verifyAppendixC(payload appendixCPayload, keys []VerificationKey) (*Listing, error) {
 	signingInput := payload.Protected + "." + payload.Payload
 
-	// Decode signature
 	sig, err := base64URLDecode(payload.Signature)
 	if err != nil {
 		return nil, fmt.Errorf("invalid signature encoding: %w", err)
 	}
 
-	// Try each active key
 	verified := false
 	for _, key := range keys {
 		if !key.Active {
@@ -115,29 +131,24 @@ func (c *DirectoryServiceClient) verifyAppendixC(payload AppendixCPayload, keys 
 		return nil, fmt.Errorf("JWS signature verification failed (F2)")
 	}
 
-	// Decode payload
 	payloadBytes, err := base64URLDecode(payload.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("invalid payload encoding: %w", err)
 	}
 
-	return parseMemberList(payloadBytes)
+	return parseListing(payloadBytes)
 }
 
-// verifyCompactJWS verifies a compact JWS format.
-func (c *DirectoryServiceClient) verifyCompactJWS(parts []string, keys []FederationKey) ([]Member, error) {
+func (c *Client) verifyCompactJWS(parts []string, keys []VerificationKey) (*Listing, error) {
 	header, payload, sig := parts[0], parts[1], parts[2]
 
-	// Build signing input
 	signingInput := header + "." + payload
 
-	// Decode signature
 	sigBytes, err := base64URLDecode(sig)
 	if err != nil {
 		return nil, fmt.Errorf("invalid signature encoding: %w", err)
 	}
 
-	// Try each active key
 	verified := false
 	for _, key := range keys {
 		if !key.Active {
@@ -159,51 +170,30 @@ func (c *DirectoryServiceClient) verifyCompactJWS(parts []string, keys []Federat
 		return nil, fmt.Errorf("JWS signature verification failed (F2)")
 	}
 
-	// Decode payload
 	payloadBytes, err := base64URLDecode(payload)
 	if err != nil {
 		return nil, fmt.Errorf("invalid payload encoding: %w", err)
 	}
 
-	return parseMemberList(payloadBytes)
+	return parseListing(payloadBytes)
 }
 
-// parseMemberList parses the member list from JSON payload.
-func parseMemberList(payload []byte) ([]Member, error) {
-	// Try array format
-	var entries []DSMemberEntry
-	if err := json.Unmarshal(payload, &entries); err == nil {
-		var members []Member
-		for _, e := range entries {
-			members = append(members, Member{
-				Host: e.Domain,
-				Name: e.Name,
-			})
-		}
-		return members, nil
+// parseListing parses the verified JWS payload as strict Appendix C format.
+// Only accepts: {federation: "...", servers: [{url: "...", displayName: "..."}]}.
+func parseListing(payload []byte) (*Listing, error) {
+	var listing Listing
+	if err := json.Unmarshal(payload, &listing); err != nil {
+		return nil, fmt.Errorf("failed to parse directory service listing: %w", err)
 	}
 
-	// Try object with servers array
-	var obj struct {
-		Servers []DSMemberEntry `json:"servers"`
-	}
-	if err := json.Unmarshal(payload, &obj); err == nil && len(obj.Servers) > 0 {
-		var members []Member
-		for _, e := range obj.Servers {
-			members = append(members, Member{
-				Host: e.Domain,
-				Name: e.Name,
-			})
-		}
-		return members, nil
+	if listing.Federation == "" {
+		return nil, fmt.Errorf("directory service listing missing required 'federation' field")
 	}
 
-	return nil, fmt.Errorf("unrecognized member list format")
+	return &listing, nil
 }
 
-// base64URLDecode decodes base64url-encoded data.
 func base64URLDecode(s string) ([]byte, error) {
-	// Add padding if needed
 	switch len(s) % 4 {
 	case 2:
 		s += "=="
@@ -214,7 +204,6 @@ func base64URLDecode(s string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(s)
 }
 
-// parsePublicKey parses a PEM-encoded public key.
 func parsePublicKey(pemData string) (crypto.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pemData))
 	if block == nil {
@@ -229,7 +218,6 @@ func parsePublicKey(pemData string) (crypto.PublicKey, error) {
 	return pub, nil
 }
 
-// verifySignature verifies a signature with the given algorithm.
 func verifySignature(pubKey crypto.PublicKey, algorithm string, message, signature []byte) bool {
 	switch algorithm {
 	case "Ed25519", "ed25519":

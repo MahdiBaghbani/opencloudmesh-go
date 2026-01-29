@@ -8,18 +8,19 @@ import (
 
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 )
 
 // AuxHandler serves the /ocm-aux endpoints.
 type AuxHandler struct {
-	federationMgr   *FederationManager
+	trustGroupMgr   *peertrust.TrustGroupManager
 	discoveryClient *discovery.Client
 }
 
 // NewAuxHandler creates a new auxiliary handler.
-func NewAuxHandler(fedMgr *FederationManager, discClient *discovery.Client) *AuxHandler {
+func NewAuxHandler(trustGroupMgr *peertrust.TrustGroupManager, discClient *discovery.Client) *AuxHandler {
 	return &AuxHandler{
-		federationMgr:   fedMgr,
+		trustGroupMgr:   trustGroupMgr,
 		discoveryClient: discClient,
 	}
 }
@@ -59,18 +60,16 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 		Members:     []MemberInfo{},
 	}
 
-	if h.federationMgr != nil {
-		// Get federations
-		for _, fed := range h.federationMgr.GetFederations() {
+	if h.trustGroupMgr != nil {
+		for _, tgCfg := range h.trustGroupMgr.GetTrustGroups() {
 			response.Federations = append(response.Federations, FederationInfo{
-				FederationID:      fed.FederationID,
-				Enabled:           fed.Enabled,
-				EnforceMembership: fed.EnforceMembership,
+				FederationID:      tgCfg.TrustGroupID,
+				Enabled:           tgCfg.Enabled,
+				EnforceMembership: tgCfg.EnforceMembership,
 			})
 		}
 
-		// Get all members
-		allMembers := h.federationMgr.GetAllMembers(ctx)
+		allMembers := h.trustGroupMgr.GetAllMembers(ctx)
 		for _, m := range allMembers {
 			response.Members = append(response.Members, MemberInfo{
 				Host: m.Host,

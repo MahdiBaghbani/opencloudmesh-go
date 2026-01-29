@@ -11,6 +11,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
@@ -20,6 +21,7 @@ import (
 type Handler struct {
 	outgoingRepo OutgoingInviteRepo
 	partyRepo    identity.PartyRepo // for invite-accepted (look up local inviting user)
+	policyEngine *peertrust.PolicyEngine // may be nil when peer trust is disabled
 	providerFQDN string
 	logger       *slog.Logger
 	localScheme  string // scheme from PublicOrigin for comparison normalization
@@ -28,9 +30,11 @@ type Handler struct {
 // NewHandler creates a new invites handler for the OCM protocol endpoint.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
 // partyRepo is used by HandleInviteAccepted to look up the local inviting user (may be nil).
+// policyEngine may be nil when peer trust is disabled.
 func NewHandler(
 	outgoingRepo OutgoingInviteRepo,
 	partyRepo identity.PartyRepo,
+	policyEngine *peertrust.PolicyEngine,
 	providerFQDN string,
 	publicOrigin string,
 	logger *slog.Logger,
@@ -43,6 +47,7 @@ func NewHandler(
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		partyRepo:    partyRepo,
+		policyEngine: policyEngine,
 		providerFQDN: providerFQDN,
 		logger:       logger,
 		localScheme:  localScheme,
@@ -135,6 +140,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 
 	// 10. Verify sender identity from signature (spec: 403 if not trusted)
 	peerIdentity := crypto.GetPeerIdentity(ctx)
+	normalizedRecipientProvider := req.RecipientProvider
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
 		if err != nil {
@@ -143,11 +149,21 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
 			return
 		}
+		normalizedRecipientProvider = normalizedRecipient
 		if peerIdentity.AuthorityForCompare != normalizedRecipient {
 			log.Warn("invite-accepted sender mismatch",
 				"signature_authority", peerIdentity.AuthorityForCompare,
 				"recipient_provider", req.RecipientProvider)
 			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+			return
+		}
+	}
+
+	// 11. Trust group policy enforcement
+	if h.policyEngine != nil {
+		decision := h.policyEngine.Evaluate(ctx, normalizedRecipientProvider, peerIdentity != nil && peerIdentity.Authenticated)
+		if !decision.Allowed {
+			h.sendOCMError(w, http.StatusForbidden, "INVITE_RECEIVER_NOT_TRUSTED")
 			return
 		}
 	}

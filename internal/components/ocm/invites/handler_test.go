@@ -26,7 +26,7 @@ const (
 
 // newTestHandler creates a handler with repo and optional partyRepo.
 func newTestHandler(repo *invites.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *invites.Handler {
-	return invites.NewHandler(repo, partyRepo, testProvider, testPublicOrigin, testLogger)
+	return invites.NewHandler(repo, partyRepo, nil, testProvider, testPublicOrigin, testLogger)
 }
 
 func postInviteAccepted(handler *invites.Handler, body string) *httptest.ResponseRecorder {

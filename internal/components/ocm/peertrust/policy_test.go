@@ -1,4 +1,4 @@
-package federation_test
+package peertrust_test
 
 import (
 	"context"
@@ -6,19 +6,19 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 )
 
 func TestPolicyEngine_DenylistWins(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	cfg := &federation.PolicyConfig{
+	cfg := &peertrust.PolicyConfig{
 		GlobalEnforce: true,
 		AllowList:     []string{"example.com"},
-		DenyList:      []string{"example.com"}, // Same host in both lists
+		DenyList:      []string{"example.com"}, // same host in both lists
 	}
 
-	pe := federation.NewPolicyEngine(cfg, nil, logger)
+	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
 	result := pe.Evaluate(context.Background(), "example.com", false)
 
 	if result.Allowed {
@@ -32,13 +32,13 @@ func TestPolicyEngine_DenylistWins(t *testing.T) {
 func TestPolicyEngine_AllowlistOverridesFederation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	cfg := &federation.PolicyConfig{
+	cfg := &peertrust.PolicyConfig{
 		GlobalEnforce: true,
 		AllowList:     []string{"trusted.example.com"},
 		DenyList:      []string{},
 	}
 
-	pe := federation.NewPolicyEngine(cfg, nil, logger)
+	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
 	result := pe.Evaluate(context.Background(), "trusted.example.com", false)
 
 	if !result.Allowed {
@@ -52,14 +52,14 @@ func TestPolicyEngine_AllowlistOverridesFederation(t *testing.T) {
 func TestPolicyEngine_ExemptListBypassesFederation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	cfg := &federation.PolicyConfig{
+	cfg := &peertrust.PolicyConfig{
 		GlobalEnforce: true,
 		AllowList:     []string{},
 		DenyList:      []string{},
 		ExemptList:    []string{"exempt.example.com"},
 	}
 
-	pe := federation.NewPolicyEngine(cfg, nil, logger)
+	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
 	result := pe.Evaluate(context.Background(), "exempt.example.com", false)
 
 	if !result.Allowed {
@@ -73,14 +73,13 @@ func TestPolicyEngine_ExemptListBypassesFederation(t *testing.T) {
 func TestPolicyEngine_DisabledEnforcement(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	cfg := &federation.PolicyConfig{
-		GlobalEnforce: false, // Enforcement disabled
+	cfg := &peertrust.PolicyConfig{
+		GlobalEnforce: false,
 		DenyList:      []string{"blocked.example.com"},
 	}
 
-	pe := federation.NewPolicyEngine(cfg, nil, logger)
+	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
 
-	// Even a denylisted host should be allowed when enforcement is off
 	result := pe.Evaluate(context.Background(), "blocked.example.com", false)
 
 	if !result.Allowed {
@@ -94,12 +93,12 @@ func TestPolicyEngine_DisabledEnforcement(t *testing.T) {
 func TestPolicyEngine_CaseInsensitive(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	cfg := &federation.PolicyConfig{
+	cfg := &peertrust.PolicyConfig{
 		GlobalEnforce: true,
 		AllowList:     []string{"Example.COM"},
 	}
 
-	pe := federation.NewPolicyEngine(cfg, nil, logger)
+	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
 	result := pe.Evaluate(context.Background(), "example.com", false)
 
 	if !result.Allowed {
@@ -110,13 +109,13 @@ func TestPolicyEngine_CaseInsensitive(t *testing.T) {
 func TestPolicyEngine_NotAllowed(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	cfg := &federation.PolicyConfig{
+	cfg := &peertrust.PolicyConfig{
 		GlobalEnforce: true,
 		AllowList:     []string{},
 		DenyList:      []string{},
 	}
 
-	pe := federation.NewPolicyEngine(cfg, nil, logger)
+	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
 	result := pe.Evaluate(context.Background(), "unknown.example.com", false)
 
 	if result.Allowed {

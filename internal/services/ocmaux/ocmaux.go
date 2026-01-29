@@ -61,7 +61,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	}
 
 	// Create aux handler using SharedDeps
-	auxHandler := federation.NewAuxHandler(d.FederationMgr, d.DiscoveryClient)
+	auxHandler := federation.NewAuxHandler(d.TrustGroupMgr, d.DiscoveryClient)
 
 	// Build ratelimit middleware for /discover if profile is configured
 	var discoverMiddleware func(http.Handler) http.Handler

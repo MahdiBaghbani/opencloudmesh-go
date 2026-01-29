@@ -9,6 +9,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
@@ -49,9 +50,9 @@ type Deps struct {
 	OutboundPolicy      *federation.OutboundPolicy
 	SignatureMiddleware *crypto.SignatureMiddleware
 
-	// Federation (optional)
-	FederationMgr   *federation.FederationManager
-	PolicyEngine    *federation.PolicyEngine
+	// Peer trust (optional)
+	TrustGroupMgr   *peertrust.TrustGroupManager
+	PolicyEngine    *peertrust.PolicyEngine
 	ProfileRegistry *federation.ProfileRegistry
 
 	// Provider identity derived from PublicOrigin at startup

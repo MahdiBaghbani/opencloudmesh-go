@@ -1,4 +1,4 @@
-package federation
+package peertrust
 
 import (
 	"context"
@@ -9,25 +9,25 @@ import (
 
 // PolicyDecision represents the result of a policy check.
 type PolicyDecision struct {
-	Allowed     bool
-	Reason      string
-	ReasonCode  string
+	Allowed       bool
+	Reason        string
+	ReasonCode    string
 	Authenticated bool // true if peer was authenticated via signature
 }
 
-// PolicyEngine evaluates allow/deny and federation membership.
+// PolicyEngine evaluates allow/deny and trust group membership.
 type PolicyEngine struct {
-	cfg             *PolicyConfig
-	federationMgr   *FederationManager
-	logger          *slog.Logger
-	mu              sync.RWMutex
+	cfg           *PolicyConfig
+	trustGroupMgr *TrustGroupManager
+	logger        *slog.Logger
+	mu            sync.RWMutex
 }
 
 // NewPolicyEngine creates a new policy engine.
-func NewPolicyEngine(cfg *PolicyConfig, fedMgr *FederationManager, logger *slog.Logger) *PolicyEngine {
+func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger *slog.Logger) *PolicyEngine {
 	return &PolicyEngine{
 		cfg:           cfg,
-		federationMgr: fedMgr,
+		trustGroupMgr: trustGroupMgr,
 		logger:        logger,
 	}
 }
@@ -41,7 +41,6 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 
 	peerHost = strings.ToLower(peerHost)
 
-	// Global enforcement check
 	if !pe.cfg.GlobalEnforce {
 		return &PolicyDecision{
 			Allowed:       true,
@@ -51,7 +50,6 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 		}
 	}
 
-	// Denylist always wins
 	if pe.isInList(peerHost, pe.cfg.DenyList) {
 		pe.logger.Warn("peer denied by denylist", "peer", peerHost)
 		return &PolicyDecision{
@@ -62,7 +60,6 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 		}
 	}
 
-	// Allowlist overrides federation membership
 	if pe.isInList(peerHost, pe.cfg.AllowList) {
 		return &PolicyDecision{
 			Allowed:       true,
@@ -72,7 +69,6 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 		}
 	}
 
-	// Exempt list bypasses federation checks
 	if pe.isInList(peerHost, pe.cfg.ExemptList) {
 		return &PolicyDecision{
 			Allowed:       true,
@@ -82,23 +78,22 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 		}
 	}
 
-	// Check federation membership (M1 union across all federations)
-	if pe.federationMgr != nil {
-		isMember := pe.federationMgr.IsMember(ctx, peerHost)
+	// Check trust group membership (M1 union across all trust groups)
+	if pe.trustGroupMgr != nil {
+		isMember := pe.trustGroupMgr.IsMember(ctx, peerHost)
 		if isMember {
 			return &PolicyDecision{
 				Allowed:       true,
-				Reason:        "peer is federation member",
+				Reason:        "peer is trust group member",
 				ReasonCode:    "allowed_by_federation",
 				Authenticated: authenticated,
 			}
 		}
 	}
 
-	// Default: not allowed if not in any list or federation
 	return &PolicyDecision{
 		Allowed:       false,
-		Reason:        "peer not in allowlist or federation",
+		Reason:        "peer not in allowlist or trust group",
 		ReasonCode:    "not_allowed",
 		Authenticated: authenticated,
 	}
