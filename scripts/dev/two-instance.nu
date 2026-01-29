@@ -23,7 +23,7 @@ def main [] {
     let sender = (
         ^./bin/opencloudmesh-go 
             --listen ":9200"
-            --external-origin "http://localhost:9200"
+            --public-origin "http://localhost:9200"
             --external-base-path ""
         | complete
     )

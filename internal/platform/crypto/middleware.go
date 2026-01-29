@@ -60,9 +60,9 @@ type SignatureMiddleware struct {
 
 // NewSignatureMiddleware creates a new signature verification middleware.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
-func NewSignatureMiddleware(cfg *config.SignatureConfig, pd PeerDiscovery, externalOrigin string, logger *slog.Logger) *SignatureMiddleware {
+func NewSignatureMiddleware(cfg *config.SignatureConfig, pd PeerDiscovery, publicOrigin string, logger *slog.Logger) *SignatureMiddleware {
 	var localScheme string
-	if u, err := url.Parse(externalOrigin); err == nil && u.Scheme != "" {
+	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
 		localScheme = u.Scheme
 	}
 

@@ -6,7 +6,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
-func TestNormalizeExternalOrigin(t *testing.T) {
+func TestNormalizePublicOrigin(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -34,7 +34,7 @@ func TestNormalizeExternalOrigin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := instanceid.NormalizeExternalOrigin(tt.input)
+			result, err := instanceid.NormalizePublicOrigin(tt.input)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error, got result %q", result)

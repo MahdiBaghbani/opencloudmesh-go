@@ -53,8 +53,8 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 
 func TestKeyManager_StableKeyID(t *testing.T) {
 	tests := []struct {
-		externalOrigin string
-		expectedKeyID  string
+		publicOrigin  string
+		expectedKeyID string
 	}{
 		{"https://example.com", "https://example.com/ocm#key-1"},
 		{"https://example.com:443", "https://example.com:443/ocm#key-1"},
@@ -69,8 +69,8 @@ func TestKeyManager_StableKeyID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.externalOrigin, func(t *testing.T) {
-			km := crypto.NewKeyManager("", tt.externalOrigin)
+		t.Run(tt.publicOrigin, func(t *testing.T) {
+			km := crypto.NewKeyManager("", tt.publicOrigin)
 			if km.GetKeyID() != tt.expectedKeyID {
 				t.Errorf("expected keyId %q, got %q", tt.expectedKeyID, km.GetKeyID())
 			}

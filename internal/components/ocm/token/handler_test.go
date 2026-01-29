@@ -296,59 +296,59 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 	tokenStore := token.NewMemoryTokenStore()
 
 	tests := []struct {
-		name           string
-		externalOrigin string
-		receiverHost   string
-		clientID       string
-		wantMatch      bool
+		name         string
+		publicOrigin string
+		receiverHost string
+		clientID     string
+		wantMatch    bool
 	}{
 		{
-			name:           "https: bare host matches host:443",
-			externalOrigin: "https://local.example.com",
-			receiverHost:   "receiver.example.com",
-			clientID:       "receiver.example.com:443",
-			wantMatch:      true,
+			name:         "https: bare host matches host:443",
+			publicOrigin: "https://local.example.com",
+			receiverHost: "receiver.example.com",
+			clientID:     "receiver.example.com:443",
+			wantMatch:    true,
 		},
 		{
-			name:           "https: host:443 matches bare host",
-			externalOrigin: "https://local.example.com",
-			receiverHost:   "receiver.example.com:443",
-			clientID:       "receiver.example.com",
-			wantMatch:      true,
+			name:         "https: host:443 matches bare host",
+			publicOrigin: "https://local.example.com",
+			receiverHost: "receiver.example.com:443",
+			clientID:     "receiver.example.com",
+			wantMatch:    true,
 		},
 		{
-			name:           "http: bare host matches host:80",
-			externalOrigin: "http://local.example.com",
-			receiverHost:   "receiver.example.com",
-			clientID:       "receiver.example.com:80",
-			wantMatch:      true,
+			name:         "http: bare host matches host:80",
+			publicOrigin: "http://local.example.com",
+			receiverHost: "receiver.example.com",
+			clientID:     "receiver.example.com:80",
+			wantMatch:    true,
 		},
 		{
-			name:           "https: bare host does NOT match host:80",
-			externalOrigin: "https://local.example.com",
-			receiverHost:   "receiver.example.com",
-			clientID:       "receiver.example.com:80",
-			wantMatch:      false,
+			name:         "https: bare host does NOT match host:80",
+			publicOrigin: "https://local.example.com",
+			receiverHost: "receiver.example.com",
+			clientID:     "receiver.example.com:80",
+			wantMatch:    false,
 		},
 		{
-			name:           "exact match still works",
-			externalOrigin: "https://local.example.com",
-			receiverHost:   "receiver.example.com",
-			clientID:       "receiver.example.com",
-			wantMatch:      true,
+			name:         "exact match still works",
+			publicOrigin: "https://local.example.com",
+			receiverHost: "receiver.example.com",
+			clientID:     "receiver.example.com",
+			wantMatch:    true,
 		},
 		{
-			name:           "case normalization",
-			externalOrigin: "https://local.example.com",
-			receiverHost:   "RECEIVER.EXAMPLE.COM",
-			clientID:       "receiver.example.com",
-			wantMatch:      true,
+			name:         "case normalization",
+			publicOrigin: "https://local.example.com",
+			receiverHost: "RECEIVER.EXAMPLE.COM",
+			clientID:     "receiver.example.com",
+			wantMatch:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), tt.externalOrigin, logger)
+			handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), tt.publicOrigin, logger)
 
 			share := &shares.OutgoingShare{
 				ProviderID:   "provider-port-test",

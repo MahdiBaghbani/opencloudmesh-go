@@ -41,8 +41,8 @@ func (s *TokenExchangeSettings) Validate() error {
 }
 
 // FullEndpoint returns the complete token endpoint URL.
-func (s *TokenExchangeSettings) FullEndpoint(externalOrigin, externalBasePath string) string {
-	base := externalOrigin + externalBasePath + "/ocm/"
+func (s *TokenExchangeSettings) FullEndpoint(publicOrigin, externalBasePath string) string {
+	base := publicOrigin + externalBasePath + "/ocm/"
 	return base + s.Path
 }
 

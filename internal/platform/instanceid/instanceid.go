@@ -1,5 +1,4 @@
-// Package instanceid is the single source of truth for deriving instance
-// public identity from config.PublicOrigin.
+// Package instanceid derives instance public identity from config.PublicOrigin.
 package instanceid
 
 import (
@@ -8,17 +7,17 @@ import (
 	"strings"
 )
 
-// NormalizeExternalOrigin applies cosmetic-only normalization to an external origin:
+// NormalizePublicOrigin applies cosmetic-only normalization to a public origin:
 // trim a single trailing slash and lowercase scheme + hostname.
 // It does NOT strip default ports.
-func NormalizeExternalOrigin(externalOrigin string) (string, error) {
-	u, err := url.Parse(externalOrigin)
+func NormalizePublicOrigin(publicOrigin string) (string, error) {
+	u, err := url.Parse(publicOrigin)
 	if err != nil {
-		return "", fmt.Errorf("instanceid: invalid external origin: %w", err)
+		return "", fmt.Errorf("instanceid: invalid public origin: %w", err)
 	}
 
 	if u.Scheme == "" || u.Host == "" {
-		return "", fmt.Errorf("instanceid: external origin must be an absolute URL with scheme and host: %q", externalOrigin)
+		return "", fmt.Errorf("instanceid: public origin must be an absolute URL with scheme and host: %q", publicOrigin)
 	}
 
 	scheme := strings.ToLower(u.Scheme)
@@ -28,31 +27,31 @@ func NormalizeExternalOrigin(externalOrigin string) (string, error) {
 	return normalized, nil
 }
 
-// ProviderFQDN returns host[:port] from an external origin URL,
-// as used for provider_fqdn and instance identity.
-func ProviderFQDN(externalOrigin string) (string, error) {
-	u, err := url.Parse(externalOrigin)
+// ProviderFQDN returns host[:port] from a public origin URL,
+// as used for instance identity.
+func ProviderFQDN(publicOrigin string) (string, error) {
+	u, err := url.Parse(publicOrigin)
 	if err != nil {
-		return "", fmt.Errorf("instanceid: invalid external origin: %w", err)
+		return "", fmt.Errorf("instanceid: invalid public origin: %w", err)
 	}
 
 	if u.Host == "" {
-		return "", fmt.Errorf("instanceid: external origin has no host: %q", externalOrigin)
+		return "", fmt.Errorf("instanceid: public origin has no host: %q", publicOrigin)
 	}
 
 	return strings.ToLower(u.Host), nil
 }
 
-// Hostname returns the hostname only (no port) from an external origin URL.
+// Hostname returns the hostname only (no port) from a public origin URL.
 // Used for TLS certificate generation.
-func Hostname(externalOrigin string) (string, error) {
-	u, err := url.Parse(externalOrigin)
+func Hostname(publicOrigin string) (string, error) {
+	u, err := url.Parse(publicOrigin)
 	if err != nil {
-		return "", fmt.Errorf("instanceid: invalid external origin: %w", err)
+		return "", fmt.Errorf("instanceid: invalid public origin: %w", err)
 	}
 
 	if u.Host == "" {
-		return "", fmt.Errorf("instanceid: external origin has no host: %q", externalOrigin)
+		return "", fmt.Errorf("instanceid: public origin has no host: %q", publicOrigin)
 	}
 
 	hostname := u.Hostname() // strips port and brackets from IPv6

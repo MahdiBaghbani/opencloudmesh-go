@@ -33,7 +33,7 @@ trap cleanup EXIT INT TERM
 # Start sender
 ./bin/opencloudmesh-go \
     --listen ":9200" \
-    --external-origin "http://localhost:9200" \
+    --public-origin "http://localhost:9200" \
     --external-base-path "" \
     2>&1 | sed 's/^/[SENDER] /' &
 SENDER_PID=$!
@@ -41,7 +41,7 @@ SENDER_PID=$!
 # Start receiver
 ./bin/opencloudmesh-go \
     --listen ":9201" \
-    --external-origin "http://localhost:9201" \
+    --public-origin "http://localhost:9201" \
     --external-base-path "" \
     2>&1 | sed 's/^/[RECEIVER] /' &
 RECEIVER_PID=$!

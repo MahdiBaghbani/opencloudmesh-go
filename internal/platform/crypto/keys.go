@@ -33,9 +33,9 @@ type KeyManager struct {
 
 // NewKeyManager creates a new key manager.
 // keyPath is where the private key is stored. keyID is derived from public_origin.
-func NewKeyManager(keyPath, externalOrigin string) *KeyManager {
+func NewKeyManager(keyPath, publicOrigin string) *KeyManager {
 	// Derive stable keyId from public_origin
-	keyID := deriveKeyID(externalOrigin)
+	keyID := deriveKeyID(publicOrigin)
 	return &KeyManager{
 		keyPath: keyPath,
 		keyID:   keyID,
@@ -43,13 +43,13 @@ func NewKeyManager(keyPath, externalOrigin string) *KeyManager {
 }
 
 // deriveKeyID creates a stable keyId URI from the public origin.
-// Uses instanceid.NormalizeExternalOrigin as the single source of truth
-// for origin parsing, then appends the OCM key path.
-func deriveKeyID(externalOrigin string) string {
-	normalized, err := instanceid.NormalizeExternalOrigin(externalOrigin)
+// Uses instanceid.NormalizePublicOrigin for origin parsing,
+// then appends the OCM key path.
+func deriveKeyID(publicOrigin string) string {
+	normalized, err := instanceid.NormalizePublicOrigin(publicOrigin)
 	if err != nil {
 		// Fall back to simple construction
-		return externalOrigin + "/ocm#key-1"
+		return publicOrigin + "/ocm#key-1"
 	}
 
 	return normalized + "/ocm#key-1"

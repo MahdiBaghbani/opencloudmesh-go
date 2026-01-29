@@ -232,7 +232,7 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 // per-service overrides. config.BuildWellknownServiceConfig() and
 // config.BuildOCMServiceConfig() will inject default values from mode presets.
 func generateTOMLConfig(name string, port int, dataDir, mode, extra string) string {
-	externalOrigin := fmt.Sprintf("http://localhost:%d", port)
+	publicOrigin := fmt.Sprintf("http://localhost:%d", port)
 
 	// Top-level keys must come before any [section] headers in TOML
 	config := fmt.Sprintf(`# Generated config for test server: %s
@@ -261,7 +261,7 @@ insecure_skip_verify = true
 inbound_mode = "off"
 outbound_mode = "off"
 advertise_http_request_signatures = false
-`, name, mode, port, externalOrigin)
+`, name, mode, port, publicOrigin)
 
 	if extra != "" {
 		config += "\n# Extra config appended by test\n" + extra

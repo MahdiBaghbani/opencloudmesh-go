@@ -133,35 +133,35 @@ func TestTokenExchangeSettings_FullEndpoint(t *testing.T) {
 	tests := []struct {
 		name             string
 		path             string
-		externalOrigin   string
+		publicOrigin     string
 		externalBasePath string
 		want             string
 	}{
 		{
 			name:             "simple path no base path",
 			path:             "token",
-			externalOrigin:   "https://ocm.example.com",
+			publicOrigin:     "https://ocm.example.com",
 			externalBasePath: "",
 			want:             "https://ocm.example.com/ocm/token",
 		},
 		{
 			name:             "simple path with base path",
 			path:             "token",
-			externalOrigin:   "https://example.com",
+			publicOrigin:     "https://example.com",
 			externalBasePath: "/api/v1",
 			want:             "https://example.com/api/v1/ocm/token",
 		},
 		{
 			name:             "nested path",
 			path:             "token/v2",
-			externalOrigin:   "https://ocm.example.com",
+			publicOrigin:     "https://ocm.example.com",
 			externalBasePath: "",
 			want:             "https://ocm.example.com/ocm/token/v2",
 		},
 		{
 			name:             "nested path with base path",
 			path:             "exchange/token",
-			externalOrigin:   "https://example.com",
+			publicOrigin:     "https://example.com",
 			externalBasePath: "/services",
 			want:             "https://example.com/services/ocm/exchange/token",
 		},
@@ -170,7 +170,7 @@ func TestTokenExchangeSettings_FullEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &TokenExchangeSettings{Path: tt.path}
-			got := s.FullEndpoint(tt.externalOrigin, tt.externalBasePath)
+			got := s.FullEndpoint(tt.publicOrigin, tt.externalBasePath)
 			if got != tt.want {
 				t.Errorf("FullEndpoint() = %q, want %q", got, tt.want)
 			}
