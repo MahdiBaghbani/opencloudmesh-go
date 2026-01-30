@@ -9,19 +9,15 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
-
-// HTTPClient interface for outbound requests.
-type HTTPClient interface {
-	Do(ctx context.Context, req *http.Request) (*http.Response, error)
-}
 
 // Client sends notifications to remote OCM servers.
 type Client struct {
-	httpClient      HTTPClient
+	httpClient      httpclient.HTTPClient
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
@@ -29,7 +25,7 @@ type Client struct {
 
 // NewClient creates a new notifications client.
 func NewClient(
-	httpClient HTTPClient,
+	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
 	outboundPolicy *outboundsigning.OutboundPolicy,
