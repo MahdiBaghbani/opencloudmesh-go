@@ -10,7 +10,7 @@ import (
 	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 )
 
@@ -24,7 +24,7 @@ type Client struct {
 	httpClient      HTTPClient
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
-	outboundPolicy  *federation.OutboundPolicy
+	outboundPolicy  *outboundsigning.OutboundPolicy
 }
 
 // NewClient creates a new notifications client.
@@ -32,7 +32,7 @@ func NewClient(
 	httpClient HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
-	outboundPolicy *federation.OutboundPolicy,
+	outboundPolicy *outboundsigning.OutboundPolicy,
 ) *Client {
 	return &Client{
 		httpClient:      httpClient,
@@ -78,7 +78,7 @@ func (c *Client) SendNotification(ctx context.Context, targetHost string, notifi
 	// Apply outbound signing policy
 	if c.outboundPolicy != nil {
 		decision := c.outboundPolicy.ShouldSign(
-			federation.EndpointNotifications,
+			outboundsigning.EndpointNotifications,
 			targetHost,
 			disc,
 			c.signer != nil,

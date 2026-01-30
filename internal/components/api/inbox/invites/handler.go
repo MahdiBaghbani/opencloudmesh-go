@@ -15,8 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
@@ -48,7 +48,7 @@ type Handler struct {
 	httpClient      httpclient.HTTPClient
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
-	outboundPolicy  *federation.OutboundPolicy
+	outboundPolicy  *outboundsigning.OutboundPolicy
 	localProvider   string // raw host[:port] for recipientProvider in invite-accepted
 	currentUser     func(context.Context) (*identity.User, error)
 	log             *slog.Logger
@@ -60,7 +60,7 @@ func NewHandler(
 	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
-	outboundPolicy *federation.OutboundPolicy,
+	outboundPolicy *outboundsigning.OutboundPolicy,
 	localProvider string,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
@@ -329,7 +329,7 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invites.Incomi
 	// Apply outbound signing policy
 	if h.outboundPolicy != nil {
 		decision := h.outboundPolicy.ShouldSign(
-			federation.EndpointInvites,
+			outboundsigning.EndpointInvites,
 			invite.SenderFQDN,
 			disc,
 			h.signer != nil,

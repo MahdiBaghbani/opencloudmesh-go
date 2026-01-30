@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -22,7 +22,7 @@ import (
 type Client struct {
 	httpClient     *httpclient.ContextClient
 	signer         RequestSigner
-	outboundPolicy *federation.OutboundPolicy
+	outboundPolicy *outboundsigning.OutboundPolicy
 	myClientID     string // This instance's FQDN for client_id
 }
 
@@ -35,7 +35,7 @@ type RequestSigner interface {
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	signer RequestSigner,
-	outboundPolicy *federation.OutboundPolicy,
+	outboundPolicy *outboundsigning.OutboundPolicy,
 	myClientID string,
 ) *Client {
 	return &Client{
@@ -70,7 +70,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 
 	if c.outboundPolicy != nil {
 		decision := c.outboundPolicy.ShouldSign(
-			federation.EndpointTokenExchange,
+			outboundsigning.EndpointTokenExchange,
 			req.PeerDomain,
 			nil, // No discovery doc for token exchange signing decision
 			c.signer != nil,

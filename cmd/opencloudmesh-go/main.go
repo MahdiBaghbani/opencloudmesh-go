@@ -17,8 +17,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -264,7 +264,7 @@ func main() {
 	}
 
 	// Create outbound signing policy (needed for SharedDeps)
-	outboundPolicy := federation.NewOutboundPolicy(cfg, profileRegistry)
+	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry)
 
 	// Create signature middleware (needed by OCM service for per-endpoint verification)
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)

@@ -5,8 +5,8 @@ package deps
 import (
 	"sync"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
@@ -48,7 +48,7 @@ type Deps struct {
 	// Crypto
 	KeyManager          *crypto.KeyManager
 	Signer              *crypto.RFC9421Signer
-	OutboundPolicy      *federation.OutboundPolicy
+	OutboundPolicy      *outboundsigning.OutboundPolicy
 	SignatureMiddleware *crypto.SignatureMiddleware
 
 	// Peer trust (optional)

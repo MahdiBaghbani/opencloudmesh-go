@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
 
-package federation_test
+package outboundsigning_test
 
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 func TestOutboundPolicy_Off(t *testing.T) {
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode: "off",
 	}
 
-	kinds := []federation.EndpointKind{
-		federation.EndpointShares,
-		federation.EndpointNotifications,
-		federation.EndpointInvites,
-		federation.EndpointTokenExchange,
+	kinds := []outboundsigning.EndpointKind{
+		outboundsigning.EndpointShares,
+		outboundsigning.EndpointNotifications,
+		outboundsigning.EndpointInvites,
+		outboundsigning.EndpointTokenExchange,
 	}
 
 	for _, kind := range kinds {
@@ -36,7 +36,7 @@ func TestOutboundPolicy_Off(t *testing.T) {
 }
 
 func TestOutboundPolicy_Strict_AlwaysSigns(t *testing.T) {
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "strict",
 		PeerProfileOverride: "non-strict",
 	}
@@ -47,10 +47,10 @@ func TestOutboundPolicy_Strict_AlwaysSigns(t *testing.T) {
 		PublicKeys:   []discovery.PublicKey{{KeyID: "key1"}},
 	}
 
-	kinds := []federation.EndpointKind{
-		federation.EndpointShares,
-		federation.EndpointNotifications,
-		federation.EndpointInvites,
+	kinds := []outboundsigning.EndpointKind{
+		outboundsigning.EndpointShares,
+		outboundsigning.EndpointNotifications,
+		outboundsigning.EndpointInvites,
 	}
 
 	for _, kind := range kinds {
@@ -65,11 +65,11 @@ func TestOutboundPolicy_Strict_AlwaysSigns(t *testing.T) {
 }
 
 func TestOutboundPolicy_Strict_NoSigner_Errors(t *testing.T) {
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode: "strict",
 	}
 
-	decision := policy.ShouldSign(federation.EndpointShares, "example.com", nil, false)
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, false)
 	if !decision.ShouldSign {
 		t.Error("strict mode should want to sign")
 	}
@@ -79,32 +79,32 @@ func TestOutboundPolicy_Strict_NoSigner_Errors(t *testing.T) {
 }
 
 func TestOutboundPolicy_TokenOnly_SignsTokenExchange(t *testing.T) {
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "token-only",
 		PeerProfileOverride: "non-strict",
 	}
 
 	// Token exchange should sign
-	decision := policy.ShouldSign(federation.EndpointTokenExchange, "example.com", nil, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "example.com", nil, true)
 	if !decision.ShouldSign {
 		t.Error("token-only should sign token exchange")
 	}
 
 	// Shares should not sign
-	decision = policy.ShouldSign(federation.EndpointShares, "example.com", nil, true)
+	decision = policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
 	if decision.ShouldSign {
 		t.Error("token-only should not sign shares")
 	}
 
 	// Notifications should not sign
-	decision = policy.ShouldSign(federation.EndpointNotifications, "example.com", nil, true)
+	decision = policy.ShouldSign(outboundsigning.EndpointNotifications, "example.com", nil, true)
 	if decision.ShouldSign {
 		t.Error("token-only should not sign notifications")
 	}
 }
 
 func TestOutboundPolicy_CriteriaOnly_SignsWhenRequired(t *testing.T) {
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "criteria-only",
 		PeerProfileOverride: "non-strict",
 	}
@@ -116,7 +116,7 @@ func TestOutboundPolicy_CriteriaOnly_SignsWhenRequired(t *testing.T) {
 		PublicKeys:   []discovery.PublicKey{{KeyID: "key1"}},
 	}
 
-	decision := policy.ShouldSign(federation.EndpointShares, "example.com", discRequires, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discRequires, true)
 	if !decision.ShouldSign {
 		t.Error("criteria-only should sign when peer requires signatures")
 	}
@@ -128,14 +128,14 @@ func TestOutboundPolicy_CriteriaOnly_SignsWhenRequired(t *testing.T) {
 		PublicKeys:   []discovery.PublicKey{{KeyID: "key1"}},
 	}
 
-	decision = policy.ShouldSign(federation.EndpointShares, "example.com", discNoReq, true)
+	decision = policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discNoReq, true)
 	if decision.ShouldSign {
 		t.Error("criteria-only should not sign when peer does not require signatures")
 	}
 }
 
 func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) {
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "criteria-only",
 		PeerProfileOverride: "non-strict",
 	}
@@ -147,7 +147,7 @@ func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) 
 		PublicKeys:   []discovery.PublicKey{}, // No keys
 	}
 
-	decision := policy.ShouldSign(federation.EndpointShares, "example.com", discBroken, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discBroken, true)
 	if decision.Error == nil {
 		t.Error("criteria-only should error when peer requires signatures but lacks capability")
 	}
@@ -166,25 +166,25 @@ func TestOutboundPolicy_TokenExchange_PeerProfileQuirk(t *testing.T) {
 	registry := peercompat.NewProfileRegistry(profiles, mappings)
 
 	// With non-strict override, quirk should apply
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "criteria-only",
 		PeerProfileOverride: "non-strict",
 		ProfileRegistry:     registry,
 	}
 
-	decision := policy.ShouldSign(federation.EndpointTokenExchange, "cloud.nextcloud.com", nil, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "cloud.nextcloud.com", nil, true)
 	if decision.ShouldSign {
 		t.Error("should skip signing for peer with accept_plain_token quirk")
 	}
 
 	// With off override, quirk should not apply
-	policyOff := &federation.OutboundPolicy{
+	policyOff := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "criteria-only",
 		PeerProfileOverride: "off",
 		ProfileRegistry:     registry,
 	}
 
-	decision = policyOff.ShouldSign(federation.EndpointTokenExchange, "cloud.nextcloud.com", nil, true)
+	decision = policyOff.ShouldSign(outboundsigning.EndpointTokenExchange, "cloud.nextcloud.com", nil, true)
 	if !decision.ShouldSign {
 		t.Error("should sign when peer_profile_level_override=off")
 	}
@@ -210,19 +210,19 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 
 	// With override=all, even strict mode can skip signing for matched peers
 	// (when peer does not require signatures in their criteria)
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "strict",
 		PeerProfileOverride: "all",
 		ProfileRegistry:     registry,
 	}
 
-	decision := policy.ShouldSign(federation.EndpointShares, "legacy.example.com", discNoCriteria, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "legacy.example.com", discNoCriteria, true)
 	if decision.ShouldSign {
 		t.Error("peer_profile_level_override=all should allow unsigned even in strict mode when peer has no criteria")
 	}
 
 	// For non-matched peer, should still sign
-	decision = policy.ShouldSign(federation.EndpointShares, "normal.example.com", discNoCriteria, true)
+	decision = policy.ShouldSign(outboundsigning.EndpointShares, "normal.example.com", discNoCriteria, true)
 	if !decision.ShouldSign {
 		t.Error("should sign for non-matched peer in strict mode")
 	}
@@ -248,14 +248,14 @@ func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
 		PublicKeys:   []discovery.PublicKey{{KeyID: "key1"}},
 	}
 
-	policy := &federation.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "strict",
 		PeerProfileOverride: "all",
 		ProfileRegistry:     registry,
 	}
 
 	// Even with override=all and AllowUnsignedOutbound=true, must sign because peer requires it
-	decision := policy.ShouldSign(federation.EndpointShares, "strict-peer.example.com", discRequiresSigs, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "strict-peer.example.com", discRequiresSigs, true)
 	if !decision.ShouldSign {
 		t.Error("must sign when peer criteria includes http-request-signatures, regardless of profile")
 	}
@@ -268,7 +268,7 @@ func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
 		Capabilities: []string{},
 		Criteria:     []string{},
 	}
-	decision = policy.ShouldSign(federation.EndpointShares, "strict-peer.example.com", discNoCriteria, true)
+	decision = policy.ShouldSign(outboundsigning.EndpointShares, "strict-peer.example.com", discNoCriteria, true)
 	if decision.ShouldSign {
 		t.Error("should skip signing when peer has no criteria and profile allows unsigned")
 	}
@@ -283,7 +283,7 @@ func TestNewOutboundPolicy(t *testing.T) {
 	}
 
 	registry := peercompat.NewProfileRegistry(nil, nil)
-	policy := federation.NewOutboundPolicy(cfg, registry)
+	policy := outboundsigning.NewOutboundPolicy(cfg, registry)
 
 	if policy.OutboundMode != "criteria-only" {
 		t.Errorf("expected outbound_mode=criteria-only, got %s", policy.OutboundMode)

@@ -21,8 +21,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
@@ -37,7 +37,7 @@ type Handler struct {
 	discoveryClient *discovery.Client
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
-	outboundPolicy  *federation.OutboundPolicy
+	outboundPolicy  *outboundsigning.OutboundPolicy
 	cfg             *config.Config
 	localProvider   string // raw host[:port] for owner/sender identity
 	currentUser     func(context.Context) (*identity.User, error)
@@ -51,7 +51,7 @@ func NewHandler(
 	discClient *discovery.Client,
 	httpClient httpclient.HTTPClient,
 	signer *crypto.RFC9421Signer,
-	outboundPolicy *federation.OutboundPolicy,
+	outboundPolicy *outboundsigning.OutboundPolicy,
 	cfg *config.Config,
 	localProvider string,
 	currentUser func(context.Context) (*identity.User, error),
@@ -297,7 +297,7 @@ func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payl
 			peerDomain = peerURL.Host
 		}
 		decision := h.outboundPolicy.ShouldSign(
-			federation.EndpointShares,
+			outboundsigning.EndpointShares,
 			peerDomain,
 			disc,
 			h.signer != nil,

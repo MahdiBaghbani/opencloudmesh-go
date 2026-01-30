@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -34,8 +34,8 @@ func (s *mockSigner) Sign(req *http.Request) error {
 }
 
 // makePolicy creates an OutboundPolicy for testing.
-func makePolicy(outboundMode string, profileRegistry *peercompat.ProfileRegistry) *federation.OutboundPolicy {
-	return &federation.OutboundPolicy{
+func makePolicy(outboundMode string, profileRegistry *peercompat.ProfileRegistry) *outboundsigning.OutboundPolicy {
+	return &outboundsigning.OutboundPolicy{
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: "non-strict",
 		ProfileRegistry:     profileRegistry,
