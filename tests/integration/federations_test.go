@@ -11,14 +11,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-// TestFederationsEndpoint verifies /ocm-aux/federations returns federation info
-// when the server is configured with federation enabled.
+// TestFederationsEndpoint verifies /ocm-aux/federations returns a valid JSON array
+// when the server is configured with peer trust enabled (but no directory services).
+// With no directory services configured, the response is an empty array.
+// Detailed response shape testing is in internal/components/ocmaux/handler_test.go.
 func TestFederationsEndpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	// Minimal K2 JSON federation config - just enough to be valid and appear in the response
+	// K2 JSON config: trust group enabled but no directory services to fetch from
 	federationJSON := `{
 		"federation_id": "test-federation-001",
 		"enabled": true,
@@ -27,8 +29,6 @@ func TestFederationsEndpoint(t *testing.T) {
 		"keys": []
 	}`
 
-	// TOML config to enable federation and reference the JSON file
-	// The path uses a relative reference that will be resolved against tempDir
 	extraConfig := `
 [federation]
 enabled = true
@@ -61,58 +61,23 @@ max_stale_seconds = 600
 	}
 	defer resp.Body.Close()
 
-	// Assert 200 OK
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
 	}
 
-	// Decode response
-	var fedResp struct {
-		Federations []struct {
-			FederationID      string `json:"federation_id"`
-			Enabled           bool   `json:"enabled"`
-			EnforceMembership bool   `json:"enforce_membership"`
-		} `json:"federations"`
-		Members []struct {
-			Host string `json:"host"`
-			Name string `json:"name"`
-		} `json:"members"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&fedResp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
+	// Response is now a top-level JSON array (Reva-aligned strict break)
+	var result []json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("expected JSON array response: %v", err)
 	}
 
-	// Assert federations array is non-empty
-	if len(fedResp.Federations) == 0 {
-		srv.DumpLogs(t)
-		t.Fatal("expected non-empty federations array")
-	}
-
-	// Assert the test federation is present
-	found := false
-	for _, fed := range fedResp.Federations {
-		if fed.FederationID == "test-federation-001" {
-			found = true
-			if !fed.Enabled {
-				t.Errorf("expected federation to be enabled")
-			}
-			t.Logf("federation found: id=%s enabled=%v enforce_membership=%v",
-				fed.FederationID, fed.Enabled, fed.EnforceMembership)
-			break
-		}
-	}
-	if !found {
-		t.Errorf("expected to find federation 'test-federation-001' in response, got: %+v", fedResp.Federations)
-	}
-
-	// Members can be empty (no DS configured), that's OK
-	t.Logf("federation endpoint returned %d federation(s) and %d member(s)",
-		len(fedResp.Federations), len(fedResp.Members))
+	// With no directory services configured, the array is empty (no listings to show)
+	t.Logf("federation endpoint returned %d federation entries (expected 0 with no DS configured)", len(result))
 }
 
 // TestFederationsEndpointWithoutFederation verifies /ocm-aux/federations works
-// when federation is not enabled (returns empty arrays).
+// when peer trust is not enabled (returns empty JSON array).
 func TestFederationsEndpointWithoutFederation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -122,11 +87,9 @@ func TestFederationsEndpointWithoutFederation(t *testing.T) {
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "no-federation-test",
 		Mode: "dev",
-		// No ExtraFiles, no federation config - defaults to disabled
 	})
 	defer srv.Stop(t)
 
-	// GET /ocm-aux/federations
 	resp, err := http.Get(srv.BaseURL + "/ocm-aux/federations")
 	if err != nil {
 		srv.DumpLogs(t)
@@ -134,28 +97,20 @@ func TestFederationsEndpointWithoutFederation(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// Assert 200 OK (endpoint exists even without federation)
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
 	}
 
-	// Decode response
-	var fedResp struct {
-		Federations []interface{} `json:"federations"`
-		Members     []interface{} `json:"members"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&fedResp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
+	// Response is a top-level JSON array
+	var result []json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("expected JSON array response: %v", err)
 	}
 
-	// Both arrays should be empty when federation is disabled
-	if len(fedResp.Federations) != 0 {
-		t.Errorf("expected empty federations array, got %d items", len(fedResp.Federations))
-	}
-	if len(fedResp.Members) != 0 {
-		t.Errorf("expected empty members array, got %d items", len(fedResp.Members))
+	if len(result) != 0 {
+		t.Errorf("expected empty array when peer trust is disabled, got %d items", len(result))
 	}
 
-	t.Log("federation endpoint correctly returns empty arrays when federation is disabled")
+	t.Log("federation endpoint correctly returns empty array when peer trust is disabled")
 }

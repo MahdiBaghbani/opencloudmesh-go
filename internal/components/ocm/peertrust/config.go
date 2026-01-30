@@ -40,10 +40,3 @@ type PolicyConfig struct {
 	DenyList      []string `json:"deny_list"`
 	ExemptList    []string `json:"exempt_list"`
 }
-
-// Member represents a trust group member server (temporary bridge type).
-// Used by handlers.go (still in federation/) via GetAllMembers() until Phase 5.
-type Member struct {
-	Host string `json:"host"`
-	Name string `json:"name,omitempty"`
-}

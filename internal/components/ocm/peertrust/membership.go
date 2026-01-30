@@ -220,40 +220,6 @@ func (m *TrustGroupManager) precomputeAuthorities(listings []directoryservice.Li
 	return result
 }
 
-// GetAllMembers returns all known members from all enabled trust groups.
-// Temporary bridge method for handlers.go compatibility (deleted in Phase 5).
-func (m *TrustGroupManager) GetAllMembers(ctx context.Context) []Member {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var allMembers []Member
-
-	for _, tg := range m.trustGroups {
-		if !tg.config.Enabled {
-			continue
-		}
-
-		if !tg.lastRefresh.IsZero() && time.Since(tg.lastRefresh) < m.cacheConfig.MaxStale {
-			for _, listing := range tg.directoryListings {
-				for _, server := range listing.Servers {
-					u, err := url.Parse(server.URL)
-					if err != nil {
-						continue
-					}
-					allMembers = append(allMembers, Member{
-						Host: u.Host,
-						Name: server.DisplayName,
-					})
-				}
-			}
-		}
-
-		m.triggerRefreshIfNeeded(ctx, tg)
-	}
-
-	return deduplicateMembers(allMembers)
-}
-
 // GetTrustGroups returns the configured trust groups.
 func (m *TrustGroupManager) GetTrustGroups() []*TrustGroupConfig {
 	m.mu.RLock()
@@ -304,18 +270,3 @@ func (m *TrustGroupManager) SetCacheForTesting(trustGroupID string, listings []d
 	tg.memberAuthorities = m.precomputeAuthorities(listings)
 }
 
-// deduplicateMembers removes duplicate hosts from the member list.
-func deduplicateMembers(members []Member) []Member {
-	seen := make(map[string]bool)
-	var result []Member
-
-	for _, m := range members {
-		key := m.Host
-		if !seen[key] {
-			seen[key] = true
-			result = append(result, m)
-		}
-	}
-
-	return result
-}

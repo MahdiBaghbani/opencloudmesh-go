@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	ocmauxcomp "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocmaux"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
@@ -61,7 +61,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	}
 
 	// Create aux handler using SharedDeps
-	auxHandler := federation.NewAuxHandler(d.TrustGroupMgr, d.DiscoveryClient)
+	auxHandler := ocmauxcomp.NewAuxHandler(d.TrustGroupMgr, d.DiscoveryClient, log)
 
 	// Build ratelimit middleware for /discover if profile is configured
 	var discoverMiddleware func(http.Handler) http.Handler

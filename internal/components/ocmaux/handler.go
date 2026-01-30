@@ -1,52 +1,49 @@
-package federation
+// Package ocmaux provides auxiliary HTTP handlers for OCM helper endpoints.
+package ocmaux
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 // AuxHandler serves the /ocm-aux endpoints.
 type AuxHandler struct {
 	trustGroupMgr   *peertrust.TrustGroupManager
 	discoveryClient *discovery.Client
+	logger          *slog.Logger
 }
 
 // NewAuxHandler creates a new auxiliary handler.
-func NewAuxHandler(trustGroupMgr *peertrust.TrustGroupManager, discClient *discovery.Client) *AuxHandler {
+func NewAuxHandler(trustGroupMgr *peertrust.TrustGroupManager, discClient *discovery.Client, logger *slog.Logger) *AuxHandler {
 	return &AuxHandler{
 		trustGroupMgr:   trustGroupMgr,
 		discoveryClient: discClient,
+		logger:          logger,
 	}
 }
 
-// FederationsResponse is the response for GET /ocm-aux/federations.
-type FederationsResponse struct {
-	Federations []FederationInfo `json:"federations"`
-	Members     []MemberInfo     `json:"members"`
+// federationEntry is a single trust group in the /ocm-aux/federations response (Reva-aligned).
+type federationEntry struct {
+	Federation string        `json:"federation"`
+	Servers    []serverEntry `json:"servers"`
 }
 
-// FederationInfo describes a federation.
-type FederationInfo struct {
-	FederationID      string `json:"federation_id"`
-	Enabled           bool   `json:"enabled"`
-	EnforceMembership bool   `json:"enforce_membership"`
-	MemberCount       int    `json:"member_count"`
-}
-
-// MemberInfo describes a federation member.
-type MemberInfo struct {
-	Host         string `json:"host"`
-	Name         string `json:"name,omitempty"`
-	FederationID string `json:"federation_id"`
+// serverEntry is a server within a federation entry, enriched with discovery data.
+type serverEntry struct {
+	DisplayName        string `json:"displayName"`
+	URL                string `json:"url"`
+	InviteAcceptDialog string `json:"inviteAcceptDialog,omitempty"`
 }
 
 // HandleFederations handles GET /ocm-aux/federations.
+// Returns a Reva-aligned JSON array of federation entries with discovery-enriched servers.
 func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -55,36 +52,80 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	response := FederationsResponse{
-		Federations: []FederationInfo{},
-		Members:     []MemberInfo{},
-	}
+	// Empty array (not null) when no trust group manager or no listings
+	result := []federationEntry{}
 
 	if h.trustGroupMgr != nil {
-		for _, tgCfg := range h.trustGroupMgr.GetTrustGroups() {
-			response.Federations = append(response.Federations, FederationInfo{
-				FederationID:      tgCfg.TrustGroupID,
-				Enabled:           tgCfg.Enabled,
-				EnforceMembership: tgCfg.EnforceMembership,
-			})
+		listings := h.trustGroupMgr.GetDirectoryListings(ctx)
+
+		// Merge listings by federation name
+		merged := make(map[string]*federationEntry)
+		var order []string
+		for _, listing := range listings {
+			entry, exists := merged[listing.Federation]
+			if !exists {
+				entry = &federationEntry{Federation: listing.Federation}
+				merged[listing.Federation] = entry
+				order = append(order, listing.Federation)
+			}
+			for _, srv := range listing.Servers {
+				se := serverEntry{
+					DisplayName: srv.DisplayName,
+					URL:         srv.URL,
+				}
+
+				// Enrich with discovery data (inviteAcceptDialog)
+				if h.discoveryClient != nil {
+					disc, err := h.discoveryClient.Discover(ctx, srv.URL)
+					if err != nil {
+						h.logger.Debug("discovery enrichment failed, dropping server",
+							"federation", listing.Federation,
+							"server_url", srv.URL,
+							"error", err,
+						)
+						continue // silently drop this server
+					}
+					if disc.InviteAcceptDialog != "" {
+						se.InviteAcceptDialog = resolveInviteDialog(srv.URL, disc.InviteAcceptDialog)
+					}
+				}
+
+				entry.Servers = append(entry.Servers, se)
+			}
 		}
 
-		allMembers := h.trustGroupMgr.GetAllMembers(ctx)
-		for _, m := range allMembers {
-			response.Members = append(response.Members, MemberInfo{
-				Host: m.Host,
-				Name: m.Name,
-			})
+		for _, name := range order {
+			entry := merged[name]
+			if entry.Servers == nil {
+				entry.Servers = []serverEntry{}
+			}
+			result = append(result, *entry)
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(result)
 }
 
-// DiscoverRequest is the request for GET /ocm-aux/discover.
-type DiscoverRequest struct {
-	BaseURL string `json:"base_url"`
+// resolveInviteDialog resolves a potentially relative inviteAcceptDialog URL against the server URL.
+func resolveInviteDialog(serverURL, dialog string) string {
+	if dialog == "" {
+		return ""
+	}
+	// If already absolute, return as-is
+	if strings.HasPrefix(dialog, "http://") || strings.HasPrefix(dialog, "https://") {
+		return dialog
+	}
+	// Resolve relative against server URL
+	base, err := url.Parse(serverURL)
+	if err != nil {
+		return dialog
+	}
+	ref, err := url.Parse(dialog)
+	if err != nil {
+		return dialog
+	}
+	return base.ResolveReference(ref).String()
 }
 
 // DiscoverResponse is the response for GET /ocm-aux/discover.
@@ -107,7 +148,7 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context() // Use request context for cancellation propagation
+	ctx := r.Context()
 
 	baseParam := r.URL.Query().Get("base")
 	if baseParam == "" {
@@ -122,21 +163,17 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if discovery client is configured
 	if h.discoveryClient == nil {
 		h.sendDiscoverError(w, http.StatusNotImplemented, "discovery client not configured")
 		return
 	}
 
-	// Fetch discovery using request context
 	disc, err := h.discoveryClient.Discover(ctx, originURL)
 	if err != nil {
-		// Classify error for status mapping
 		if httpclient.IsSSRFError(err) {
 			h.sendDiscoverError(w, http.StatusForbidden, err.Error())
 			return
 		}
-		// All other errors are upstream failures
 		h.sendDiscoverError(w, http.StatusBadGateway, err.Error())
 		return
 	}
@@ -159,30 +196,24 @@ func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, messag
 }
 
 // normalizeToOrigin parses a URL and returns just the origin (<scheme>://<host>).
-// Accepts URLs with path/query/fragment but normalizes to origin only.
-// Requires http or https scheme and non-empty host.
 func normalizeToOrigin(rawURL string) (string, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return "", err
 	}
 
-	// Validate scheme
 	scheme := strings.ToLower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
 		return "", &url.Error{Op: "parse", URL: rawURL, Err: errUnsupportedScheme}
 	}
 
-	// Validate host
 	if parsed.Host == "" {
 		return "", &url.Error{Op: "parse", URL: rawURL, Err: errMissingHost}
 	}
 
-	// Return origin only
 	return scheme + "://" + parsed.Host, nil
 }
 
-// Sentinel errors for URL validation
 type validationError string
 
 func (e validationError) Error() string { return string(e) }

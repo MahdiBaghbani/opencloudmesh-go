@@ -32,6 +32,10 @@ type OCMProviderConfig struct {
 		Path    string `mapstructure:"path"`
 	} `mapstructure:"token_exchange"`
 
+	// Invite accept dialog URL (absolute) for WAYF helpers
+	InviteAcceptDialog string `mapstructure:"invite_accept_dialog"`
+	AdvertiseInviteWAYF bool   `mapstructure:"advertise_invite_wayf"`
+
 	// APIVersionOverrides allows overriding apiVersion based on User-Agent.
 	// Used for Nextcloud Server Crawler compatibility.
 	APIVersionOverrides []APIVersionOverride `mapstructure:"api_version_overrides"`
@@ -112,6 +116,14 @@ func newOCMHandler(c *OCMProviderConfig, d *deps.Deps, log *slog.Logger) (*ocmHa
 			tokenPath = "token"
 		}
 		disc.TokenEndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix, tokenPath)
+	}
+
+	// Invite accept dialog (WAYF)
+	if c.InviteAcceptDialog != "" {
+		disc.InviteAcceptDialog = c.InviteAcceptDialog
+		if c.AdvertiseInviteWAYF {
+			capabilities = append(capabilities, "invite-wayf")
+		}
 	}
 
 	disc.Capabilities = capabilities

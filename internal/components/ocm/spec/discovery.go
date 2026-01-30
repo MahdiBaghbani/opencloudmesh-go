@@ -19,7 +19,8 @@ type Discovery struct {
 	Capabilities  []string       `json:"capabilities,omitempty"`
 	Criteria      []string       `json:"criteria"` // Always present, serializes as [] when empty
 	PublicKeys    []PublicKey    `json:"publicKeys,omitempty"`
-	TokenEndPoint string         `json:"tokenEndPoint,omitempty"` // Required when exchange-token capability is advertised
+	TokenEndPoint      string `json:"tokenEndPoint,omitempty"`      // Required when exchange-token capability is advertised
+	InviteAcceptDialog string `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
 }
 
 // ResourceType describes a supported resource type.

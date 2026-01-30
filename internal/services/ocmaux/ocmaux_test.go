@@ -128,7 +128,7 @@ func TestService_Close(t *testing.T) {
 func TestService_FederationsEndpoint(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		// FederationMgr is nil - handler should still work
+		// TrustGroupMgr is nil - handler should still work (returns empty array)
 	})
 
 	m := map[string]any{}
@@ -148,14 +148,14 @@ func TestService_FederationsEndpoint(t *testing.T) {
 		t.Errorf("expected status 200, got %d", w.Code)
 	}
 
-	// Should return valid JSON with empty federations
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Errorf("expected valid JSON response: %v", err)
+	// Response is a top-level JSON array (Reva-aligned strict break)
+	var result []json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Errorf("expected valid JSON array response: %v\nbody: %s", err, w.Body.String())
 	}
 
-	if _, ok := resp["federations"]; !ok {
-		t.Error("expected 'federations' key in response")
+	if len(result) != 0 {
+		t.Errorf("expected empty array with nil TrustGroupMgr, got %d entries", len(result))
 	}
 }
 
