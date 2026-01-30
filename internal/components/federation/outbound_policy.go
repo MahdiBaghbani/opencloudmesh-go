@@ -6,8 +6,9 @@ package federation
 import (
 	"fmt"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 // EndpointKind represents the type of outbound OCM endpoint.
@@ -31,11 +32,11 @@ type SigningDecision struct {
 type OutboundPolicy struct {
 	OutboundMode           string
 	PeerProfileOverride    string
-	ProfileRegistry        *ProfileRegistry
+	ProfileRegistry        *peercompat.ProfileRegistry
 }
 
 // NewOutboundPolicy creates an OutboundPolicy from config.
-func NewOutboundPolicy(cfg *config.Config, registry *ProfileRegistry) *OutboundPolicy {
+func NewOutboundPolicy(cfg *config.Config, registry *peercompat.ProfileRegistry) *OutboundPolicy {
 	return &OutboundPolicy{
 		OutboundMode:        cfg.Signature.OutboundMode,
 		PeerProfileOverride: cfg.Signature.PeerProfileLevelOverride,
@@ -60,7 +61,7 @@ func (p *OutboundPolicy) ShouldSign(
 	}
 
 	// Get peer profile
-	var profile *Profile
+	var profile *peercompat.Profile
 	if p.ProfileRegistry != nil {
 		profile = p.ProfileRegistry.GetProfile(peerDomain)
 	}
@@ -93,7 +94,7 @@ func (p *OutboundPolicy) ShouldSign(
 }
 
 // decideTokenExchange handles token exchange signing decisions.
-func (p *OutboundPolicy) decideTokenExchange(profile *Profile, hasSigner bool) SigningDecision {
+func (p *OutboundPolicy) decideTokenExchange(profile *peercompat.Profile, hasSigner bool) SigningDecision {
 	// Check if peer profile allows unsigned token exchange
 	if profile != nil && profile.HasQuirk("accept_plain_token") {
 		if p.canApplyRelaxation("outbound") {
@@ -123,7 +124,7 @@ func (p *OutboundPolicy) decideTokenExchange(profile *Profile, hasSigner bool) S
 func (p *OutboundPolicy) decideStrict(
 	kind EndpointKind,
 	disc *discovery.Discovery,
-	profile *Profile,
+	profile *peercompat.Profile,
 	hasSigner bool,
 ) SigningDecision {
 	// Check if peer profile allows unsigned outbound in strict mode
@@ -178,7 +179,7 @@ func (p *OutboundPolicy) decideStrict(
 func (p *OutboundPolicy) decideCriteriaOnly(
 	kind EndpointKind,
 	disc *discovery.Discovery,
-	profile *Profile,
+	profile *peercompat.Profile,
 	hasSigner bool,
 ) SigningDecision {
 	if disc == nil {

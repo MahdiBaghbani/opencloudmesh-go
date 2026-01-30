@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
@@ -111,7 +111,7 @@ func TestValidateCredential_LenientModeRelaxation(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	// Create profile registry with nextcloud profile (has RelaxMustExchangeToken=true)
-	registry := federation.NewProfileRegistry(nil, []federation.ProfileMapping{
+	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	})
 
@@ -147,7 +147,7 @@ func TestValidateCredential_StrictModeIgnoresRelaxation(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	// Create profile registry with nextcloud profile (has RelaxMustExchangeToken=true)
-	registry := federation.NewProfileRegistry(nil, []federation.ProfileMapping{
+	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	})
 
@@ -180,14 +180,14 @@ func TestValidateCredential_BasicAuthPatternRejection(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	// Create profile that only allows specific patterns
-	restrictiveProfile := &federation.Profile{
+	restrictiveProfile := &peercompat.Profile{
 		Name:                     "restrictive",
 		AllowedBasicAuthPatterns: []string{"token:"}, // Only allow token: pattern
 	}
 
-	registry := federation.NewProfileRegistry(
-		map[string]*federation.Profile{"restrictive": restrictiveProfile},
-		[]federation.ProfileMapping{
+	registry := peercompat.NewProfileRegistry(
+		map[string]*peercompat.Profile{"restrictive": restrictiveProfile},
+		[]peercompat.ProfileMapping{
 			{Pattern: "restrictive.example.com", ProfileName: "restrictive"},
 		},
 	)
@@ -228,7 +228,7 @@ func TestValidateCredential_EmptyPatternListAllowsAll(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	// Use default strict profile which has empty AllowedBasicAuthPatterns
-	registry := federation.NewProfileRegistry(nil, nil)
+	registry := peercompat.NewProfileRegistry(nil, nil)
 
 	settings := &Settings{WebDAVTokenExchangeMode: "off"} // off mode to skip must-exchange-token
 	handler := NewHandler(repo, tokenStore, settings, registry, nil)
@@ -294,7 +294,7 @@ func TestValidateCredential_ExchangedTokenAlwaysWorks(t *testing.T) {
 	_ = tokenStore.Store(ctx, issuedToken)
 
 	// Strict mode with no relaxation profile
-	registry := federation.NewProfileRegistry(nil, nil)
+	registry := peercompat.NewProfileRegistry(nil, nil)
 	settings := &Settings{WebDAVTokenExchangeMode: "strict"}
 	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
@@ -323,7 +323,7 @@ func TestValidateCredential_UnknownPeerUsesStrictProfile(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	// Registry with nextcloud mapping but no mapping for unknown peer
-	registry := federation.NewProfileRegistry(nil, []federation.ProfileMapping{
+	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	})
 

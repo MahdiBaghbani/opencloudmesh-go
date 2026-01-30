@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
 
-// Package federation provides peer federation policy and interop profiles.
-package federation
+package peercompat
 
 import (
 	"path/filepath"

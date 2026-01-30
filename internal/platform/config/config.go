@@ -193,6 +193,14 @@ type PeerProfile struct {
 
 	// TokenExchangeQuirks lists quirks to apply for token exchange
 	TokenExchangeQuirks []string `toml:"token_exchange_quirks"`
+
+	// RelaxMustExchangeToken allows sharedSecret even when must-exchange-token is set.
+	// Only applies in lenient mode; ignored in strict mode.
+	RelaxMustExchangeToken bool `toml:"relax_must_exchange_token"`
+
+	// AllowedBasicAuthPatterns whitelists specific Basic auth patterns.
+	// Empty means allow all implemented patterns.
+	AllowedBasicAuthPatterns []string `toml:"allowed_basic_auth_patterns"`
 }
 
 // ServerConfig holds server-level settings.

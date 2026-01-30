@@ -19,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
@@ -226,32 +227,34 @@ func main() {
 	}
 
 	// Create peer profile registry from config
-	var profileRegistry *federation.ProfileRegistry
+	var profileRegistry *peercompat.ProfileRegistry
 	if len(cfg.PeerProfiles.Mappings) > 0 || len(cfg.PeerProfiles.CustomProfiles) > 0 {
-		// Convert config.PeerProfile to federation.Profile
-		customProfiles := make(map[string]*federation.Profile)
+		// Convert config.PeerProfile to peercompat.Profile
+		customProfiles := make(map[string]*peercompat.Profile)
 		for name, p := range cfg.PeerProfiles.CustomProfiles {
-			customProfiles[name] = &federation.Profile{
-				Name:                  name,
-				AllowUnsignedInbound:  p.AllowUnsignedInbound,
-				AllowUnsignedOutbound: p.AllowUnsignedOutbound,
-				AllowMismatchedHost:   p.AllowMismatchedHost,
-				AllowHTTP:             p.AllowHTTP,
-				TokenExchangeQuirks:   p.TokenExchangeQuirks,
+			customProfiles[name] = &peercompat.Profile{
+				Name:                     name,
+				AllowUnsignedInbound:     p.AllowUnsignedInbound,
+				AllowUnsignedOutbound:    p.AllowUnsignedOutbound,
+				AllowMismatchedHost:      p.AllowMismatchedHost,
+				AllowHTTP:                p.AllowHTTP,
+				TokenExchangeQuirks:      p.TokenExchangeQuirks,
+				RelaxMustExchangeToken:   p.RelaxMustExchangeToken,
+				AllowedBasicAuthPatterns: p.AllowedBasicAuthPatterns,
 			}
 		}
-		// Convert config.PeerProfileMapping to federation.ProfileMapping
-		mappings := make([]federation.ProfileMapping, len(cfg.PeerProfiles.Mappings))
+		// Convert config.PeerProfileMapping to peercompat.ProfileMapping
+		mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
 		for i, m := range cfg.PeerProfiles.Mappings {
-			mappings[i] = federation.ProfileMapping{
+			mappings[i] = peercompat.ProfileMapping{
 				Pattern:     m.Pattern,
 				ProfileName: m.Profile,
 			}
 		}
-		profileRegistry = federation.NewProfileRegistry(customProfiles, mappings)
+		profileRegistry = peercompat.NewProfileRegistry(customProfiles, mappings)
 	} else {
 		// Create registry with just builtin profiles
-		profileRegistry = federation.NewProfileRegistry(nil, nil)
+		profileRegistry = peercompat.NewProfileRegistry(nil, nil)
 	}
 
 	// Create signer for outbound requests (needed for SharedDeps)

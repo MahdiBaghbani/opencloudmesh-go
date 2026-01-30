@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"golang.org/x/net/webdav"
@@ -25,14 +25,14 @@ type Handler struct {
 	outgoingRepo    shares.OutgoingShareRepo
 	tokenStore      token.TokenStore
 	settings        *Settings
-	profileRegistry *federation.ProfileRegistry
+	profileRegistry *peercompat.ProfileRegistry
 	logger          *slog.Logger
 }
 
 // NewHandler creates a new WebDAV handler.
 // Settings controls must-exchange-token enforcement behavior.
 // ProfileRegistry enables peer-specific relaxations in lenient mode.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *federation.ProfileRegistry, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
 	if settings == nil {
 		settings = &Settings{}
 		settings.ApplyDefaults()
@@ -149,9 +149,9 @@ func (h *Handler) validateCredential(ctx context.Context, share *shares.Outgoing
 
 // getProfileForShare returns the peer profile for a share's receiver.
 // Falls back to the strict profile if no registry is configured.
-func (h *Handler) getProfileForShare(share *shares.OutgoingShare) *federation.Profile {
+func (h *Handler) getProfileForShare(share *shares.OutgoingShare) *peercompat.Profile {
 	if h.profileRegistry == nil {
-		return federation.BuiltinProfiles()["strict"]
+		return peercompat.BuiltinProfiles()["strict"]
 	}
 	return h.profileRegistry.GetProfile(share.ReceiverHost)
 }

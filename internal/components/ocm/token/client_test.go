@@ -10,10 +10,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 // mockSigner is a test signer that adds a mock signature header.
@@ -23,8 +24,8 @@ type mockSigner struct {
 
 func (s *mockSigner) Sign(req *http.Request) error {
 	if s.failSign {
-		return &federation.ClassifiedError{
-			ReasonCode: federation.ReasonSignatureInvalid,
+		return &peercompat.ClassifiedError{
+			ReasonCode: peercompat.ReasonSignatureInvalid,
 			Message:    "signing failed",
 		}
 	}
@@ -33,7 +34,7 @@ func (s *mockSigner) Sign(req *http.Request) error {
 }
 
 // makePolicy creates an OutboundPolicy for testing.
-func makePolicy(outboundMode string, profileRegistry *federation.ProfileRegistry) *federation.OutboundPolicy {
+func makePolicy(outboundMode string, profileRegistry *peercompat.ProfileRegistry) *federation.OutboundPolicy {
 	return &federation.OutboundPolicy{
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: "non-strict",
@@ -297,10 +298,10 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 	}))
 
 	// Set up profile registry with nextcloud profile (has accept_plain_token quirk)
-	mappings := []federation.ProfileMapping{
+	mappings := []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	}
-	profileRegistry := federation.NewProfileRegistry(nil, mappings)
+	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
 
 	// With accept_plain_token quirk, OutboundPolicy tells us to skip signing
 	client := token.NewClient(
@@ -359,15 +360,15 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 	}
 
 	// Check it's properly classified
-	var ce *federation.ClassifiedError
+	var ce *peercompat.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Errorf("expected ClassifiedError, got %T", err)
 	}
 }
 
 // isClassifiedError checks if err is a ClassifiedError and populates ce.
-func isClassifiedError(err error, ce **federation.ClassifiedError) bool {
-	if e, ok := err.(*federation.ClassifiedError); ok {
+func isClassifiedError(err error, ce **peercompat.ClassifiedError) bool {
+	if e, ok := err.(*peercompat.ClassifiedError); ok {
 		*ce = e
 		return true
 	}

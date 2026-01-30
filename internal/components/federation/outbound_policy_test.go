@@ -6,9 +6,10 @@ package federation_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 func TestOutboundPolicy_Off(t *testing.T) {
@@ -153,16 +154,16 @@ func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) 
 }
 
 func TestOutboundPolicy_TokenExchange_PeerProfileQuirk(t *testing.T) {
-	profiles := map[string]*federation.Profile{
+	profiles := map[string]*peercompat.Profile{
 		"nextcloud": {
 			Name:                "nextcloud",
 			TokenExchangeQuirks: []string{"accept_plain_token"},
 		},
 	}
-	mappings := []federation.ProfileMapping{
+	mappings := []peercompat.ProfileMapping{
 		{Pattern: "*.nextcloud.com", ProfileName: "nextcloud"},
 	}
-	registry := federation.NewProfileRegistry(profiles, mappings)
+	registry := peercompat.NewProfileRegistry(profiles, mappings)
 
 	// With non-strict override, quirk should apply
 	policy := &federation.OutboundPolicy{
@@ -190,16 +191,16 @@ func TestOutboundPolicy_TokenExchange_PeerProfileQuirk(t *testing.T) {
 }
 
 func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
-	profiles := map[string]*federation.Profile{
+	profiles := map[string]*peercompat.Profile{
 		"compat": {
 			Name:                  "compat",
 			AllowUnsignedOutbound: true,
 		},
 	}
-	mappings := []federation.ProfileMapping{
+	mappings := []peercompat.ProfileMapping{
 		{Pattern: "legacy.example.com", ProfileName: "compat"},
 	}
-	registry := federation.NewProfileRegistry(profiles, mappings)
+	registry := peercompat.NewProfileRegistry(profiles, mappings)
 
 	// Discovery doc without criteria requirement
 	discNoCriteria := &discovery.Discovery{
@@ -229,16 +230,16 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 
 func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
 	// Test the guardrail: AllowUnsignedOutbound must not override peer's criteria requirement
-	profiles := map[string]*federation.Profile{
+	profiles := map[string]*peercompat.Profile{
 		"compat": {
 			Name:                  "compat",
 			AllowUnsignedOutbound: true,
 		},
 	}
-	mappings := []federation.ProfileMapping{
+	mappings := []peercompat.ProfileMapping{
 		{Pattern: "strict-peer.example.com", ProfileName: "compat"},
 	}
-	registry := federation.NewProfileRegistry(profiles, mappings)
+	registry := peercompat.NewProfileRegistry(profiles, mappings)
 
 	// Peer requires signatures via criteria
 	discRequiresSigs := &discovery.Discovery{
@@ -281,7 +282,7 @@ func TestNewOutboundPolicy(t *testing.T) {
 		},
 	}
 
-	registry := federation.NewProfileRegistry(nil, nil)
+	registry := peercompat.NewProfileRegistry(nil, nil)
 	policy := federation.NewOutboundPolicy(cfg, registry)
 
 	if policy.OutboundMode != "criteria-only" {

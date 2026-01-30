@@ -10,7 +10,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -107,8 +107,8 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		// Discover the sender's token endpoint
 		disc, err := c.discoveryClient.Discover(ctx, share.SenderHost)
 		if err != nil {
-			return nil, federation.NewClassifiedError(
-				federation.ReasonDiscoveryFailed,
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonDiscoveryFailed,
 				"failed to discover sender",
 				err,
 			)
@@ -116,16 +116,16 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 
 		// Verify sender advertises token exchange
 		if !disc.HasCapability("exchange-token") {
-			return nil, federation.NewClassifiedError(
-				federation.ReasonPeerCapabilityMissing,
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonPeerCapabilityMissing,
 				"sender does not advertise exchange-token capability",
 				nil,
 			)
 		}
 
 		if disc.TokenEndPoint == "" {
-			return nil, federation.NewClassifiedError(
-				federation.ReasonPeerCapabilityMissing,
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonPeerCapabilityMissing,
 				"sender has no tokenEndPoint",
 				nil,
 			)
@@ -166,8 +166,8 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 	// Execute request
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
-		return nil, federation.NewClassifiedError(
-			federation.ReasonNetworkError,
+		return nil, peercompat.NewClassifiedError(
+			peercompat.ReasonNetworkError,
 			"WebDAV request failed",
 			err,
 		)
@@ -192,8 +192,8 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 
 	if result.Response.StatusCode != http.StatusOK {
 		result.Response.Body.Close()
-		return nil, federation.NewClassifiedError(
-			federation.ReasonRemoteError,
+		return nil, peercompat.NewClassifiedError(
+			peercompat.ReasonRemoteError,
 			"remote server returned error",
 			errors.New(result.Response.Status),
 		)
@@ -216,8 +216,8 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 	// Otherwise, discover the sender's WebDAV path
 	disc, err := c.discoveryClient.Discover(ctx, share.SenderHost)
 	if err != nil {
-		return "", federation.NewClassifiedError(
-			federation.ReasonDiscoveryFailed,
+		return "", peercompat.NewClassifiedError(
+			peercompat.ReasonDiscoveryFailed,
 			"failed to discover sender",
 			err,
 		)
@@ -226,8 +226,8 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 	// Build URL from discovery
 	webdavURL, err := disc.BuildWebDAVURL(share.WebDAVID)
 	if err != nil {
-		return "", federation.NewClassifiedError(
-			federation.ReasonProtocolMismatch,
+		return "", peercompat.NewClassifiedError(
+			peercompat.ReasonProtocolMismatch,
 			"failed to build WebDAV URL",
 			err,
 		)

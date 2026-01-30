@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
 
-package federation
+package peercompat
 
 import (
 	"testing"
@@ -236,7 +236,7 @@ func TestMatchPattern(t *testing.T) {
 	}
 }
 
-// Phase 2 tests: peer profile extensions
+// Peer profile extensions
 
 func TestProfile_RelaxMustExchangeToken(t *testing.T) {
 	profiles := BuiltinProfiles()

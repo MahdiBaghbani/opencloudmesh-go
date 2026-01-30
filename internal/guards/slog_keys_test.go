@@ -26,6 +26,7 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 		"internal/components/federation",
 		"internal/components/ocm/peertrust",
 		"internal/components/ocm/directoryservice",
+		"internal/components/ocm/peercompat",
 		"internal/components/identity",
 		"internal/platform/http/server",
 		"internal/platform/http/middleware",

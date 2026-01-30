@@ -7,6 +7,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
@@ -53,7 +54,7 @@ type Deps struct {
 	// Peer trust (optional)
 	TrustGroupMgr   *peertrust.TrustGroupManager
 	PolicyEngine    *peertrust.PolicyEngine
-	ProfileRegistry *federation.ProfileRegistry
+	ProfileRegistry *peercompat.ProfileRegistry
 
 	// Provider identity derived from PublicOrigin at startup
 	LocalProviderFQDN           string // raw host[:port] from PublicOrigin (lowercased)

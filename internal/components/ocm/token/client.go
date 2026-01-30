@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/federation"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
@@ -65,7 +66,7 @@ type ExchangeResult struct {
 func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
 	// Use OutboundPolicy to determine if we should sign
 	var shouldSign bool
-	var profile *federation.Profile
+	var profile *peercompat.Profile
 
 	if c.outboundPolicy != nil {
 		decision := c.outboundPolicy.ShouldSign(
@@ -75,8 +76,8 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 			c.signer != nil,
 		)
 		if decision.Error != nil {
-			return nil, federation.NewClassifiedError(
-				federation.ReasonSignatureRequired,
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonSignatureRequired,
 				decision.Reason,
 				decision.Error,
 			)
@@ -101,15 +102,15 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 	}
 
 	// Step 2: Classify the error
-	reasonCode := federation.ClassifyError(err)
+	reasonCode := peercompat.ClassifyError(err)
 
 	// Step 3: Check if we can apply quirks (only when policy allows relaxation)
 	if profile != nil && c.outboundPolicy != nil {
 		// Check for accept_plain_token quirk (unsigned request)
 		if profile.HasQuirk("accept_plain_token") &&
-			(reasonCode == federation.ReasonSignatureRequired ||
-				reasonCode == federation.ReasonSignatureInvalid ||
-				reasonCode == federation.ReasonKeyNotFound) {
+			(reasonCode == peercompat.ReasonSignatureRequired ||
+				reasonCode == peercompat.ReasonSignatureInvalid ||
+				reasonCode == peercompat.ReasonKeyNotFound) {
 			// Try unsigned
 			result, err = c.exchangeUnsigned(ctx, req)
 			if err == nil {
@@ -120,8 +121,8 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 
 		// Check for send_token_in_body quirk (JSON body)
 		if profile.HasQuirk("send_token_in_body") &&
-			(reasonCode == federation.ReasonTokenExchangeFailed ||
-				reasonCode == federation.ReasonProtocolMismatch) {
+			(reasonCode == peercompat.ReasonTokenExchangeFailed ||
+				reasonCode == peercompat.ReasonProtocolMismatch) {
 			// Try JSON body
 			result, err = c.exchangeJSON(ctx, req, shouldSign)
 			if err == nil {
@@ -132,7 +133,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 	}
 
 	// Return original error
-	return nil, federation.NewClassifiedError(reasonCode, "token exchange failed", err)
+	return nil, peercompat.NewClassifiedError(reasonCode, "token exchange failed", err)
 }
 
 // exchangeSigned performs a signed token exchange request.
@@ -152,8 +153,8 @@ func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, useJSO
 	// Sign the request
 	if c.signer != nil {
 		if err := c.signer.Sign(httpReq); err != nil {
-			return nil, federation.NewClassifiedError(
-				federation.ReasonSignatureInvalid,
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonSignatureInvalid,
 				"failed to sign request",
 				err,
 			)
@@ -182,8 +183,8 @@ func (c *Client) exchangeJSON(ctx context.Context, req ExchangeRequest, signed b
 
 	if signed && c.signer != nil {
 		if err := c.signer.Sign(httpReq); err != nil {
-			return nil, federation.NewClassifiedError(
-				federation.ReasonSignatureInvalid,
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonSignatureInvalid,
 				"failed to sign request",
 				err,
 			)
@@ -249,8 +250,8 @@ func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest) (*ht
 func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeResult, error) {
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
-		return nil, federation.NewClassifiedError(
-			federation.ReasonNetworkError,
+		return nil, peercompat.NewClassifiedError(
+			peercompat.ReasonNetworkError,
 			"token exchange request failed",
 			err,
 		)
@@ -259,8 +260,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit
 	if err != nil {
-		return nil, federation.NewClassifiedError(
-			federation.ReasonNetworkError,
+		return nil, peercompat.NewClassifiedError(
+			peercompat.ReasonNetworkError,
 			"failed to read response",
 			err,
 		)
@@ -272,8 +273,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
 			return nil, c.classifyOAuthError(oauthErr, resp.StatusCode)
 		}
-		return nil, federation.NewClassifiedError(
-			federation.ReasonTokenExchangeFailed,
+		return nil, peercompat.NewClassifiedError(
+			peercompat.ReasonTokenExchangeFailed,
 			fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
 			nil,
 		)
@@ -282,8 +283,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 	// Parse success response
 	var tokenResp TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, federation.NewClassifiedError(
-			federation.ReasonTokenInvalidFormat,
+		return nil, peercompat.NewClassifiedError(
+			peercompat.ReasonTokenInvalidFormat,
 			"failed to parse token response",
 			err,
 		)
@@ -301,16 +302,16 @@ func (c *Client) classifyOAuthError(oauthErr OAuthError, statusCode int) error {
 	var reasonCode string
 	switch oauthErr.Error {
 	case ErrorInvalidGrant:
-		reasonCode = federation.ReasonTokenExchangeFailed
+		reasonCode = peercompat.ReasonTokenExchangeFailed
 	case ErrorInvalidClient:
-		reasonCode = federation.ReasonTokenExchangeFailed
+		reasonCode = peercompat.ReasonTokenExchangeFailed
 	case ErrorUnauthorized:
-		reasonCode = federation.ReasonSignatureRequired
+		reasonCode = peercompat.ReasonSignatureRequired
 	default:
-		reasonCode = federation.ReasonTokenExchangeFailed
+		reasonCode = peercompat.ReasonTokenExchangeFailed
 	}
 
-	return federation.NewClassifiedError(
+	return peercompat.NewClassifiedError(
 		reasonCode,
 		oauthErr.ErrorDescription,
 		nil,
