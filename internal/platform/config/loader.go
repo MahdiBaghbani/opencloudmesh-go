@@ -85,7 +85,7 @@ type fileConfig struct {
 	Signature    *SignatureConfig    `toml:"signature"`
 	PeerProfiles *peerProfilesConfig `toml:"peer_profiles"`
 	Cache               *cacheConfig               `toml:"cache"`
-	Federation          *federationConfig          `toml:"federation"`
+	PeerTrust           *peerTrustConfig           `toml:"peer_trust"`
 	Logging             *loggingConfig             `toml:"logging"`
 	TokenExchange       *tokenExchangeConfig       `toml:"token_exchange"`
 	WebDAVTokenExchange *webdavTokenExchangeConfig `toml:"webdav_token_exchange"`
@@ -121,22 +121,22 @@ type cacheConfig struct {
 	Drivers map[string]any `toml:"drivers"`
 }
 
-// federationConfig holds federation settings from TOML.
-type federationConfig struct {
-	Enabled         bool                           `toml:"enabled"`
-	ConfigPaths     []string                       `toml:"config_paths"`
-	Policy          *federationPolicyConfig        `toml:"policy"`
-	MembershipCache *federationMembershipCacheConfig `toml:"membership_cache"`
+// peerTrustConfig holds peer trust settings from TOML.
+type peerTrustConfig struct {
+	Enabled         bool                              `toml:"enabled"`
+	ConfigPaths     []string                          `toml:"config_paths"`
+	Policy          *peerTrustPolicyConfig            `toml:"policy"`
+	MembershipCache *peerTrustMembershipCacheConfig   `toml:"membership_cache"`
 }
 
-type federationPolicyConfig struct {
+type peerTrustPolicyConfig struct {
 	GlobalEnforce bool     `toml:"global_enforce"`
 	AllowList     []string `toml:"allow_list"`
 	DenyList      []string `toml:"deny_list"`
 	ExemptList    []string `toml:"exempt_list"`
 }
 
-type federationMembershipCacheConfig struct {
+type peerTrustMembershipCacheConfig struct {
 	TTLSeconds      int `toml:"ttl_seconds"`
 	MaxStaleSeconds int `toml:"max_stale_seconds"`
 }
@@ -188,13 +188,16 @@ func Load(opts LoaderOptions) (*Config, error) {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
 		}
 
-		// Strict break: reject the old external_origin key with a clear error.
+		// Strict breaks: reject renamed keys with clear migration messages.
 		if undecoded := md.Undecoded(); len(undecoded) > 0 {
 			keys := make([]string, 0, len(undecoded))
 			for _, k := range undecoded {
 				keyStr := k.String()
 				if keyStr == "external_origin" {
 					return nil, fmt.Errorf("config key 'external_origin' has been renamed to 'public_origin'; please update your configuration")
+				}
+				if keyStr == "federation" || strings.HasPrefix(keyStr, "federation.") {
+					return nil, fmt.Errorf("config section '[federation]' has been renamed to '[peer_trust]'; please update your configuration")
 				}
 				keys = append(keys, keyStr)
 			}
@@ -296,10 +299,10 @@ func StrictConfig() *Config {
 			OnDiscoveryError:               "reject",
 			AllowMismatch:                  false,
 		},
-		Federation: FederationConfig{
+		PeerTrust: PeerTrustConfig{
 			Enabled:     false,
 			ConfigPaths: nil,
-			MembershipCache: FederationMembershipCacheConfig{
+			MembershipCache: PeerTrustMembershipCacheConfig{
 				TTLSeconds:      21600,  // 6 hours
 				MaxStaleSeconds: 604800, // 7 days
 			},
@@ -369,10 +372,10 @@ func DevConfig() *Config {
 			OnDiscoveryError:               "allow",
 			AllowMismatch:                  true,
 		},
-		Federation: FederationConfig{
+		PeerTrust: PeerTrustConfig{
 			Enabled:     false,
 			ConfigPaths: nil,
-			MembershipCache: FederationMembershipCacheConfig{
+			MembershipCache: PeerTrustMembershipCacheConfig{
 				TTLSeconds:      21600,  // 6 hours
 				MaxStaleSeconds: 604800, // 7 days
 			},
@@ -508,29 +511,29 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 	}
 
-	if fc.Federation != nil {
-		cfg.Federation.Enabled = fc.Federation.Enabled
-		if len(fc.Federation.ConfigPaths) > 0 {
-			cfg.Federation.ConfigPaths = fc.Federation.ConfigPaths
+	if fc.PeerTrust != nil {
+		cfg.PeerTrust.Enabled = fc.PeerTrust.Enabled
+		if len(fc.PeerTrust.ConfigPaths) > 0 {
+			cfg.PeerTrust.ConfigPaths = fc.PeerTrust.ConfigPaths
 		}
-		if fc.Federation.Policy != nil {
-			cfg.Federation.Policy.GlobalEnforce = fc.Federation.Policy.GlobalEnforce
-			if len(fc.Federation.Policy.AllowList) > 0 {
-				cfg.Federation.Policy.AllowList = fc.Federation.Policy.AllowList
+		if fc.PeerTrust.Policy != nil {
+			cfg.PeerTrust.Policy.GlobalEnforce = fc.PeerTrust.Policy.GlobalEnforce
+			if len(fc.PeerTrust.Policy.AllowList) > 0 {
+				cfg.PeerTrust.Policy.AllowList = fc.PeerTrust.Policy.AllowList
 			}
-			if len(fc.Federation.Policy.DenyList) > 0 {
-				cfg.Federation.Policy.DenyList = fc.Federation.Policy.DenyList
+			if len(fc.PeerTrust.Policy.DenyList) > 0 {
+				cfg.PeerTrust.Policy.DenyList = fc.PeerTrust.Policy.DenyList
 			}
-			if len(fc.Federation.Policy.ExemptList) > 0 {
-				cfg.Federation.Policy.ExemptList = fc.Federation.Policy.ExemptList
+			if len(fc.PeerTrust.Policy.ExemptList) > 0 {
+				cfg.PeerTrust.Policy.ExemptList = fc.PeerTrust.Policy.ExemptList
 			}
 		}
-		if fc.Federation.MembershipCache != nil {
-			if fc.Federation.MembershipCache.TTLSeconds > 0 {
-				cfg.Federation.MembershipCache.TTLSeconds = fc.Federation.MembershipCache.TTLSeconds
+		if fc.PeerTrust.MembershipCache != nil {
+			if fc.PeerTrust.MembershipCache.TTLSeconds > 0 {
+				cfg.PeerTrust.MembershipCache.TTLSeconds = fc.PeerTrust.MembershipCache.TTLSeconds
 			}
-			if fc.Federation.MembershipCache.MaxStaleSeconds > 0 {
-				cfg.Federation.MembershipCache.MaxStaleSeconds = fc.Federation.MembershipCache.MaxStaleSeconds
+			if fc.PeerTrust.MembershipCache.MaxStaleSeconds > 0 {
+				cfg.PeerTrust.MembershipCache.MaxStaleSeconds = fc.PeerTrust.MembershipCache.MaxStaleSeconds
 			}
 		}
 	}
@@ -699,16 +702,16 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("invalid cache.driver %q: must be one of memory or redis", cfg.Cache.Driver)
 	}
 
-	// federation validation
-	if cfg.Federation.Enabled {
-		// config_paths must be non-empty when federation is enabled
-		if len(cfg.Federation.ConfigPaths) == 0 {
-			return fmt.Errorf("federation.config_paths must be non-empty when federation is enabled")
+	// peer trust validation
+	if cfg.PeerTrust.Enabled {
+		// config_paths must be non-empty when peer trust is enabled
+		if len(cfg.PeerTrust.ConfigPaths) == 0 {
+			return fmt.Errorf("peer_trust.config_paths must be non-empty when peer trust is enabled")
 		}
 		// each path must be readable
-		for _, path := range cfg.Federation.ConfigPaths {
+		for _, path := range cfg.PeerTrust.ConfigPaths {
 			if _, err := os.Stat(path); err != nil {
-				return fmt.Errorf("federation config path %q is not readable: %w", path, err)
+				return fmt.Errorf("peer_trust config path %q is not readable: %w", path, err)
 			}
 		}
 	}

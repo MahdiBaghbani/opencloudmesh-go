@@ -188,14 +188,14 @@ func main() {
 	// Create trust group manager and policy engine if enabled
 	var trustGroupMgr *peertrust.TrustGroupManager
 	var policyEngine *peertrust.PolicyEngine
-	if cfg.Federation.Enabled {
+	if cfg.PeerTrust.Enabled {
 		// Compute refresh timeout from outbound HTTP timeout
 		refreshTimeout := time.Duration(cfg.OutboundHTTP.TimeoutMS) * time.Millisecond
 
 		// Create cache config from TOML
 		cacheConfig := peertrust.CacheConfig{
-			TTL:      time.Duration(cfg.Federation.MembershipCache.TTLSeconds) * time.Second,
-			MaxStale: time.Duration(cfg.Federation.MembershipCache.MaxStaleSeconds) * time.Second,
+			TTL:      time.Duration(cfg.PeerTrust.MembershipCache.TTLSeconds) * time.Second,
+			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
 		}
 
 		// Create directory service client (uses the safe HTTP client)
@@ -205,7 +205,7 @@ func main() {
 		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dsClient, cfg.PublicScheme(), logger, refreshTimeout)
 
 		// Load trust group configs from paths (one K2 JSON per file)
-		for _, configPath := range cfg.Federation.ConfigPaths {
+		for _, configPath := range cfg.PeerTrust.ConfigPaths {
 			tgCfg, err := peertrust.LoadTrustGroupConfig(configPath)
 			if err != nil {
 				logger.Warn("failed to load trust group config", "path", configPath, "error", err)
@@ -217,13 +217,13 @@ func main() {
 
 		// Create policy engine from config
 		policyCfg := &peertrust.PolicyConfig{
-			GlobalEnforce: cfg.Federation.Policy.GlobalEnforce,
-			AllowList:     cfg.Federation.Policy.AllowList,
-			DenyList:      cfg.Federation.Policy.DenyList,
-			ExemptList:    cfg.Federation.Policy.ExemptList,
+			GlobalEnforce: cfg.PeerTrust.Policy.GlobalEnforce,
+			AllowList:     cfg.PeerTrust.Policy.AllowList,
+			DenyList:      cfg.PeerTrust.Policy.DenyList,
+			ExemptList:    cfg.PeerTrust.Policy.ExemptList,
 		}
 		policyEngine = peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
-		logger.Info("peer trust enabled", "config_paths", len(cfg.Federation.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
+		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
 	}
 
 	// Create peer profile registry from config

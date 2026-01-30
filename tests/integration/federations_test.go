@@ -21,8 +21,8 @@ func TestFederationsEndpoint(t *testing.T) {
 	}
 
 	// K2 JSON config: trust group enabled but no directory services to fetch from
-	federationJSON := `{
-		"federation_id": "test-federation-001",
+	trustGroupJSON := `{
+		"trust_group_id": "test-federation-001",
 		"enabled": true,
 		"enforce_membership": false,
 		"directory_services": [],
@@ -30,14 +30,14 @@ func TestFederationsEndpoint(t *testing.T) {
 	}`
 
 	extraConfig := `
-[federation]
+[peer_trust]
 enabled = true
-config_paths = ["federation.json"]
+config_paths = ["trust-group.json"]
 
-[federation.policy]
+[peer_trust.policy]
 global_enforce = false
 
-[federation.membership_cache]
+[peer_trust.membership_cache]
 ttl_seconds = 300
 max_stale_seconds = 600
 `
@@ -47,7 +47,7 @@ max_stale_seconds = 600
 		Name: "federation-test",
 		Mode: "dev",
 		ExtraFiles: map[string]string{
-			"federation.json": federationJSON,
+			"trust-group.json": trustGroupJSON,
 		},
 		ExtraConfig: extraConfig,
 	})

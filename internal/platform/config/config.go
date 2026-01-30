@@ -45,8 +45,8 @@ type Config struct {
 	// Cache configuration
 	Cache CacheConfig `toml:"cache"`
 
-	// Federation configuration
-	Federation FederationConfig `toml:"federation"`
+	// Peer trust configuration
+	PeerTrust PeerTrustConfig `toml:"peer_trust"`
 
 	// Logging configuration
 	Logging LoggingConfig `toml:"logging"`
@@ -118,24 +118,24 @@ type CacheConfig struct {
 	Drivers map[string]any `toml:"drivers"`
 }
 
-// FederationConfig holds federation settings.
-type FederationConfig struct {
-	// Enabled enables federation features. Default: false.
+// PeerTrustConfig holds peer trust settings.
+type PeerTrustConfig struct {
+	// Enabled enables peer trust features. Default: false.
 	Enabled bool `toml:"enabled"`
 
-	// ConfigPaths is a list of paths to K2 JSON federation config files.
+	// ConfigPaths is a list of paths to K2 JSON trust group config files.
 	// Required when enabled.
 	ConfigPaths []string `toml:"config_paths"`
 
 	// Policy contains trust policy settings.
-	Policy FederationPolicyConfig `toml:"policy"`
+	Policy PeerTrustPolicyConfig `toml:"policy"`
 
 	// MembershipCache contains membership cache settings.
-	MembershipCache FederationMembershipCacheConfig `toml:"membership_cache"`
+	MembershipCache PeerTrustMembershipCacheConfig `toml:"membership_cache"`
 }
 
-// FederationPolicyConfig holds federation trust policy settings.
-type FederationPolicyConfig struct {
+// PeerTrustPolicyConfig holds peer trust policy settings.
+type PeerTrustPolicyConfig struct {
 	// GlobalEnforce enforces membership checks globally.
 	GlobalEnforce bool `toml:"global_enforce"`
 
@@ -149,8 +149,8 @@ type FederationPolicyConfig struct {
 	ExemptList []string `toml:"exempt_list"`
 }
 
-// FederationMembershipCacheConfig holds membership cache settings.
-type FederationMembershipCacheConfig struct {
+// PeerTrustMembershipCacheConfig holds membership cache settings.
+type PeerTrustMembershipCacheConfig struct {
 	// TTLSeconds is the cache TTL in seconds. Default: 21600 (6 hours).
 	TTLSeconds int `toml:"ttl_seconds"`
 
@@ -515,6 +515,16 @@ func (c *Config) Redacted() string {
 		}
 		sb.WriteString("],\n")
 	}
+	sb.WriteString("  },\n")
+	sb.WriteString("  PeerTrust: {\n")
+	sb.WriteString(fmt.Sprintf("    Enabled: %v,\n", c.PeerTrust.Enabled))
+	sb.WriteString(fmt.Sprintf("    ConfigPathsCount: %d,\n", len(c.PeerTrust.ConfigPaths)))
+	sb.WriteString(fmt.Sprintf("    Policy.GlobalEnforce: %v,\n", c.PeerTrust.Policy.GlobalEnforce))
+	sb.WriteString(fmt.Sprintf("    Policy.AllowListCount: %d,\n", len(c.PeerTrust.Policy.AllowList)))
+	sb.WriteString(fmt.Sprintf("    Policy.DenyListCount: %d,\n", len(c.PeerTrust.Policy.DenyList)))
+	sb.WriteString(fmt.Sprintf("    Policy.ExemptListCount: %d,\n", len(c.PeerTrust.Policy.ExemptList)))
+	sb.WriteString(fmt.Sprintf("    MembershipCache.TTLSeconds: %d,\n", c.PeerTrust.MembershipCache.TTLSeconds))
+	sb.WriteString(fmt.Sprintf("    MembershipCache.MaxStaleSeconds: %d,\n", c.PeerTrust.MembershipCache.MaxStaleSeconds))
 	sb.WriteString("  },\n")
 	sb.WriteString("}")
 	return sb.String()
