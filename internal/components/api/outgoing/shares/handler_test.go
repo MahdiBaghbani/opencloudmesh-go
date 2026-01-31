@@ -13,7 +13,7 @@ import (
 
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
@@ -34,7 +34,7 @@ func failCurrentUser() func(context.Context) (*identity.User, error) {
 }
 
 func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
-	repo := shares.NewMemoryOutgoingShareRepo()
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 
 	return outgoingshares.NewHandler(
@@ -120,7 +120,7 @@ func TestHandleCreate_OwnerSenderUseBase64UserID(t *testing.T) {
 	// We then check the stored share's owner/sender fields.
 
 	user := &identity.User{ID: "user-uuid-123", Username: "alice", Email: "alice@example.org"}
-	repo := shares.NewMemoryOutgoingShareRepo()
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 
 	handler := outgoingshares.NewHandler(

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
 
@@ -15,26 +15,26 @@ var errNotFound = errors.New("not found")
 
 // mockOutgoingShareRepo is a minimal mock for testing.
 type mockOutgoingShareRepo struct {
-	shares map[string]*shares.OutgoingShare
+	shares map[string]*sharesoutgoing.OutgoingShare
 }
 
 func newMockOutgoingShareRepo() *mockOutgoingShareRepo {
-	return &mockOutgoingShareRepo{shares: make(map[string]*shares.OutgoingShare)}
+	return &mockOutgoingShareRepo{shares: make(map[string]*sharesoutgoing.OutgoingShare)}
 }
 
-func (m *mockOutgoingShareRepo) Create(ctx context.Context, share *shares.OutgoingShare) error {
+func (m *mockOutgoingShareRepo) Create(ctx context.Context, share *sharesoutgoing.OutgoingShare) error {
 	m.shares[share.ShareID] = share
 	return nil
 }
 
-func (m *mockOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (*shares.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (*sharesoutgoing.OutgoingShare, error) {
 	if s, ok := m.shares[shareID]; ok {
 		return s, nil
 	}
 	return nil, errNotFound
 }
 
-func (m *mockOutgoingShareRepo) GetByProviderID(ctx context.Context, providerID string) (*shares.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) GetByProviderID(ctx context.Context, providerID string) (*sharesoutgoing.OutgoingShare, error) {
 	for _, s := range m.shares {
 		if s.ProviderID == providerID {
 			return s, nil
@@ -43,7 +43,7 @@ func (m *mockOutgoingShareRepo) GetByProviderID(ctx context.Context, providerID 
 	return nil, errNotFound
 }
 
-func (m *mockOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID string) (*shares.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID string) (*sharesoutgoing.OutgoingShare, error) {
 	for _, s := range m.shares {
 		if s.WebDAVID == webdavID {
 			return s, nil
@@ -52,7 +52,7 @@ func (m *mockOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID stri
 	return nil, errNotFound
 }
 
-func (m *mockOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSecret string) (*shares.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSecret string) (*sharesoutgoing.OutgoingShare, error) {
 	for _, s := range m.shares {
 		if s.SharedSecret == sharedSecret {
 			return s, nil
@@ -61,15 +61,15 @@ func (m *mockOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSec
 	return nil, errNotFound
 }
 
-func (m *mockOutgoingShareRepo) List(ctx context.Context) ([]*shares.OutgoingShare, error) {
-	result := make([]*shares.OutgoingShare, 0, len(m.shares))
+func (m *mockOutgoingShareRepo) List(ctx context.Context) ([]*sharesoutgoing.OutgoingShare, error) {
+	result := make([]*sharesoutgoing.OutgoingShare, 0, len(m.shares))
 	for _, s := range m.shares {
 		result = append(result, s)
 	}
 	return result, nil
 }
 
-func (m *mockOutgoingShareRepo) Update(ctx context.Context, share *shares.OutgoingShare) error {
+func (m *mockOutgoingShareRepo) Update(ctx context.Context, share *sharesoutgoing.OutgoingShare) error {
 	m.shares[share.ShareID] = share
 	return nil
 }
@@ -121,7 +121,7 @@ func TestValidateCredential_LenientModeRelaxation(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
 	// Create share with must-exchange-token from a Nextcloud peer
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
 		SharedSecret:      "secret123",
 		MustExchangeToken: true,
@@ -157,7 +157,7 @@ func TestValidateCredential_StrictModeIgnoresRelaxation(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
 	// Create share with must-exchange-token from a Nextcloud peer
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
 		SharedSecret:      "secret123",
 		MustExchangeToken: true,
@@ -196,7 +196,7 @@ func TestValidateCredential_BasicAuthPatternRejection(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
 	// Create share without must-exchange-token
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
 		SharedSecret:      "secret123",
 		MustExchangeToken: false,
@@ -233,7 +233,7 @@ func TestValidateCredential_EmptyPatternListAllowsAll(t *testing.T) {
 	settings := &Settings{WebDAVTokenExchangeMode: "off"} // off mode to skip must-exchange-token
 	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
 		SharedSecret:      "secret123",
 		MustExchangeToken: false,
@@ -263,7 +263,7 @@ func TestValidateCredential_NoProfileRegistry(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, settings, nil, nil)
 
 	// Create share with must-exchange-token
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
 		SharedSecret:      "secret123",
 		MustExchangeToken: true,
@@ -299,7 +299,7 @@ func TestValidateCredential_ExchangedTokenAlwaysWorks(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
 	// Create share with must-exchange-token
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
 		SharedSecret:      "wrong-secret",
 		MustExchangeToken: true,
@@ -331,7 +331,7 @@ func TestValidateCredential_UnknownPeerUsesStrictProfile(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, settings, registry, nil)
 
 	// Create share with must-exchange-token from unknown peer
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
 		SharedSecret:      "secret123",
 		MustExchangeToken: true,

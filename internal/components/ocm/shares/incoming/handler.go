@@ -1,4 +1,5 @@
-package shares
+// Package incoming handles inbound OCM share creation (POST /ocm/shares).
+package incoming
 
 import (
 	"context"
@@ -9,16 +10,17 @@ import (
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
-// IncomingHandler handles incoming OCM share endpoints (POST /ocm/shares).
-type IncomingHandler struct {
-	repo                        IncomingShareRepo
+// Handler handles incoming OCM share endpoints (POST /ocm/shares).
+type Handler struct {
+	repo                        shares.IncomingShareRepo
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
 	localProviderFQDNForCompare string
@@ -27,29 +29,29 @@ type IncomingHandler struct {
 	logger                      *slog.Logger
 }
 
-// NewIncomingHandler creates a new incoming shares handler.
-func NewIncomingHandler(
-	repo IncomingShareRepo,
+// NewHandler creates a new incoming shares handler.
+func NewHandler(
+	repo shares.IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
 	localProviderFQDNForCompare string,
 	localScheme string,
-	signatureInboundMode string,
+	inboundMode string,
 	logger *slog.Logger,
-) *IncomingHandler {
-	return &IncomingHandler{
+) *Handler {
+	return &Handler{
 		repo:                        repo,
 		partyRepo:                   partyRepo,
 		policyEngine:                policyEngine,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
-		signatureInboundMode:        signatureInboundMode,
+		signatureInboundMode:        inboundMode,
 		logger:                      logger,
 	}
 }
 
 // CreateShare handles POST /ocm/shares following the spec-aligned inbound flow.
-func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -58,7 +60,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	log := appctx.GetLogger(r.Context())
 
 	// Parse request body
-	var req NewShareRequest
+	var req shares.NewShareRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Warn("failed to parse share request", "error", err)
 		writeOCMError(w, http.StatusBadRequest, "INVALID_JSON")
@@ -145,7 +147,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	// Step 5: Parse shareWith using last-@ semantics
 	identifier, shareWithProvider, err := address.Parse(req.ShareWith)
 	if err != nil {
-		log.Warn("invalid shareWith format", "shareWith", req.ShareWith, "error", err)
+		log.Warn("invalid shareWith format", "share_with", req.ShareWith, "error", err)
 		WriteValidationError(w, "INVALID_SHARE_WITH", []ValidationError{
 			{Name: "shareWith", Message: "INVALID_FORMAT"},
 		})
@@ -164,7 +166,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 
 	if !strings.EqualFold(normalizedProvider, h.localProviderFQDNForCompare) {
 		log.Warn("provider mismatch",
-			"shareWith_provider", normalizedProvider,
+			"share_with_provider", normalizedProvider,
 			"local_provider", h.localProviderFQDNForCompare)
 		WriteValidationError(w, "PROVIDER_MISMATCH", []ValidationError{
 			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
@@ -174,7 +176,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 
 	// Step 7: Reject unsupported share types with 501; accept all resourceType values (F7=A)
 	if req.ShareType != "user" {
-		log.Warn("unsupported share type", "shareType", req.ShareType)
+		log.Warn("unsupported share type", "share_type", req.ShareType)
 		WriteShareTypeNotSupported(w)
 		return
 	}
@@ -198,14 +200,14 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 			"sender", senderHost)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(CreateShareResponse{
+		json.NewEncoder(w).Encode(shares.CreateShareResponse{
 			RecipientDisplayName: existing.RecipientDisplayName,
 		})
 		return
 	}
 
 	// Step 10: Build and store the inbox record
-	share := &IncomingShare{
+	share := &shares.IncomingShare{
 		ProviderID:           req.ProviderID,
 		SenderHost:           senderHost,
 		Owner:                req.Owner,
@@ -218,7 +220,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		OwnerDisplayName:     req.OwnerDisplayName,
 		SenderDisplayName:    req.SenderDisplayName,
 		Expiration:           req.Expiration,
-		Status:               ShareStatusPending,
+		Status:               shares.ShareStatusPending,
 		RecipientUserID:      resolvedUser.ID,
 		RecipientDisplayName: resolvedUser.DisplayName,
 	}
@@ -234,7 +236,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		share.SharedSecret = webdav.SharedSecret
 		share.Permissions = webdav.Permissions
 
-		if webdav.HasRequirement(RequirementMustExchangeToken) {
+		if webdav.HasRequirement(shares.RequirementMustExchangeToken) {
 			share.MustExchangeToken = true
 		}
 	}
@@ -254,7 +256,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	// Step 11: Return 201 with CreateShareResponse DTO (E4=A, E10=A)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(CreateShareResponse{
+	json.NewEncoder(w).Encode(shares.CreateShareResponse{
 		RecipientDisplayName: share.RecipientDisplayName,
 	})
 }
@@ -263,7 +265,7 @@ func (h *IncomingHandler) CreateShare(w http.ResponseWriter, r *http.Request) {
 // 1. PartyRepo.Get(identifier) - treat as canonical internal user id
 // 2. PartyRepo.GetByUsername(identifier)
 // 3. PartyRepo.GetByEmail(identifier) - repo normalizes email internally
-func (h *IncomingHandler) resolveRecipient(ctx context.Context, identifier string) (*identity.User, error) {
+func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*identity.User, error) {
 	// Try by canonical ID first
 	user, err := h.partyRepo.Get(ctx, identifier)
 	if err == nil {

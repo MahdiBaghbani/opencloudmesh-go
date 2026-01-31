@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
 
@@ -25,12 +25,12 @@ func enabledSettings() *token.TokenExchangeSettings {
 
 func TestHandler_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	// Create a share
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-123",
 		WebDAVID:     "webdav-456",
 		SharedSecret: "secret-code-789",
@@ -82,12 +82,12 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 
 func TestHandler_JSON_NextcloudInterop(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	// Create a share
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-nc",
 		WebDAVID:     "webdav-nc",
 		SharedSecret: "nc-secret",
@@ -121,7 +121,7 @@ func TestHandler_JSON_NextcloudInterop(t *testing.T) {
 
 func TestHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
@@ -157,7 +157,7 @@ func TestHandler_MissingFields(t *testing.T) {
 
 func TestHandler_InvalidGrantType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
@@ -185,7 +185,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 
 func TestHandler_InvalidCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
@@ -213,12 +213,12 @@ func TestHandler_InvalidCode(t *testing.T) {
 
 func TestHandler_ClientMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	// Create a share
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-mismatch",
 		WebDAVID:     "webdav-mismatch",
 		SharedSecret: "secret-mismatch",
@@ -292,7 +292,7 @@ func TestGenerateAccessToken(t *testing.T) {
 
 func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
 	tests := []struct {
@@ -350,7 +350,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), tt.publicOrigin, logger)
 
-			share := &shares.OutgoingShare{
+			share := &sharesoutgoing.OutgoingShare{
 				ProviderID:   "provider-port-test",
 				WebDAVID:     "webdav-port-test",
 				SharedSecret: "port-test-secret-" + tt.name,
@@ -385,7 +385,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 func TestHandler_DisabledReturns501(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := shares.NewMemoryOutgoingShareRepo()
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
 	// Create handler with token exchange disabled

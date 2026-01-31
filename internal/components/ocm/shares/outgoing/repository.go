@@ -1,4 +1,4 @@
-package shares
+package outgoing
 
 import (
 	"context"

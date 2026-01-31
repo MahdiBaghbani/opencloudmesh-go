@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -102,7 +103,7 @@ func StartTestServer(t *testing.T) *TestServer {
 
 	// Create repos for SharedDeps and server.Deps (dual-use)
 	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
-	outgoingShareRepo := shares.NewMemoryOutgoingShareRepo()
+	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	outgoingInviteRepo := invites.NewMemoryOutgoingInviteRepo()
 	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()

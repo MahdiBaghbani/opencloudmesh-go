@@ -1,4 +1,4 @@
-package invites_test
+package incoming_test
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
@@ -25,11 +26,11 @@ const (
 )
 
 // newTestHandler creates a handler with repo and optional partyRepo.
-func newTestHandler(repo *invites.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *invites.Handler {
-	return invites.NewHandler(repo, partyRepo, nil, testProvider, testPublicOrigin, testLogger)
+func newTestHandler(repo *invites.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testPublicOrigin, testLogger)
 }
 
-func postInviteAccepted(handler *invites.Handler, body string) *httptest.ResponseRecorder {
+func postInviteAccepted(handler *incoming.Handler, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -110,11 +111,12 @@ func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
 	}
 }
 
-func TestHandleInviteAccepted_EmailRequired(t *testing.T) {
+func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
+	// Preflight: email key entirely absent from JSON -> 400 EMAIL_REQUIRED
 	repo := invites.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","email":"","name":"n"}`)
+	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","name":"n"}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -124,17 +126,60 @@ func TestHandleInviteAccepted_EmailRequired(t *testing.T) {
 	}
 }
 
-func TestHandleInviteAccepted_NameRequired(t *testing.T) {
+func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
+	// Preflight: name key entirely absent from JSON -> 400 NAME_REQUIRED
 	repo := invites.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","email":"e","name":""}`)
+	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","email":"e"}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
 	if msg := decodeOCMError(t, w); msg != "NAME_REQUIRED" {
 		t.Errorf("expected NAME_REQUIRED, got %q", msg)
+	}
+}
+
+func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
+	// Preflight: email key present but empty string -> allowed (spec: no non-empty constraint)
+	repo := invites.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	invite := &invites.OutgoingInvite{
+		Token:           "empty-email-token",
+		ProviderFQDN:    testProvider,
+		CreatedByUserID: "", // legacy
+		ExpiresAt:       time.Now().Add(24 * time.Hour),
+		Status:          invites.InviteStatusPending,
+	}
+	repo.Create(context.Background(), invite)
+
+	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"empty-email-token","userID":"u@host","email":"","name":"n"}`)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 (empty email allowed), got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
+	// Preflight: name key present but empty string -> allowed (spec: no non-empty constraint)
+	repo := invites.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	invite := &invites.OutgoingInvite{
+		Token:           "empty-name-token",
+		ProviderFQDN:    testProvider,
+		CreatedByUserID: "", // legacy
+		ExpiresAt:       time.Now().Add(24 * time.Hour),
+		Status:          invites.InviteStatusPending,
+	}
+	repo.Create(context.Background(), invite)
+
+	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"empty-name-token","userID":"u@host","email":"e","name":""}`)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 (empty name allowed), got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -392,8 +437,6 @@ func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
 		t.Errorf("expected 415, got %d", w.Code)
 	}
 }
-
-// HandleCreateOutgoing tests have been moved to internal/components/api/outgoing/invites/handler_test.go
 
 // --- Response field presence test ---
 

@@ -28,6 +28,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
@@ -272,7 +273,7 @@ func main() {
 
 	// Create repos once for SharedDeps.
 	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
-	outgoingShareRepo := shares.NewMemoryOutgoingShareRepo()
+	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	outgoingInviteRepo := invites.NewMemoryOutgoingInviteRepo()
 	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()

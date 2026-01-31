@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -36,7 +37,7 @@ type Deps struct {
 
 	// Repos
 	IncomingShareRepo  shares.IncomingShareRepo
-	OutgoingShareRepo  shares.OutgoingShareRepo
+	OutgoingShareRepo  sharesoutgoing.OutgoingShareRepo
 	OutgoingInviteRepo invites.OutgoingInviteRepo
 	IncomingInviteRepo invites.IncomingInviteRepo
 	TokenStore         token.TokenStore

@@ -11,10 +11,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -67,7 +67,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	}
 
 	// Construct handlers using SharedDeps (Reva-aligned)
-	sharesHandler := shares.NewIncomingHandler(
+	sharesHandler := sharesincoming.NewHandler(
 		d.IncomingShareRepo,
 		d.PartyRepo,
 		d.PolicyEngine,
@@ -77,7 +77,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log,
 	)
 	notifHandler := notifications.NewHandler(d.OutgoingShareRepo, d.Config.PublicOrigin, log)
-	invitesHandler := invites.NewHandler(d.OutgoingInviteRepo, d.PartyRepo, d.PolicyEngine, d.LocalProviderFQDN, d.Config.PublicOrigin, log)
+	invitesHandler := invitesincoming.NewHandler(d.OutgoingInviteRepo, d.PartyRepo, d.PolicyEngine, d.LocalProviderFQDN, d.Config.PublicOrigin, log)
 	tokenHandler := token.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, d.Config.PublicOrigin, log)
 
 	// Create peer resolver for signature verification (service-local, per-endpoint extraction)

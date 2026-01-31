@@ -1,8 +1,10 @@
-package invites
+// Package incoming handles inbound OCM invite-accepted protocol endpoint.
+package incoming
 
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -19,8 +22,8 @@ import (
 
 // Handler handles OCM invite-accepted protocol endpoint.
 type Handler struct {
-	outgoingRepo OutgoingInviteRepo
-	partyRepo    identity.PartyRepo // for invite-accepted (look up local inviting user)
+	outgoingRepo invites.OutgoingInviteRepo
+	partyRepo    identity.PartyRepo     // for invite-accepted (look up local inviting user)
 	policyEngine *peertrust.PolicyEngine // may be nil when peer trust is disabled
 	providerFQDN string
 	logger       *slog.Logger
@@ -32,10 +35,10 @@ type Handler struct {
 // partyRepo is used by HandleInviteAccepted to look up the local inviting user (may be nil).
 // policyEngine may be nil when peer trust is disabled.
 func NewHandler(
-	outgoingRepo OutgoingInviteRepo,
+	outgoingRepo invites.OutgoingInviteRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
-	providerFQDN string,
+	localProviderFQDN string,
 	publicOrigin string,
 	logger *slog.Logger,
 ) *Handler {
@@ -48,7 +51,7 @@ func NewHandler(
 		outgoingRepo: outgoingRepo,
 		partyRepo:    partyRepo,
 		policyEngine: policyEngine,
-		providerFQDN: providerFQDN,
+		providerFQDN: localProviderFQDN,
 		logger:       logger,
 		localScheme:  localScheme,
 	}
@@ -70,14 +73,41 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req InviteAcceptedRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// Read body for preflight key-presence check
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Warn("failed to read invite-accepted request body", "error", err)
+		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
+		return
+	}
+
+	// Preflight: check key presence for email and name before typed decode.
+	// Missing key -> 400. Present but empty string -> allowed (spec does not define non-empty constraint).
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &rawFields); err != nil {
 		log.Warn("failed to parse invite-accepted request", "error", err)
 		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
 		return
 	}
 
-	// Spec-required field checks: all five AcceptedInvite fields are required.
+	if _, ok := rawFields["email"]; !ok {
+		h.sendOCMError(w, http.StatusBadRequest, "EMAIL_REQUIRED")
+		return
+	}
+	if _, ok := rawFields["name"]; !ok {
+		h.sendOCMError(w, http.StatusBadRequest, "NAME_REQUIRED")
+		return
+	}
+
+	// Decode into typed struct
+	var req invites.InviteAcceptedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		log.Warn("failed to decode invite-accepted request", "error", err)
+		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
+		return
+	}
+
+	// Spec-required field checks for remaining fields (empty string = missing)
 
 	// 1. Empty/missing recipientProvider
 	if req.RecipientProvider == "" {
@@ -103,17 +133,8 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 5. Empty/missing email (spec: required in AcceptedInvite schema)
-	if req.Email == "" {
-		h.sendOCMError(w, http.StatusBadRequest, "EMAIL_REQUIRED")
-		return
-	}
-
-	// 6. Empty/missing name (spec: required in AcceptedInvite schema)
-	if req.Name == "" {
-		h.sendOCMError(w, http.StatusBadRequest, "NAME_REQUIRED")
-		return
-	}
+	// email and name: key presence already enforced by preflight above.
+	// Empty string values are allowed per spec.
 
 	ctx := r.Context()
 
@@ -132,7 +153,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 9. Already accepted -> 409 INVITE_ALREADY_ACCEPTED (spec-mandated)
-	if invite.Status == InviteStatusAccepted {
+	if invite.Status == invites.InviteStatusAccepted {
 		log.Info("duplicate invite-accepted", "recipient_provider", req.RecipientProvider)
 		h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
 		return
@@ -169,7 +190,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update invite status
-	if err := h.outgoingRepo.UpdateStatus(ctx, invite.ID, InviteStatusAccepted, req.RecipientProvider); err != nil {
+	if err := h.outgoingRepo.UpdateStatus(ctx, invite.ID, invites.InviteStatusAccepted, req.RecipientProvider); err != nil {
 		log.Error("failed to update invite status", "id", invite.ID, "error", err)
 		h.sendOCMError(w, http.StatusInternalServerError, "UPDATE_FAILED")
 		return
@@ -188,10 +209,10 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 
 // buildInviteAcceptedResponse returns the local inviting user's identity for the
 // invite-accepted response. Handles the CreatedByUserID backfill for legacy invites (F5=A).
-func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *OutgoingInvite, log *slog.Logger) InviteAcceptedResponse {
+func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invites.OutgoingInvite, log *slog.Logger) invites.InviteAcceptedResponse {
 	// Legacy invite backfill (F5=A): if CreatedByUserID is empty, return placeholder
 	if invite.CreatedByUserID == "" {
-		return InviteAcceptedResponse{
+		return invites.InviteAcceptedResponse{
 			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
@@ -201,7 +222,7 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *Outgo
 	// Look up the local inviting user
 	if h.partyRepo == nil {
 		log.Error("partyRepo not available for invite-accepted local user lookup")
-		return InviteAcceptedResponse{
+		return invites.InviteAcceptedResponse{
 			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
@@ -212,14 +233,14 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *Outgo
 	if err != nil {
 		log.Error("failed to look up local inviting user",
 			"created_by_user_id", invite.CreatedByUserID, "error", err)
-		return InviteAcceptedResponse{
+		return invites.InviteAcceptedResponse{
 			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
 		}
 	}
 
-	return InviteAcceptedResponse{
+	return invites.InviteAcceptedResponse{
 		UserID: address.FormatOutgoing(localUser.ID, h.providerFQDN),
 		Email:  localUser.Email,
 		Name:   localUser.DisplayName,
@@ -227,7 +248,6 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *Outgo
 }
 
 // sendOCMError sends an OCM-API spec base Error response: {"message":"..."}.
-// Used by OCM protocol endpoints (invite-accepted).
 func (h *Handler) sendOCMError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -235,4 +255,3 @@ func (h *Handler) sendOCMError(w http.ResponseWriter, status int, message string
 		"message": message,
 	})
 }
-

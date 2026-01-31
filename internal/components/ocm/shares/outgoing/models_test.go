@@ -1,17 +1,17 @@
-package shares_test
+package outgoing_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 )
 
 func TestOutgoingShareRepo_CreateAndLookup(t *testing.T) {
-	repo := shares.NewMemoryOutgoingShareRepo()
+	repo := outgoing.NewMemoryOutgoingShareRepo()
 	ctx := context.Background()
 
-	share := &shares.OutgoingShare{
+	share := &outgoing.OutgoingShare{
 		ProviderID:   "provider-123",
 		WebDAVID:     "webdav-456",
 		SharedSecret: "secret",

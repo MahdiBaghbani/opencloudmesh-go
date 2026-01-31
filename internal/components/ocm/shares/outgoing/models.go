@@ -1,4 +1,5 @@
-package shares
+// Package outgoing implements outgoing OCM share types and storage.
+package outgoing
 
 import (
 	"time"

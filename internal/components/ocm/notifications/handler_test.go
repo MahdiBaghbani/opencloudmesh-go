@@ -11,12 +11,12 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 )
 
 func TestHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	handler := notifications.NewHandler(repo, "https://example.com", logger)
 
 	tests := []struct {
@@ -45,7 +45,7 @@ func TestHandler_MissingFields(t *testing.T) {
 
 func TestHandler_InvalidNotificationType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	handler := notifications.NewHandler(repo, "https://example.com", logger)
 
 	body := `{"notificationType":"UNKNOWN_TYPE","resourceType":"file","providerId":"abc"}`
@@ -69,7 +69,7 @@ func TestHandler_InvalidNotificationType(t *testing.T) {
 
 func TestHandler_ShareNotFound(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	handler := notifications.NewHandler(repo, "https://example.com", logger)
 
 	body := `{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"nonexistent"}`
@@ -87,10 +87,10 @@ func TestHandler_ShareNotFound(t *testing.T) {
 
 func TestHandler_SuccessfulNotification(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	repo := shares.NewMemoryOutgoingShareRepo()
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 
 	// Create an outgoing share
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-123",
 		WebDAVID:     "webdav-456",
 		ReceiverHost: "receiver.example.com",

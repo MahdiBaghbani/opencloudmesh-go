@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 // Handler handles the OCM token endpoint.
 type Handler struct {
-	outgoingRepo shares.OutgoingShareRepo
+	outgoingRepo sharesoutgoing.OutgoingShareRepo
 	tokenStore   TokenStore
 	tokenTTL     time.Duration
 	settings     *TokenExchangeSettings
@@ -26,7 +26,7 @@ type Handler struct {
 // NewHandler creates a new token handler with the given settings.
 // Settings must have ApplyDefaults() called before passing (done by cfg.Decode).
 // publicOrigin is used to derive localScheme for scheme-aware client_id comparison.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
 	// Parse localScheme from PublicOrigin (validated at config load time, cannot fail)
 	localScheme := "https"
 	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {

@@ -15,14 +15,14 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"golang.org/x/net/webdav"
 )
 
 // Handler provides WebDAV access to shared files.
 type Handler struct {
-	outgoingRepo    shares.OutgoingShareRepo
+	outgoingRepo    sharesoutgoing.OutgoingShareRepo
 	tokenStore      token.TokenStore
 	settings        *Settings
 	profileRegistry *peercompat.ProfileRegistry
@@ -32,7 +32,7 @@ type Handler struct {
 // NewHandler creates a new WebDAV handler.
 // Settings controls must-exchange-token enforcement behavior.
 // ProfileRegistry enables peer-specific relaxations in lenient mode.
-func NewHandler(outgoingRepo shares.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
 	if settings == nil {
 		settings = &Settings{}
 		settings.ApplyDefaults()
@@ -108,7 +108,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // validateCredential validates the token against the share.
 // Returns (authorized bool, method string) where method is "exchanged_token" or "shared_secret".
 // authSource is the credential source (e.g., "bearer", "basic:token:", "basic:id:token").
-func (h *Handler) validateCredential(ctx context.Context, share *shares.OutgoingShare, token string, authSource string) (bool, string) {
+func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.OutgoingShare, token string, authSource string) (bool, string) {
 	// Try exchanged token first (always valid if found)
 	if h.tokenStore != nil {
 		issuedToken, err := h.tokenStore.Get(ctx, token)
@@ -149,7 +149,7 @@ func (h *Handler) validateCredential(ctx context.Context, share *shares.Outgoing
 
 // getProfileForShare returns the peer profile for a share's receiver.
 // Falls back to the strict profile if no registry is configured.
-func (h *Handler) getProfileForShare(share *shares.OutgoingShare) *peercompat.Profile {
+func (h *Handler) getProfileForShare(share *sharesoutgoing.OutgoingShare) *peercompat.Profile {
 	if h.profileRegistry == nil {
 		return peercompat.BuiltinProfiles()["strict"]
 	}
@@ -157,7 +157,7 @@ func (h *Handler) getProfileForShare(share *shares.OutgoingShare) *peercompat.Pr
 }
 
 // serveFile serves the file at share.LocalPath via WebDAV.
-func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, share *shares.OutgoingShare) {
+func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, share *sharesoutgoing.OutgoingShare) {
 	// Create a file system rooted at the file's parent directory
 	localPath := share.LocalPath
 

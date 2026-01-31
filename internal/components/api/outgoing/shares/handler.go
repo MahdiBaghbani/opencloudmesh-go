@@ -26,6 +26,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -33,7 +34,7 @@ import (
 
 // Handler handles outgoing share creation.
 type Handler struct {
-	repo            shares.OutgoingShareRepo
+	repo            sharesoutgoing.OutgoingShareRepo
 	discoveryClient *discovery.Client
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
@@ -47,7 +48,7 @@ type Handler struct {
 
 // NewHandler creates a new outgoing shares handler.
 func NewHandler(
-	repo shares.OutgoingShareRepo,
+	repo sharesoutgoing.OutgoingShareRepo,
 	discClient *discovery.Client,
 	httpClient httpclient.HTTPClient,
 	signer *crypto.RFC9421Signer,
@@ -90,7 +91,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req shares.OutgoingShareRequest
+	var req sharesoutgoing.OutgoingShareRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.WriteBadRequest(w, api.ReasonBadRequest, "failed to parse request")
 		return
@@ -149,7 +150,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	mustExchangeToken := h.cfg.TokenExchange.Enabled != nil && *h.cfg.TokenExchange.Enabled
 
-	share := &shares.OutgoingShare{
+	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:        providerID.String(),
 		WebDAVID:          webdavID.String(),
 		SharedSecret:      sharedSecret,

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
@@ -26,7 +26,7 @@ func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
@@ -46,7 +46,7 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 func TestNew_AcceptsConfigOptions(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
@@ -74,7 +74,7 @@ func TestNew_AcceptsConfigOptions(t *testing.T) {
 func TestNew_DefaultsToStrictMode(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
@@ -95,7 +95,7 @@ func TestNew_DefaultsToStrictMode(t *testing.T) {
 func TestService_Prefix(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
@@ -115,7 +115,7 @@ func TestService_Prefix(t *testing.T) {
 func TestService_Unprotected(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
@@ -140,7 +140,7 @@ func TestService_Unprotected(t *testing.T) {
 func TestService_Handler(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
@@ -160,7 +160,7 @@ func TestService_Handler(t *testing.T) {
 func TestService_Close(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
@@ -185,7 +185,7 @@ func TestService_Close(t *testing.T) {
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 

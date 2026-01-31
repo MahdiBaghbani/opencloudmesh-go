@@ -1,4 +1,4 @@
-package shares
+package incoming
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 // ValidationError is a spec-aligned field-level validation error.
@@ -24,7 +25,7 @@ type OCMErrorResponse struct {
 // Returns a non-nil slice of ValidationError for each missing field.
 // Does NOT check protocol.name (that is handled by the share handler after
 // computing strictPayloadValidation).
-func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
+func ValidateRequiredFields(req *shares.NewShareRequest) []ValidationError {
 	var errs []ValidationError
 
 	if req.ShareWith == "" {

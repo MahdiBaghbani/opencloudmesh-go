@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
@@ -27,7 +28,7 @@ func setupTestDeps() {
 		UserAuth:    identity.NewUserAuthFast(),
 		// Repos
 		IncomingShareRepo:  shares.NewMemoryIncomingShareRepo(),
-		OutgoingShareRepo:  shares.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo:  sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		OutgoingInviteRepo: invites.NewMemoryOutgoingInviteRepo(),
 		IncomingInviteRepo: invites.NewMemoryIncomingInviteRepo(),
 		TokenStore:         token.NewMemoryTokenStore(),
