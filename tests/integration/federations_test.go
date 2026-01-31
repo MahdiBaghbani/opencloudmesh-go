@@ -73,7 +73,7 @@ max_stale_seconds = 600
 	}
 
 	// With no directory services configured, the array is empty (no listings to show)
-	t.Logf("federation endpoint returned %d federation entries (expected 0 with no DS configured)", len(result))
+	t.Logf("federation endpoint returned %d federation entries (expected 0 with no directory services configured)", len(result))
 }
 
 // TestFederationsEndpointWithoutFederation verifies /ocm-aux/federations works

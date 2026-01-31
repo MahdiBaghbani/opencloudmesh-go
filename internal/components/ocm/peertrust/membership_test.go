@@ -14,7 +14,7 @@ import (
 func TestTrustGroupManager_IsMember(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	// Create manager without DS client (no network calls), scheme=https
+	// Create manager without directory service client (no network calls), scheme=https
 	m := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", logger, 10*time.Second)
 
 	cfg := &peertrust.TrustGroupConfig{

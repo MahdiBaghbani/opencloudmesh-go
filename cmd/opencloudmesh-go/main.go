@@ -200,10 +200,10 @@ func main() {
 		}
 
 		// Create directory service client (uses the safe HTTP client)
-		dsClient := directoryservice.NewClient(rawHTTPClient)
+		dirServiceClient := directoryservice.NewClient(rawHTTPClient)
 
 		// Create trust group manager
-		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dsClient, cfg.PublicScheme(), logger, refreshTimeout)
+		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, cfg.PublicScheme(), logger, refreshTimeout)
 
 		// Load trust group configs from paths (one K2 JSON per file)
 		for _, configPath := range cfg.PeerTrust.ConfigPaths {
