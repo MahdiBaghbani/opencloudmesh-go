@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // Handler handles the OCM token endpoint.
@@ -28,6 +29,8 @@ type Handler struct {
 // Settings must have ApplyDefaults() called before passing (done by cfg.Decode).
 // publicOrigin is used to derive localScheme for scheme-aware client_id comparison.
 func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
+	logger = logutil.NoopIfNil(logger)
+
 	// Parse localScheme from PublicOrigin (validated at config load time, cannot fail)
 	localScheme := "https"
 	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {

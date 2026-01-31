@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 var (
@@ -35,6 +36,7 @@ type TLSManager struct {
 
 // NewTLSManager creates a new TLS manager.
 func NewTLSManager(cfg *config.TLSConfig, logger *slog.Logger) *TLSManager {
+	logger = logutil.NoopIfNil(logger)
 	return &TLSManager{cfg: cfg, logger: logger}
 }
 

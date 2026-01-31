@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // InboxListResponse wraps the share views returned by HandleList.
@@ -36,6 +37,7 @@ func NewHandler(
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
 ) *Handler {
+	log = logutil.NoopIfNil(log)
 	return &Handler{
 		repo:        repo,
 		sender:      sender,

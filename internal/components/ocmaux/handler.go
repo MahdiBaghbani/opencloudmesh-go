@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // AuxHandler serves the /ocm-aux endpoints.
@@ -22,6 +23,7 @@ type AuxHandler struct {
 
 // NewAuxHandler creates a new auxiliary handler.
 func NewAuxHandler(trustGroupMgr *peertrust.TrustGroupManager, discClient *discovery.Client, logger *slog.Logger) *AuxHandler {
+	logger = logutil.NoopIfNil(logger)
 	return &AuxHandler{
 		trustGroupMgr:   trustGroupMgr,
 		discoveryClient: discClient,

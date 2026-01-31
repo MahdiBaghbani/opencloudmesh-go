@@ -9,6 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // AccessLogMiddleware logs request information using slog.
@@ -16,6 +17,8 @@ import (
 // which already has request_id, method, path, client_ip attached.
 // The trustedProxies parameter is the fallback only (used when context logger is missing).
 func AccessLogMiddleware(log *slog.Logger, trustedProxies *realip.TrustedProxies) func(http.Handler) http.Handler {
+	log = logutil.NoopIfNil(log)
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()

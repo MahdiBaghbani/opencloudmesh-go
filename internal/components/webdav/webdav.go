@@ -17,6 +17,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"golang.org/x/net/webdav"
 )
 
@@ -33,6 +34,7 @@ type Handler struct {
 // Settings controls must-exchange-token enforcement behavior.
 // ProfileRegistry enables peer-specific relaxations in lenient mode.
 func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
+	logger = logutil.NoopIfNil(logger)
 	if settings == nil {
 		settings = &Settings{}
 		settings.ApplyDefaults()

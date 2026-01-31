@@ -9,6 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // contextKey is used for storing values in request context.
@@ -61,6 +62,8 @@ type SignatureMiddleware struct {
 // NewSignatureMiddleware creates a new signature verification middleware.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
 func NewSignatureMiddleware(cfg *config.SignatureConfig, pd PeerDiscovery, publicOrigin string, logger *slog.Logger) *SignatureMiddleware {
+	logger = logutil.NoopIfNil(logger)
+
 	var localScheme string
 	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
 		localScheme = u.Scheme

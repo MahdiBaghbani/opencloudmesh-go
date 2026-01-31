@@ -10,6 +10,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // APIVersionOverride allows overriding apiVersion based on User-Agent.
@@ -64,6 +65,7 @@ type ocmHandler struct {
 }
 
 func newOCMHandler(c *OCMProviderConfig, d *deps.Deps, log *slog.Logger) (*ocmHandler, error) {
+	log = logutil.NoopIfNil(log)
 	c.ApplyDefaults()
 
 	// Build static discovery data (Reva pattern: computed once, not at runtime)

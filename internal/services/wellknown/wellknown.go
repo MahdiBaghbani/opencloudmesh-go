@@ -11,8 +11,9 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 func init() {
@@ -36,6 +37,8 @@ type svc struct {
 
 // New creates a new wellknown service. Implements service.NewService.
 func New(m map[string]any, log *slog.Logger) (service.Service, error) {
+	log = logutil.NoopIfNil(log)
+
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {

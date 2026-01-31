@@ -18,6 +18,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // Handler handles OCM invite-accepted protocol endpoint.
@@ -42,6 +43,8 @@ func NewHandler(
 	publicOrigin string,
 	logger *slog.Logger,
 ) *Handler {
+	logger = logutil.NoopIfNil(logger)
+
 	var localScheme string
 	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
 		localScheme = u.Scheme

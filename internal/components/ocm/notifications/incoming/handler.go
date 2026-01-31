@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // Handler handles OCM notification endpoints.
@@ -23,6 +24,8 @@ type Handler struct {
 // NewHandler creates a new notifications handler.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
 func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, publicOrigin string, logger *slog.Logger) *Handler {
+	logger = logutil.NoopIfNil(logger)
+
 	var localScheme string
 	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
 		localScheme = u.Scheme

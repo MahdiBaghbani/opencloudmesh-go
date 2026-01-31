@@ -9,6 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // RequestLoggerMiddleware attaches a request-scoped logger to the request context.
@@ -19,6 +20,8 @@ import (
 // IMPORTANT: This middleware must run AFTER middleware.RequestID so that
 // middleware.GetReqID(r.Context()) returns a non-empty value.
 func RequestLoggerMiddleware(base *slog.Logger, trustedProxies *realip.TrustedProxies) func(http.Handler) http.Handler {
+	base = logutil.NoopIfNil(base)
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			reqID := chimw.GetReqID(r.Context())

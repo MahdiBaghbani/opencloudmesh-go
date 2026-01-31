@@ -16,6 +16,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // Handler handles incoming OCM share endpoints (POST /ocm/shares).
@@ -39,6 +40,7 @@ func NewHandler(
 	inboundMode string,
 	logger *slog.Logger,
 ) *Handler {
+	logger = logutil.NoopIfNil(logger)
 	return &Handler{
 		repo:                        repo,
 		partyRepo:                   partyRepo,

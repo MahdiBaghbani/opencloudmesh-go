@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // SeededUser defines a user to be created at startup.
@@ -29,6 +31,7 @@ type Bootstrap struct {
 
 // NewBootstrap creates a new bootstrap handler.
 func NewBootstrap(repo PartyRepo, auth *UserAuth, log *slog.Logger) *Bootstrap {
+	log = logutil.NoopIfNil(log)
 	return &Bootstrap{
 		repo: repo,
 		auth: auth,

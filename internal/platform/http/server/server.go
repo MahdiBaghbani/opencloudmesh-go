@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 )
@@ -42,6 +43,8 @@ type Server struct {
 // All dependencies are obtained from deps.GetDeps() (SharedDeps).
 // Returns an error if SharedDeps is not initialized.
 func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, ocmSvc service.Service, ocmauxSvc service.Service, apiSvc service.Service, uiSvc service.Service, webdavSvc service.Service) (*Server, error) {
+	logger = logutil.NoopIfNil(logger)
+
 	// Fail fast: SharedDeps must be initialized before server creation
 	d := deps.GetDeps()
 	if d == nil {

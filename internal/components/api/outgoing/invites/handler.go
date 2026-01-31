@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // DefaultInviteTTL is the default time-to-live for invites.
@@ -34,6 +35,7 @@ func NewHandler(
 	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
 ) *Handler {
+	logger = logutil.NoopIfNil(logger)
 	return &Handler{
 		outgoingRepo:  outgoingRepo,
 		localProvider: localProvider,

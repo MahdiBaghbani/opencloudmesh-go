@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 func init() {
@@ -46,6 +47,8 @@ type Limiter struct {
 // New creates a new ratelimit interceptor from the given config.
 // The config should be the profile config from [http.interceptors.ratelimit.profiles.<name>].
 func New(conf map[string]any, log *slog.Logger) (interceptors.Middleware, error) {
+	log = logutil.NoopIfNil(log)
+
 	var c Config
 	if err := svccfg.Decode(conf, &c); err != nil {
 		return nil, err

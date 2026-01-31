@@ -30,6 +30,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // Handler handles outgoing share creation.
@@ -58,6 +59,7 @@ func NewHandler(
 	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
 ) *Handler {
+	logger = logutil.NoopIfNil(logger)
 	return &Handler{
 		repo:            repo,
 		discoveryClient: discClient,

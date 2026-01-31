@@ -10,6 +10,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 type contextKey string
@@ -41,6 +42,8 @@ type AuthGateConfig struct {
 // If RequireAuth returns false for the request path, the request passes through
 // without token parsing, session validation, or context enrichment.
 func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
+	cfg.Log = logutil.NoopIfNil(cfg.Log)
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !cfg.RequireAuth(r.URL.Path) {

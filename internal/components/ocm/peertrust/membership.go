@@ -9,6 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // CacheConfig defines caching behavior for trust group membership.
@@ -60,6 +61,7 @@ func NewTrustGroupManager(
 	logger *slog.Logger,
 	refreshTimeout time.Duration,
 ) *TrustGroupManager {
+	logger = logutil.NoopIfNil(logger)
 	if refreshTimeout <= 0 {
 		refreshTimeout = 10 * time.Second
 	}

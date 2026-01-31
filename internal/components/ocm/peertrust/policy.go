@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // PolicyDecision represents the result of a policy check.
@@ -25,6 +27,7 @@ type PolicyEngine struct {
 
 // NewPolicyEngine creates a new policy engine.
 func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger *slog.Logger) *PolicyEngine {
+	logger = logutil.NoopIfNil(logger)
 	return &PolicyEngine{
 		cfg:           cfg,
 		trustGroupMgr: trustGroupMgr,

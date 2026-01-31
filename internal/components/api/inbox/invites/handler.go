@@ -22,6 +22,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // InboxListResponse wraps the invite views returned by HandleList.
@@ -65,6 +66,7 @@ func NewHandler(
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
 ) *Handler {
+	log = logutil.NoopIfNil(log)
 	return &Handler{
 		incomingRepo:    incomingRepo,
 		httpClient:      httpClient,
