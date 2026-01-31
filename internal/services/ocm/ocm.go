@@ -12,10 +12,10 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
+	notifincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
@@ -27,7 +27,7 @@ func init() {
 
 // Config holds OCM service configuration.
 type Config struct {
-	TokenExchange token.TokenExchangeSettings `mapstructure:"token_exchange"`
+	TokenExchange tokenincoming.TokenExchangeSettings `mapstructure:"token_exchange"`
 }
 
 // ApplyDefaults sets default values for unset fields.
@@ -42,7 +42,7 @@ type Service struct {
 	router        chi.Router
 	conf          *Config
 	log           *slog.Logger
-	tokenSettings *token.TokenExchangeSettings // kept for Unprotected() computation
+	tokenSettings *tokenincoming.TokenExchangeSettings // kept for Unprotected() computation
 }
 
 // New creates a new OCM protocol service.
@@ -76,9 +76,9 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.Config.Signature.InboundMode,
 		log,
 	)
-	notifHandler := notifications.NewHandler(d.OutgoingShareRepo, d.Config.PublicOrigin, log)
+	notifHandler := notifincoming.NewHandler(d.OutgoingShareRepo, d.Config.PublicOrigin, log)
 	invitesHandler := invitesincoming.NewHandler(d.OutgoingInviteRepo, d.PartyRepo, d.PolicyEngine, d.LocalProviderFQDN, d.Config.PublicOrigin, log)
-	tokenHandler := token.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, d.Config.PublicOrigin, log)
+	tokenHandler := tokenincoming.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, d.Config.PublicOrigin, log)
 
 	// Create peer resolver for signature verification (service-local, per-endpoint extraction)
 	peerResolver := peer.NewResolver()

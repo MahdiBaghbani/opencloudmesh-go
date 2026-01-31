@@ -16,7 +16,7 @@ import (
 	outgoinginvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/invites"
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
+	notifoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
@@ -81,7 +81,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	}
 
 	// Create notification client for outbound notifications
-	notificationClient := notifications.NewClient(
+	notificationClient := notifoutgoing.NewClient(
 		d.HTTPClient,
 		d.DiscoveryClient,
 		d.Signer,

@@ -1,4 +1,4 @@
-package token
+package incoming
 
 import (
 	"encoding/json"
@@ -8,15 +8,16 @@ import (
 	"strings"
 	"time"
 
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 // Handler handles the OCM token endpoint.
 type Handler struct {
-	outgoingRepo sharesoutgoing.OutgoingShareRepo
-	tokenStore   TokenStore
+	outgoingRepo outgoing.OutgoingShareRepo
+	tokenStore   token.TokenStore
 	tokenTTL     time.Duration
 	settings     *TokenExchangeSettings
 	logger       *slog.Logger
@@ -26,7 +27,7 @@ type Handler struct {
 // NewHandler creates a new token handler with the given settings.
 // Settings must have ApplyDefaults() called before passing (done by cfg.Decode).
 // publicOrigin is used to derive localScheme for scheme-aware client_id comparison.
-func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
 	// Parse localScheme from PublicOrigin (validated at config load time, cannot fail)
 	localScheme := "https"
 	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
@@ -36,7 +37,7 @@ func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore TokenS
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		tokenStore:   tokenStore,
-		tokenTTL:     DefaultTokenTTL,
+		tokenTTL:     token.DefaultTokenTTL,
 		settings:     settings,
 		logger:       logger,
 		localScheme:  localScheme,
@@ -60,19 +61,19 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	log := appctx.GetLogger(r.Context())
 
 	// Parse request - support both form-urlencoded (spec) and JSON (Nextcloud interop)
-	var req TokenRequest
+	var req token.TokenRequest
 	ct := r.Header.Get("Content-Type")
 
 	if strings.HasPrefix(ct, "application/json") {
 		// Nextcloud interop: JSON body
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "failed to parse JSON body")
+			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse JSON body")
 			return
 		}
 	} else {
 		// Spec: form-urlencoded
 		if err := r.ParseForm(); err != nil {
-			h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "failed to parse form body")
+			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse form body")
 			return
 		}
 		req.GrantType = r.FormValue("grant_type")
@@ -82,19 +83,19 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	// Validate required fields
 	if req.GrantType == "" {
-		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "grant_type is required")
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "grant_type is required")
 		return
 	}
-	if req.GrantType != GrantTypeOCMShare {
-		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidGrant, "unsupported grant_type")
+	if req.GrantType != token.GrantTypeOCMShare {
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidGrant, "unsupported grant_type")
 		return
 	}
 	if req.ClientID == "" {
-		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "client_id is required")
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "client_id is required")
 		return
 	}
 	if req.Code == "" {
-		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidRequest, "code is required")
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "code is required")
 		return
 	}
 
@@ -103,7 +104,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	// Check that the outgoing repo is configured
 	if h.outgoingRepo == nil {
 		log.Error("token exchange attempted but outgoing share repo not configured")
-		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token exchange not available")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token exchange not available")
 		return
 	}
 
@@ -113,7 +114,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Note: Do not log the code (secret). Only log client_id for correlation.
 		log.Warn("token exchange for unknown secret", "client_id", req.ClientID)
-		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidGrant, "invalid code")
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidGrant, "invalid code")
 		return
 	}
 
@@ -135,21 +136,21 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		log.Warn("token exchange client mismatch",
 			"expected", share.ReceiverHost,
 			"got", req.ClientID)
-		h.sendOAuthError(w, http.StatusBadRequest, ErrorInvalidClient, "client_id mismatch")
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidClient, "client_id mismatch")
 		return
 	}
 
 	// Generate access token
-	accessToken, err := GenerateAccessToken()
+	accessToken, err := token.GenerateAccessToken()
 	if err != nil {
 		log.Error("failed to generate access token", "error", err)
-		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token generation failed")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token generation failed")
 		return
 	}
 
 	// Store the token
 	now := time.Now()
-	issuedToken := &IssuedToken{
+	issuedToken := &token.IssuedToken{
 		AccessToken: accessToken,
 		ShareID:     share.ShareID,
 		ClientID:    req.ClientID,
@@ -159,7 +160,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.tokenStore.Store(ctx, issuedToken); err != nil {
 		log.Error("failed to store token", "error", err)
-		h.sendOAuthError(w, http.StatusInternalServerError, ErrorInvalidRequest, "token storage failed")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token storage failed")
 		return
 	}
 
@@ -170,7 +171,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		"expires_in", int(h.tokenTTL.Seconds()))
 
 	// Return token response
-	resp := TokenResponse{
+	resp := token.TokenResponse{
 		AccessToken: accessToken,
 		TokenType:   "Bearer",
 		ExpiresIn:   int(h.tokenTTL.Seconds()),
@@ -186,7 +187,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) sendOAuthError(w http.ResponseWriter, status int, errCode, errDesc string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(OAuthError{
+	json.NewEncoder(w).Encode(token.OAuthError{
 		Error:            errCode,
 		ErrorDescription: errDesc,
 	})

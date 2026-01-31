@@ -1,4 +1,4 @@
-package notifications
+package incoming
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -45,7 +46,7 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 	log := appctx.GetLogger(r.Context())
 
 	// Parse request body
-	var req NewNotification
+	var req notifications.NewNotification
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Warn("failed to parse notification request", "error", err)
 		h.sendError(w, http.StatusBadRequest, "invalid_json", "failed to parse request body")
@@ -57,7 +58,7 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 		h.sendError(w, http.StatusBadRequest, "missing_field", "notificationType is required")
 		return
 	}
-	if !IsValidNotificationType(req.NotificationType) {
+	if !notifications.IsValidNotificationType(req.NotificationType) {
 		h.sendError(w, http.StatusBadRequest, "invalid_notification_type", "unsupported notification type")
 		return
 	}
@@ -112,22 +113,19 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 
 	// Process the notification
 	switch req.NotificationType {
-	case NotificationShareAccepted:
+	case notifications.NotificationShareAccepted:
 		log.Info("share accepted notification",
 			"provider_id", req.ProviderID,
 			"share_id", share.ShareID,
 			"receiver", share.ReceiverHost)
-		// Update share status (in a real implementation, would update persistence)
-		// For now, just log the acceptance
 
-	case NotificationShareDeclined:
+	case notifications.NotificationShareDeclined:
 		log.Info("share declined notification",
 			"provider_id", req.ProviderID,
 			"share_id", share.ShareID,
 			"receiver", share.ReceiverHost)
-		// Update share status
 
-	case NotificationShareUnshared:
+	case notifications.NotificationShareUnshared:
 		log.Info("share unshared notification",
 			"provider_id", req.ProviderID,
 			"share_id", share.ShareID,

@@ -1,4 +1,4 @@
-package token_test
+package incoming_test
 
 import (
 	"bytes"
@@ -14,11 +14,12 @@ import (
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 )
 
 // enabledSettings returns token exchange settings with enabled=true for testing.
-func enabledSettings() *token.TokenExchangeSettings {
-	s := &token.TokenExchangeSettings{Enabled: true}
+func enabledSettings() *tokenincoming.TokenExchangeSettings {
+	s := &tokenincoming.TokenExchangeSettings{Enabled: true}
 	s.ApplyDefaults()
 	return s
 }
@@ -27,7 +28,7 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -84,7 +85,7 @@ func TestHandler_JSON_NextcloudInterop(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -123,7 +124,7 @@ func TestHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	tests := []struct {
 		name string
@@ -159,7 +160,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "password")
@@ -187,7 +188,7 @@ func TestHandler_InvalidCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "ocm_share")
@@ -215,7 +216,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -348,7 +349,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := token.NewHandler(shareRepo, tokenStore, enabledSettings(), tt.publicOrigin, logger)
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), tt.publicOrigin, logger)
 
 			share := &sharesoutgoing.OutgoingShare{
 				ProviderID:   "provider-port-test",
@@ -389,9 +390,9 @@ func TestHandler_DisabledReturns501(t *testing.T) {
 	tokenStore := token.NewMemoryTokenStore()
 
 	// Create handler with token exchange disabled
-	disabledSettings := &token.TokenExchangeSettings{Enabled: false}
+	disabledSettings := &tokenincoming.TokenExchangeSettings{Enabled: false}
 	disabledSettings.ApplyDefaults()
-	handler := token.NewHandler(shareRepo, tokenStore, disabledSettings, "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, disabledSettings, "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "ocm_share")

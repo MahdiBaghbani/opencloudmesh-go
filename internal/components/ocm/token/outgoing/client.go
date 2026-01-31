@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
 
-package token
+package outgoing
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
@@ -31,21 +32,6 @@ type RequestSigner interface {
 	Sign(req *http.Request) error
 }
 
-// NewClient creates a new token exchange client.
-func NewClient(
-	httpClient *httpclient.ContextClient,
-	signer RequestSigner,
-	outboundPolicy *outboundsigning.OutboundPolicy,
-	myClientID string,
-) *Client {
-	return &Client{
-		httpClient:     httpClient,
-		signer:         signer,
-		outboundPolicy: outboundPolicy,
-		myClientID:     myClientID,
-	}
-}
-
 // ExchangeRequest contains parameters for a token exchange.
 type ExchangeRequest struct {
 	TokenEndPoint string // The peer's tokenEndPoint from discovery
@@ -59,6 +45,21 @@ type ExchangeResult struct {
 	TokenType    string
 	ExpiresIn    int
 	QuirkApplied string // Name of quirk applied, if any
+}
+
+// NewClient creates a new token exchange client.
+func NewClient(
+	httpClient *httpclient.ContextClient,
+	signer RequestSigner,
+	outboundPolicy *outboundsigning.OutboundPolicy,
+	myClientID string,
+) *Client {
+	return &Client{
+		httpClient:     httpClient,
+		signer:         signer,
+		outboundPolicy: outboundPolicy,
+		myClientID:     myClientID,
+	}
 }
 
 // Exchange performs a token exchange with the peer.
@@ -197,7 +198,7 @@ func (c *Client) exchangeJSON(ctx context.Context, req ExchangeRequest, signed b
 // buildFormRequest builds a form-urlencoded token request.
 func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest) (*http.Request, error) {
 	form := url.Values{}
-	form.Set("grant_type", GrantTypeOCMShare)
+	form.Set("grant_type", token.GrantTypeOCMShare)
 	form.Set("client_id", c.myClientID)
 	form.Set("code", req.SharedSecret)
 
@@ -219,8 +220,8 @@ func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest) (*ht
 
 // buildJSONRequest builds a JSON-body token request (Nextcloud quirk).
 func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest) (*http.Request, error) {
-	body := TokenRequest{
-		GrantType: GrantTypeOCMShare,
+	body := token.TokenRequest{
+		GrantType: token.GrantTypeOCMShare,
 		ClientID:  c.myClientID,
 		Code:      req.SharedSecret,
 	}
@@ -269,7 +270,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 
 	// Check for error response
 	if resp.StatusCode >= 400 {
-		var oauthErr OAuthError
+		var oauthErr token.OAuthError
 		if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
 			return nil, c.classifyOAuthError(oauthErr, resp.StatusCode)
 		}
@@ -281,7 +282,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 	}
 
 	// Parse success response
-	var tokenResp TokenResponse
+	var tokenResp token.TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, peercompat.NewClassifiedError(
 			peercompat.ReasonTokenInvalidFormat,
@@ -298,14 +299,14 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 }
 
 // classifyOAuthError maps OAuth error codes to reason codes.
-func (c *Client) classifyOAuthError(oauthErr OAuthError, statusCode int) error {
+func (c *Client) classifyOAuthError(oauthErr token.OAuthError, statusCode int) error {
 	var reasonCode string
 	switch oauthErr.Error {
-	case ErrorInvalidGrant:
+	case token.ErrorInvalidGrant:
 		reasonCode = peercompat.ReasonTokenExchangeFailed
-	case ErrorInvalidClient:
+	case token.ErrorInvalidClient:
 		reasonCode = peercompat.ReasonTokenExchangeFailed
-	case ErrorUnauthorized:
+	case token.ErrorUnauthorized:
 		reasonCode = peercompat.ReasonSignatureRequired
 	default:
 		reasonCode = peercompat.ReasonTokenExchangeFailed

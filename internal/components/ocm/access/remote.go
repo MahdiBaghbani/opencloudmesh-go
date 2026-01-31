@@ -13,7 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 )
 
 // Share status constants (duplicated to avoid cycle).
@@ -44,14 +44,14 @@ type ShareInfo struct {
 type Client struct {
 	httpClient      *httpclient.ContextClient
 	discoveryClient *discovery.Client
-	tokenClient     *token.Client
+	tokenClient     *tokenoutgoing.Client
 }
 
 // NewClient creates a new remote access client.
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	discoveryClient *discovery.Client,
-	tokenClient *token.Client,
+	tokenClient *tokenoutgoing.Client,
 ) *Client {
 	return &Client{
 		httpClient:      httpClient,
@@ -132,7 +132,7 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		}
 
 		// Perform token exchange
-		result, err := c.tokenClient.Exchange(ctx, token.ExchangeRequest{
+		result, err := c.tokenClient.Exchange(ctx, tokenoutgoing.ExchangeRequest{
 			TokenEndPoint: disc.TokenEndPoint,
 			PeerDomain:    share.SenderHost,
 			SharedSecret:  share.SharedSecret,

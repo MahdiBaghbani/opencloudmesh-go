@@ -1,4 +1,4 @@
-package notifications
+package outgoing
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -39,7 +40,7 @@ func NewClient(
 }
 
 // SendNotification sends a notification to a remote server.
-func (c *Client) SendNotification(ctx context.Context, targetHost string, notification *NewNotification) error {
+func (c *Client) SendNotification(ctx context.Context, targetHost string, notification *notifications.NewNotification) error {
 	// Check if discovery client is available
 	if c.discoveryClient == nil {
 		return fmt.Errorf("discovery client not configured, cannot send notification to %s", targetHost)
@@ -111,8 +112,8 @@ func (c *Client) SendNotification(ctx context.Context, targetHost string, notifi
 
 // SendShareAccepted sends a SHARE_ACCEPTED notification.
 func (c *Client) SendShareAccepted(ctx context.Context, targetHost, providerID, resourceType string) error {
-	return c.SendNotification(ctx, targetHost, &NewNotification{
-		NotificationType: NotificationShareAccepted,
+	return c.SendNotification(ctx, targetHost, &notifications.NewNotification{
+		NotificationType: notifications.NotificationShareAccepted,
 		ResourceType:     resourceType,
 		ProviderID:       providerID,
 	})
@@ -120,8 +121,8 @@ func (c *Client) SendShareAccepted(ctx context.Context, targetHost, providerID, 
 
 // SendShareDeclined sends a SHARE_DECLINED notification.
 func (c *Client) SendShareDeclined(ctx context.Context, targetHost, providerID, resourceType string) error {
-	return c.SendNotification(ctx, targetHost, &NewNotification{
-		NotificationType: NotificationShareDeclined,
+	return c.SendNotification(ctx, targetHost, &notifications.NewNotification{
+		NotificationType: notifications.NotificationShareDeclined,
 		ResourceType:     resourceType,
 		ProviderID:       providerID,
 	})

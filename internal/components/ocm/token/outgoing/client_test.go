@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
 
-package token_test
+package outgoing_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -72,14 +73,14 @@ func TestClient_Exchange_Success(t *testing.T) {
 		SSRFMode: "off",
 	}))
 
-	client := token.NewClient(
+	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
 		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 
-	result, err := client.Exchange(context.Background(), token.ExchangeRequest{
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		PeerDomain:    "peer.example.com",
 		SharedSecret:  "test-secret",
@@ -121,14 +122,14 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 	}))
 
 	// OutboundMode "off" should skip signing
-	client := token.NewClient(
+	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
 		makePolicy("off", nil),
 		"my-instance.example.com",
 	)
 
-	result, err := client.Exchange(context.Background(), token.ExchangeRequest{
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		PeerDomain:    "peer.example.com",
 		SharedSecret:  "test-secret",
@@ -169,14 +170,14 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 	}))
 
 	// Strict mode with working signer should succeed
-	client := token.NewClient(
+	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
 		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 
-	result, err := client.Exchange(context.Background(), token.ExchangeRequest{
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		PeerDomain:    "peer.example.com",
 		SharedSecret:  "test-secret",
@@ -212,14 +213,14 @@ func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
 	}))
 
 	// token-only should sign token exchange
-	client := token.NewClient(
+	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
 		makePolicy("token-only", nil),
 		"my-instance.example.com",
 	)
 
-	result, err := client.Exchange(context.Background(), token.ExchangeRequest{
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		PeerDomain:    "peer.example.com",
 		SharedSecret:  "test-secret",
@@ -254,14 +255,14 @@ func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
 		SSRFMode: "off",
 	}))
 
-	client := token.NewClient(
+	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
 		makePolicy("criteria-only", nil),
 		"my-instance.example.com",
 	)
 
-	result, err := client.Exchange(context.Background(), token.ExchangeRequest{
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		PeerDomain:    "peer.example.com",
 		SharedSecret:  "test-secret",
@@ -304,14 +305,14 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
 
 	// With accept_plain_token quirk, OutboundPolicy tells us to skip signing
-	client := token.NewClient(
+	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
 		makePolicy("criteria-only", profileRegistry),
 		"my-instance.example.com",
 	)
 
-	result, err := client.Exchange(context.Background(), token.ExchangeRequest{
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		PeerDomain:    "nextcloud.example.com",
 		SharedSecret:  "test-secret",
@@ -342,14 +343,14 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 		SSRFMode: "off",
 	}))
 
-	client := token.NewClient(
+	client := tokenoutgoing.NewClient(
 		httpClient,
 		nil,
 		makePolicy("off", nil),
 		"my-instance.example.com",
 	)
 
-	_, err := client.Exchange(context.Background(), token.ExchangeRequest{
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		PeerDomain:    "peer.example.com",
 		SharedSecret:  "bad-secret",
