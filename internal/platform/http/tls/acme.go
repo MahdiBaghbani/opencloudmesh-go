@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge/http01"
@@ -54,6 +55,7 @@ type ACMEManager struct {
 
 // NewACMEManager creates a new ACME certificate manager.
 func NewACMEManager(cfg *config.ACMEConfig, challengePort int, logger *slog.Logger) *ACMEManager {
+	logger = logutil.NoopIfNil(logger)
 	return &ACMEManager{
 		cfg:           cfg,
 		logger:        logger,
