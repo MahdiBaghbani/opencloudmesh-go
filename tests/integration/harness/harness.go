@@ -8,6 +8,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -153,6 +155,29 @@ func StartTestServer(t *testing.T) *TestServer {
 		// KeyManager is nil (no signatures in basic tests)
 	})
 
+	// Validate [http.services.*] keys (mirrors main.go fail-fast)
+	if cfg.HTTP.Services != nil {
+		allowed := service.RegisteredServices()
+		allowedSet := make(map[string]struct{}, len(allowed))
+		for _, name := range allowed {
+			allowedSet[name] = struct{}{}
+		}
+
+		var unknown []string
+		for name := range cfg.HTTP.Services {
+			if _, ok := allowedSet[name]; !ok {
+				unknown = append(unknown, name)
+			}
+		}
+		if len(unknown) > 0 {
+			sort.Strings(unknown)
+			sort.Strings(allowed)
+			os.RemoveAll(tempDir)
+			t.Fatalf("unknown service names in [http.services]: %s (allowed: %s)",
+				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
+		}
+	}
+
 	// Build wellknown service config using config helpers
 	wellknownConfig := cfg.BuildWellknownServiceConfig()
 
@@ -249,8 +274,16 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to create webdav service: %v", err)
 	}
 
-	// Create server (all dependencies come from SharedDeps)
-	srv, err := server.New(cfg, logger, wellknownSvc, ocmSvc, ocmauxSvc, apiSvc, uiSvc, webdavSvc)
+	// Build service map and create server (all dependencies come from SharedDeps)
+	services := map[string]service.Service{
+		"wellknown": wellknownSvc,
+		"ocm":       ocmSvc,
+		"ocmaux":    ocmauxSvc,
+		"api":       apiSvc,
+		"ui":        uiSvc,
+		"webdav":    webdavSvc,
+	}
+	srv, err := server.New(cfg, logger, services)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)

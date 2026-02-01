@@ -145,7 +145,7 @@ func (s *Server) setupRoutes() chi.Router {
 	}))
 
 	// Mount wellknown service at root (Reva-aligned)
-	s.mountService(r, s.wellknownSvc, true)
+	s.mountService(r, s.services["wellknown"], true)
 
 	// Mount app endpoints under external_base_path
 	if s.cfg.ExternalBasePath != "" {
@@ -160,19 +160,9 @@ func (s *Server) setupRoutes() chi.Router {
 }
 
 // mountAppEndpoints mounts app endpoints (may be under base path).
+// Mount order matters for Chi route matching; keep it stable.
 func (s *Server) mountAppEndpoints(r chi.Router) {
-	// OCM API endpoints - signature middleware is applied internally by the OCM service (Reva-aligned)
-	s.mountService(r, s.ocmSvc, false)
-
-	// OCM auxiliary endpoints (WAYF helpers)
-	s.mountService(r, s.ocmauxSvc, false)
-
-	// API endpoints
-	s.mountService(r, s.apiSvc, false)
-
-	// UI endpoints
-	s.mountService(r, s.uiSvc, false)
-
-	// WebDAV endpoints
-	s.mountService(r, s.webdavSvc, false)
+	for _, name := range []string{"ocm", "ocmaux", "api", "ui", "webdav"} {
+		s.mountService(r, s.services[name], false)
+	}
 }

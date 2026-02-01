@@ -54,7 +54,7 @@ func TestNew_FailsWithNilSharedDeps(t *testing.T) {
 	deps.ResetDeps()
 	defer deps.ResetDeps()
 
-	_, err := New(cfg, logger, nil, nil, nil, nil, nil, nil)
+	_, err := New(cfg, logger, nil)
 	if err == nil {
 		t.Fatal("expected error for nil SharedDeps")
 	}
@@ -70,7 +70,7 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 	cleanup := setupTestSharedDeps(t)
 	defer cleanup()
 
-	srv, err := New(cfg, logger, nil, nil, nil, nil, nil, nil) // nil services acceptable for tests
+	srv, err := New(cfg, logger, nil) // nil service map acceptable for tests
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
@@ -94,9 +94,12 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 	svc2 := &trackingService{name: "svc2", prefix: "svc2", closeOrder: &closeOrder}
 	svc3 := &trackingService{name: "svc3", prefix: "svc3", closeOrder: &closeOrder}
 
-	// Create server with services
-	// wellknown=nil, ocm=nil, ocmaux=svc1, api=svc2, ui=svc3, webdav=nil
-	srv, err := New(cfg, logger, nil, nil, svc1, svc2, svc3, nil)
+	// Create server with services in map (mount order: ocmaux, api, ui)
+	srv, err := New(cfg, logger, map[string]service.Service{
+		"ocmaux": svc1,
+		"api":    svc2,
+		"ui":     svc3,
+	})
 	if err != nil {
 		t.Fatalf("failed to create server: %v", err)
 	}
@@ -134,7 +137,7 @@ func TestACME_FailFast(t *testing.T) {
 	cleanup := setupTestSharedDeps(t)
 	defer cleanup()
 
-	srv, err := New(cfg, logger, nil, nil, nil, nil, nil, nil)
+	srv, err := New(cfg, logger, nil)
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}

@@ -23,16 +23,11 @@ var ErrMissingSharedDeps = errors.New("shared deps not initialized: call deps.Se
 
 // Server wraps the HTTP server and its dependencies.
 type Server struct {
-	cfg          *config.Config
-	httpServer   *http.Server
-	logger       *slog.Logger
-	wellknownSvc service.Service // Reva-aligned wellknown service for discovery
-	ocmSvc       service.Service // Reva-aligned OCM protocol service
-	ocmauxSvc    service.Service // Reva-aligned ocm-aux service for WAYF helpers
-	apiSvc       service.Service // Reva-aligned API service for /api/* endpoints
-	uiSvc        service.Service // Reva-aligned UI service for /ui/* endpoints
-	webdavSvc    service.Service // Reva-aligned WebDAV service for /webdav/* endpoints
-	signer       *crypto.RFC9421Signer
+	cfg        *config.Config
+	httpServer *http.Server
+	logger     *slog.Logger
+	services   map[string]service.Service // keyed by service name (wellknown, ocm, ...)
+	signer     *crypto.RFC9421Signer
 
 	// mountedServices tracks services for lifecycle management (Close on shutdown).
 	// Stored in mount order; closed in reverse order during shutdown.
@@ -40,9 +35,10 @@ type Server struct {
 }
 
 // New creates a new Server with the given configuration.
+// Services are passed as a name->service map; nil entries are safe (skipped at mount time).
 // All dependencies are obtained from deps.GetDeps() (SharedDeps).
 // Returns an error if SharedDeps is not initialized.
-func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, ocmSvc service.Service, ocmauxSvc service.Service, apiSvc service.Service, uiSvc service.Service, webdavSvc service.Service) (*Server, error) {
+func New(cfg *config.Config, logger *slog.Logger, services map[string]service.Service) (*Server, error) {
 	logger = logutil.NoopIfNil(logger)
 
 	// Fail fast: SharedDeps must be initialized before server creation
@@ -58,15 +54,10 @@ func New(cfg *config.Config, logger *slog.Logger, wellknownSvc service.Service, 
 	}
 
 	s := &Server{
-		cfg:          cfg,
-		logger:       logger,
-		wellknownSvc: wellknownSvc,
-		ocmSvc:       ocmSvc,
-		ocmauxSvc:    ocmauxSvc,
-		apiSvc:       apiSvc,
-		uiSvc:        uiSvc,
-		webdavSvc:    webdavSvc,
-		signer:       signer,
+		cfg:      cfg,
+		logger:   logger,
+		services: services,
+		signer:   signer,
 	}
 
 	router := s.setupRoutes()

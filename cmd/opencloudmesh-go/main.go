@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -328,8 +330,31 @@ func main() {
 		RealIP: realIPExtractor,
 	})
 
-	// Build service configs using config helpers (Reva-aligned)
-	// The service constructors decode via svccfg.Decode + ApplyDefaults
+	// Validate that all [http.services.*] keys in TOML refer to known services.
+	// Unknown keys fail fast so typos don't silently disable functionality.
+	if cfg.HTTP.Services != nil {
+		allowed := service.RegisteredServices()
+		allowedSet := make(map[string]struct{}, len(allowed))
+		for _, name := range allowed {
+			allowedSet[name] = struct{}{}
+		}
+
+		var unknown []string
+		for name := range cfg.HTTP.Services {
+			if _, ok := allowedSet[name]; !ok {
+				unknown = append(unknown, name)
+			}
+		}
+		if len(unknown) > 0 {
+			sort.Strings(unknown)
+			sort.Strings(allowed)
+			logger.Error("unknown service names in [http.services]",
+				"unknown", strings.Join(unknown, ", "),
+				"allowed", strings.Join(allowed, ", "),
+			)
+			os.Exit(1)
+		}
+	}
 
 	// Construct wellknown service from registry
 	wellknownConfig := cfg.BuildWellknownServiceConfig()
@@ -423,8 +448,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create and start server (all dependencies come from SharedDeps)
-	srv, err := server.New(cfg, logger, wellknownSvc, ocmSvc, ocmauxSvc, apiSvc, uiSvc, webdavSvc)
+	// Build service map and create server (all dependencies come from SharedDeps)
+	services := map[string]service.Service{
+		"wellknown": wellknownSvc,
+		"ocm":       ocmSvc,
+		"ocmaux":    ocmauxSvc,
+		"api":       apiSvc,
+		"ui":        uiSvc,
+		"webdav":    webdavSvc,
+	}
+	srv, err := server.New(cfg, logger, services)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)

@@ -5,6 +5,12 @@ import (
 	"sync"
 )
 
+// CoreServices lists service names that are always constructed regardless of
+// whether [http.services.<name>] appears in TOML. Today all registered
+// services are core; the variable exists so future optional services can
+// register without being added here.
+var CoreServices = []string{"wellknown", "ocm", "ocmaux", "api", "ui", "webdav"}
+
 var (
 	registryMu sync.RWMutex
 	registry   = make(map[string]NewService)
