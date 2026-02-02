@@ -20,17 +20,11 @@ func init() {
 	service.MustRegister("webdav", New)
 }
 
-// Config holds webdav service configuration.
-type Config struct {
-	WebDAVTokenExchangeMode string `mapstructure:"webdav_token_exchange_mode"`
-}
+// Config holds webdav service configuration (service-local knobs only).
+type Config struct{}
 
 // ApplyDefaults implements cfg.Setter.
-func (c *Config) ApplyDefaults() {
-	if c.WebDAVTokenExchangeMode == "" {
-		c.WebDAVTokenExchangeMode = "strict"
-	}
-}
+func (c *Config) ApplyDefaults() {}
 
 // Service is the WebDAV service.
 type Service struct {
@@ -58,9 +52,13 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized")
 	}
 
-	// Create WebDAV settings
+	// Derive webdav token exchange mode from global config
+	mode := ""
+	if d.Config != nil {
+		mode = d.Config.WebDAVTokenExchange.Mode
+	}
 	settings := &webdav.Settings{
-		WebDAVTokenExchangeMode: c.WebDAVTokenExchangeMode,
+		WebDAVTokenExchangeMode: mode,
 	}
 	settings.ApplyDefaults()
 

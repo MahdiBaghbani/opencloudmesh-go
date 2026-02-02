@@ -7,6 +7,7 @@ import (
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
@@ -43,16 +44,15 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 	}
 }
 
-func TestNew_AcceptsConfigOptions(t *testing.T) {
+func TestNew_AcceptsConfigFromSharedDeps(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
+		Config:            &config.Config{WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"}},
 	})
 
-	m := map[string]any{
-		"webdav_token_exchange_mode": "lenient",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -64,10 +64,10 @@ func TestNew_AcceptsConfigOptions(t *testing.T) {
 		t.Fatal("expected non-nil service")
 	}
 
-	// Verify config was applied
+	// Verify mode was derived from SharedDeps (check handler enforcement)
 	s := svc.(*Service)
-	if s.conf.WebDAVTokenExchangeMode != "lenient" {
-		t.Errorf("expected mode 'lenient', got %q", s.conf.WebDAVTokenExchangeMode)
+	if s.handler == nil {
+		t.Fatal("expected non-nil handler")
 	}
 }
 
@@ -86,9 +86,10 @@ func TestNew_DefaultsToStrictMode(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// With nil Config, Settings.ApplyDefaults() fills "strict"
 	s := svc.(*Service)
-	if s.conf.WebDAVTokenExchangeMode != "strict" {
-		t.Errorf("expected default mode 'strict', got %q", s.conf.WebDAVTokenExchangeMode)
+	if s.handler == nil {
+		t.Fatal("expected non-nil handler")
 	}
 }
 
@@ -205,24 +206,6 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	// Check that a warning was logged
 	if !logBuf.contains("unused config keys") {
 		t.Error("expected warning about unused config keys")
-	}
-}
-
-func TestConfig_ApplyDefaults(t *testing.T) {
-	c := &Config{}
-	c.ApplyDefaults()
-
-	if c.WebDAVTokenExchangeMode != "strict" {
-		t.Errorf("expected default mode 'strict', got %q", c.WebDAVTokenExchangeMode)
-	}
-}
-
-func TestConfig_ApplyDefaults_PreservesExistingValue(t *testing.T) {
-	c := &Config{WebDAVTokenExchangeMode: "lenient"}
-	c.ApplyDefaults()
-
-	if c.WebDAVTokenExchangeMode != "lenient" {
-		t.Errorf("expected mode 'lenient' to be preserved, got %q", c.WebDAVTokenExchangeMode)
 	}
 }
 

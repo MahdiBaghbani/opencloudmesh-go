@@ -2,13 +2,13 @@ package wellknown
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"log/slog"
-
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -42,19 +42,15 @@ type OCMProviderConfig struct {
 	APIVersionOverrides []APIVersionOverride `mapstructure:"api_version_overrides"`
 }
 
-// ApplyDefaults sets default values for unset fields.
+// ApplyDefaults sets default values for service-local fields only.
+// Cross-cutting fields (endpoint, webdav_root, token_exchange, etc.) are
+// derived from SharedDeps in newOCMHandler().
 func (c *OCMProviderConfig) ApplyDefaults() {
 	if c.OCMPrefix == "" {
 		c.OCMPrefix = "ocm"
 	}
 	if c.Provider == "" {
 		c.Provider = "OpenCloudMesh"
-	}
-	if c.WebDAVRoot == "" {
-		c.WebDAVRoot = "/webdav/ocm/"
-	}
-	if c.TokenExchange.Path == "" {
-		c.TokenExchange.Path = "token"
 	}
 }
 
@@ -64,9 +60,59 @@ type ocmHandler struct {
 	log       *slog.Logger
 }
 
-func newOCMHandler(c *OCMProviderConfig, d *deps.Deps, log *slog.Logger) (*ocmHandler, error) {
+// newOCMHandler builds the static OCM discovery handler.
+// rawOCMProvider is the raw config map from TOML (used for key-presence
+// detection so we can distinguish "not set" from "explicitly set to zero").
+func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.Deps, log *slog.Logger) (*ocmHandler, error) {
 	log = logutil.NoopIfNil(log)
 	c.ApplyDefaults()
+
+	// Derive cross-cutting values from SharedDeps config when not explicitly
+	// set in per-service TOML. Per-service TOML wins when a key is present
+	// in the raw map (even if zero-valued).
+	if d != nil && d.Config != nil {
+		if _, set := rawOCMProvider["endpoint"]; !set {
+			c.Endpoint = d.Config.PublicOrigin + d.Config.ExternalBasePath
+		}
+
+		if _, set := rawOCMProvider["webdav_root"]; !set {
+			if d.Config.ExternalBasePath != "" {
+				c.WebDAVRoot = d.Config.ExternalBasePath + "/webdav/ocm/"
+			} else {
+				c.WebDAVRoot = "/webdav/ocm/"
+			}
+		}
+
+		if _, set := rawOCMProvider["advertise_http_request_signatures"]; !set {
+			c.AdvertiseHTTPRequestSignatures = d.Config.Signature.AdvertiseHTTPRequestSignatures
+		}
+
+		// Token exchange derivation
+		var rawTE map[string]any
+		if te, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
+			rawTE = te
+		}
+		if _, set := rawTE["enabled"]; !set {
+			c.TokenExchange.Enabled = d.Config.TokenExchangeEnabled()
+		}
+		if _, set := rawTE["path"]; !set {
+			c.TokenExchange.Path = d.Config.TokenExchange.Path
+			if c.TokenExchange.Path == "" {
+				c.TokenExchange.Path = "token"
+			}
+		}
+
+		// API version overrides for interop/dev mode (Nextcloud crawler compat)
+		if _, set := rawOCMProvider["api_version_overrides"]; !set {
+			mode, _ := config.ParseMode(d.Config.Mode)
+			if mode == config.ModeInterop || mode == config.ModeDev {
+				c.APIVersionOverrides = []APIVersionOverride{{
+					UserAgentContains: "Nextcloud Server Crawler",
+					APIVersion:        "1.1",
+				}}
+			}
+		}
+	}
 
 	// Build static discovery data (Reva pattern: computed once, not at runtime)
 	disc := &spec.Discovery{
@@ -119,6 +165,9 @@ func newOCMHandler(c *OCMProviderConfig, d *deps.Deps, log *slog.Logger) (*ocmHa
 		}
 		disc.TokenEndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix, tokenPath)
 	}
+
+	// Unconditional capabilities (always advertised per OCM-API spec)
+	capabilities = append(capabilities, "invites", "webdav-uri", "protocol-object", "notifications")
 
 	// Invite accept dialog (WAYF)
 	if c.InviteAcceptDialog != "" {

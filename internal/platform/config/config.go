@@ -342,105 +342,10 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 	return result
 }
 
-// BuildWellknownServiceConfig constructs the wellknown service config map.
-// This injects global values needed by the wellknown service (endpoint, signature settings, etc.)
-// and merges with any explicit [http.services.wellknown] configuration.
-func (c *Config) BuildWellknownServiceConfig() map[string]any {
-	// Start with explicit service config (if any)
-	base := c.BuildServiceConfig("wellknown")
-	if base == nil {
-		base = make(map[string]any)
-	}
-
-	// Build ocmprovider config with global values
-	ocmProvider := make(map[string]any)
-	if existing, ok := base["ocmprovider"].(map[string]any); ok {
-		for k, v := range existing {
-			ocmProvider[k] = v
-		}
-	}
-
-	// Inject global endpoint (can be overridden by explicit config)
-	if _, ok := ocmProvider["endpoint"]; !ok {
-		ocmProvider["endpoint"] = c.PublicOrigin + c.ExternalBasePath
-	}
-	if _, ok := ocmProvider["ocm_prefix"]; !ok {
-		ocmProvider["ocm_prefix"] = "ocm"
-	}
-	if _, ok := ocmProvider["provider"]; !ok {
-		ocmProvider["provider"] = "OpenCloudMesh"
-	}
-	if _, ok := ocmProvider["webdav_root"]; !ok {
-		webdavRoot := "/webdav/ocm/"
-		if c.ExternalBasePath != "" {
-			webdavRoot = c.ExternalBasePath + "/webdav/ocm/"
-		}
-		ocmProvider["webdav_root"] = webdavRoot
-	}
-
-	// Inject signature settings
-	if _, ok := ocmProvider["advertise_http_request_signatures"]; !ok {
-		ocmProvider["advertise_http_request_signatures"] = c.Signature.AdvertiseHTTPRequestSignatures
-	}
-
-	// Inject token exchange settings
-	tokenExchange := make(map[string]any)
-	if existing, ok := ocmProvider["token_exchange"].(map[string]any); ok {
-		for k, v := range existing {
-			tokenExchange[k] = v
-		}
-	}
-	if _, ok := tokenExchange["enabled"]; !ok {
-		tokenExchange["enabled"] = c.TokenExchange.Enabled != nil && *c.TokenExchange.Enabled
-	}
-	if _, ok := tokenExchange["path"]; !ok {
-		tokenExchange["path"] = c.TokenExchange.Path
-	}
-	ocmProvider["token_exchange"] = tokenExchange
-
-	// Inject apiVersion overrides for interop/dev mode (Nextcloud crawler compatibility)
-	// Only inject if not already explicitly configured
-	if _, ok := ocmProvider["api_version_overrides"]; !ok {
-		if c.Mode == "interop" || c.Mode == "dev" {
-			ocmProvider["api_version_overrides"] = []map[string]any{
-				{
-					"user_agent_contains": "Nextcloud Server Crawler",
-					"api_version":         "1.1",
-				},
-			}
-		}
-	}
-
-	base["ocmprovider"] = ocmProvider
-	return base
-}
-
-// BuildOCMServiceConfig constructs the OCM protocol service config map.
-// This injects token exchange settings and merges with any explicit
-// [http.services.ocm] configuration.
-func (c *Config) BuildOCMServiceConfig() map[string]any {
-	// Start with explicit service config (if any)
-	base := c.BuildServiceConfig("ocm")
-	if base == nil {
-		base = make(map[string]any)
-	}
-
-	// Inject token exchange settings
-	tokenExchange := make(map[string]any)
-	if existing, ok := base["token_exchange"].(map[string]any); ok {
-		for k, v := range existing {
-			tokenExchange[k] = v
-		}
-	}
-	if _, ok := tokenExchange["enabled"]; !ok {
-		tokenExchange["enabled"] = c.TokenExchange.Enabled != nil && *c.TokenExchange.Enabled
-	}
-	if _, ok := tokenExchange["path"]; !ok {
-		tokenExchange["path"] = c.TokenExchange.Path
-	}
-	base["token_exchange"] = tokenExchange
-
-	return base
+// TokenExchangeEnabled returns whether token exchange is enabled.
+// Safe for nil pointer on the *bool field.
+func (c *Config) TokenExchangeEnabled() bool {
+	return c.TokenExchange.Enabled != nil && *c.TokenExchange.Enabled
 }
 
 // Redacted returns a string representation of the config with secrets redacted.

@@ -21,27 +21,21 @@ func TestOCMProviderConfig_ApplyDefaults(t *testing.T) {
 	c := &OCMProviderConfig{}
 	c.ApplyDefaults()
 
+	// ApplyDefaults only sets service-local fields (OCMPrefix, Provider).
+	// Cross-cutting fields (WebDAVRoot, TokenExchange) are derived in newOCMHandler.
 	if c.OCMPrefix != "ocm" {
 		t.Errorf("expected OCMPrefix 'ocm', got %q", c.OCMPrefix)
 	}
 	if c.Provider != "OpenCloudMesh" {
 		t.Errorf("expected Provider 'OpenCloudMesh', got %q", c.Provider)
 	}
-	if c.WebDAVRoot != "/webdav/ocm/" {
-		t.Errorf("expected WebDAVRoot '/webdav/ocm/', got %q", c.WebDAVRoot)
-	}
-	if c.TokenExchange.Path != "token" {
-		t.Errorf("expected TokenExchange.Path 'token', got %q", c.TokenExchange.Path)
-	}
 }
 
 func TestOCMProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
 	c := &OCMProviderConfig{
-		OCMPrefix:  "custom-ocm",
-		Provider:   "CustomProvider",
-		WebDAVRoot: "/custom/webdav/",
+		OCMPrefix: "custom-ocm",
+		Provider:  "CustomProvider",
 	}
-	c.TokenExchange.Path = "custom-token"
 	c.ApplyDefaults()
 
 	if c.OCMPrefix != "custom-ocm" {
@@ -50,19 +44,13 @@ func TestOCMProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
 	if c.Provider != "CustomProvider" {
 		t.Errorf("expected Provider 'CustomProvider', got %q", c.Provider)
 	}
-	if c.WebDAVRoot != "/custom/webdav/" {
-		t.Errorf("expected WebDAVRoot '/custom/webdav/', got %q", c.WebDAVRoot)
-	}
-	if c.TokenExchange.Path != "custom-token" {
-		t.Errorf("expected TokenExchange.Path 'custom-token', got %q", c.TokenExchange.Path)
-	}
 }
 
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 	c := &OCMProviderConfig{}
-	deps := &deps.Deps{}
+	d := &deps.Deps{}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -80,11 +68,12 @@ func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 
 func TestNewOCMHandler_EnabledWithEndpoint(t *testing.T) {
 	c := &OCMProviderConfig{
-		Endpoint: "https://example.com/myapp",
+		Endpoint:   "https://example.com/myapp",
+		WebDAVRoot: "/webdav/ocm/",
 	}
-	deps := &deps.Deps{}
+	d := &deps.Deps{}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,9 +103,9 @@ func TestNewOCMHandler_TokenExchangeDisabled(t *testing.T) {
 		Endpoint: "https://example.com",
 	}
 	c.TokenExchange.Enabled = false
-	deps := &deps.Deps{}
+	d := &deps.Deps{}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,9 +129,9 @@ func TestNewOCMHandler_TokenExchangeEnabled(t *testing.T) {
 	}
 	c.TokenExchange.Enabled = true
 	c.TokenExchange.Path = "exchange"
-	deps := &deps.Deps{}
+	d := &deps.Deps{}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,10 +160,10 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 		Endpoint: "https://example.com",
 	}
 	c.TokenExchange.Enabled = true
-	// Path is empty, should default to "token"
-	deps := &deps.Deps{}
+	// Path is empty; handler code falls back to "token"
+	d := &deps.Deps{}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -200,7 +189,7 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 		KeyManager: km,
 	}
 
-	h, err := newOCMHandler(c, d, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -239,9 +228,9 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		deps := &deps.Deps{}
+		d := &deps.Deps{}
 
-		h, err := newOCMHandler(c, deps, testLogger())
+		h, err := newOCMHandler(c, nil, d, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -259,9 +248,9 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 			Endpoint:                       "https://example.com",
 			AdvertiseHTTPRequestSignatures: true,
 		}
-		deps := &deps.Deps{}
+		d := &deps.Deps{}
 
-		h, err := newOCMHandler(c, deps, testLogger())
+		h, err := newOCMHandler(c, nil, d, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -283,9 +272,9 @@ func TestNewOCMHandler_InvalidEndpointURL(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "://invalid-url",
 	}
-	deps := &deps.Deps{}
+	d := &deps.Deps{}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -302,9 +291,9 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 		Provider: "TestProvider",
 	}
 	c.TokenExchange.Enabled = true
-	deps := &deps.Deps{}
+	d := &deps.Deps{}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -341,9 +330,9 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 	c := &OCMProviderConfig{} // no endpoint
-	deps := &deps.Deps{}
+	d := &deps.Deps{}
 
-	h, err := newOCMHandler(c, deps, testLogger())
+	h, err := newOCMHandler(c, nil, d, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

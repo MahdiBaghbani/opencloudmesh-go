@@ -178,111 +178,27 @@ func StartTestServer(t *testing.T) *TestServer {
 		}
 	}
 
-	// Build wellknown service config using config helpers
-	wellknownConfig := cfg.BuildWellknownServiceConfig()
-
-	// Construct wellknown service from registry
-	wellknownNew := service.Get("wellknown")
-	if wellknownNew == nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("wellknown service not registered")
-	}
-	wellknownSvc, err := wellknownNew(wellknownConfig, logger)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create wellknown service: %v", err)
-	}
-
-	// Build OCM service config using config helpers
-	ocmConfig := cfg.BuildOCMServiceConfig()
-
-	// Construct OCM service from registry
-	ocmNew := service.Get("ocm")
-	if ocmNew == nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("ocm service not registered")
-	}
-	ocmSvc, err := ocmNew(ocmConfig, logger)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create ocm service: %v", err)
+	// Construct all core services via registry loop (mirrors main.go).
+	// Each service derives cross-cutting values from SharedDeps internally.
+	services := make(map[string]service.Service)
+	for _, name := range service.CoreServices {
+		svcCfg := cfg.BuildServiceConfig(name)
+		if svcCfg == nil {
+			svcCfg = make(map[string]any)
+		}
+		newFn := service.Get(name)
+		if newFn == nil {
+			os.RemoveAll(tempDir)
+			t.Fatalf("core service %q not registered", name)
+		}
+		svc, err := newFn(svcCfg, logger)
+		if err != nil {
+			os.RemoveAll(tempDir)
+			t.Fatalf("failed to create %s service: %v", name, err)
+		}
+		services[name] = svc
 	}
 
-	// Construct ocmaux service from registry
-	ocmauxConfig := cfg.BuildServiceConfig("ocmaux")
-	if ocmauxConfig == nil {
-		ocmauxConfig = make(map[string]any)
-	}
-	ocmauxNew := service.Get("ocmaux")
-	if ocmauxNew == nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("ocmaux service not registered")
-	}
-	ocmauxSvc, err := ocmauxNew(ocmauxConfig, logger)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create ocmaux service: %v", err)
-	}
-
-	// Construct api service from registry
-	apiConfig := cfg.BuildServiceConfig("api")
-	if apiConfig == nil {
-		apiConfig = make(map[string]any)
-	}
-	apiNew := service.Get("api")
-	if apiNew == nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("api service not registered")
-	}
-	apiSvc, err := apiNew(apiConfig, logger)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create api service: %v", err)
-	}
-
-	// Construct ui service from registry
-	uiConfig := cfg.BuildServiceConfig("ui")
-	if uiConfig == nil {
-		uiConfig = make(map[string]any)
-	}
-	uiConfig["external_base_path"] = cfg.ExternalBasePath
-	uiNew := service.Get("ui")
-	if uiNew == nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("ui service not registered")
-	}
-	uiSvc, err := uiNew(uiConfig, logger)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create ui service: %v", err)
-	}
-
-	// Construct webdav service from registry
-	webdavConfig := cfg.BuildServiceConfig("webdav")
-	if webdavConfig == nil {
-		webdavConfig = make(map[string]any)
-	}
-	webdavConfig["webdav_token_exchange_mode"] = cfg.WebDAVTokenExchange.Mode
-	webdavNew := service.Get("webdav")
-	if webdavNew == nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("webdav service not registered")
-	}
-	webdavSvc, err := webdavNew(webdavConfig, logger)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to create webdav service: %v", err)
-	}
-
-	// Build service map and create server (all dependencies come from SharedDeps)
-	services := map[string]service.Service{
-		"wellknown": wellknownSvc,
-		"ocm":       ocmSvc,
-		"ocmaux":    ocmauxSvc,
-		"api":       apiSvc,
-		"ui":        uiSvc,
-		"webdav":    webdavSvc,
-	}
 	srv, err := server.New(cfg, logger, services)
 	if err != nil {
 		os.RemoveAll(tempDir)

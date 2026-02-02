@@ -54,21 +54,27 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized: call deps.SetDeps() before New()")
 	}
 
+	// Extract raw ocmprovider map for key-presence detection in derivation.
+	var rawOCMProvider map[string]any
+	if om, ok := m["ocmprovider"].(map[string]any); ok {
+		rawOCMProvider = om
+	}
+
 	r := chi.NewRouter()
 	s := &svc{
 		router: r,
 		conf:   &c,
 	}
 
-	if err := s.routerInit(d, log); err != nil {
+	if err := s.routerInit(d, rawOCMProvider, log); err != nil {
 		return nil, err
 	}
 
 	return s, nil
 }
 
-func (s *svc) routerInit(d *deps.Deps, log *slog.Logger) error {
-	handler, err := newOCMHandler(&s.conf.OCMProvider, d, log)
+func (s *svc) routerInit(d *deps.Deps, rawOCMProvider map[string]any, log *slog.Logger) error {
+	handler, err := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, d, log)
 	if err != nil {
 		return err
 	}

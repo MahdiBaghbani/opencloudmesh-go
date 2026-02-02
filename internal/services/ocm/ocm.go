@@ -60,13 +60,30 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "ocm", "unused_keys", unused)
 	}
 
-	if err := c.TokenExchange.Validate(); err != nil {
-		return nil, err
-	}
-
 	d := deps.GetDeps()
 	if d == nil {
 		return nil, errors.New("shared deps not initialized: call deps.SetDeps() before New()")
+	}
+
+	// Derive token exchange from global config when not explicitly set in TOML.
+	if d.Config != nil {
+		var rawTE map[string]any
+		if te, ok := m["token_exchange"].(map[string]any); ok {
+			rawTE = te
+		}
+		if _, set := rawTE["enabled"]; !set {
+			c.TokenExchange.Enabled = d.Config.TokenExchangeEnabled()
+		}
+		if _, set := rawTE["path"]; !set {
+			c.TokenExchange.Path = d.Config.TokenExchange.Path
+			if c.TokenExchange.Path == "" {
+				c.TokenExchange.Path = "token"
+			}
+		}
+	}
+
+	if err := c.TokenExchange.Validate(); err != nil {
+		return nil, err
 	}
 
 	// Construct handlers using SharedDeps (Reva-aligned)

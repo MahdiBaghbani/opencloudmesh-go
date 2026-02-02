@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
@@ -43,11 +44,11 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 
 func TestNew_AcceptsExternalBasePath(t *testing.T) {
 	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
+	deps.SetDeps(&deps.Deps{
+		Config: &config.Config{ExternalBasePath: "/ocm"},
+	})
 
-	m := map[string]any{
-		"external_base_path": "/ocm",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)
@@ -203,11 +204,11 @@ func TestService_InboxEndpoint(t *testing.T) {
 
 func TestService_LoginEndpoint_WithBasePath(t *testing.T) {
 	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
+	deps.SetDeps(&deps.Deps{
+		Config: &config.Config{ExternalBasePath: "/ocm"},
+	})
 
-	m := map[string]any{
-		"external_base_path": "/ocm",
-	}
+	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(m, log)

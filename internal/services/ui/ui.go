@@ -20,10 +20,8 @@ func init() {
 	service.MustRegister("ui", New)
 }
 
-// Config holds ui service configuration.
-type Config struct {
-	ExternalBasePath string `mapstructure:"external_base_path"`
-}
+// Config holds ui service configuration (service-local knobs only).
+type Config struct{}
 
 // ApplyDefaults implements cfg.Setter.
 func (c *Config) ApplyDefaults() {}
@@ -52,10 +50,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	if d == nil {
 		return nil, errors.New("shared deps not initialized")
 	}
-	_ = d // deps available for future use
+
+	// Derive ExternalBasePath from global config
+	basePath := ""
+	if d.Config != nil {
+		basePath = d.Config.ExternalBasePath
+	}
 
 	// Create UI handler (templates are embedded in the ui package)
-	uiHandler, err := ui.NewHandler(c.ExternalBasePath)
+	uiHandler, err := ui.NewHandler(basePath)
 	if err != nil {
 		return nil, err
 	}
