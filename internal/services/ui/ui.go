@@ -21,16 +21,24 @@ func init() {
 }
 
 // Config holds ui service configuration (service-local knobs only).
-type Config struct{}
+type Config struct {
+	Wayf WayfConfig `mapstructure:"wayf"`
+}
+
+// WayfConfig holds WAYF (Where Are You From) UI configuration.
+type WayfConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+}
 
 // ApplyDefaults implements cfg.Setter.
 func (c *Config) ApplyDefaults() {}
 
 // Service is the UI service.
 type Service struct {
-	router chi.Router
-	conf   *Config
-	log    *slog.Logger
+	router      chi.Router
+	conf        *Config
+	log         *slog.Logger
+	wayfEnabled bool
 }
 
 // New creates a new UI service.
@@ -51,14 +59,16 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized")
 	}
 
-	// Derive ExternalBasePath from global config
+	// Derive cross-cutting values from global config
 	basePath := ""
+	providerDomain := ""
 	if d.Config != nil {
 		basePath = d.Config.ExternalBasePath
 	}
+	providerDomain = d.LocalProviderFQDN
 
 	// Create UI handler (templates are embedded in the ui package)
-	uiHandler, err := ui.NewHandler(basePath)
+	uiHandler, err := ui.NewHandler(basePath, c.Wayf.Enabled, providerDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +77,14 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	r.Get("/login", uiHandler.Login) // public
 	r.Get("/inbox", uiHandler.Inbox) // session-gated
 
-	return &Service{router: r, conf: &c, log: log}, nil
+	// WAYF routes: registered only when enabled (conditional registration)
+	if c.Wayf.Enabled {
+		r.Get("/wayf", uiHandler.Wayf)                 // public
+		r.Get("/accept-invite", uiHandler.AcceptInvite) // handler-level auth check
+		log.Info("WAYF UI enabled", "wayf_path", "/ui/wayf", "accept_invite_path", "/ui/accept-invite")
+	}
+
+	return &Service{router: r, conf: &c, log: log, wayfEnabled: c.Wayf.Enabled}, nil
 }
 
 // Handler returns the service's HTTP handler with RawPath clearing.
@@ -82,6 +99,13 @@ func (s *Service) Prefix() string {
 
 // Unprotected returns paths that don't require session authentication.
 func (s *Service) Unprotected() []string {
+	if s.wayfEnabled {
+		// /wayf is a public guest page.
+		// /accept-invite is listed here because the auth gate returns JSON 401
+		// (not HTML redirect). The accept-invite handler checks for a session
+		// cookie and redirects to login when absent, giving identical UX.
+		return []string{"/login", "/wayf", "/accept-invite"}
+	}
 	return []string{"/login"}
 }
 

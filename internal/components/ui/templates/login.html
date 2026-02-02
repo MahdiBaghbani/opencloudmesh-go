@@ -191,7 +191,10 @@
             const data = await resp.json();
 
             if (resp.ok) {
-              window.location.href = "ui/inbox";
+              // Honor ?redirect= param for post-login return (e.g. from accept-invite)
+              const params = new URLSearchParams(window.location.search);
+              const redirect = params.get("redirect");
+              window.location.href = redirect || "ui/inbox";
             } else {
               errorMsg.textContent = data.message || "Login failed";
               errorMsg.classList.add("visible");

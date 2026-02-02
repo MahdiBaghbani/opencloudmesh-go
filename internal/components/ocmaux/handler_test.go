@@ -391,6 +391,110 @@ func TestHandleDiscover_Success(t *testing.T) {
 	}
 }
 
+func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
+	// Discovery server that returns a relative inviteAcceptDialog
+	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			json.NewEncoder(w).Encode(map[string]any{
+				"enabled":            true,
+				"apiVersion":         "1.2.2",
+				"endPoint":           "https://remote.example.com/ocm",
+				"inviteAcceptDialog": "/apps/ocm/invite-accept",
+				"resourceTypes":      []any{},
+				"criteria":           []any{},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer discServer.Close()
+
+	httpCfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	discClient := discovery.NewClient(httpclient.New(httpCfg), nil)
+	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req = req.WithContext(context.Background())
+	w := httptest.NewRecorder()
+	h.HandleDiscover(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Success                    bool   `json:"success"`
+		InviteAcceptDialogAbsolute string `json:"inviteAcceptDialogAbsolute"`
+		Discovery                  *struct {
+			InviteAcceptDialog string `json:"inviteAcceptDialog"`
+		} `json:"discovery"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if !resp.Success {
+		t.Error("expected success=true")
+	}
+	if resp.InviteAcceptDialogAbsolute == "" {
+		t.Error("expected non-empty inviteAcceptDialogAbsolute")
+	}
+	// The relative path should be resolved against the discovered server URL
+	if resp.InviteAcceptDialogAbsolute == "/apps/ocm/invite-accept" {
+		t.Error("expected absolute URL, got relative")
+	}
+}
+
+func TestHandleDiscover_NoInviteAcceptDialog(t *testing.T) {
+	// Discovery server that does NOT return inviteAcceptDialog
+	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			json.NewEncoder(w).Encode(map[string]any{
+				"enabled":       true,
+				"apiVersion":    "1.2.2",
+				"endPoint":      "https://example.com/ocm",
+				"resourceTypes": []any{},
+				"criteria":      []any{},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer discServer.Close()
+
+	httpCfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	discClient := discovery.NewClient(httpclient.New(httpCfg), nil)
+	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req = req.WithContext(context.Background())
+	w := httptest.NewRecorder()
+	h.HandleDiscover(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		InviteAcceptDialogAbsolute string `json:"inviteAcceptDialogAbsolute"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.InviteAcceptDialogAbsolute != "" {
+		t.Errorf("expected empty inviteAcceptDialogAbsolute when not in discovery, got %q", resp.InviteAcceptDialogAbsolute)
+	}
+}
+
 func TestHandleDiscover_MethodNotAllowed(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 

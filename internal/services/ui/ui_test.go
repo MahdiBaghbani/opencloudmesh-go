@@ -100,6 +100,35 @@ func TestService_Unprotected(t *testing.T) {
 	}
 }
 
+func TestService_Unprotected_WayfEnabled(t *testing.T) {
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
+
+	m := map[string]any{
+		"wayf": map[string]any{"enabled": true},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	unprotected := svc.Unprotected()
+	expected := map[string]bool{"/login": false, "/wayf": false, "/accept-invite": false}
+	for _, p := range unprotected {
+		if _, ok := expected[p]; !ok {
+			t.Errorf("unexpected unprotected path %q", p)
+		}
+		expected[p] = true
+	}
+	for p, found := range expected {
+		if !found {
+			t.Errorf("expected unprotected path %q not found", p)
+		}
+	}
+}
+
 func TestService_Handler(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{})
@@ -229,6 +258,124 @@ func TestService_LoginEndpoint_WithBasePath(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, "/ocm") {
 		t.Error("expected base path '/ocm' in response body")
+	}
+}
+
+func TestService_WayfEndpoint_Disabled(t *testing.T) {
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
+
+	m := map[string]any{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/wayf", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	// Route should not exist when WAYF is disabled (chi returns 405 for
+	// unmatched routes by default, or 404 depending on config)
+	if w.Code == http.StatusOK {
+		t.Error("expected non-200 when WAYF is disabled")
+	}
+}
+
+func TestService_WayfEndpoint_Enabled(t *testing.T) {
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
+
+	m := map[string]any{
+		"wayf": map[string]any{"enabled": true},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/wayf?token=abc123", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	ct := w.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("expected text/html content type, got %q", ct)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "wayf") && !strings.Contains(body, "WAYF") && !strings.Contains(body, "provider") {
+		t.Error("expected WAYF-related content in response")
+	}
+}
+
+func TestService_AcceptInvite_RedirectsWithoutSession(t *testing.T) {
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{
+		Config: &config.Config{ExternalBasePath: "/ocm"},
+	})
+
+	m := map[string]any{
+		"wayf": map[string]any{"enabled": true},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/accept-invite?token=abc&providerDomain=remote.example.com", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302 redirect, got %d", w.Code)
+	}
+
+	loc := w.Header().Get("Location")
+	if !strings.Contains(loc, "/ui/login") {
+		t.Errorf("expected redirect to login, got %q", loc)
+	}
+	if !strings.Contains(loc, "redirect=") {
+		t.Errorf("expected redirect param in login URL, got %q", loc)
+	}
+}
+
+func TestService_AcceptInvite_RendersWithSession(t *testing.T) {
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
+
+	m := map[string]any{
+		"wayf": map[string]any{"enabled": true},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/accept-invite?token=abc&providerDomain=remote.example.com", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "valid-token"})
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	ct := w.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("expected text/html, got %q", ct)
 	}
 }
 

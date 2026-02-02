@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="{{.BasePath}}/" />
+    <title>Accept Invite - OpenCloudMesh</title>
+    <style>
+      :root {
+        --bg-dark: #0f1419;
+        --bg-card: #1a1f26;
+        --bg-hover: #22272e;
+        --accent: #00d4aa;
+        --accent-dim: #00a884;
+        --text-primary: #e7e9ea;
+        --text-secondary: #8899a6;
+        --error: #f4212e;
+        --border: #2f3336;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, sans-serif;
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        min-height: 100vh;
+        background-image: radial-gradient(
+            ellipse at 20% 80%,
+            rgba(0, 212, 170, 0.08) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 80% 20%,
+            rgba(0, 168, 132, 0.05) 0%,
+            transparent 50%
+          );
+      }
+      .container {
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 40px 20px;
+      }
+      .logo {
+        text-align: center;
+        margin-bottom: 8px;
+      }
+      .logo h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .logo span {
+        color: var(--accent);
+      }
+      .subtitle {
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: 32px;
+      }
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+      }
+      .card-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 16px;
+      }
+      .search-input {
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        background: var(--bg-dark);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        margin-bottom: 16px;
+      }
+      .search-input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.15);
+      }
+      .search-input::placeholder {
+        color: var(--text-secondary);
+      }
+      .federation-group {
+        margin-bottom: 16px;
+      }
+      .federation-name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 8px;
+      }
+      .provider-list {
+        display: flex;
+        flex-direction: column;
+      }
+      .provider-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .provider-item:hover {
+        background: var(--bg-hover);
+      }
+      .provider-item.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .provider-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .provider-name {
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+      .provider-url {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+      }
+      .provider-arrow {
+        color: var(--text-secondary);
+        font-size: 1.25rem;
+      }
+      .manual-form {
+        display: flex;
+        gap: 8px;
+      }
+      .manual-form input {
+        flex: 1;
+        padding: 12px 16px;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        background: var(--bg-dark);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      .manual-form input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.15);
+      }
+      .manual-form input::placeholder {
+        color: var(--text-secondary);
+      }
+      .btn {
+        padding: 12px 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--bg-dark);
+        background: var(--accent);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s, transform 0.1s;
+        white-space: nowrap;
+      }
+      .btn:hover {
+        background: var(--accent-dim);
+      }
+      .btn:active {
+        transform: scale(0.98);
+      }
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .error-msg {
+        color: var(--error);
+        font-size: 0.875rem;
+        margin-top: 12px;
+        display: none;
+      }
+      .error-msg.visible {
+        display: block;
+      }
+      .info-msg {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        text-align: center;
+        padding: 24px;
+      }
+      .no-token-warning {
+        background: rgba(255, 173, 31, 0.1);
+        border: 1px solid rgba(255, 173, 31, 0.3);
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 0.875rem;
+        color: #ffad1f;
+        margin-bottom: 24px;
+        text-align: center;
+      }
+      .loading {
+        text-align: center;
+        padding: 24px;
+        color: var(--text-secondary);
+      }
+      .footer {
+        text-align: center;
+        margin-top: 24px;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="logo">
+        <h1>Open<span>Cloud</span>Mesh</h1>
+      </div>
+      <div class="subtitle">Select your home provider to accept the federation invite</div>
+
+      <div id="no-token-warning" class="no-token-warning" style="display: none;">
+        No invite token found. Provider selection is disabled.
+      </div>
+
+      <div class="card">
+        <div class="card-title">Federation Providers</div>
+        <input
+          type="text"
+          class="search-input"
+          id="filter-input"
+          placeholder="Filter providers..."
+        />
+        <div id="providers-container">
+          <div class="loading">Loading providers...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Manual Provider Entry</div>
+        <div class="manual-form">
+          <input
+            type="url"
+            id="manual-url"
+            placeholder="https://cloud.example.com"
+          />
+          <button class="btn" id="discover-btn">Discover</button>
+        </div>
+        <div class="error-msg" id="discover-error"></div>
+        <div id="discover-result" style="margin-top: 12px;"></div>
+      </div>
+
+      <div class="footer">OCM-API Reference Implementation</div>
+    </div>
+    <script>
+      const basePath = "{{.BasePath}}";
+      const token = "{{.Token}}";
+      const providerDomain = "{{.ProviderDomain}}";
+      const hasToken = token !== "";
+
+      let allFederations = [];
+
+      // Show warning when no token
+      if (!hasToken) {
+        document.getElementById("no-token-warning").style.display = "block";
+      }
+
+      // Redirect to a provider's accept-invite dialog
+      function redirectToProvider(inviteAcceptDialog) {
+        if (!hasToken) return;
+        const sep = inviteAcceptDialog.includes("?") ? "&" : "?";
+        window.location.href =
+          inviteAcceptDialog +
+          sep +
+          "token=" + encodeURIComponent(token) +
+          "&providerDomain=" + encodeURIComponent(providerDomain);
+      }
+
+      // Escape HTML to prevent XSS
+      function escapeHtml(text) {
+        if (!text) return "";
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Render federation providers
+      function renderProviders(federations) {
+        const container = document.getElementById("providers-container");
+        const filter = document.getElementById("filter-input").value.toLowerCase();
+
+        if (federations.length === 0) {
+          container.innerHTML =
+            '<div class="info-msg">No federation providers configured. Use manual entry below.</div>';
+          return;
+        }
+
+        let html = "";
+        for (const fed of federations) {
+          const servers = fed.servers.filter(
+            (s) =>
+              s.displayName.toLowerCase().includes(filter) ||
+              s.url.toLowerCase().includes(filter)
+          );
+          if (servers.length === 0) continue;
+
+          html += '<div class="federation-group">';
+          html +=
+            '<div class="federation-name">' +
+            escapeHtml(fed.federation) +
+            "</div>";
+          html += '<div class="provider-list">';
+          for (const srv of servers) {
+            const disabled = !hasToken || !srv.inviteAcceptDialog;
+            const cls = "provider-item" + (disabled ? " disabled" : "");
+            const onclick = disabled
+              ? ""
+              : ' onclick="redirectToProvider(\'' +
+                escapeHtml(srv.inviteAcceptDialog).replace(/'/g, "\\'") +
+                '\')"';
+            html +=
+              "<div class=\"" + cls + "\"" + onclick + ">" +
+              '<div class="provider-info">' +
+              '<div class="provider-name">' +
+              escapeHtml(srv.displayName || srv.url) +
+              "</div>" +
+              '<div class="provider-url">' +
+              escapeHtml(srv.url) +
+              "</div>" +
+              "</div>" +
+              '<div class="provider-arrow">' +
+              (disabled ? "" : "&#8594;") +
+              "</div>" +
+              "</div>";
+          }
+          html += "</div></div>";
+        }
+
+        if (html === "") {
+          container.innerHTML =
+            '<div class="info-msg">No providers match your filter.</div>';
+        } else {
+          container.innerHTML = html;
+        }
+      }
+
+      // Load federation providers
+      async function loadFederations() {
+        try {
+          const resp = await fetch(basePath + "/ocm-aux/federations");
+          if (!resp.ok) throw new Error("Failed to load federations");
+          allFederations = await resp.json();
+          renderProviders(allFederations);
+        } catch (err) {
+          document.getElementById("providers-container").innerHTML =
+            '<div class="info-msg">No federation providers configured. Use manual entry below.</div>';
+        }
+      }
+
+      // Filter input handler
+      document.getElementById("filter-input").addEventListener("input", () => {
+        renderProviders(allFederations);
+      });
+
+      // Manual discover
+      document
+        .getElementById("discover-btn")
+        .addEventListener("click", async () => {
+          const urlInput = document.getElementById("manual-url");
+          const errorEl = document.getElementById("discover-error");
+          const resultEl = document.getElementById("discover-result");
+          errorEl.classList.remove("visible");
+          resultEl.innerHTML = "";
+
+          const baseURL = urlInput.value.trim();
+          if (!baseURL) {
+            errorEl.textContent = "Please enter a provider URL.";
+            errorEl.classList.add("visible");
+            return;
+          }
+
+          const btn = document.getElementById("discover-btn");
+          btn.disabled = true;
+          btn.textContent = "Discovering...";
+
+          try {
+            const resp = await fetch(
+              basePath +
+                "/ocm-aux/discover?base=" +
+                encodeURIComponent(baseURL)
+            );
+            const data = await resp.json();
+            if (!data.success) {
+              errorEl.textContent = data.error || "Discovery failed.";
+              errorEl.classList.add("visible");
+              return;
+            }
+
+            // Use inviteAcceptDialogAbsolute (pre-resolved) or fall back to
+            // the discovery object's inviteAcceptDialog field
+            const dialog =
+              data.inviteAcceptDialogAbsolute ||
+              (data.discovery && data.discovery.inviteAcceptDialog) ||
+              "";
+
+            if (!dialog) {
+              resultEl.innerHTML =
+                '<div class="info-msg">Provider discovered but does not support invite acceptance.</div>';
+              return;
+            }
+
+            const disabled = !hasToken;
+            const cls = "provider-item" + (disabled ? " disabled" : "");
+            const provName =
+              (data.discovery && data.discovery.provider) || baseURL;
+            resultEl.innerHTML =
+              '<div class="provider-list">' +
+              "<div class=\"" + cls + "\"" +
+              (disabled
+                ? ""
+                : ' onclick="redirectToProvider(\'' +
+                  escapeHtml(dialog).replace(/'/g, "\\'") +
+                  '\')"') +
+              ">" +
+              '<div class="provider-info">' +
+              '<div class="provider-name">' +
+              escapeHtml(provName) +
+              "</div>" +
+              '<div class="provider-url">' +
+              escapeHtml(baseURL) +
+              "</div>" +
+              "</div>" +
+              '<div class="provider-arrow">' +
+              (disabled ? "" : "&#8594;") +
+              "</div>" +
+              "</div></div>";
+          } catch (err) {
+            errorEl.textContent = "Network error: " + err.message;
+            errorEl.classList.add("visible");
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "Discover";
+          }
+        });
+
+      // Load federations on page load
+      loadFederations();
+    </script>
+  </body>
+</html>

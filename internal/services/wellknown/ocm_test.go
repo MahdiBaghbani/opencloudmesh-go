@@ -8,8 +8,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
@@ -325,6 +326,150 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 	}
 	if disc.TokenEndPoint == "" {
 		t.Error("expected non-empty tokenEndPoint")
+	}
+}
+
+func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
+	t.Run("derives inviteAcceptDialog when WAYF enabled", func(t *testing.T) {
+		c := &OCMProviderConfig{
+			Endpoint: "https://cloud.example.com/ocm",
+		}
+		d := &deps.Deps{
+			Config: &config.Config{
+				PublicOrigin:     "https://cloud.example.com",
+				ExternalBasePath: "/ocm",
+				HTTP: config.HTTPConfig{
+					Services: map[string]map[string]any{
+						"ui": {"wayf": map[string]any{"enabled": true}},
+					},
+				},
+			},
+		}
+
+		// rawOCMProvider does NOT contain invite_accept_dialog
+		raw := map[string]any{
+			"endpoint": "https://cloud.example.com/ocm",
+		}
+
+		h, err := newOCMHandler(c, raw, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if h.data.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
+			t.Errorf("expected derived inviteAcceptDialog, got %q", h.data.InviteAcceptDialog)
+		}
+	})
+
+	t.Run("explicit invite_accept_dialog overrides auto-derivation", func(t *testing.T) {
+		c := &OCMProviderConfig{
+			Endpoint:           "https://cloud.example.com/ocm",
+			InviteAcceptDialog: "https://custom.example.com/accept",
+		}
+		d := &deps.Deps{
+			Config: &config.Config{
+				PublicOrigin:     "https://cloud.example.com",
+				ExternalBasePath: "/ocm",
+				HTTP: config.HTTPConfig{
+					Services: map[string]map[string]any{
+						"ui": {"wayf": map[string]any{"enabled": true}},
+					},
+				},
+			},
+		}
+
+		// rawOCMProvider DOES contain invite_accept_dialog
+		raw := map[string]any{
+			"endpoint":             "https://cloud.example.com/ocm",
+			"invite_accept_dialog": "https://custom.example.com/accept",
+		}
+
+		h, err := newOCMHandler(c, raw, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if h.data.InviteAcceptDialog != "https://custom.example.com/accept" {
+			t.Errorf("expected explicit inviteAcceptDialog preserved, got %q", h.data.InviteAcceptDialog)
+		}
+	})
+
+	t.Run("no derivation when WAYF disabled", func(t *testing.T) {
+		c := &OCMProviderConfig{
+			Endpoint: "https://cloud.example.com/ocm",
+		}
+		d := &deps.Deps{
+			Config: &config.Config{
+				PublicOrigin:     "https://cloud.example.com",
+				ExternalBasePath: "/ocm",
+				HTTP: config.HTTPConfig{
+					Services: map[string]map[string]any{
+						"ui": {},
+					},
+				},
+			},
+		}
+
+		raw := map[string]any{
+			"endpoint": "https://cloud.example.com/ocm",
+		}
+
+		h, err := newOCMHandler(c, raw, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if h.data.InviteAcceptDialog != "" {
+			t.Errorf("expected empty inviteAcceptDialog when WAYF disabled, got %q", h.data.InviteAcceptDialog)
+		}
+	})
+}
+
+func TestNewOCMHandler_InviteWAYFCapability(t *testing.T) {
+	c := &OCMProviderConfig{
+		Endpoint:           "https://cloud.example.com/ocm",
+		InviteAcceptDialog: "https://cloud.example.com/ocm/ui/accept-invite",
+		AdvertiseInviteWAYF: true,
+	}
+	d := &deps.Deps{}
+
+	h, err := newOCMHandler(c, nil, d, testLogger())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, cap := range h.data.Capabilities {
+		if cap == "invite-wayf" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected 'invite-wayf' in capabilities when AdvertiseInviteWAYF=true and InviteAcceptDialog is set")
+	}
+}
+
+func TestNewOCMHandler_UnconditionalCapabilities(t *testing.T) {
+	c := &OCMProviderConfig{
+		Endpoint: "https://example.com",
+	}
+	d := &deps.Deps{}
+
+	h, err := newOCMHandler(c, nil, d, testLogger())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	required := []string{"invites", "webdav-uri", "protocol-object", "notifications"}
+	capSet := make(map[string]bool)
+	for _, cap := range h.data.Capabilities {
+		capSet[cap] = true
+	}
+	for _, req := range required {
+		if !capSet[req] {
+			t.Errorf("expected unconditional capability %q in capabilities %v", req, h.data.Capabilities)
+		}
 	}
 }
 

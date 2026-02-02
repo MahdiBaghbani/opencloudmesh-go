@@ -132,9 +132,10 @@ func resolveInviteDialog(serverURL, dialog string) string {
 
 // DiscoverResponse is the response for GET /ocm-aux/discover.
 type DiscoverResponse struct {
-	Success   bool               `json:"success"`
-	Error     string             `json:"error,omitempty"`
-	Discovery *discovery.Discovery `json:"discovery,omitempty"`
+	Success                    bool                 `json:"success"`
+	Error                      string               `json:"error,omitempty"`
+	Discovery                  *discovery.Discovery `json:"discovery,omitempty"`
+	InviteAcceptDialogAbsolute string               `json:"inviteAcceptDialogAbsolute,omitempty"`
 }
 
 // HandleDiscover handles GET /ocm-aux/discover.
@@ -180,11 +181,18 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(DiscoverResponse{
+	resp := DiscoverResponse{
 		Success:   true,
 		Discovery: disc,
-	})
+	}
+
+	// Resolve inviteAcceptDialog to an absolute URL for WAYF consumers
+	if disc.InviteAcceptDialog != "" {
+		resp.InviteAcceptDialogAbsolute = resolveInviteDialog(originURL, disc.InviteAcceptDialog)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 // sendDiscoverError sends a JSON error response for the discover endpoint.

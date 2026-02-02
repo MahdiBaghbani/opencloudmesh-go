@@ -7,11 +7,22 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
+
+// uiWayfProbe is a minimal struct for peeking at the UI service's WAYF config.
+// Used by the wellknown service to auto-derive inviteAcceptDialog when WAYF is
+// enabled but invite_accept_dialog is not explicitly configured.
+type uiWayfProbe struct {
+	Wayf struct {
+		Enabled bool `mapstructure:"enabled"`
+	} `mapstructure:"wayf"`
+}
 
 // APIVersionOverride allows overriding apiVersion based on User-Agent.
 // Used for Nextcloud Server Crawler compatibility (expects apiVersion 1.1).
@@ -110,6 +121,20 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 					UserAgentContains: "Nextcloud Server Crawler",
 					APIVersion:        "1.1",
 				}}
+			}
+		}
+
+		// Auto-derive inviteAcceptDialog when WAYF is enabled and the field
+		// is not explicitly set in TOML. Peek at the UI service's config to
+		// check WAYF enablement. This cross-service config read is acceptable
+		// because discovery data is static (computed once at construction).
+		if _, set := rawOCMProvider["invite_accept_dialog"]; !set {
+			var probe uiWayfProbe
+			if uiRaw := d.Config.HTTP.Services["ui"]; uiRaw != nil {
+				_ = mapstructure.Decode(uiRaw, &probe)
+			}
+			if probe.Wayf.Enabled {
+				c.InviteAcceptDialog = d.Config.PublicOrigin + d.Config.ExternalBasePath + "/ui/accept-invite"
 			}
 		}
 	}

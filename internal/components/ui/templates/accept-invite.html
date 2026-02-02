@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="{{.BasePath}}/" />
+    <title>Accept Invite - OpenCloudMesh</title>
+    <style>
+      :root {
+        --bg-dark: #0f1419;
+        --bg-card: #1a1f26;
+        --accent: #00d4aa;
+        --accent-dim: #00a884;
+        --text-primary: #e7e9ea;
+        --text-secondary: #8899a6;
+        --success: #00ba7c;
+        --error: #f4212e;
+        --border: #2f3336;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, sans-serif;
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-image: radial-gradient(
+            ellipse at 20% 80%,
+            rgba(0, 212, 170, 0.08) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 80% 20%,
+            rgba(0, 168, 132, 0.05) 0%,
+            transparent 50%
+          );
+      }
+      .container {
+        width: 100%;
+        max-width: 480px;
+        padding: 20px;
+      }
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 40px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+      }
+      .logo {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+      .logo h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .logo span {
+        color: var(--accent);
+      }
+      .section-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .detail-row:last-of-type {
+        border-bottom: none;
+      }
+      .detail-label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        flex-shrink: 0;
+        margin-right: 16px;
+      }
+      .detail-value {
+        font-size: 0.875rem;
+        font-weight: 500;
+        text-align: right;
+        word-break: break-all;
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 28px;
+      }
+      .btn {
+        flex: 1;
+        padding: 14px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s, transform 0.1s;
+        text-align: center;
+      }
+      .btn:active {
+        transform: scale(0.98);
+      }
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .btn-accept {
+        color: var(--bg-dark);
+        background: var(--accent);
+        border: none;
+      }
+      .btn-accept:hover {
+        background: var(--accent-dim);
+      }
+      .btn-cancel {
+        color: var(--text-primary);
+        background: transparent;
+        border: 1px solid var(--border);
+      }
+      .btn-cancel:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .status-msg {
+        font-size: 0.875rem;
+        text-align: center;
+        margin-top: 16px;
+        display: none;
+      }
+      .status-msg.visible {
+        display: block;
+      }
+      .status-error {
+        color: var(--error);
+      }
+      .status-success {
+        color: var(--success);
+      }
+      .missing-params {
+        text-align: center;
+        padding: 20px;
+        color: var(--error);
+        font-size: 0.875rem;
+      }
+      .footer {
+        text-align: center;
+        margin-top: 24px;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <div class="logo">
+          <h1>Open<span>Cloud</span>Mesh</h1>
+        </div>
+
+        <div id="missing-params" class="missing-params" style="display: none;">
+          Missing invite parameters. Cannot process this invite.
+        </div>
+
+        <div id="invite-form">
+          <div class="section-title">Accept Federation Invite</div>
+          <div class="detail-row">
+            <span class="detail-label">Invite Token</span>
+            <span class="detail-value" id="display-token"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">From Provider</span>
+            <span class="detail-value" id="display-provider"></span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-cancel" id="cancel-btn">Cancel</button>
+            <button class="btn btn-accept" id="accept-btn">
+              Accept Invite
+            </button>
+          </div>
+          <div class="status-msg status-error" id="error-msg"></div>
+          <div class="status-msg status-success" id="success-msg"></div>
+        </div>
+      </div>
+      <div class="footer">OCM-API Reference Implementation</div>
+    </div>
+    <script>
+      const basePath = "{{.BasePath}}";
+      const token = "{{.Token}}";
+      const providerDomain = "{{.ProviderDomain}}";
+
+      // Escape HTML to prevent XSS
+      function escapeHtml(text) {
+        if (!text) return "";
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Check for required parameters
+      if (!token || !providerDomain) {
+        document.getElementById("missing-params").style.display = "block";
+        document.getElementById("invite-form").style.display = "none";
+      } else {
+        document.getElementById("display-token").textContent = token;
+        document.getElementById("display-provider").textContent =
+          providerDomain;
+      }
+
+      // Cancel: go to inbox
+      document
+        .getElementById("cancel-btn")
+        .addEventListener("click", () => {
+          window.location.href = basePath + "/ui/inbox";
+        });
+
+      // Accept: import then accept the invite
+      document
+        .getElementById("accept-btn")
+        .addEventListener("click", async () => {
+          const acceptBtn = document.getElementById("accept-btn");
+          const errorEl = document.getElementById("error-msg");
+          const successEl = document.getElementById("success-msg");
+
+          acceptBtn.disabled = true;
+          acceptBtn.textContent = "Processing...";
+          errorEl.classList.remove("visible");
+          successEl.classList.remove("visible");
+
+          try {
+            // Build invite string: base64(token@providerDomain)
+            const inviteString = btoa(token + "@" + providerDomain);
+
+            // Step 1: Import the invite
+            const importResp = await fetch(
+              basePath + "/api/inbox/invites/import",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ inviteString: inviteString }),
+              }
+            );
+
+            if (importResp.status === 401) {
+              // Session expired during the flow, redirect to login
+              const returnURL =
+                basePath +
+                "/ui/accept-invite?token=" +
+                encodeURIComponent(token) +
+                "&providerDomain=" +
+                encodeURIComponent(providerDomain);
+              window.location.href =
+                basePath +
+                "/ui/login?redirect=" +
+                encodeURIComponent(returnURL);
+              return;
+            }
+
+            const importData = await importResp.json();
+
+            if (!importResp.ok) {
+              const reason = importData.reason || "";
+              const msg = importData.message || "Import failed.";
+              errorEl.textContent = msg;
+              if (reason) {
+                errorEl.textContent += " (" + reason + ")";
+              }
+              errorEl.classList.add("visible");
+              return;
+            }
+
+            const inviteId = importData.id;
+            if (!inviteId) {
+              errorEl.textContent =
+                "Import succeeded but no invite ID returned.";
+              errorEl.classList.add("visible");
+              return;
+            }
+
+            // Step 2: Accept the invite
+            const acceptResp = await fetch(
+              basePath + "/api/inbox/invites/" + inviteId + "/accept",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+              }
+            );
+
+            if (acceptResp.status === 401) {
+              const returnURL =
+                basePath +
+                "/ui/accept-invite?token=" +
+                encodeURIComponent(token) +
+                "&providerDomain=" +
+                encodeURIComponent(providerDomain);
+              window.location.href =
+                basePath +
+                "/ui/login?redirect=" +
+                encodeURIComponent(returnURL);
+              return;
+            }
+
+            if (!acceptResp.ok) {
+              const acceptData = await acceptResp.json();
+              const msg = acceptData.message || "Accept failed.";
+              errorEl.textContent = msg;
+              errorEl.classList.add("visible");
+              return;
+            }
+
+            // Success: redirect to inbox
+            successEl.textContent = "Invite accepted! Redirecting...";
+            successEl.classList.add("visible");
+            setTimeout(() => {
+              window.location.href = basePath + "/ui/inbox";
+            }, 1000);
+          } catch (err) {
+            errorEl.textContent = "Network error: " + err.message;
+            errorEl.classList.add("visible");
+          } finally {
+            acceptBtn.disabled = false;
+            acceptBtn.textContent = "Accept Invite";
+          }
+        });
+    </script>
+  </body>
+</html>

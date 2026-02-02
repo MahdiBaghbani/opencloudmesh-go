@@ -5,6 +5,7 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -13,12 +14,14 @@ var templateFS embed.FS
 
 // Handler serves the UI pages.
 type Handler struct {
-	basePath  string
-	templates *template.Template
+	basePath       string
+	wayfEnabled    bool
+	providerDomain string // raw host[:port] for WAYF invite links
+	templates      *template.Template
 }
 
 // NewHandler creates a new UI handler.
-func NewHandler(basePath string) (*Handler, error) {
+func NewHandler(basePath string, wayfEnabled bool, providerDomain string) (*Handler, error) {
 	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		return nil, err
@@ -31,14 +34,18 @@ func NewHandler(basePath string) (*Handler, error) {
 	basePath = strings.TrimSuffix(basePath, "/")
 
 	return &Handler{
-		basePath:  basePath,
-		templates: tmpl,
+		basePath:       basePath,
+		wayfEnabled:    wayfEnabled,
+		providerDomain: providerDomain,
+		templates:      tmpl,
 	}, nil
 }
 
 // TemplateData contains data passed to templates.
 type TemplateData struct {
-	BasePath string
+	BasePath       string
+	Token          string
+	ProviderDomain string
 }
 
 // Login serves the login page.
@@ -55,6 +62,48 @@ func (h *Handler) Inbox(w http.ResponseWriter, r *http.Request) {
 	data := TemplateData{BasePath: h.basePath}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.templates.ExecuteTemplate(w, "inbox.html", data); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// Wayf serves the WAYF (Where Are You From) provider selection page.
+// This is a public page that lets the user pick a federation provider
+// to accept an invite from.
+func (h *Handler) Wayf(w http.ResponseWriter, r *http.Request) {
+	data := TemplateData{
+		BasePath:       h.basePath,
+		Token:          r.URL.Query().Get("token"),
+		ProviderDomain: h.providerDomain,
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := h.templates.ExecuteTemplate(w, "wayf.html", data); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// AcceptInvite serves the invite acceptance page (session-gated).
+// If the user has no session cookie, they are redirected to login with a
+// return URL that brings them back here after authentication.
+func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
+	// Check for session cookie as an auth heuristic. The actual session
+	// validation happens when the page's JS calls the API endpoints.
+	if cookie, err := r.Cookie("session"); err != nil || cookie.Value == "" {
+		originalURL := h.basePath + "/ui/accept-invite"
+		if r.URL.RawQuery != "" {
+			originalURL += "?" + r.URL.RawQuery
+		}
+		loginURL := h.basePath + "/ui/login?redirect=" + url.QueryEscape(originalURL)
+		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
+	}
+
+	data := TemplateData{
+		BasePath:       h.basePath,
+		Token:          r.URL.Query().Get("token"),
+		ProviderDomain: r.URL.Query().Get("providerDomain"),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := h.templates.ExecuteTemplate(w, "accept-invite.html", data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }
