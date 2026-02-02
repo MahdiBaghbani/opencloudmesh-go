@@ -5,15 +5,12 @@ package directoryservice
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"strings"
+
+	"github.com/go-jose/go-jose/v4"
 
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -54,17 +51,6 @@ func NewClient(httpClient *httpclient.Client) *Client {
 	return &Client{httpClient: httpClient}
 }
 
-// appendixCPayload represents the Appendix C JWS envelope format.
-type appendixCPayload struct {
-	Payload    string `json:"payload"`
-	Protected  string `json:"protected"`
-	Signature  string `json:"signature"`
-	Signatures []struct {
-		Protected string `json:"protected"`
-		Signature string `json:"signature"`
-	} `json:"signatures,omitempty"`
-}
-
 // FetchListing fetches, verifies, and parses the Directory Service listing.
 // Strict Appendix C format only: {federation: "...", servers: [{url, displayName}]}.
 func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, keys []VerificationKey) (*Listing, error) {
@@ -85,32 +71,24 @@ func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, k
 	return listing, nil
 }
 
+// parseAndVerifyJWS parses JWS in any RFC 7515 serialization (compact, flattened
+// JSON, general JSON) and verifies against the provided keys using go-jose.
 func (c *Client) parseAndVerifyJWS(body []byte, keys []VerificationKey) (*Listing, error) {
-	// Try Appendix C JSON format first
-	var payload appendixCPayload
-	if err := json.Unmarshal(body, &payload); err == nil && payload.Payload != "" {
-		return c.verifyAppendixC(payload, keys)
+	algorithms := collectAlgorithms(keys)
+	if len(algorithms) == 0 {
+		return nil, fmt.Errorf("no active verification keys with recognized algorithms")
 	}
 
-	// Try compact JWS format
-	compactJWS := strings.TrimSpace(string(body))
-	parts := strings.Split(compactJWS, ".")
-	if len(parts) == 3 {
-		return c.verifyCompactJWS(parts, keys)
-	}
-
-	return nil, fmt.Errorf("unrecognized directory service response format")
-}
-
-func (c *Client) verifyAppendixC(payload appendixCPayload, keys []VerificationKey) (*Listing, error) {
-	signingInput := payload.Protected + "." + payload.Payload
-
-	sig, err := base64URLDecode(payload.Signature)
+	jws, err := jose.ParseSigned(string(body), algorithms)
 	if err != nil {
-		return nil, fmt.Errorf("invalid signature encoding: %w", err)
+		return nil, fmt.Errorf("failed to parse JWS: %w", err)
 	}
 
-	verified := false
+	// Try each active key until one verifies.
+	// go-jose Verify handles single-signature JWS (compact + flattened).
+	// go-jose VerifyMulti handles general JSON with signatures[] array.
+	multi := len(jws.Signatures) > 1
+
 	for _, key := range keys {
 		if !key.Active {
 			continue
@@ -121,61 +99,58 @@ func (c *Client) verifyAppendixC(payload appendixCPayload, keys []VerificationKe
 			continue
 		}
 
-		if verifySignature(pubKey, key.Algorithm, []byte(signingInput), sig) {
-			verified = true
-			break
+		var payload []byte
+		if multi {
+			_, _, payload, err = jws.VerifyMulti(pubKey)
+		} else {
+			payload, err = jws.Verify(pubKey)
 		}
+		if err != nil {
+			continue
+		}
+
+		return parseListing(payload)
 	}
 
-	if !verified {
-		return nil, fmt.Errorf("JWS signature verification failed (F2)")
-	}
-
-	payloadBytes, err := base64URLDecode(payload.Payload)
-	if err != nil {
-		return nil, fmt.Errorf("invalid payload encoding: %w", err)
-	}
-
-	return parseListing(payloadBytes)
+	return nil, fmt.Errorf("JWS signature verification failed (F2)")
 }
 
-func (c *Client) verifyCompactJWS(parts []string, keys []VerificationKey) (*Listing, error) {
-	header, payload, sig := parts[0], parts[1], parts[2]
+// collectAlgorithms builds the allowed algorithm set from active keys.
+func collectAlgorithms(keys []VerificationKey) []jose.SignatureAlgorithm {
+	seen := make(map[jose.SignatureAlgorithm]bool)
+	var result []jose.SignatureAlgorithm
 
-	signingInput := header + "." + payload
-
-	sigBytes, err := base64URLDecode(sig)
-	if err != nil {
-		return nil, fmt.Errorf("invalid signature encoding: %w", err)
-	}
-
-	verified := false
 	for _, key := range keys {
 		if !key.Active {
 			continue
 		}
 
-		pubKey, err := parsePublicKey(key.PublicKeyPEM)
-		if err != nil {
+		alg, ok := mapAlgorithm(key.Algorithm)
+		if !ok {
 			continue
 		}
 
-		if verifySignature(pubKey, key.Algorithm, []byte(signingInput), sigBytes) {
-			verified = true
-			break
+		if !seen[alg] {
+			seen[alg] = true
+			result = append(result, alg)
 		}
 	}
 
-	if !verified {
-		return nil, fmt.Errorf("JWS signature verification failed (F2)")
-	}
+	return result
+}
 
-	payloadBytes, err := base64URLDecode(payload)
-	if err != nil {
-		return nil, fmt.Errorf("invalid payload encoding: %w", err)
+// mapAlgorithm maps config algorithm strings to go-jose constants.
+func mapAlgorithm(algorithm string) (jose.SignatureAlgorithm, bool) {
+	switch algorithm {
+	case "Ed25519", "ed25519", "EdDSA":
+		return jose.EdDSA, true
+	case "RS256":
+		return jose.RS256, true
+	case "ES256":
+		return jose.ES256, true
+	default:
+		return "", false
 	}
-
-	return parseListing(payloadBytes)
 }
 
 // parseListing parses the verified JWS payload as strict Appendix C format.
@@ -193,17 +168,6 @@ func parseListing(payload []byte) (*Listing, error) {
 	return &listing, nil
 }
 
-func base64URLDecode(s string) ([]byte, error) {
-	switch len(s) % 4 {
-	case 2:
-		s += "=="
-	case 3:
-		s += "="
-	}
-
-	return base64.URLEncoding.DecodeString(s)
-}
-
 func parsePublicKey(pemData string) (crypto.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pemData))
 	if block == nil {
@@ -216,26 +180,4 @@ func parsePublicKey(pemData string) (crypto.PublicKey, error) {
 	}
 
 	return pub, nil
-}
-
-func verifySignature(pubKey crypto.PublicKey, algorithm string, message, signature []byte) bool {
-	switch algorithm {
-	case "Ed25519", "ed25519":
-		if edKey, ok := pubKey.(ed25519.PublicKey); ok {
-			return ed25519.Verify(edKey, message, signature)
-		}
-	case "RS256":
-		if rsaKey, ok := pubKey.(*rsa.PublicKey); ok {
-			h := crypto.SHA256.New()
-			h.Write(message)
-			return rsa.VerifyPKCS1v15(rsaKey, crypto.SHA256, h.Sum(nil), signature) == nil
-		}
-	case "ES256":
-		if ecKey, ok := pubKey.(*ecdsa.PublicKey); ok {
-			h := crypto.SHA256.New()
-			h.Write(message)
-			return ecdsa.VerifyASN1(ecKey, h.Sum(nil), signature)
-		}
-	}
-	return false
 }
