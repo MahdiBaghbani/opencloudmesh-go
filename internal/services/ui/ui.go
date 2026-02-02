@@ -80,7 +80,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	// WAYF routes: registered only when enabled (conditional registration)
 	if c.Wayf.Enabled {
 		r.Get("/wayf", uiHandler.Wayf)                 // public
-		r.Get("/accept-invite", uiHandler.AcceptInvite) // handler-level auth check
+		r.Get("/accept-invite", uiHandler.AcceptInvite) // session gated by auth middleware
 		log.Info("WAYF UI enabled", "wayf_path", "/ui/wayf", "accept_invite_path", "/ui/accept-invite")
 	}
 
@@ -101,10 +101,7 @@ func (s *Service) Prefix() string {
 func (s *Service) Unprotected() []string {
 	if s.wayfEnabled {
 		// /wayf is a public guest page.
-		// /accept-invite is listed here because the auth gate returns JSON 401
-		// (not HTML redirect). The accept-invite handler checks for a session
-		// cookie and redirects to login when absent, giving identical UX.
-		return []string{"/login", "/wayf", "/accept-invite"}
+		return []string{"/login", "/wayf"}
 	}
 	return []string{"/login"}
 }

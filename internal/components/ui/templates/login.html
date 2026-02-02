@@ -167,6 +167,18 @@
       <div class="footer">OCM-API Reference Implementation</div>
     </div>
     <script>
+      const basePath = "{{.BasePath}}";
+
+      function getSafeRedirect(target) {
+        if (!target) return "";
+        if (!target.startsWith("/")) return "";
+        if (target.startsWith("//")) return "";
+        if (target.includes("://")) return "";
+        const safePrefix = (basePath || "") + "/ui/";
+        if (!target.startsWith(safePrefix)) return "";
+        return target;
+      }
+
       document
         .getElementById("login-form")
         .addEventListener("submit", async (e) => {
@@ -192,9 +204,11 @@
 
             if (resp.ok) {
               // Honor ?redirect= param for post-login return (e.g. from accept-invite)
+              // Only allow safe, same-origin UI paths.
               const params = new URLSearchParams(window.location.search);
               const redirect = params.get("redirect");
-              window.location.href = redirect || "ui/inbox";
+              const safeRedirect = getSafeRedirect(redirect);
+              window.location.href = safeRedirect || "ui/inbox";
             } else {
               errorMsg.textContent = data.message || "Login failed";
               errorMsg.classList.add("visible");

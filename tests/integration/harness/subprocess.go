@@ -229,8 +229,8 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 //
 // Per-service configuration ([http.services.*]) is NOT included in the base
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
-// per-service overrides. config.BuildWellknownServiceConfig() and
-// config.BuildOCMServiceConfig() will inject default values from mode presets.
+// per-service overrides. Services derive cross-cutting defaults from SharedDeps
+// at construction time, so the base config can stay minimal.
 func generateTOMLConfig(name string, port int, dataDir, mode, extra string) string {
 	publicOrigin := fmt.Sprintf("http://localhost:%d", port)
 

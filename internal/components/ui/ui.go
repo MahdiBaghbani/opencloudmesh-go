@@ -5,7 +5,6 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -81,22 +80,8 @@ func (h *Handler) Wayf(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// AcceptInvite serves the invite acceptance page (session-gated).
-// If the user has no session cookie, they are redirected to login with a
-// return URL that brings them back here after authentication.
+// AcceptInvite serves the invite acceptance page (session-gated by middleware).
 func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
-	// Check for session cookie as an auth heuristic. The actual session
-	// validation happens when the page's JS calls the API endpoints.
-	if cookie, err := r.Cookie("session"); err != nil || cookie.Value == "" {
-		originalURL := h.basePath + "/ui/accept-invite"
-		if r.URL.RawQuery != "" {
-			originalURL += "?" + r.URL.RawQuery
-		}
-		loginURL := h.basePath + "/ui/login?redirect=" + url.QueryEscape(originalURL)
-		http.Redirect(w, r, loginURL, http.StatusFound)
-		return
-	}
-
 	data := TemplateData{
 		BasePath:       h.basePath,
 		Token:          r.URL.Query().Get("token"),

@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
@@ -36,6 +37,10 @@ type AuthGateConfig struct {
 	// PartyRepo provides user lookup by ID.
 	// May be nil only if RequireAuth always returns false (tests only).
 	PartyRepo identity.PartyRepo
+
+	// BasePath is the external base path for UI routing (optional).
+	// Used to construct login redirects for browser UI requests.
+	BasePath string
 }
 
 // NewAuthGate returns a middleware that enforces session authentication.
@@ -43,6 +48,7 @@ type AuthGateConfig struct {
 // without token parsing, session validation, or context enrichment.
 func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 	cfg.Log = logutil.NoopIfNil(cfg.Log)
+	basePath := normalizeBasePath(cfg.BasePath)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -54,27 +60,27 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 			// Extract session token from cookie or Authorization header
 			sessionToken := extractSessionToken(r)
 			if sessionToken == "" {
-				api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+				handleUnauthorized(w, r, basePath, api.ReasonUnauthenticated, "authentication required")
 				return
 			}
 
 			// Validate session
 			session, err := cfg.SessionRepo.Get(r.Context(), sessionToken)
 			if err != nil {
-				api.WriteUnauthorized(w, api.ReasonUnauthenticated, "session not found or expired")
+				handleUnauthorized(w, r, basePath, api.ReasonUnauthenticated, "session not found or expired")
 				return
 			}
 
 			// Check session expiry
 			if session.IsExpired() {
-				api.WriteUnauthorized(w, api.ReasonSessionExpired, "session has expired")
+				handleUnauthorized(w, r, basePath, api.ReasonSessionExpired, "session has expired")
 				return
 			}
 
 			// Get associated user
 			user, err := cfg.PartyRepo.Get(r.Context(), session.UserID)
 			if err != nil {
-				api.WriteUnauthorized(w, api.ReasonUnauthenticated, "session user not found")
+				handleUnauthorized(w, r, basePath, api.ReasonUnauthenticated, "session user not found")
 				return
 			}
 
@@ -90,6 +96,56 @@ func NewAuthGate(cfg AuthGateConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func handleUnauthorized(w http.ResponseWriter, r *http.Request, basePath, reason, message string) {
+	if shouldRedirectToLogin(r, basePath) {
+		redirectToLogin(w, r, basePath)
+		return
+	}
+	api.WriteUnauthorized(w, reason, message)
+}
+
+func normalizeBasePath(basePath string) string {
+	if basePath == "" {
+		return ""
+	}
+	if !strings.HasPrefix(basePath, "/") {
+		basePath = "/" + basePath
+	}
+	return strings.TrimSuffix(basePath, "/")
+}
+
+func uiPrefix(basePath string) string {
+	if basePath == "" {
+		return "/ui"
+	}
+	return basePath + "/ui"
+}
+
+func shouldRedirectToLogin(r *http.Request, basePath string) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	return isUIPath(r.URL.Path, basePath)
+}
+
+func isUIPath(path, basePath string) bool {
+	prefix := uiPrefix(basePath)
+	if path == prefix {
+		return true
+	}
+	return strings.HasPrefix(path, prefix+"/")
+}
+
+func redirectToLogin(w http.ResponseWriter, r *http.Request, basePath string) {
+	original := r.URL.Path
+	if r.URL.RawQuery != "" {
+		original += "?" + r.URL.RawQuery
+	}
+	loginPath := uiPrefix(basePath) + "/login"
+	loginURL := loginPath + "?redirect=" + url.QueryEscape(original)
+	http.Redirect(w, r, loginURL, http.StatusFound)
 }
 
 // extractSessionToken gets the session token from cookie or Authorization header.

@@ -142,6 +142,7 @@ func (s *Server) setupRoutes() chi.Router {
 		Log:         s.logger,
 		SessionRepo: d.SessionRepo,
 		PartyRepo:   d.PartyRepo,
+		BasePath:    s.cfg.ExternalBasePath,
 	}))
 
 	// Mount wellknown service at root (Reva-aligned)

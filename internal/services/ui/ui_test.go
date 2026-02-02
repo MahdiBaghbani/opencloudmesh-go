@@ -115,7 +115,7 @@ func TestService_Unprotected_WayfEnabled(t *testing.T) {
 	}
 
 	unprotected := svc.Unprotected()
-	expected := map[string]bool{"/login": false, "/wayf": false, "/accept-invite": false}
+	expected := map[string]bool{"/login": false, "/wayf": false}
 	for _, p := range unprotected {
 		if _, ok := expected[p]; !ok {
 			t.Errorf("unexpected unprotected path %q", p)
@@ -317,7 +317,7 @@ func TestService_WayfEndpoint_Enabled(t *testing.T) {
 	}
 }
 
-func TestService_AcceptInvite_RedirectsWithoutSession(t *testing.T) {
+func TestService_AcceptInvite_RendersWithoutSession(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
 		Config: &config.Config{ExternalBasePath: "/ocm"},
@@ -337,16 +337,13 @@ func TestService_AcceptInvite_RedirectsWithoutSession(t *testing.T) {
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
-	if w.Code != http.StatusFound {
-		t.Errorf("expected 302 redirect, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
 	}
 
-	loc := w.Header().Get("Location")
-	if !strings.Contains(loc, "/ui/login") {
-		t.Errorf("expected redirect to login, got %q", loc)
-	}
-	if !strings.Contains(loc, "redirect=") {
-		t.Errorf("expected redirect param in login URL, got %q", loc)
+	ct := w.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("expected text/html, got %q", ct)
 	}
 }
 

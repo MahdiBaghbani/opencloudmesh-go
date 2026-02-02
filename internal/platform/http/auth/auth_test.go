@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -310,5 +311,53 @@ func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200 for public endpoint with nil repos, got %d", rr.Code)
+	}
+}
+
+func TestAuthGate_RedirectsUIRequestsToLogin(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	r := chi.NewRouter()
+	r.Use(NewAuthGate(AuthGateConfig{
+		RequireAuth: func(path string) bool {
+			return true
+		},
+		Log:         logger,
+		SessionRepo: &testSessionRepo{},
+		PartyRepo:   newTestPartyRepo(),
+		BasePath:    "/ocm",
+	}))
+	r.Get("/ocm/ui/inbox", testHandler)
+
+	req := httptest.NewRequest("GET", "/ocm/ui/inbox?foo=bar", nil)
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d", rr.Code)
+	}
+
+	location := rr.Header().Get("Location")
+	if location == "" {
+		t.Fatal("expected Location header to be set")
+	}
+
+	parsed, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("failed to parse redirect URL: %v", err)
+	}
+
+	if parsed.Path != "/ocm/ui/login" {
+		t.Fatalf("expected login path /ocm/ui/login, got %q", parsed.Path)
+	}
+
+	redirect := parsed.Query().Get("redirect")
+	if redirect != "/ocm/ui/inbox?foo=bar" {
+		t.Fatalf("expected redirect to preserve original path, got %q", redirect)
 	}
 }
