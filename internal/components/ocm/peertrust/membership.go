@@ -41,7 +41,7 @@ type TrustGroupManager struct {
 type TrustGroup struct {
 	config            *TrustGroupConfig
 	memberAuthorities []memberAuthority            // precomputed normalized host authorities
-	directoryListings []directoryservice.Listing   // raw verified listings
+	directoryListings []directoryservice.Listing   // cached listings (verified and unverified)
 	lastRefresh       time.Time
 	refreshing        bool
 	refreshMu         sync.Mutex
@@ -50,6 +50,7 @@ type TrustGroup struct {
 // memberAuthority is a precomputed member for fast isMemberOf comparison.
 type memberAuthority struct {
 	normalized string // result of hostport.Normalize(u.Host, scheme) at refresh time
+	verified   bool   // true if derived from a verified directory listing
 }
 
 // NewTrustGroupManager creates a new trust group manager.
@@ -87,7 +88,8 @@ func (m *TrustGroupManager) AddTrustGroup(cfg *TrustGroupConfig) {
 }
 
 // IsMember checks if a host is a member of any enabled trust group (M1 union).
-func (m *TrustGroupManager) IsMember(ctx context.Context, host string) bool {
+// When requireVerified is true, only members from verified directory listings match.
+func (m *TrustGroupManager) IsMember(ctx context.Context, host string, requireVerified bool) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -98,7 +100,7 @@ func (m *TrustGroupManager) IsMember(ctx context.Context, host string) bool {
 
 		m.triggerRefreshIfNeeded(ctx, tg)
 
-		if m.isMemberOf(tg, host) {
+		if m.isMemberOf(tg, host, requireVerified) {
 			return true
 		}
 	}
@@ -107,13 +109,16 @@ func (m *TrustGroupManager) IsMember(ctx context.Context, host string) bool {
 }
 
 // isMemberOf checks if a host matches any precomputed member authority in the trust group.
-func (m *TrustGroupManager) isMemberOf(tg *TrustGroup, host string) bool {
+func (m *TrustGroupManager) isMemberOf(tg *TrustGroup, host string, requireVerified bool) bool {
 	normalized, err := hostport.Normalize(host, m.scheme)
 	if err != nil {
 		return false
 	}
 	for _, authority := range tg.memberAuthorities {
 		if authority.normalized == normalized {
+			if requireVerified && !authority.verified {
+				continue
+			}
 			return true
 		}
 	}
@@ -170,7 +175,7 @@ func (m *TrustGroupManager) refreshTrustGroup(ctx context.Context, tg *TrustGrou
 			continue
 		}
 
-		listing, err := m.directoryServiceClient.FetchListing(ctx, ds.URL, tg.config.Keys)
+		listing, err := m.directoryServiceClient.FetchListing(ctx, ds.URL, tg.config.Keys, ds.Verification)
 		if err != nil {
 			m.logger.Warn("failed to fetch directory service listing",
 				"trust_group", tg.config.TrustGroupID,
@@ -198,9 +203,10 @@ func (m *TrustGroupManager) refreshTrustGroup(ctx context.Context, tg *TrustGrou
 }
 
 // precomputeAuthorities extracts and normalizes host authorities from listings.
+// If a host appears in any verified listing, its authority is marked verified.
 func (m *TrustGroupManager) precomputeAuthorities(listings []directoryservice.Listing) []memberAuthority {
-	seen := make(map[string]bool)
-	var result []memberAuthority
+	// Track best verification status per normalized host.
+	verifiedMap := make(map[string]bool)
 
 	for _, listing := range listings {
 		for _, server := range listing.Servers {
@@ -212,13 +218,18 @@ func (m *TrustGroupManager) precomputeAuthorities(listings []directoryservice.Li
 			if err != nil {
 				continue
 			}
-			if !seen[normalized] {
-				seen[normalized] = true
-				result = append(result, memberAuthority{normalized: normalized})
+			if listing.Verified {
+				verifiedMap[normalized] = true
+			} else if _, exists := verifiedMap[normalized]; !exists {
+				verifiedMap[normalized] = false
 			}
 		}
 	}
 
+	result := make([]memberAuthority, 0, len(verifiedMap))
+	for norm, verified := range verifiedMap {
+		result = append(result, memberAuthority{normalized: norm, verified: verified})
+	}
 	return result
 }
 
@@ -234,8 +245,8 @@ func (m *TrustGroupManager) GetTrustGroups() []*TrustGroupConfig {
 	return result
 }
 
-// GetDirectoryListings returns the current verified Directory Service listings
-// for enabled trust groups. Consumed by ocmaux handler (Phase 5).
+// GetDirectoryListings returns all cached Directory Service listings (verified
+// and unverified) for enabled trust groups. Consumed by ocmaux handler.
 func (m *TrustGroupManager) GetDirectoryListings(ctx context.Context) []directoryservice.Listing {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

@@ -201,8 +201,16 @@ func main() {
 			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
 		}
 
+		// Compute default directory service verification policy from mode.
+		// Strict mode requires verified signatures; interop/dev mode accepts unsigned.
+		dsMode, _ := config.ParseMode(cfg.Mode)
+		defaultVerificationPolicy := "required"
+		if dsMode == config.ModeInterop || dsMode == config.ModeDev {
+			defaultVerificationPolicy = "optional"
+		}
+
 		// Create directory service client (uses the safe HTTP client)
-		dirServiceClient := directoryservice.NewClient(rawHTTPClient)
+		dirServiceClient := directoryservice.NewClient(rawHTTPClient, defaultVerificationPolicy, logger)
 
 		// Create trust group manager
 		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, cfg.PublicScheme(), logger, refreshTimeout)

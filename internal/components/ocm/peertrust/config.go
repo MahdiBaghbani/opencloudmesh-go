@@ -44,6 +44,16 @@ func LoadTrustGroupConfig(path string) (*TrustGroupConfig, error) {
 		return nil, fmt.Errorf("decoding trust group config %s: %w", path, err)
 	}
 
+	// Validate directory service verification policies.
+	for i, ds := range cfg.DirectoryServices {
+		switch ds.Verification {
+		case "", "required", "optional", "off":
+			// valid
+		default:
+			return nil, fmt.Errorf("trust group config %s: directory_services[%d] has invalid verification value %q (must be required, optional, or off)", path, i, ds.Verification)
+		}
+	}
+
 	return &cfg, nil
 }
 

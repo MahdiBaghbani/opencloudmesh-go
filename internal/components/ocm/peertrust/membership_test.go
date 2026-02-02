@@ -47,7 +47,7 @@ func TestTrustGroupManager_IsMember(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.host, func(t *testing.T) {
-			result := m.IsMember(context.Background(), tt.host)
+			result := m.IsMember(context.Background(), tt.host, false)
 			if result != tt.expected {
 				t.Errorf("IsMember(%q) = %v, want %v", tt.host, result, tt.expected)
 			}
@@ -75,7 +75,7 @@ func TestTrustGroupManager_DisabledTrustGroup(t *testing.T) {
 		},
 	}, time.Now())
 
-	if m.IsMember(context.Background(), "member.example.com") {
+	if m.IsMember(context.Background(), "member.example.com", false) {
 		t.Error("expected not a member: trust group is disabled")
 	}
 }
@@ -113,10 +113,56 @@ func TestTrustGroupManager_M1UnionAcrossTrustGroups(t *testing.T) {
 	}, time.Now())
 
 	// Both should be members (M1 union)
-	if !m.IsMember(context.Background(), "member1.example.com") {
+	if !m.IsMember(context.Background(), "member1.example.com", false) {
 		t.Error("expected member1 to be a member")
 	}
-	if !m.IsMember(context.Background(), "member2.example.com") {
+	if !m.IsMember(context.Background(), "member2.example.com", false) {
 		t.Error("expected member2 to be a member")
+	}
+}
+
+func TestTrustGroupManager_IsMember_RequireVerified(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	m := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", logger, 10*time.Second)
+
+	cfg := &peertrust.TrustGroupConfig{
+		TrustGroupID: "test-tg",
+		Enabled:      true,
+	}
+	m.AddTrustGroup(cfg)
+
+	// Mixed verified/unverified listings.
+	m.SetCacheForTesting("test-tg", []directoryservice.Listing{
+		{
+			Federation: "verified-fed",
+			Servers: []directoryservice.Server{
+				{URL: "https://verified.example.com", DisplayName: "Verified"},
+			},
+			Verified: true,
+		},
+		{
+			Federation: "unverified-fed",
+			Servers: []directoryservice.Server{
+				{URL: "https://unverified.example.com", DisplayName: "Unverified"},
+			},
+			Verified: false,
+		},
+	}, time.Now())
+
+	// Without requireVerified, both are members.
+	if !m.IsMember(context.Background(), "verified.example.com", false) {
+		t.Error("expected verified.example.com to be a member with requireVerified=false")
+	}
+	if !m.IsMember(context.Background(), "unverified.example.com", false) {
+		t.Error("expected unverified.example.com to be a member with requireVerified=false")
+	}
+
+	// With requireVerified, only verified is a member.
+	if !m.IsMember(context.Background(), "verified.example.com", true) {
+		t.Error("expected verified.example.com to be a member with requireVerified=true")
+	}
+	if m.IsMember(context.Background(), "unverified.example.com", true) {
+		t.Error("expected unverified.example.com to NOT be a member with requireVerified=true")
 	}
 }

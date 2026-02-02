@@ -151,10 +151,10 @@ func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	listing, err := client.FetchListing(t.Context(), ts.URL, keys)
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -168,10 +168,10 @@ func TestFetchListing_CompactJWS_RS256(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "RS256", Active: true}}
 
-	listing, err := client.FetchListing(t.Context(), ts.URL, keys)
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -185,10 +185,10 @@ func TestFetchListing_CompactJWS_ES256(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "ES256", Active: true}}
 
-	listing, err := client.FetchListing(t.Context(), ts.URL, keys)
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -202,10 +202,10 @@ func TestFetchListing_FlattenedJSON_Ed25519(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	listing, err := client.FetchListing(t.Context(), ts.URL, keys)
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -236,14 +236,14 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	// Both keys needed: ParseSigned requires all algorithms in the JWS to be in the allowed set
 	keys := []VerificationKey{
 		{KeyID: "k1", PublicKeyPEM: kp1.pem, Algorithm: "Ed25519", Active: true},
 		{KeyID: "k2", PublicKeyPEM: kp2.pem, Algorithm: "RS256", Active: true},
 	}
 
-	listing, err := client.FetchListing(t.Context(), ts.URL, keys)
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -261,10 +261,10 @@ func TestFetchListing_InvalidSignature(t *testing.T) {
 	ts := serveJWS(t, []byte(bodyStr))
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys)
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected verification error, got nil")
 	}
@@ -278,10 +278,10 @@ func TestFetchListing_WrongKey(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: wrong.pem, Algorithm: "Ed25519", Active: true}}
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys)
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected verification error for wrong key, got nil")
 	}
@@ -294,10 +294,10 @@ func TestFetchListing_InactiveKey(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: false}}
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys)
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected error for inactive key, got nil")
 	}
@@ -314,10 +314,10 @@ func TestFetchListing_MissingFederationField(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys)
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected error for missing federation field, got nil")
 	}
@@ -328,11 +328,11 @@ func TestFetchListing_UnsignedPayload(t *testing.T) {
 	ts := serveJWS(t, testPayload())
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	kp := generateEd25519(t)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys)
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected error for unsigned payload, got nil")
 	}
@@ -345,10 +345,10 @@ func TestFetchListing_NoActiveKeys(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{} // empty
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys)
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected error for no active keys, got nil")
 	}
@@ -362,13 +362,13 @@ func TestFetchListing_MultipleKeys_SecondMatches(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{
 		{KeyID: "wrong", PublicKeyPEM: wrong.pem, Algorithm: "Ed25519", Active: true},
 		{KeyID: "correct", PublicKeyPEM: signing.pem, Algorithm: "Ed25519", Active: true},
 	}
 
-	listing, err := client.FetchListing(t.Context(), ts.URL, keys)
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -382,11 +382,11 @@ func TestFetchListing_AlgorithmCaseInsensitive(t *testing.T) {
 	ts := serveJWS(t, body)
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	// lowercase "ed25519" should map to EdDSA
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "ed25519", Active: true}}
 
-	listing, err := client.FetchListing(t.Context(), ts.URL, keys)
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -399,11 +399,11 @@ func TestFetchListing_HTTPError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := NewClient(newTestHTTPClient())
+	client := NewClient(newTestHTTPClient(), "required", nil)
 	kp := generateEd25519(t)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys)
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected error for HTTP 500, got nil")
 	}
@@ -470,6 +470,242 @@ func TestParsePublicKey_InvalidPEM(t *testing.T) {
 	_, err := parsePublicKey("not a pem")
 	if err == nil {
 		t.Fatal("expected error for invalid PEM")
+	}
+}
+
+// --- Verification policy tests ---
+
+func TestFetchListing_Required_SetsVerifiedTrue(t *testing.T) {
+	kp := generateEd25519(t)
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+
+	ts := serveJWS(t, body)
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "required", nil)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
+
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !listing.Verified {
+		t.Error("expected Verified=true for required policy with valid JWS")
+	}
+}
+
+func TestFetchListing_Optional_UnsignedPayload_Accepted(t *testing.T) {
+	ts := serveJWS(t, testPayload())
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "optional", nil)
+	kp := generateEd25519(t)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
+
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if listing.Verified {
+		t.Error("expected Verified=false for unsigned payload with optional policy")
+	}
+	assertListing(t, listing)
+}
+
+func TestFetchListing_Optional_ValidJWS_Verified(t *testing.T) {
+	kp := generateEd25519(t)
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+
+	ts := serveJWS(t, body)
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "optional", nil)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
+
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !listing.Verified {
+		t.Error("expected Verified=true for valid JWS with optional policy")
+	}
+	assertListing(t, listing)
+}
+
+func TestFetchListing_Optional_BadSignature_Rejected(t *testing.T) {
+	signing := generateEd25519(t)
+	wrong := generateEd25519(t)
+	body := signCompact(t, jose.EdDSA, signing.priv, testPayload())
+
+	ts := serveJWS(t, body)
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "optional", nil)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: wrong.pem, Algorithm: "Ed25519", Active: true}}
+
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err == nil {
+		t.Fatal("expected error for bad signature with optional policy")
+	}
+}
+
+func TestFetchListing_Optional_NoKeys_AcceptsAsUnsigned(t *testing.T) {
+	ts := serveJWS(t, testPayload())
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "optional", nil)
+	keys := []VerificationKey{} // no keys
+
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if listing.Verified {
+		t.Error("expected Verified=false with no keys in optional mode")
+	}
+	assertListing(t, listing)
+}
+
+func TestFetchListing_Off_Accepted(t *testing.T) {
+	ts := serveJWS(t, testPayload())
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "off", nil)
+	keys := []VerificationKey{}
+
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if listing.Verified {
+		t.Error("expected Verified=false for off policy")
+	}
+	assertListing(t, listing)
+}
+
+func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
+	ts := serveJWS(t, testPayload()) // unsigned payload
+	defer ts.Close()
+
+	// Client default is "required"
+	client := NewClient(newTestHTTPClient(), "required", nil)
+	kp := generateEd25519(t)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
+
+	// Default policy (required) rejects unsigned
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err == nil {
+		t.Fatal("expected error for unsigned payload with required default policy")
+	}
+
+	// Per-call "off" override accepts unsigned
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "off")
+	if err != nil {
+		t.Fatalf("unexpected error with per-call off policy: %v", err)
+	}
+	if listing.Verified {
+		t.Error("expected Verified=false for off policy")
+	}
+}
+
+// --- URL validation tests ---
+
+func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing.T) {
+	payload, _ := json.Marshal(Listing{
+		Federation: "test-federation",
+		Servers: []Server{
+			{URL: "https://valid.example.com", DisplayName: "Valid"},
+			{URL: "https://also-valid.example.com:9200", DisplayName: "Also Valid"},
+			{URL: "https://also-valid.example.com/", DisplayName: "Also Valid Trailing Slash"},
+			{URL: "https://has-path.example.com/base/path", DisplayName: "Has Path"},
+			{URL: "https://user:pass@has-userinfo.example.com", DisplayName: "Has Userinfo"},
+			{URL: "https://has-query.example.com?q=1", DisplayName: "Has Query"},
+			{URL: "ftp://wrong-scheme.example.com", DisplayName: "Wrong Scheme"},
+		},
+	})
+	kp := generateEd25519(t)
+	body := signCompact(t, jose.EdDSA, kp.priv, payload)
+
+	ts := serveJWS(t, body)
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "required", nil)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
+
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !listing.Verified {
+		t.Error("expected Verified=true")
+	}
+	if len(listing.Servers) != 3 {
+		t.Fatalf("expected 3 valid servers after filtering, got %d: %v", len(listing.Servers), listing.Servers)
+	}
+	expectedURLs := map[string]bool{
+		"https://valid.example.com":           true,
+		"https://also-valid.example.com:9200": true,
+		"https://also-valid.example.com/":     true,
+	}
+	for _, s := range listing.Servers {
+		if !expectedURLs[s.URL] {
+			t.Errorf("unexpected server URL after filtering: %q", s.URL)
+		}
+	}
+}
+
+func TestFetchListing_URLValidation_UnverifiedListingKeepsAllURLs(t *testing.T) {
+	payload, _ := json.Marshal(Listing{
+		Federation: "test-federation",
+		Servers: []Server{
+			{URL: "https://valid.example.com", DisplayName: "Valid"},
+			{URL: "https://has-path.example.com/base/path", DisplayName: "Has Path"},
+		},
+	})
+	ts := serveJWS(t, payload) // unsigned
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "optional", nil)
+	kp := generateEd25519(t)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
+
+	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if listing.Verified {
+		t.Error("expected Verified=false for unsigned payload")
+	}
+	if len(listing.Servers) != 2 {
+		t.Errorf("expected 2 servers (no filtering for unverified), got %d", len(listing.Servers))
+	}
+}
+
+func TestIsValidServerURL(t *testing.T) {
+	cases := []struct {
+		url  string
+		want bool
+	}{
+		{"https://example.com", true},
+		{"https://example.com/", true},
+		{"https://example.com:9200", true},
+		{"http://example.com", true},
+		{"https://example.com/base/path", false},
+		{"https://user:pass@example.com", false},
+		{"https://example.com?q=1", false},
+		{"https://example.com#frag", false},
+		{"ftp://example.com", false},
+		{"not-a-url", false},
+		{"", false},
+		{"/relative/path", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.url, func(t *testing.T) {
+			got := isValidServerURL(tc.url)
+			if got != tc.want {
+				t.Errorf("isValidServerURL(%q) = %v, want %v", tc.url, got, tc.want)
+			}
+		})
 	}
 }
 

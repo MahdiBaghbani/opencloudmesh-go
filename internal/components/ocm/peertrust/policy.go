@@ -81,9 +81,11 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 		}
 	}
 
-	// Check trust group membership (M1 union across all trust groups)
+	// Check trust group membership (M1 union across all trust groups).
+	// When any trust group enforces membership, require verified directory data.
 	if pe.trustGroupMgr != nil {
-		isMember := pe.trustGroupMgr.IsMember(ctx, peerHost)
+		requireVerified := pe.anyEnforcesMembership()
+		isMember := pe.trustGroupMgr.IsMember(ctx, peerHost, requireVerified)
 		if isMember {
 			return &PolicyDecision{
 				Allowed:       true,
@@ -106,6 +108,21 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 func (pe *PolicyEngine) isInList(host string, list []string) bool {
 	for _, entry := range list {
 		if strings.EqualFold(host, entry) {
+			return true
+		}
+	}
+	return false
+}
+
+// anyEnforcesMembership returns true if any configured trust group has
+// enforce_membership enabled. Conservative: if any does, all membership
+// checks require verified directory data.
+func (pe *PolicyEngine) anyEnforcesMembership() bool {
+	if pe.trustGroupMgr == nil {
+		return false
+	}
+	for _, tg := range pe.trustGroupMgr.GetTrustGroups() {
+		if tg.EnforceMembership {
 			return true
 		}
 	}
