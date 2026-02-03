@@ -3,6 +3,7 @@ package incoming_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -469,5 +470,89 @@ func TestExtractSenderHost(t *testing.T) {
 				t.Errorf("ExtractSenderHost(%q) = %q, want %q", tt.sender, result, tt.expected)
 			}
 		})
+	}
+}
+
+// --- Federated opaque ID decode fallback (Phase 4) ---
+
+func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
+	// Reva-style federated opaque ID: base64url_padded(userID@localProvider)
+	// The encoded identifier won't match any user by raw ID, username, or email,
+	// so triple resolution fails and the decode fallback fires.
+	repo := shares.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	encoded := base64.URLEncoding.EncodeToString([]byte("user-a-uuid@localhost:9200"))
+	body := validShareBody(encoded + "@localhost:9200")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for federated opaque ID, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp spec.CreateShareResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.RecipientDisplayName != "Alice A" {
+		t.Errorf("expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
+	}
+}
+
+func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
+	// Encoded identifier decodes to a valid userID@idp payload, but the
+	// decoded idp doesn't match local provider -- must be rejected.
+	repo := shares.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	encoded := base64.URLEncoding.EncodeToString([]byte("user-a-uuid@wrong-provider.com"))
+	body := validShareBody(encoded + "@localhost:9200")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for idp mismatch in decoded federated ID, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp spec.OCMErrorResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Message != "RECIPIENT_NOT_FOUND" {
+		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
+	}
+}
+
+func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
+	// "YWJj" is base64 of "abc" -- passes charset check but decoded payload
+	// has no '@', so DecodeFederatedOpaqueID returns false. Falls through to
+	// "recipient not found" since "YWJj" is not a real user.
+	repo := shares.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := validShareBody("YWJj@localhost:9200")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for base64-like non-federated identifier, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp spec.OCMErrorResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Message != "RECIPIENT_NOT_FOUND" {
+		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
 	}
 }

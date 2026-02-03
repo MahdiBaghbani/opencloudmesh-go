@@ -264,10 +264,11 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// resolveRecipient tries to find a local user by triple resolution order:
-// 1. PartyRepo.Get(identifier) - treat as canonical internal user id
+// resolveRecipient tries to find a local user by resolution order:
+// 1. PartyRepo.Get(identifier) - canonical internal user id
 // 2. PartyRepo.GetByUsername(identifier)
 // 3. PartyRepo.GetByEmail(identifier) - repo normalizes email internally
+// 4. Federated opaque ID decode fallback (gated, see plan D2/D3/D11)
 func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*identity.User, error) {
 	// Try by canonical ID first
 	user, err := h.partyRepo.Get(ctx, identifier)
@@ -285,6 +286,23 @@ func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*ide
 	user, err = h.partyRepo.GetByEmail(ctx, identifier)
 	if err == nil {
 		return user, nil
+	}
+
+	// Federated opaque ID decode fallback (gated).
+	// Only fires when identifier has no '@' (prevents email false positives),
+	// matches base64-like charset, decodes to userID@idp, and decoded idp
+	// matches local provider after normalization.
+	if !strings.Contains(identifier, "@") && address.LooksLikeBase64(identifier) {
+		decodedUserID, decodedIDP, ok := address.DecodeFederatedOpaqueID(identifier)
+		if ok {
+			normalizedIDP, normErr := hostport.Normalize(decodedIDP, h.localScheme)
+			if normErr == nil && strings.EqualFold(normalizedIDP, h.localProviderFQDNForCompare) {
+				user, err := h.partyRepo.Get(ctx, decodedUserID)
+				if err == nil {
+					return user, nil
+				}
+			}
+		}
 	}
 
 	return nil, errors.New("recipient not found")
