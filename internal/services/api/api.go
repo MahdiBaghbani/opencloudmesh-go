@@ -94,7 +94,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	// Inbox shares handler (per-user scoped, Chi route params)
 	inboxSharesHandler := inboxshares.NewHandler(d.IncomingShareRepo, notificationClient, currentUser, log)
 
-	// Outgoing shares handler (session-gated, uses FormatOutgoing for identity)
+	// Outgoing shares handler (session-gated, Reva-style federated identity)
 	outgoingHandler := outgoingshares.NewHandler(
 		d.OutgoingShareRepo,
 		d.DiscoveryClient,

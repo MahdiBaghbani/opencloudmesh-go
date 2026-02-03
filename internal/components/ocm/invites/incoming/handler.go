@@ -217,7 +217,7 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invit
 	// Legacy invite backfill (F5=A): if CreatedByUserID is empty, return placeholder
 	if invite.CreatedByUserID == "" {
 		return spec.InviteAcceptedResponse{
-			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
+			UserID: address.EncodeFederatedOpaqueID("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
 		}
@@ -227,7 +227,7 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invit
 	if h.partyRepo == nil {
 		log.Error("partyRepo not available for invite-accepted local user lookup")
 		return spec.InviteAcceptedResponse{
-			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
+			UserID: address.EncodeFederatedOpaqueID("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
 		}
@@ -238,14 +238,14 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invit
 		log.Error("failed to look up local inviting user",
 			"created_by_user_id", invite.CreatedByUserID, "error", err)
 		return spec.InviteAcceptedResponse{
-			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
+			UserID: address.EncodeFederatedOpaqueID("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
 		}
 	}
 
 	return spec.InviteAcceptedResponse{
-		UserID: address.FormatOutgoing(localUser.ID, h.providerFQDN),
+		UserID: address.EncodeFederatedOpaqueID(localUser.ID, h.providerFQDN),
 		Email:  localUser.Email,
 		Name:   localUser.DisplayName,
 	}

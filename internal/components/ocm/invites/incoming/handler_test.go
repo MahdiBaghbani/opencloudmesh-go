@@ -318,7 +318,7 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 	}
 
 	// Response must return LOCAL user identity, NOT the remote user's
-	expectedUserID := address.FormatOutgoing(localUser.ID, testProvider)
+	expectedUserID := address.EncodeFederatedOpaqueID(localUser.ID, testProvider)
 	if resp.UserID != expectedUserID {
 		t.Errorf("userID = %q, want %q (local user, not remote echo)", resp.UserID, expectedUserID)
 	}
@@ -409,7 +409,7 @@ func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&resp)
 
 	// Backfill: placeholder identity (F5=A)
-	expectedUserID := address.FormatOutgoing("unknown", testProvider)
+	expectedUserID := address.EncodeFederatedOpaqueID("unknown", testProvider)
 	if resp.UserID != expectedUserID {
 		t.Errorf("userID = %q, want %q (placeholder for legacy)", resp.UserID, expectedUserID)
 	}

@@ -313,7 +313,7 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invites.Incomi
 	reqBody := spec.InviteAcceptedRequest{
 		RecipientProvider: h.localProvider,
 		Token:             invite.Token,
-		UserID:            address.FormatOutgoing(user.ID, h.localProvider),
+		UserID:            address.EncodeFederatedOpaqueID(user.ID, h.localProvider),
 		Email:             user.Email,
 		Name:              user.DisplayName,
 	}

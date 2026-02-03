@@ -3,7 +3,6 @@ package shares_test
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
@@ -113,11 +113,11 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 	}
 }
 
-func TestHandleCreate_OwnerSenderUseBase64UserID(t *testing.T) {
-	// Verify the handler stores owner/sender with base64-encoded user ID format
-	// (not hardcoded placeholders). We test by creating a share with a real file
-	// but without a discovery client, so the share is stored but sending fails.
-	// We then check the stored share's owner/sender fields.
+func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
+	// Verify the handler stores owner/sender as OCM addresses with Reva-style
+	// federated opaque ID identifiers. We test by creating a share with a real
+	// file but without a discovery client, so the share is stored but sending
+	// fails. We then check the stored share's owner/sender fields.
 
 	user := &identity.User{ID: "user-uuid-123", Username: "alice", Email: "alice@example.org"}
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
@@ -170,14 +170,13 @@ func TestHandleCreate_OwnerSenderUseBase64UserID(t *testing.T) {
 
 	share := allShares[0]
 
-	// Verify owner uses base64-encoded user ID format
-	expectedB64 := base64.StdEncoding.EncodeToString([]byte("user-uuid-123"))
-	expectedOwner := expectedB64 + "@" + testProvider
+	// Verify owner/sender use Reva-style federated opaque ID as OCM address
+	expectedOwner := address.FormatOutgoingOCMAddressFromUserID("user-uuid-123", testProvider)
 	if share.Owner != expectedOwner {
-		t.Errorf("owner = %q, want %q (base64 user ID format)", share.Owner, expectedOwner)
+		t.Errorf("owner = %q, want %q (Reva-style federated OCM address)", share.Owner, expectedOwner)
 	}
 	if share.Sender != expectedOwner {
-		t.Errorf("sender = %q, want %q (base64 user ID format)", share.Sender, expectedOwner)
+		t.Errorf("sender = %q, want %q (Reva-style federated OCM address)", share.Sender, expectedOwner)
 	}
 }
 

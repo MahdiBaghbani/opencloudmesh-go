@@ -147,8 +147,8 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	sharedSecret := generateSharedSecret()
 
 	// Build owner/sender using session user identity (E1=B, Reva-style base64)
-	owner := address.FormatOutgoing(user.ID, h.localProvider)
-	sender := address.FormatOutgoing(user.ID, h.localProvider)
+	owner := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
+	sender := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 
 	mustExchangeToken := h.cfg.TokenExchange.Enabled != nil && *h.cfg.TokenExchange.Enabled
 

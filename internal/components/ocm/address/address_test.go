@@ -104,62 +104,6 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestFormatOutgoing(t *testing.T) {
-	tests := []struct {
-		name         string
-		userID       string
-		providerFQDN string
-		want         string
-	}{
-		{
-			name:         "uuid user id",
-			userID:       "550e8400-e29b-41d4-a716-446655440000",
-			providerFQDN: "example.org",
-			want:         base64.StdEncoding.EncodeToString([]byte("550e8400-e29b-41d4-a716-446655440000")) + "@example.org",
-		},
-		{
-			name:         "simple user id",
-			userID:       "alice",
-			providerFQDN: "provider.net:9200",
-			want:         base64.StdEncoding.EncodeToString([]byte("alice")) + "@provider.net:9200",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := FormatOutgoing(tt.userID, tt.providerFQDN)
-			if got != tt.want {
-				t.Errorf("FormatOutgoing(%q, %q) = %q, want %q", tt.userID, tt.providerFQDN, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFormatOutgoing_RoundTrip(t *testing.T) {
-	// FormatOutgoing produces an OCM address that Parse can split back
-	userID := "550e8400-e29b-41d4-a716-446655440000"
-	provider := "example.org"
-
-	addr := FormatOutgoing(userID, provider)
-	id, prov, err := Parse(addr)
-	if err != nil {
-		t.Fatalf("Parse(FormatOutgoing(%q, %q)) error: %v", userID, provider, err)
-	}
-
-	if prov != provider {
-		t.Errorf("round-trip provider = %q, want %q", prov, provider)
-	}
-
-	// The identifier should be the base64-encoded userID
-	decoded, err := base64.StdEncoding.DecodeString(id)
-	if err != nil {
-		t.Fatalf("base64 decode of identifier %q failed: %v", id, err)
-	}
-	if string(decoded) != userID {
-		t.Errorf("round-trip userID = %q, want %q", string(decoded), userID)
-	}
-}
-
 func TestEncodeFederatedOpaqueID(t *testing.T) {
 	tests := []struct {
 		name   string

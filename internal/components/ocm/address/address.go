@@ -44,14 +44,6 @@ func Parse(addr string) (identifier, provider string, err error) {
 	return identifier, provider, nil
 }
 
-// FormatOutgoing builds a Reva-compatible OCM address for outgoing protocol fields.
-// Returns base64(userID) + "@" + providerFQDN.
-// Deprecated: uses StdEncoding (not Reva-compatible). Use FormatOutgoingOCMAddressFromUserID
-// or EncodeFederatedOpaqueID instead. Will be removed in Phase 3.
-func FormatOutgoing(userID string, providerFQDN string) string {
-	return base64.StdEncoding.EncodeToString([]byte(userID)) + "@" + providerFQDN
-}
-
 // EncodeFederatedOpaqueID encodes a userID and idp into a Reva-style
 // federated opaque ID: base64url_padded(userID + "@" + idp).
 func EncodeFederatedOpaqueID(userID string, idp string) string {
