@@ -1,4 +1,8 @@
-// Package invites implements OCM invitation handling.
+// Package invites provides shared types for OCM invitation handling.
+// Domain models and repositories live in direction-aware sub-packages:
+//   - invites/inbox: incoming invite storage (IncomingInvite, IncomingInviteRepo)
+//   - invites/outgoing: outgoing invite storage (OutgoingInvite, OutgoingInviteRepo)
+//   - invites/incoming: inbound OCM protocol handler (POST /ocm/invite-accepted)
 package invites
 
 import (
@@ -18,31 +22,10 @@ const (
 	InviteStatusExpired  InviteStatus = "expired"
 )
 
-// OutgoingInvite represents an invite we sent to another server.
-type OutgoingInvite struct {
-	ID              string       `json:"id"`
-	Token           string       `json:"token"`
-	ProviderFQDN    string       `json:"providerFqdn"`
-	InviteString    string       `json:"inviteString"`
-	RecipientEmail  string       `json:"recipientEmail,omitempty"`
-	CreatedByUserID string       `json:"-"` // local user id who created this invite
-	CreatedAt       time.Time    `json:"createdAt"`
-	ExpiresAt       time.Time    `json:"expiresAt"`
-	Status          InviteStatus `json:"status"`
-	AcceptedBy      string       `json:"acceptedBy,omitempty"`
-	AcceptedAt      *time.Time   `json:"acceptedAt,omitempty"`
-}
-
-// IncomingInvite represents an invite we received (via pasting an invite string).
-type IncomingInvite struct {
-	ID              string       `json:"id"`
-	InviteString    string       `json:"inviteString"`
-	Token           string       `json:"token"`
-	SenderFQDN      string       `json:"senderFqdn"`
-	RecipientUserID string       `json:"-"` // canonical local user id that owns this inbox entry
-	ReceivedAt      time.Time    `json:"receivedAt"`
-	Status          InviteStatus `json:"status"`
-}
+var (
+	ErrInviteNotFound = errors.New("invite not found")
+	ErrTokenNotFound  = errors.New("token not found")
+)
 
 // CreateOutgoingRequest is the request for POST /api/invites/outgoing.
 type CreateOutgoingRequest struct {
@@ -52,18 +35,10 @@ type CreateOutgoingRequest struct {
 
 // CreateOutgoingResponse is the response for POST /api/invites/outgoing.
 type CreateOutgoingResponse struct {
-	InviteString   string    `json:"inviteString"`
-	Token          string    `json:"token"`
-	ProviderFQDN   string    `json:"providerFqdn"`
-	ExpiresAt      time.Time `json:"expiresAt"`
-}
-
-// InboxInviteView is the public view of an incoming invite.
-type InboxInviteView struct {
-	ID         string       `json:"id"`
-	SenderFQDN string       `json:"senderFqdn"`
-	ReceivedAt time.Time    `json:"receivedAt"`
-	Status     InviteStatus `json:"status"`
+	InviteString string `json:"inviteString"`
+	Token        string `json:"token"`
+	ProviderFQDN string `json:"providerFqdn"`
+	ExpiresAt    time.Time `json:"expiresAt"`
 }
 
 // ParseInviteString parses a base64 invite string into token and provider FQDN.

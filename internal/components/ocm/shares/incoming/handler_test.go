@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
@@ -42,7 +42,7 @@ func setupTestPartyRepo() identity.PartyRepo {
 }
 
 // newTestHandler creates a handler wired for testing against localhost:9200 (https).
-func newTestHandler(repo *shares.MemoryIncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
 	return incoming.NewHandler(
 		repo,
 		partyRepo,
@@ -138,7 +138,7 @@ func TestValidateRequiredFields_ProtocolWithOnlyWebDAV(t *testing.T) {
 // --- CreateShare handler ---
 
 func TestCreateShare_Success_ResolvesById(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -163,7 +163,7 @@ func TestCreateShare_Success_ResolvesById(t *testing.T) {
 }
 
 func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -186,7 +186,7 @@ func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
 }
 
 func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -204,7 +204,7 @@ func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 }
 
 func TestCreateShare_MissingRequiredFields(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -230,7 +230,7 @@ func TestCreateShare_MissingRequiredFields(t *testing.T) {
 }
 
 func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -272,7 +272,7 @@ func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
 }
 
 func TestCreateShare_ProviderMismatch(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -295,7 +295,7 @@ func TestCreateShare_ProviderMismatch(t *testing.T) {
 }
 
 func TestCreateShare_UnsupportedShareType_Returns501(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -327,7 +327,7 @@ func TestCreateShare_UnsupportedShareType_Returns501(t *testing.T) {
 }
 
 func TestCreateShare_RecipientNotFound(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -360,7 +360,7 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 }
 
 func TestCreateShare_DuplicateReturns200(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -395,7 +395,7 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 
 func TestCreateShare_AcceptsAllResourceTypes(t *testing.T) {
 	// F7=A: accept all resourceType values, do not reject unknown types
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -421,7 +421,7 @@ func TestCreateShare_AcceptsAllResourceTypes(t *testing.T) {
 }
 
 func TestCreateShare_NoWebDAV_Returns501(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -479,7 +479,7 @@ func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
 	// Reva-style federated opaque ID: base64url_padded(userID@localProvider)
 	// The encoded identifier won't match any user by raw ID, username, or email,
 	// so triple resolution fails and the decode fallback fires.
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -506,7 +506,7 @@ func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
 func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	// Encoded identifier decodes to a valid userID@idp payload, but the
 	// decoded idp doesn't match local provider -- must be rejected.
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -534,7 +534,7 @@ func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
 	// "YWJj" is base64 of "abc" -- passes charset check but decoded payload
 	// has no '@', so DecodeFederatedOpaqueID returns false. Falls through to
 	// "recipient not found" since "YWJj" is not a real user.
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 

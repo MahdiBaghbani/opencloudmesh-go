@@ -17,6 +17,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
@@ -49,7 +50,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	}
 
 	// Seed an outgoing invite
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "identity-test-token",
 		ProviderFQDN:    localProvider,
 		CreatedByUserID: localUser.ID,

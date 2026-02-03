@@ -12,6 +12,7 @@ import (
 	outgoinginvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -31,7 +32,7 @@ func failCurrentUser() func(context.Context) (*identity.User, error) {
 }
 
 func TestHandleCreateOutgoing_Success(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := outgoinginvites.NewHandler(repo, testProvider, nil, testLogger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
@@ -68,7 +69,7 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	user := &identity.User{
 		ID:       "creator-uuid",
 		Username: "alice",
@@ -97,7 +98,7 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_NilCurrentUser_NoCreatedByUserID(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := outgoinginvites.NewHandler(repo, testProvider, nil, testLogger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
@@ -119,7 +120,7 @@ func TestHandleCreateOutgoing_NilCurrentUser_NoCreatedByUserID(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := outgoinginvites.NewHandler(repo, testProvider, nil, testLogger)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/invites/outgoing", nil)
@@ -133,7 +134,7 @@ func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed_Returns405(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := outgoinginvites.NewHandler(repo, testProvider, nil, testLogger)
 
 	req := httptest.NewRequest(http.MethodPut, "/api/invites/outgoing", nil)

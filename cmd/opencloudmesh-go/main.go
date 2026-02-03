@@ -28,8 +28,9 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
@@ -282,10 +283,10 @@ func main() {
 	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
 
 	// Create repos once for SharedDeps.
-	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
+	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
 	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	outgoingInviteRepo := invites.NewMemoryOutgoingInviteRepo()
-	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
+	outgoingInviteRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	incomingInviteRepo := invitesinbox.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
 	// Create RealIP extractor for trusted-proxy-aware client identity

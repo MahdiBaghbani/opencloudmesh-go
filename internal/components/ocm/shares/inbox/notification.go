@@ -1,4 +1,4 @@
-package shares
+package inbox
 
 import "context"
 

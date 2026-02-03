@@ -14,7 +14,7 @@ import (
 
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 )
 
 // mockNotificationSender records accept/decline calls for assertions.
@@ -51,7 +51,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 }
 
 // newTestRouter mounts the inbox shares handler on a Chi router.
-func newTestRouter(repo shares.IncomingShareRepo, sender shares.NotificationSender, user *identity.User) http.Handler {
+func newTestRouter(repo sharesinbox.IncomingShareRepo, sender sharesinbox.NotificationSender, user *identity.User) http.Handler {
 	h := inboxshares.NewHandler(repo, sender, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
 	r.Route("/inbox/shares", func(r chi.Router) {
@@ -63,13 +63,13 @@ func newTestRouter(repo shares.IncomingShareRepo, sender shares.NotificationSend
 }
 
 // createShareForUser creates a share owned by the given user ID.
-func createShareForUser(repo *shares.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *shares.IncomingShare {
-	share := &shares.IncomingShare{
+func createShareForUser(repo *sharesinbox.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesinbox.IncomingShare {
+	share := &sharesinbox.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
 		ShareWith:       recipientUserID + "@example.com",
 		RecipientUserID: recipientUserID,
-		Status:          shares.ShareStatusPending,
+		Status:          sharesinbox.ShareStatusPending,
 		ResourceType:    "file",
 		Name:            "test-share-" + providerID,
 		Owner:           "owner@sender.example.com",
@@ -81,7 +81,7 @@ func createShareForUser(repo *shares.MemoryIncomingShareRepo, recipientUserID, p
 }
 
 func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	shareA := createShareForUser(repo, userAID, "prov-a1", "sender.example.com")
 	createShareForUser(repo, userBID, "prov-b1", "sender.example.com")
 
@@ -110,7 +110,7 @@ func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
 }
 
 func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	createShareForUser(repo, userAID, "prov-a1", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -133,7 +133,7 @@ func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
 }
 
 func TestHandleList_Unauthenticated(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	router := newTestRouter(repo, nil, nil) // nil user = unauthenticated
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
@@ -146,7 +146,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleAccept_Success(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	sender := &mockNotificationSender{}
 	share := createShareForUser(repo, userAID, "prov-accept", "sender.example.com")
 
@@ -163,8 +163,8 @@ func TestHandleAccept_Success(t *testing.T) {
 
 	// Verify share was updated
 	updated, _ := repo.GetByIDForRecipientUserID(context.Background(), share.ShareID, userAID)
-	if updated.Status != shares.ShareStatusAccepted {
-		t.Errorf("expected status %s, got %s", shares.ShareStatusAccepted, updated.Status)
+	if updated.Status != sharesinbox.ShareStatusAccepted {
+		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusAccepted, updated.Status)
 	}
 
 	// Verify notification was sent
@@ -174,7 +174,7 @@ func TestHandleAccept_Success(t *testing.T) {
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-cross", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -190,7 +190,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, nil, userA)
 
@@ -204,12 +204,12 @@ func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	sender := &mockNotificationSender{}
 	share := createShareForUser(repo, userAID, "prov-idem", "sender.example.com")
 
 	// Pre-accept the share
-	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusAccepted)
+	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, sender, userA)
@@ -229,10 +229,10 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 }
 
 func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-declined", "sender.example.com")
 
-	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusDeclined)
+	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusDeclined)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, nil, userA)
@@ -247,7 +247,7 @@ func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 }
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	router := newTestRouter(repo, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/some-id/accept", nil)
@@ -260,7 +260,7 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleDecline_Success(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	sender := &mockNotificationSender{}
 	share := createShareForUser(repo, userAID, "prov-decline", "sender.example.com")
 
@@ -276,8 +276,8 @@ func TestHandleDecline_Success(t *testing.T) {
 	}
 
 	updated, _ := repo.GetByIDForRecipientUserID(context.Background(), share.ShareID, userAID)
-	if updated.Status != shares.ShareStatusDeclined {
-		t.Errorf("expected status %s, got %s", shares.ShareStatusDeclined, updated.Status)
+	if updated.Status != sharesinbox.ShareStatusDeclined {
+		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusDeclined, updated.Status)
 	}
 
 	if len(sender.declineCalls) != 1 {
@@ -286,7 +286,7 @@ func TestHandleDecline_Success(t *testing.T) {
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-cross-dec", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -302,10 +302,10 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleDecline_ConflictForAcceptedShare(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-acc-dec", "sender.example.com")
 
-	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusAccepted)
+	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, nil, userA)
@@ -320,20 +320,20 @@ func TestHandleDecline_ConflictForAcceptedShare(t *testing.T) {
 }
 
 func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
-	repo := shares.NewMemoryIncomingShareRepo()
-	share := &shares.IncomingShare{
-		ProviderID:          "prov-sensitive",
-		SenderHost:          "sender.example.com",
-		ShareWith:           userAID + "@example.com",
-		RecipientUserID:     userAID,
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	share := &sharesinbox.IncomingShare{
+		ProviderID:           "prov-sensitive",
+		SenderHost:           "sender.example.com",
+		ShareWith:            userAID + "@example.com",
+		RecipientUserID:      userAID,
 		RecipientDisplayName: "Alice A",
-		SharedSecret:        "super-secret-token",
-		Status:              shares.ShareStatusPending,
-		ResourceType:        "file",
-		Name:                "test-share",
-		Owner:               "owner@sender.example.com",
-		Sender:              "sender@sender.example.com",
-		ShareType:           "user",
+		SharedSecret:         "super-secret-token",
+		Status:               sharesinbox.ShareStatusPending,
+		ResourceType:         "file",
+		Name:                 "test-share",
+		Owner:                "owner@sender.example.com",
+		Sender:               "sender@sender.example.com",
+		ShareType:            "user",
 	}
 	repo.Create(context.Background(), share)
 

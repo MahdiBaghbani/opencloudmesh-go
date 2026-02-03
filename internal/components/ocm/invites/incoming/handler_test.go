@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
@@ -27,7 +28,7 @@ const (
 )
 
 // newTestHandler creates a handler with repo and optional partyRepo.
-func newTestHandler(repo *invites.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+func newTestHandler(repo *invitesoutgoing.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
 	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testPublicOrigin, testLogger)
 }
 
@@ -57,7 +58,7 @@ func validAcceptedBody(token string) string {
 }
 
 func TestHandleInviteAccepted_RecipientProviderRequired(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"","token":"t","userID":"u@host","email":"e","name":"n"}`)
@@ -71,7 +72,7 @@ func TestHandleInviteAccepted_RecipientProviderRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"https://other.com","token":"t","userID":"u@host","email":"e","name":"n"}`)
@@ -85,7 +86,7 @@ func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"","userID":"u@host","email":"e","name":"n"}`)
@@ -99,7 +100,7 @@ func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"","email":"e","name":"n"}`)
@@ -114,7 +115,7 @@ func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
 
 func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
 	// Preflight: email key entirely absent from JSON -> 400 EMAIL_REQUIRED
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","name":"n"}`)
@@ -129,7 +130,7 @@ func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
 
 func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
 	// Preflight: name key entirely absent from JSON -> 400 NAME_REQUIRED
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","email":"e"}`)
@@ -144,10 +145,10 @@ func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
 
 func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 	// Preflight: email key present but empty string -> allowed (spec: no non-empty constraint)
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-email-token",
 		ProviderFQDN:    testProvider,
 		CreatedByUserID: "", // legacy
@@ -165,10 +166,10 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 
 func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 	// Preflight: name key present but empty string -> allowed (spec: no non-empty constraint)
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-name-token",
 		ProviderFQDN:    testProvider,
 		CreatedByUserID: "", // legacy
@@ -185,7 +186,7 @@ func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_TokenInvalid(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, validAcceptedBody("nonexistent"))
@@ -199,10 +200,10 @@ func TestHandleInviteAccepted_TokenInvalid(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_TokenExpired(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:        "expired-token",
 		ProviderFQDN: testProvider,
 		ExpiresAt:    time.Now().Add(-1 * time.Hour),
@@ -221,10 +222,10 @@ func TestHandleInviteAccepted_TokenExpired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:        "accepted-token",
 		ProviderFQDN: testProvider,
 		Status:       invites.InviteStatusAccepted,
@@ -243,10 +244,10 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:        "trust-token",
 		ProviderFQDN: testProvider,
 		ExpiresAt:    time.Now().Add(24 * time.Hour),
@@ -281,7 +282,7 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 // --- HandleInviteAccepted success and response tests ---
 
 func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 
 	// Create the local inviting user
@@ -297,7 +298,7 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 
 	handler := newTestHandler(repo, partyRepo)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "valid-token",
 		ProviderFQDN:    testProvider,
 		CreatedByUserID: localUser.ID,
@@ -337,7 +338,7 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 
 	// Local user with no email or display name
@@ -351,7 +352,7 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 
 	handler := newTestHandler(repo, partyRepo)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "valid-token",
 		ProviderFQDN:    testProvider,
 		CreatedByUserID: localUser.ID,
@@ -385,12 +386,12 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
 	// Legacy invite: CreatedByUserID is empty (created before this change)
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "legacy-token",
 		ProviderFQDN:    testProvider,
 		CreatedByUserID: "", // legacy
@@ -424,7 +425,7 @@ func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
 // --- HandleInviteAccepted content type and method tests ---
 
 func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted",
@@ -442,7 +443,7 @@ func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
 // --- Response field presence test ---
 
 func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
-	repo := invites.NewMemoryOutgoingInviteRepo()
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 
 	localUser := &identity.User{
@@ -454,7 +455,7 @@ func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
 
 	handler := newTestHandler(repo, partyRepo)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "field-test-token",
 		ProviderFQDN:    testProvider,
 		CreatedByUserID: localUser.ID,

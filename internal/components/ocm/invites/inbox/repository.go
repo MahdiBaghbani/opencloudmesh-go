@@ -1,126 +1,25 @@
-package invites
+package inbox
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-)
 
-var (
-	ErrInviteNotFound = errors.New("invite not found")
-	ErrTokenNotFound  = errors.New("token not found")
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
-
-// OutgoingInviteRepo manages outgoing invites.
-type OutgoingInviteRepo interface {
-	Create(ctx context.Context, invite *OutgoingInvite) error
-	GetByID(ctx context.Context, id string) (*OutgoingInvite, error)
-	GetByToken(ctx context.Context, token string) (*OutgoingInvite, error)
-	List(ctx context.Context) ([]*OutgoingInvite, error)
-	UpdateStatus(ctx context.Context, id string, status InviteStatus, acceptedBy string) error
-}
 
 // IncomingInviteRepo manages incoming invites.
 // All read/write operations are scoped to a specific recipient user id.
-// Cross-user access behaves as not found (confidentiality invariant, Q2=B).
+// Cross-user access behaves as not found (confidentiality invariant).
 type IncomingInviteRepo interface {
 	Create(ctx context.Context, invite *IncomingInvite) error
 	GetByIDForRecipientUserID(ctx context.Context, id string, recipientUserID string) (*IncomingInvite, error)
 	GetByTokenForRecipientUserID(ctx context.Context, token string, recipientUserID string) (*IncomingInvite, error)
 	ListByRecipientUserID(ctx context.Context, recipientUserID string) ([]*IncomingInvite, error)
-	UpdateStatusForRecipientUserID(ctx context.Context, id string, recipientUserID string, status InviteStatus) error
+	UpdateStatusForRecipientUserID(ctx context.Context, id string, recipientUserID string, status invites.InviteStatus) error
 	DeleteForRecipientUserID(ctx context.Context, id string, recipientUserID string) error
-}
-
-// MemoryOutgoingInviteRepo is an in-memory implementation.
-type MemoryOutgoingInviteRepo struct {
-	mu      sync.RWMutex
-	invites map[string]*OutgoingInvite
-	byToken map[string]string // token -> id
-}
-
-// NewMemoryOutgoingInviteRepo creates a new in-memory outgoing invite repo.
-func NewMemoryOutgoingInviteRepo() *MemoryOutgoingInviteRepo {
-	return &MemoryOutgoingInviteRepo{
-		invites: make(map[string]*OutgoingInvite),
-		byToken: make(map[string]string),
-	}
-}
-
-func (r *MemoryOutgoingInviteRepo) Create(ctx context.Context, invite *OutgoingInvite) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if invite.ID == "" {
-		invite.ID = uuid.New().String()
-	}
-	if invite.CreatedAt.IsZero() {
-		invite.CreatedAt = time.Now()
-	}
-	if invite.Status == "" {
-		invite.Status = InviteStatusPending
-	}
-
-	r.invites[invite.ID] = invite
-	r.byToken[invite.Token] = invite.ID
-	return nil
-}
-
-func (r *MemoryOutgoingInviteRepo) GetByID(ctx context.Context, id string) (*OutgoingInvite, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	invite, ok := r.invites[id]
-	if !ok {
-		return nil, ErrInviteNotFound
-	}
-	return invite, nil
-}
-
-func (r *MemoryOutgoingInviteRepo) GetByToken(ctx context.Context, token string) (*OutgoingInvite, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	id, ok := r.byToken[token]
-	if !ok {
-		return nil, ErrTokenNotFound
-	}
-	invite, ok := r.invites[id]
-	if !ok {
-		return nil, ErrInviteNotFound
-	}
-	return invite, nil
-}
-
-func (r *MemoryOutgoingInviteRepo) List(ctx context.Context) ([]*OutgoingInvite, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	result := make([]*OutgoingInvite, 0, len(r.invites))
-	for _, invite := range r.invites {
-		result = append(result, invite)
-	}
-	return result, nil
-}
-
-func (r *MemoryOutgoingInviteRepo) UpdateStatus(ctx context.Context, id string, status InviteStatus, acceptedBy string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	invite, ok := r.invites[id]
-	if !ok {
-		return ErrInviteNotFound
-	}
-	invite.Status = status
-	if acceptedBy != "" {
-		invite.AcceptedBy = acceptedBy
-		now := time.Now()
-		invite.AcceptedAt = &now
-	}
-	return nil
 }
 
 // MemoryIncomingInviteRepo is an in-memory implementation with per-user scoping.
@@ -156,7 +55,7 @@ func (r *MemoryIncomingInviteRepo) Create(ctx context.Context, invite *IncomingI
 		invite.ReceivedAt = time.Now()
 	}
 	if invite.Status == "" {
-		invite.Status = InviteStatusPending
+		invite.Status = invites.InviteStatusPending
 	}
 
 	r.invites[invite.ID] = invite
@@ -181,7 +80,7 @@ func (r *MemoryIncomingInviteRepo) GetByIDForRecipientUserID(ctx context.Context
 
 	invite, ok := r.invites[id]
 	if !ok || invite.RecipientUserID != recipientUserID {
-		return nil, ErrInviteNotFound
+		return nil, invites.ErrInviteNotFound
 	}
 	return invite, nil
 }
@@ -192,11 +91,11 @@ func (r *MemoryIncomingInviteRepo) GetByTokenForRecipientUserID(ctx context.Cont
 
 	id, ok := r.byTokenRecipient[tokenRecipientKey(token, recipientUserID)]
 	if !ok {
-		return nil, ErrInviteNotFound
+		return nil, invites.ErrInviteNotFound
 	}
 	invite, ok := r.invites[id]
 	if !ok {
-		return nil, ErrInviteNotFound
+		return nil, invites.ErrInviteNotFound
 	}
 	return invite, nil
 }
@@ -215,13 +114,13 @@ func (r *MemoryIncomingInviteRepo) ListByRecipientUserID(ctx context.Context, re
 	return result, nil
 }
 
-func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(ctx context.Context, id string, recipientUserID string, status InviteStatus) error {
+func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(ctx context.Context, id string, recipientUserID string, status invites.InviteStatus) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	invite, ok := r.invites[id]
 	if !ok || invite.RecipientUserID != recipientUserID {
-		return ErrInviteNotFound
+		return invites.ErrInviteNotFound
 	}
 	invite.Status = status
 	return nil
@@ -233,7 +132,7 @@ func (r *MemoryIncomingInviteRepo) DeleteForRecipientUserID(ctx context.Context,
 
 	invite, ok := r.invites[id]
 	if !ok || invite.RecipientUserID != recipientUserID {
-		return ErrInviteNotFound
+		return invites.ErrInviteNotFound
 	}
 
 	// Clean up token+recipient index

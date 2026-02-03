@@ -9,9 +9,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
@@ -36,10 +37,10 @@ type Deps struct {
 	UserAuth    *identity.UserAuth
 
 	// Repos
-	IncomingShareRepo  shares.IncomingShareRepo
+	IncomingShareRepo  sharesinbox.IncomingShareRepo
 	OutgoingShareRepo  sharesoutgoing.OutgoingShareRepo
-	OutgoingInviteRepo invites.OutgoingInviteRepo
-	IncomingInviteRepo invites.IncomingInviteRepo
+	OutgoingInviteRepo invitesoutgoing.OutgoingInviteRepo
+	IncomingInviteRepo invitesinbox.IncomingInviteRepo
 	TokenStore         token.TokenStore
 
 	// Clients

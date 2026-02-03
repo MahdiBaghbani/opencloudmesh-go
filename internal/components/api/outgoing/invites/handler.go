@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -22,7 +23,7 @@ const DefaultInviteTTL = 7 * 24 * time.Hour
 
 // Handler handles outgoing invite creation.
 type Handler struct {
-	outgoingRepo  invites.OutgoingInviteRepo
+	outgoingRepo  invitesoutgoing.OutgoingInviteRepo
 	localProvider string // raw host[:port] for invite token generation
 	currentUser   func(context.Context) (*identity.User, error)
 	logger        *slog.Logger
@@ -30,7 +31,7 @@ type Handler struct {
 
 // NewHandler creates a new outgoing invites handler.
 func NewHandler(
-	outgoingRepo invites.OutgoingInviteRepo,
+	outgoingRepo invitesoutgoing.OutgoingInviteRepo,
 	localProvider string,
 	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
@@ -78,7 +79,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 
 	inviteString := invites.BuildInviteString(token, h.localProvider)
 
-	invite := &invites.OutgoingInvite{
+	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           token,
 		ProviderFQDN:    h.localProvider,
 		InviteString:    inviteString,

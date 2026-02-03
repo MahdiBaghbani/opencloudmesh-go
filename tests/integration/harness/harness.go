@@ -15,8 +15,9 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
@@ -104,10 +105,10 @@ func StartTestServer(t *testing.T) *TestServer {
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
 	// Create repos for SharedDeps and server.Deps (dual-use)
-	incomingShareRepo := shares.NewMemoryIncomingShareRepo()
+	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
 	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	outgoingInviteRepo := invites.NewMemoryOutgoingInviteRepo()
-	incomingInviteRepo := invites.NewMemoryIncomingInviteRepo()
+	outgoingInviteRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	incomingInviteRepo := invitesinbox.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
 	// Create memory cache for tests (required for rate limiting interceptor)

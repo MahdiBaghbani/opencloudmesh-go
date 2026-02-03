@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
@@ -24,7 +25,7 @@ import (
 
 // Handler handles OCM invite-accepted protocol endpoint.
 type Handler struct {
-	outgoingRepo invites.OutgoingInviteRepo
+	outgoingRepo invitesoutgoing.OutgoingInviteRepo
 	partyRepo    identity.PartyRepo     // for invite-accepted (look up local inviting user)
 	policyEngine *peertrust.PolicyEngine // may be nil when peer trust is disabled
 	providerFQDN string
@@ -37,7 +38,7 @@ type Handler struct {
 // partyRepo is used by HandleInviteAccepted to look up the local inviting user (may be nil).
 // policyEngine may be nil when peer trust is disabled.
 func NewHandler(
-	outgoingRepo invites.OutgoingInviteRepo,
+	outgoingRepo invitesoutgoing.OutgoingInviteRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
 	localProviderFQDN string,
@@ -213,7 +214,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 
 // buildInviteAcceptedResponse returns the local inviting user's identity for the
 // invite-accepted response. Handles the CreatedByUserID backfill for legacy invites (F5=A).
-func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invites.OutgoingInvite, log *slog.Logger) spec.InviteAcceptedResponse {
+func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invitesoutgoing.OutgoingInvite, log *slog.Logger) spec.InviteAcceptedResponse {
 	// Legacy invite backfill (F5=A): if CreatedByUserID is empty, return placeholder
 	if invite.CreatedByUserID == "" {
 		return spec.InviteAcceptedResponse{

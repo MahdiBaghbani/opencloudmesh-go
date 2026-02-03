@@ -11,8 +11,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
@@ -27,10 +28,10 @@ func setupTestDeps() {
 		SessionRepo: identity.NewMemorySessionRepo(),
 		UserAuth:    identity.NewUserAuthFast(),
 		// Repos
-		IncomingShareRepo:  shares.NewMemoryIncomingShareRepo(),
+		IncomingShareRepo:  sharesinbox.NewMemoryIncomingShareRepo(),
 		OutgoingShareRepo:  sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		OutgoingInviteRepo: invites.NewMemoryOutgoingInviteRepo(),
-		IncomingInviteRepo: invites.NewMemoryIncomingInviteRepo(),
+		OutgoingInviteRepo: invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		IncomingInviteRepo: invitesinbox.NewMemoryIncomingInviteRepo(),
 		TokenStore:         token.NewMemoryTokenStore(),
 		// Clients
 		HTTPClient: httpclient.NewContextClient(httpclient.New(nil)),

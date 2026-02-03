@@ -17,6 +17,7 @@ import (
 	inboxinvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -39,7 +40,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 // newTestRouter mounts the inbox invites handler on a Chi router.
 // httpClient, discoveryClient, signer, and outboundPolicy are nil for unit tests
 // (they are only needed for the accept flow which sends outbound requests).
-func newTestRouter(repo invites.IncomingInviteRepo, user *identity.User) http.Handler {
+func newTestRouter(repo invitesinbox.IncomingInviteRepo, user *identity.User) http.Handler {
 	h := inboxinvites.NewHandler(
 		repo,
 		nil, // httpClient
@@ -61,8 +62,8 @@ func newTestRouter(repo invites.IncomingInviteRepo, user *identity.User) http.Ha
 }
 
 // createInviteForUser creates an incoming invite owned by the given user.
-func createInviteForUser(repo *invites.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invites.IncomingInvite {
-	invite := &invites.IncomingInvite{
+func createInviteForUser(repo *invitesinbox.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesinbox.IncomingInvite {
+	invite := &invitesinbox.IncomingInvite{
 		Token:           token,
 		SenderFQDN:      senderFQDN,
 		RecipientUserID: recipientUserID,
@@ -79,7 +80,7 @@ func buildInviteString(token, providerFQDN string) string {
 }
 
 func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invA := createInviteForUser(repo, userAID, "token-a", "sender-a.example.com")
 	createInviteForUser(repo, userBID, "token-b", "sender-b.example.com")
 
@@ -108,7 +109,7 @@ func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
 }
 
 func TestHandleList_EmptyForUserWithNoInvites(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	createInviteForUser(repo, userAID, "token-a", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -131,7 +132,7 @@ func TestHandleList_EmptyForUserWithNoInvites(t *testing.T) {
 }
 
 func TestHandleList_Unauthenticated(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/invites/", nil)
@@ -144,7 +145,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleList_DoesNotLeakToken(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	createInviteForUser(repo, userAID, "super-secret-token-123", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -161,7 +162,7 @@ func TestHandleList_DoesNotLeakToken(t *testing.T) {
 }
 
 func TestHandleImport_Success(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -196,7 +197,7 @@ func TestHandleImport_Success(t *testing.T) {
 }
 
 func TestHandleImport_Idempotent(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -235,7 +236,7 @@ func TestHandleImport_Idempotent(t *testing.T) {
 }
 
 func TestHandleImport_InvalidInviteString(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -251,7 +252,7 @@ func TestHandleImport_InvalidInviteString(t *testing.T) {
 }
 
 func TestHandleImport_MissingInviteString(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -267,7 +268,7 @@ func TestHandleImport_MissingInviteString(t *testing.T) {
 }
 
 func TestHandleImport_Unauthenticated(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	router := newTestRouter(repo, nil)
 
 	inviteStr := buildInviteString("token", "remote.example.com")
@@ -283,7 +284,7 @@ func TestHandleImport_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invite := createInviteForUser(repo, userAID, "accept-token", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -299,7 +300,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_NonexistentReturns404(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -313,7 +314,7 @@ func TestHandleAccept_NonexistentReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invite := createInviteForUser(repo, userAID, "idem-accept-token", "sender.example.com")
 
 	// Pre-accept
@@ -332,7 +333,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 }
 
 func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invite := createInviteForUser(repo, userAID, "conflict-token", "sender.example.com")
 
 	// The decline handler deletes the invite, so to test this we need to
@@ -352,7 +353,7 @@ func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
 }
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/some-id/accept", nil)
@@ -365,7 +366,7 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleDecline_Success(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invite := createInviteForUser(repo, userAID, "decline-token", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -387,7 +388,7 @@ func TestHandleDecline_Success(t *testing.T) {
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invite := createInviteForUser(repo, userAID, "decline-cross-token", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -403,7 +404,7 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleDecline_Unauthenticated(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/some-id/decline", nil)
@@ -416,7 +417,7 @@ func TestHandleDecline_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
-	repo := invites.NewMemoryIncomingInviteRepo()
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	inviteStr := buildInviteString("shared-token", "remote.example.com")
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
 

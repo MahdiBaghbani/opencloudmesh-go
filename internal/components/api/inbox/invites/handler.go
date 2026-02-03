@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -20,15 +21,24 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// InboxInviteView is the public view of an incoming invite.
+type InboxInviteView struct {
+	ID         string              `json:"id"`
+	SenderFQDN string              `json:"senderFqdn"`
+	ReceivedAt time.Time           `json:"receivedAt"`
+	Status     invites.InviteStatus `json:"status"`
+}
+
 // InboxListResponse wraps the invite views returned by HandleList.
 type InboxListResponse struct {
-	Invites []invites.InboxInviteView `json:"invites"`
+	Invites []InboxInviteView `json:"invites"`
 }
 
 // InviteImportRequest is the request body for POST /api/inbox/invites/import.
@@ -46,7 +56,7 @@ type InviteImportResponse struct {
 
 // Handler handles inbox invite list, import, accept, and decline endpoints.
 type Handler struct {
-	incomingRepo    invites.IncomingInviteRepo
+	incomingRepo    invitesinbox.IncomingInviteRepo
 	httpClient      httpclient.HTTPClient
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
@@ -58,7 +68,7 @@ type Handler struct {
 
 // NewHandler creates a new inbox invites handler.
 func NewHandler(
-	incomingRepo invites.IncomingInviteRepo,
+	incomingRepo invitesinbox.IncomingInviteRepo,
 	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
@@ -96,9 +106,9 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	views := make([]invites.InboxInviteView, 0, len(result))
+	views := make([]InboxInviteView, 0, len(result))
 	for _, inv := range result {
-		views = append(views, invites.InboxInviteView{
+		views = append(views, InboxInviteView{
 			ID:         inv.ID,
 			SenderFQDN: inv.SenderFQDN,
 			ReceivedAt: inv.ReceivedAt,
@@ -151,7 +161,7 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invite := &invites.IncomingInvite{
+	invite := &invitesinbox.IncomingInvite{
 		Token:           token,
 		SenderFQDN:      senderFQDN,
 		RecipientUserID: user.ID,
@@ -299,7 +309,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 // sendInviteAccepted sends POST /ocm/invite-accepted to the sender with all
 // five spec-required AcceptedInvite fields (E7=A).
-func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invites.IncomingInvite, user *identity.User) error {
+func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.IncomingInvite, user *identity.User) error {
 	// Discover sender's OCM endpoint
 	baseURL := "https://" + invite.SenderFQDN
 	disc, err := h.discoveryClient.Discover(ctx, baseURL)

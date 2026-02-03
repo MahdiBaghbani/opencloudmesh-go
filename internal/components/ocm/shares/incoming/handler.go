@@ -12,7 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -22,7 +22,7 @@ import (
 
 // Handler handles incoming OCM share endpoints (POST /ocm/shares).
 type Handler struct {
-	repo                        shares.IncomingShareRepo
+	repo                        sharesinbox.IncomingShareRepo
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
 	localProviderFQDNForCompare string
@@ -33,7 +33,7 @@ type Handler struct {
 
 // NewHandler creates a new incoming shares handler.
 func NewHandler(
-	repo shares.IncomingShareRepo,
+	repo sharesinbox.IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
 	localProviderFQDNForCompare string,
@@ -210,7 +210,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 10: Build and store the inbox record
-	share := &shares.IncomingShare{
+	share := &sharesinbox.IncomingShare{
 		ProviderID:           req.ProviderID,
 		SenderHost:           senderHost,
 		Owner:                req.Owner,
@@ -223,7 +223,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		OwnerDisplayName:     req.OwnerDisplayName,
 		SenderDisplayName:    req.SenderDisplayName,
 		Expiration:           req.Expiration,
-		Status:               shares.ShareStatusPending,
+		Status:               sharesinbox.ShareStatusPending,
 		RecipientUserID:      resolvedUser.ID,
 		RecipientDisplayName: resolvedUser.DisplayName,
 	}
