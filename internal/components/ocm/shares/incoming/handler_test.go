@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 // testLogger returns a quiet logger for tests.
@@ -75,8 +76,8 @@ func validShareBody(shareWith string) string {
 // --- ValidateRequiredFields ---
 
 func TestValidateRequiredFields_AllMissing(t *testing.T) {
-	req := &shares.NewShareRequest{}
-	errs := incoming.ValidateRequiredFields(req)
+	req := &spec.NewShareRequest{}
+	errs := spec.ValidateRequiredFields(req)
 
 	if len(errs) == 0 {
 		t.Fatal("expected validation errors for empty request")
@@ -99,7 +100,7 @@ func TestValidateRequiredFields_AllMissing(t *testing.T) {
 }
 
 func TestValidateRequiredFields_AllPresent(t *testing.T) {
-	req := &shares.NewShareRequest{
+	req := &spec.NewShareRequest{
 		ShareWith:    "user@host",
 		Name:         "file.txt",
 		ProviderID:   "p1",
@@ -107,9 +108,9 @@ func TestValidateRequiredFields_AllPresent(t *testing.T) {
 		Sender:       "s@h",
 		ShareType:    "user",
 		ResourceType: "file",
-		Protocol:     shares.Protocol{Name: "webdav", WebDAV: &shares.WebDAVProtocol{URI: "x"}},
+		Protocol:     spec.Protocol{Name: "webdav", WebDAV: &spec.WebDAVProtocol{URI: "x"}},
 	}
-	errs := incoming.ValidateRequiredFields(req)
+	errs := spec.ValidateRequiredFields(req)
 	if len(errs) != 0 {
 		t.Errorf("expected no validation errors, got %d", len(errs))
 	}
@@ -117,7 +118,7 @@ func TestValidateRequiredFields_AllPresent(t *testing.T) {
 
 func TestValidateRequiredFields_ProtocolWithOnlyWebDAV(t *testing.T) {
 	// Protocol has WebDAV but no name -- should not trigger "protocol REQUIRED"
-	req := &shares.NewShareRequest{
+	req := &spec.NewShareRequest{
 		ShareWith:    "user@host",
 		Name:         "file.txt",
 		ProviderID:   "p1",
@@ -125,9 +126,9 @@ func TestValidateRequiredFields_ProtocolWithOnlyWebDAV(t *testing.T) {
 		Sender:       "s@h",
 		ShareType:    "user",
 		ResourceType: "file",
-		Protocol:     shares.Protocol{WebDAV: &shares.WebDAVProtocol{URI: "x"}},
+		Protocol:     spec.Protocol{WebDAV: &spec.WebDAVProtocol{URI: "x"}},
 	}
-	errs := incoming.ValidateRequiredFields(req)
+	errs := spec.ValidateRequiredFields(req)
 	if len(errs) != 0 {
 		t.Errorf("expected no validation errors for protocol with webdav, got %d: %v", len(errs), errs)
 	}
@@ -153,7 +154,7 @@ func TestCreateShare_Success_ResolvesById(t *testing.T) {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp shares.CreateShareResponse
+	var resp spec.CreateShareResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.RecipientDisplayName != "Alice A" {
 		t.Errorf("expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
@@ -176,7 +177,7 @@ func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp shares.CreateShareResponse
+	var resp spec.CreateShareResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.RecipientDisplayName != "Alice A" {
 		t.Errorf("expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
@@ -217,7 +218,7 @@ func TestCreateShare_MissingRequiredFields(t *testing.T) {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
 
-	var resp incoming.OCMErrorResponse
+	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "MISSING_REQUIRED_FIELDS" {
 		t.Errorf("expected message MISSING_REQUIRED_FIELDS, got %q", resp.Message)
@@ -252,7 +253,7 @@ func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
 		t.Fatalf("expected 400 for invalid owner, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp incoming.OCMErrorResponse
+	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "INVALID_FIELD_FORMAT" {
 		t.Errorf("expected INVALID_FIELD_FORMAT, got %q", resp.Message)
@@ -285,7 +286,7 @@ func TestCreateShare_ProviderMismatch(t *testing.T) {
 		t.Fatalf("expected 400 for provider mismatch, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp incoming.OCMErrorResponse
+	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "PROVIDER_MISMATCH" {
 		t.Errorf("expected PROVIDER_MISMATCH, got %q", resp.Message)
@@ -317,7 +318,7 @@ func TestCreateShare_UnsupportedShareType_Returns501(t *testing.T) {
 		t.Fatalf("expected 501 for unsupported shareType, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp incoming.OCMErrorResponse
+	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "SHARE_TYPE_NOT_SUPPORTED" {
 		t.Errorf("expected SHARE_TYPE_NOT_SUPPORTED, got %q", resp.Message)
@@ -340,7 +341,7 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 		t.Fatalf("expected 400 for unknown recipient (spec-mandated, not 404), got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp incoming.OCMErrorResponse
+	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "RECIPIENT_NOT_FOUND" {
 		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
@@ -384,7 +385,7 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 		t.Fatalf("duplicate request: expected 200, got %d: %s", w2.Code, w2.Body.String())
 	}
 
-	var resp shares.CreateShareResponse
+	var resp spec.CreateShareResponse
 	json.NewDecoder(w2.Body).Decode(&resp)
 	if resp.RecipientDisplayName != "Alice A" {
 		t.Errorf("duplicate response: expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)

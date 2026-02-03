@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
@@ -103,7 +104,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Decode into typed struct
-	var req invites.InviteAcceptedRequest
+	var req spec.InviteAcceptedRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		log.Warn("failed to decode invite-accepted request", "error", err)
 		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
@@ -212,10 +213,10 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 
 // buildInviteAcceptedResponse returns the local inviting user's identity for the
 // invite-accepted response. Handles the CreatedByUserID backfill for legacy invites (F5=A).
-func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invites.OutgoingInvite, log *slog.Logger) invites.InviteAcceptedResponse {
+func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invites.OutgoingInvite, log *slog.Logger) spec.InviteAcceptedResponse {
 	// Legacy invite backfill (F5=A): if CreatedByUserID is empty, return placeholder
 	if invite.CreatedByUserID == "" {
-		return invites.InviteAcceptedResponse{
+		return spec.InviteAcceptedResponse{
 			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
@@ -225,7 +226,7 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invit
 	// Look up the local inviting user
 	if h.partyRepo == nil {
 		log.Error("partyRepo not available for invite-accepted local user lookup")
-		return invites.InviteAcceptedResponse{
+		return spec.InviteAcceptedResponse{
 			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
@@ -236,14 +237,14 @@ func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invit
 	if err != nil {
 		log.Error("failed to look up local inviting user",
 			"created_by_user_id", invite.CreatedByUserID, "error", err)
-		return invites.InviteAcceptedResponse{
+		return spec.InviteAcceptedResponse{
 			UserID: address.FormatOutgoing("unknown", h.providerFQDN),
 			Email:  "",
 			Name:   "",
 		}
 	}
 
-	return invites.InviteAcceptedResponse{
+	return spec.InviteAcceptedResponse{
 		UserID: address.FormatOutgoing(localUser.ID, h.providerFQDN),
 		Email:  localUser.Email,
 		Name:   localUser.DisplayName,

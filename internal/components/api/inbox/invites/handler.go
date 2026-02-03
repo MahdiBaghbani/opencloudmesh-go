@@ -20,6 +20,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -309,7 +310,7 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invites.Incomi
 	inviteAcceptedURL := disc.EndPoint + "/invite-accepted"
 
 	// All five fields are spec-required (E7=A)
-	reqBody := invites.InviteAcceptedRequest{
+	reqBody := spec.InviteAcceptedRequest{
 		RecipientProvider: h.localProvider,
 		Token:             invite.Token,
 		UserID:            address.FormatOutgoing(user.ID, h.localProvider),

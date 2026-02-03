@@ -44,24 +44,6 @@ type IncomingInvite struct {
 	Status          InviteStatus `json:"status"`
 }
 
-// InviteAcceptedRequest is the server-to-server POST /ocm/invite-accepted body.
-// All fields are spec-required (no omitempty).
-type InviteAcceptedRequest struct {
-	RecipientProvider string `json:"recipientProvider"`
-	Token             string `json:"token"`
-	UserID            string `json:"userID"`
-	Email             string `json:"email"`
-	Name              string `json:"name"`
-}
-
-// InviteAcceptedResponse is returned after successful invite acceptance.
-// All fields are spec-required (no omitempty).
-type InviteAcceptedResponse struct {
-	UserID string `json:"userID"`
-	Email  string `json:"email"`
-	Name   string `json:"name"`
-}
-
 // CreateOutgoingRequest is the request for POST /api/invites/outgoing.
 type CreateOutgoingRequest struct {
 	RecipientEmail string `json:"recipientEmail,omitempty"`

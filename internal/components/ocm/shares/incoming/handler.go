@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
@@ -62,10 +63,10 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	log := appctx.GetLogger(r.Context())
 
 	// Parse request body
-	var req shares.NewShareRequest
+	var req spec.NewShareRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Warn("failed to parse share request", "error", err)
-		writeOCMError(w, http.StatusBadRequest, "INVALID_JSON")
+		spec.WriteOCMError(w, http.StatusBadRequest, "INVALID_JSON")
 		return
 	}
 
@@ -77,40 +78,40 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 2: Validate required fields (F1=A)
-	validationErrs := ValidateRequiredFields(&req)
+	validationErrs := spec.ValidateRequiredFields(&req)
 
 	// protocol.name validation depends on strictPayloadValidation
 	if strictPayloadValidation {
 		if req.Protocol.Name == "" && (req.Protocol.WebDAV != nil || req.Protocol.WebApp != nil) {
-			validationErrs = append(validationErrs, ValidationError{Name: "protocol.name", Message: "REQUIRED"})
+			validationErrs = append(validationErrs, spec.ValidationError{Name: "protocol.name", Message: "REQUIRED"})
 		}
 	}
 	// In lenient mode: missing protocol.name is allowed when protocol.webdav is present
 
 	if len(validationErrs) > 0 {
 		log.Warn("share validation failed", "errors", len(validationErrs))
-		WriteValidationError(w, "MISSING_REQUIRED_FIELDS", validationErrs)
+		spec.WriteValidationError(w, "MISSING_REQUIRED_FIELDS", validationErrs)
 		return
 	}
 
 	// Step 3: Validate owner and sender OCM address format (F2=A)
-	var formatErrs []ValidationError
+	var formatErrs []spec.ValidationError
 	if _, _, err := address.Parse(req.Owner); err != nil {
-		formatErrs = append(formatErrs, ValidationError{Name: "owner", Message: "INVALID_FORMAT"})
+		formatErrs = append(formatErrs, spec.ValidationError{Name: "owner", Message: "INVALID_FORMAT"})
 	}
 	if _, _, err := address.Parse(req.Sender); err != nil {
-		formatErrs = append(formatErrs, ValidationError{Name: "sender", Message: "INVALID_FORMAT"})
+		formatErrs = append(formatErrs, spec.ValidationError{Name: "sender", Message: "INVALID_FORMAT"})
 	}
 	if len(formatErrs) > 0 {
 		log.Warn("share owner/sender format invalid", "errors", len(formatErrs))
-		WriteValidationError(w, "INVALID_FIELD_FORMAT", formatErrs)
+		spec.WriteValidationError(w, "INVALID_FIELD_FORMAT", formatErrs)
 		return
 	}
 
 	// Step 4: Enforce protocol support (WebDAV only)
 	if req.Protocol.WebDAV == nil {
 		log.Warn("share rejected: no webdav protocol")
-		WriteProtocolNotSupported(w)
+		spec.WriteProtocolNotSupported(w)
 		return
 	}
 
@@ -121,7 +122,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 	if effectiveProtocolName != "webdav" && effectiveProtocolName != "multi" {
 		log.Warn("share rejected: unsupported protocol name", "protocol_name", effectiveProtocolName)
-		WriteProtocolNotSupported(w)
+		spec.WriteProtocolNotSupported(w)
 		return
 	}
 
@@ -141,7 +142,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 			if msg == "" {
 				msg = "SENDER_NOT_AUTHORIZED"
 			}
-			writeOCMError(w, http.StatusForbidden, msg)
+			spec.WriteOCMError(w, http.StatusForbidden, msg)
 			return
 		}
 	}
@@ -150,7 +151,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	identifier, shareWithProvider, err := address.Parse(req.ShareWith)
 	if err != nil {
 		log.Warn("invalid shareWith format", "share_with", req.ShareWith, "error", err)
-		WriteValidationError(w, "INVALID_SHARE_WITH", []ValidationError{
+		spec.WriteValidationError(w, "INVALID_SHARE_WITH", []spec.ValidationError{
 			{Name: "shareWith", Message: "INVALID_FORMAT"},
 		})
 		return
@@ -160,7 +161,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	normalizedProvider, err := hostport.Normalize(shareWithProvider, h.localScheme)
 	if err != nil {
 		log.Warn("failed to normalize shareWith provider", "provider", shareWithProvider, "error", err)
-		WriteValidationError(w, "PROVIDER_MISMATCH", []ValidationError{
+		spec.WriteValidationError(w, "PROVIDER_MISMATCH", []spec.ValidationError{
 			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
 		})
 		return
@@ -170,7 +171,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		log.Warn("provider mismatch",
 			"share_with_provider", normalizedProvider,
 			"local_provider", h.localProviderFQDNForCompare)
-		WriteValidationError(w, "PROVIDER_MISMATCH", []ValidationError{
+		spec.WriteValidationError(w, "PROVIDER_MISMATCH", []spec.ValidationError{
 			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
 		})
 		return
@@ -179,7 +180,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	// Step 7: Reject unsupported share types with 501; accept all resourceType values (F7=A)
 	if req.ShareType != "user" {
 		log.Warn("unsupported share type", "share_type", req.ShareType)
-		WriteShareTypeNotSupported(w)
+		spec.WriteShareTypeNotSupported(w)
 		return
 	}
 
@@ -187,7 +188,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	resolvedUser, err := h.resolveRecipient(r.Context(), identifier)
 	if err != nil {
 		log.Warn("recipient not found", "identifier", identifier)
-		WriteValidationError(w, "RECIPIENT_NOT_FOUND", []ValidationError{
+		spec.WriteValidationError(w, "RECIPIENT_NOT_FOUND", []spec.ValidationError{
 			{Name: "shareWith", Message: "NOT_FOUND"},
 		})
 		return
@@ -202,7 +203,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 			"sender", senderHost)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(shares.CreateShareResponse{
+		json.NewEncoder(w).Encode(spec.CreateShareResponse{
 			RecipientDisplayName: existing.RecipientDisplayName,
 		})
 		return
@@ -238,14 +239,14 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		share.SharedSecret = webdav.SharedSecret
 		share.Permissions = webdav.Permissions
 
-		if webdav.HasRequirement(shares.RequirementMustExchangeToken) {
+		if webdav.HasRequirement(spec.RequirementMustExchangeToken) {
 			share.MustExchangeToken = true
 		}
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {
 		log.Error("failed to store share", "error", err)
-		writeOCMError(w, http.StatusInternalServerError, "STORAGE_ERROR")
+		spec.WriteOCMError(w, http.StatusInternalServerError, "STORAGE_ERROR")
 		return
 	}
 
@@ -258,7 +259,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	// Step 11: Return 201 with CreateShareResponse DTO (E4=A, E10=A)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(shares.CreateShareResponse{
+	json.NewEncoder(w).Encode(spec.CreateShareResponse{
 		RecipientDisplayName: share.RecipientDisplayName,
 	})
 }

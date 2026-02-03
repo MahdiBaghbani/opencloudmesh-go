@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 // --- Repository ---
@@ -113,7 +114,7 @@ func TestIncomingRepository_RecipientScoping(t *testing.T) {
 }
 
 func TestWebDAVProtocol_HasRequirement(t *testing.T) {
-	p := &shares.WebDAVProtocol{
+	p := &spec.WebDAVProtocol{
 		URI:          "abc123",
 		Permissions:  []string{"read"},
 		Requirements: []string{"must-exchange-token"},

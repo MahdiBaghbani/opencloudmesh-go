@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
@@ -311,7 +312,7 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp invites.InviteAcceptedResponse
+	var resp spec.InviteAcceptedResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -365,7 +366,7 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp invites.InviteAcceptedResponse
+	var resp spec.InviteAcceptedResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 
 	// Empty email and name are allowed (spec requires the fields but not non-empty values)
@@ -404,7 +405,7 @@ func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
 		t.Fatalf("expected 200 for legacy backfill, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp invites.InviteAcceptedResponse
+	var resp spec.InviteAcceptedResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 
 	// Backfill: placeholder identity (F5=A)

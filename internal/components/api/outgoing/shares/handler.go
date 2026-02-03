@@ -25,8 +25,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -194,16 +194,16 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	share.ReceiverEndPoint = disc.EndPoint
 
-	webdavProto := &shares.WebDAVProtocol{
+	webdavProto := &spec.WebDAVProtocol{
 		URI:          share.WebDAVID,
 		SharedSecret: sharedSecret,
 		Permissions:  req.Permissions,
 	}
 	if mustExchangeToken {
-		webdavProto.Requirements = []string{shares.RequirementMustExchangeToken}
+		webdavProto.Requirements = []string{spec.RequirementMustExchangeToken}
 	}
 
-	payload := shares.NewShareRequest{
+	payload := spec.NewShareRequest{
 		ShareWith:    req.ShareWith,
 		Name:         name,
 		ProviderID:   share.ProviderID,
@@ -211,7 +211,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		Sender:       sender,
 		ShareType:    "user",
 		ResourceType: resourceType,
-		Protocol: shares.Protocol{
+		Protocol: spec.Protocol{
 			Name:   "multi",
 			WebDAV: webdavProto,
 		},
@@ -274,7 +274,7 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 }
 
 // sendShareToReceiver sends the share payload to the receiver.
-func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payload shares.NewShareRequest, disc *discovery.Discovery) error {
+func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payload spec.NewShareRequest, disc *discovery.Discovery) error {
 	sharesURL, err := url.JoinPath(endPoint, "shares")
 	if err != nil {
 		return fmt.Errorf("failed to build shares URL: %w", err)
