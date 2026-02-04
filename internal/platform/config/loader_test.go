@@ -1699,6 +1699,28 @@ tls_dir = ""
 	}
 }
 
+func TestLoad_TLSDir_WhitespaceOnly_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	tomlContent := `mode = "strict"
+public_origin = "https://localhost:9200"
+
+[tls]
+tls_dir = "   "
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected Load to fail when tls_dir is whitespace only")
+	}
+	if !strings.Contains(err.Error(), "tls.tls_dir is set but empty") {
+		t.Errorf("expected error about tls_dir empty, got %v", err)
+	}
+}
+
 func TestLoad_TLSRootCAFile_Valid(t *testing.T) {
 	dir := t.TempDir()
 	caFile := filepath.Join(dir, "ca.pem")

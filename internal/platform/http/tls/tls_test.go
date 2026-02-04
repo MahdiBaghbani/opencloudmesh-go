@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -117,5 +118,22 @@ func TestTLSManager_InvalidMode(t *testing.T) {
 	_, err := mgr.GetTLSConfig("localhost")
 	if err == nil {
 		t.Error("expected error for invalid mode")
+	}
+}
+
+func TestTLSManager_SelfSigned_EmptyDir_Fails(t *testing.T) {
+	cfg := &config.TLSConfig{
+		Mode:          "selfsigned",
+		SelfSignedDir: "",
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	mgr := tlspkg.NewTLSManager(cfg, logger)
+
+	_, err := mgr.GetTLSConfig("localhost")
+	if err == nil {
+		t.Fatal("expected error when SelfSignedDir is empty")
+	}
+	if !strings.Contains(err.Error(), "self_signed_dir") {
+		t.Errorf("expected error to mention self_signed_dir, got %v", err)
 	}
 }

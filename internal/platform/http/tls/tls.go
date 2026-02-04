@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -84,7 +85,10 @@ func (m *TLSManager) loadStaticCert() (*cryptotls.Config, error) {
 
 // getOrCreateSelfSigned loads or generates a self-signed certificate.
 func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*cryptotls.Config, error) {
-	dir := m.cfg.SelfSignedDir
+	dir := strings.TrimSpace(m.cfg.SelfSignedDir)
+	if dir == "" {
+		return nil, fmt.Errorf("tls.self_signed_dir is not set; ensure tls.mode=selfsigned uses a preset or set self_signed_dir explicitly")
+	}
 
 	certFile := filepath.Join(dir, "server.crt")
 	keyFile := filepath.Join(dir, "server.key")
