@@ -89,7 +89,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "grant_type is required")
 		return
 	}
-	if req.GrantType != token.GrantTypeOCMShare {
+	if req.GrantType != token.GrantTypeAuthorizationCode && req.GrantType != token.GrantTypeOCMShare {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidGrant, "unsupported grant_type")
 		return
 	}

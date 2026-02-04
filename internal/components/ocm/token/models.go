@@ -22,7 +22,8 @@ type (
 
 // Re-export constants from spec package for backward compatibility.
 const (
-	GrantTypeOCMShare   = spec.GrantTypeOCMShare
+	GrantTypeAuthorizationCode = spec.GrantTypeAuthorizationCode
+	GrantTypeOCMShare          = spec.GrantTypeOCMShare
 	ErrorInvalidRequest = spec.ErrorInvalidRequest
 	ErrorInvalidGrant   = spec.ErrorInvalidGrant
 	ErrorInvalidClient  = spec.ErrorInvalidClient

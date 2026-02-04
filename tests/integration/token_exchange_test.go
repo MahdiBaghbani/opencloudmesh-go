@@ -218,6 +218,47 @@ func TestTokenExchangeFlow(t *testing.T) {
 			t.Errorf("expected error=invalid_grant, got %q", errResp.Error)
 		}
 	})
+
+	t.Run("AuthorizationCodeGrantTypeAccepted", func(t *testing.T) {
+		// authorization_code is now a valid grant_type (spec-first).
+		// It should pass the grant_type check and fail on invalid code, not on grant_type.
+		data := url.Values{}
+		data.Set("grant_type", "authorization_code")
+		data.Set("client_id", "receiver.example.com")
+		data.Set("code", "nonexistent-secret")
+
+		resp, err := http.Post(
+			h.Server1.BaseURL+"/ocm/token",
+			"application/x-www-form-urlencoded",
+			strings.NewReader(data.Encode()),
+		)
+		if err != nil {
+			t.Fatalf("failed to call token endpoint: %v", err)
+		}
+		defer resp.Body.Close()
+
+		// Should return 400 with invalid_grant (code not found), NOT unsupported grant_type
+		if resp.StatusCode != http.StatusBadRequest {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 400 for invalid code with authorization_code grant, got %d: %s", resp.StatusCode, body)
+		}
+
+		var errResp struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+			t.Fatalf("failed to decode error response: %v", err)
+		}
+
+		if errResp.Error != "invalid_grant" {
+			t.Errorf("expected error=invalid_grant (code not found), got %q", errResp.Error)
+		}
+		// The error should be about the code, not about grant_type
+		if strings.Contains(errResp.ErrorDescription, "grant_type") {
+			t.Errorf("error_description should not mention grant_type (it should be about invalid code), got %q", errResp.ErrorDescription)
+		}
+	})
 }
 
 // TestWebDAVWithBearerToken tests WebDAV access with bearer token authentication.
@@ -322,7 +363,7 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 		},
 		{
 			name:           "WrongGrantType",
-			data:           url.Values{"grant_type": {"authorization_code"}, "client_id": {"test"}, "code": {"test"}},
+			data:           url.Values{"grant_type": {"password"}, "client_id": {"test"}, "code": {"test"}},
 			expectedError:  "invalid_grant",
 			expectedStatus: http.StatusBadRequest,
 		},

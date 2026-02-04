@@ -91,13 +91,19 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 		}
 	}
 
+	// Resolve grant type: spec default is authorization_code, peers may override.
+	grantType := token.GrantTypeAuthorizationCode
+	if profile != nil {
+		grantType = profile.GetTokenExchangeGrantType()
+	}
+
 	// If not signing, try unsigned directly
 	if !shouldSign {
-		return c.exchangeUnsigned(ctx, req)
+		return c.exchangeUnsigned(ctx, req, grantType)
 	}
 
 	// Step 1: Try signed (form-urlencoded) attempt
-	result, err := c.exchangeSigned(ctx, req, false)
+	result, err := c.exchangeSigned(ctx, req, grantType, false)
 	if err == nil {
 		return result, nil
 	}
@@ -113,7 +119,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 				reasonCode == peercompat.ReasonSignatureInvalid ||
 				reasonCode == peercompat.ReasonKeyNotFound) {
 			// Try unsigned
-			result, err = c.exchangeUnsigned(ctx, req)
+			result, err = c.exchangeUnsigned(ctx, req, grantType)
 			if err == nil {
 				result.QuirkApplied = "accept_plain_token"
 				return result, nil
@@ -125,7 +131,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 			(reasonCode == peercompat.ReasonTokenExchangeFailed ||
 				reasonCode == peercompat.ReasonProtocolMismatch) {
 			// Try JSON body
-			result, err = c.exchangeJSON(ctx, req, shouldSign)
+			result, err = c.exchangeJSON(ctx, req, grantType, shouldSign)
 			if err == nil {
 				result.QuirkApplied = "send_token_in_body"
 				return result, nil
@@ -138,14 +144,14 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 }
 
 // exchangeSigned performs a signed token exchange request.
-func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, useJSON bool) (*ExchangeResult, error) {
+func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, grantType string, useJSON bool) (*ExchangeResult, error) {
 	var httpReq *http.Request
 	var err error
 
 	if useJSON {
-		httpReq, err = c.buildJSONRequest(ctx, req)
+		httpReq, err = c.buildJSONRequest(ctx, req, grantType)
 	} else {
-		httpReq, err = c.buildFormRequest(ctx, req)
+		httpReq, err = c.buildFormRequest(ctx, req, grantType)
 	}
 	if err != nil {
 		return nil, err
@@ -166,8 +172,8 @@ func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, useJSO
 }
 
 // exchangeUnsigned performs an unsigned token exchange request.
-func (c *Client) exchangeUnsigned(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
-	httpReq, err := c.buildFormRequest(ctx, req)
+func (c *Client) exchangeUnsigned(ctx context.Context, req ExchangeRequest, grantType string) (*ExchangeResult, error) {
+	httpReq, err := c.buildFormRequest(ctx, req, grantType)
 	if err != nil {
 		return nil, err
 	}
@@ -176,8 +182,8 @@ func (c *Client) exchangeUnsigned(ctx context.Context, req ExchangeRequest) (*Ex
 }
 
 // exchangeJSON performs a JSON-body token exchange request (Nextcloud quirk).
-func (c *Client) exchangeJSON(ctx context.Context, req ExchangeRequest, signed bool) (*ExchangeResult, error) {
-	httpReq, err := c.buildJSONRequest(ctx, req)
+func (c *Client) exchangeJSON(ctx context.Context, req ExchangeRequest, grantType string, signed bool) (*ExchangeResult, error) {
+	httpReq, err := c.buildJSONRequest(ctx, req, grantType)
 	if err != nil {
 		return nil, err
 	}
@@ -196,9 +202,9 @@ func (c *Client) exchangeJSON(ctx context.Context, req ExchangeRequest, signed b
 }
 
 // buildFormRequest builds a form-urlencoded token request.
-func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest) (*http.Request, error) {
+func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest, grantType string) (*http.Request, error) {
 	form := url.Values{}
-	form.Set("grant_type", token.GrantTypeOCMShare)
+	form.Set("grant_type", grantType)
 	form.Set("client_id", c.myClientID)
 	form.Set("code", req.SharedSecret)
 
@@ -219,9 +225,9 @@ func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest) (*ht
 }
 
 // buildJSONRequest builds a JSON-body token request (Nextcloud quirk).
-func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest) (*http.Request, error) {
+func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest, grantType string) (*http.Request, error) {
 	body := token.TokenRequest{
-		GrantType: token.GrantTypeOCMShare,
+		GrantType: grantType,
 		ClientID:  c.myClientID,
 		Code:      req.SharedSecret,
 	}

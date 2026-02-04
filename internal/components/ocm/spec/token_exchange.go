@@ -23,7 +23,8 @@ type OAuthError struct {
 
 // GrantType constants.
 const (
-	GrantTypeOCMShare = "ocm_share"
+	GrantTypeAuthorizationCode = "authorization_code"
+	GrantTypeOCMShare          = "ocm_share"
 )
 
 // OAuth error codes.

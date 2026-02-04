@@ -367,6 +367,150 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 	}
 }
 
+func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
+	// With no profile override (strict/off), default grant_type is authorization_code.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("failed to parse form: %v", err)
+		}
+		got := r.FormValue("grant_type")
+		if got != "authorization_code" {
+			t.Errorf("grant_type = %q, want %q", got, "authorization_code")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "ac-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode: "off",
+	}))
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		nil,
+		makePolicy("off", nil),
+		"my-instance.example.com",
+	)
+
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+
+	if err != nil {
+		t.Fatalf("Exchange failed: %v", err)
+	}
+	if result.AccessToken != "ac-token" {
+		t.Errorf("expected 'ac-token', got %s", result.AccessToken)
+	}
+}
+
+func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
+	// Nextcloud profile overrides grant_type to ocm_share.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("failed to parse form: %v", err)
+		}
+		got := r.FormValue("grant_type")
+		if got != "ocm_share" {
+			t.Errorf("grant_type = %q, want %q", got, "ocm_share")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "nc-compat-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode: "off",
+	}))
+
+	mappings := []peercompat.ProfileMapping{
+		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+	}
+	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		&mockSigner{},
+		makePolicy("criteria-only", profileRegistry),
+		"my-instance.example.com",
+	)
+
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		PeerDomain:    "nextcloud.example.com",
+		SharedSecret:  "test-secret",
+	})
+
+	if err != nil {
+		t.Fatalf("Exchange failed: %v", err)
+	}
+	if result.AccessToken != "nc-compat-token" {
+		t.Errorf("expected 'nc-compat-token', got %s", result.AccessToken)
+	}
+}
+
+func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
+	// Strict profile (no TokenExchangeGrantType override) defaults to authorization_code.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("failed to parse form: %v", err)
+		}
+		got := r.FormValue("grant_type")
+		if got != "authorization_code" {
+			t.Errorf("grant_type = %q, want %q", got, "authorization_code")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "strict-ac-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode: "off",
+	}))
+
+	// Strict mode with profile registry but peer not mapped -> falls back to strict profile
+	mappings := []peercompat.ProfileMapping{}
+	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		&mockSigner{},
+		makePolicy("strict", profileRegistry),
+		"my-instance.example.com",
+	)
+
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+
+	if err != nil {
+		t.Fatalf("Exchange failed: %v", err)
+	}
+	if result.AccessToken != "strict-ac-token" {
+		t.Errorf("expected 'strict-ac-token', got %s", result.AccessToken)
+	}
+}
+
 // isClassifiedError checks if err is a ClassifiedError and populates ce.
 func isClassifiedError(err error, ce **peercompat.ClassifiedError) bool {
 	if e, ok := err.(*peercompat.ClassifiedError); ok {
