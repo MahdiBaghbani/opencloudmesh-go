@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,6 +29,9 @@ type Server struct {
 	logger     *slog.Logger
 	services   map[string]service.Service // keyed by service name (wellknown, ocm, ...)
 	signer     *crypto.RFC9421Signer
+
+	// RootCAPool is the merged root CA pool for outbound TLS and ACME directory. Set by main.go before Start().
+	RootCAPool *x509.CertPool
 
 	// mountedServices tracks services for lifecycle management (Close on shutdown).
 	// Stored in mount order; closed in reverse order during shutdown.
@@ -71,6 +75,12 @@ func New(cfg *config.Config, logger *slog.Logger, services map[string]service.Se
 	}
 
 	return s, nil
+}
+
+// SetRootCAPool sets the root CA pool for ACME directory communication (Phase 3).
+// Call before Start().
+func (s *Server) SetRootCAPool(pool *x509.CertPool) {
+	s.RootCAPool = pool
 }
 
 // Start starts the HTTP server. It blocks until the server is shut down.

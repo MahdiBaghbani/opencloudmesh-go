@@ -93,7 +93,7 @@ func TestHandleFederations_WithServers(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	discClient := discovery.NewClient(httpclient.New(httpCfg), nil)
+	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
 	mgr.AddTrustGroup(&peertrust.TrustGroupConfig{
@@ -173,7 +173,7 @@ func TestHandleFederations_DiscoveryFailureDropsServer(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	discClient := discovery.NewClient(httpclient.New(httpCfg), nil)
+	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
 	mgr.AddTrustGroup(&peertrust.TrustGroupConfig{
@@ -357,7 +357,7 @@ func TestHandleDiscover_Success(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	discClient := discovery.NewClient(httpclient.New(httpCfg), nil)
+	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
@@ -416,7 +416,7 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	discClient := discovery.NewClient(httpclient.New(httpCfg), nil)
+	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
@@ -474,7 +474,7 @@ func TestHandleDiscover_NoInviteAcceptDialog(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	discClient := discovery.NewClient(httpclient.New(httpCfg), nil)
+	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)

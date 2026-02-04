@@ -34,7 +34,7 @@ func setupTestDeps() {
 		IncomingInviteRepo: invitesinbox.NewMemoryIncomingInviteRepo(),
 		TokenStore:         token.NewMemoryTokenStore(),
 		// Clients
-		HTTPClient: httpclient.NewContextClient(httpclient.New(nil)),
+		HTTPClient: httpclient.NewContextClient(httpclient.New(nil, nil)),
 		// Provider identity
 		LocalProviderFQDN:           "localhost",
 		LocalProviderFQDNForCompare: "localhost",

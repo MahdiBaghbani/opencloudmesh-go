@@ -101,7 +101,7 @@ func StartTestServer(t *testing.T) *TestServer {
 		MaxRedirects:       1,
 		MaxResponseBytes:   1048576,
 		InsecureSkipVerify: true, // For self-signed certs in tests
-	})
+	}, nil)
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
 	// Create repos for SharedDeps and server.Deps (dual-use)

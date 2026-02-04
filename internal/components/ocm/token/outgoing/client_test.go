@@ -71,7 +71,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
@@ -119,7 +119,7 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	// OutboundMode "off" should skip signing
 	client := tokenoutgoing.NewClient(
@@ -167,7 +167,7 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	// Strict mode with working signer should succeed
 	client := tokenoutgoing.NewClient(
@@ -210,7 +210,7 @@ func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	// token-only should sign token exchange
 	client := tokenoutgoing.NewClient(
@@ -253,7 +253,7 @@ func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
@@ -296,7 +296,7 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	// Set up profile registry with nextcloud profile (has accept_plain_token quirk)
 	mappings := []peercompat.ProfileMapping{
@@ -341,7 +341,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
@@ -389,7 +389,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
@@ -434,7 +434,7 @@ func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
@@ -484,7 +484,7 @@ func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode: "off",
-	}))
+	}, nil))
 
 	// Strict mode with profile registry but peer not mapped -> falls back to strict profile
 	mappings := []peercompat.ProfileMapping{}

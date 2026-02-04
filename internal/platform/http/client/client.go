@@ -4,6 +4,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -48,7 +49,8 @@ type Client struct {
 
 // New creates a new safe HTTP client.
 // The client ignores proxy environment variables (HTTP_PROXY, HTTPS_PROXY, NO_PROXY).
-func New(cfg *config.OutboundHTTPConfig) *Client {
+// rootCAs is optional; when nil, the system default pool is used.
+func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 	if cfg == nil {
 		cfg = &config.OutboundHTTPConfig{
 			SSRFMode:           "strict",
@@ -81,6 +83,7 @@ func New(cfg *config.OutboundHTTPConfig) *Client {
 		},
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.InsecureSkipVerify,
+			RootCAs:           rootCAs,
 		},
 		MaxIdleConns:       10,
 		IdleConnTimeout:    30 * time.Second,

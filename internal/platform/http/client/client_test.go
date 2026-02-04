@@ -22,7 +22,7 @@ func TestClient_SSRFProtection(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	tests := []struct {
 		name      string
@@ -97,7 +97,7 @@ func TestClient_SSRFOff(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	ctx := context.Background()
 
@@ -141,7 +141,7 @@ func TestClient_ProxyEnvIgnored(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	// If proxy was used, this would fail (proxy.invalid doesn't exist)
 	// Since we ignore proxy vars, it should connect directly
@@ -174,7 +174,7 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	// Signed request should fail on redirect
 	req, _ := http.NewRequest("GET", server.URL+"/redirect", nil)
@@ -215,7 +215,7 @@ func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	resp, err := client.Get(context.Background(), server.URL+"/start")
 	if err != nil {
@@ -245,7 +245,7 @@ func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 		MaxRedirects:     1, // Only allow 1 redirect
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	_, err := client.Get(context.Background(), server.URL+"/start")
 	if err == nil {
@@ -275,7 +275,7 @@ func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	_, err := client.Get(context.Background(), redirectServer.URL+"/start")
 	if err == nil {
@@ -302,7 +302,7 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	// Test that IPv6 with brackets is properly parsed and blocked
 	tests := []struct {
@@ -334,7 +334,7 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	// Use a domain that definitely doesn't exist
 	_, err := client.Get(context.Background(), "http://this-domain-does-not-exist-12345.invalid/test")
@@ -395,7 +395,7 @@ func TestClient_DoPreservesInterface(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	req, _ := http.NewRequest("GET", server.URL, nil)
 	resp, err := client.Do(req)
@@ -418,7 +418,7 @@ func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	tests := []struct {
 		name string
@@ -467,7 +467,7 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	tests := []struct {
 		name   string
@@ -519,7 +519,7 @@ func TestContextAwareDNSCancellation(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	// Install a blocking resolver
 	resolver := &blockingResolver{unblockCh: make(chan struct{})}
@@ -571,7 +571,7 @@ func TestRedirectSameHostSemantics(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	// Test relative redirect (always same-host)
 	resp, err := client.Get(context.Background(), server.URL+"/start")
@@ -607,7 +607,7 @@ func TestRedirectCrossHostBlocked(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	_, err := client.Get(context.Background(), redirectServer.URL+"/start")
 	if err == nil {
@@ -643,7 +643,7 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	client := httpclient.New(cfg)
+	client := httpclient.New(cfg, nil)
 
 	resp, err := client.Get(context.Background(), server.URL+"/start")
 	if err != nil {

@@ -41,7 +41,7 @@ func newTestHTTPClient() *httpclient.Client {
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     0,
 		MaxResponseBytes: 1048576,
-	})
+	}, nil)
 }
 
 // serveJWS returns an httptest.Server that serves the given body as application/json.

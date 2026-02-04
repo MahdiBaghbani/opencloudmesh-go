@@ -305,7 +305,7 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 		MaxRedirects:     1,
 		MaxResponseBytes: 1048576,
 	}
-	httpClient := httpclient.New(httpCfg)
+	httpClient := httpclient.New(httpCfg, nil)
 
 	// Create discovery client with nil cache - should not panic
 	client := discovery.NewClient(httpClient, nil)

@@ -39,7 +39,7 @@ func setupTestSharedDeps(t *testing.T) func() {
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
 		UserAuth:    identity.NewUserAuth(1),
-		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil)),
+		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil, nil)),
 	})
 	return func() {
 		deps.ResetDeps()

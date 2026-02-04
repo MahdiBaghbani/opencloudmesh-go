@@ -35,6 +35,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
+	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -168,8 +169,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Build root CA pool from optional file/dir; nil means use system defaults
+	rootCAPool, err := tlspkg.BuildRootCAPool(cfg.OutboundHTTP.TLSRootCAFile, cfg.OutboundHTTP.TLSRootCADir)
+	if err != nil {
+		logger.Error("failed to build root CA pool", "error", err)
+		os.Exit(1)
+	}
+
 	// Create outbound HTTP client
-	rawHTTPClient := httpclient.New(&cfg.OutboundHTTP)
+	rawHTTPClient := httpclient.New(&cfg.OutboundHTTP, rootCAPool)
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
 	// Create cache (defaults to in-memory if not configured)
@@ -389,6 +397,7 @@ func main() {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
 	}
+	srv.SetRootCAPool(rootCAPool)
 
 	// Setup graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
