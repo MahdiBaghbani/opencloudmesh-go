@@ -58,7 +58,6 @@ func main() {
 	signatureOutboundMode := flag.String("signature-outbound-mode", "", "Signature outbound mode: strict, criteria-only, token-only, or off (overrides config)")
 	signatureAdvertise := flag.String("signature-advertise-http-request-signatures", "", "Advertise http-request-signatures in discovery criteria: true or false (overrides config)")
 	signaturePeerOverride := flag.String("signature-peer-profile-level-override", "", "Peer profile override level: all, non-strict, or off (overrides config)")
-	tlsMode := flag.String("tls-mode", "", "TLS mode: off, static, selfsigned, or acme (overrides config)")
 	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
 	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
@@ -86,7 +85,6 @@ func main() {
 			SignatureOutboundMode:         signatureOutboundMode,
 			SignatureAdvertiseHTTPReqSigs: signatureAdvertise,
 			SignaturePeerProfileOverride:  signaturePeerOverride,
-			TLSMode:                       tlsMode,
 			AdminUsername:                 adminUsername,
 			AdminPassword:                 adminPassword,
 			LoggingLevel:                  loggingLevel,

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -61,7 +62,6 @@ type FlagOverrides struct {
 	SignatureOutboundMode          *string
 	SignatureAdvertiseHTTPReqSigs  *string // "true", "false", or "" (unset)
 	SignaturePeerProfileOverride   *string
-	TLSMode                        *string
 	AdminUsername                  *string
 	AdminPassword                  *string
 	LoggingLevel                   *string
@@ -176,6 +176,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 	}
 
 	var fc fileConfig
+	var md toml.MetaData
 
 	// Step 1: Load TOML file if provided
 	if opts.ConfigPath != "" {
@@ -183,7 +184,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file %s: %w", opts.ConfigPath, err)
 		}
-		md, err := toml.Decode(string(data), &fc)
+		md, err = toml.Decode(string(data), &fc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
 		}
@@ -233,6 +234,23 @@ func Load(opts LoaderOptions) (*Config, error) {
 	// Step 5: Overlay CLI flags
 	overlayFlags(cfg, opts.FlagOverrides)
 
+	// Step 5b: tls_dir validation and derivation
+	if md.IsDefined("tls", "tls_dir") && strings.TrimSpace(cfg.TLS.TLSDir) == "" {
+		return nil, fmt.Errorf("tls.tls_dir is set but empty; provide a path or remove the key")
+	}
+	if cfg.TLS.TLSDir != "" {
+		tlsDir := strings.TrimSpace(cfg.TLS.TLSDir)
+		if !md.IsDefined("tls", "self_signed_dir") {
+			cfg.TLS.SelfSignedDir = filepath.Join(tlsDir, "certs")
+		}
+		if !md.IsDefined("tls", "acme", "storage_dir") {
+			cfg.TLS.ACME.StorageDir = filepath.Join(tlsDir, "acme")
+		}
+		if !md.IsDefined("signature", "key_path") {
+			cfg.Signature.KeyPath = filepath.Join(tlsDir, "keys", "signing.pem")
+		}
+	}
+
 	// Step 6: Validate enum fields (fatal on invalid values)
 	if err := validateEnums(cfg); err != nil {
 		return nil, err
@@ -240,6 +258,11 @@ func Load(opts LoaderOptions) (*Config, error) {
 
 	// Step 7: Validate public_origin format (fail fast on invalid URL)
 	if err := validatePublicOrigin(cfg); err != nil {
+		return nil, err
+	}
+
+	// Step 8: Validate outbound TLS CA paths (fail fast)
+	if err := validateOutboundTLSPaths(cfg); err != nil {
 		return nil, err
 	}
 
@@ -435,6 +458,9 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.TLS.SelfSignedDir != "" {
 			cfg.TLS.SelfSignedDir = fc.TLS.SelfSignedDir
 		}
+		if fc.TLS.TLSDir != "" {
+			cfg.TLS.TLSDir = fc.TLS.TLSDir
+		}
 		if fc.TLS.ACME.Email != "" {
 			cfg.TLS.ACME.Email = fc.TLS.ACME.Email
 		}
@@ -469,6 +495,12 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 		// InsecureSkipVerify is a bool, overlay always when section present
 		cfg.OutboundHTTP.InsecureSkipVerify = fc.OutboundHTTP.InsecureSkipVerify
+		if fc.OutboundHTTP.TLSRootCAFile != "" {
+			cfg.OutboundHTTP.TLSRootCAFile = fc.OutboundHTTP.TLSRootCAFile
+		}
+		if fc.OutboundHTTP.TLSRootCADir != "" {
+			cfg.OutboundHTTP.TLSRootCADir = fc.OutboundHTTP.TLSRootCADir
+		}
 	}
 
 	if fc.Signature != nil {
@@ -607,9 +639,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.SignaturePeerProfileOverride != nil && *f.SignaturePeerProfileOverride != "" {
 		cfg.Signature.PeerProfileLevelOverride = *f.SignaturePeerProfileOverride
-	}
-	if f.TLSMode != nil && *f.TLSMode != "" {
-		cfg.TLS.Mode = *f.TLSMode
 	}
 	if f.AdminUsername != nil && *f.AdminUsername != "" {
 		cfg.Server.BootstrapAdmin.Username = *f.AdminUsername
@@ -852,5 +881,28 @@ func validatePublicOrigin(cfg *Config) error {
 		return fmt.Errorf("invalid public_origin %q: must not include a path (use external_base_path for base path)", origin)
 	}
 
+	return nil
+}
+
+// validateOutboundTLSPaths checks that tls_root_ca_file and tls_root_ca_dir paths exist.
+func validateOutboundTLSPaths(cfg *Config) error {
+	if cfg.OutboundHTTP.TLSRootCAFile != "" {
+		fi, err := os.Stat(cfg.OutboundHTTP.TLSRootCAFile)
+		if err != nil {
+			return fmt.Errorf("outbound_http.tls_root_ca_file: %w", err)
+		}
+		if !fi.Mode().IsRegular() {
+			return fmt.Errorf("outbound_http.tls_root_ca_file: %q is not a regular file", cfg.OutboundHTTP.TLSRootCAFile)
+		}
+	}
+	if cfg.OutboundHTTP.TLSRootCADir != "" {
+		fi, err := os.Stat(cfg.OutboundHTTP.TLSRootCADir)
+		if err != nil {
+			return fmt.Errorf("outbound_http.tls_root_ca_dir: %w", err)
+		}
+		if !fi.IsDir() {
+			return fmt.Errorf("outbound_http.tls_root_ca_dir: %q is not a directory", cfg.OutboundHTTP.TLSRootCADir)
+		}
+	}
 	return nil
 }

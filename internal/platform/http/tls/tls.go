@@ -85,9 +85,6 @@ func (m *TLSManager) loadStaticCert() (*cryptotls.Config, error) {
 // getOrCreateSelfSigned loads or generates a self-signed certificate.
 func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*cryptotls.Config, error) {
 	dir := m.cfg.SelfSignedDir
-	if dir == "" {
-		dir = ".ocm/certs"
-	}
 
 	certFile := filepath.Join(dir, "server.crt")
 	keyFile := filepath.Join(dir, "server.key")

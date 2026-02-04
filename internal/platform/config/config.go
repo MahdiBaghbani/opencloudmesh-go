@@ -268,6 +268,10 @@ type TLSConfig struct {
 	// SelfSignedDir is where self-signed certs are stored
 	SelfSignedDir string `toml:"self_signed_dir"`
 
+	// TLSDir optionally re-roots default paths (self_signed_dir, acme.storage_dir, signature.key_path).
+	// When set, paths are derived unless explicitly defined in TOML. Default: empty (unset).
+	TLSDir string `toml:"tls_dir"`
+
 	// ACME configuration
 	ACME ACMEConfig `toml:"acme"`
 }
@@ -309,6 +313,12 @@ type OutboundHTTPConfig struct {
 
 	// InsecureSkipVerify disables TLS verification (dev-only)
 	InsecureSkipVerify bool `toml:"insecure_skip_verify"`
+
+	// TLSRootCAFile is a PEM file of root CAs for outbound TLS verification.
+	TLSRootCAFile string `toml:"tls_root_ca_file"`
+
+	// TLSRootCADir is a directory of .pem/.crt files for outbound TLS root CAs.
+	TLSRootCADir string `toml:"tls_root_ca_dir"`
 }
 
 
@@ -370,9 +380,12 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    HTTPPort: %d,\n", c.TLS.HTTPPort))
 	sb.WriteString(fmt.Sprintf("    HTTPSPort: %d,\n", c.TLS.HTTPSPort))
 	sb.WriteString(fmt.Sprintf("    SelfSignedDir: %q,\n", c.TLS.SelfSignedDir))
+	sb.WriteString(fmt.Sprintf("    TLSDir: %q,\n", c.TLS.TLSDir))
 	sb.WriteString("  },\n")
 	sb.WriteString("  OutboundHTTP: {\n")
 	sb.WriteString(fmt.Sprintf("    SSRFMode: %q,\n", c.OutboundHTTP.SSRFMode))
+	sb.WriteString(fmt.Sprintf("    TLSRootCAFile: %q,\n", c.OutboundHTTP.TLSRootCAFile))
+	sb.WriteString(fmt.Sprintf("    TLSRootCADir: %q,\n", c.OutboundHTTP.TLSRootCADir))
 	sb.WriteString(fmt.Sprintf("    TimeoutMS: %d,\n", c.OutboundHTTP.TimeoutMS))
 	sb.WriteString(fmt.Sprintf("    MaxRedirects: %d,\n", c.OutboundHTTP.MaxRedirects))
 	sb.WriteString(fmt.Sprintf("    MaxResponseBytes: %d,\n", c.OutboundHTTP.MaxResponseBytes))
