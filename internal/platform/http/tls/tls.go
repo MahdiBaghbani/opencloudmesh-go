@@ -24,9 +24,8 @@ import (
 )
 
 var (
-	ErrACMENotImplemented = errors.New("tls.mode=acme is not implemented; use static or selfsigned")
-	ErrInvalidTLSMode     = errors.New("invalid TLS mode")
-	ErrMissingCert        = errors.New("missing certificate or key file")
+	ErrInvalidTLSMode = errors.New("invalid TLS mode")
+	ErrMissingCert    = errors.New("missing certificate or key file")
 )
 
 // TLSManager handles TLS certificate loading and generation.
@@ -53,9 +52,6 @@ func (m *TLSManager) GetTLSConfig(hostname string) (*cryptotls.Config, error) {
 
 	case "selfsigned":
 		return m.getOrCreateSelfSigned(hostname)
-
-	case "acme":
-		return m.getACMEConfig()
 
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrInvalidTLSMode, m.cfg.Mode)
@@ -191,18 +187,3 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 	return cryptotls.X509KeyPair(certPEM, keyPEM)
 }
 
-// getACMEConfig returns TLS config for ACME mode.
-// This is a placeholder - full ACME implementation uses lego.
-func (m *TLSManager) getACMEConfig() (*cryptotls.Config, error) {
-	// For now, return a config that will be populated by the ACME manager
-	// The actual certificate fetching is done by the ACMEManager
-	m.logger.Info("ACME mode enabled",
-		"domain", m.cfg.ACME.Domain,
-		"email", m.cfg.ACME.Email,
-		"staging", m.cfg.ACME.UseStaging)
-
-	return &cryptotls.Config{
-		MinVersion: cryptotls.VersionTLS12,
-		// GetCertificate will be set by ACMEManager
-	}, nil
-}

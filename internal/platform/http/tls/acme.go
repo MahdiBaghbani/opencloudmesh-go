@@ -7,6 +7,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	cryptotls "crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,13 +15,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
-	"github.com/go-acme/lego/v4/challenge/http01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
 )
@@ -41,29 +42,51 @@ func (u *ACMEUser) GetEmail() string                        { return u.Email }
 func (u *ACMEUser) GetRegistration() *registration.Resource { return u.Registration }
 func (u *ACMEUser) GetPrivateKey() crypto.PrivateKey        { return u.key }
 
+// HTTP01Provider implements lego's challenge.Provider interface using an
+// in-memory token store. The server owns the HTTP listener; lego never
+// binds its own port.
+type HTTP01Provider struct {
+	tokens sync.Map // token -> keyAuthorization
+}
+
+func (p *HTTP01Provider) Present(domain, token, keyAuth string) error {
+	p.tokens.Store(token, keyAuth)
+	return nil
+}
+
+func (p *HTTP01Provider) CleanUp(domain, token, keyAuth string) error {
+	p.tokens.Delete(token)
+	return nil
+}
+
 // ACMEManager handles ACME certificate management using lego.
 type ACMEManager struct {
 	cfg           *config.ACMEConfig
 	logger        *slog.Logger
 	mu            sync.RWMutex
 	cert          *cryptotls.Certificate
-	httpHandler   http.Handler
 	legoClient    *lego.Client
 	user          *ACMEUser
+	provider      *HTTP01Provider
+	rootCAs       *x509.CertPool
 	challengePort int
 }
 
 // NewACMEManager creates a new ACME certificate manager.
-func NewACMEManager(cfg *config.ACMEConfig, challengePort int, logger *slog.Logger) *ACMEManager {
+// rootCAs is used for ACME directory communication; nil means system defaults.
+func NewACMEManager(cfg *config.ACMEConfig, challengePort int, logger *slog.Logger, rootCAs *x509.CertPool) *ACMEManager {
 	logger = logutil.NoopIfNil(logger)
 	return &ACMEManager{
 		cfg:           cfg,
 		logger:        logger,
 		challengePort: challengePort,
+		rootCAs:       rootCAs,
 	}
 }
 
-// Init initializes the ACME client and loads or obtains a certificate.
+// Init initializes the ACME manager: loads existing certificates without
+// network calls when possible, or creates a lego client and obtains a new
+// certificate from the ACME server.
 func (m *ACMEManager) Init(ctx context.Context) error {
 	if m.cfg.Domain == "" {
 		return errors.New("ACME domain is required")
@@ -72,19 +95,33 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 		return errors.New("ACME email is required")
 	}
 
-	// Ensure storage directory exists
 	if err := os.MkdirAll(m.cfg.StorageDir, 0700); err != nil {
 		return fmt.Errorf("failed to create ACME storage dir: %w", err)
 	}
 
-	// Load or create user
+	// Provider must be ready before anything else -- the challenge handler
+	// may receive requests while we are still inside Init.
+	m.provider = &HTTP01Provider{}
+
+	// Fast path: existing cert means zero network calls.
+	cert, err := m.loadCertificate()
+	if err == nil {
+		m.mu.Lock()
+		m.cert = cert
+		m.mu.Unlock()
+		m.logger.Info("loaded existing ACME certificate", "domain", m.cfg.Domain)
+		return nil
+	}
+
+	// Slow path: obtain a certificate from the ACME server.
+	m.logger.Info("no existing certificate, contacting ACME server", "domain", m.cfg.Domain)
+
 	user, err := m.loadOrCreateUser()
 	if err != nil {
 		return fmt.Errorf("failed to load/create ACME user: %w", err)
 	}
 	m.user = user
 
-	// Determine ACME server URL
 	serverURL := m.cfg.Directory
 	if serverURL == "" {
 		if m.cfg.UseStaging {
@@ -94,25 +131,33 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 		}
 	}
 
-	// Create lego config
 	legoCfg := lego.NewConfig(user)
 	legoCfg.CADirURL = serverURL
 	legoCfg.Certificate.KeyType = certcrypto.EC256
 
-	// Create lego client
+	// Custom HTTP client so lego talks to the ACME directory through our CA pool.
+	if m.rootCAs != nil {
+		legoCfg.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &cryptotls.Config{
+					RootCAs:    m.rootCAs,
+					MinVersion: cryptotls.VersionTLS12,
+				},
+			},
+		}
+	}
+
 	client, err := lego.NewClient(legoCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create ACME client: %w", err)
 	}
 	m.legoClient = client
 
-	// Set up HTTP-01 challenge provider
-	httpProvider := http01.NewProviderServer("", fmt.Sprintf("%d", m.challengePort))
-	if err := client.Challenge.SetHTTP01Provider(httpProvider); err != nil {
+	// Server-owned HTTP-01 provider (no lego-managed listener).
+	if err := client.Challenge.SetHTTP01Provider(m.provider); err != nil {
 		return fmt.Errorf("failed to set HTTP-01 provider: %w", err)
 	}
 
-	// Register user if needed
 	if user.Registration == nil {
 		reg, err := client.Registration.Register(registration.RegisterOptions{
 			TermsOfServiceAgreed: true,
@@ -126,15 +171,6 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 		}
 	}
 
-	// Try to load existing certificate
-	cert, err := m.loadCertificate()
-	if err == nil {
-		m.cert = cert
-		m.logger.Info("loaded existing ACME certificate", "domain", m.cfg.Domain)
-		return nil
-	}
-
-	// Obtain new certificate
 	m.logger.Info("obtaining new ACME certificate", "domain", m.cfg.Domain)
 	if err := m.obtainCertificate(); err != nil {
 		return fmt.Errorf("failed to obtain certificate: %w", err)
@@ -160,6 +196,30 @@ func (m *ACMEManager) GetTLSConfig() *cryptotls.Config {
 		GetCertificate: m.GetCertificate,
 		MinVersion:     cryptotls.VersionTLS12,
 	}
+}
+
+// ChallengeHandler returns an http.Handler that serves ACME HTTP-01 challenge
+// responses at /.well-known/acme-challenge/{token}. Mount on the HTTP listener.
+func (m *ACMEManager) ChallengeHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		const prefix = "/.well-known/acme-challenge/"
+		if !strings.HasPrefix(r.URL.Path, prefix) {
+			http.NotFound(w, r)
+			return
+		}
+		token := strings.TrimPrefix(r.URL.Path, prefix)
+		if token == "" {
+			http.NotFound(w, r)
+			return
+		}
+		keyAuth, ok := m.provider.tokens.Load(token)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, keyAuth.(string))
+	})
 }
 
 func (m *ACMEManager) loadOrCreateUser() (*ACMEUser, error) {

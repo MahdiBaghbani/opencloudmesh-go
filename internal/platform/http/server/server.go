@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -29,6 +32,10 @@ type Server struct {
 	logger     *slog.Logger
 	services   map[string]service.Service // keyed by service name (wellknown, ocm, ...)
 	signer     *crypto.RFC9421Signer
+
+	// challengeServer is the HTTP listener for ACME HTTP-01 challenges and
+	// HTTPS redirects. Nil except in ACME mode.
+	challengeServer *http.Server
 
 	// RootCAPool is the merged root CA pool for outbound TLS and ACME directory. Set by main.go before Start().
 	RootCAPool *x509.CertPool
@@ -97,8 +104,7 @@ func (s *Server) Start() error {
 		return s.httpServer.ListenAndServe()
 
 	case "acme":
-		// ACME is not implemented - fail fast with a clear error
-		return tlspkg.ErrACMENotImplemented
+		return s.startACME()
 
 	case "static", "selfsigned":
 		// Get TLS config from TLS manager
@@ -128,11 +134,112 @@ func (s *Server) Start() error {
 	}
 }
 
+// startACME runs the server in ACME mode with two listeners:
+// an HTTP listener for HTTP-01 challenges and HTTPS redirects,
+// and an HTTPS listener for the application router.
+func (s *Server) startACME() error {
+	// Parse bind host from ListenAddr (port part is ignored; we use HTTPPort/HTTPSPort).
+	host, _, err := net.SplitHostPort(s.cfg.ListenAddr)
+	if err != nil {
+		// ListenAddr might be a bare host or IP without a port.
+		host = s.cfg.ListenAddr
+	}
+
+	if s.cfg.TLS.HTTPPort == 0 {
+		return errors.New("tls.http_port must be set for ACME mode")
+	}
+	if s.cfg.TLS.HTTPSPort == 0 {
+		return errors.New("tls.https_port must be set for ACME mode")
+	}
+
+	// When PublicOrigin includes an explicit port, it must match HTTPSPort.
+	if s.cfg.PublicOrigin != "" {
+		if originURL, parseErr := url.Parse(s.cfg.PublicOrigin); parseErr == nil && originURL.Host != "" {
+			if _, portStr, splitErr := net.SplitHostPort(originURL.Host); splitErr == nil && portStr != "" {
+				if originPort, convErr := strconv.Atoi(portStr); convErr == nil && originPort != s.cfg.TLS.HTTPSPort {
+					return fmt.Errorf("public_origin port %d does not match tls.https_port %d", originPort, s.cfg.TLS.HTTPSPort)
+				}
+			}
+		}
+	}
+
+	acmeMgr := tlspkg.NewACMEManager(&s.cfg.TLS.ACME, s.cfg.TLS.HTTPPort, s.logger, s.RootCAPool)
+
+	// HTTP router: challenges on their well-known path, redirect everything else.
+	challengeMux := http.NewServeMux()
+	challengeMux.Handle("/.well-known/acme-challenge/", acmeMgr.ChallengeHandler())
+	challengeMux.Handle("/", newHTTPSRedirectHandler(s.cfg.TLS.HTTPSPort))
+
+	httpAddr := net.JoinHostPort(host, strconv.Itoa(s.cfg.TLS.HTTPPort))
+	s.challengeServer = &http.Server{
+		Addr:         httpAddr,
+		Handler:      challengeMux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	// Start the HTTP listener in a goroutine; capture early bind errors.
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.challengeServer.ListenAndServe()
+	}()
+
+	select {
+	case bindErr := <-errCh:
+		return fmt.Errorf("challenge server failed to start on %s: %w", httpAddr, bindErr)
+	case <-time.After(200 * time.Millisecond):
+		// Likely bound OK; proceed.
+	}
+
+	// Init loads existing certs (fast path) or contacts the ACME server.
+	if initErr := acmeMgr.Init(context.Background()); initErr != nil {
+		_ = s.challengeServer.Close()
+		return fmt.Errorf("ACME initialization failed: %w", initErr)
+	}
+
+	// Configure the main HTTPS server with the ACME-managed certificate.
+	s.httpServer.Addr = net.JoinHostPort(host, strconv.Itoa(s.cfg.TLS.HTTPSPort))
+	s.httpServer.TLSConfig = acmeMgr.GetTLSConfig()
+
+	s.logger.Info("starting ACME server",
+		"http_addr", httpAddr,
+		"https_addr", s.httpServer.Addr,
+		"domain", s.cfg.TLS.ACME.Domain,
+	)
+
+	return s.httpServer.ListenAndServeTLS("", "")
+}
+
+// newHTTPSRedirectHandler returns a handler that issues HTTP 308 Permanent
+// Redirect to the HTTPS equivalent of the request URL.
+func newHTTPSRedirectHandler(httpsPort int) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hostOnly := r.Host
+		if h, _, err := net.SplitHostPort(hostOnly); err == nil {
+			hostOnly = h
+		}
+
+		var target string
+		if httpsPort == 443 {
+			target = "https://" + hostOnly + r.URL.RequestURI()
+		} else {
+			target = fmt.Sprintf("https://%s:%d%s", hostOnly, httpsPort, r.URL.RequestURI())
+		}
+
+		http.Redirect(w, r, target, http.StatusPermanentRedirect)
+	})
+}
+
 // Shutdown gracefully shuts down the server and all mounted services.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down server")
 
-	// Shutdown HTTP server first
+	// In ACME mode, stop accepting challenges before tearing down HTTPS.
+	var challengeErr error
+	if s.challengeServer != nil {
+		challengeErr = s.challengeServer.Shutdown(ctx)
+	}
+
 	httpErr := s.httpServer.Shutdown(ctx)
 
 	// Close services in reverse mount order (last mounted = first closed)
@@ -153,5 +260,5 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	return httpErr
+	return errors.Join(challengeErr, httpErr)
 }
