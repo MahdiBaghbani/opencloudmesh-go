@@ -163,7 +163,7 @@ func (s *Server) startACME() error {
 		}
 	}
 
-	acmeMgr := tlspkg.NewACMEManager(&s.cfg.TLS.ACME, s.cfg.TLS.HTTPPort, s.logger, s.RootCAPool)
+	acmeMgr := tlspkg.NewACMEManager(&s.cfg.TLS.ACME, s.logger, s.RootCAPool)
 
 	// HTTP router: challenges on their well-known path, redirect everything else.
 	challengeMux := http.NewServeMux()

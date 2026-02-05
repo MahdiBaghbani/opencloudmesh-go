@@ -61,26 +61,24 @@ func (p *HTTP01Provider) CleanUp(domain, token, keyAuth string) error {
 
 // ACMEManager handles ACME certificate management using lego.
 type ACMEManager struct {
-	cfg           *config.ACMEConfig
-	logger        *slog.Logger
-	mu            sync.RWMutex
-	cert          *cryptotls.Certificate
-	legoClient    *lego.Client
-	user          *ACMEUser
-	provider      *HTTP01Provider
-	rootCAs       *x509.CertPool
-	challengePort int
+	cfg        *config.ACMEConfig
+	logger     *slog.Logger
+	mu         sync.RWMutex
+	cert       *cryptotls.Certificate
+	legoClient *lego.Client
+	user       *ACMEUser
+	provider   *HTTP01Provider
+	rootCAs    *x509.CertPool
 }
 
 // NewACMEManager creates a new ACME certificate manager.
 // rootCAs is used for ACME directory communication; nil means system defaults.
-func NewACMEManager(cfg *config.ACMEConfig, challengePort int, logger *slog.Logger, rootCAs *x509.CertPool) *ACMEManager {
+func NewACMEManager(cfg *config.ACMEConfig, logger *slog.Logger, rootCAs *x509.CertPool) *ACMEManager {
 	logger = logutil.NoopIfNil(logger)
 	return &ACMEManager{
-		cfg:           cfg,
-		logger:        logger,
-		challengePort: challengePort,
-		rootCAs:       rootCAs,
+		cfg:     cfg,
+		logger:  logger,
+		rootCAs: rootCAs,
 	}
 }
 
