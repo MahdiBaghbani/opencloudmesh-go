@@ -105,18 +105,13 @@ advertise_http_request_signatures = false
 		t.Fatalf("failed to start binary: %v", err)
 	}
 
-	// Cleanup: always dump logs and kill process.
+	// Safety net: kill process if the test fails before the explicit
+	// shutdown assertion at the end.
+	var shutdownDone bool
 	t.Cleanup(func() {
-		if cmd.Process != nil {
-			cmd.Process.Signal(os.Interrupt)
-			done := make(chan error, 1)
-			go func() { done <- cmd.Wait() }()
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				cmd.Process.Kill()
-				<-done
-			}
+		if !shutdownDone {
+			cmd.Process.Kill()
+			cmd.Wait() //nolint:errcheck // best-effort cleanup
 		}
 		logFile.Close()
 		if t.Failed() {
@@ -175,6 +170,20 @@ advertise_http_request_signatures = false
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 for healthz, got %d", resp.StatusCode)
+	}
+
+	// 4. Clean shutdown: SIGINT triggers graceful exit within 5 seconds.
+	cmd.Process.Signal(os.Interrupt)
+	exitDone := make(chan error, 1)
+	go func() { exitDone <- cmd.Wait() }()
+	select {
+	case <-exitDone:
+		shutdownDone = true
+	case <-time.After(5 * time.Second):
+		cmd.Process.Kill()
+		<-exitDone
+		shutdownDone = true
+		t.Fatal("server did not exit within 5 seconds after SIGINT")
 	}
 }
 
