@@ -1,0 +1,9 @@
+# Config for manual validation: valid tls_root_ca_file, server starts successfully.
+# Run from repo root: go run ./cmd/opencloudmesh-go -config tests/ca_pool/configs/valid.toml
+mode = "dev"
+listen_addr = ":0"
+public_origin = "http://localhost:0"
+
+[outbound_http]
+ssrf_mode = "off"
+tls_root_ca_file = "tests/ca_pool/testdata/certificate-authority/dockypody.crt"

@@ -1,0 +1,9 @@
+# Config for manual validation: invalid tls_root_ca_file fails at startup.
+# Run from repo root: go run ./cmd/opencloudmesh-go -config tests/ca_pool/configs/invalid.toml
+mode = "dev"
+listen_addr = ":0"
+public_origin = "http://localhost:0"
+
+[outbound_http]
+ssrf_mode = "off"
+tls_root_ca_file = "/nonexistent/ca-does-not-exist.pem"
