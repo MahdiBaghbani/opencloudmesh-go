@@ -54,21 +54,21 @@ type LoaderOptions struct {
 
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
-	ListenAddr                     *string
-	PublicOrigin                   *string
-	ExternalBasePath               *string
-	SSRFMode                       *string
-	SignatureInboundMode           *string
-	SignatureOutboundMode          *string
-	SignatureAdvertiseHTTPReqSigs  *string // "true", "false", or "" (unset)
-	SignaturePeerProfileOverride   *string
-	AdminUsername                  *string
-	AdminPassword                  *string
-	LoggingLevel                   *string
-	LoggingAllowSensitive          *string // "true", "false", or "" (unset)
-	TokenExchangeEnabled           *string // "true", "false", or "" (unset)
-	TokenExchangePath              *string
-	WebDAVTokenExchangeMode        *string
+	ListenAddr                    *string
+	PublicOrigin                  *string
+	ExternalBasePath              *string
+	SSRFMode                      *string
+	SignatureInboundMode          *string
+	SignatureOutboundMode         *string
+	SignatureAdvertiseHTTPReqSigs *string // "true", "false", or "" (unset)
+	SignaturePeerProfileOverride  *string
+	AdminUsername                 *string
+	AdminPassword                 *string
+	LoggingLevel                  *string
+	LoggingAllowSensitive         *string // "true", "false", or "" (unset)
+	TokenExchangeEnabled          *string // "true", "false", or "" (unset)
+	TokenExchangePath             *string
+	WebDAVTokenExchangeMode       *string
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -80,10 +80,10 @@ type fileConfig struct {
 	ExternalBasePath string `toml:"external_base_path"`
 	ListenAddr       string `toml:"listen_addr"`
 
-	TLS          *TLSConfig          `toml:"tls"`
-	OutboundHTTP *OutboundHTTPConfig `toml:"outbound_http"`
-	Signature    *SignatureConfig    `toml:"signature"`
-	PeerProfiles *peerProfilesConfig `toml:"peer_profiles"`
+	TLS                 *TLSConfig                 `toml:"tls"`
+	OutboundHTTP        *OutboundHTTPConfig        `toml:"outbound_http"`
+	Signature           *SignatureConfig           `toml:"signature"`
+	PeerProfiles        *peerProfilesConfig        `toml:"peer_profiles"`
 	Cache               *cacheConfig               `toml:"cache"`
 	PeerTrust           *peerTrustConfig           `toml:"peer_trust"`
 	Logging             *loggingConfig             `toml:"logging"`
@@ -123,10 +123,10 @@ type cacheConfig struct {
 
 // peerTrustConfig holds peer trust settings from TOML.
 type peerTrustConfig struct {
-	Enabled         bool                              `toml:"enabled"`
-	ConfigPaths     []string                          `toml:"config_paths"`
-	Policy          *peerTrustPolicyConfig            `toml:"policy"`
-	MembershipCache *peerTrustMembershipCacheConfig   `toml:"membership_cache"`
+	Enabled         bool                            `toml:"enabled"`
+	ConfigPaths     []string                        `toml:"config_paths"`
+	Policy          *peerTrustPolicyConfig          `toml:"policy"`
+	MembershipCache *peerTrustMembershipCacheConfig `toml:"membership_cache"`
 }
 
 type peerTrustPolicyConfig struct {
@@ -143,8 +143,8 @@ type peerTrustMembershipCacheConfig struct {
 
 // peerProfilesConfig holds peer profile settings from TOML.
 type peerProfilesConfig struct {
-	Mappings       []PeerProfileMapping       `toml:"mappings"`
-	CustomProfiles map[string]PeerProfile     `toml:"custom_profiles"`
+	Mappings       []PeerProfileMapping   `toml:"mappings"`
+	CustomProfiles map[string]PeerProfile `toml:"custom_profiles"`
 }
 
 // serverConfig holds server-specific settings in TOML.
@@ -238,7 +238,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 	if md.IsDefined("tls", "tls_dir") && strings.TrimSpace(cfg.TLS.TLSDir) == "" {
 		return nil, fmt.Errorf("tls.tls_dir is set but empty; provide a path or remove the key")
 	}
-	if cfg.TLS.TLSDir != "" {
+	if md.IsDefined("tls", "tls_dir") {
 		tlsDir := strings.TrimSpace(cfg.TLS.TLSDir)
 		if !md.IsDefined("tls", "self_signed_dir") {
 			cfg.TLS.SelfSignedDir = filepath.Join(tlsDir, "certs")

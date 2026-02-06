@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,9 +23,9 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 // trackingService is a test service that records when Close() is called.
@@ -36,7 +37,7 @@ type trackingService struct {
 
 func (t *trackingService) Handler() http.Handler { return http.NotFoundHandler() }
 func (t *trackingService) Prefix() string        { return t.prefix }
-func (t *trackingService) Unprotected() []string  { return nil }
+func (t *trackingService) Unprotected() []string { return nil }
 func (t *trackingService) Close() error {
 	*t.closeOrder = append(*t.closeOrder, t.name)
 	return nil
@@ -329,6 +330,75 @@ func TestACME_MissingPorts(t *testing.T) {
 	}
 }
 
+func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
+	storageDir := t.TempDir()
+	generateTestCert(t, storageDir)
+
+	httpPort := getFreePort(t)
+	httpsPort := getFreePort(t)
+
+	// Pre-bind HTTPS port so ACME startup fails during HTTPS bind.
+	httpsBlocker, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", httpsPort))
+	if err != nil {
+		t.Fatalf("failed to pre-bind HTTPS port: %v", err)
+	}
+	defer httpsBlocker.Close()
+
+	cfg := config.DevConfig()
+	cfg.TLS.Mode = "acme"
+	cfg.TLS.HTTPPort = httpPort
+	cfg.TLS.HTTPSPort = httpsPort
+	cfg.TLS.ACME.StorageDir = storageDir
+	cfg.TLS.ACME.Domain = "localhost"
+	cfg.TLS.ACME.Email = "test@test.local"
+	cfg.TLS.ACME.Directory = "https://192.0.2.1:14000/dir"
+	cfg.ListenAddr = "127.0.0.1:0"
+	cfg.PublicOrigin = fmt.Sprintf("https://localhost:%d", httpsPort)
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	cleanup := setupTestSharedDeps(t)
+	defer cleanup()
+
+	srv, err := New(cfg, logger, nil)
+	if err != nil {
+		t.Fatalf("server creation failed: %v", err)
+	}
+
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- srv.Start()
+	}()
+
+	select {
+	case startErr := <-startErrCh:
+		if startErr == nil {
+			t.Fatal("expected Start() to fail when HTTPS bind is blocked")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start() did not return after HTTPS bind failure")
+	}
+
+	httpAddr := fmt.Sprintf("127.0.0.1:%d", httpPort)
+	if !waitForNoListener(t, httpAddr, 2*time.Second) {
+		t.Fatalf("challenge listener still accepting connections on %s", httpAddr)
+	}
+}
+
+func TestHTTPSRedirectHandler_IPv6Host(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://[::1]:9080/x?q=1", nil)
+	req.Host = "[::1]:9080"
+	rec := httptest.NewRecorder()
+
+	newHTTPSRedirectHandler(9443).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPermanentRedirect {
+		t.Fatalf("status = %d, want 308", rec.Code)
+	}
+	if got := rec.Header().Get("Location"); got != "https://[::1]:9443/x?q=1" {
+		t.Fatalf("Location = %q, want %q", got, "https://[::1]:9443/x?q=1")
+	}
+}
+
 // waitForListener polls a TCP address until it accepts or timeout expires.
 func waitForListener(t *testing.T, addr string, timeout time.Duration) bool {
 	t.Helper()
@@ -339,6 +409,20 @@ func waitForListener(t *testing.T, addr string, timeout time.Duration) bool {
 			conn.Close()
 			return true
 		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false
+}
+
+func waitForNoListener(t *testing.T, addr string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		if err != nil {
+			return true
+		}
+		conn.Close()
 		time.Sleep(50 * time.Millisecond)
 	}
 	return false

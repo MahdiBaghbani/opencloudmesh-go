@@ -157,7 +157,7 @@ outbound_mode = "criteria-only"
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
-			PublicOrigin:       &origin,
+			PublicOrigin:         &origin,
 			SignatureInboundMode: &sigInbound,
 		},
 	})
@@ -313,7 +313,7 @@ func TestInteropConfig(t *testing.T) {
 
 func TestConfig_Redacted(t *testing.T) {
 	cfg := &Config{
-		Mode:           "strict",
+		Mode:         "strict",
 		PublicOrigin: "https://example.com",
 		Server: ServerConfig{
 			TrustedProxies: []string{"127.0.0.0/8"},
@@ -1613,6 +1613,39 @@ public_origin = "https://localhost:9200"
 	}
 	if cfg.Signature.KeyPath != ".ocm/keys/signing.pem" {
 		t.Errorf("expected Signature KeyPath .ocm/keys/signing.pem from preset, got %q", cfg.Signature.KeyPath)
+	}
+}
+
+func TestLoad_TLSDir_NotInTOML_NoDerivation(t *testing.T) {
+	// Even with [tls] present, derivation must not run unless tls_dir key is present.
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	tomlContent := `mode = "strict"
+public_origin = "https://localhost:9200"
+
+[tls]
+mode = "selfsigned"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.TLS.TLSDir != "" {
+		t.Errorf("expected TLSDir empty when tls_dir key is absent, got %q", cfg.TLS.TLSDir)
+	}
+	if cfg.TLS.SelfSignedDir != ".ocm/certs" {
+		t.Errorf("expected preset SelfSignedDir .ocm/certs, got %q", cfg.TLS.SelfSignedDir)
+	}
+	if cfg.TLS.ACME.StorageDir != ".ocm/acme" {
+		t.Errorf("expected preset ACME StorageDir .ocm/acme, got %q", cfg.TLS.ACME.StorageDir)
+	}
+	if cfg.Signature.KeyPath != ".ocm/keys/signing.pem" {
+		t.Errorf("expected preset Signature KeyPath .ocm/keys/signing.pem, got %q", cfg.Signature.KeyPath)
 	}
 }
 

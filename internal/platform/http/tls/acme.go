@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -29,6 +30,7 @@ import (
 const (
 	legoStagingURL    = "https://acme-staging-v02.api.letsencrypt.org/directory"
 	legoProductionURL = "https://acme-v02.api.letsencrypt.org/directory"
+	challengeTokenTTL = 10 * time.Minute
 )
 
 // ACMEUser implements the lego User interface.
@@ -45,12 +47,34 @@ func (u *ACMEUser) GetPrivateKey() crypto.PrivateKey        { return u.key }
 // HTTP01Provider implements lego's challenge.Provider interface using an
 // in-memory token store. The server owns the HTTP listener; lego never
 // binds its own port.
+type tokenEntry struct {
+	keyAuth   string
+	expiresAt time.Time
+}
+
 type HTTP01Provider struct {
-	tokens sync.Map // token -> keyAuthorization
+	tokens sync.Map // token -> tokenEntry
+	now    func() time.Time
+}
+
+func newHTTP01Provider() *HTTP01Provider {
+	return &HTTP01Provider{
+		now: time.Now,
+	}
+}
+
+func (p *HTTP01Provider) nowTime() time.Time {
+	if p.now != nil {
+		return p.now()
+	}
+	return time.Now()
 }
 
 func (p *HTTP01Provider) Present(domain, token, keyAuth string) error {
-	p.tokens.Store(token, keyAuth)
+	p.tokens.Store(token, tokenEntry{
+		keyAuth:   keyAuth,
+		expiresAt: p.nowTime().Add(challengeTokenTTL),
+	})
 	return nil
 }
 
@@ -76,9 +100,10 @@ type ACMEManager struct {
 func NewACMEManager(cfg *config.ACMEConfig, logger *slog.Logger, rootCAs *x509.CertPool) *ACMEManager {
 	logger = logutil.NoopIfNil(logger)
 	return &ACMEManager{
-		cfg:     cfg,
-		logger:  logger,
-		rootCAs: rootCAs,
+		cfg:      cfg,
+		logger:   logger,
+		provider: newHTTP01Provider(),
+		rootCAs:  rootCAs,
 	}
 }
 
@@ -96,10 +121,6 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 	if err := os.MkdirAll(m.cfg.StorageDir, 0700); err != nil {
 		return fmt.Errorf("failed to create ACME storage dir: %w", err)
 	}
-
-	// Provider must be ready before anything else -- the challenge handler
-	// may receive requests while we are still inside Init.
-	m.provider = &HTTP01Provider{}
 
 	// Fast path: existing cert means zero network calls.
 	cert, err := m.loadCertificate()
@@ -136,7 +157,14 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 	// Custom HTTP client so lego talks to the ACME directory through our CA pool.
 	if m.rootCAs != nil {
 		legoCfg.HTTPClient = &http.Client{
+			Timeout: 15 * time.Second,
 			Transport: &http.Transport{
+				Proxy:                 nil,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ResponseHeaderTimeout: 10 * time.Second,
+				IdleConnTimeout:       30 * time.Second,
+				MaxIdleConns:          10,
+				MaxIdleConnsPerHost:   10,
 				TLSClientConfig: &cryptotls.Config{
 					RootCAs:    m.rootCAs,
 					MinVersion: cryptotls.VersionTLS12,
@@ -210,13 +238,28 @@ func (m *ACMEManager) ChallengeHandler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		keyAuth, ok := m.provider.tokens.Load(token)
+		if m.provider == nil {
+			http.NotFound(w, r)
+			return
+		}
+		rawEntry, ok := m.provider.tokens.Load(token)
 		if !ok {
 			http.NotFound(w, r)
 			return
 		}
+		entry, ok := rawEntry.(tokenEntry)
+		if !ok {
+			m.provider.tokens.Delete(token)
+			http.NotFound(w, r)
+			return
+		}
+		if m.provider.nowTime().After(entry.expiresAt) {
+			m.provider.tokens.Delete(token)
+			http.NotFound(w, r)
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprint(w, keyAuth.(string))
+		fmt.Fprint(w, entry.keyAuth)
 	})
 }
 

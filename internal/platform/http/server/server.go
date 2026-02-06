@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -176,24 +177,34 @@ func (s *Server) startACME() error {
 		Handler:      challengeMux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start the HTTP listener in a goroutine; capture early bind errors.
-	errCh := make(chan error, 1)
+	challengeListener, err := net.Listen("tcp", httpAddr)
+	if err != nil {
+		return fmt.Errorf("challenge listener bind failed on %s: %w", httpAddr, err)
+	}
+
+	closeChallengeServer := func() {
+		if s.challengeServer == nil {
+			return
+		}
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if shutdownErr := s.challengeServer.Shutdown(shutdownCtx); shutdownErr != nil && !errors.Is(shutdownErr, http.ErrServerClosed) {
+			_ = s.challengeServer.Close()
+		}
+	}
+
+	// Start the challenge server in a goroutine.
+	challengeErrCh := make(chan error, 1)
 	go func() {
-		errCh <- s.challengeServer.ListenAndServe()
+		challengeErrCh <- s.challengeServer.Serve(challengeListener)
 	}()
-
-	select {
-	case bindErr := <-errCh:
-		return fmt.Errorf("challenge server failed to start on %s: %w", httpAddr, bindErr)
-	case <-time.After(200 * time.Millisecond):
-		// Likely bound OK; proceed.
-	}
 
 	// Init loads existing certs (fast path) or contacts the ACME server.
 	if initErr := acmeMgr.Init(context.Background()); initErr != nil {
-		_ = s.challengeServer.Close()
+		closeChallengeServer()
 		return fmt.Errorf("ACME initialization failed: %w", initErr)
 	}
 
@@ -201,13 +212,36 @@ func (s *Server) startACME() error {
 	s.httpServer.Addr = net.JoinHostPort(host, strconv.Itoa(s.cfg.TLS.HTTPSPort))
 	s.httpServer.TLSConfig = acmeMgr.GetTLSConfig()
 
+	httpsListener, err := net.Listen("tcp", s.httpServer.Addr)
+	if err != nil {
+		closeChallengeServer()
+		return fmt.Errorf("https listener bind failed on %s: %w", s.httpServer.Addr, err)
+	}
+
+	httpsErrCh := make(chan error, 1)
+	go func() {
+		httpsErrCh <- s.httpServer.ServeTLS(httpsListener, "", "")
+	}()
+
 	s.logger.Info("starting ACME server",
 		"http_addr", httpAddr,
 		"https_addr", s.httpServer.Addr,
 		"domain", s.cfg.TLS.ACME.Domain,
 	)
 
-	return s.httpServer.ListenAndServeTLS("", "")
+	select {
+	case httpsErr := <-httpsErrCh:
+		closeChallengeServer()
+		return httpsErr
+	case challengeErr := <-challengeErrCh:
+		if errors.Is(challengeErr, http.ErrServerClosed) {
+			return <-httpsErrCh
+		}
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = s.httpServer.Shutdown(shutdownCtx)
+		return fmt.Errorf("challenge server exited unexpectedly: %w", challengeErr)
+	}
 }
 
 // newHTTPSRedirectHandler returns a handler that issues HTTP 308 Permanent
@@ -217,6 +251,9 @@ func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 		hostOnly := r.Host
 		if h, _, err := net.SplitHostPort(hostOnly); err == nil {
 			hostOnly = h
+		}
+		if strings.Contains(hostOnly, ":") && !(strings.HasPrefix(hostOnly, "[") && strings.HasSuffix(hostOnly, "]")) {
+			hostOnly = "[" + hostOnly + "]"
 		}
 
 		var target string
