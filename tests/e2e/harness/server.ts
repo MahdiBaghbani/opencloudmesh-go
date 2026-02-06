@@ -94,12 +94,11 @@ async function waitForServerReady(baseURL: string, timeoutMs: number = 10000): P
  * Builds the server binary.
  */
 export function buildBinary(): string {
-  const projectRoot = findProjectRoot();
-  const binaryPath = join(projectRoot, 'bin', 'opencloudmesh-go-test');
+  const binaryPath = join(PROJECT_ROOT, 'bin', 'opencloudmesh-go-test');
 
   console.log('Building server binary...');
   execSync(`go build -o ${binaryPath} ./cmd/opencloudmesh-go`, {
-    cwd: projectRoot,
+    cwd: PROJECT_ROOT,
     env: { ...process.env, CGO_ENABLED: '0' },
     stdio: 'pipe',
   });
