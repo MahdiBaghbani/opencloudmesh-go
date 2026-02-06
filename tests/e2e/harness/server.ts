@@ -4,10 +4,11 @@
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process';
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import * as net from 'net';
+import * as https from 'https';
 
 export interface ServerConfig {
   name: string;
@@ -39,6 +40,12 @@ function findProjectRoot(): string {
   return join(__dirname, '..', '..', '..');
 }
 
+const PROJECT_ROOT = findProjectRoot();
+const TLS_CERT = join(PROJECT_ROOT, 'tests', 'e2e', 'testdata', 'tls', 'localhost.crt');
+const TLS_KEY  = join(PROJECT_ROOT, 'tests', 'e2e', 'testdata', 'tls', 'localhost.key');
+const CA_CERT  = join(PROJECT_ROOT, 'tests', 'ca_pool', 'testdata', 'certificate-authority', 'dockypody.crt');
+const caCert   = readFileSync(CA_CERT);
+
 /**
  * Gets an available port.
  */
@@ -56,6 +63,7 @@ async function getAvailablePort(): Promise<number> {
 
 /**
  * Waits for the server to be ready by polling the health endpoint.
+ * Uses https.get with the project CA cert to validate the TLS chain.
  */
 async function waitForServerReady(baseURL: string, timeoutMs: number = 10000): Promise<void> {
   const startTime = Date.now();
@@ -63,10 +71,16 @@ async function waitForServerReady(baseURL: string, timeoutMs: number = 10000): P
 
   while (Date.now() - startTime < timeoutMs) {
     try {
-      const response = await fetch(healthURL);
-      if (response.ok) {
-        return;
-      }
+      await new Promise<void>((resolve, reject) => {
+        const req = https.get(healthURL, { ca: caCert }, (res) => {
+          if (res.statusCode === 200) resolve();
+          else reject(new Error(`status ${res.statusCode}`));
+          res.resume();
+        });
+        req.on('error', reject);
+        req.setTimeout(2000, () => { req.destroy(); reject(new Error('timeout')); });
+      });
+      return;
     } catch {
       // Server not ready yet
     }
@@ -101,11 +115,13 @@ export function buildBinary(): string {
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
   let config = `mode = "${mode}"
 listen_addr = ":${port}"
-public_origin = "http://localhost:${port}"
+public_origin = "https://localhost:${port}"
 external_base_path = ""
 
 [tls]
-mode = "off"
+mode = "static"
+cert_file = "${TLS_CERT}"
+key_file = "${TLS_KEY}"
 
 [server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
@@ -119,7 +135,9 @@ timeout_ms = 5000
 connect_timeout_ms = 2000
 max_redirects = 1
 max_response_bytes = 1048576
-insecure_skip_verify = true
+insecure_skip_verify = false
+tls_root_ca_file = "${CA_CERT}"
+ssrf_mode = "off"
 
 [signature]
 inbound_mode = "off"
@@ -162,7 +180,7 @@ export async function startServer(binaryPath: string, config: ServerConfig): Pro
     logs.push(data.toString());
   });
 
-  const baseURL = `http://localhost:${port}`;
+  const baseURL = `https://localhost:${port}`;
 
   const instance: ServerInstance = {
     name: config.name,

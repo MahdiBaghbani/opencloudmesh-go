@@ -30,6 +30,9 @@ export default defineConfig({
     
     // Timeout for actions
     actionTimeout: 10000,
+
+    // E2E servers use static TLS with a project CA; this covers page and request fixtures
+    ignoreHTTPSErrors: true,
   },
 
   // Test timeout - bounded to prevent hanging
