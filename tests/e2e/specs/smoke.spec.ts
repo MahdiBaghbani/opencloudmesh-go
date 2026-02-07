@@ -63,12 +63,12 @@ test.describe('Server Smoke Tests', () => {
 });
 
 test.describe('Server Lifecycle Tests', () => {
-  test('server starts and stops cleanly', async () => {
+  test('server starts and stops cleanly', async ({ request }) => {
     const server = await startServer(binaryPath, { name: 'lifecycle-test', mode: 'dev' });
     
     // Verify server is running
-    const response = await fetch(`${server.baseURL}/api/healthz`);
-    expect(response.ok).toBeTruthy();
+    const response = await request.get(`${server.baseURL}/api/healthz`);
+    expect(response.ok()).toBeTruthy();
     
     // Stop server
     stopServer(server);
@@ -78,7 +78,7 @@ test.describe('Server Lifecycle Tests', () => {
     
     // Verify server is stopped (connection should fail)
     try {
-      await fetch(`${server.baseURL}/api/healthz`, { signal: AbortSignal.timeout(1000) });
+      await request.get(`${server.baseURL}/api/healthz`, { timeout: 1000 });
       // If we get here, server is still running - that's unexpected
       expect(false).toBeTruthy(); // Force fail
     } catch {
@@ -86,7 +86,7 @@ test.describe('Server Lifecycle Tests', () => {
     }
   });
 
-  test('multiple servers can run on different ports', async () => {
+  test('multiple servers can run on different ports', async ({ request }) => {
     const server1 = await startServer(binaryPath, { name: 'multi-1', mode: 'dev' });
     const server2 = await startServer(binaryPath, { name: 'multi-2', mode: 'dev' });
 
@@ -96,12 +96,12 @@ test.describe('Server Lifecycle Tests', () => {
       
       // Both should respond
       const [resp1, resp2] = await Promise.all([
-        fetch(`${server1.baseURL}/api/healthz`),
-        fetch(`${server2.baseURL}/api/healthz`),
+        request.get(`${server1.baseURL}/api/healthz`),
+        request.get(`${server2.baseURL}/api/healthz`),
       ]);
       
-      expect(resp1.ok).toBeTruthy();
-      expect(resp2.ok).toBeTruthy();
+      expect(resp1.ok()).toBeTruthy();
+      expect(resp2.ok()).toBeTruthy();
     } finally {
       stopServer(server1);
       stopServer(server2);
