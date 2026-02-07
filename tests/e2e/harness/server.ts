@@ -7,6 +7,7 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { randomUUID } from 'crypto';
 import * as net from 'net';
 import * as https from 'https';
 
@@ -239,4 +240,47 @@ export function dumpLogs(instance: ServerInstance): void {
   console.log(`=== Logs for ${instance.name} ===`);
   console.log(instance.logs.join(''));
   console.log(`=== End logs ===`);
+}
+
+/**
+ * Starts two server instances with distinct names and ports.
+ * Both share the same mode and HTTPS/CA config. Caller must stopServer() each.
+ */
+export async function startTwoServers(
+  binaryPath: string,
+  config?: {
+    nameA?: string;
+    nameB?: string;
+    mode?: 'dev' | 'interop' | 'strict';
+    extraConfigA?: string;
+    extraConfigB?: string;
+  }
+): Promise<[ServerInstance, ServerInstance]> {
+  const nameA = config?.nameA ?? 'server-a';
+  const nameB = config?.nameB ?? 'server-b';
+  const mode = config?.mode ?? 'dev';
+
+  const instanceA = await startServer(binaryPath, {
+    name: nameA,
+    mode,
+    extraConfig: config?.extraConfigA,
+  });
+
+  const instanceB = await startServer(binaryPath, {
+    name: nameB,
+    mode,
+    extraConfig: config?.extraConfigB,
+  });
+
+  return [instanceA, instanceB];
+}
+
+/**
+ * Creates a temp file suitable for outgoing share tests.
+ * Returns the absolute path; caller cleans up via rmSync(path, { force: true }).
+ */
+export function createShareableFile(content?: string): string {
+  const filePath = join(tmpdir(), 'ocm-e2e-share-' + randomUUID() + '.txt');
+  writeFileSync(filePath, content ?? 'E2E test file content');
+  return filePath;
 }
