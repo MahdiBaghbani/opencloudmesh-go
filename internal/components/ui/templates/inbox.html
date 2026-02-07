@@ -201,7 +201,7 @@
     </header>
     <main class="main">
       <h2>Shared with Me</h2>
-      <div class="tabs">
+      <div class="tabs" id="share-tabs">
         <button class="tab active" data-filter="all">All</button>
         <button class="tab" data-filter="pending">Pending</button>
         <button class="tab" data-filter="accepted">Accepted</button>
@@ -375,10 +375,10 @@
       }
 
       // Tab filtering
-      document.querySelectorAll(".tab").forEach((tab) => {
+      document.querySelectorAll("#share-tabs .tab").forEach((tab) => {
         tab.addEventListener("click", () => {
           document
-            .querySelectorAll(".tab")
+            .querySelectorAll("#share-tabs .tab")
             .forEach((t) => t.classList.remove("active"));
           tab.classList.add("active");
           currentFilter = tab.dataset.filter;
