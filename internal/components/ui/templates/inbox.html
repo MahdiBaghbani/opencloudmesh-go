@@ -257,8 +257,11 @@
       let currentInviteFilter = "all";
 
       // Load user info
-      fetch("api/auth/me")
-        .then((r) => r.json())
+      fetch("api/auth/me", { credentials: "same-origin" })
+        .then((r) => {
+          if (!r.ok) throw new Error("not authenticated");
+          return r.json();
+        })
         .then((user) => {
           document.getElementById("user-name").textContent =
             user.display_name || user.username;
@@ -271,7 +274,10 @@
       document
         .getElementById("logout-btn")
         .addEventListener("click", async () => {
-          await fetch("api/auth/logout", { method: "POST" });
+          await fetch("api/auth/logout", {
+            method: "POST",
+            credentials: "same-origin",
+          });
           window.location.href = "ui/login";
         });
 
