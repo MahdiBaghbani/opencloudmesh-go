@@ -65,6 +65,15 @@ func (h *Handler) Inbox(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Outgoing serves the outgoing shares and invites page.
+func (h *Handler) Outgoing(w http.ResponseWriter, r *http.Request) {
+	data := TemplateData{BasePath: h.basePath}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := h.templates.ExecuteTemplate(w, "outgoing.html", data); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
 // Wayf serves the WAYF (Where Are You From) provider selection page.
 // This is a public page that lets the user pick a federation provider
 // to accept an invite from.

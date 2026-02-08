@@ -75,7 +75,8 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 
 	r := chi.NewRouter()
 	r.Get("/login", uiHandler.Login) // public
-	r.Get("/inbox", uiHandler.Inbox) // session-gated
+	r.Get("/inbox", uiHandler.Inbox)       // session-gated
+	r.Get("/outgoing", uiHandler.Outgoing) // session-gated
 
 	// WAYF routes: registered only when enabled (conditional registration)
 	if c.Wayf.Enabled {

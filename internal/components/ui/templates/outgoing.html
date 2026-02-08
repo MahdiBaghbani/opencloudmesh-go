@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="{{.BasePath}}/" />
+    <title>Outgoing - OpenCloudMesh</title>
+    <style>
+      :root {
+        --bg-dark: #0f1419;
+        --bg-card: #1a1f26;
+        --bg-hover: #22272e;
+        --accent: #00d4aa;
+        --accent-dim: #00a884;
+        --text-primary: #e7e9ea;
+        --text-secondary: #8899a6;
+        --success: #00ba7c;
+        --warning: #ffad1f;
+        --error: #f4212e;
+        --border: #2f3336;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, sans-serif;
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        min-height: 100vh;
+      }
+      .header {
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .logo {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+      .logo span {
+        color: var(--accent);
+      }
+      .nav-links {
+        display: flex;
+        gap: 16px;
+      }
+      .nav-links a {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        text-decoration: none;
+        padding: 4px 0;
+        transition: color 0.2s;
+      }
+      .nav-links a:hover {
+        color: var(--text-primary);
+      }
+      .nav-links a.active {
+        color: var(--accent);
+        font-weight: 600;
+        border-bottom: 2px solid var(--accent);
+      }
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .user-name {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+      }
+      .logout-btn {
+        padding: 8px 16px;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .logout-btn:hover {
+        background: var(--bg-hover);
+      }
+      .main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 24px;
+      }
+      .section {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+      .section h3 {
+        font-size: 1.125rem;
+        font-weight: 500;
+        margin-bottom: 16px;
+      }
+      .action-btn {
+        padding: 10px 20px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--bg-dark);
+        background: var(--accent);
+        border: none;
+      }
+      .action-btn:hover {
+        background: var(--accent-dim);
+      }
+      .action-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .invite-result {
+        margin-top: 16px;
+      }
+      .invite-result textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 12px;
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 0.8125rem;
+        color: var(--text-primary);
+        background: var(--bg-dark);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        resize: vertical;
+      }
+      .invite-result p {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+      }
+      .error-msg {
+        margin-top: 12px;
+        padding: 10px 14px;
+        font-size: 0.875rem;
+        color: var(--error);
+        background: rgba(244, 33, 46, 0.1);
+        border: 1px solid var(--error);
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="logo">Open<span>Cloud</span>Mesh</div>
+      <nav class="nav-links">
+        <a href="ui/inbox">Inbox</a>
+        <a href="ui/outgoing" class="active">Outgoing</a>
+      </nav>
+      <div class="user-info">
+        <span class="user-name" id="user-name">Loading...</span>
+        <button class="logout-btn" id="logout-btn">Sign Out</button>
+      </div>
+    </header>
+    <main class="main">
+      <h2>Outgoing</h2>
+
+      <div class="section">
+        <h3>Create Invite</h3>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px;">
+          Generate a federation invite token that another provider can import to establish trust.
+        </p>
+        <button class="action-btn" id="invite-create-btn">Create Invite</button>
+        <div id="invite-error" class="error-msg" style="display: none;"></div>
+        <div id="invite-result" class="invite-result" style="display: none;">
+          <p>Invite token (share this with the remote provider):</p>
+          <textarea id="invite-string" readonly></textarea>
+        </div>
+      </div>
+    </main>
+    <script>
+      // Load user info
+      fetch("api/auth/me", { credentials: "same-origin" })
+        .then((r) => {
+          if (!r.ok) throw new Error("not authenticated");
+          return r.json();
+        })
+        .then((user) => {
+          document.getElementById("user-name").textContent =
+            user.display_name || user.username;
+        })
+        .catch(() => {
+          window.location.href = "ui/login";
+        });
+
+      // Logout
+      document
+        .getElementById("logout-btn")
+        .addEventListener("click", async () => {
+          await fetch("api/auth/logout", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+          window.location.href = "ui/login";
+        });
+
+      // Create invite
+      document
+        .getElementById("invite-create-btn")
+        .addEventListener("click", async () => {
+          const btn = document.getElementById("invite-create-btn");
+          const resultDiv = document.getElementById("invite-result");
+          const errorDiv = document.getElementById("invite-error");
+          const textarea = document.getElementById("invite-string");
+
+          btn.disabled = true;
+          errorDiv.style.display = "none";
+          resultDiv.style.display = "none";
+
+          try {
+            const resp = await fetch("api/invites/outgoing", {
+              method: "POST",
+              credentials: "same-origin",
+            });
+
+            if (resp.status === 401) {
+              window.location.href = "ui/login";
+              return;
+            }
+
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => null);
+              const msg =
+                (err && err.error && err.error.message) ||
+                "Failed to create invite";
+              throw new Error(msg);
+            }
+
+            const data = await resp.json();
+            textarea.value = data.inviteString;
+            resultDiv.style.display = "block";
+          } catch (err) {
+            errorDiv.textContent = err.message;
+            errorDiv.style.display = "block";
+          } finally {
+            btn.disabled = false;
+          }
+        });
+    </script>
+  </body>
+</html>
