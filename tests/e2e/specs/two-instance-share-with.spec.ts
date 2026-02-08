@@ -65,11 +65,9 @@ test.describe('Two-Instance Share With (API)', () => {
     const shareBody = await shareResponse.json();
     expect(shareBody.status).toBe('sent');
 
-    // Login to server B (same page -- cookies are per-origin)
+    // Login to server B (same page -- cookies are per-origin).
+    // login() already lands on /ui/inbox, so no extra navigation needed.
     await login(page, serverB.baseURL);
-
-    // Navigate to B's inbox
-    await page.goto(`${serverB.baseURL}/ui/inbox`);
 
     // Wait for the share to appear
     await page.waitForSelector('.share-item', { timeout: 10000 });
