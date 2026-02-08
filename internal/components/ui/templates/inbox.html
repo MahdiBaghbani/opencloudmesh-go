@@ -46,6 +46,25 @@
       .logo span {
         color: var(--accent);
       }
+      .nav-links {
+        display: flex;
+        gap: 16px;
+      }
+      .nav-links a {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        text-decoration: none;
+        padding: 4px 0;
+        transition: color 0.2s;
+      }
+      .nav-links a:hover {
+        color: var(--text-primary);
+      }
+      .nav-links a.active {
+        color: var(--accent);
+        font-weight: 600;
+        border-bottom: 2px solid var(--accent);
+      }
       .user-info {
         display: flex;
         align-items: center;
@@ -194,6 +213,10 @@
   <body>
     <header class="header">
       <div class="logo">Open<span>Cloud</span>Mesh</div>
+      <nav class="nav-links">
+        <a href="ui/inbox" class="active">Inbox</a>
+        <a href="ui/outgoing">Outgoing</a>
+      </nav>
       <div class="user-info">
         <span class="user-name" id="user-name">Loading...</span>
         <button class="logout-btn" id="logout-btn">Sign Out</button>
