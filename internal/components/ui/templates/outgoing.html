@@ -156,6 +156,42 @@
         border: 1px solid var(--error);
         border-radius: 6px;
       }
+      .success-msg {
+        margin-top: 12px;
+        padding: 10px 14px;
+        font-size: 0.875rem;
+        color: var(--success);
+        background: rgba(0, 186, 124, 0.1);
+        border: 1px solid var(--success);
+        border-radius: 6px;
+      }
+      .form-group {
+        margin-bottom: 16px;
+      }
+      .form-group label {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        background: var(--bg-dark);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .form-group input:focus {
+        border-color: var(--accent);
+      }
+      .form-group input::placeholder {
+        color: var(--text-secondary);
+        opacity: 0.6;
+      }
     </style>
   </head>
   <body>
@@ -184,6 +220,30 @@
           <p>Invite token (share this with the remote provider):</p>
           <textarea id="invite-string" readonly></textarea>
         </div>
+      </div>
+
+      <div class="section">
+        <h3>Share a File</h3>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px;">
+          Send a file share to a user on another OpenCloudMesh provider.
+        </p>
+        <form id="outgoing-share-form">
+          <div class="form-group">
+            <label for="share-with">Share with (OCM address)</label>
+            <input id="share-with" type="text" placeholder="user@provider:port" required />
+          </div>
+          <div class="form-group">
+            <label for="local-path">Local file path</label>
+            <input id="local-path" type="text" placeholder="/tmp/file.txt" required />
+          </div>
+          <div class="form-group">
+            <label for="share-name">Display name (optional)</label>
+            <input id="share-name" type="text" placeholder="Display name (optional)" />
+          </div>
+          <button id="share-submit" class="action-btn" type="submit">Send Share</button>
+        </form>
+        <div id="share-error" class="error-msg" style="display: none;"></div>
+        <div id="share-result" class="success-msg" style="display: none;"></div>
       </div>
     </main>
     <script>
@@ -246,6 +306,71 @@
 
             const data = await resp.json();
             textarea.value = data.inviteString;
+            resultDiv.style.display = "block";
+          } catch (err) {
+            errorDiv.textContent = err.message;
+            errorDiv.style.display = "block";
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+      // Share form
+      document
+        .getElementById("outgoing-share-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const btn = document.getElementById("share-submit");
+          const resultDiv = document.getElementById("share-result");
+          const errorDiv = document.getElementById("share-error");
+
+          btn.disabled = true;
+          resultDiv.style.display = "none";
+          errorDiv.style.display = "none";
+
+          try {
+            const shareWith = document
+              .getElementById("share-with")
+              .value.trim();
+            const lastAt = shareWith.lastIndexOf("@");
+            if (lastAt < 1) {
+              throw new Error(
+                "Invalid OCM address. Expected format: user@provider:port"
+              );
+            }
+            const receiverDomain = shareWith.substring(lastAt + 1);
+
+            const body = {
+              shareWith: shareWith,
+              receiverDomain: receiverDomain,
+              localPath: document.getElementById("local-path").value.trim(),
+              permissions: ["read"],
+            };
+            const name = document.getElementById("share-name").value.trim();
+            if (name) body.name = name;
+
+            const resp = await fetch("api/shares/outgoing", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify(body),
+            });
+
+            if (resp.status === 401) {
+              window.location.href = "ui/login";
+              return;
+            }
+
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => null);
+              const msg =
+                (err && err.error && err.error.message) ||
+                "Failed to send share";
+              throw new Error(msg);
+            }
+
+            resultDiv.textContent = "Share sent successfully";
             resultDiv.style.display = "block";
           } catch (err) {
             errorDiv.textContent = err.message;
