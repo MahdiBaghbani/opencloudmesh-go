@@ -1,9 +1,10 @@
 /**
- * Two-instance share-with E2E test.
- * A sends an outgoing share to B via the API; B accepts it in the inbox UI.
+ * Two-instance share-with E2E tests.
+ * API path: A sends share via POST /api/shares/outgoing, B accepts in inbox.
+ * UI path: A sends share via /ui/outgoing form, B accepts in inbox.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { basename } from 'path';
 import { rmSync } from 'fs';
 import {
@@ -20,6 +21,14 @@ test.beforeAll(() => {
   binaryPath = buildBinary();
 });
 
+async function login(page: Page, baseURL: string) {
+  await page.goto(`${baseURL}/ui/login`);
+  await page.fill('#username', 'admin');
+  await page.fill('#password', 'testpassword123');
+  await page.click('#submit-btn');
+  await page.waitForURL('**/ui/inbox', { timeout: 5000 });
+}
+
 test.describe('Two-Instance Share With (API)', () => {
   let serverA: ServerInstance;
   let serverB: ServerInstance;
@@ -35,14 +44,6 @@ test.describe('Two-Instance Share With (API)', () => {
     if (serverB) stopServer(serverB);
     if (shareFilePath) rmSync(shareFilePath, { force: true });
   });
-
-  async function login(page: import('@playwright/test').Page, baseURL: string) {
-    await page.goto(`${baseURL}/ui/login`);
-    await page.fill('#username', 'admin');
-    await page.fill('#password', 'testpassword123');
-    await page.click('#submit-btn');
-    await page.waitForURL('**/ui/inbox', { timeout: 5000 });
-  }
 
   test('A sends share to B, B accepts via inbox', async ({ page }) => {
     // Login to server A
@@ -67,6 +68,62 @@ test.describe('Two-Instance Share With (API)', () => {
 
     // Login to server B (same page -- cookies are per-origin).
     // login() already lands on /ui/inbox, so no extra navigation needed.
+    await login(page, serverB.baseURL);
+
+    // Wait for the share to appear
+    await page.waitForSelector('.share-item', { timeout: 10000 });
+
+    // Verify the share name matches the file basename
+    const expectedName = basename(shareFilePath);
+    await expect(page.locator('.share-name')).toContainText(expectedName);
+    await expect(page.locator('.share-status')).toContainText('pending');
+
+    // Accept the share
+    await page.click('.btn-accept');
+
+    // Wait for accepted status
+    await page.waitForSelector('.status-accepted', { timeout: 5000 });
+    await expect(page.locator('.share-status')).toContainText('accepted');
+  });
+});
+
+test.describe('Two-Instance Share With (UI)', () => {
+  let serverA: ServerInstance;
+  let serverB: ServerInstance;
+  let shareFilePath: string;
+
+  test.beforeEach(async () => {
+    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'dev' });
+    shareFilePath = createShareableFile();
+  });
+
+  test.afterEach(async () => {
+    if (serverA) stopServer(serverA);
+    if (serverB) stopServer(serverB);
+    if (shareFilePath) rmSync(shareFilePath, { force: true });
+  });
+
+  test('A sends share via Outgoing UI, B accepts via inbox', async ({ page }) => {
+    // Login to server A
+    await login(page, serverA.baseURL);
+
+    // Navigate to A's outgoing UI
+    await page.goto(`${serverA.baseURL}/ui/outgoing`);
+    await page.waitForSelector('#outgoing-share-form');
+
+    // Fill the share form
+    await page.fill('#share-with', `admin@localhost:${serverB.port}`);
+    await page.fill('#local-path', shareFilePath);
+
+    // Submit the form
+    await page.click('#share-submit');
+
+    // Wait for success message
+    await page.waitForSelector('#share-result', { state: 'visible', timeout: 10000 });
+    await expect(page.locator('#share-result')).toContainText('Share sent successfully');
+
+    // Login to server B (same page -- cookies are per-origin).
+    // login() lands on /ui/inbox, so the share should appear there.
     await login(page, serverB.baseURL);
 
     // Wait for the share to appear
