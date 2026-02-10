@@ -6,6 +6,7 @@ package access
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/http"
@@ -53,18 +54,22 @@ type Client struct {
 	httpClient      *httpclient.ContextClient
 	discoveryClient *discovery.Client
 	tokenClient     *tokenoutgoing.Client
+	profileRegistry *peercompat.ProfileRegistry
 }
 
 // NewClient creates a new remote access client.
+// profileRegistry may be nil; when nil, Basic auth fallback is disabled.
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	discoveryClient *discovery.Client,
 	tokenClient *tokenoutgoing.Client,
+	profileRegistry *peercompat.ProfileRegistry,
 ) *Client {
 	return &Client{
 		httpClient:      httpClient,
 		discoveryClient: discoveryClient,
 		tokenClient:     tokenClient,
+		profileRegistry: profileRegistry,
 	}
 }
 
@@ -95,8 +100,25 @@ type AccessResult struct {
 	MethodUsed string
 }
 
+// basicAuthPattern defines one Basic auth credential layout to try.
+type basicAuthPattern struct {
+	key      string // profile-level key, e.g. "token:", "id:token"
+	username func(token, webdavID string) string
+	password func(token, webdavID string) string
+}
+
+// orderedBasicPatterns is the fixed order of Basic auth fallback patterns.
+// Mirrors the inbound ladder in the WebDAV handler (extractCredential).
+var orderedBasicPatterns = []basicAuthPattern{
+	{key: "token:", username: func(t, _ string) string { return t }, password: func(_, _ string) string { return "" }},
+	{key: "token:token", username: func(t, _ string) string { return t }, password: func(t, _ string) string { return t }},
+	{key: ":token", username: func(_, _ string) string { return "" }, password: func(t, _ string) string { return t }},
+	{key: "id:token", username: func(_, id string) string { return id }, password: func(t, _ string) string { return t }},
+}
+
 // Access accesses a file from a remote share.
 // If MustExchangeToken is set, performs token exchange first.
+// On Bearer 401/403, falls back to Basic auth patterns gated by the peer profile.
 func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult, error) {
 	share := opts.Share
 
@@ -165,16 +187,13 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		return nil, err
 	}
 
-	// Create request
+	// Try Bearer first
 	req, err := http.NewRequestWithContext(ctx, opts.Method, webdavURL, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	// Add bearer token
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	// Execute request
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
 		return nil, peercompat.NewClassifiedError(
@@ -184,12 +203,72 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		)
 	}
 
-	return &AccessResult{
-		Response:       resp,
-		TokenExchanged: tokenExchanged,
-		AccessToken:    accessToken,
-		MethodUsed:     "bearer",
-	}, nil
+	// Bearer succeeded (not 401/403) -- return immediately
+	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+		return &AccessResult{
+			Response:       resp,
+			TokenExchanged: tokenExchanged,
+			AccessToken:    accessToken,
+			MethodUsed:     "bearer",
+		}, nil
+	}
+
+	// Bearer was rejected -- try Basic auth patterns if profile registry is available
+	resp.Body.Close()
+
+	return c.tryBasicPatterns(ctx, opts, webdavURL, accessToken, tokenExchanged)
+}
+
+// tryBasicPatterns iterates the Basic auth patterns allowed by the peer profile.
+// Returns the first successful result or ErrRemoteAccessFailed.
+func (c *Client) tryBasicPatterns(
+	ctx context.Context,
+	opts AccessOptions,
+	webdavURL string,
+	accessToken string,
+	tokenExchanged bool,
+) (*AccessResult, error) {
+	if c.profileRegistry == nil {
+		return nil, ErrRemoteAccessFailed
+	}
+
+	profile := c.profileRegistry.GetProfile(opts.Share.SenderHost)
+
+	for _, pat := range orderedBasicPatterns {
+		if !profile.IsBasicAuthPatternAllowed(pat.key) {
+			continue
+		}
+
+		req, err := http.NewRequestWithContext(ctx, opts.Method, webdavURL, nil)
+		if err != nil {
+			continue
+		}
+
+		user := pat.username(accessToken, opts.Share.WebDAVID)
+		pass := pat.password(accessToken, opts.Share.WebDAVID)
+		cred := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
+		req.Header.Set("Authorization", "Basic "+cred)
+
+		resp, err := c.httpClient.Do(ctx, req)
+		if err != nil {
+			// Network error on this pattern -- try next
+			continue
+		}
+
+		if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+			return &AccessResult{
+				Response:       resp,
+				TokenExchanged: tokenExchanged,
+				AccessToken:    accessToken,
+				MethodUsed:     "basic:" + pat.key,
+			}, nil
+		}
+
+		// This pattern was also rejected -- close body and try next
+		resp.Body.Close()
+	}
+
+	return nil, ErrRemoteAccessFailed
 }
 
 // FetchFile fetches a file from a remote share and returns its content.
