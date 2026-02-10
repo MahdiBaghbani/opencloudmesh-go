@@ -959,6 +959,46 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 	}
 }
 
+func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	share := createAcceptedShareForUser(repo, userAID, "prov-va-remote-err", "sender.example.com", "forbidden.txt")
+
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+		return &access.AccessResult{
+			Response: &http.Response{
+				StatusCode: http.StatusForbidden,
+				Status:     "403 Forbidden",
+				Header:     http.Header{"Content-Type": []string{"text/plain"}},
+				Body:       io.NopCloser(bytes.NewBufferString("access denied")),
+			},
+			MethodUsed: "bearer",
+		}, nil
+	}}
+	router := newTestRouterWithAccess(repo, nil, ac, userA)
+
+	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp inboxshares.VerifyAccessResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.OK {
+		t.Error("expected ok=false")
+	}
+	if resp.ReasonCode != "remote_error" {
+		t.Errorf("expected reasonCode remote_error, got %s", resp.ReasonCode)
+	}
+	if !containsStr(resp.Error, "403") {
+		t.Errorf("expected error to mention status code, got %q", resp.Error)
+	}
+}
+
 func TestHandleVerifyAccess_Unauthenticated(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	router := newTestRouterWithAccess(repo, nil, nil, nil)

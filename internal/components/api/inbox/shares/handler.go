@@ -428,7 +428,10 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read bounded preview
-	preview, truncated := readBoundedPreview(result.Response.Body)
+	preview, truncated, readErr := readBoundedPreview(result.Response.Body)
+	if readErr != nil {
+		h.log.Warn("partial read of remote response body", "share_id", shareID, "error", readErr)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VerifyAccessResponse{
@@ -450,12 +453,13 @@ func isUnsafePath(name string) bool {
 }
 
 // readBoundedPreview reads up to maxPreviewBytes from r, reporting truncation.
-func readBoundedPreview(r io.Reader) ([]byte, bool) {
-	buf, _ := io.ReadAll(io.LimitReader(r, int64(maxPreviewBytes+1)))
+// On read error, returns whatever partial data was read (best-effort preview).
+func readBoundedPreview(r io.Reader) ([]byte, bool, error) {
+	buf, err := io.ReadAll(io.LimitReader(r, int64(maxPreviewBytes+1)))
 	if len(buf) > maxPreviewBytes {
-		return buf[:maxPreviewBytes], true
+		return buf[:maxPreviewBytes], true, err
 	}
-	return buf, false
+	return buf, false, err
 }
 
 // writeVerifyError writes a VerifyAccessResponse with ok=false.
