@@ -94,6 +94,16 @@ func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 	return nil
 }
 
+// Sign satisfies tokenoutgoing.RequestSigner by reading and restoring the
+// request body, then delegating to SignRequest.
+func (s *RFC9421Signer) Sign(req *http.Request) error {
+	body, err := ReadAndRestoreBody(req)
+	if err != nil {
+		return fmt.Errorf("failed to read request body for signing: %w", err)
+	}
+	return s.SignRequest(req, body)
+}
+
 // buildSignatureBase builds the signature base string per RFC 9421.
 func buildSignatureBase(req *http.Request, components []string) (string, error) {
 	var lines []string

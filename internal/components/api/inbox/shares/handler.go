@@ -6,15 +6,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -124,27 +130,51 @@ type InboxListResponse struct {
 	Shares []InboxShareView `json:"shares"`
 }
 
-// Handler handles inbox share list, accept, and decline endpoints.
+// VerifyAccessResponse is the response for POST /api/inbox/shares/{shareId}/verify-access.
+type VerifyAccessResponse struct {
+	OK                      bool   `json:"ok"`
+	MethodUsed              string `json:"methodUsed,omitempty"`
+	TokenExchanged          bool   `json:"tokenExchanged,omitempty"`
+	HTTPStatus              int    `json:"httpStatus,omitempty"`
+	ContentType             string `json:"contentType,omitempty"`
+	ContentPreview          string `json:"contentPreview,omitempty"`
+	ContentPreviewTruncated bool   `json:"contentPreviewTruncated,omitempty"`
+	ReasonCode              string `json:"reasonCode,omitempty"`
+	Error                   string `json:"error,omitempty"`
+}
+
+const maxPreviewBytes = 4096
+
+// Handler handles inbox share list, accept, decline, detail, and verify-access endpoints.
 type Handler struct {
-	repo        sharesinbox.IncomingShareRepo
-	sender      sharesinbox.NotificationSender
-	currentUser func(context.Context) (*identity.User, error)
-	log         *slog.Logger
+	repo            sharesinbox.IncomingShareRepo
+	sender          sharesinbox.NotificationSender
+	accessClient    access.RemoteAccessor
+	profileRegistry *peercompat.ProfileRegistry
+	cfg             *config.Config
+	currentUser     func(context.Context) (*identity.User, error)
+	log             *slog.Logger
 }
 
 // NewHandler creates a new inbox shares handler.
 func NewHandler(
 	repo sharesinbox.IncomingShareRepo,
 	sender sharesinbox.NotificationSender,
+	accessClient access.RemoteAccessor,
+	profileRegistry *peercompat.ProfileRegistry,
+	cfg *config.Config,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
 ) *Handler {
 	log = logutil.NoopIfNil(log)
 	return &Handler{
-		repo:        repo,
-		sender:      sender,
-		currentUser: currentUser,
-		log:         log,
+		repo:            repo,
+		sender:          sender,
+		accessClient:    accessClient,
+		profileRegistry: profileRegistry,
+		cfg:             cfg,
+		currentUser:     currentUser,
+		log:             log,
 	}
 }
 
@@ -330,4 +360,143 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		"status":  string(sharesinbox.ShareStatusDeclined),
 		"shareId": shareID,
 	})
+}
+
+// HandleVerifyAccess handles POST /api/inbox/shares/{shareId}/verify-access.
+// Verifies WebDAV access for an accepted share using the backend access client.
+// No secrets are exposed to the browser; all outbound requests happen server-side.
+func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
+	user, err := h.currentUser(r.Context())
+	if err != nil {
+		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+		return
+	}
+
+	shareID := chi.URLParam(r, "shareId")
+	if shareID == "" {
+		api.WriteBadRequest(w, api.ReasonMissingField, "shareId is required")
+		return
+	}
+
+	ctx := r.Context()
+
+	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, user.ID)
+	if err != nil {
+		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+			api.WriteNotFound(w, "share not found")
+			return
+		}
+		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
+		api.WriteInternalError(w, "failed to get share")
+		return
+	}
+
+	if share.Status != sharesinbox.ShareStatusAccepted {
+		writeVerifyError(w, http.StatusBadRequest, "share_not_accepted", "share must be accepted before verifying access")
+		return
+	}
+
+	if isUnsafePath(share.Name) {
+		writeVerifyError(w, http.StatusBadRequest, "unsafe_path", "share name contains unsafe path components")
+		return
+	}
+
+	shareInfo := access.ShareInfo{
+		Status:            string(share.Status),
+		SenderHost:        share.SenderHost,
+		SharedSecret:      share.SharedSecret,
+		WebDAVID:          share.WebDAVID,
+		WebDAVURIAbsolute: share.WebDAVURIAbsolute,
+		MustExchangeToken: share.MustExchangeToken,
+	}
+
+	result, err := h.accessClient.Access(ctx, access.AccessOptions{
+		Share:   &shareInfo,
+		Method:  "GET",
+		SubPath: url.PathEscape(share.Name),
+	})
+	if err != nil {
+		h.writeAccessError(w, err)
+		return
+	}
+	defer result.Response.Body.Close()
+
+	if result.Response.StatusCode < 200 || result.Response.StatusCode >= 300 {
+		writeVerifyError(w, http.StatusBadGateway, "remote_error",
+			"remote server returned "+result.Response.Status)
+		return
+	}
+
+	// Read bounded preview
+	preview, truncated := readBoundedPreview(result.Response.Body)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(VerifyAccessResponse{
+		OK:                      true,
+		MethodUsed:              result.MethodUsed,
+		TokenExchanged:          result.TokenExchanged,
+		HTTPStatus:              result.Response.StatusCode,
+		ContentType:             result.Response.Header.Get("Content-Type"),
+		ContentPreview:          string(preview),
+		ContentPreviewTruncated: truncated,
+	})
+}
+
+// isUnsafePath checks for path traversal components in a share name.
+func isUnsafePath(name string) bool {
+	return strings.Contains(name, "/") ||
+		strings.Contains(name, "\\") ||
+		strings.Contains(name, "..")
+}
+
+// readBoundedPreview reads up to maxPreviewBytes from r, reporting truncation.
+func readBoundedPreview(r io.Reader) ([]byte, bool) {
+	buf, _ := io.ReadAll(io.LimitReader(r, int64(maxPreviewBytes+1)))
+	if len(buf) > maxPreviewBytes {
+		return buf[:maxPreviewBytes], true
+	}
+	return buf, false
+}
+
+// writeVerifyError writes a VerifyAccessResponse with ok=false.
+func writeVerifyError(w http.ResponseWriter, statusCode int, reasonCode, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(VerifyAccessResponse{
+		OK:         false,
+		ReasonCode: reasonCode,
+		Error:      message,
+	})
+}
+
+// writeAccessError maps access client errors to HTTP responses.
+func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
+	if errors.Is(err, access.ErrShareNotAccepted) {
+		writeVerifyError(w, http.StatusBadRequest, "share_not_accepted", "share not accepted")
+		return
+	}
+	if errors.Is(err, access.ErrTokenExchangeRequired) {
+		writeVerifyError(w, http.StatusBadGateway, "token_exchange_failed", "token exchange required but not available")
+		return
+	}
+
+	reasonCode := peercompat.ClassifyError(err)
+	statusCode := reasonCodeToHTTPStatus(reasonCode)
+	writeVerifyError(w, statusCode, reasonCode, "remote access failed")
+}
+
+// reasonCodeToHTTPStatus maps peercompat reason codes to HTTP status codes.
+func reasonCodeToHTTPStatus(reason string) int {
+	switch reason {
+	case peercompat.ReasonDiscoveryFailed,
+		peercompat.ReasonPeerCapabilityMissing,
+		peercompat.ReasonNetworkError,
+		peercompat.ReasonRemoteError,
+		peercompat.ReasonProtocolMismatch,
+		peercompat.ReasonTokenExchangeFailed,
+		peercompat.ReasonSSRFBlocked:
+		return http.StatusBadGateway
+	default:
+		return http.StatusInternalServerError
+	}
 }

@@ -9,11 +9,13 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 // Share status constants (duplicated to avoid cycle).
@@ -38,6 +40,12 @@ type ShareInfo struct {
 	WebDAVID           string
 	WebDAVURIAbsolute  string
 	MustExchangeToken  bool
+}
+
+// RemoteAccessor is the interface for remote share access, used by handlers.
+// Extracted from Client to allow test mocks.
+type RemoteAccessor interface {
+	Access(ctx context.Context, opts AccessOptions) (*AccessResult, error)
 }
 
 // Client handles accessing files from remote OCM shares.
@@ -82,6 +90,9 @@ type AccessResult struct {
 
 	// AccessToken is the exchanged token (if any)
 	AccessToken string
+
+	// MethodUsed describes which auth method succeeded (e.g. "bearer", "basic:token:")
+	MethodUsed string
 }
 
 // Access accesses a file from a remote share.
@@ -177,6 +188,7 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		Response:       resp,
 		TokenExchanged: tokenExchanged,
 		AccessToken:    accessToken,
+		MethodUsed:     "bearer",
 	}, nil
 }
 
@@ -203,17 +215,21 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 }
 
 // buildWebDAVURL constructs the WebDAV URL for a share.
+// When an absolute URI is present, it is validated against the sender host
+// to prevent SSRF. On mismatch or parse failure, falls through to discovery.
 func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath string) (string, error) {
-	// If we have an absolute URI, use it directly
 	if share.WebDAVURIAbsolute != "" {
-		url := share.WebDAVURIAbsolute
-		if subPath != "" {
-			url += "/" + subPath
+		if c.isAbsoluteURIHostValid(share.WebDAVURIAbsolute, share.SenderHost) {
+			u := share.WebDAVURIAbsolute
+			if subPath != "" {
+				u += "/" + subPath
+			}
+			return u, nil
 		}
-		return url, nil
+		// Host mismatch or parse error -- fall through to discovery
 	}
 
-	// Otherwise, discover the sender's WebDAV path
+	// Discover the sender's WebDAV path
 	disc, err := c.discoveryClient.Discover(ctx, share.SenderHost)
 	if err != nil {
 		return "", peercompat.NewClassifiedError(
@@ -238,4 +254,26 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 	}
 
 	return webdavURL, nil
+}
+
+// isAbsoluteURIHostValid checks whether the host in an absolute WebDAV URI
+// matches the expected sender host. Uses scheme-aware normalization ("https")
+// to strip default ports before comparing.
+func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
+	parsed, err := url.Parse(absoluteURI)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+
+	normalizedURI, err := hostport.Normalize(parsed.Host, "https")
+	if err != nil {
+		return false
+	}
+
+	normalizedSender, err := hostport.Normalize(senderHost, "https")
+	if err != nil {
+		return false
+	}
+
+	return normalizedURI == normalizedSender
 }

@@ -16,7 +16,9 @@ import (
 	outgoinginvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/invites"
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	notifoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/outgoing"
+	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
@@ -91,8 +93,29 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.OutboundPolicy,
 	)
 
+	// Create token exchange and remote access clients
+	tokenClient := tokenoutgoing.NewClient(
+		d.HTTPClient,
+		d.Signer,
+		d.OutboundPolicy,
+		d.LocalProviderFQDN,
+	)
+	accessClient := access.NewClient(
+		d.HTTPClient,
+		d.DiscoveryClient,
+		tokenClient,
+	)
+
 	// Inbox shares handler (per-user scoped, Chi route params)
-	inboxSharesHandler := inboxshares.NewHandler(d.IncomingShareRepo, notificationClient, currentUser, log)
+	inboxSharesHandler := inboxshares.NewHandler(
+		d.IncomingShareRepo,
+		notificationClient,
+		accessClient,
+		d.ProfileRegistry,
+		d.Config,
+		currentUser,
+		log,
+	)
 
 	// Outgoing shares handler (session-gated, Reva-style federated identity)
 	outgoingHandler := outgoingshares.NewHandler(
@@ -168,6 +191,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		r.Get("/shares/{shareId}", inboxSharesHandler.HandleGetDetail)
 		r.Post("/shares/{shareId}/accept", inboxSharesHandler.HandleAccept)
 		r.Post("/shares/{shareId}/decline", inboxSharesHandler.HandleDecline)
+		r.Post("/shares/{shareId}/verify-access", inboxSharesHandler.HandleVerifyAccess)
 		r.Get("/invites", inboxInvitesHandler.HandleList)
 		r.Post("/invites/import", inboxInvitesHandler.HandleImport)
 		r.Post("/invites/{inviteId}/accept", inboxInvitesHandler.HandleAccept)
