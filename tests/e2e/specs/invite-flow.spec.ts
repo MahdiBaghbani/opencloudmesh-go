@@ -26,12 +26,23 @@ async function login(page: Page, baseURL: string) {
   await page.waitForURL('**/ui/inbox', { timeout: 5000 });
 }
 
+/**
+ * Asserts that a server's discovery endpoint advertises strict signature support.
+ */
+async function assertStrictDiscovery(page: Page, baseURL: string) {
+  const res = await page.request.get(`${baseURL}/.well-known/ocm`);
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  expect(body.capabilities).toContain('http-sig');
+  expect(body.criteria).toContain('http-request-signatures');
+}
+
 test.describe('Two-Instance Invite Flow', () => {
   let serverA: ServerInstance;
   let serverB: ServerInstance;
 
   test.beforeEach(async () => {
-    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'dev' });
+    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'strict' });
   });
 
   test.afterEach(async () => {
@@ -40,6 +51,10 @@ test.describe('Two-Instance Invite Flow', () => {
   });
 
   test('A creates invite, B imports and accepts', async ({ page }) => {
+    // Verify both servers advertise strict signature support
+    await assertStrictDiscovery(page, serverA.baseURL);
+    await assertStrictDiscovery(page, serverB.baseURL);
+
     // Step 1: Login to A
     await login(page, serverA.baseURL);
 

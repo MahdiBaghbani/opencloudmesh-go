@@ -110,7 +110,7 @@ export function buildBinary(): string {
 /**
  * Generates TOML config for a test server.
  * The mode preset (dev/interop/strict) drives SSRF defaults via config.Load().
- * Signature mode is forced off for test simplicity (no key management).
+ * Strict mode enables full HTTP request signatures with auto-generated keys.
  */
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
   let config = `mode = "${mode}"
@@ -140,8 +140,14 @@ tls_root_ca_file = "${CA_CERT}"
 ssrf_mode = "off"
 
 [signature]
-inbound_mode = "off"
-outbound_mode = "off"
+${mode === 'strict' ? `inbound_mode = "strict"
+outbound_mode = "strict"
+on_discovery_error = "reject"
+allow_mismatch = false
+peer_profile_level_override = "off"
+advertise_http_request_signatures = true
+key_path = "${join(tempDir, 'signing.pem')}"` : `inbound_mode = "off"
+outbound_mode = "off"`}
 `;
 
   if (extraConfig) {

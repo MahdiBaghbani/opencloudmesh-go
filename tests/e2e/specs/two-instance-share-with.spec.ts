@@ -29,13 +29,24 @@ async function login(page: Page, baseURL: string) {
   await page.waitForURL('**/ui/inbox', { timeout: 5000 });
 }
 
+/**
+ * Asserts that a server's discovery endpoint advertises strict signature support.
+ */
+async function assertStrictDiscovery(page: Page, baseURL: string) {
+  const res = await page.request.get(`${baseURL}/.well-known/ocm`);
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  expect(body.capabilities).toContain('http-sig');
+  expect(body.criteria).toContain('http-request-signatures');
+}
+
 test.describe('Two-Instance Share With (API)', () => {
   let serverA: ServerInstance;
   let serverB: ServerInstance;
   let shareFilePath: string;
 
   test.beforeEach(async () => {
-    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'dev' });
+    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'strict' });
     shareFilePath = createShareableFile();
   });
 
@@ -46,6 +57,10 @@ test.describe('Two-Instance Share With (API)', () => {
   });
 
   test('A sends share to B, B accepts via inbox', async ({ page }) => {
+    // Verify both servers advertise strict signature support
+    await assertStrictDiscovery(page, serverA.baseURL);
+    await assertStrictDiscovery(page, serverB.baseURL);
+
     // Login to server A
     await login(page, serverA.baseURL);
 
@@ -93,7 +108,7 @@ test.describe('Two-Instance Share With (UI)', () => {
   let shareFilePath: string;
 
   test.beforeEach(async () => {
-    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'dev' });
+    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'strict' });
     shareFilePath = createShareableFile();
   });
 
@@ -104,6 +119,10 @@ test.describe('Two-Instance Share With (UI)', () => {
   });
 
   test('A sends share via Outgoing UI, B accepts via inbox', async ({ page }) => {
+    // Verify both servers advertise strict signature support
+    await assertStrictDiscovery(page, serverA.baseURL);
+    await assertStrictDiscovery(page, serverB.baseURL);
+
     // Login to server A
     await login(page, serverA.baseURL);
 

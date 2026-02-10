@@ -27,6 +27,9 @@ export default defineConfig({
     
     // Take screenshot on failure
     screenshot: 'only-on-failure',
+
+    // Record video for every test run (artifacts available for debugging)
+    video: 'on',
     
     // Timeout for actions
     actionTimeout: 10000,
