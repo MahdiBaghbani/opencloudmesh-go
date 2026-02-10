@@ -97,6 +97,11 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 		requirements = []string{"must-exchange-token"}
 	}
 
+	permissions := s.Permissions
+	if permissions == nil {
+		permissions = []string{}
+	}
+
 	return InboxShareDetailView{
 		InboxShareView:           NewInboxShareView(s),
 		WebDAVID:                 s.WebDAVID,
@@ -106,7 +111,7 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 			Name: "webdav",
 			WebDAV: &WebDAVDetailView{
 				URI:          uri,
-				Permissions:  s.Permissions,
+				Permissions:  permissions,
 				Requirements: requirements,
 				SharedSecret: "[REDACTED]",
 			},

@@ -589,6 +589,64 @@ func TestHandleGetDetail_RequirementsReflectsMustExchangeToken(t *testing.T) {
 	}
 }
 
+func TestHandleGetDetail_Unauthenticated(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	router := newTestRouter(repo, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/some-id", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	// Create share without setting Permissions (nil)
+	share := &sharesinbox.IncomingShare{
+		ProviderID:      "prov-nilperms",
+		SenderHost:      "sender.example.com",
+		ShareWith:       userAID + "@example.com",
+		RecipientUserID: userAID,
+		Status:          sharesinbox.ShareStatusPending,
+		ResourceType:    "file",
+		Name:            "test-share-nilperms",
+		Owner:           "owner@sender.example.com",
+		Sender:          "sender@sender.example.com",
+		ShareType:       "user",
+		WebDAVID:        "wdid",
+		SharedSecret:    "secret",
+	}
+	repo.Create(context.Background(), share)
+
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	router := newTestRouter(repo, nil, userA)
+
+	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	proto := resp["protocol"].(map[string]any)
+	webdav := proto["webdav"].(map[string]any)
+
+	// Permissions must be [] not null when the share has nil permissions
+	perms, ok := webdav["permissions"].([]any)
+	if !ok {
+		t.Fatalf("expected permissions to be an array, got %T (likely null)", webdav["permissions"])
+	}
+	if len(perms) != 0 {
+		t.Errorf("expected empty permissions array, got %v", perms)
+	}
+}
+
 func TestHandleGetDetail_WebDAVURIAbsolutePresent(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
