@@ -165,6 +165,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	// Flat routes inside /inbox to avoid Chi subrouter redirect from /shares to /shares/
 	r.Route("/inbox", func(r chi.Router) {
 		r.Get("/shares", inboxSharesHandler.HandleList)
+		r.Get("/shares/{shareId}", inboxSharesHandler.HandleGetDetail)
 		r.Post("/shares/{shareId}/accept", inboxSharesHandler.HandleAccept)
 		r.Post("/shares/{shareId}/decline", inboxSharesHandler.HandleDecline)
 		r.Get("/invites", inboxInvitesHandler.HandleList)

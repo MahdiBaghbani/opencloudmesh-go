@@ -59,6 +59,61 @@ func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
 	}
 }
 
+// InboxShareDetailView extends InboxShareView with protocol details.
+// Embedding flattens all base fields into the JSON output.
+type InboxShareDetailView struct {
+	InboxShareView
+
+	WebDAVID                 string              `json:"webdavId,omitempty"`
+	MustExchangeToken        bool                `json:"mustExchangeToken"`
+	WebDAVURIAbsolutePresent bool                `json:"webdavUriAbsolutePresent"`
+	Protocol                 *ProtocolDetailView `json:"protocol"`
+}
+
+// ProtocolDetailView describes the protocol block in a share detail response.
+type ProtocolDetailView struct {
+	Name   string            `json:"name"`
+	WebDAV *WebDAVDetailView `json:"webdav,omitempty"`
+}
+
+// WebDAVDetailView describes the WebDAV protocol options with secrets masked.
+type WebDAVDetailView struct {
+	URI          string   `json:"uri"`
+	Permissions  []string `json:"permissions"`
+	Requirements []string `json:"requirements"`
+	SharedSecret string   `json:"sharedSecret"`
+}
+
+// NewInboxShareDetailView converts an IncomingShare to a detail view for API responses.
+// SharedSecret is always masked as "[REDACTED]".
+func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView {
+	uri := s.WebDAVID
+	if s.WebDAVURIAbsolute != "" {
+		uri = s.WebDAVURIAbsolute
+	}
+
+	requirements := []string{}
+	if s.MustExchangeToken {
+		requirements = []string{"must-exchange-token"}
+	}
+
+	return InboxShareDetailView{
+		InboxShareView:           NewInboxShareView(s),
+		WebDAVID:                 s.WebDAVID,
+		MustExchangeToken:        s.MustExchangeToken,
+		WebDAVURIAbsolutePresent: s.WebDAVURIAbsolute != "",
+		Protocol: &ProtocolDetailView{
+			Name: "webdav",
+			WebDAV: &WebDAVDetailView{
+				URI:          uri,
+				Permissions:  s.Permissions,
+				Requirements: requirements,
+				SharedSecret: "[REDACTED]",
+			},
+		},
+	}
+}
+
 // InboxListResponse wraps the share views returned by HandleList.
 type InboxListResponse struct {
 	Shares []InboxShareView `json:"shares"`
@@ -175,6 +230,37 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		"status":  string(sharesinbox.ShareStatusAccepted),
 		"shareId": shareID,
 	})
+}
+
+// HandleGetDetail handles GET /api/inbox/shares/{shareId}.
+// Returns a detail view with protocol info and masked secrets.
+func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
+	user, err := h.currentUser(r.Context())
+	if err != nil {
+		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+		return
+	}
+
+	shareID := chi.URLParam(r, "shareId")
+	if shareID == "" {
+		api.WriteBadRequest(w, api.ReasonMissingField, "shareId is required")
+		return
+	}
+
+	share, err := h.repo.GetByIDForRecipientUserID(r.Context(), shareID, user.ID)
+	if err != nil {
+		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+			api.WriteNotFound(w, "share not found")
+			return
+		}
+		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
+		api.WriteInternalError(w, "failed to get share")
+		return
+	}
+
+	detail := NewInboxShareDetailView(share)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detail)
 }
 
 // HandleDecline handles POST /api/inbox/shares/{shareId}/decline.
