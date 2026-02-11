@@ -246,6 +246,41 @@
         background: transparent;
         border: 1px solid var(--border);
       }
+      .trace-panel {
+        position: sticky;
+        bottom: 0;
+      }
+      .trace-header {
+        cursor: pointer;
+        padding: 8px 16px;
+        background: var(--bg-card);
+        border-top: 1px solid var(--border);
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+      .trace-body {
+        max-height: 200px;
+        overflow-y: auto;
+        background: var(--bg-dark);
+        padding: 8px;
+      }
+      .trace-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .trace-entry {
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 0.8125rem;
+        padding: 2px 8px;
+        line-height: 1.4;
+      }
+      .trace-time {
+        color: var(--text-secondary);
+      }
+      .trace-type {
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
@@ -310,6 +345,14 @@
           <p>No invites yet</p>
         </div>
       </div>
+      <div class="trace-panel" id="protocol-trace">
+        <div class="trace-header" onclick="toggleTracePanel()">
+          Protocol Trace <span id="trace-count">(0)</span>
+        </div>
+        <div class="trace-body" id="protocol-trace-body" style="display:none;">
+          <div id="protocol-trace-list" class="trace-list"></div>
+        </div>
+      </div>
     </main>
     <script>
       let allShares = [];
@@ -317,6 +360,36 @@
       let currentFilter = "all";
       let currentInviteFilter = "all";
       const detailsCache = {};
+
+      class ProtocolTrace {
+        constructor(maxEntries = 50) {
+          this.maxEntries = maxEntries;
+          this.entries = [];
+        }
+        add(entry) {
+          this.entries.push({ timestamp: new Date().toISOString(), ...entry });
+          if (this.entries.length > this.maxEntries) this.entries.shift();
+          this.render();
+          const countEl = document.getElementById("trace-count");
+          if (countEl) countEl.textContent = "(" + this.entries.length + ")";
+        }
+        render() {
+          const container = document.getElementById("protocol-trace-list");
+          if (!container) return;
+          container.innerHTML = this.entries.slice().reverse()
+            .map(e => '<div class="trace-entry trace-' + e.type + '">'
+              + '<span class="trace-time">' + e.timestamp.split("T")[1].split(".")[0] + '</span> '
+              + '<span class="trace-type">' + e.type + '</span> '
+              + '<span class="trace-detail">' + escapeHtml(e.detail) + '</span>'
+              + '</div>').join("");
+        }
+      }
+      const trace = new ProtocolTrace(50);
+
+      function toggleTracePanel() {
+        const body = document.getElementById("protocol-trace-body");
+        if (body) body.style.display = body.style.display === "none" ? "block" : "none";
+      }
 
       // Load user info
       fetch("api/auth/me", { credentials: "same-origin" })
@@ -350,6 +423,7 @@
           if (!resp.ok) throw new Error("Failed to load shares");
           const data = await resp.json();
           allShares = data.shares || [];
+          trace.add({ type: "share-received", detail: "Loaded " + allShares.length + " shares" });
           renderShares();
         } catch (err) {
           console.error("Failed to load shares:", err);
@@ -427,6 +501,7 @@
           });
           if (!resp.ok) throw new Error("Failed to accept share");
           await loadShares();
+          trace.add({ type: "share-accepted", detail: "Accepted share " + shareId });
         } catch (err) {
           alert("Failed to accept share: " + err.message);
         }
@@ -441,6 +516,7 @@
           });
           if (!resp.ok) throw new Error("Failed to decline share");
           await loadShares();
+          trace.add({ type: "share-declined", detail: "Declined share " + shareId });
         } catch (err) {
           alert("Failed to decline share: " + err.message);
         }
@@ -521,6 +597,7 @@
             container.classList.add("error");
             container.textContent = "Failed: " + (data.error || "unknown error") + " (" + (data.reasonCode || "unknown") + ")";
           }
+          trace.add({ type: "verify-access", detail: "Verify " + shareId + ": " + (data.ok ? "OK" : "Failed") });
         } catch (err) {
           container.classList.add("error");
           container.textContent = "Network error: " + err.message;
@@ -597,6 +674,7 @@
           });
           if (!resp.ok) throw new Error("Failed to accept invite");
           await loadInvites();
+          trace.add({ type: "invite-accepted", detail: "Accepted invite " + inviteId });
         } catch (err) {
           alert("Failed to accept invite: " + err.message);
         }
