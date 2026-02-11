@@ -99,6 +99,36 @@ test.describe('Two-Instance Share With (API)', () => {
     // Wait for accepted status
     await page.waitForSelector('.status-accepted', { timeout: 5000 });
     await expect(page.locator('.share-status')).toContainText('accepted');
+
+    // Get the shareId from B's inbox API
+    const listResponse = await page.request.get(
+      `${serverB.baseURL}/api/inbox/shares`,
+    );
+    expect(listResponse.status()).toBe(200);
+    const listBody = await listResponse.json();
+    expect(listBody.shares.length).toBeGreaterThan(0);
+    const shareId = listBody.shares[0].shareId;
+
+    // Verify WebDAV access via API
+    const verifyResponse = await page.request.post(
+      `${serverB.baseURL}/api/inbox/shares/${shareId}/verify-access`,
+    );
+    expect(verifyResponse.status()).toBe(200);
+    const verifyBody = await verifyResponse.json();
+    expect(verifyBody.ok).toBe(true);
+    expect(verifyBody.httpStatus).toBe(200);
+    expect(verifyBody.methodUsed).toBeTruthy();
+    expect(verifyBody.contentPreview).toContain('E2E test file content');
+
+    // Verify WebDAV access via UI button (result visible in video artifact)
+    await page.click('[data-ocm-action="verify-access"]');
+    await page.waitForSelector('[data-ocm-field="verify-access-result"]', {
+      state: 'visible',
+      timeout: 10000,
+    });
+    await expect(
+      page.locator('[data-ocm-field="verify-access-result"]'),
+    ).toContainText('200');
   });
 });
 
