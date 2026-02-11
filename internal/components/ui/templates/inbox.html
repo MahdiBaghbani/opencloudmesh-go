@@ -208,6 +208,44 @@
         margin-bottom: 16px;
         opacity: 0.5;
       }
+      .protocol-details {
+        background: var(--bg-dark);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 12px;
+        margin: 8px 0;
+        overflow-x: auto;
+      }
+      .protocol-json {
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+      }
+      .verify-result {
+        padding: 10px 14px;
+        margin-top: 8px;
+        font-size: 0.875rem;
+        border-radius: 6px;
+        white-space: pre-wrap;
+      }
+      .verify-result.success {
+        color: var(--success);
+        background: rgba(0, 186, 124, 0.1);
+        border: 1px solid var(--success);
+      }
+      .verify-result.error {
+        color: var(--error);
+        background: rgba(244, 33, 46, 0.1);
+        border: 1px solid var(--error);
+      }
+      .btn-details,
+      .btn-verify {
+        color: var(--text-primary);
+        background: transparent;
+        border: 1px solid var(--border);
+      }
     </style>
   </head>
   <body>
@@ -278,6 +316,7 @@
       let allInvites = [];
       let currentFilter = "all";
       let currentInviteFilter = "all";
+      const detailsCache = {};
 
       // Load user info
       fetch("api/auth/me", { credentials: "same-origin" })
@@ -343,7 +382,7 @@
         list.innerHTML = filtered
           .map(
             (share) => `
-          <div class="share-item" data-share-id="${share.shareId}">
+          <div class="share-item" data-share-id="${share.shareId}"${share.status === "accepted" ? ' data-test-resource-name="' + escapeAttr(share.name) + '"' : ""}>
             <div class="share-header">
               <div class="share-name">${escapeHtml(share.name)}</div>
               <span class="share-status status-${share.status}">${share.status}</span>
@@ -351,16 +390,28 @@
             <div class="share-meta">
               From: ${escapeHtml(share.sender || share.owner)} | Type: ${escapeHtml(share.resourceType)}
             </div>
-            ${
-              share.status === "pending"
-                ? `
+            <button class="action-btn btn-details" data-ocm-action="toggle-protocol-details"
+                    onclick="toggleProtocolDetails('${share.shareId}')">
+              Protocol Details
+            </button>
+            <div class="protocol-details" data-ocm-field="protocol-details"
+                 id="protocol-details-${share.shareId}" style="display:none;">
+              <pre class="protocol-json">Loading...</pre>
+            </div>
+            ${share.status === "accepted" ? `
+              <button class="action-btn btn-verify" data-ocm-action="verify-access"
+                      onclick="verifyAccess('${share.shareId}')">
+                Verify Access
+              </button>
+              <div class="verify-result" data-ocm-field="verify-access-result"
+                   id="verify-result-${share.shareId}" style="display:none;"></div>
+            ` : ""}
+            ${share.status === "pending" ? `
               <div class="share-actions">
                 <button class="action-btn btn-accept" onclick="acceptShare('${share.shareId}')">Accept</button>
                 <button class="action-btn btn-decline" onclick="declineShare('${share.shareId}')">Decline</button>
               </div>
-            `
-                : ""
-            }
+            ` : ""}
           </div>
         `
           )
@@ -401,6 +452,79 @@
         const div = document.createElement("div");
         div.textContent = text;
         return div.innerHTML;
+      }
+
+      function escapeAttr(str) {
+        return escapeHtml(str);
+      }
+
+      // Toggle protocol details for a share (lazy-fetched, cached)
+      async function toggleProtocolDetails(shareId) {
+        const container = document.getElementById("protocol-details-" + shareId);
+        if (!container) return;
+        if (container.style.display !== "none") {
+          container.style.display = "none";
+          return;
+        }
+
+        container.style.display = "block";
+        const pre = container.querySelector(".protocol-json");
+        if (detailsCache[shareId]) {
+          pre.textContent = JSON.stringify(detailsCache[shareId].protocol, null, 2);
+          return;
+        }
+
+        try {
+          const resp = await fetch("api/inbox/shares/" + shareId, {
+            credentials: "same-origin",
+          });
+          if (resp.status === 401) {
+            window.location.href = "ui/login";
+            return;
+          }
+          if (!resp.ok) throw new Error("Failed to load details");
+          const data = await resp.json();
+          detailsCache[shareId] = data;
+          pre.textContent = JSON.stringify(data.protocol, null, 2);
+        } catch (err) {
+          pre.textContent = "Error: " + err.message;
+        }
+      }
+
+      // Verify WebDAV access for an accepted share
+      async function verifyAccess(shareId) {
+        const container = document.getElementById("verify-result-" + shareId);
+        if (!container) return;
+        container.style.display = "block";
+        container.className = "verify-result";
+        container.textContent = "Verifying...";
+
+        try {
+          const resp = await fetch("api/inbox/shares/" + shareId + "/verify-access", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+          if (resp.status === 401) {
+            window.location.href = "ui/login";
+            return;
+          }
+          const data = await resp.json();
+          if (data.ok) {
+            container.classList.add("success");
+            let text = "OK -- " + data.methodUsed + " (HTTP " + data.httpStatus + ")";
+            if (data.contentPreview) {
+              text += "\nPreview: " + data.contentPreview.substring(0, 200);
+              if (data.contentPreviewTruncated) text += "...";
+            }
+            container.textContent = text;
+          } else {
+            container.classList.add("error");
+            container.textContent = "Failed: " + (data.error || "unknown error") + " (" + (data.reasonCode || "unknown") + ")";
+          }
+        } catch (err) {
+          container.classList.add("error");
+          container.textContent = "Network error: " + err.message;
+        }
       }
 
       // Tab filtering
@@ -446,7 +570,8 @@
 
         list.innerHTML = filtered
           .map(
-            (invite) => '<div class="share-item invite-item" data-invite-id="' + invite.id + '">' +
+            (invite) => '<div class="share-item invite-item" data-invite-id="' + invite.id + '"' +
+              (invite.status === "accepted" ? ' data-test-invite-sender="' + escapeAttr(invite.senderFqdn) + '"' : '') + '>' +
               '<div class="share-header">' +
                 '<div class="share-name">Invite from ' + escapeHtml(invite.senderFqdn) + '</div>' +
                 '<span class="share-status status-' + invite.status + '">' + invite.status + '</span>' +
