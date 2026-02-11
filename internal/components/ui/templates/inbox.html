@@ -455,7 +455,7 @@
       }
 
       function escapeAttr(str) {
-        return escapeHtml(str);
+        return escapeHtml(str).replace(/"/g, "&quot;");
       }
 
       // Toggle protocol details for a share (lazy-fetched, cached)
