@@ -7,6 +7,7 @@ bin/
 *.swp
 *.swo
 .ocm/
+scripts/rewrite/
 
 # OS
 .DS_Store
