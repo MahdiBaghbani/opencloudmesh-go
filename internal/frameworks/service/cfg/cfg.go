@@ -1,5 +1,4 @@
-// Package cfg provides config decoding utilities for services.
-// Matches Reva's pkg/utils/cfg/cfg.go with Setter interface.
+// Package cfg provides config decoding for services (mapstructure, Setter for defaults).
 package cfg
 
 import (
@@ -9,14 +8,12 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-// Setter is the interface a configuration struct may implement
-// to set default options. Matches Reva's pkg/utils/cfg.Setter.
+// Setter is the interface for applying default options after decode.
 type Setter interface {
 	ApplyDefaults()
 }
 
-// Decode decodes the given raw input map to the target pointer c.
-// If c implements Setter, ApplyDefaults() is called automatically.
+// Decode decodes input map to c; calls ApplyDefaults if c implements Setter.
 func Decode(input map[string]any, c any) error {
 	config := &mapstructure.DecoderConfig{
 		Metadata: nil,
@@ -32,7 +29,7 @@ func Decode(input map[string]any, c any) error {
 		return err
 	}
 
-	// Call ApplyDefaults if implemented (Reva pattern)
+	// Call ApplyDefaults if implemented
 	if s, ok := c.(Setter); ok {
 		s.ApplyDefaults()
 	}
@@ -40,9 +37,7 @@ func Decode(input map[string]any, c any) error {
 	return nil
 }
 
-// DecodeWithUnused decodes input to c and returns any unused keys (sorted).
-// If c implements Setter, ApplyDefaults() is called automatically.
-// Use this when you want to warn about unused config keys at the call site.
+// DecodeWithUnused decodes input to c and returns unused keys (sorted).
 func DecodeWithUnused(input map[string]any, c any) ([]string, error) {
 	var md mapstructure.Metadata
 	config := &mapstructure.DecoderConfig{
@@ -70,8 +65,7 @@ func DecodeWithUnused(input map[string]any, c any) ([]string, error) {
 	return unused, nil
 }
 
-// MustDecodeStrict decodes input to c and returns an error if any keys are unused.
-// Use this in tests to catch dead config.
+// MustDecodeStrict decodes input to c; returns error if any keys are unused.
 func MustDecodeStrict(input map[string]any, c any) error {
 	unused, err := DecodeWithUnused(input, c)
 	if err != nil {

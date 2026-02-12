@@ -1,5 +1,4 @@
-// Package invites implements the session-gated outgoing invite handler.
-// Handles POST /api/invites/outgoing for creating invite tokens.
+// Package invites provides the session-gated handler for POST /api/invites/outgoing (create invite tokens).
 package invites
 
 import (
@@ -21,7 +20,7 @@ import (
 // DefaultInviteTTL is the default time-to-live for invites.
 const DefaultInviteTTL = 7 * 24 * time.Hour
 
-// Handler handles outgoing invite creation.
+// Handler serves POST /api/invites/outgoing to create invite tokens.
 type Handler struct {
 	outgoingRepo  invitesoutgoing.OutgoingInviteRepo
 	localProvider string // raw host[:port] for invite token generation
@@ -29,7 +28,7 @@ type Handler struct {
 	logger        *slog.Logger
 }
 
-// NewHandler creates a new outgoing invites handler.
+// NewHandler returns a Handler with the given dependencies.
 func NewHandler(
 	outgoingRepo invitesoutgoing.OutgoingInviteRepo,
 	localProvider string,
@@ -62,7 +61,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Track the creating user for invite-accepted response generation
+	// CreatedByUserID feeds invite-accepted response; empty when unauthenticated
 	var createdByUserID string
 	if h.currentUser != nil {
 		if user, err := h.currentUser(ctx); err == nil {
@@ -107,7 +106,6 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// generateToken creates a cryptographically secure random token.
 func generateToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {

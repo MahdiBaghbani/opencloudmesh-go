@@ -13,45 +13,23 @@ import (
 // ErrShareNotFound is returned when a share is not found (including cross-user mismatch).
 var ErrShareNotFound = errors.New("share not found")
 
-// IncomingShareRepo manages incoming share storage.
-// All lookup and mutation methods are scoped by recipientUserID.
-// Cross-user access behaves as not found (confidentiality invariant).
+// IncomingShareRepo manages incoming shares; all ops scoped by recipientUserID. Cross-user access = not found.
 type IncomingShareRepo interface {
-	// Create stores a new incoming share.
 	Create(ctx context.Context, share *IncomingShare) error
-
-	// GetByIDForRecipientUserID retrieves a share scoped to a specific recipient.
-	// Returns ErrShareNotFound if the share does not exist or belongs to another user.
 	GetByIDForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) (*IncomingShare, error)
-
-	// GetByProviderID retrieves a share by sender-scoped providerId (unscoped, for duplicate detection).
 	GetByProviderID(ctx context.Context, senderHost, providerID string) (*IncomingShare, error)
-
-	// ListByRecipientUserID retrieves all shares owned by a specific recipient.
 	ListByRecipientUserID(ctx context.Context, recipientUserID string) ([]*IncomingShare, error)
-
-	// UpdateStatusForRecipientUserID updates acceptance status, scoped by recipient.
-	// Returns ErrShareNotFound if the share does not exist or belongs to another user.
 	UpdateStatusForRecipientUserID(ctx context.Context, shareID string, recipientUserID string, status ShareStatus) error
-
-	// DeleteForRecipientUserID removes a share, scoped by recipient.
-	// Returns ErrShareNotFound if the share does not exist or belongs to another user.
 	DeleteForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) error
 }
 
-// MemoryIncomingShareRepo is an in-memory implementation of IncomingShareRepo.
 type MemoryIncomingShareRepo struct {
-	mu     sync.RWMutex
-	shares map[string]*IncomingShare // keyed by shareID
-
-	// Index for sender-scoped providerId lookup (duplicate detection)
-	providerIndex map[string]string // "senderHost:providerId" -> shareID
-
-	// Index for per-user listing
-	byRecipientUserID map[string]map[string]struct{} // recipientUserID -> set of shareIDs
+	mu               sync.RWMutex
+	shares           map[string]*IncomingShare
+	providerIndex    map[string]string
+	byRecipientUserID map[string]map[string]struct{}
 }
 
-// NewMemoryIncomingShareRepo creates a new in-memory share repository.
 func NewMemoryIncomingShareRepo() *MemoryIncomingShareRepo {
 	return &MemoryIncomingShareRepo{
 		shares:            make(map[string]*IncomingShare),
@@ -60,7 +38,6 @@ func NewMemoryIncomingShareRepo() *MemoryIncomingShareRepo {
 	}
 }
 
-// generateUUIDv7 generates a UUIDv7 for share IDs.
 func generateUUIDv7() string {
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -69,7 +46,6 @@ func generateUUIDv7() string {
 	return id.String()
 }
 
-// incomingProviderKey creates the sender-scoped lookup key.
 func incomingProviderKey(senderHost, providerID string) string {
 	return fmt.Sprintf("%s:%s", senderHost, providerID)
 }
@@ -81,8 +57,6 @@ func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingSha
 	if share.ShareID == "" {
 		share.ShareID = generateUUIDv7()
 	}
-
-	// Check for duplicate providerId from same sender
 	key := incomingProviderKey(share.SenderHost, share.ProviderID)
 	if _, exists := r.providerIndex[key]; exists {
 		return fmt.Errorf("share with providerId %s from sender %s already exists", share.ProviderID, share.SenderHost)
@@ -94,8 +68,6 @@ func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingSha
 
 	r.shares[share.ShareID] = share
 	r.providerIndex[key] = share.ShareID
-
-	// Maintain byRecipientUserID index
 	if share.RecipientUserID != "" {
 		if r.byRecipientUserID[share.RecipientUserID] == nil {
 			r.byRecipientUserID[share.RecipientUserID] = make(map[string]struct{})
@@ -173,8 +145,6 @@ func (r *MemoryIncomingShareRepo) DeleteForRecipientUserID(ctx context.Context, 
 	if !exists || share.RecipientUserID != recipientUserID {
 		return ErrShareNotFound
 	}
-
-	// Remove from indexes
 	key := incomingProviderKey(share.SenderHost, share.ProviderID)
 	delete(r.providerIndex, key)
 

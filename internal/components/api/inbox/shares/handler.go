@@ -1,5 +1,4 @@
-// Package shares implements session-gated inbox share handlers.
-// All endpoints enforce per-user scoping via the injected CurrentUser resolver.
+// Package shares provides session-gated API handlers for inbox shares (list, detail, accept, decline, verify-access).
 package shares
 
 import (
@@ -24,8 +23,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// InboxShareView is the safe view of an IncomingShare for API responses.
-// It explicitly excludes sensitive fields like SharedSecret.
+// InboxShareView omits sensitive fields (e.g. SharedSecret) from API responses.
 type InboxShareView struct {
 	ShareID           string                `json:"shareId"`
 	ProviderID        string                `json:"providerId"`
@@ -44,7 +42,6 @@ type InboxShareView struct {
 	SenderDisplayName string                `json:"senderDisplayName,omitempty"`
 }
 
-// NewInboxShareView converts an IncomingShare to a safe view for API responses.
 func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
 	return InboxShareView{
 		ShareID:           s.ShareID,
@@ -65,8 +62,6 @@ func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
 	}
 }
 
-// InboxShareDetailView extends InboxShareView with protocol details.
-// Embedding flattens all base fields into the JSON output.
 type InboxShareDetailView struct {
 	InboxShareView
 
@@ -76,13 +71,12 @@ type InboxShareDetailView struct {
 	Protocol                 *ProtocolDetailView `json:"protocol"`
 }
 
-// ProtocolDetailView describes the protocol block in a share detail response.
 type ProtocolDetailView struct {
 	Name   string            `json:"name"`
 	WebDAV *WebDAVDetailView `json:"webdav,omitempty"`
 }
 
-// WebDAVDetailView describes the WebDAV protocol options with secrets masked.
+// WebDAVDetailView exposes WebDAV protocol fields; SharedSecret is masked in responses.
 type WebDAVDetailView struct {
 	URI          string   `json:"uri"`
 	Permissions  []string `json:"permissions"`
@@ -90,8 +84,7 @@ type WebDAVDetailView struct {
 	SharedSecret string   `json:"sharedSecret"`
 }
 
-// NewInboxShareDetailView converts an IncomingShare to a detail view for API responses.
-// SharedSecret is always masked as "[REDACTED]".
+// NewInboxShareDetailView returns a detail view with SharedSecret masked as [REDACTED].
 func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView {
 	uri := s.WebDAVID
 	if s.WebDAVURIAbsolute != "" {
@@ -125,12 +118,11 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 	}
 }
 
-// InboxListResponse wraps the share views returned by HandleList.
 type InboxListResponse struct {
 	Shares []InboxShareView `json:"shares"`
 }
 
-// VerifyAccessResponse is the response for POST /api/inbox/shares/{shareId}/verify-access.
+// VerifyAccessResponse is the body of the verify-access endpoint.
 type VerifyAccessResponse struct {
 	OK                      bool   `json:"ok"`
 	MethodUsed              string `json:"methodUsed,omitempty"`
@@ -145,7 +137,7 @@ type VerifyAccessResponse struct {
 
 const maxPreviewBytes = 4096
 
-// Handler handles inbox share list, accept, decline, detail, and verify-access endpoints.
+// Handler serves list, detail, accept, decline, and verify-access for inbox shares.
 type Handler struct {
 	repo            sharesinbox.IncomingShareRepo
 	sender          sharesinbox.NotificationSender
@@ -156,7 +148,7 @@ type Handler struct {
 	log             *slog.Logger
 }
 
-// NewHandler creates a new inbox shares handler.
+// NewHandler returns a Handler with the given dependencies.
 func NewHandler(
 	repo sharesinbox.IncomingShareRepo,
 	sender sharesinbox.NotificationSender,
@@ -178,8 +170,7 @@ func NewHandler(
 	}
 }
 
-// HandleList handles GET /api/inbox/shares.
-// Lists only shares owned by the authenticated user.
+// HandleList handles GET /api/inbox/shares; returns only shares for the authenticated user.
 func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -203,8 +194,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(InboxListResponse{Shares: views})
 }
 
-// HandleAccept handles POST /api/inbox/shares/{shareId}/accept.
-// Enforces ownership by construction: the repo returns not-found for cross-user access.
+// HandleAccept handles POST /api/inbox/shares/{shareId}/accept; idempotent if already accepted.
 func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -267,8 +257,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleGetDetail handles GET /api/inbox/shares/{shareId}.
-// Returns a detail view with protocol info and masked secrets.
+// HandleGetDetail handles GET /api/inbox/shares/{shareId}; returns protocol info with secrets masked.
 func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -299,7 +288,6 @@ func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleDecline handles POST /api/inbox/shares/{shareId}/decline.
-// Enforces ownership by construction: the repo returns not-found for cross-user access.
 func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -362,9 +350,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleVerifyAccess handles POST /api/inbox/shares/{shareId}/verify-access.
-// Verifies WebDAV access for an accepted share using the backend access client.
-// No secrets are exposed to the browser; all outbound requests happen server-side.
+// HandleVerifyAccess handles POST /api/inbox/shares/{shareId}/verify-access; all access is server-side (no secrets to browser).
 func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -427,7 +413,6 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read bounded preview
 	preview, truncated, readErr := readBoundedPreview(result.Response.Body)
 	if readErr != nil {
 		h.log.Warn("partial read of remote response body", "share_id", shareID, "error", readErr)
@@ -445,15 +430,14 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// isUnsafePath checks for path traversal components in a share name.
+// isUnsafePath rejects share names containing /, \, or ..
 func isUnsafePath(name string) bool {
 	return strings.Contains(name, "/") ||
 		strings.Contains(name, "\\") ||
 		strings.Contains(name, "..")
 }
 
-// readBoundedPreview reads up to maxPreviewBytes from r, reporting truncation.
-// On read error, returns whatever partial data was read (best-effort preview).
+// readBoundedPreview reads up to maxPreviewBytes; truncation=true if more bytes exist.
 func readBoundedPreview(r io.Reader) ([]byte, bool, error) {
 	buf, err := io.ReadAll(io.LimitReader(r, int64(maxPreviewBytes+1)))
 	if len(buf) > maxPreviewBytes {
@@ -473,7 +457,6 @@ func writeVerifyError(w http.ResponseWriter, statusCode int, reasonCode, message
 	})
 }
 
-// writeAccessError maps access client errors to HTTP responses.
 func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
 	if errors.Is(err, access.ErrShareNotAccepted) {
 		writeVerifyError(w, http.StatusBadRequest, "share_not_accepted", "share not accepted")
@@ -489,7 +472,6 @@ func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
 	writeVerifyError(w, statusCode, reasonCode, "remote access failed")
 }
 
-// reasonCodeToHTTPStatus maps peercompat reason codes to HTTP status codes.
 func reasonCodeToHTTPStatus(reason string) int {
 	switch reason {
 	case peercompat.ReasonDiscoveryFailed,

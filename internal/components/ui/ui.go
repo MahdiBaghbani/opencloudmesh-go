@@ -1,4 +1,4 @@
-// Package ui provides the minimal web UI for the OCM server.
+// Package ui provides the web UI (login, inbox, outgoing, wayf, accept-invite).
 package ui
 
 import (
@@ -11,7 +11,7 @@ import (
 //go:embed templates/*.html
 var templateFS embed.FS
 
-// Handler serves the UI pages.
+// Handler serves UI pages (login, inbox, outgoing, wayf, accept-invite).
 type Handler struct {
 	basePath       string
 	wayfEnabled    bool
@@ -19,14 +19,13 @@ type Handler struct {
 	templates      *template.Template
 }
 
-// NewHandler creates a new UI handler.
+// NewHandler builds a UI handler.
 func NewHandler(basePath string, wayfEnabled bool, providerDomain string) (*Handler, error) {
 	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
 
-	// Normalize base path
 	if basePath != "" && !strings.HasPrefix(basePath, "/") {
 		basePath = "/" + basePath
 	}
@@ -40,7 +39,7 @@ func NewHandler(basePath string, wayfEnabled bool, providerDomain string) (*Hand
 	}, nil
 }
 
-// TemplateData contains data passed to templates.
+// TemplateData is passed to templates.
 type TemplateData struct {
 	BasePath       string
 	Token          string
@@ -74,9 +73,7 @@ func (h *Handler) Outgoing(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Wayf serves the WAYF (Where Are You From) provider selection page.
-// This is a public page that lets the user pick a federation provider
-// to accept an invite from.
+// Wayf serves the WAYF provider selection page (pick federation provider for invite).
 func (h *Handler) Wayf(w http.ResponseWriter, r *http.Request) {
 	data := TemplateData{
 		BasePath:       h.basePath,
@@ -89,7 +86,7 @@ func (h *Handler) Wayf(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// AcceptInvite serves the invite acceptance page (session-gated by middleware).
+// AcceptInvite serves the invite acceptance page (session-gated).
 func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 	data := TemplateData{
 		BasePath:       h.basePath,

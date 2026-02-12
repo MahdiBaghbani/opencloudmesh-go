@@ -327,7 +327,6 @@
         if (body) body.style.display = body.style.display === "none" ? "block" : "none";
       }
 
-      // Load user info
       fetch("api/auth/me", { credentials: "same-origin" })
         .then((r) => {
           if (!r.ok) throw new Error("not authenticated");
@@ -341,7 +340,6 @@
           window.location.href = "ui/login";
         });
 
-      // Logout
       document
         .getElementById("logout-btn")
         .addEventListener("click", async () => {
@@ -352,7 +350,6 @@
           window.location.href = "ui/login";
         });
 
-      // Create invite
       document
         .getElementById("invite-create-btn")
         .addEventListener("click", async () => {
@@ -396,7 +393,6 @@
           }
         });
 
-      // Share form
       document
         .getElementById("outgoing-share-form")
         .addEventListener("submit", async (e) => {

@@ -19,7 +19,6 @@ import (
 	"golang.org/x/crypto/ed25519"
 )
 
-// testListing is the canonical payload for all test vectors.
 var testListing = Listing{
 	Federation: "test-federation",
 	Servers: []Server{
@@ -33,7 +32,6 @@ func testPayload() []byte {
 	return b
 }
 
-// newTestHTTPClient creates an httpclient.Client with SSRF off (for httptest.Server on localhost).
 func newTestHTTPClient() *httpclient.Client {
 	return httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode:         "off",
@@ -44,7 +42,6 @@ func newTestHTTPClient() *httpclient.Client {
 	}, nil)
 }
 
-// serveJWS returns an httptest.Server that serves the given body as application/json.
 func serveJWS(t *testing.T, body []byte) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,8 +49,6 @@ func serveJWS(t *testing.T, body []byte) *httptest.Server {
 		w.Write(body)
 	}))
 }
-
-// --- Key generation helpers ---
 
 type ed25519KeyPair struct {
 	pub  ed25519.PublicKey
@@ -110,8 +105,6 @@ func marshalPublicKeyPEM(t *testing.T, pub any) string {
 	return string(pem.EncodeToMemory(block))
 }
 
-// --- JWS signing helpers ---
-
 func signCompact(t *testing.T, alg jose.SignatureAlgorithm, key any, payload []byte) []byte {
 	t.Helper()
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: alg, Key: key}, nil)
@@ -141,8 +134,6 @@ func signFullSerialize(t *testing.T, alg jose.SignatureAlgorithm, key any, paylo
 	}
 	return []byte(jws.FullSerialize())
 }
-
-// --- Tests ---
 
 func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
 	kp := generateEd25519(t)
@@ -213,9 +204,6 @@ func TestFetchListing_FlattenedJSON_Ed25519(t *testing.T) {
 }
 
 func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
-	// go-jose FullSerialize with one signer produces flattened JSON.
-	// General JSON (with signatures[]) requires a multi-signer or manual construction.
-	// go-jose's NewMultiSigner supports this.
 	kp1 := generateEd25519(t)
 	kp2 := generateRSA(t)
 
@@ -237,7 +225,6 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "required", nil)
-	// Both keys needed: ParseSigned requires all algorithms in the JWS to be in the allowed set
 	keys := []VerificationKey{
 		{KeyID: "k1", PublicKeyPEM: kp1.pem, Algorithm: "Ed25519", Active: true},
 		{KeyID: "k2", PublicKeyPEM: kp2.pem, Algorithm: "RS256", Active: true},
@@ -254,7 +241,6 @@ func TestFetchListing_InvalidSignature(t *testing.T) {
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
 
-	// Corrupt the signature (last segment)
 	bodyStr := string(body)
 	bodyStr = bodyStr[:len(bodyStr)-4] + "XXXX"
 
@@ -305,7 +291,6 @@ func TestFetchListing_InactiveKey(t *testing.T) {
 
 func TestFetchListing_MissingFederationField(t *testing.T) {
 	kp := generateEd25519(t)
-	// Payload with empty federation
 	payload, _ := json.Marshal(map[string]any{
 		"servers": []map[string]string{{"url": "https://a.example.com", "displayName": "A"}},
 	})
@@ -324,7 +309,6 @@ func TestFetchListing_MissingFederationField(t *testing.T) {
 }
 
 func TestFetchListing_UnsignedPayload(t *testing.T) {
-	// Plain JSON, not JWS -- must be rejected
 	ts := serveJWS(t, testPayload())
 	defer ts.Close()
 
@@ -346,7 +330,7 @@ func TestFetchListing_NoActiveKeys(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "required", nil)
-	keys := []VerificationKey{} // empty
+	keys := []VerificationKey{}
 
 	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
@@ -383,7 +367,6 @@ func TestFetchListing_AlgorithmCaseInsensitive(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "required", nil)
-	// lowercase "ed25519" should map to EdDSA
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "ed25519", Active: true}}
 
 	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
@@ -414,9 +397,9 @@ func TestCollectAlgorithms(t *testing.T) {
 		{Algorithm: "Ed25519", Active: true},
 		{Algorithm: "RS256", Active: true},
 		{Algorithm: "ES256", Active: true},
-		{Algorithm: "Ed25519", Active: true},  // duplicate
-		{Algorithm: "RS256", Active: false},   // inactive
-		{Algorithm: "unknown", Active: true},  // unknown
+		{Algorithm: "Ed25519", Active: true},
+		{Algorithm: "RS256", Active: false},
+		{Algorithm: "unknown", Active: true},
 	}
 
 	algs := collectAlgorithms(keys)
@@ -472,8 +455,6 @@ func TestParsePublicKey_InvalidPEM(t *testing.T) {
 		t.Fatal("expected error for invalid PEM")
 	}
 }
-
-// --- Verification policy tests ---
 
 func TestFetchListing_Required_SetsVerifiedTrue(t *testing.T) {
 	kp := generateEd25519(t)
@@ -554,7 +535,7 @@ func TestFetchListing_Optional_NoKeys_AcceptsAsUnsigned(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "optional", nil)
-	keys := []VerificationKey{} // no keys
+	keys := []VerificationKey{}
 
 	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err != nil {
@@ -587,18 +568,15 @@ func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
 	ts := serveJWS(t, testPayload()) // unsigned payload
 	defer ts.Close()
 
-	// Client default is "required"
 	client := NewClient(newTestHTTPClient(), "required", nil)
 	kp := generateEd25519(t)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	// Default policy (required) rejects unsigned
 	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected error for unsigned payload with required default policy")
 	}
 
-	// Per-call "off" override accepts unsigned
 	listing, err := client.FetchListing(t.Context(), ts.URL, keys, "off")
 	if err != nil {
 		t.Fatalf("unexpected error with per-call off policy: %v", err)
@@ -607,8 +585,6 @@ func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
 		t.Error("expected Verified=false for off policy")
 	}
 }
-
-// --- URL validation tests ---
 
 func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing.T) {
 	payload, _ := json.Marshal(Listing{
@@ -662,7 +638,7 @@ func TestFetchListing_URLValidation_UnverifiedListingKeepsAllURLs(t *testing.T) 
 			{URL: "https://has-path.example.com/base/path", DisplayName: "Has Path"},
 		},
 	})
-	ts := serveJWS(t, payload) // unsigned
+	ts := serveJWS(t, payload)
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "optional", nil)
@@ -709,7 +685,6 @@ func TestIsValidServerURL(t *testing.T) {
 	}
 }
 
-// assertListing checks the listing matches testListing.
 func assertListing(t *testing.T, listing *Listing) {
 	t.Helper()
 	if listing == nil {

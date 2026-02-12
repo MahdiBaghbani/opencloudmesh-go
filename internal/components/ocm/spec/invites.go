@@ -1,9 +1,7 @@
 // Wire-format DTOs for POST /ocm/invite-accepted.
-// See OCM-API spec v1.2.2 AcceptedInvite and related schemas.
+// See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#invite-acceptance-response-details
 package spec
 
-// InviteAcceptedRequest is the server-to-server POST /ocm/invite-accepted body.
-// All fields are spec-required (no omitempty).
 type InviteAcceptedRequest struct {
 	RecipientProvider string `json:"recipientProvider"`
 	Token             string `json:"token"`
@@ -12,8 +10,6 @@ type InviteAcceptedRequest struct {
 	Name              string `json:"name"`
 }
 
-// InviteAcceptedResponse is returned after successful invite acceptance.
-// All fields are spec-required (no omitempty).
 type InviteAcceptedResponse struct {
 	UserID string `json:"userID"`
 	Email  string `json:"email"`

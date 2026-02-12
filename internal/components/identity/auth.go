@@ -11,7 +11,6 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// Argon2id parameters (OWASP recommended for password hashing)
 const (
 	argon2Time    = 3         // Number of iterations
 	argon2Memory  = 64 * 1024 // 64 MB
@@ -20,7 +19,7 @@ const (
 	argon2SaltLen = 16        // Salt length
 )
 
-// UserAuth handles password hashing and verification using Argon2id.
+// UserAuth hashes and verifies passwords with Argon2id.
 type UserAuth struct {
 	time    uint32
 	memory  uint32
@@ -39,7 +38,7 @@ func NewUserAuth(cost int) *UserAuth {
 	}
 }
 
-// NewUserAuthFast creates a UserAuth with reduced parameters for testing.
+// NewUserAuthFast returns UserAuth with lower cost for tests.
 func NewUserAuthFast() *UserAuth {
 	return &UserAuth{
 		time:    1,
@@ -49,8 +48,7 @@ func NewUserAuthFast() *UserAuth {
 	}
 }
 
-// HashPassword creates an Argon2id hash of the password.
-// Returns a PHC-formatted string: $argon2id$v=19$m=65536,t=3,p=4$salt$hash
+// HashPassword returns a PHC-formatted Argon2id hash.
 func (a *UserAuth) HashPassword(password string) (string, error) {
 	salt := make([]byte, argon2SaltLen)
 	if _, err := rand.Read(salt); err != nil {
@@ -58,8 +56,6 @@ func (a *UserAuth) HashPassword(password string) (string, error) {
 	}
 
 	hash := argon2.IDKey([]byte(password), salt, a.time, a.memory, a.threads, a.keyLen)
-
-	// Encode in PHC format
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
@@ -67,10 +63,8 @@ func (a *UserAuth) HashPassword(password string) (string, error) {
 		argon2.Version, a.memory, a.time, a.threads, b64Salt, b64Hash), nil
 }
 
-// VerifyPassword checks if the password matches the Argon2id hash.
-// Returns ErrInvalidPassword if the password doesn't match.
+// VerifyPassword returns ErrInvalidPassword if the password does not match.
 func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
-	// Parse PHC format
 	parts := strings.Split(encodedHash, "$")
 	if len(parts) != 6 {
 		return ErrInvalidPassword
@@ -100,11 +94,7 @@ func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
 	if err != nil {
 		return ErrInvalidPassword
 	}
-
-	// Compute hash with same parameters
 	computedHash := argon2.IDKey([]byte(password), salt, time, memory, threads, uint32(len(expectedHash)))
-
-	// Constant-time comparison
 	if subtle.ConstantTimeCompare(expectedHash, computedHash) != 1 {
 		return ErrInvalidPassword
 	}
@@ -112,8 +102,7 @@ func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
 	return nil
 }
 
-// Authenticate verifies a user's credentials.
-// Returns the user if credentials are valid, otherwise an error.
+// Authenticate returns the user if username and password are valid.
 func (a *UserAuth) Authenticate(ctx context.Context, repo PartyRepo, username, password string) (*User, error) {
 	user, err := repo.GetByUsername(ctx, username)
 	if err != nil {

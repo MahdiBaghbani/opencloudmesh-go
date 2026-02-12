@@ -15,7 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// Handler handles the OCM token endpoint.
+// Handler serves POST /ocm/token (token exchange).
 type Handler struct {
 	outgoingRepo outgoing.OutgoingShareRepo
 	tokenStore   token.TokenStore
@@ -25,9 +25,8 @@ type Handler struct {
 	localScheme  string // "http" or "https", derived from PublicOrigin
 }
 
-// NewHandler creates a new token handler with the given settings.
-// Settings must have ApplyDefaults() called before passing (done by cfg.Decode).
-// publicOrigin is used to derive localScheme for scheme-aware client_id comparison.
+// NewHandler builds a token handler. Settings must have ApplyDefaults() called (done by cfg.Decode).
+// publicOrigin is used for scheme-aware client_id comparison (e.g. host vs host:443).
 func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 
@@ -47,14 +46,13 @@ func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenS
 	}
 }
 
-// HandleToken handles POST /ocm/token.
+// HandleToken serves POST /ocm/token.
 func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Check if token exchange is enabled
 	if h.settings == nil || !h.settings.Enabled {
 		h.sendOAuthError(w, http.StatusNotImplemented, "not_implemented", "token exchange is disabled")
 		return
@@ -68,13 +66,11 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	ct := r.Header.Get("Content-Type")
 
 	if strings.HasPrefix(ct, "application/json") {
-		// Nextcloud interop: JSON body
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse JSON body")
 			return
 		}
 	} else {
-		// Spec: form-urlencoded
 		if err := r.ParseForm(); err != nil {
 			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse form body")
 			return
@@ -84,7 +80,6 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		req.Code = r.FormValue("code")
 	}
 
-	// Validate required fields
 	if req.GrantType == "" {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "grant_type is required")
 		return
@@ -104,15 +99,13 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Check that the outgoing repo is configured
 	if h.outgoingRepo == nil {
 		log.Error("token exchange attempted but outgoing share repo not configured")
 		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token exchange not available")
 		return
 	}
 
-	// The `code` is the sharedSecret from the share
-	// Look up the share by the sharedSecret
+	// code is the sharedSecret from the share
 	share, err := h.outgoingRepo.GetBySharedSecret(ctx, req.Code)
 	if err != nil {
 		// Note: Do not log the code (secret). Only log client_id for correlation.
@@ -127,7 +120,6 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	normalizedClient, errClient := hostport.Normalize(req.ClientID, h.localScheme)
 
 	if errReceiver != nil || errClient != nil {
-		// Normalization failed -- log and skip mismatch enforcement (no new rejection path)
 		log.Warn("token exchange client_id normalization failed, falling back to raw comparison",
 			"receiver_err", errReceiver,
 			"client_err", errClient)
@@ -143,7 +135,6 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate access token
 	accessToken, err := token.GenerateAccessToken()
 	if err != nil {
 		log.Error("failed to generate access token", "error", err)
@@ -151,7 +142,6 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the token
 	now := time.Now()
 	issuedToken := &token.IssuedToken{
 		AccessToken: accessToken,
@@ -167,13 +157,11 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Note: Do not log access token (secret). Only log share_id and client_id for correlation.
 	log.Info("token issued",
 		"share_id", share.ShareID,
 		"client_id", req.ClientID,
 		"expires_in", int(h.tokenTTL.Seconds()))
 
-	// Return token response
 	resp := token.TokenResponse{
 		AccessToken: accessToken,
 		TokenType:   "Bearer",

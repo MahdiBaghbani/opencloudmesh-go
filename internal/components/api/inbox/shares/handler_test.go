@@ -22,7 +22,6 @@ import (
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 )
 
-// mockNotificationSender records accept/decline calls for assertions.
 type mockNotificationSender struct {
 	acceptCalls  []string
 	declineCalls []string
@@ -45,7 +44,6 @@ const (
 	userBID = "user-b-uuid"
 )
 
-// currentUserFunc returns a CurrentUser resolver that always returns the given user.
 func currentUserFunc(user *identity.User) func(context.Context) (*identity.User, error) {
 	return func(ctx context.Context) (*identity.User, error) {
 		if user == nil {
@@ -55,9 +53,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 	}
 }
 
-// newTestRouter mounts the inbox shares handler on a Chi router.
-// Passes nil for accessClient, profileRegistry, and cfg since existing tests
-// don't exercise verify-access.
+// newTestRouter mounts the inbox shares handler; nil accessClient/cfg suffice for list/accept/decline.
 func newTestRouter(repo sharesinbox.IncomingShareRepo, sender sharesinbox.NotificationSender, user *identity.User) http.Handler {
 	h := inboxshares.NewHandler(repo, sender, nil, nil, nil, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
@@ -70,7 +66,6 @@ func newTestRouter(repo sharesinbox.IncomingShareRepo, sender sharesinbox.Notifi
 	return r
 }
 
-// createShareForUser creates a share owned by the given user ID.
 func createShareForUser(repo *sharesinbox.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesinbox.IncomingShare {
 	share := &sharesinbox.IncomingShare{
 		ProviderID:      providerID,
@@ -169,13 +164,11 @@ func TestHandleAccept_Success(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Verify share was updated
 	updated, _ := repo.GetByIDForRecipientUserID(context.Background(), share.ShareID, userAID)
 	if updated.Status != sharesinbox.ShareStatusAccepted {
 		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusAccepted, updated.Status)
 	}
 
-	// Verify notification was sent
 	if len(sender.acceptCalls) != 1 {
 		t.Errorf("expected 1 accept notification, got %d", len(sender.acceptCalls))
 	}
@@ -216,7 +209,6 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	sender := &mockNotificationSender{}
 	share := createShareForUser(repo, userAID, "prov-idem", "sender.example.com")
 
-	// Pre-accept the share
 	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -230,7 +222,6 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 		t.Errorf("expected 200 for idempotent accept, got %d", w.Code)
 	}
 
-	// No notification should be sent for already-accepted
 	if len(sender.acceptCalls) != 0 {
 		t.Errorf("expected no accept notifications, got %d", len(sender.acceptCalls))
 	}
@@ -354,18 +345,15 @@ func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
 
 	body := w.Body.String()
 
-	// SharedSecret must not appear
 	if containsStr(body, "super-secret-token") {
 		t.Error("response contains SharedSecret -- must not be leaked")
 	}
 
-	// RecipientUserID and RecipientDisplayName are json:"-" so must not appear
 	if containsStr(body, "recipientUserID") || containsStr(body, "RecipientUserID") {
 		t.Error("response contains RecipientUserID field name -- must not be leaked")
 	}
 }
 
-// createDetailedShareForUser creates a share with WebDAV detail fields set.
 func createDetailedShareForUser(
 	repo *sharesinbox.MemoryIncomingShareRepo,
 	recipientUserID, providerID, senderHost string,
@@ -414,7 +402,6 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	// Base InboxShareView fields
 	if resp["shareId"] != share.ShareID {
 		t.Errorf("expected shareId %s, got %v", share.ShareID, resp["shareId"])
 	}
@@ -439,7 +426,6 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 		t.Errorf("expected webdavUriAbsolutePresent false (no absolute URI), got %v", resp["webdavUriAbsolutePresent"])
 	}
 
-	// Protocol block
 	proto, ok := resp["protocol"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
@@ -505,12 +491,10 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Secret must not appear anywhere
 	if containsStr(body, "real-secret-value") {
 		t.Error("response contains the actual SharedSecret -- must not be leaked")
 	}
 
-	// Redacted value must be present
 	if !containsStr(body, "[REDACTED]") {
 		t.Error("response does not contain [REDACTED] for sharedSecret")
 	}
@@ -538,9 +522,6 @@ func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 
 	body := w.Body.String()
 
-	// RecipientUserID (json:"-") must not appear as a field name in the response.
-	// The raw user ID value may appear in shareWith (which is expected), so we only
-	// check the field name, not the value.
 	if containsStr(body, "recipientUserID") || containsStr(body, "RecipientUserID") {
 		t.Error("response contains RecipientUserID field name -- must not be leaked")
 	}
@@ -553,7 +534,6 @@ func TestHandleGetDetail_RequirementsReflectsMustExchangeToken(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
-	// Case A: MustExchangeToken = true
 	shareA := createDetailedShareForUser(repo, userAID, "prov-met-true", "sender.example.com",
 		"wdid", "", "secret", true)
 
@@ -575,7 +555,6 @@ func TestHandleGetDetail_RequirementsReflectsMustExchangeToken(t *testing.T) {
 		t.Errorf("expected requirements [must-exchange-token], got %v", reqsA)
 	}
 
-	// Case B: MustExchangeToken = false
 	shareB := createDetailedShareForUser(repo, userAID, "prov-met-false", "sender.example.com",
 		"wdid2", "", "secret2", false)
 
@@ -611,7 +590,6 @@ func TestHandleGetDetail_Unauthenticated(t *testing.T) {
 
 func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	// Create share without setting Permissions (nil)
 	share := &sharesinbox.IncomingShare{
 		ProviderID:      "prov-nilperms",
 		SenderHost:      "sender.example.com",
@@ -644,7 +622,6 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	proto := resp["protocol"].(map[string]any)
 	webdav := proto["webdav"].(map[string]any)
 
-	// Permissions must be [] not null when the share has nil permissions
 	perms, ok := webdav["permissions"].([]any)
 	if !ok {
 		t.Fatalf("expected permissions to be an array, got %T (likely null)", webdav["permissions"])
@@ -659,7 +636,6 @@ func TestHandleGetDetail_WebDAVURIAbsolutePresent(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, nil, userA)
 
-	// Case A: absolute URI present
 	shareA := createDetailedShareForUser(repo, userAID, "prov-abs-yes", "sender.example.com",
 		"relative-id", "https://sender.example.com/webdav/file.txt", "secret", false)
 
@@ -679,7 +655,6 @@ func TestHandleGetDetail_WebDAVURIAbsolutePresent(t *testing.T) {
 		t.Errorf("expected absolute URI in protocol.webdav.uri, got %v", webdavA["uri"])
 	}
 
-	// Case B: no absolute URI
 	shareB := createDetailedShareForUser(repo, userAID, "prov-abs-no", "sender.example.com",
 		"relative-id-only", "", "secret2", false)
 
@@ -709,9 +684,6 @@ func containsStr(haystack, needle string) bool {
 	return false
 }
 
-// --- Verify-access test infrastructure ---
-
-// mockAccessor implements access.RemoteAccessor for handler tests.
 type mockAccessor struct {
 	accessFn func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error)
 }
@@ -720,7 +692,6 @@ func (m *mockAccessor) Access(ctx context.Context, opts access.AccessOptions) (*
 	return m.accessFn(ctx, opts)
 }
 
-// newTestRouterWithAccess mounts the handler with a mock access client.
 func newTestRouterWithAccess(
 	repo sharesinbox.IncomingShareRepo,
 	sender sharesinbox.NotificationSender,
@@ -739,7 +710,6 @@ func newTestRouterWithAccess(
 	return r
 }
 
-// createAcceptedShareForUser creates an accepted share with WebDAV fields.
 func createAcceptedShareForUser(
 	repo *sharesinbox.MemoryIncomingShareRepo,
 	recipientUserID, providerID, senderHost, name string,
@@ -923,7 +893,6 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 	share := createAcceptedShareForUser(repo, userAID, "prov-va-big", "sender.example.com", "big.bin")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	// Generate a body larger than maxPreviewBytes (4096)
 	bigBody := strings.Repeat("x", 5000)
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
 		return &access.AccessResult{

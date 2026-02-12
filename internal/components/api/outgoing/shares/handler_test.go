@@ -114,11 +114,6 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 }
 
 func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
-	// Verify the handler stores owner/sender as OCM addresses with Reva-style
-	// federated opaque ID identifiers. We test by creating a share with a real
-	// file but without a discovery client, so the share is stored but sending
-	// fails. We then check the stored share's owner/sender fields.
-
 	user := &identity.User{ID: "user-uuid-123", Username: "alice", Email: "alice@example.org"}
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
@@ -132,7 +127,6 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
-	// Create a temporary file for sharing
 	tmpFile, err := os.CreateTemp("/tmp", "outgoing-share-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
@@ -153,8 +147,6 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 
 	handler.HandleCreate(w, req)
 
-	// The handler returns 500 (nil discovery client), but the share is stored first.
-	// Check the stored share to verify owner/sender format.
 	if w.Code != http.StatusInternalServerError {
 		t.Logf("unexpected status %d (expected 500 from nil discovery client): %s", w.Code, w.Body.String())
 	}
@@ -169,14 +161,12 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	}
 
 	share := allShares[0]
-
-	// Verify owner/sender use Reva-style federated opaque ID as OCM address
 	expectedOwner := address.FormatOutgoingOCMAddressFromUserID("user-uuid-123", testProvider)
 	if share.Owner != expectedOwner {
-		t.Errorf("owner = %q, want %q (Reva-style federated OCM address)", share.Owner, expectedOwner)
+		t.Errorf("owner = %q, want %q", share.Owner, expectedOwner)
 	}
 	if share.Sender != expectedOwner {
-		t.Errorf("sender = %q, want %q (Reva-style federated OCM address)", share.Sender, expectedOwner)
+		t.Errorf("sender = %q, want %q", share.Sender, expectedOwner)
 	}
 }
 
@@ -210,7 +200,6 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
 
-	// Verify the response uses api error envelope (has error.reason_code)
 	var resp map[string]interface{}
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)

@@ -1,11 +1,11 @@
 // Package notifications implements OCM notification handling.
+// See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#share-acceptance-notification
 package notifications
 
 import (
 	"time"
 )
 
-// NotificationType represents the type of notification.
 type NotificationType string
 
 const (
@@ -24,7 +24,6 @@ type NewNotification struct {
 	SendingServiceOwnerURL string           `json:"sendingServiceOwnerURL,omitempty"`
 }
 
-// NotificationRecord represents a stored notification.
 type NotificationRecord struct {
 	ID                string           `json:"id"`
 	NotificationType  NotificationType `json:"notificationType"`
@@ -36,7 +35,6 @@ type NotificationRecord struct {
 	Processed         bool             `json:"processed"`
 }
 
-// IsValidNotificationType checks if a notification type is valid.
 func IsValidNotificationType(t NotificationType) bool {
 	switch t {
 	case NotificationShareAccepted, NotificationShareDeclined, NotificationShareUnshared:

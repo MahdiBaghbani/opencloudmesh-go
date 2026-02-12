@@ -8,17 +8,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 )
 
-// SessionTTL is the default session duration.
 const SessionTTL = 24 * time.Hour
 
-// AuthHandler handles authentication endpoints.
+// AuthHandler serves login, logout, and current-user endpoints.
 type AuthHandler struct {
 	repo     identity.PartyRepo
 	sessions identity.SessionRepo
 	auth     *identity.UserAuth
 }
 
-// NewAuthHandler creates a new authentication handler.
+// NewAuthHandler returns an AuthHandler with the given identity components.
 func NewAuthHandler(repo identity.PartyRepo, sessions identity.SessionRepo, auth *identity.UserAuth) *AuthHandler {
 	return &AuthHandler{
 		repo:     repo,
@@ -27,13 +26,11 @@ func NewAuthHandler(repo identity.PartyRepo, sessions identity.SessionRepo, auth
 	}
 }
 
-// LoginRequest is the request body for login.
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-// LoginResponse is the response for a successful login.
 type LoginResponse struct {
 	Token     string `json:"token"`
 	ExpiresAt string `json:"expires_at"`
@@ -65,14 +62,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Authenticate user
 	user, err := h.auth.Authenticate(ctx, h.repo, req.Username, req.Password)
 	if err != nil {
 		writeJSONError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 		return
 	}
 
-	// Create session
 	session, err := h.sessions.Create(ctx, user.ID, SessionTTL)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "session_error", "failed to create session")
@@ -102,7 +97,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// Logout handles POST /api/auth/logout.
+// Logout handles POST /api/auth/logout and clears the session cookie.
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -118,7 +113,6 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	h.sessions.Delete(ctx, token)
 
-	// Clear cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    "",
@@ -131,7 +125,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
 }
 
-// GetCurrentUser handles GET /api/auth/me.
+// GetCurrentUser handles GET /api/auth/me and returns the authenticated user.
 func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	token := extractToken(r)
 	if token == "" {
@@ -169,15 +163,12 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// extractToken gets the session token from Authorization header or cookie.
+// extractToken returns the session token from Authorization header or session cookie.
 func extractToken(r *http.Request) string {
-	// Try Authorization header first
 	auth := r.Header.Get("Authorization")
 	if len(auth) > 7 && auth[:7] == "Bearer " {
 		return auth[7:]
 	}
-
-	// Fall back to cookie
 	cookie, err := r.Cookie("session")
 	if err == nil {
 		return cookie.Value

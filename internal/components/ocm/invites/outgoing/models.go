@@ -1,4 +1,4 @@
-// Package outgoing provides stored outgoing invite models and repository.
+// Package outgoing provides outgoing invite models and repository.
 package outgoing
 
 import (
@@ -7,7 +7,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
 
-// OutgoingInvite represents an invite we sent to another server.
 type OutgoingInvite struct {
 	ID              string              `json:"id"`
 	Token           string              `json:"token"`

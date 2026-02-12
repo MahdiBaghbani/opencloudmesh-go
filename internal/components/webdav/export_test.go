@@ -2,22 +2,20 @@ package webdav
 
 import "net/http"
 
-// Export internal functions for testing.
-
-// ExtractWebDAVIDForTest exposes extractWebDAVID for testing.
+// ExtractWebDAVIDForTest exposes extractWebDAVID.
 func ExtractWebDAVIDForTest(path string) string {
 	return extractWebDAVID(path)
 }
 
-// IsValidWebDAVIDForTest exposes isValidWebDAVID for testing.
+// IsValidWebDAVIDForTest exposes isValidWebDAVID.
 func IsValidWebDAVIDForTest(id string) bool {
 	return isValidWebDAVID(id)
 }
 
-// CredentialResult is exported for testing.
+// CredentialResult is the exported credentialResult for tests.
 type CredentialResult = credentialResult
 
-// ExtractCredentialForTest exposes extractCredential for testing.
+// ExtractCredentialForTest exposes extractCredential.
 func ExtractCredentialForTest(r *http.Request) *CredentialResult {
 	return extractCredential(r)
 }

@@ -1,5 +1,4 @@
-// Package invites implements session-gated inbox invite handlers.
-// All endpoints enforce per-user scoping via the injected CurrentUser resolver.
+// Package invites provides session-gated API handlers for inbox invites (list, import, accept, decline).
 package invites
 
 import (
@@ -28,7 +27,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// InboxInviteView is the public view of an incoming invite.
 type InboxInviteView struct {
 	ID         string              `json:"id"`
 	SenderFQDN string              `json:"senderFqdn"`
@@ -36,12 +34,11 @@ type InboxInviteView struct {
 	Status     invites.InviteStatus `json:"status"`
 }
 
-// InboxListResponse wraps the invite views returned by HandleList.
 type InboxListResponse struct {
 	Invites []InboxInviteView `json:"invites"`
 }
 
-// InviteImportRequest is the request body for POST /api/inbox/invites/import.
+// InviteImportRequest is the body for POST /api/inbox/invites/import.
 type InviteImportRequest struct {
 	InviteString string `json:"inviteString"`
 }
@@ -54,7 +51,7 @@ type InviteImportResponse struct {
 	Status     invites.InviteStatus `json:"status"`
 }
 
-// Handler handles inbox invite list, import, accept, and decline endpoints.
+// Handler serves list, import, accept, and decline for inbox invites.
 type Handler struct {
 	incomingRepo    invitesinbox.IncomingInviteRepo
 	httpClient      httpclient.HTTPClient
@@ -66,7 +63,7 @@ type Handler struct {
 	log             *slog.Logger
 }
 
-// NewHandler creates a new inbox invites handler.
+// NewHandler returns a Handler with the given dependencies.
 func NewHandler(
 	incomingRepo invitesinbox.IncomingInviteRepo,
 	httpClient httpclient.HTTPClient,
@@ -90,8 +87,7 @@ func NewHandler(
 	}
 }
 
-// HandleList handles GET /api/inbox/invites.
-// Lists only invites owned by the authenticated user.
+// HandleList handles GET /api/inbox/invites; returns only invites for the authenticated user.
 func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -120,8 +116,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(InboxListResponse{Invites: views})
 }
 
-// HandleImport handles POST /api/inbox/invites/import.
-// Parses an invite string and stores it for the current user.
+// HandleImport handles POST /api/inbox/invites/import; idempotent for same token and user.
 func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -148,7 +143,6 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Idempotent: check for existing invite with same token for this user
 	existing, err := h.incomingRepo.GetByTokenForRecipientUserID(ctx, token, user.ID)
 	if err == nil && existing != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -184,8 +178,7 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleAccept handles POST /api/inbox/invites/{inviteId}/accept.
-// Enforces ownership by construction: the repo returns not-found for cross-user access.
+// HandleAccept handles POST /api/inbox/invites/{inviteId}/accept; idempotent if already accepted.
 func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -213,7 +206,6 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if invite.Status == invites.InviteStatusAccepted {
-		// Idempotent success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":   string(invites.InviteStatusAccepted),
@@ -227,7 +219,6 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send POST /ocm/invite-accepted to sender with all spec-required fields (E7=A)
 	if err := h.sendInviteAccepted(ctx, invite, user); err != nil {
 		h.log.Error("failed to send invite-accepted",
 			"invite_id", inviteID, "sender_fqdn", invite.SenderFQDN, "error", err)
@@ -235,10 +226,9 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update local status
 	if err := h.incomingRepo.UpdateStatusForRecipientUserID(ctx, inviteID, user.ID, invites.InviteStatusAccepted); err != nil {
 		h.log.Error("failed to update invite status", "invite_id", inviteID, "error", err)
-		// Already accepted on sender side, log but return success
+		// Sender was notified; return success even if local update failed
 	}
 
 	h.log.Info("invite accepted", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
@@ -250,8 +240,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleDecline handles POST /api/inbox/invites/{inviteId}/decline.
-// Enforces ownership by construction: the repo returns not-found for cross-user access.
+// HandleDecline handles POST /api/inbox/invites/{inviteId}/decline; deletes the invite locally (no outbound call).
 func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.Context())
 	if err != nil {
@@ -279,7 +268,6 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if invite.Status == invites.InviteStatusDeclined {
-		// Idempotent success
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":   string(invites.InviteStatusDeclined),
@@ -293,7 +281,6 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decline is local only - delete the invite
 	if err := h.incomingRepo.DeleteForRecipientUserID(ctx, inviteID, user.ID); err != nil {
 		h.log.Error("failed to delete invite", "invite_id", inviteID, "error", err)
 	}
@@ -307,10 +294,8 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// sendInviteAccepted sends POST /ocm/invite-accepted to the sender with all
-// five spec-required AcceptedInvite fields (E7=A).
+// sendInviteAccepted sends POST /ocm/invite-accepted to the sender with all spec-required fields.
 func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.IncomingInvite, user *identity.User) error {
-	// Discover sender's OCM endpoint
 	baseURL := "https://" + invite.SenderFQDN
 	disc, err := h.discoveryClient.Discover(ctx, baseURL)
 	if err != nil {
@@ -319,7 +304,6 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 
 	inviteAcceptedURL := disc.EndPoint + "/invite-accepted"
 
-	// All five fields are spec-required (E7=A)
 	reqBody := spec.InviteAcceptedRequest{
 		RecipientProvider: h.localProvider,
 		Token:             invite.Token,
@@ -339,7 +323,6 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Apply outbound signing policy
 	if h.outboundPolicy != nil {
 		decision := h.outboundPolicy.ShouldSign(
 			outboundsigning.EndpointInvites,

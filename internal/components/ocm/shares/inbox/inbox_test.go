@@ -8,8 +8,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-// --- Repository ---
-
 func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 	repo := inbox.NewMemoryIncomingShareRepo()
 	ctx := context.Background()
@@ -36,7 +34,6 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 		t.Fatalf("failed to create share2: %v", err)
 	}
 
-	// Duplicate from sender1 should fail
 	share3 := &inbox.IncomingShare{
 		ProviderID:      "same-id",
 		SenderHost:      "sender1.example.com",
@@ -47,8 +44,6 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 	if err := repo.Create(ctx, share3); err == nil {
 		t.Error("expected error for duplicate providerId from same sender")
 	}
-
-	// Lookup by sender-scoped providerId
 	found, err := repo.GetByProviderID(ctx, "sender1.example.com", "same-id")
 	if err != nil {
 		t.Fatalf("failed to find share: %v", err)
@@ -61,8 +56,6 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 func TestIncomingRepository_RecipientScoping(t *testing.T) {
 	repo := inbox.NewMemoryIncomingShareRepo()
 	ctx := context.Background()
-
-	// Create shares for different recipients
 	shareA := &inbox.IncomingShare{
 		ProviderID:      "p1",
 		SenderHost:      "sender.com",

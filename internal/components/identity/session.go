@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// Session represents an active user session.
 type Session struct {
 	Token     string    `json:"token"`
 	UserID    string    `json:"user_id"`
@@ -16,7 +15,6 @@ type Session struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-// IsExpired returns true if the session has expired.
 func (s *Session) IsExpired() bool {
 	return time.Now().After(s.ExpiresAt)
 }
@@ -39,7 +37,6 @@ type SessionRepo interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
-// GenerateToken creates a cryptographically secure random token.
 func GenerateToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -55,7 +52,6 @@ type MemorySessionRepo struct {
 	byUser   map[string][]string // userID -> tokens
 }
 
-// NewMemorySessionRepo creates a new in-memory session repository.
 func NewMemorySessionRepo() *MemorySessionRepo {
 	return &MemorySessionRepo{
 		sessions: make(map[string]*Session),
@@ -110,8 +106,6 @@ func (r *MemorySessionRepo) Delete(ctx context.Context, token string) error {
 	if !ok {
 		return nil
 	}
-
-	// Remove from user index
 	tokens := r.byUser[session.UserID]
 	for i, t := range tokens {
 		if t == token {
@@ -146,7 +140,6 @@ func (r *MemorySessionRepo) DeleteExpired(ctx context.Context) (int, error) {
 
 	for token, session := range r.sessions {
 		if now.After(session.ExpiresAt) {
-			// Remove from user index
 			tokens := r.byUser[session.UserID]
 			for i, t := range tokens {
 				if t == token {

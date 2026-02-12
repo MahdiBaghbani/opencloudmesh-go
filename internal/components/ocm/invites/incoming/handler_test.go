@@ -27,7 +27,6 @@ const (
 	testPublicOrigin = "https://example.com"
 )
 
-// newTestHandler creates a handler with repo and optional partyRepo.
 func newTestHandler(repo *invitesoutgoing.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
 	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testPublicOrigin, testLogger)
 }
@@ -49,10 +48,6 @@ func decodeOCMError(t *testing.T, w *httptest.ResponseRecorder) string {
 	return resp["message"]
 }
 
-// --- HandleInviteAccepted error table tests (F3=A) ---
-
-// validAcceptedBody returns a complete AcceptedInvite JSON body.
-// All five spec-required fields are present.
 func validAcceptedBody(token string) string {
 	return `{"recipientProvider":"other.com","token":"` + token + `","userID":"u@host","email":"remote@other.com","name":"Remote User"}`
 }
@@ -114,7 +109,6 @@ func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
-	// Preflight: email key entirely absent from JSON -> 400 EMAIL_REQUIRED
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
@@ -129,7 +123,6 @@ func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
-	// Preflight: name key entirely absent from JSON -> 400 NAME_REQUIRED
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
@@ -144,7 +137,6 @@ func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
-	// Preflight: email key present but empty string -> allowed (spec: no non-empty constraint)
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
@@ -165,7 +157,6 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
-	// Preflight: name key present but empty string -> allowed (spec: no non-empty constraint)
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
@@ -233,8 +224,6 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 	repo.Create(context.Background(), invite)
 
 	w := postInviteAccepted(handler, validAcceptedBody("accepted-token"))
-
-	// Spec-mandated: 409, not 200 (fixes old bug)
 	if w.Code != http.StatusConflict {
 		t.Errorf("expected 409, got %d: %s", w.Code, w.Body.String())
 	}
@@ -255,12 +244,9 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 	}
 	repo.Create(context.Background(), invite)
 
-	// Build a request with a mismatched authenticated peer identity
 	body := validAcceptedBody("trust-token")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-
-	// Inject a verified peer identity that does NOT match the recipientProvider
 	peerCtx := context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
 		Authority:           "attacker.com",
 		AuthorityForCompare: "attacker.com",
@@ -279,13 +265,9 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 	}
 }
 
-// --- HandleInviteAccepted success and response tests ---
-
 func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
-
-	// Create the local inviting user
 	localUser := &identity.User{
 		ID:          "user-uuid-123",
 		Username:    "alice",
@@ -317,8 +299,6 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-
-	// Response must return LOCAL user identity, NOT the remote user's
 	expectedUserID := address.EncodeFederatedOpaqueID(localUser.ID, testProvider)
 	if resp.UserID != expectedUserID {
 		t.Errorf("userID = %q, want %q (local user, not remote echo)", resp.UserID, expectedUserID)
@@ -329,8 +309,6 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 	if resp.Name != "Alice A" {
 		t.Errorf("name = %q, want %q (local user display name)", resp.Name, "Alice A")
 	}
-
-	// Verify invite status was updated
 	updated, _ := repo.GetByToken(context.Background(), "valid-token")
 	if updated.Status != invites.InviteStatusAccepted {
 		t.Errorf("expected status %s, got %s", invites.InviteStatusAccepted, updated.Status)
@@ -340,8 +318,6 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
-
-	// Local user with no email or display name
 	localUser := &identity.User{
 		ID:       "user-uuid-456",
 		Username: "bob",
@@ -369,16 +345,12 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 
 	var resp spec.InviteAcceptedResponse
 	json.NewDecoder(w.Body).Decode(&resp)
-
-	// Empty email and name are allowed (spec requires the fields but not non-empty values)
 	if resp.Email != "" {
 		t.Errorf("email = %q, want empty string", resp.Email)
 	}
 	if resp.Name != "" {
 		t.Errorf("name = %q, want empty string", resp.Name)
 	}
-
-	// Verify invite status was updated
 	updated, _ := repo.GetByToken(context.Background(), "valid-token")
 	if updated.Status != invites.InviteStatusAccepted {
 		t.Errorf("expected status %s, got %s", invites.InviteStatusAccepted, updated.Status)
@@ -389,8 +361,6 @@ func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
-
-	// Legacy invite: CreatedByUserID is empty (created before this change)
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "legacy-token",
 		ProviderFQDN:    testProvider,
@@ -408,8 +378,6 @@ func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
 
 	var resp spec.InviteAcceptedResponse
 	json.NewDecoder(w.Body).Decode(&resp)
-
-	// Backfill: placeholder identity (F5=A)
 	expectedUserID := address.EncodeFederatedOpaqueID("unknown", testProvider)
 	if resp.UserID != expectedUserID {
 		t.Errorf("userID = %q, want %q (placeholder for legacy)", resp.UserID, expectedUserID)
@@ -421,8 +389,6 @@ func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
 		t.Errorf("name = %q, want empty (legacy backfill)", resp.Name)
 	}
 }
-
-// --- HandleInviteAccepted content type and method tests ---
 
 func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
@@ -440,8 +406,6 @@ func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
 	}
 }
 
-// --- Response field presence test ---
-
 func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
@@ -449,7 +413,6 @@ func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
 	localUser := &identity.User{
 		ID:       "user-uuid-789",
 		Username: "charlie",
-		// Email and DisplayName intentionally empty
 	}
 	partyRepo.Create(context.Background(), localUser)
 
@@ -475,10 +438,9 @@ func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
 		t.Fatalf("failed to parse raw JSON: %v", err)
 	}
-
 	for _, field := range []string{"userID", "email", "name"} {
 		if _, ok := raw[field]; !ok {
-			t.Errorf("field %q is missing from response (spec requires it even when empty)", field)
+			t.Errorf("field %q missing from response", field)
 		}
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
 
-// Package api provides common HTTP API utilities including error handling.
+// Package api provides shared HTTP API handlers (auth, health) and standardized error responses.
 package api
 
 import (
@@ -9,8 +9,7 @@ import (
 	"net/http"
 )
 
-// Deterministic reason codes for stable error classification.
-// These codes should remain stable across versions for client compatibility.
+// Deterministic reason codes for error classification; keep stable for client compatibility.
 const (
 	// Authentication and authorization
 	ReasonUnauthenticated     = "unauthenticated"
@@ -49,19 +48,18 @@ const (
 )
 
 // ErrorEnvelope is the standard error response format.
-// All error responses should use this structure for consistency.
 type ErrorEnvelope struct {
 	Error ErrorDetail `json:"error"`
 }
 
-// ErrorDetail contains the error information.
+// ErrorDetail holds code, reason_code, and message for API errors.
 type ErrorDetail struct {
 	Code       string `json:"code"`       // HTTP status text (e.g., "forbidden")
 	ReasonCode string `json:"reason_code"` // Deterministic reason code
 	Message    string `json:"message"`     // Human-readable message
 }
 
-// WriteError writes a standardized JSON error response.
+// WriteError sends a standardized JSON error envelope.
 func WriteError(w http.ResponseWriter, statusCode int, reasonCode, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -77,45 +75,42 @@ func WriteError(w http.ResponseWriter, statusCode int, reasonCode, message strin
 	json.NewEncoder(w).Encode(envelope)
 }
 
-// Common error helpers for frequently used patterns
-
-// WriteUnauthorized writes a 401 Unauthorized error.
+// WriteUnauthorized sends 401 with the given reason code and message.
 func WriteUnauthorized(w http.ResponseWriter, reasonCode, message string) {
 	WriteError(w, http.StatusUnauthorized, reasonCode, message)
 }
 
-// WriteForbidden writes a 403 Forbidden error.
+// WriteForbidden sends 403 with the given reason code and message.
 func WriteForbidden(w http.ResponseWriter, reasonCode, message string) {
 	WriteError(w, http.StatusForbidden, reasonCode, message)
 }
 
-// WriteNotFound writes a 404 Not Found error.
+// WriteNotFound sends 404 with reason not_found.
 func WriteNotFound(w http.ResponseWriter, message string) {
 	WriteError(w, http.StatusNotFound, ReasonNotFound, message)
 }
 
-// WriteBadRequest writes a 400 Bad Request error.
+// WriteBadRequest sends 400 with the given reason code and message.
 func WriteBadRequest(w http.ResponseWriter, reasonCode, message string) {
 	WriteError(w, http.StatusBadRequest, reasonCode, message)
 }
 
-// WriteConflict writes a 409 Conflict error.
+// WriteConflict sends 409 with reason conflict.
 func WriteConflict(w http.ResponseWriter, message string) {
 	WriteError(w, http.StatusConflict, ReasonConflict, message)
 }
 
-// WriteTooManyRequests writes a 429 Too Many Requests error.
+// WriteTooManyRequests sends 429 with reason rate_limited.
 func WriteTooManyRequests(w http.ResponseWriter, message string) {
 	WriteError(w, http.StatusTooManyRequests, ReasonRateLimited, message)
 }
 
-// WriteInternalError writes a 500 Internal Server Error.
-// Be careful not to leak sensitive information in the message.
+// WriteInternalError sends 500. Avoid leaking sensitive data in the message.
 func WriteInternalError(w http.ResponseWriter, message string) {
 	WriteError(w, http.StatusInternalServerError, ReasonInternalError, message)
 }
 
-// WriteNotImplemented writes a 501 Not Implemented error.
+// WriteNotImplemented sends 501 with a feature name.
 func WriteNotImplemented(w http.ResponseWriter, feature string) {
 	WriteError(w, http.StatusNotImplemented, ReasonNotImplemented, feature+" not implemented yet")
 }

@@ -1,5 +1,6 @@
 /**
- * Smoke test: Verify server starts, login page loads, and server stops cleanly.
+ * Smoke tests (single-server, fast feedback).
+ * Verify server starts, login page loads, and server stops cleanly.
  */
 
 import { test, expect } from '@playwright/test';

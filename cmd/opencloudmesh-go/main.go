@@ -1,4 +1,4 @@
-// Package main is the entrypoint for the opencloudmesh-go server.
+// Package main runs the OCM reference implementation server.
 package main
 
 import (
@@ -48,7 +48,6 @@ import (
 )
 
 func main() {
-	// Parse flags
 	configPath := flag.String("config", "", "Path to TOML config file (optional)")
 	modeFlag := flag.String("mode", "", "Operating mode: strict, interop, or dev (overrides config)")
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
@@ -68,12 +67,11 @@ func main() {
 	webdavTokenExchangeMode := flag.String("webdav-token-exchange-mode", "", "WebDAV token exchange enforcement mode: strict, lenient, or off (overrides config)")
 	flag.Parse()
 
-	// Bootstrap logger for config loading errors (uses default level)
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 
-	// Load config with precedence: mode preset -> TOML file -> CLI flags
+	// Config precedence: mode preset -> TOML file -> CLI flags
 	cfg, err := config.Load(config.LoaderOptions{
 		ConfigPath: *configPath,
 		ModeFlag:   *modeFlag,
@@ -101,7 +99,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create logger with configured level
 	var level slog.Level
 	switch cfg.Logging.Level {
 	case "trace":
@@ -120,21 +117,16 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(logger)
-
-	// Log effective config with secrets redacted
 	logger.Info("effective configuration", "config", cfg.Redacted())
 
-	// Create identity components
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
 	userAuth := identity.NewUserAuth(3) // argon2id time parameter
 
-	// Initialize key manager for HTTP signatures (5A rule)
-	// Keys exist when inbound_mode != off OR outbound_mode != off
+	// Key manager required when any signature mode is enabled (inbound or outbound)
 	var keyManager *crypto.KeyManager
 	needsKeys := cfg.Signature.InboundMode != "off" || cfg.Signature.OutboundMode != "off"
 	if needsKeys {
-		// Ensure key directory exists
 		keyDir := filepath.Dir(cfg.Signature.KeyPath)
 		if keyDir != "" && keyDir != "." {
 			if err := os.MkdirAll(keyDir, 0700); err != nil {
@@ -151,13 +143,11 @@ func main() {
 		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
 	}
 
-	// Bootstrap super admin user
 	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)
 	bootstrapUsername := cfg.Server.BootstrapAdmin.Username
 	if bootstrapUsername == "" {
 		bootstrapUsername = "admin"
 	}
-	// Determine if password was explicitly set (non-empty in config or via flag)
 	explicitPasswordSet := cfg.Server.BootstrapAdmin.Password != ""
 	if err := bootstrap.EnsureSuperAdmin(
 		context.Background(),
@@ -176,12 +166,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create outbound HTTP client
 	rawHTTPClient := httpclient.New(&cfg.OutboundHTTP, rootCAPool)
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
-	// Create cache (defaults to in-memory if not configured)
-	// Passes driver-specific config from [cache.drivers.<driver>] section
 	cacheDriver := cfg.Cache.Driver
 	if cacheDriver == "" {
 		cacheDriver = "memory"
@@ -192,37 +179,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create discovery client (mandatory for /ocm-aux/discover and share sending)
 	discoveryClient := discovery.NewClient(rawHTTPClient, cacheInstance)
 
-	// Create trust group manager and policy engine if enabled
 	var trustGroupMgr *peertrust.TrustGroupManager
 	var policyEngine *peertrust.PolicyEngine
 	if cfg.PeerTrust.Enabled {
-		// Compute refresh timeout from outbound HTTP timeout
 		refreshTimeout := time.Duration(cfg.OutboundHTTP.TimeoutMS) * time.Millisecond
-
-		// Create cache config from TOML
 		cacheConfig := peertrust.CacheConfig{
 			TTL:      time.Duration(cfg.PeerTrust.MembershipCache.TTLSeconds) * time.Second,
 			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
 		}
 
-		// Compute default directory service verification policy from mode.
-		// Strict mode requires verified signatures; interop/dev mode accepts unsigned.
+		// Strict mode requires verified Directory Service signatures; interop/dev accept unsigned
 		dsMode, _ := config.ParseMode(cfg.Mode)
 		defaultVerificationPolicy := "required"
 		if dsMode == config.ModeInterop || dsMode == config.ModeDev {
 			defaultVerificationPolicy = "optional"
 		}
 
-		// Create directory service client (uses the safe HTTP client)
 		dirServiceClient := directoryservice.NewClient(rawHTTPClient, defaultVerificationPolicy, logger)
-
-		// Create trust group manager
 		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, cfg.PublicScheme(), logger, refreshTimeout)
 
-		// Load trust group configs from paths (one K2 JSON per file)
 		for _, configPath := range cfg.PeerTrust.ConfigPaths {
 			tgCfg, err := peertrust.LoadTrustGroupConfig(configPath)
 			if err != nil {
@@ -233,7 +210,6 @@ func main() {
 			logger.Info("loaded trust group", "trust_group_id", tgCfg.TrustGroupID, "enabled", tgCfg.Enabled)
 		}
 
-		// Create policy engine from config
 		policyCfg := &peertrust.PolicyConfig{
 			GlobalEnforce: cfg.PeerTrust.Policy.GlobalEnforce,
 			AllowList:     cfg.PeerTrust.Policy.AllowList,
@@ -244,10 +220,8 @@ func main() {
 		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
 	}
 
-	// Create peer profile registry from config
 	var profileRegistry *peercompat.ProfileRegistry
 	if len(cfg.PeerProfiles.Mappings) > 0 || len(cfg.PeerProfiles.CustomProfiles) > 0 {
-		// Convert config.PeerProfile to peercompat.Profile
 		customProfiles := make(map[string]*peercompat.Profile)
 		for name, p := range cfg.PeerProfiles.CustomProfiles {
 			customProfiles[name] = &peercompat.Profile{
@@ -261,7 +235,6 @@ func main() {
 				AllowedBasicAuthPatterns: p.AllowedBasicAuthPatterns,
 			}
 		}
-		// Convert config.PeerProfileMapping to peercompat.ProfileMapping
 		mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
 		for i, m := range cfg.PeerProfiles.Mappings {
 			mappings[i] = peercompat.ProfileMapping{
@@ -271,7 +244,6 @@ func main() {
 		}
 		profileRegistry = peercompat.NewProfileRegistry(customProfiles, mappings)
 	} else {
-		// Create registry with just builtin profiles
 		profileRegistry = peercompat.NewProfileRegistry(nil, nil)
 	}
 
@@ -281,24 +253,19 @@ func main() {
 		signer = crypto.NewRFC9421Signer(keyManager)
 	}
 
-	// Create outbound signing policy (needed for SharedDeps)
 	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry)
 
-	// Create signature middleware (needed by OCM service for per-endpoint verification)
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
 	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
 
-	// Create repos once for SharedDeps.
 	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
 	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	outgoingInviteRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	incomingInviteRepo := invitesinbox.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
-	// Create RealIP extractor for trusted-proxy-aware client identity
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
 
-	// Derive local provider identity from PublicOrigin once at startup
 	localProviderFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
 	if err != nil {
 		logger.Error("failed to derive provider FQDN", "error", err)
@@ -310,7 +277,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set SharedDeps for registry-based services (wellknown, ocm, api, ui, webdav, etc.)
 	deps.SetDeps(&deps.Deps{
 		// Identity
 		PartyRepo:   partyRepo,
@@ -345,8 +311,7 @@ func main() {
 		RealIP: realIPExtractor,
 	})
 
-	// Validate that all [http.services.*] keys in TOML refer to known services.
-	// Unknown keys fail fast so typos don't silently disable functionality.
+	// Unknown [http.services.*] keys fail fast so typos do not silently disable functionality
 	if cfg.HTTP.Services != nil {
 		allowed := service.RegisteredServices()
 		allowedSet := make(map[string]struct{}, len(allowed))
@@ -371,8 +336,6 @@ func main() {
 		}
 	}
 
-	// Construct all core services via registry loop.
-	// Each service derives cross-cutting values from SharedDeps internally.
 	services := make(map[string]service.Service)
 	for _, name := range service.CoreServices {
 		svcCfg := cfg.BuildServiceConfig(name)
@@ -399,7 +362,6 @@ func main() {
 	}
 	srv.SetRootCAPool(rootCAPool)
 
-	// Setup graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -412,12 +374,10 @@ func main() {
 
 	logger.Info("server started, press Ctrl+C to stop")
 
-	// Wait for shutdown signal
 	<-ctx.Done()
 	logger.Info("shutdown signal received")
 
-	// Graceful shutdown
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*1000000000) // 30 seconds
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {

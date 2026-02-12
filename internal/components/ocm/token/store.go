@@ -12,25 +12,18 @@ var (
 	ErrTokenExpired  = errors.New("token expired")
 )
 
-// TokenStore manages issued access tokens.
 type TokenStore interface {
-	// Store saves an issued token.
 	Store(ctx context.Context, token *IssuedToken) error
-	// Get retrieves a token by access token string.
 	Get(ctx context.Context, accessToken string) (*IssuedToken, error)
-	// Delete removes a token.
 	Delete(ctx context.Context, accessToken string) error
-	// CleanExpired removes all expired tokens.
 	CleanExpired(ctx context.Context) error
 }
 
-// MemoryTokenStore is an in-memory token store.
 type MemoryTokenStore struct {
 	mu     sync.RWMutex
 	tokens map[string]*IssuedToken
 }
 
-// NewMemoryTokenStore creates a new in-memory token store.
 func NewMemoryTokenStore() *MemoryTokenStore {
 	return &MemoryTokenStore{
 		tokens: make(map[string]*IssuedToken),

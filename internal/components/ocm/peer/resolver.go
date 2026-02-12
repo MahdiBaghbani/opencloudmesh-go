@@ -1,6 +1,4 @@
-// Package peer provides declared-peer resolvers for OCM signature middleware.
-// Each resolver extracts the declared peer identity from a specific OCM protocol
-// request body so the signature middleware can verify the request against that peer.
+// Package peer provides peer resolvers for OCM signature middleware. Extracts declared peer from request bodies.
 package peer
 
 import (
@@ -11,17 +9,13 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 )
 
-// Resolver extracts declared peer identity from OCM protocol request bodies.
 type Resolver struct{}
 
-// NewResolver creates a new peer resolver.
 func NewResolver() *Resolver {
 	return &Resolver{}
 }
 
-// ResolveSharesRequest extracts the peer from POST /ocm/shares.
-// Prefers sender, falls back to owner. Parses as OCM address using last-@
-// and returns the provider part only.
+// ResolveSharesRequest extracts peer from POST /ocm/shares. Prefers sender, falls back to owner; returns provider (last-@).
 func (p *Resolver) ResolveSharesRequest(r *http.Request, body []byte) (string, error) {
 	var req struct {
 		Sender string `json:"sender"`
@@ -49,8 +43,6 @@ func (p *Resolver) ResolveSharesRequest(r *http.Request, body []byte) (string, e
 	return provider, nil
 }
 
-// ResolveInviteAcceptedRequest extracts the peer from POST /ocm/invite-accepted.
-// Returns recipientProvider as-is (must be a schemeless authority).
 func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (string, error) {
 	var req struct {
 		RecipientProvider string `json:"recipientProvider"`
@@ -67,14 +59,10 @@ func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (s
 	return req.RecipientProvider, nil
 }
 
-// ResolveNotificationsRequest extracts the peer from POST /ocm/notifications.
-// Notifications have no sender field; peer identity comes from the signature keyId.
 func (p *Resolver) ResolveNotificationsRequest(r *http.Request, body []byte) (string, error) {
 	return "", nil
 }
 
-// ResolveTokenRequest extracts the peer from POST /ocm/token.
-// Token exchange relies on signature-based authentication; no body-level peer.
 func (p *Resolver) ResolveTokenRequest(r *http.Request, body []byte) (string, error) {
 	return "", nil
 }

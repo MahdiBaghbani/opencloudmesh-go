@@ -10,7 +10,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
 
-// OutgoingInviteRepo manages outgoing invites.
 type OutgoingInviteRepo interface {
 	Create(ctx context.Context, invite *OutgoingInvite) error
 	GetByID(ctx context.Context, id string) (*OutgoingInvite, error)
@@ -19,14 +18,12 @@ type OutgoingInviteRepo interface {
 	UpdateStatus(ctx context.Context, id string, status invites.InviteStatus, acceptedBy string) error
 }
 
-// MemoryOutgoingInviteRepo is an in-memory implementation.
 type MemoryOutgoingInviteRepo struct {
 	mu      sync.RWMutex
 	invites map[string]*OutgoingInvite
 	byToken map[string]string // token -> id
 }
 
-// NewMemoryOutgoingInviteRepo creates a new in-memory outgoing invite repo.
 func NewMemoryOutgoingInviteRepo() *MemoryOutgoingInviteRepo {
 	return &MemoryOutgoingInviteRepo{
 		invites: make(map[string]*OutgoingInvite),

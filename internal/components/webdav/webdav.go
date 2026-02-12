@@ -1,5 +1,4 @@
-// Package webdav provides a minimal WebDAV handler for OCM file serving.
-// It wraps golang.org/x/net/webdav with OCM-specific auth and read-only behavior.
+// Package webdav provides WebDAV file serving with OCM auth (Bearer/Basic) and read-only behavior.
 package webdav
 
 import (
@@ -30,9 +29,7 @@ type Handler struct {
 	logger          *slog.Logger
 }
 
-// NewHandler creates a new WebDAV handler.
-// Settings controls must-exchange-token enforcement behavior.
-// ProfileRegistry enables peer-specific relaxations in lenient mode.
+// NewHandler builds a WebDAV handler. Settings control must-exchange-token enforcement; ProfileRegistry enables peer relaxations in lenient mode.
 func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 	if settings == nil {
@@ -50,8 +47,6 @@ func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.
 
 // ServeHTTP handles WebDAV requests at /webdav/ocm/{webdavId}.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Extract webdavId from path
-	// Path format: /webdav/ocm/{webdavId} or /webdav/ocm/{webdavId}/...
 	webdavID := extractWebDAVID(r.URL.Path)
 	if webdavID == "" {
 		h.logger.Debug("WebDAV request missing webdav_id", "path", r.URL.Path)
@@ -59,21 +54,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate webdavId format (should be a UUID)
 	if !isValidWebDAVID(webdavID) {
 		h.logger.Debug("WebDAV request with invalid webdav_id", "webdav_id", webdavID)
 		http.Error(w, "invalid webdavId", http.StatusBadRequest)
 		return
 	}
 
-	// Check for write methods and reject with 501
 	if isWriteMethod(r.Method) {
 		h.logger.Debug("WebDAV write method rejected", "method", r.Method, "webdav_id", webdavID)
 		http.Error(w, "write operations not supported", http.StatusNotImplemented)
 		return
 	}
 
-	// Extract credential (Bearer or Basic auth)
 	cred := extractCredential(r)
 	if cred == nil {
 		h.logger.Debug("WebDAV request missing authorization", "webdav_id", webdavID)
@@ -93,7 +85,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate credential with must-exchange-token enforcement and peer profile checks
 	authorized, authMethod := h.validateCredential(r.Context(), share, cred.Token, cred.Source)
 	if !authorized {
 		h.logger.Debug("WebDAV invalid credentials", "webdav_id", webdavID)
@@ -107,11 +98,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serveFile(w, r, share)
 }
 
-// validateCredential validates the token against the share.
-// Returns (authorized bool, method string) where method is "exchanged_token" or "shared_secret".
-// authSource is the credential source (e.g., "bearer", "basic:token:", "basic:id:token").
+// validateCredential validates the token; returns (authorized, method) with method "exchanged_token" or "shared_secret".
 func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.OutgoingShare, token string, authSource string) (bool, string) {
-	// Try exchanged token first (always valid if found)
 	if h.tokenStore != nil {
 		issuedToken, err := h.tokenStore.Get(ctx, token)
 		if err == nil && issuedToken != nil && issuedToken.ShareID == share.ShareID {
@@ -119,10 +107,8 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 		}
 	}
 
-	// Get peer profile for relaxation checks
 	profile := h.getProfileForShare(share)
 
-	// Check Basic auth pattern allowed by profile
 	if strings.HasPrefix(authSource, "basic:") {
 		patternKey := strings.TrimPrefix(authSource, "basic:")
 		if !profile.IsBasicAuthPatternAllowed(patternKey) {
@@ -130,18 +116,13 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 		}
 	}
 
-	// Check must-exchange-token enforcement based on settings mode
 	if share.MustExchangeToken && h.settings.EnforceMustExchangeToken() {
-		// In lenient mode, check for peer profile relaxation
 		if h.settings.WebDAVTokenExchangeMode == "lenient" && profile.RelaxMustExchangeToken {
-			// Relaxation allowed - continue to shared secret check
 		} else {
-			// Strict mode or profile does not relax - reject
 			return false, ""
 		}
 	}
 
-	// Fall back to shared secret
 	if share.SharedSecret == token {
 		return true, "shared_secret"
 	}
@@ -149,8 +130,7 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 	return false, ""
 }
 
-// getProfileForShare returns the peer profile for a share's receiver.
-// Falls back to the strict profile if no registry is configured.
+// getProfileForShare returns the peer profile; falls back to strict if no registry.
 func (h *Handler) getProfileForShare(share *sharesoutgoing.OutgoingShare) *peercompat.Profile {
 	if h.profileRegistry == nil {
 		return peercompat.BuiltinProfiles()["strict"]
@@ -158,12 +138,10 @@ func (h *Handler) getProfileForShare(share *sharesoutgoing.OutgoingShare) *peerc
 	return h.profileRegistry.GetProfile(share.ReceiverHost)
 }
 
-// serveFile serves the file at share.LocalPath via WebDAV.
+// serveFile serves share.LocalPath via WebDAV.
 func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, share *sharesoutgoing.OutgoingShare) {
-	// Create a file system rooted at the file's parent directory
 	localPath := share.LocalPath
 
-	// Check if the file exists
 	stat, err := os.Stat(localPath)
 	if err != nil {
 		h.logger.Error("WebDAV file stat failed", "path", localPath, "error", err)
@@ -171,13 +149,11 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, share *share
 		return
 	}
 
-	// Create a single-file filesystem
 	singleFS := &singleFileFS{
 		path: localPath,
 		info: stat,
 	}
 
-	// Create webdav handler for this file
 	davHandler := &webdav.Handler{
 		Prefix:     strings.TrimSuffix(r.URL.Path, "/"+filepath.Base(localPath)),
 		FileSystem: singleFS,
@@ -192,10 +168,8 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, share *share
 	davHandler.ServeHTTP(w, r)
 }
 
-// extractWebDAVID extracts the webdavId from the request path.
-// Expected path format: /webdav/ocm/{webdavId}
+// extractWebDAVID extracts webdavId from path /webdav/ocm/{webdavId} or /webdav/ocm/{webdavId}/...
 func extractWebDAVID(path string) string {
-	// Strip prefix /webdav/ocm/
 	prefix := "/webdav/ocm/"
 	if !strings.HasPrefix(path, prefix) {
 		return ""
@@ -206,7 +180,6 @@ func extractWebDAVID(path string) string {
 		return ""
 	}
 
-	// Get the first path segment as webdavId
 	parts := strings.SplitN(rest, "/", 2)
 	if len(parts) == 0 {
 		return ""
@@ -215,24 +188,20 @@ func extractWebDAVID(path string) string {
 	return parts[0]
 }
 
-// isValidWebDAVID validates a webdavId (should be a UUID format).
+// isValidWebDAVID validates webdavId (UUID format, no path traversal).
 func isValidWebDAVID(id string) bool {
-	// Check for path traversal
 	if strings.Contains(id, "..") || strings.Contains(id, "/") || strings.Contains(id, "\\") {
 		return false
 	}
 
-	// Basic UUID format check (8-4-4-4-12 hex digits)
 	if len(id) != 36 {
 		return false
 	}
 
-	// Check hyphens at correct positions
 	if id[8] != '-' || id[13] != '-' || id[18] != '-' || id[23] != '-' {
 		return false
 	}
 
-	// Check all other chars are hex
 	for i, c := range id {
 		if i == 8 || i == 13 || i == 18 || i == 23 {
 			continue
@@ -257,24 +226,16 @@ func isWriteMethod(method string) bool {
 // credentialResult holds extracted auth credentials.
 type credentialResult struct {
 	Token  string
-	Source string // for logging: "bearer", "basic:token:", "basic::token", "basic:token:token", "basic:id:token"
+	Source string // auth source for logging only (bearer, basic:*, etc)
 }
 
-// extractCredential extracts authentication credential from Bearer or Basic auth.
-// Returns nil if no valid auth header is present.
-// Patterns supported (per OCM landscape - Amity, Reva, OpenCloudMesh-rs):
-//   - Bearer <token>
-//   - Basic <base64(token:)>        -> username=token, password=empty (OCM spec)
-//   - Basic <base64(token:token)>   -> username=password (some implementations)
-//   - Basic <base64(:token)>        -> empty username (some implementations)
-//   - Basic <base64(id:token)>      -> provider_id:sharedSecret or share_id:sharedSecret
+// extractCredential extracts auth from Bearer or Basic header. Returns nil if absent or invalid.
 func extractCredential(r *http.Request) *credentialResult {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
 		return nil
 	}
 
-	// Bearer auth (preferred)
 	if strings.HasPrefix(auth, "Bearer ") {
 		token := strings.TrimPrefix(auth, "Bearer ")
 		if token != "" {
@@ -283,7 +244,6 @@ func extractCredential(r *http.Request) *credentialResult {
 		return nil
 	}
 
-	// Basic auth (legacy interop)
 	if strings.HasPrefix(auth, "Basic ") {
 		encoded := strings.TrimPrefix(auth, "Basic ")
 		decoded, err := base64.StdEncoding.DecodeString(encoded)
@@ -296,25 +256,19 @@ func extractCredential(r *http.Request) *credentialResult {
 		}
 		username, password := parts[0], parts[1]
 
-		// Pattern 1: token: (OCM spec - username is sharedSecret, password empty)
 		if password == "" && username != "" {
 			return &credentialResult{Token: username, Source: "basic:token:"}
 		}
 
-		// Pattern 2: token:token (some implementations send same value twice)
 		if username != "" && username == password {
 			return &credentialResult{Token: username, Source: "basic:token:token"}
 		}
 
-		// Pattern 3: :token (empty username, password is token)
 		if username == "" && password != "" {
 			return &credentialResult{Token: password, Source: "basic::token"}
 		}
 
-		// Pattern 4: id:token (Reva/OpenCloudMesh-rs style - provider_id:sharedSecret)
-		// Treat password as the token candidate (id is just context)
 		if username != "" && password != "" {
-			// Tolerate trailing ":" on password (OpenCloudMesh-rs quirk)
 			token := strings.TrimSuffix(password, ":")
 			return &credentialResult{Token: token, Source: "basic:id:token"}
 		}
@@ -325,8 +279,7 @@ func extractCredential(r *http.Request) *credentialResult {
 	return nil
 }
 
-// extractBearerToken extracts the bearer token from the Authorization header.
-// Deprecated: Use extractCredential for full auth support.
+// extractBearerToken returns the Bearer token. Deprecated: use extractCredential.
 func extractBearerToken(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
@@ -341,7 +294,7 @@ func extractBearerToken(r *http.Request) string {
 	return strings.TrimPrefix(auth, prefix)
 }
 
-// singleFileFS implements webdav.FileSystem for serving a single file.
+// singleFileFS implements webdav.FileSystem for a single file.
 type singleFileFS struct {
 	path string
 	info fs.FileInfo
@@ -352,13 +305,11 @@ func (fs *singleFileFS) Mkdir(ctx context.Context, name string, perm os.FileMode
 }
 
 func (fs *singleFileFS) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
-	// Only allow opening the root or the file itself
 	name = strings.TrimPrefix(name, "/")
 	if name != "" && name != filepath.Base(fs.path) {
 		return nil, os.ErrNotExist
 	}
 
-	// If opening root, return a virtual directory containing the file
 	if name == "" {
 		return &virtualDir{
 			name:  "/",
@@ -366,7 +317,6 @@ func (fs *singleFileFS) OpenFile(ctx context.Context, name string, flag int, per
 		}, nil
 	}
 
-	// Open the actual file (read-only)
 	if flag&(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) != 0 {
 		return nil, os.ErrPermission
 	}
@@ -385,7 +335,6 @@ func (fs *singleFileFS) Rename(ctx context.Context, oldName, newName string) err
 func (fs *singleFileFS) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	name = strings.TrimPrefix(name, "/")
 	if name == "" {
-		// Return info for the virtual root directory
 		return &virtualDirInfo{name: "/"}, nil
 	}
 	if name == filepath.Base(fs.path) {
@@ -394,7 +343,7 @@ func (fs *singleFileFS) Stat(ctx context.Context, name string) (os.FileInfo, err
 	return nil, os.ErrNotExist
 }
 
-// virtualDir represents a virtual directory containing a single file.
+// virtualDir is a virtual directory containing a single file.
 type virtualDir struct {
 	name   string
 	files  []os.FileInfo
@@ -433,7 +382,7 @@ func (d *virtualDir) Stat() (os.FileInfo, error) {
 	return &virtualDirInfo{name: d.name}, nil
 }
 
-// virtualDirInfo represents info for a virtual directory.
+// virtualDirInfo is the os.FileInfo for a virtual directory.
 type virtualDirInfo struct {
 	name string
 }

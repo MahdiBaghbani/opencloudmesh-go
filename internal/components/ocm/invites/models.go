@@ -1,8 +1,5 @@
-// Package invites provides shared types for OCM invitation handling.
-// Domain models and repositories live in direction-aware sub-packages:
-//   - invites/inbox: incoming invite storage (IncomingInvite, IncomingInviteRepo)
-//   - invites/outgoing: outgoing invite storage (OutgoingInvite, OutgoingInviteRepo)
-//   - invites/incoming: inbound OCM protocol handler (POST /ocm/invite-accepted)
+// Package invites provides shared types for OCM invitations. Subpackages: inbox (storage),
+// outgoing (storage), incoming (POST /ocm/invite-accepted handler).
 package invites
 
 import (
@@ -12,7 +9,6 @@ import (
 	"time"
 )
 
-// InviteStatus represents the status of an invitation.
 type InviteStatus string
 
 const (
@@ -27,13 +23,13 @@ var (
 	ErrTokenNotFound  = errors.New("token not found")
 )
 
-// CreateOutgoingRequest is the request for POST /api/invites/outgoing.
+// CreateOutgoingRequest is the body for POST /api/invites/outgoing.
 type CreateOutgoingRequest struct {
 	RecipientEmail string `json:"recipientEmail,omitempty"`
 	Description    string `json:"description,omitempty"`
 }
 
-// CreateOutgoingResponse is the response for POST /api/invites/outgoing.
+// CreateOutgoingResponse is the body for POST /api/invites/outgoing response.
 type CreateOutgoingResponse struct {
 	InviteString string `json:"inviteString"`
 	Token        string `json:"token"`
@@ -41,9 +37,7 @@ type CreateOutgoingResponse struct {
 	ExpiresAt    time.Time `json:"expiresAt"`
 }
 
-// ParseInviteString parses a base64 invite string into token and provider FQDN.
-// Format: base64("<token>@<provider_fqdn>")
-// Provider FQDN must not contain scheme.
+// ParseInviteString decodes base64 invite string; splits on last '@' into token and provider FQDN. Provider must not contain scheme.
 func ParseInviteString(inviteString string) (token, providerFQDN string, err error) {
 	decoded, err := base64.StdEncoding.DecodeString(inviteString)
 	if err != nil {
@@ -51,8 +45,6 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 	}
 
 	inner := string(decoded)
-
-	// Must contain exactly one @
 	atIdx := strings.LastIndex(inner, "@")
 	if atIdx == -1 {
 		return "", "", errors.New("invalid invite format: missing @")
@@ -76,7 +68,6 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 	return token, providerFQDN, nil
 }
 
-// BuildInviteString creates a base64 invite string from token and provider FQDN.
 func BuildInviteString(token, providerFQDN string) string {
 	inner := token + "@" + providerFQDN
 	return base64.StdEncoding.EncodeToString([]byte(inner))

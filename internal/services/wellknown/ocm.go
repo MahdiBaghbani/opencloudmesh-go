@@ -191,7 +191,7 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		disc.TokenEndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix, tokenPath)
 	}
 
-	// Unconditional capabilities (always advertised per OCM-API spec)
+	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#ocm-api-discovery
 	capabilities = append(capabilities, "invites", "webdav-uri", "protocol-object", "notifications")
 
 	// Invite accept dialog (WAYF)

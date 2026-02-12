@@ -1,5 +1,4 @@
-// Package shares implements the session-gated outgoing share handler.
-// Handles POST /api/shares/outgoing for creating shares to remote receivers.
+// Package shares provides the session-gated handler for POST /api/shares/outgoing (create shares to remote receivers).
 package shares
 
 import (
@@ -33,7 +32,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// Handler handles outgoing share creation.
+// Handler serves POST /api/shares/outgoing to create and send shares.
 type Handler struct {
 	repo            sharesoutgoing.OutgoingShareRepo
 	discoveryClient *discovery.Client
@@ -47,7 +46,7 @@ type Handler struct {
 	allowedPaths    []string
 }
 
-// NewHandler creates a new outgoing shares handler.
+// NewHandler returns a Handler with the given dependencies.
 func NewHandler(
 	repo sharesoutgoing.OutgoingShareRepo,
 	discClient *discovery.Client,
@@ -74,7 +73,7 @@ func NewHandler(
 	}
 }
 
-// SetAllowedPaths sets the allowed path prefixes for file sharing.
+// SetAllowedPaths restricts localPath to the given directory prefixes.
 func (h *Handler) SetAllowedPaths(paths []string) {
 	h.allowedPaths = paths
 }
@@ -86,7 +85,6 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve session user for owner/sender identity (E1=B, Q6=A)
 	user, err := h.currentUser(r.Context())
 	if err != nil {
 		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
@@ -146,7 +144,6 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	webdavID, _ := uuid.NewV7()
 	sharedSecret := generateSharedSecret()
 
-	// Build owner/sender using session user identity (E1=B, Reva-style base64)
 	owner := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 
@@ -246,7 +243,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// validateLocalPath validates and sanitizes a local file path.
+// validateLocalPath ensures path is absolute, under allowedPaths, and has no traversal.
 func (h *Handler) validateLocalPath(path string) (string, error) {
 	cleanPath := filepath.Clean(path)
 
@@ -273,7 +270,6 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	return cleanPath, nil
 }
 
-// sendShareToReceiver sends the share payload to the receiver.
 func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payload spec.NewShareRequest, disc *discovery.Discovery) error {
 	sharesURL, err := url.JoinPath(endPoint, "shares")
 	if err != nil {
@@ -333,7 +329,6 @@ func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payl
 	return nil
 }
 
-// generateSharedSecret generates a random shared secret.
 func generateSharedSecret() string {
 	b := make([]byte, 32)
 	rand.Read(b)

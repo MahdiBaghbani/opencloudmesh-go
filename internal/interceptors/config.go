@@ -3,8 +3,6 @@ package interceptors
 import "fmt"
 
 // GetProfileConfig looks up a named profile from an interceptor's config.
-// The interceptorsCfg is typically deps.GetDeps().Config.HTTP.Interceptors.
-// Returns the profile config map or an error if not found.
 func GetProfileConfig(interceptorsCfg map[string]map[string]any, interceptorName, profileName string) (map[string]any, error) {
 	if interceptorsCfg == nil {
 		return nil, fmt.Errorf("no interceptors configured, cannot find %s profile %q", interceptorName, profileName)

@@ -10,9 +10,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
 
-// IncomingInviteRepo manages incoming invites.
-// All read/write operations are scoped to a specific recipient user id.
-// Cross-user access behaves as not found (confidentiality invariant).
+// IncomingInviteRepo manages incoming invites; all ops scoped by recipient user id. Cross-user access = not found.
 type IncomingInviteRepo interface {
 	Create(ctx context.Context, invite *IncomingInvite) error
 	GetByIDForRecipientUserID(ctx context.Context, id string, recipientUserID string) (*IncomingInvite, error)
@@ -22,7 +20,6 @@ type IncomingInviteRepo interface {
 	DeleteForRecipientUserID(ctx context.Context, id string, recipientUserID string) error
 }
 
-// MemoryIncomingInviteRepo is an in-memory implementation with per-user scoping.
 type MemoryIncomingInviteRepo struct {
 	mu               sync.RWMutex
 	invites          map[string]*IncomingInvite
@@ -30,7 +27,6 @@ type MemoryIncomingInviteRepo struct {
 	byTokenRecipient map[string]string   // "token\x00recipientUserID" -> inviteID
 }
 
-// NewMemoryIncomingInviteRepo creates a new in-memory incoming invite repo.
 func NewMemoryIncomingInviteRepo() *MemoryIncomingInviteRepo {
 	return &MemoryIncomingInviteRepo{
 		invites:          make(map[string]*IncomingInvite),
@@ -39,7 +35,6 @@ func NewMemoryIncomingInviteRepo() *MemoryIncomingInviteRepo {
 	}
 }
 
-// tokenRecipientKey builds the composite key for the byTokenRecipient index.
 func tokenRecipientKey(token, recipientUserID string) string {
 	return token + "\x00" + recipientUserID
 }
@@ -59,14 +54,10 @@ func (r *MemoryIncomingInviteRepo) Create(ctx context.Context, invite *IncomingI
 	}
 
 	r.invites[invite.ID] = invite
-
-	// Maintain recipient user index
 	if invite.RecipientUserID != "" {
 		r.byRecipientUser[invite.RecipientUserID] = append(
 			r.byRecipientUser[invite.RecipientUserID], invite.ID)
 	}
-
-	// Maintain token+recipient index for idempotent import
 	if invite.Token != "" && invite.RecipientUserID != "" {
 		r.byTokenRecipient[tokenRecipientKey(invite.Token, invite.RecipientUserID)] = invite.ID
 	}
@@ -134,13 +125,9 @@ func (r *MemoryIncomingInviteRepo) DeleteForRecipientUserID(ctx context.Context,
 	if !ok || invite.RecipientUserID != recipientUserID {
 		return invites.ErrInviteNotFound
 	}
-
-	// Clean up token+recipient index
 	if invite.Token != "" {
 		delete(r.byTokenRecipient, tokenRecipientKey(invite.Token, invite.RecipientUserID))
 	}
-
-	// Clean up recipient user index
 	ids := r.byRecipientUser[invite.RecipientUserID]
 	for i, iid := range ids {
 		if iid == id {

@@ -1,4 +1,5 @@
-.PHONY: build test-go test-integration test-e2e test clean
+# OpenCloudMesh server build and test targets.
+.PHONY: build test-go test-integration test-e2e test clean fmt vet tidy
 
 # Build the server binary
 build:

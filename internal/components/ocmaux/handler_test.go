@@ -17,15 +17,12 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 
-	// Register cache drivers for discovery client
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 }
-
-// --- HandleFederations tests ---
 
 func TestHandleFederations_NilTrustGroupManager(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
@@ -150,7 +147,6 @@ func TestHandleFederations_WithServers(t *testing.T) {
 	if srv.URL != discServer.URL {
 		t.Errorf("expected URL %q, got %q", discServer.URL, srv.URL)
 	}
-	// inviteAcceptDialog should be resolved to absolute
 	if srv.InviteAcceptDialog == "" {
 		t.Error("expected non-empty inviteAcceptDialog")
 	}
@@ -160,7 +156,6 @@ func TestHandleFederations_WithServers(t *testing.T) {
 }
 
 func TestHandleFederations_DiscoveryFailureDropsServer(t *testing.T) {
-	// Discovery server that always fails
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	}))
@@ -211,14 +206,12 @@ func TestHandleFederations_DiscoveryFailureDropsServer(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("expected 1 federation, got %d", len(result))
 	}
-	// Server should be silently dropped because discovery failed
 	if len(result[0].Servers) != 0 {
 		t.Errorf("expected 0 servers (discovery failed), got %d", len(result[0].Servers))
 	}
 }
 
 func TestHandleFederations_NoDiscoveryClient(t *testing.T) {
-	// When discoveryClient is nil, servers are returned without enrichment
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
 	mgr.AddTrustGroup(&peertrust.TrustGroupConfig{
 		TrustGroupID: "tg1",
@@ -276,8 +269,6 @@ func TestHandleFederations_MethodNotAllowed(t *testing.T) {
 		t.Errorf("expected 405, got %d", w.Code)
 	}
 }
-
-// --- HandleDiscover tests ---
 
 func TestHandleDiscover_MissingBase(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
@@ -392,7 +383,6 @@ func TestHandleDiscover_Success(t *testing.T) {
 }
 
 func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
-	// Discovery server that returns a relative inviteAcceptDialog
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
@@ -444,14 +434,12 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 	if resp.InviteAcceptDialogAbsolute == "" {
 		t.Error("expected non-empty inviteAcceptDialogAbsolute")
 	}
-	// The relative path should be resolved against the discovered server URL
 	if resp.InviteAcceptDialogAbsolute == "/apps/ocm/invite-accept" {
 		t.Error("expected absolute URL, got relative")
 	}
 }
 
 func TestHandleDiscover_NoInviteAcceptDialog(t *testing.T) {
-	// Discovery server that does NOT return inviteAcceptDialog
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{

@@ -11,7 +11,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// SeededUser defines a user to be created at startup.
 type SeededUser struct {
 	Username    string
 	Password    string
@@ -29,7 +28,6 @@ type Bootstrap struct {
 	log  *slog.Logger
 }
 
-// NewBootstrap creates a new bootstrap handler.
 func NewBootstrap(repo PartyRepo, auth *UserAuth, log *slog.Logger) *Bootstrap {
 	log = logutil.NoopIfNil(log)
 	return &Bootstrap{
@@ -39,12 +37,9 @@ func NewBootstrap(repo PartyRepo, auth *UserAuth, log *slog.Logger) *Bootstrap {
 	}
 }
 
-// Run creates the admin user and any seeded users.
-// Returns the number of users created (0 if all already exist).
+// Run creates the admin user and any seeded users; returns the count created.
 func (b *Bootstrap) Run(ctx context.Context, admin SeededUser, seeded []SeededUser) (int, error) {
 	var created int
-
-	// Create admin user first
 	if admin.Username != "" {
 		n, err := b.ensureUser(ctx, admin)
 		if err != nil {
@@ -52,8 +47,6 @@ func (b *Bootstrap) Run(ctx context.Context, admin SeededUser, seeded []SeededUs
 		}
 		created += n
 	}
-
-	// Create seeded users
 	for _, s := range seeded {
 		n, err := b.ensureUser(ctx, s)
 		if err != nil {
@@ -74,8 +67,6 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	if username == "" {
 		username = "admin"
 	}
-
-	// Check if a super admin already exists (by role, not username)
 	users, err := b.repo.List(ctx, "")
 	if err != nil {
 		return err
@@ -90,9 +81,7 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	}
 
 	if existingSuperAdmin != nil {
-		// Super admin exists
 		if explicitPasswordSet && password != "" {
-			// Rotate password
 			hash, err := b.auth.HashPassword(password)
 			if err != nil {
 				return err
@@ -105,8 +94,6 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 		}
 		return nil
 	}
-
-	// No super admin exists, create one
 	passwordGenerated := false
 	if password == "" {
 		password = generateRandomPassword()
@@ -143,18 +130,15 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	return nil
 }
 
-// generateRandomPassword generates a cryptographically secure random password.
 func generateRandomPassword() string {
 	b := make([]byte, 24)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to a simple random string if crypto/rand fails
 		return "changeme-" + UUIDv7()
 	}
 	return base64.URLEncoding.EncodeToString(b)
 }
 
 func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
-	// Check if user exists
 	_, err := b.repo.GetByUsername(ctx, s.Username)
 	if err == nil {
 		b.log.Debug("user already exists", "username", s.Username)
@@ -163,8 +147,6 @@ func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
 	if !errors.Is(err, ErrUserNotFound) {
 		return 0, err
 	}
-
-	// Hash password
 	hash, err := b.auth.HashPassword(s.Password)
 	if err != nil {
 		return 0, err
@@ -203,7 +185,6 @@ func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, rea
 	// Check if user already exists
 	existing, err := b.repo.GetByUsername(ctx, username)
 	if err == nil {
-		// User exists - check if it's a probe in the same realm
 		if existing.IsProbe() && existing.Realm == realm {
 			return existing, nil
 		}

@@ -391,7 +391,6 @@
         if (body) body.style.display = body.style.display === "none" ? "block" : "none";
       }
 
-      // Load user info
       fetch("api/auth/me", { credentials: "same-origin" })
         .then((r) => {
           if (!r.ok) throw new Error("not authenticated");
@@ -416,7 +415,6 @@
           window.location.href = "ui/login";
         });
 
-      // Load shares
       async function loadShares() {
         try {
           const resp = await fetch("api/inbox/shares", { credentials: "same-origin" });
@@ -430,7 +428,6 @@
         }
       }
 
-      // Render shares based on current filter
       function renderShares() {
         const list = document.getElementById("share-list");
         let filtered = allShares;
@@ -492,7 +489,6 @@
           .join("");
       }
 
-      // Accept share
       async function acceptShare(shareId) {
         try {
           const resp = await fetch("api/inbox/shares/" + shareId + "/accept", {
@@ -507,7 +503,6 @@
         }
       }
 
-      // Decline share
       async function declineShare(shareId) {
         try {
           const resp = await fetch("api/inbox/shares/" + shareId + "/decline", {
@@ -534,7 +529,6 @@
         return escapeHtml(str).replace(/"/g, "&quot;");
       }
 
-      // Toggle protocol details for a share (lazy-fetched, cached)
       async function toggleProtocolDetails(shareId) {
         const container = document.getElementById("protocol-details-" + shareId);
         if (!container) return;
@@ -567,7 +561,6 @@
         }
       }
 
-      // Verify WebDAV access for an accepted share
       async function verifyAccess(shareId) {
         const container = document.getElementById("verify-result-" + shareId);
         if (!container) return;
@@ -604,7 +597,6 @@
         }
       }
 
-      // Tab filtering
       document.querySelectorAll("#share-tabs .tab").forEach((tab) => {
         tab.addEventListener("click", () => {
           document
@@ -629,7 +621,6 @@
         }
       }
 
-      // Render invites based on current filter
       function renderInvites() {
         const list = document.getElementById("invite-list");
         let filtered = allInvites;
@@ -665,7 +656,6 @@
           .join("");
       }
 
-      // Accept invite
       async function acceptInvite(inviteId) {
         try {
           const resp = await fetch("api/inbox/invites/" + inviteId + "/accept", {
@@ -680,7 +670,6 @@
         }
       }
 
-      // Decline invite
       async function declineInvite(inviteId) {
         try {
           const resp = await fetch("api/inbox/invites/" + inviteId + "/decline", {
@@ -694,7 +683,6 @@
         }
       }
 
-      // Invite tab filtering
       document.querySelectorAll("#invite-tabs .tab").forEach((tab) => {
         tab.addEventListener("click", () => {
           document
@@ -706,7 +694,6 @@
         });
       });
 
-      // Load shares and invites on page load
       loadShares();
       loadInvites();
     </script>

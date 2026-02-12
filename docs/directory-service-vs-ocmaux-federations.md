@@ -2,13 +2,13 @@
 
 This document exists to prevent repeated confusion about "Directory Service" and the `ocmaux` service.
 
-The Open Cloud Mesh specification defines a Directory Service (Appendix C) as an optional, third-party input that can be used to facilitate the Invite Flow. Separately, implementations often expose helper endpoints (for example Reva's ScienceMesh endpoints) to power a WAYF (Where Are You From) user experience.
+The [OCM-API spec](https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#appendix-c-directory-service) defines a Directory Service (Appendix C) as an optional, third-party input that can be used to facilitate the Invite Flow. Separately, implementations often expose helper endpoints (for example Reva's ScienceMesh endpoints) to power a WAYF (Where Are You From) user experience.
 
 These two things are related, but they are not the same.
 
 ### What the spec Directory Service is
 
-The OCM-API spec defines a Directory Service as:
+The [IETF-RFC spec](https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#appendix-c-directory-service) defines a Directory Service as:
 
 - A third-party back-end service used to federate multiple OCM Servers and facilitate the Invite Flow.
 - Exposed via anonymous HTTPS GET.
@@ -37,7 +37,7 @@ But it is always a local helper surface, not the third-party Directory Service i
 
 ### Where invite-accepted trust decisions belong
 
-`POST /ocm/invite-accepted` is an OCM Provider endpoint (Invite Flow).
+`POST /ocm/invite-accepted` is an OCM Provider endpoint ([Invite Flow](https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#invite-flow)).
 
 Per the spec, the Invite Sender server should:
 

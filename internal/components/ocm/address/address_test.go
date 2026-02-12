@@ -131,12 +131,10 @@ func TestEncodeFederatedOpaqueID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			encoded := EncodeFederatedOpaqueID(tt.userID, tt.idp)
 
-			// Must use base64url charset (no '+' or '/')
 			if strings.ContainsAny(encoded, "+/") {
-				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains standard base64 chars (+/), expected base64url", tt.userID, tt.idp, encoded)
+				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains +/ (not base64url)", tt.userID, tt.idp, encoded)
 			}
 
-			// Manual decode to verify payload
 			decoded, err := base64.URLEncoding.DecodeString(encoded)
 			if err != nil {
 				t.Fatalf("base64url decode of %q failed: %v", encoded, err)
@@ -311,7 +309,6 @@ func TestFormatOutgoingOCMAddressFromUserID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			addr := FormatOutgoingOCMAddressFromUserID(tt.userID, tt.provider)
 
-			// Must be a valid OCM address
 			identifier, prov, err := Parse(addr)
 			if err != nil {
 				t.Fatalf("Parse(%q) error: %v", addr, err)
@@ -321,13 +318,11 @@ func TestFormatOutgoingOCMAddressFromUserID(t *testing.T) {
 				t.Errorf("provider = %q, want %q", prov, tt.provider)
 			}
 
-			// Identifier should be the federated opaque ID
 			wantIdentifier := EncodeFederatedOpaqueID(tt.userID, tt.provider)
 			if identifier != wantIdentifier {
 				t.Errorf("identifier = %q, want %q", identifier, wantIdentifier)
 			}
 
-			// Full round-trip: decode the identifier back
 			gotUserID, gotIDP, ok := DecodeFederatedOpaqueID(identifier)
 			if !ok {
 				t.Fatalf("DecodeFederatedOpaqueID(%q) failed", identifier)

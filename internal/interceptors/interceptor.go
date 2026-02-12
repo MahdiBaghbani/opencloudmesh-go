@@ -10,5 +10,4 @@ import (
 type Middleware func(http.Handler) http.Handler
 
 // NewInterceptor is the constructor function type for interceptors.
-// Matches Reva pattern: New(config, logger) -> (Middleware, error)
 type NewInterceptor func(conf map[string]any, log *slog.Logger) (Middleware, error)

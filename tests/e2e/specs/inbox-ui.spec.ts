@@ -1,8 +1,8 @@
 /**
- * Inbox UI development tests (single-server, seeded data).
- * Verifies Phase 5 UI elements: data attributes, protocol details toggle,
- * verify-access error display, and invite attributes.
- * No two-server overhead -- share seeded via direct POST to /ocm/shares.
+ * Inbox UI development tests (single-server, fast feedback, seeded data).
+ * Verifies inbox UI elements: data attributes, protocol details toggle,
+ * verify-access error display, invite attributes.
+ * Share seeded via direct POST to /ocm/shares (no two-instance overhead).
  */
 
 import { test, expect } from '@playwright/test';

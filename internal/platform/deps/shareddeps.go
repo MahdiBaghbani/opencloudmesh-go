@@ -1,5 +1,5 @@
 // Package deps provides shared dependencies for all services.
-// See docs/concepts/service-registry.md for details.
+// See internal/frameworks/service and cmd/opencloudmesh-go for service composition.
 package deps
 
 import (
@@ -28,8 +28,6 @@ var (
 )
 
 // Deps holds shared dependencies for all services.
-// This is the opencloudmesh-go equivalent of Reva's sharedconf,
-// adapted for a monolith where services share in-memory repos.
 type Deps struct {
 	// Identity (for session-gated endpoints)
 	PartyRepo   identity.PartyRepo
@@ -73,21 +71,19 @@ type Deps struct {
 	RealIP *realip.TrustedProxies
 }
 
-// SetDeps sets the shared dependencies. Must be called once at startup
-// before any services are constructed.
+// SetDeps sets the shared dependencies. Call once at startup before constructing services.
 func SetDeps(d *Deps) {
 	sharedDepsOnce.Do(func() {
 		sharedDeps = d
 	})
 }
 
-// GetDeps returns the shared dependencies.
-// Returns nil if SetDeps has not been called.
+// GetDeps returns the shared dependencies, or nil if SetDeps has not been called.
 func GetDeps() *Deps {
 	return sharedDeps
 }
 
-// ResetDeps is for testing only. Resets the singleton.
+// ResetDeps clears the singleton (testing only).
 func ResetDeps() {
 	sharedDeps = nil
 	sharedDepsOnce = sync.Once{}

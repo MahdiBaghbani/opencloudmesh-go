@@ -1,5 +1,5 @@
-// Package directoryservice handles JWS fetch, verification, and Appendix C parsing
-// for OCM directory service listings.
+// Package directoryservice fetches and verifies OCM directory service listings.
+// See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#appendix-c-directory-service
 package directoryservice
 
 import (
@@ -18,14 +18,14 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// EndpointConfig is a Directory Service endpoint configured in a trust group.
+// EndpointConfig is a directory service endpoint in a trust group.
 type EndpointConfig struct {
 	URL          string `json:"url"`
 	Enabled      bool   `json:"enabled"`
 	Verification string `json:"verification,omitempty"` // required, optional, off
 }
 
-// VerificationKey is a public key used to verify Directory Service JWS payloads.
+// VerificationKey is a public key for JWS verification.
 type VerificationKey struct {
 	KeyID        string `json:"key_id"`
 	PublicKeyPEM string `json:"public_key_pem"`
@@ -33,8 +33,7 @@ type VerificationKey struct {
 	Active       bool   `json:"active"`
 }
 
-// Listing is a Directory Service listing (strict Appendix C format).
-// Verified is true when JWS verification succeeded, false for unverified payloads.
+// Listing is a directory service response (Appendix C format). Verified is true when JWS verified.
 type Listing struct {
 	Federation string   `json:"federation"`
 	Servers    []Server `json:"servers"`
@@ -47,15 +46,14 @@ type Server struct {
 	DisplayName string `json:"displayName"`
 }
 
-// Client fetches and verifies Directory Service listings.
+// Client fetches and verifies directory service listings.
 type Client struct {
 	httpClient                *httpclient.Client
 	defaultVerificationPolicy string
 	logger                    *slog.Logger
 }
 
-// NewClient creates a new Directory Service client.
-// defaultVerificationPolicy sets the fallback when per-call policy is empty.
+// NewClient creates a directory service client. defaultVerificationPolicy is used when per-call policy is empty.
 func NewClient(httpClient *httpclient.Client, defaultVerificationPolicy string, logger *slog.Logger) *Client {
 	logger = logutil.NoopIfNil(logger)
 	return &Client{
@@ -65,11 +63,9 @@ func NewClient(httpClient *httpclient.Client, defaultVerificationPolicy string, 
 	}
 }
 
-// FetchListing fetches, verifies, and parses the Directory Service listing.
-// verificationPolicy overrides the client-level default when non-empty.
-// Policies: "required" (verify or fail), "optional" (verify if possible, accept
-// unsigned, reject bad signatures), "off" (accept without verification).
-// Verified listings have invalid server URLs filtered per Appendix C constraints.
+// FetchListing fetches and parses the listing. Policies: required (verify or fail), optional
+// (verify if possible, accept unsigned, reject bad sigs), off (no verification). Verified
+// listings have invalid server URLs filtered per Appendix C.
 func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, keys []VerificationKey, verificationPolicy string) (*Listing, error) {
 	body, resp, err := c.httpClient.GetJSON(ctx, directoryServiceURL)
 	if err != nil {
@@ -95,7 +91,6 @@ func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, k
 		return nil, err
 	}
 
-	// URL validation applies only to verified listings.
 	if listing.Verified {
 		listing.Servers = c.filterValidServerURLs(listing.Servers)
 	}
@@ -131,8 +126,7 @@ func (c *Client) parseWithRequiredVerification(body []byte, keys []VerificationK
 	return listing, nil
 }
 
-// parseWithOptionalVerification tries JWS verification, falling back to unsigned
-// acceptance. JWS with bad signatures is always rejected (compromised data).
+// parseWithOptionalVerification: verify if JWS, accept unsigned, always reject bad signatures.
 func (c *Client) parseWithOptionalVerification(body []byte, keys []VerificationKey) (*Listing, error) {
 	algorithms := collectAlgorithms(keys)
 	if len(algorithms) == 0 {
@@ -141,11 +135,8 @@ func (c *Client) parseWithOptionalVerification(body []byte, keys []VerificationK
 
 	jws, err := jose.ParseSigned(string(body), algorithms)
 	if err != nil {
-		// Not valid JWS: accept as unsigned.
 		return c.parseUnverified(body)
 	}
-
-	// Body IS JWS -- signature must verify. Bad signatures are never accepted.
 	listing, err := c.verifyJWS(jws, keys)
 	if err != nil {
 		return nil, fmt.Errorf("directory service response has JWS wrapper but verification failed: %w", err)
@@ -154,8 +145,7 @@ func (c *Client) parseWithOptionalVerification(body []byte, keys []VerificationK
 	return listing, nil
 }
 
-// parseAndVerifyJWS parses JWS in any RFC 7515 serialization (compact, flattened
-// JSON, general JSON) and verifies against the provided keys using go-jose.
+// parseAndVerifyJWS parses JWS (compact/flattened/general JSON) and verifies.
 func (c *Client) parseAndVerifyJWS(body []byte, keys []VerificationKey) (*Listing, error) {
 	algorithms := collectAlgorithms(keys)
 	if len(algorithms) == 0 {
@@ -170,7 +160,6 @@ func (c *Client) parseAndVerifyJWS(body []byte, keys []VerificationKey) (*Listin
 	return c.verifyJWS(jws, keys)
 }
 
-// verifyJWS attempts to verify a parsed JWS against the provided keys.
 func (c *Client) verifyJWS(jws *jose.JSONWebSignature, keys []VerificationKey) (*Listing, error) {
 	multi := len(jws.Signatures) > 1
 
@@ -200,9 +189,7 @@ func (c *Client) verifyJWS(jws *jose.JSONWebSignature, keys []VerificationKey) (
 	return nil, fmt.Errorf("JWS signature verification failed (F2)")
 }
 
-// filterValidServerURLs drops entries with invalid URLs from verified listings.
-// Appendix C constraints: absolute URL with http(s) scheme+host, optional port,
-// path must be empty or "/", no userinfo/query/fragment.
+// filterValidServerURLs drops invalid server URLs from verified listings (Appendix C: http(s), no path/query/fragment).
 func (c *Client) filterValidServerURLs(servers []Server) []Server {
 	valid := make([]Server, 0, len(servers))
 	for _, s := range servers {
@@ -216,7 +203,6 @@ func (c *Client) filterValidServerURLs(servers []Server) []Server {
 	return valid
 }
 
-// isValidServerURL checks Appendix C URL constraints for a server entry.
 func isValidServerURL(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -240,7 +226,6 @@ func isValidServerURL(rawURL string) bool {
 	return true
 }
 
-// collectAlgorithms builds the allowed algorithm set from active keys.
 func collectAlgorithms(keys []VerificationKey) []jose.SignatureAlgorithm {
 	seen := make(map[jose.SignatureAlgorithm]bool)
 	var result []jose.SignatureAlgorithm
@@ -264,7 +249,6 @@ func collectAlgorithms(keys []VerificationKey) []jose.SignatureAlgorithm {
 	return result
 }
 
-// mapAlgorithm maps config algorithm strings to go-jose constants.
 func mapAlgorithm(algorithm string) (jose.SignatureAlgorithm, bool) {
 	switch algorithm {
 	case "Ed25519", "ed25519", "EdDSA":
@@ -278,7 +262,6 @@ func mapAlgorithm(algorithm string) (jose.SignatureAlgorithm, bool) {
 	}
 }
 
-// parseListing parses the payload as strict Appendix C format.
 func parseListing(payload []byte) (*Listing, error) {
 	var listing Listing
 	if err := json.Unmarshal(payload, &listing); err != nil {

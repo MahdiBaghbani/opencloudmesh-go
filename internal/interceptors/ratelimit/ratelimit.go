@@ -45,7 +45,6 @@ type Limiter struct {
 }
 
 // New creates a new ratelimit interceptor from the given config.
-// The config should be the profile config from [http.interceptors.ratelimit.profiles.<name>].
 func New(conf map[string]any, log *slog.Logger) (interceptors.Middleware, error) {
 	log = logutil.NoopIfNil(log)
 
@@ -95,7 +94,6 @@ func (l *Limiter) Wrap(next http.Handler) http.Handler {
 }
 
 // WithKeyFunc returns a new Limiter with a custom key function.
-// This allows services to use different keying strategies if needed.
 func (l *Limiter) WithKeyFunc(fn func(*http.Request) string) *Limiter {
 	return &Limiter{
 		cache:   l.cache,

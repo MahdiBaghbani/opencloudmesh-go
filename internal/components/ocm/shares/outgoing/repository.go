@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// OutgoingShareRepo manages outgoing share storage.
 type OutgoingShareRepo interface {
 	Create(ctx context.Context, share *OutgoingShare) error
 	GetByID(ctx context.Context, shareID string) (*OutgoingShare, error)
@@ -20,16 +19,14 @@ type OutgoingShareRepo interface {
 	Update(ctx context.Context, share *OutgoingShare) error
 }
 
-// MemoryOutgoingShareRepo is an in-memory implementation.
 type MemoryOutgoingShareRepo struct {
 	mu            sync.RWMutex
-	shares        map[string]*OutgoingShare // keyed by shareID
-	providerIndex map[string]string         // providerId -> shareID
-	webdavIndex   map[string]string         // webdavId -> shareID
-	secretIndex   map[string]string         // sharedSecret -> shareID
+	shares        map[string]*OutgoingShare
+	providerIndex map[string]string
+	webdavIndex   map[string]string
+	secretIndex   map[string]string
 }
 
-// NewMemoryOutgoingShareRepo creates a new in-memory repo.
 func NewMemoryOutgoingShareRepo() *MemoryOutgoingShareRepo {
 	return &MemoryOutgoingShareRepo{
 		shares:        make(map[string]*OutgoingShare),

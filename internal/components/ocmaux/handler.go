@@ -1,4 +1,4 @@
-// Package ocmaux provides auxiliary HTTP handlers for OCM helper endpoints.
+// Package ocmaux provides /ocm-aux HTTP handlers (federations, discover).
 package ocmaux
 
 import (
@@ -21,7 +21,7 @@ type AuxHandler struct {
 	logger          *slog.Logger
 }
 
-// NewAuxHandler creates a new auxiliary handler.
+// NewAuxHandler builds an auxiliary handler.
 func NewAuxHandler(trustGroupMgr *peertrust.TrustGroupManager, discClient *discovery.Client, logger *slog.Logger) *AuxHandler {
 	logger = logutil.NoopIfNil(logger)
 	return &AuxHandler{
@@ -37,15 +37,14 @@ type federationEntry struct {
 	Servers    []serverEntry `json:"servers"`
 }
 
-// serverEntry is a server within a federation entry, enriched with discovery data.
+// serverEntry is a server in a federation, optionally with discovery-enriched inviteAcceptDialog.
 type serverEntry struct {
 	DisplayName        string `json:"displayName"`
 	URL                string `json:"url"`
 	InviteAcceptDialog string `json:"inviteAcceptDialog,omitempty"`
 }
 
-// HandleFederations handles GET /ocm-aux/federations.
-// Returns a Reva-aligned JSON array of federation entries with discovery-enriched servers.
+// HandleFederations serves GET /ocm-aux/federations (Reva-aligned, discovery-enriched).
 func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -54,13 +53,11 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Empty array (not null) when no trust group manager or no listings
 	result := []federationEntry{}
 
 	if h.trustGroupMgr != nil {
 		listings := h.trustGroupMgr.GetDirectoryListings(ctx)
 
-		// Merge listings by federation name
 		merged := make(map[string]*federationEntry)
 		var order []string
 		for _, listing := range listings {
@@ -76,7 +73,6 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 					URL:         srv.URL,
 				}
 
-				// Enrich with discovery data (inviteAcceptDialog)
 				if h.discoveryClient != nil {
 					disc, err := h.discoveryClient.Discover(ctx, srv.URL)
 					if err != nil {
@@ -109,16 +105,14 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// resolveInviteDialog resolves a potentially relative inviteAcceptDialog URL against the server URL.
+// resolveInviteDialog resolves relative inviteAcceptDialog against server URL.
 func resolveInviteDialog(serverURL, dialog string) string {
 	if dialog == "" {
 		return ""
 	}
-	// If already absolute, return as-is
 	if strings.HasPrefix(dialog, "http://") || strings.HasPrefix(dialog, "https://") {
 		return dialog
 	}
-	// Resolve relative against server URL
 	base, err := url.Parse(serverURL)
 	if err != nil {
 		return dialog
@@ -130,7 +124,7 @@ func resolveInviteDialog(serverURL, dialog string) string {
 	return base.ResolveReference(ref).String()
 }
 
-// DiscoverResponse is the response for GET /ocm-aux/discover.
+// DiscoverResponse is the JSON response for /ocm-aux/discover.
 type DiscoverResponse struct {
 	Success                    bool                 `json:"success"`
 	Error                      string               `json:"error,omitempty"`
@@ -138,13 +132,7 @@ type DiscoverResponse struct {
 	InviteAcceptDialogAbsolute string               `json:"inviteAcceptDialogAbsolute,omitempty"`
 }
 
-// HandleDiscover handles GET /ocm-aux/discover.
-// Query param: base=<url>
-// Returns:
-//   - 400: missing/invalid base (parse error, unsupported scheme, missing host)
-//   - 403: SSRF blocked target
-//   - 501: discovery client not configured
-//   - 502: upstream/network/discovery failure
+// HandleDiscover serves GET /ocm-aux/discover?base=<url>. Returns 400/403/501/502 on error.
 func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -159,7 +147,6 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse and normalize to origin (<scheme>://<host>)
 	originURL, err := normalizeToOrigin(baseParam)
 	if err != nil {
 		h.sendDiscoverError(w, http.StatusBadRequest, err.Error())
@@ -186,7 +173,6 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 		Discovery: disc,
 	}
 
-	// Resolve inviteAcceptDialog to an absolute URL for WAYF consumers
 	if disc.InviteAcceptDialog != "" {
 		resp.InviteAcceptDialogAbsolute = resolveInviteDialog(originURL, disc.InviteAcceptDialog)
 	}
@@ -195,7 +181,7 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// sendDiscoverError sends a JSON error response for the discover endpoint.
+// sendDiscoverError returns a JSON error for the discover endpoint.
 func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -205,7 +191,7 @@ func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, messag
 	})
 }
 
-// normalizeToOrigin parses a URL and returns just the origin (<scheme>://<host>).
+// normalizeToOrigin parses a URL and returns scheme://host.
 func normalizeToOrigin(rawURL string) (string, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {

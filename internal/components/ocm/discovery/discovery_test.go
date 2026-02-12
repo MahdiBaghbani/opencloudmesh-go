@@ -11,7 +11,6 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 
-	// Register cache drivers for nil-cache tests
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
@@ -24,7 +23,6 @@ func TestHandler_GetDiscovery(t *testing.T) {
 	handler := discovery.NewHandler(cfg)
 	disc := handler.GetDiscovery()
 
-	// Check required fields
 	if !disc.Enabled {
 		t.Error("expected enabled=true")
 	}
@@ -38,7 +36,6 @@ func TestHandler_GetDiscovery(t *testing.T) {
 		t.Errorf("expected provider 'OpenCloudMesh', got %q", disc.Provider)
 	}
 
-	// Check resource types
 	if len(disc.ResourceTypes) != 1 {
 		t.Fatalf("expected 1 resource type, got %d", len(disc.ResourceTypes))
 	}
@@ -107,7 +104,6 @@ func TestHandler_SetPublicKeys(t *testing.T) {
 
 	handler := discovery.NewHandler(cfg)
 
-	// Initially no public keys
 	disc := handler.GetDiscovery()
 	if len(disc.PublicKeys) != 0 {
 		t.Errorf("expected 0 public keys initially, got %d", len(disc.PublicKeys))
@@ -116,7 +112,6 @@ func TestHandler_SetPublicKeys(t *testing.T) {
 		t.Error("should not have http-sig capability without keys")
 	}
 
-	// Set public keys
 	handler.SetPublicKeys([]discovery.PublicKey{
 		{
 			KeyID:        "https://example.com/ocm#key1",
@@ -134,10 +129,6 @@ func TestHandler_SetPublicKeys(t *testing.T) {
 	}
 }
 
-// NOTE: Token exchange capability tests have been moved to the wellknown service.
-// The legacy discovery handler no longer handles token exchange.
-// See internal/services/wellknown/ocm_test.go for token exchange tests.
-
 func TestHandler_CriteriaAlwaysPresent(t *testing.T) {
 	cfg := &config.Config{
 		PublicOrigin: "https://example.com",
@@ -149,23 +140,19 @@ func TestHandler_CriteriaAlwaysPresent(t *testing.T) {
 	handler := discovery.NewHandler(cfg)
 	disc := handler.GetDiscovery()
 
-	// Criteria must be non-nil even when empty
 	if disc.Criteria == nil {
 		t.Error("Criteria must not be nil")
 	}
 
-	// Should be empty when advertise is false
 	if len(disc.Criteria) != 0 {
 		t.Errorf("expected empty criteria, got %v", disc.Criteria)
 	}
 
-	// Verify JSON serialization produces [] not null
 	data, err := json.Marshal(disc)
 	if err != nil {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	// Check that "criteria":[] is in the JSON, not "criteria":null
 	if !json.Valid(data) {
 		t.Error("invalid JSON")
 	}
@@ -207,7 +194,6 @@ func TestHandler_CriteriaAdvertiseHTTPRequestSignatures(t *testing.T) {
 		t.Errorf("expected 'http-request-signatures', got %q", disc.Criteria[0])
 	}
 
-	// HasCriteria helper should work
 	if !disc.HasCriteria("http-request-signatures") {
 		t.Error("HasCriteria should return true for http-request-signatures")
 	}
@@ -281,7 +267,6 @@ func TestDiscovery_Helpers(t *testing.T) {
 }
 
 func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
-	// Create a mock server that returns a valid discovery document
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
@@ -297,7 +282,6 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create HTTP client
 	httpCfg := &config.OutboundHTTPConfig{
 		SSRFMode:         "off",
 		TimeoutMS:        5000,
@@ -306,11 +290,8 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 		MaxResponseBytes: 1048576,
 	}
 	httpClient := httpclient.New(httpCfg, nil)
-
-	// Create discovery client with nil cache - should not panic
 	client := discovery.NewClient(httpClient, nil)
 
-	// Should work (uses default in-memory cache)
 	disc, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
@@ -319,7 +300,6 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 		t.Error("expected discovery to be enabled")
 	}
 
-	// Second call should use cache (hit same server, would work even if cache was nil)
 	disc2, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("second Discover failed: %v", err)

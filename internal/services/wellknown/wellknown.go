@@ -1,5 +1,4 @@
 // Package wellknown provides the OCM discovery service.
-// This matches Reva's internal/http/services/wellknown/ structure.
 package wellknown
 
 import (
@@ -100,6 +99,5 @@ func (s *svc) Unprotected() []string {
 }
 
 // Handler implements service.Service.
-// Wraps router with RawPath clearing to match Reva pattern and avoid chi routing
-// mismatches on percent-encoded path segments.
+// Wraps router with RawPath clearing to avoid chi routing mismatches on percent-encoded paths.
 func (s *svc) Handler() http.Handler { return httpwrap.ClearRawPath(s.router) }

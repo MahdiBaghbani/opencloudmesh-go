@@ -1,4 +1,4 @@
-// Package inbox provides stored incoming invite models and repository.
+// Package inbox provides incoming invite models and repository.
 package inbox
 
 import (
@@ -7,7 +7,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
 
-// IncomingInvite represents an invite we received (via pasting an invite string).
 type IncomingInvite struct {
 	ID              string              `json:"id"`
 	InviteString    string              `json:"inviteString"`

@@ -1,5 +1,5 @@
-// OCM spec error response types and validation helpers.
-// See OCM-API spec v1.2.2 Error and NewShare validation schemas.
+// OCM spec error and validation types.
+// See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#share-creation-notification
 package spec
 
 import (
@@ -7,22 +7,17 @@ import (
 	"net/http"
 )
 
-// ValidationError is a spec-aligned field-level validation error.
 type ValidationError struct {
 	Name    string `json:"name"`
 	Message string `json:"message"`
 }
 
-// OCMErrorResponse is the spec base Error schema (used for 400/403/501).
 type OCMErrorResponse struct {
 	Message          string            `json:"message"`
 	ValidationErrors []ValidationError `json:"validationErrors,omitempty"`
 }
 
-// ValidateRequiredFields checks that all spec-required NewShare fields are present.
-// Returns a non-nil slice of ValidationError for each missing field.
-// Does NOT check protocol.name (that is handled by the share handler after
-// computing strictPayloadValidation).
+// ValidateRequiredFields returns ValidationError for each missing spec-required NewShare field. protocol.name handled by handler.
 func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 	var errs []ValidationError
 
@@ -47,8 +42,6 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 	if req.ResourceType == "" {
 		errs = append(errs, ValidationError{Name: "resourceType", Message: "REQUIRED"})
 	}
-
-	// Protocol is required: must have at least one of Name, WebDAV, or WebApp.
 	if req.Protocol.Name == "" && req.Protocol.WebDAV == nil && req.Protocol.WebApp == nil {
 		errs = append(errs, ValidationError{Name: "protocol", Message: "REQUIRED"})
 	}
@@ -56,8 +49,6 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 	return errs
 }
 
-// WriteValidationError writes a 400 response with the spec's validationErrors format.
-// Used only by POST /ocm/shares. Local API endpoints use api.WriteBadRequest instead.
 func WriteValidationError(w http.ResponseWriter, message string, errors []ValidationError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)

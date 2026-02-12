@@ -22,7 +22,6 @@ var (
 	ErrSuperAdminRoleChange   = errors.New("super admin role cannot be changed")
 )
 
-// Role constants for user roles.
 const (
 	RoleUser       = "user"
 	RoleAdmin      = "admin"
@@ -30,7 +29,7 @@ const (
 	RoleProbe      = "probe"
 )
 
-// User represents a party (user) in the system.
+// User represents a party in the system.
 type User struct {
 	ID           string    `json:"id"`            // UUIDv7
 	Username     string    `json:"username"`      // Unique login name
@@ -44,22 +43,18 @@ type User struct {
 	ExpiresAt    *time.Time `json:"expires_at,omitempty"` // For probe users
 }
 
-// IsProbe returns true if the user is a probe user.
 func (u *User) IsProbe() bool {
 	return u.Role == RoleProbe
 }
 
-// IsAdmin returns true if the user is an admin (includes super_admin).
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin || u.Role == RoleSuperAdmin
 }
 
-// IsSuperAdmin returns true if the user is the super admin.
 func (u *User) IsSuperAdmin() bool {
 	return u.Role == RoleSuperAdmin
 }
 
-// IsExpired returns true if the user has expired.
 func (u *User) IsExpired() bool {
 	if u.ExpiresAt == nil {
 		return false
@@ -95,18 +90,13 @@ type PartyRepo interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
-// UUIDv7 generates a UUIDv7 (time-ordered unique identifier).
+// UUIDv7 returns a time-ordered UUIDv7.
 func UUIDv7() string {
 	var uuid [16]byte
 
-	// Get milliseconds since Unix epoch
 	now := time.Now().UnixMilli()
 	binary.BigEndian.PutUint64(uuid[0:8], uint64(now)<<16)
-
-	// Fill rest with random bytes
 	rand.Read(uuid[6:])
-
-	// Set version (7) and variant (RFC 4122)
 	uuid[6] = (uuid[6] & 0x0f) | 0x70 // Version 7
 	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant
 
@@ -136,7 +126,7 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-// MemoryPartyRepo is an in-memory implementation of PartyRepo.
+// MemoryPartyRepo stores users in memory with username and email indexes.
 type MemoryPartyRepo struct {
 	mu          sync.RWMutex
 	users       map[string]*User // by ID
@@ -144,7 +134,6 @@ type MemoryPartyRepo struct {
 	byEmail    map[string]string // normalized email -> ID (only non-empty emails)
 }
 
-// NewMemoryPartyRepo creates a new in-memory party repository.
 func NewMemoryPartyRepo() *MemoryPartyRepo {
 	return &MemoryPartyRepo{
 		users:      make(map[string]*User),
@@ -161,7 +150,6 @@ func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
 		return ErrUserExists
 	}
 
-	// Enforce email uniqueness when email is non-empty.
 	if norm := normalizeEmail(user.Email); norm != "" {
 		if _, exists := r.byEmail[norm]; exists {
 			return ErrEmailExists
@@ -175,7 +163,6 @@ func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
 		user.CreatedAt = time.Now()
 	}
 
-	// Store a copy
 	u := *user
 	r.users[user.ID] = &u
 	r.byUsername[user.Username] = user.ID
@@ -195,8 +182,6 @@ func (r *MemoryPartyRepo) Get(ctx context.Context, id string) (*User, error) {
 	if !ok {
 		return nil, ErrUserNotFound
 	}
-
-	// Return a copy
 	u := *user
 	return &u, nil
 }
@@ -242,8 +227,6 @@ func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 	if !ok {
 		return ErrUserNotFound
 	}
-
-	// Super admin role cannot be changed
 	if existing.Role == RoleSuperAdmin && user.Role != RoleSuperAdmin {
 		return ErrSuperAdminRoleChange
 	}
@@ -253,8 +236,6 @@ func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 		delete(r.byUsername, existing.Username)
 		r.byUsername[user.Username] = user.ID
 	}
-
-	// Maintain email index
 	oldNorm := normalizeEmail(existing.Email)
 	newNorm := normalizeEmail(user.Email)
 	if oldNorm != newNorm {
@@ -262,7 +243,6 @@ func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 			delete(r.byEmail, oldNorm)
 		}
 		if newNorm != "" {
-			// Check uniqueness against other users
 			if ownerID, exists := r.byEmail[newNorm]; exists && ownerID != user.ID {
 				return ErrEmailExists
 			}
@@ -283,8 +263,6 @@ func (r *MemoryPartyRepo) Delete(ctx context.Context, id string) error {
 	if !ok {
 		return ErrUserNotFound
 	}
-
-	// Super admin cannot be deleted
 	if user.Role == RoleSuperAdmin {
 		return ErrSuperAdminProtected
 	}

@@ -203,8 +203,6 @@
             const data = await resp.json();
 
             if (resp.ok) {
-              // Honor ?redirect= param for post-login return (e.g. from accept-invite)
-              // Only allow safe, same-origin UI paths.
               const params = new URLSearchParams(window.location.search);
               const redirect = params.get("redirect");
               const safeRedirect = getSafeRedirect(redirect);

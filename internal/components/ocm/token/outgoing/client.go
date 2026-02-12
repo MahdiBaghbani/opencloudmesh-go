@@ -19,7 +19,7 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
-// Client is an OCM token exchange client.
+// Client performs OCM token exchange against peer token endpoints.
 type Client struct {
 	httpClient     *httpclient.ContextClient
 	signer         RequestSigner
@@ -32,14 +32,14 @@ type RequestSigner interface {
 	Sign(req *http.Request) error
 }
 
-// ExchangeRequest contains parameters for a token exchange.
+// ExchangeRequest holds token exchange parameters.
 type ExchangeRequest struct {
 	TokenEndPoint string // The peer's tokenEndPoint from discovery
 	PeerDomain    string // The peer's domain (for profile lookup)
 	SharedSecret  string // The code/sharedSecret to exchange
 }
 
-// ExchangeResult contains the result of a token exchange.
+// ExchangeResult holds the exchange result.
 type ExchangeResult struct {
 	AccessToken  string
 	TokenType    string
@@ -47,7 +47,7 @@ type ExchangeResult struct {
 	QuirkApplied string // Name of quirk applied, if any
 }
 
-// NewClient creates a new token exchange client.
+// NewClient builds a token exchange client.
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	signer RequestSigner,
@@ -62,10 +62,8 @@ func NewClient(
 	}
 }
 
-// Exchange performs a token exchange with the peer.
-// Uses the centralized OutboundPolicy to determine signing behavior.
+// Exchange performs token exchange with the peer; OutboundPolicy controls signing.
 func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
-	// Use OutboundPolicy to determine if we should sign
 	var shouldSign bool
 	var profile *peercompat.Profile
 
@@ -85,52 +83,41 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 		}
 		shouldSign = decision.ShouldSign
 
-		// Get profile for quirks
 		if c.outboundPolicy.ProfileRegistry != nil {
 			profile = c.outboundPolicy.ProfileRegistry.GetProfile(req.PeerDomain)
 		}
 	}
 
-	// Resolve grant type: spec default is authorization_code, peers may override.
 	grantType := token.GrantTypeAuthorizationCode
 	if profile != nil {
 		grantType = profile.GetTokenExchangeGrantType()
 	}
 
-	// If not signing, try unsigned directly
 	if !shouldSign {
 		return c.exchangeUnsigned(ctx, req, grantType)
 	}
 
-	// Step 1: Try signed (form-urlencoded) attempt
 	result, err := c.exchangeSigned(ctx, req, grantType, false)
 	if err == nil {
 		return result, nil
 	}
 
-	// Step 2: Classify the error
 	reasonCode := peercompat.ClassifyError(err)
 
-	// Step 3: Check if we can apply quirks (only when policy allows relaxation)
 	if profile != nil && c.outboundPolicy != nil {
-		// Check for accept_plain_token quirk (unsigned request)
 		if profile.HasQuirk("accept_plain_token") &&
 			(reasonCode == peercompat.ReasonSignatureRequired ||
 				reasonCode == peercompat.ReasonSignatureInvalid ||
 				reasonCode == peercompat.ReasonKeyNotFound) {
-			// Try unsigned
 			result, err = c.exchangeUnsigned(ctx, req, grantType)
 			if err == nil {
 				result.QuirkApplied = "accept_plain_token"
 				return result, nil
 			}
 		}
-
-		// Check for send_token_in_body quirk (JSON body)
 		if profile.HasQuirk("send_token_in_body") &&
 			(reasonCode == peercompat.ReasonTokenExchangeFailed ||
 				reasonCode == peercompat.ReasonProtocolMismatch) {
-			// Try JSON body
 			result, err = c.exchangeJSON(ctx, req, grantType, shouldSign)
 			if err == nil {
 				result.QuirkApplied = "send_token_in_body"
@@ -138,12 +125,10 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 			}
 		}
 	}
-
-	// Return original error
 	return nil, peercompat.NewClassifiedError(reasonCode, "token exchange failed", err)
 }
 
-// exchangeSigned performs a signed token exchange request.
+// exchangeSigned sends a signed token exchange request.
 func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, grantType string, useJSON bool) (*ExchangeResult, error) {
 	var httpReq *http.Request
 	var err error
@@ -157,7 +142,6 @@ func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, grantT
 		return nil, err
 	}
 
-	// Sign the request
 	if c.signer != nil {
 		if err := c.signer.Sign(httpReq); err != nil {
 			return nil, peercompat.NewClassifiedError(
@@ -171,7 +155,7 @@ func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, grantT
 	return c.doRequest(ctx, httpReq)
 }
 
-// exchangeUnsigned performs an unsigned token exchange request.
+// exchangeUnsigned sends an unsigned token exchange request.
 func (c *Client) exchangeUnsigned(ctx context.Context, req ExchangeRequest, grantType string) (*ExchangeResult, error) {
 	httpReq, err := c.buildFormRequest(ctx, req, grantType)
 	if err != nil {
@@ -181,7 +165,7 @@ func (c *Client) exchangeUnsigned(ctx context.Context, req ExchangeRequest, gran
 	return c.doRequest(ctx, httpReq)
 }
 
-// exchangeJSON performs a JSON-body token exchange request (Nextcloud quirk).
+// exchangeJSON sends a JSON-body token request (Nextcloud send_token_in_body quirk).
 func (c *Client) exchangeJSON(ctx context.Context, req ExchangeRequest, grantType string, signed bool) (*ExchangeResult, error) {
 	httpReq, err := c.buildJSONRequest(ctx, req, grantType)
 	if err != nil {
@@ -201,7 +185,7 @@ func (c *Client) exchangeJSON(ctx context.Context, req ExchangeRequest, grantTyp
 	return c.doRequest(ctx, httpReq)
 }
 
-// buildFormRequest builds a form-urlencoded token request.
+// buildFormRequest builds a form-urlencoded POST.
 func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest, grantType string) (*http.Request, error) {
 	form := url.Values{}
 	form.Set("grant_type", grantType)
@@ -224,7 +208,7 @@ func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest, gran
 	return httpReq, nil
 }
 
-// buildJSONRequest builds a JSON-body token request (Nextcloud quirk).
+// buildJSONRequest builds a JSON-body POST (Nextcloud quirk).
 func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest, grantType string) (*http.Request, error) {
 	body := token.TokenRequest{
 		GrantType: grantType,
@@ -253,7 +237,7 @@ func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest, gran
 	return httpReq, nil
 }
 
-// doRequest executes the HTTP request and parses the response.
+// doRequest sends the request and parses the token response.
 func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeResult, error) {
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
@@ -265,7 +249,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return nil, peercompat.NewClassifiedError(
 			peercompat.ReasonNetworkError,
@@ -274,7 +258,6 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		)
 	}
 
-	// Check for error response
 	if resp.StatusCode >= 400 {
 		var oauthErr token.OAuthError
 		if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
@@ -287,7 +270,6 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		)
 	}
 
-	// Parse success response
 	var tokenResp token.TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, peercompat.NewClassifiedError(
@@ -304,7 +286,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 	}, nil
 }
 
-// classifyOAuthError maps OAuth error codes to reason codes.
+// classifyOAuthError maps OAuth error codes to peercompat reason codes.
 func (c *Client) classifyOAuthError(oauthErr token.OAuthError, statusCode int) error {
 	var reasonCode string
 	switch oauthErr.Error {

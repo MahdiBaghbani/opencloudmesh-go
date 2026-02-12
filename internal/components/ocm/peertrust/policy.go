@@ -9,7 +9,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// PolicyDecision represents the result of a policy check.
 type PolicyDecision struct {
 	Allowed       bool
 	Reason        string
@@ -17,7 +16,6 @@ type PolicyDecision struct {
 	Authenticated bool // true if peer was authenticated via signature
 }
 
-// PolicyEngine evaluates allow/deny and trust group membership.
 type PolicyEngine struct {
 	cfg           *PolicyConfig
 	trustGroupMgr *TrustGroupManager
@@ -25,7 +23,6 @@ type PolicyEngine struct {
 	mu            sync.RWMutex
 }
 
-// NewPolicyEngine creates a new policy engine.
 func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger *slog.Logger) *PolicyEngine {
 	logger = logutil.NoopIfNil(logger)
 	return &PolicyEngine{
@@ -35,9 +32,6 @@ func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger
 	}
 }
 
-// Evaluate checks if a peer is allowed based on policy.
-// peerHost is the normalized host:port of the peer.
-// authenticated is true if the peer was verified via signature.
 func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authenticated bool) *PolicyDecision {
 	pe.mu.RLock()
 	defer pe.mu.RUnlock()

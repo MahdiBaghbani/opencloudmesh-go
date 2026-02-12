@@ -18,7 +18,7 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
-// mockSigner is a test signer that adds a mock signature header.
+// mockSigner adds a Signature header for tests.
 type mockSigner struct {
 	failSign bool
 }
@@ -34,7 +34,7 @@ func (s *mockSigner) Sign(req *http.Request) error {
 	return nil
 }
 
-// makePolicy creates an OutboundPolicy for testing.
+// makePolicy builds an OutboundPolicy for tests.
 func makePolicy(outboundMode string, profileRegistry *peercompat.ProfileRegistry) *outboundsigning.OutboundPolicy {
 	return &outboundsigning.OutboundPolicy{
 		OutboundMode:        outboundMode,
@@ -44,13 +44,11 @@ func makePolicy(outboundMode string, profileRegistry *peercompat.ProfileRegistry
 }
 
 func TestClient_Exchange_Success(t *testing.T) {
-	// Create mock server that returns a valid token
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 
-		// Verify it's form-urlencoded
 		if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
 			t.Errorf("expected form-urlencoded, got %s", r.Header.Get("Content-Type"))
 		}
@@ -101,9 +99,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 }
 
 func TestClient_Exchange_OutboundModeOff(t *testing.T) {
-	// Create mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Should NOT have a signature header when mode is off
 		if r.Header.Get("Signature") != "" {
 			t.Error("should not have Signature header in off mode")
 		}
@@ -144,7 +140,6 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 }
 
 func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
-	// Create mock server that requires signed requests
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -169,7 +164,6 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 		SSRFMode: "off",
 	}, nil))
 
-	// Strict mode with working signer should succeed
 	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
@@ -192,9 +186,7 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 }
 
 func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
-	// Create mock server that verifies signing
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Token-only mode should sign token exchange
 		if r.Header.Get("Signature") == "" {
 			t.Error("expected Signature header in token-only mode for token exchange")
 		}
@@ -212,7 +204,6 @@ func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
 		SSRFMode: "off",
 	}, nil))
 
-	// token-only should sign token exchange
 	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
@@ -235,9 +226,7 @@ func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
 }
 
 func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
-	// Create mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// criteria-only mode should sign token exchange (token exchange is always signed unless off)
 		if r.Header.Get("Signature") == "" {
 			t.Error("expected Signature header in criteria-only mode for token exchange")
 		}
@@ -277,10 +266,7 @@ func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
 }
 
 func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
-	// Create mock server that accepts unsigned requests
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// With accept_plain_token quirk, OutboundPolicy skips signing upfront
-		// so we should get an unsigned request directly
 		if r.Header.Get("Signature") != "" {
 			t.Error("expected unsigned request when accept_plain_token quirk applies")
 		}
@@ -298,13 +284,11 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 		SSRFMode: "off",
 	}, nil))
 
-	// Set up profile registry with nextcloud profile (has accept_plain_token quirk)
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	}
 	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
 
-	// With accept_plain_token quirk, OutboundPolicy tells us to skip signing
 	client := tokenoutgoing.NewClient(
 		httpClient,
 		&mockSigner{},
@@ -360,7 +344,6 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 		t.Fatal("expected error for invalid grant")
 	}
 
-	// Check it's properly classified
 	var ce *peercompat.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Errorf("expected ClassifiedError, got %T", err)
@@ -368,7 +351,6 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 }
 
 func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
-	// With no profile override (strict/off), default grant_type is authorization_code.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)
@@ -463,7 +445,6 @@ func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 }
 
 func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
-	// Strict profile (no TokenExchangeGrantType override) defaults to authorization_code.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)
@@ -486,7 +467,6 @@ func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
 		SSRFMode: "off",
 	}, nil))
 
-	// Strict mode with profile registry but peer not mapped -> falls back to strict profile
 	mappings := []peercompat.ProfileMapping{}
 	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
 
@@ -511,7 +491,7 @@ func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
 	}
 }
 
-// isClassifiedError checks if err is a ClassifiedError and populates ce.
+// isClassifiedError reports whether err is a ClassifiedError and populates ce.
 func isClassifiedError(err error, ce **peercompat.ClassifiedError) bool {
 	if e, ok := err.(*peercompat.ClassifiedError); ok {
 		*ce = e

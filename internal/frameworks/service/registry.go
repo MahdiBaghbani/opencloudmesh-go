@@ -5,10 +5,7 @@ import (
 	"sync"
 )
 
-// CoreServices lists service names that are always constructed regardless of
-// whether [http.services.<name>] appears in TOML. Today all registered
-// services are core; the variable exists so future optional services can
-// register without being added here.
+// CoreServices lists service names always constructed (all registered today).
 var CoreServices = []string{"wellknown", "ocm", "ocmaux", "api", "ui", "webdav"}
 
 var (
@@ -16,9 +13,7 @@ var (
 	registry   = make(map[string]NewService)
 )
 
-// Register registers a new HTTP service constructor by name.
-// This is typically called from init() in service packages.
-// Duplicate registration returns an error (fail-fast, no panic).
+// Register registers an HTTP service constructor by name. Typically called from init().
 func Register(name string, newFunc NewService) error {
 	registryMu.Lock()
 	defer registryMu.Unlock()
@@ -31,15 +26,13 @@ func Register(name string, newFunc NewService) error {
 }
 
 // MustRegister is like Register but panics on error.
-// Use this in init() where returning an error is not possible.
 func MustRegister(name string, newFunc NewService) {
 	if err := Register(name, newFunc); err != nil {
 		panic(err)
 	}
 }
 
-// Get returns the constructor for a registered service.
-// Returns nil if the service is not registered.
+// Get returns the constructor for a registered service, or nil if unknown.
 func Get(name string) NewService {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
@@ -58,7 +51,7 @@ func RegisteredServices() []string {
 	return names
 }
 
-// resetRegistry is for testing only. Clears the registry.
+// resetRegistry clears the registry (testing only).
 func resetRegistry() {
 	registryMu.Lock()
 	defer registryMu.Unlock()

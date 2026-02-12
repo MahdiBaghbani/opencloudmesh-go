@@ -277,12 +277,10 @@
 
       let allFederations = [];
 
-      // Show warning when no token
       if (!hasToken) {
         document.getElementById("no-token-warning").style.display = "block";
       }
 
-      // Redirect to a provider's accept-invite dialog
       function redirectToProvider(inviteAcceptDialog) {
         if (!hasToken) return;
         const sep = inviteAcceptDialog.includes("?") ? "&" : "?";
@@ -301,7 +299,6 @@
         return div.innerHTML;
       }
 
-      // Render federation providers
       function renderProviders(federations) {
         const container = document.getElementById("providers-container");
         const filter = document.getElementById("filter-input").value.toLowerCase();
@@ -361,7 +358,6 @@
         }
       }
 
-      // Load federation providers
       async function loadFederations() {
         try {
           const resp = await fetch(basePath + "/ocm-aux/federations");
@@ -374,12 +370,10 @@
         }
       }
 
-      // Filter input handler
       document.getElementById("filter-input").addEventListener("input", () => {
         renderProviders(allFederations);
       });
 
-      // Manual discover
       document
         .getElementById("discover-btn")
         .addEventListener("click", async () => {
@@ -413,8 +407,6 @@
               return;
             }
 
-            // Use inviteAcceptDialogAbsolute (pre-resolved) or fall back to
-            // the discovery object's inviteAcceptDialog field
             const dialog =
               data.inviteAcceptDialogAbsolute ||
               (data.discovery && data.discovery.inviteAcceptDialog) ||
@@ -460,7 +452,6 @@
           }
         });
 
-      // Load federations on page load
       loadFederations();
     </script>
   </body>

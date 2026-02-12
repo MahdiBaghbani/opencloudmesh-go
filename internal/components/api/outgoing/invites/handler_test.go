@@ -58,7 +58,6 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, testProvider)
 	}
 
-	// Verify token is stored
 	stored, err := repo.GetByToken(context.Background(), resp.Token)
 	if err != nil {
 		t.Errorf("failed to get stored invite: %v", err)

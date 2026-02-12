@@ -20,12 +20,11 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
-// Share status constants (duplicated to avoid cycle).
+// Share status constants; duplicated here to avoid import cycles.
 const (
 	ShareStatusAccepted = "accepted"
 )
 
-// Error codes for remote access.
 var (
 	ErrTokenExchangeRequired = errors.New("token exchange required but not performed")
 	ErrTokenExchangeFailed   = errors.New("token exchange failed")
@@ -33,8 +32,7 @@ var (
 	ErrShareNotAccepted      = errors.New("share not accepted")
 )
 
-// ShareInfo contains the minimal share information needed for access.
-// This avoids importing the shares package directly.
+// ShareInfo holds the minimal share fields needed for remote access (avoids import cycles).
 type ShareInfo struct {
 	Status             string
 	SenderHost         string
@@ -44,13 +42,12 @@ type ShareInfo struct {
 	MustExchangeToken  bool
 }
 
-// RemoteAccessor is the interface for remote share access, used by handlers.
-// Extracted from Client to allow test mocks.
+// RemoteAccessor is the interface for remote share access; extracted for mocks.
 type RemoteAccessor interface {
 	Access(ctx context.Context, opts AccessOptions) (*AccessResult, error)
 }
 
-// Client handles accessing files from remote OCM shares.
+// Client accesses files from remote OCM shares (WebDAV, token exchange, Basic fallback).
 type Client struct {
 	httpClient      *httpclient.ContextClient
 	discoveryClient *discovery.Client
@@ -58,8 +55,7 @@ type Client struct {
 	profileRegistry *peercompat.ProfileRegistry
 }
 
-// NewClient creates a new remote access client.
-// profileRegistry may be nil; when nil, Basic auth fallback is disabled.
+// NewClient returns a Client; nil profileRegistry disables Basic auth fallback.
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	discoveryClient *discovery.Client,
@@ -74,42 +70,26 @@ func NewClient(
 	}
 }
 
-// AccessOptions contains options for accessing a remote share.
 type AccessOptions struct {
-	// Share is the share info to access
-	Share *ShareInfo
-
-	// Method is the HTTP method (GET, PROPFIND, etc.)
-	Method string
-
-	// SubPath is an optional sub-path within the share
+	Share   *ShareInfo
+	Method  string // GET, PROPFIND, etc.
 	SubPath string
 }
 
-// AccessResult contains the result of accessing a remote share.
 type AccessResult struct {
-	// Response is the HTTP response from the remote server
-	Response *http.Response
-
-	// TokenExchanged indicates whether token exchange was performed
+	Response       *http.Response
 	TokenExchanged bool
-
-	// AccessToken is the exchanged token (if any)
-	AccessToken string
-
-	// MethodUsed describes which auth method succeeded (e.g. "bearer", "basic:token:")
-	MethodUsed string
+	AccessToken    string
+	MethodUsed     string // e.g. "bearer", "basic:token:"
 }
 
-// basicAuthPattern defines one Basic auth credential layout to try.
 type basicAuthPattern struct {
 	key      string // profile-level key, e.g. "token:", "id:token"
 	username func(token, webdavID string) string
 	password func(token, webdavID string) string
 }
 
-// orderedBasicPatterns is the fixed order of Basic auth fallback patterns.
-// Mirrors the inbound ladder in the WebDAV handler (extractCredential).
+// orderedBasicPatterns matches WebDAV handler extractCredential order.
 var orderedBasicPatterns = []basicAuthPattern{
 	{key: "token:", username: func(t, _ string) string { return t }, password: func(_, _ string) string { return "" }},
 	{key: "token:token", username: func(t, _ string) string { return t }, password: func(t, _ string) string { return t }},
@@ -117,13 +97,9 @@ var orderedBasicPatterns = []basicAuthPattern{
 	{key: "id:token", username: func(_, id string) string { return id }, password: func(t, _ string) string { return t }},
 }
 
-// Access accesses a file from a remote share.
-// If MustExchangeToken is set, performs token exchange first.
-// On Bearer 401/403, falls back to Basic auth patterns gated by the peer profile.
+// Access fetches a remote share; performs token exchange if MustExchangeToken; on Bearer 401/403 tries Basic patterns.
 func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult, error) {
 	share := opts.Share
-
-	// Verify share is accepted
 	if share.Status != ShareStatusAccepted {
 		return nil, ErrShareNotAccepted
 	}
@@ -133,7 +109,6 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 	var tokenExchanged bool
 
 	if share.MustExchangeToken {
-		// Token exchange is required
 		if c.tokenClient == nil {
 			return nil, ErrTokenExchangeRequired
 		}
@@ -150,8 +125,6 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 				err,
 			)
 		}
-
-		// Verify sender advertises token exchange
 		if !disc.HasCapability("exchange-token") {
 			return nil, peercompat.NewClassifiedError(
 				peercompat.ReasonPeerCapabilityMissing,
@@ -167,8 +140,6 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 				nil,
 			)
 		}
-
-		// Perform token exchange
 		result, err := c.tokenClient.Exchange(ctx, tokenoutgoing.ExchangeRequest{
 			TokenEndPoint: disc.TokenEndPoint,
 			PeerDomain:    share.SenderHost,
@@ -181,17 +152,13 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		accessToken = result.AccessToken
 		tokenExchanged = true
 	} else {
-		// Use shared secret directly
 		accessToken = share.SharedSecret
 	}
-
-	// Build WebDAV URL
 	webdavURL, err := c.buildWebDAVURL(ctx, share, opts.SubPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// Try Bearer first
 	req, err := http.NewRequestWithContext(ctx, opts.Method, webdavURL, nil)
 	if err != nil {
 		return nil, err
@@ -206,8 +173,6 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 			err,
 		)
 	}
-
-	// Bearer succeeded (not 401/403) -- return immediately
 	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
 		return &AccessResult{
 			Response:       resp,
@@ -216,15 +181,12 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 			MethodUsed:     "bearer",
 		}, nil
 	}
-
-	// Bearer was rejected -- try Basic auth patterns if profile registry is available
 	resp.Body.Close()
 
 	return c.tryBasicPatterns(ctx, opts, webdavURL, accessToken, tokenExchanged)
 }
 
-// tryBasicPatterns iterates the Basic auth patterns allowed by the peer profile.
-// Returns the first successful result or ErrRemoteAccessFailed.
+// tryBasicPatterns tries Basic auth patterns in order; returns first success or ErrRemoteAccessFailed.
 func (c *Client) tryBasicPatterns(
 	ctx context.Context,
 	opts AccessOptions,
@@ -255,7 +217,6 @@ func (c *Client) tryBasicPatterns(
 
 		resp, err := c.httpClient.Do(ctx, req)
 		if err != nil {
-			// Network error on this pattern -- try next
 			continue
 		}
 
@@ -267,15 +228,12 @@ func (c *Client) tryBasicPatterns(
 				MethodUsed:     "basic:" + pat.key,
 			}, nil
 		}
-
-		// This pattern was also rejected -- close body and try next
 		resp.Body.Close()
 	}
 
 	return nil, ErrRemoteAccessFailed
 }
 
-// FetchFile fetches a file from a remote share and returns its content.
 func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser, error) {
 	result, err := c.Access(ctx, AccessOptions{
 		Share:  share,
@@ -297,9 +255,7 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 	return result.Response.Body, nil
 }
 
-// buildWebDAVURL constructs the WebDAV URL for a share.
-// When an absolute URI is present, it is validated against the sender host
-// to prevent SSRF. On mismatch or parse failure, falls through to discovery.
+// buildWebDAVURL returns the WebDAV URL; validates absolute URI host against sender to prevent SSRF.
 func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath string) (string, error) {
 	if share.WebDAVURIAbsolute != "" {
 		if c.isAbsoluteURIHostValid(share.WebDAVURIAbsolute, share.SenderHost) {
@@ -309,10 +265,7 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 			}
 			return u, nil
 		}
-		// Host mismatch or parse error -- fall through to discovery
 	}
-
-	// Discover the sender's WebDAV path
 	disc, err := c.discoveryClient.Discover(ctx, senderBaseURL(share.SenderHost))
 	if err != nil {
 		return "", peercompat.NewClassifiedError(
@@ -321,8 +274,6 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 			err,
 		)
 	}
-
-	// Build URL from discovery
 	webdavURL, err := disc.BuildWebDAVURL(share.WebDAVID)
 	if err != nil {
 		return "", peercompat.NewClassifiedError(
@@ -339,9 +290,7 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 	return webdavURL, nil
 }
 
-// isAbsoluteURIHostValid checks whether the host in an absolute WebDAV URI
-// matches the expected sender host. Uses scheme-aware normalization ("https")
-// to strip default ports before comparing.
+// isAbsoluteURIHostValid compares absolute URI host to sender host via scheme-aware normalization.
 func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
 	parsed, err := url.Parse(absoluteURI)
 	if err != nil || parsed.Host == "" {
@@ -361,10 +310,7 @@ func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
 	return normalizedURI == normalizedSender
 }
 
-// senderBaseURL turns a bare host[:port] into a full base URL for discovery.
-// If the value already contains a scheme it is returned as-is (unit tests
-// pass srv.URL which includes http://). OCM federation mandates HTTPS;
-// supporting HTTP for dev/local testing is tracked as a future improvement.
+// senderBaseURL returns "https://" + host for bare host[:port]; passes through values with scheme (e.g. srv.URL).
 func senderBaseURL(host string) string {
 	if strings.Contains(host, "://") {
 		return host

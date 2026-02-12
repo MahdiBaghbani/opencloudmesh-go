@@ -212,7 +212,7 @@ func TestTokenExchangeSettings_RoutePath(t *testing.T) {
 	}
 }
 
-// containsString checks if s contains substr.
+// containsString reports whether s contains substr.
 func containsString(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))

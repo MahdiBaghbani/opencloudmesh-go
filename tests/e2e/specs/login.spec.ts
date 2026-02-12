@@ -1,5 +1,5 @@
 /**
- * Login flow E2E tests.
+ * Login flow E2E tests (single-server, fast feedback).
  * Tests the complete login flow from login page to inbox redirect.
  */
 

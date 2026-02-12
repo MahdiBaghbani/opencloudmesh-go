@@ -27,7 +27,6 @@ const (
 	userBID = "user-b-uuid"
 )
 
-// currentUserFunc returns a CurrentUser resolver that always returns the given user.
 func currentUserFunc(user *identity.User) func(context.Context) (*identity.User, error) {
 	return func(ctx context.Context) (*identity.User, error) {
 		if user == nil {
@@ -37,9 +36,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 	}
 }
 
-// newTestRouter mounts the inbox invites handler on a Chi router.
-// httpClient, discoveryClient, signer, and outboundPolicy are nil for unit tests
-// (they are only needed for the accept flow which sends outbound requests).
+// newTestRouter mounts the inbox invites handler; nil clients suffice for list/import/decline (accept needs outbound).
 func newTestRouter(repo invitesinbox.IncomingInviteRepo, user *identity.User) http.Handler {
 	h := inboxinvites.NewHandler(
 		repo,
@@ -61,7 +58,6 @@ func newTestRouter(repo invitesinbox.IncomingInviteRepo, user *identity.User) ht
 	return r
 }
 
-// createInviteForUser creates an incoming invite owned by the given user.
 func createInviteForUser(repo *invitesinbox.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesinbox.IncomingInvite {
 	invite := &invitesinbox.IncomingInvite{
 		Token:           token,
@@ -73,7 +69,6 @@ func createInviteForUser(repo *invitesinbox.MemoryIncomingInviteRepo, recipientU
 	return invite
 }
 
-// buildInviteString creates a base64 invite string from token and provider FQDN.
 func buildInviteString(token, providerFQDN string) string {
 	inner := token + "@" + providerFQDN
 	return base64.StdEncoding.EncodeToString([]byte(inner))
@@ -189,7 +184,6 @@ func TestHandleImport_Success(t *testing.T) {
 		t.Errorf("expected status pending, got %s", resp.Status)
 	}
 
-	// Token must not appear in response
 	respBody := w.Body.String()
 	if strings.Contains(respBody, "import-token-1") {
 		t.Error("response contains token -- must not be leaked")
@@ -204,7 +198,6 @@ func TestHandleImport_Idempotent(t *testing.T) {
 	inviteStr := buildInviteString("idem-token", "remote.example.com")
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
 
-	// First import
 	req1 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req1.Header.Set("Content-Type", "application/json")
 	w1 := httptest.NewRecorder()
@@ -217,7 +210,6 @@ func TestHandleImport_Idempotent(t *testing.T) {
 	var resp1 inboxinvites.InviteImportResponse
 	json.Unmarshal(w1.Body.Bytes(), &resp1)
 
-	// Second import (same token, same user) - idempotent
 	req2 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
@@ -317,7 +309,6 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invite := createInviteForUser(repo, userAID, "idem-accept-token", "sender.example.com")
 
-	// Pre-accept
 	repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusAccepted)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -336,8 +327,7 @@ func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
 	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invite := createInviteForUser(repo, userAID, "conflict-token", "sender.example.com")
 
-	// The decline handler deletes the invite, so to test this we need to
-	// manually set status to declined without deleting
+	// Decline normally deletes; manually set declined to test accept-after-decline returns 409
 	repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusDeclined)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -380,7 +370,6 @@ func TestHandleDecline_Success(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Verify invite was deleted (not just status changed)
 	_, err := repo.GetByIDForRecipientUserID(context.Background(), invite.ID, userAID)
 	if err == nil {
 		t.Error("expected invite to be deleted after decline")
@@ -421,7 +410,6 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 	inviteStr := buildInviteString("shared-token", "remote.example.com")
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
 
-	// User A imports
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	routerA := newTestRouter(repo, userA)
 	req1 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
@@ -433,7 +421,6 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 		t.Fatalf("user A import: expected 201, got %d", w1.Code)
 	}
 
-	// User B imports the same token (different user, should succeed as a new invite)
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	routerB := newTestRouter(repo, userB)
 	req2 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
@@ -445,7 +432,6 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 		t.Fatalf("user B import: expected 201, got %d: %s", w2.Code, w2.Body.String())
 	}
 
-	// Each user should see only their own invite
 	invitesA, _ := repo.ListByRecipientUserID(context.Background(), userAID)
 	invitesB, _ := repo.ListByRecipientUserID(context.Background(), userBID)
 

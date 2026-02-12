@@ -1,6 +1,5 @@
-// Package address provides OCM address parsing and formatting helpers.
-// OCM addresses use the format identifier@host[:port], where the identifier
-// is separated from the host by the last '@' (the identifier may contain '@').
+// Package address provides OCM address parsing and formatting.
+// Format: identifier@host[:port]. Split on last '@'; identifier may contain '@'.
 package address
 
 import (
@@ -11,9 +10,7 @@ import (
 )
 
 // Parse splits an OCM address on the last '@' into identifier and provider.
-// The identifier may contain '@' (e.g. email addresses).
-// The provider must not contain scheme ("://") or path ("/").
-// Both parts must be non-empty.
+// Identifier may contain '@' (e.g. email). Provider must not contain scheme or path.
 func Parse(addr string) (identifier, provider string, err error) {
 	if addr == "" {
 		return "", "", fmt.Errorf("empty OCM address")
@@ -44,15 +41,13 @@ func Parse(addr string) (identifier, provider string, err error) {
 	return identifier, provider, nil
 }
 
-// EncodeFederatedOpaqueID encodes a userID and idp into a Reva-style
-// federated opaque ID: base64url_padded(userID + "@" + idp).
+// EncodeFederatedOpaqueID produces base64url(userID + "@" + idp) for protocol use.
 func EncodeFederatedOpaqueID(userID string, idp string) string {
 	return base64.URLEncoding.EncodeToString([]byte(userID + "@" + idp))
 }
 
-// DecodeFederatedOpaqueID attempts to decode a Reva-style federated opaque ID.
-// Tries (in order): padded base64url, raw base64url, standard base64.
-// Returns ok=false if decode fails or decoded payload has no '@'.
+// DecodeFederatedOpaqueID decodes base64url; tries padded, raw, then std base64.
+// Splits on last '@'. Returns ok=false if decode fails or payload invalid.
 func DecodeFederatedOpaqueID(encoded string) (userID string, idp string, ok bool) {
 	decodings := []*base64.Encoding{
 		base64.URLEncoding,
@@ -78,17 +73,14 @@ func DecodeFederatedOpaqueID(encoded string) (userID string, idp string, ok bool
 	return "", "", false
 }
 
-// FormatOutgoingOCMAddressFromUserID builds an OCM address for outgoing
-// protocol fields (owner, sender): identifier is a Reva-style federated
-// opaque ID, provider is appended after '@'.
+// FormatOutgoingOCMAddressFromUserID builds identifier@provider for owner/sender; identifier = EncodeFederatedOpaqueID(userID, provider).
 func FormatOutgoingOCMAddressFromUserID(userID, provider string) string {
 	return EncodeFederatedOpaqueID(userID, provider) + "@" + provider
 }
 
-// base64LikeCharset matches strings composed entirely of base64/base64url characters.
 var base64LikeCharset = regexp.MustCompile(`^[A-Za-z0-9+/=_-]+$`)
 
-// LooksLikeBase64 returns true if s is non-empty and matches the base64/base64url charset.
+// LooksLikeBase64 returns true if s is non-empty and matches base64-like charset.
 func LooksLikeBase64(s string) bool {
 	return base64LikeCharset.MatchString(s)
 }

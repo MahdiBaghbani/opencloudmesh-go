@@ -1,6 +1,5 @@
-// Package spec defines OCM spec-shaped types for discovery and token exchange.
-// These are wire-format types matching the OCM-API specification.
-// See: https://github.com/cs3org/OCM-API/blob/develop/spec.yaml
+// Package spec defines OCM wire-format types (discovery, shares, invites, errors).
+// See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#ocm-api-discovery
 package spec
 
 import (
@@ -9,7 +8,6 @@ import (
 	"path"
 )
 
-// Discovery represents the OCM discovery response.
 type Discovery struct {
 	Enabled       bool           `json:"enabled"`
 	APIVersion    string         `json:"apiVersion"`
@@ -23,21 +21,18 @@ type Discovery struct {
 	InviteAcceptDialog string `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
 }
 
-// ResourceType describes a supported resource type.
 type ResourceType struct {
 	Name       string            `json:"name"`
 	ShareTypes []string          `json:"shareTypes"`
 	Protocols  map[string]string `json:"protocols"`
 }
 
-// PublicKey represents a public key for RFC 9421 HTTP signatures.
 type PublicKey struct {
 	KeyID        string `json:"keyId"`
 	PublicKeyPem string `json:"publicKeyPem"`
 	Algorithm    string `json:"algorithm,omitempty"`
 }
 
-// HasCapability returns true if the discovery document includes the given capability.
 func (d *Discovery) HasCapability(cap string) bool {
 	for _, c := range d.Capabilities {
 		if c == cap {
@@ -47,7 +42,6 @@ func (d *Discovery) HasCapability(cap string) bool {
 	return false
 }
 
-// HasCriteria returns true if the discovery document includes the given criteria token.
 func (d *Discovery) HasCriteria(criterion string) bool {
 	for _, c := range d.Criteria {
 		if c == criterion {
@@ -57,12 +51,10 @@ func (d *Discovery) HasCriteria(criterion string) bool {
 	return false
 }
 
-// GetEndpoint returns the OCM endpoint URL.
 func (d *Discovery) GetEndpoint() string {
 	return d.EndPoint
 }
 
-// GetWebDAVPath returns the WebDAV protocol path from the first file resource type.
 func (d *Discovery) GetWebDAVPath() string {
 	for _, rt := range d.ResourceTypes {
 		if rt.Name == "file" {
@@ -74,7 +66,6 @@ func (d *Discovery) GetWebDAVPath() string {
 	return ""
 }
 
-// GetPublicKey returns the public key with the given keyID, or nil if not found.
 func (d *Discovery) GetPublicKey(keyID string) *PublicKey {
 	for i := range d.PublicKeys {
 		if d.PublicKeys[i].KeyID == keyID {

@@ -17,12 +17,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-// testLogger returns a quiet logger for tests.
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 }
 
-// setupTestPartyRepo creates a PartyRepo with test users.
 func setupTestPartyRepo() identity.PartyRepo {
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
@@ -73,8 +71,6 @@ func validShareBody(shareWith string) string {
 		}
 	}`
 }
-
-// --- ValidateRequiredFields ---
 
 func TestValidateRequiredFields_AllMissing(t *testing.T) {
 	req := &spec.NewShareRequest{}
@@ -134,8 +130,6 @@ func TestValidateRequiredFields_ProtocolWithOnlyWebDAV(t *testing.T) {
 		t.Errorf("expected no validation errors for protocol with webdav, got %d: %v", len(errs), errs)
 	}
 }
-
-// --- CreateShare handler ---
 
 func TestCreateShare_Success_ResolvesById(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
@@ -446,8 +440,6 @@ func TestCreateShare_NoWebDAV_Returns501(t *testing.T) {
 	}
 }
 
-// --- Validation helpers ---
-
 func TestExtractSenderHost(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -472,8 +464,6 @@ func TestExtractSenderHost(t *testing.T) {
 		})
 	}
 }
-
-// --- Federated opaque ID decode fallback (Phase 4) ---
 
 func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
 	// Reva-style federated opaque ID: base64url_padded(userID@localProvider)

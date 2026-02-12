@@ -207,7 +207,6 @@
         return div.innerHTML;
       }
 
-      // Check for required parameters
       if (!token || !providerDomain) {
         document.getElementById("missing-params").style.display = "block";
         document.getElementById("invite-form").style.display = "none";
@@ -217,7 +216,6 @@
           providerDomain;
       }
 
-      // Cancel: go to inbox
       document
         .getElementById("cancel-btn")
         .addEventListener("click", () => {
@@ -238,10 +236,8 @@
           successEl.classList.remove("visible");
 
           try {
-            // Build invite string: base64(token@providerDomain)
             const inviteString = btoa(token + "@" + providerDomain);
 
-            // Step 1: Import the invite
             const importResp = await fetch(
               basePath + "/api/inbox/invites/import",
               {
@@ -253,7 +249,6 @@
             );
 
             if (importResp.status === 401) {
-              // Session expired during the flow, redirect to login
               const returnURL =
                 basePath +
                 "/ui/accept-invite?token=" +
@@ -289,7 +284,6 @@
               return;
             }
 
-            // Step 2: Accept the invite
             const acceptResp = await fetch(
               basePath + "/api/inbox/invites/" + inviteId + "/accept",
               {
@@ -322,7 +316,6 @@
               return;
             }
 
-            // Success: redirect to inbox
             successEl.textContent = "Invite accepted! Redirecting...";
             successEl.classList.add("visible");
             setTimeout(() => {

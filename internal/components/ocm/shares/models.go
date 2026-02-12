@@ -1,6 +1,2 @@
-// Package shares is a grouping package for share-related sub-packages.
-// Domain models and repositories live in direction-aware sub-packages:
-//   - shares/inbox: incoming share storage (IncomingShare, IncomingShareRepo)
-//   - shares/outgoing: outgoing share storage (OutgoingShare, OutgoingShareRepo)
-//   - shares/incoming: inbound OCM protocol handler (POST /ocm/shares)
+// Package shares groups share subpackages. Subpackages: inbox (storage), outgoing (storage), incoming (POST /ocm/shares).
 package shares

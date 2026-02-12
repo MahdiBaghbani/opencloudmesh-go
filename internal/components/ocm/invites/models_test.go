@@ -100,7 +100,6 @@ func TestBuildInviteString(t *testing.T) {
 
 	result := invites.BuildInviteString(token, fqdn)
 
-	// Verify it's valid base64
 	decoded, err := base64.StdEncoding.DecodeString(result)
 	if err != nil {
 		t.Errorf("result is not valid base64: %v", err)

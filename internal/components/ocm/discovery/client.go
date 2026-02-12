@@ -11,17 +11,14 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
-// Client fetches and caches remote OCM discovery documents.
+// Client fetches and caches remote OCM discovery documents. Discovers via /.well-known/ocm and /ocm-provider fallback.
 type Client struct {
 	httpClient *httpclient.Client
 	cache      cache.Cache
 	cacheTTL   time.Duration
 }
 
-// NewClient creates a new discovery client.
-// If cache is nil, it is silently replaced with the default cache (in-memory).
-// This ensures discovery always caches results and callers cannot accidentally
-// create an uncached client.
+// NewClient creates a discovery client. Nil cache is replaced with default in-memory cache.
 func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
 	if c == nil {
 		c = cache.NewDefault()
@@ -33,13 +30,9 @@ func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
 	}
 }
 
-// Discover fetches the discovery document for a remote OCM server.
-// Uses cache if available and not expired.
+// Discover fetches the discovery document for a remote OCM server. Uses cache when available.
 func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, error) {
-	// Normalize the base URL
 	baseURL = strings.TrimSuffix(baseURL, "/")
-
-	// Check cache first (cache is always non-nil after NewClient)
 	cacheKey := "discovery:" + baseURL
 	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
 		var disc Discovery
@@ -48,17 +41,13 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 		}
 	}
 
-	// Try /.well-known/ocm first (RFC 8615)
 	disc, err := c.fetchDiscovery(ctx, baseURL+"/.well-known/ocm")
 	if err != nil {
-		// Fall back to legacy /ocm-provider
 		disc, err = c.fetchDiscovery(ctx, baseURL+"/ocm-provider")
 		if err != nil {
 			return nil, fmt.Errorf("failed to discover OCM at %s: %w", baseURL, err)
 		}
 	}
-
-	// Cache the result
 	if data, err := json.Marshal(disc); err == nil {
 		c.cache.Set(ctx, cacheKey, data, c.cacheTTL)
 	}
@@ -66,7 +55,6 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	return disc, nil
 }
 
-// fetchDiscovery fetches a discovery document from a specific URL.
 func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) (*Discovery, error) {
 	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
 	if err != nil {
@@ -88,7 +76,3 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) (*Disc
 
 	return &disc, nil
 }
-
-// Note: Helper methods (GetEndpoint, GetWebDAVPath, HasCapability, HasCriteria,
-// GetPublicKey, BuildWebDAVURL) are defined on spec.Discovery and available
-// through the type alias.
