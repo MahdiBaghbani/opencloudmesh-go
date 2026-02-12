@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
@@ -137,8 +138,11 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 			return nil, ErrTokenExchangeRequired
 		}
 
-		// Discover the sender's token endpoint
-		disc, err := c.discoveryClient.Discover(ctx, share.SenderHost)
+		// Discover the sender's token endpoint.
+		// SenderHost is bare host:port from OCM address parsing; Discover
+		// expects a full URL. OCM federation mandates HTTPS.
+		// TODO(issue): support HTTP for dev/local testing via profiles.
+		disc, err := c.discoveryClient.Discover(ctx, senderBaseURL(share.SenderHost))
 		if err != nil {
 			return nil, peercompat.NewClassifiedError(
 				peercompat.ReasonDiscoveryFailed,
@@ -309,7 +313,7 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 	}
 
 	// Discover the sender's WebDAV path
-	disc, err := c.discoveryClient.Discover(ctx, share.SenderHost)
+	disc, err := c.discoveryClient.Discover(ctx, senderBaseURL(share.SenderHost))
 	if err != nil {
 		return "", peercompat.NewClassifiedError(
 			peercompat.ReasonDiscoveryFailed,
@@ -355,4 +359,15 @@ func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
 	}
 
 	return normalizedURI == normalizedSender
+}
+
+// senderBaseURL turns a bare host[:port] into a full base URL for discovery.
+// If the value already contains a scheme it is returned as-is (unit tests
+// pass srv.URL which includes http://). OCM federation mandates HTTPS;
+// supporting HTTP for dev/local testing is tracked as a future improvement.
+func senderBaseURL(host string) string {
+	if strings.Contains(host, "://") {
+		return host
+	}
+	return "https://" + host
 }
