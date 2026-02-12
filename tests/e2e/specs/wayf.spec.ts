@@ -13,6 +13,22 @@ test.beforeAll(() => {
   binaryPath = buildBinary();
 });
 
+/**
+ * Parses an invite string (base64 of "token@providerDomain") into its parts.
+ * Split on the last '@' because tokens may contain '@'.
+ */
+function parseInviteString(inviteString: string): { token: string; providerDomain: string } {
+  const decoded = Buffer.from(inviteString, 'base64').toString();
+  const lastAt = decoded.lastIndexOf('@');
+  if (lastAt === -1) {
+    throw new Error(`Invalid invite string: no '@' found in decoded value`);
+  }
+  return {
+    token: decoded.substring(0, lastAt),
+    providerDomain: decoded.substring(lastAt + 1),
+  };
+}
+
 test.describe('WAYF and Accept Invite', () => {
   let server: ServerInstance;
 
@@ -38,19 +54,19 @@ test.describe('WAYF and Accept Invite', () => {
     await page.waitForURL('**/ui/inbox', { timeout: 5000 });
   }
 
-  async function createInviteToken(page: Page): Promise<string> {
-    const response = await page.request.post(
-      `${server.baseURL}/api/invites/outgoing`,
-    );
-    expect(response.status()).toBe(201);
-    const body = await response.json();
-    expect(body.token).toBeTruthy();
-    return body.token as string;
+  async function createInviteTokenViaUI(page: Page): Promise<string> {
+    await page.goto(`${server.baseURL}/ui/outgoing`);
+    await page.click('#invite-create-btn');
+    await page.waitForSelector('#invite-result', { state: 'visible', timeout: 5000 });
+    const inviteString = await page.locator('#invite-string').inputValue();
+    expect(inviteString.length).toBeGreaterThan(0);
+    return inviteString;
   }
 
   test('WAYF page loads with heading and manual discovery input', async ({ page }) => {
     await login(page);
-    const token = await createInviteToken(page);
+    const inviteString = await createInviteTokenViaUI(page);
+    const { token } = parseInviteString(inviteString);
 
     await page.goto(`${server.baseURL}/ui/wayf?token=${token}`);
 
@@ -81,14 +97,14 @@ test.describe('WAYF and Accept Invite', () => {
 
   test('accept-invite redirects to login when unauthenticated', async ({ page }) => {
     await login(page);
-    const token = await createInviteToken(page);
+    const inviteString = await createInviteTokenViaUI(page);
+    const { token, providerDomain } = parseInviteString(inviteString);
 
-    // Clear session by navigating with a fresh context approach:
-    // delete the session cookie so the next request is unauthenticated
+    // Clear session by deleting the session cookie
     await page.context().clearCookies();
 
     await page.goto(
-      `${server.baseURL}/ui/accept-invite?token=${token}&providerDomain=localhost:${server.port}`,
+      `${server.baseURL}/ui/accept-invite?token=${token}&providerDomain=${providerDomain}`,
     );
 
     // Auth middleware redirects GET /ui/accept-invite to /ui/login?redirect=...
@@ -99,16 +115,17 @@ test.describe('WAYF and Accept Invite', () => {
 
   test('accept-invite loads after login with token and provider info', async ({ page }) => {
     await login(page);
-    const token = await createInviteToken(page);
+    const inviteString = await createInviteTokenViaUI(page);
+    const { token, providerDomain } = parseInviteString(inviteString);
 
     await page.goto(
-      `${server.baseURL}/ui/accept-invite?token=${token}&providerDomain=localhost:${server.port}`,
+      `${server.baseURL}/ui/accept-invite?token=${token}&providerDomain=${providerDomain}`,
     );
 
     // Form is visible with token and provider info
     await expect(page.locator('#invite-form')).toBeVisible();
     await expect(page.locator('#display-token')).toContainText(token);
-    await expect(page.locator('#display-provider')).toContainText(`localhost:${server.port}`);
+    await expect(page.locator('#display-provider')).toContainText(providerDomain);
 
     // Accept button is visible
     await expect(page.locator('#accept-btn')).toBeVisible();
