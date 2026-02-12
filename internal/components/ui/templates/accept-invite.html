@@ -270,8 +270,9 @@
             const importData = await importResp.json();
 
             if (!importResp.ok) {
-              const reason = importData.reason || "";
-              const msg = importData.message || "Import failed.";
+              const errObj = importData.error || importData;
+              const reason = errObj.reason_code || "";
+              const msg = errObj.message || "Import failed.";
               errorEl.textContent = msg;
               if (reason) {
                 errorEl.textContent += " (" + reason + ")";
@@ -314,7 +315,8 @@
 
             if (!acceptResp.ok) {
               const acceptData = await acceptResp.json();
-              const msg = acceptData.message || "Accept failed.";
+              const errObj = acceptData.error || acceptData;
+              const msg = errObj.message || "Accept failed.";
               errorEl.textContent = msg;
               errorEl.classList.add("visible");
               return;

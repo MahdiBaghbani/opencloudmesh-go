@@ -16,6 +16,7 @@ import {
   buildBinary,
   startTwoServers,
   stopServer,
+  dumpLogs,
   ServerInstance,
 } from '../harness/server';
 
@@ -34,7 +35,8 @@ async function login(page: Page, baseURL: string) {
 }
 
 /**
- * Asserts that a server's discovery endpoint advertises strict signature support.
+ * Asserts that a server's discovery endpoint advertises strict signature
+ * support and an inviteAcceptDialog (WAYF enabled).
  */
 async function assertStrictDiscovery(page: Page, baseURL: string) {
   const res = await page.request.get(`${baseURL}/.well-known/ocm`);
@@ -42,6 +44,8 @@ async function assertStrictDiscovery(page: Page, baseURL: string) {
   const body = await res.json();
   expect(body.capabilities).toContain('http-sig');
   expect(body.criteria).toContain('http-request-signatures');
+  // WAYF requires inviteAcceptDialog in discovery (auto-derived when WAYF is enabled)
+  expect(body.inviteAcceptDialog).toBeTruthy();
 }
 
 /**
@@ -85,20 +89,28 @@ test.describe('Two-Instance WAYF Flow', () => {
     });
   });
 
-  test.afterEach(async () => {
+  test.afterEach(async ({}, testInfo) => {
+    if (testInfo.status !== 'passed') {
+      if (serverA) dumpLogs(serverA);
+      if (serverB) dumpLogs(serverB);
+    }
     if (serverA) stopServer(serverA);
     if (serverB) stopServer(serverB);
   });
 
   test('A creates invite, B accepts via WAYF discovery', async ({ page }) => {
-    // Verify both servers advertise strict signature support
+    // Verify both servers advertise strict signature support and WAYF
     await assertStrictDiscovery(page, serverA.baseURL);
     await assertStrictDiscovery(page, serverB.baseURL);
 
     // Step 1: Login to A and create invite via outgoing UI
     await login(page, serverA.baseURL);
     const inviteString = await createInviteTokenViaUI(page, serverA.baseURL);
-    const { token } = parseInviteString(inviteString);
+    const { token, providerDomain } = parseInviteString(inviteString);
+
+    // The invite string encodes token@providerDomain where providerDomain is
+    // A's FQDN. Verify this matches A's actual address.
+    expect(providerDomain).toContain(`localhost:${serverA.port}`);
 
     // Step 2: Login to B (cookies are per-origin, so A's session persists)
     await login(page, serverB.baseURL);
@@ -130,20 +142,42 @@ test.describe('Two-Instance WAYF Flow', () => {
     // Verify we landed on B's server (URL contains B's port)
     expect(page.url()).toContain(`:${serverB.port}/`);
 
-    // Step 8: Accept button should be visible (we are logged into B)
-    await expect(page.locator('#accept-btn')).toBeVisible({ timeout: 5000 });
+    // Step 8: Verify the accept-invite dialog shows the correct token and
+    // provider domain (the inviter's domain) before clicking Accept.
+    // This mirrors the ocm-test-suite assertion: the accept dialog must display
+    // the inviter's identity so the user knows who they are federating with.
+    await expect(page.locator('#invite-form')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#display-token')).toContainText(token);
+    await expect(page.locator('#display-provider')).toContainText(providerDomain);
+
+    // Step 9: Click Accept (we are logged into B via step 2).
+    // Set up a listener for the accept API response before clicking.
+    const acceptResponsePromise = page.waitForResponse(
+      resp => resp.url().includes('/api/inbox/invites/') && resp.url().includes('/accept'),
+      { timeout: 30000 },
+    );
+    await expect(page.locator('#accept-btn')).toBeVisible();
     await page.click('#accept-btn');
 
-    // Step 9: Wait for success message. The accept-invite page shows
-    // "Invite accepted! Redirecting..." then redirects to B's inbox after 1s.
-    await expect(page.locator('#success-msg')).toContainText('Invite accepted', {
-      timeout: 15000,
-    });
+    // Wait for the accept API call to complete and assert success
+    const acceptResponse = await acceptResponsePromise;
+    if (!acceptResponse.ok()) {
+      const body = await acceptResponse.text();
+      console.error(`Accept API failed with status ${acceptResponse.status()}: ${body}`);
+    }
+    expect(acceptResponse.ok()).toBeTruthy();
 
-    // Step 10: Wait for redirect to B's inbox
+    // Step 10: Wait for success message. The accept-invite page shows
+    // "Invite accepted! Redirecting..." then redirects to B's inbox after 1s.
+    // Use toBeVisible to confirm the element is rendered (display:block via
+    // .visible class) before asserting text, avoiding race with the redirect.
+    await expect(page.locator('#success-msg')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#success-msg')).toContainText('Invite accepted');
+
+    // Step 11: Wait for redirect to B's inbox
     await page.waitForURL('**/ui/inbox', { timeout: 10000 });
 
-    // Step 11: Verify via API on B that the invite is accepted
+    // Step 12: Verify via API on B that the invite is accepted
     const listResponse = await page.request.get(
       `${serverB.baseURL}/api/inbox/invites`,
     );

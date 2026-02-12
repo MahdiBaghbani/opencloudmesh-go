@@ -245,6 +245,8 @@ func (v *RFC9421Verifier) HasSignatureHeaders(req *http.Request) bool {
 }
 
 // buildSignatureBaseFromRequest builds the signature base for verification.
+// For server-side received requests, Go strips scheme and host from req.URL,
+// so @target-uri must be reconstructed from req.TLS and req.Host.
 func buildSignatureBaseFromRequest(req *http.Request, body []byte, components []string) (string, error) {
 	var lines []string
 
@@ -255,7 +257,23 @@ func buildSignatureBaseFromRequest(req *http.Request, body []byte, components []
 		case "@method":
 			value = req.Method
 		case "@target-uri":
-			value = req.URL.String()
+			// Go's HTTP server sets req.URL to the origin-form path only
+			// (no scheme, no host). When the URL already has a scheme (client-
+			// side / unit tests), String() returns the full URI as signed.
+			// Otherwise reconstruct from TLS state and Host header.
+			if req.URL.Scheme != "" {
+				value = req.URL.String()
+			} else {
+				scheme := "http"
+				if req.TLS != nil {
+					scheme = "https"
+				}
+				host := req.Host
+				if host == "" {
+					host = req.URL.Host
+				}
+				value = scheme + "://" + host + req.URL.RequestURI()
+			}
 		case "@authority":
 			value = req.Host
 			if value == "" {
