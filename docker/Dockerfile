@@ -1,21 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# DockyPody: container build scripts and images
+# opencloudmesh-go Docker image (standalone)
 # Copyright (C) 2025 Mahdi Baghbani <mahdi-baghbani@azadehafzar.io>
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as
-# published by the Free Software Foundation, either version 3 of the
-# License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ARG BASE_BUILD_IMAGE="golang:1.25-trixie"
 ARG BASE_RUNTIME_IMAGE="debian:trixie-slim"
@@ -69,14 +56,21 @@ RUN --mount=type=cache,id=opencloudmesh-go-runtime-apt-cache,target=/var/cache/a
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /app/bin /configs /usr/bin
+RUN mkdir -p /app/bin /configs /usr/bin /tls
 
 COPY --from=build /build/bin/opencloudmesh-go /app/bin/opencloudmesh-go
 COPY docker/configs/ /configs/
 COPY docker/scripts/ /usr/bin/
+COPY docker/tls/ /tls/
 
-RUN chmod 755 /app/bin/opencloudmesh-go && \
-    chmod 755 /usr/bin/entrypoint.sh /usr/bin/entrypoint-init.sh
+RUN cp /tls/certificate-authority/dockypody.crt /usr/local/share/ca-certificates/dockypody.crt && \
+    update-ca-certificates && \
+    chmod 755 /app/bin/opencloudmesh-go && \
+    chmod 755 /usr/bin/entrypoint.sh /usr/bin/entrypoint-init.sh && \
+    chmod 700 /tls && \
+    chmod 600 /tls/certificates/ocm-go.key && \
+    chmod 644 /tls/certificates/ocm-go.crt && \
+    chmod 644 /tls/certificate-authority/dockypody.crt
 
 ##############################
 ### Runtime image          ###
@@ -99,6 +93,8 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=directory /app /app
 COPY --from=directory /configs /configs
 COPY --from=directory /usr/bin /usr/bin
+COPY --from=directory /tls /tls
+COPY --from=directory /etc/ssl/certs /etc/ssl/certs
 
 ENV PATH="/app/bin:${PATH}"
 

@@ -71,8 +71,35 @@ ensure_logfile() {
   touch /var/log/opencloudmesh-go.log
 }
 
+# Load TLS cert/key/CA from base64 env vars. Overrides pre-installed files when set.
+load_tls_from_env() {
+  local cert_b64
+  cert_b64="$(trim "$(get_env_or_default TLS_CERT "")")"
+  if [ -n "$cert_b64" ]; then
+    echo "$cert_b64" | base64 -d > /tls/ocm-go.crt
+    chmod 644 /tls/ocm-go.crt
+  fi
+
+  local key_b64
+  key_b64="$(trim "$(get_env_or_default TLS_KEY "")")"
+  if [ -n "$key_b64" ]; then
+    echo "$key_b64" | base64 -d > /tls/ocm-go.key
+    chmod 600 /tls/ocm-go.key
+  fi
+
+  local ca_b64
+  ca_b64="$(trim "$(get_env_or_default TLS_CA "")")"
+  if [ -n "$ca_b64" ]; then
+    echo "$ca_b64" | base64 -d > /tls/certificate-authority/dockypody.crt
+    chmod 644 /tls/certificate-authority/dockypody.crt
+    cp /tls/certificate-authority/dockypody.crt /usr/local/share/ca-certificates/dockypody.crt
+    update-ca-certificates
+  fi
+}
+
 resolve_origin() {
   local validated_host="$1"
+  local tls_enabled="$2"
   local public_origin
   public_origin="$(trim "$(get_env_or_default PUBLIC_ORIGIN "")")"
 
@@ -82,7 +109,11 @@ resolve_origin() {
   fi
 
   if [ -n "$validated_host" ]; then
-    printf "https://%s.docker" "$validated_host"
+    if [ "$tls_enabled" = "true" ]; then
+      printf "https://%s.docker" "$validated_host"
+    else
+      printf "http://%s.docker:8080" "$validated_host"
+    fi
     return
   fi
 
@@ -113,10 +144,11 @@ validate_mode() {
 start_ocm_go() {
   local origin="$1"
   local mode="$2"
+  local config="$3"
 
   local cmd=(
     /app/bin/opencloudmesh-go
-    --config /configs/config.toml
+    --config "$config"
     --public-origin "$origin"
   )
 
@@ -130,6 +162,12 @@ start_ocm_go() {
 main() {
   write_nsswitch
 
+  local tls_enabled
+  tls_enabled="$(trim "$(get_env_or_default TLS_ENABLED "false")")"
+  if [ "$tls_enabled" = "true" ]; then
+    load_tls_from_env
+  fi
+
   local host
   host="$(trim "$(get_env_or_default HOST "")")"
 
@@ -142,12 +180,26 @@ main() {
   ensure_logfile
 
   local origin
-  origin="$(resolve_origin "$validated_host")"
+  origin="$(resolve_origin "$validated_host" "$tls_enabled")"
 
   local mode
   mode="$(validate_mode)"
 
-  start_ocm_go "$origin" "$mode"
+  local config
+  config="$(trim "$(get_env_or_default CONFIG "")")"
+  if [ -z "$config" ]; then
+    if [ "$tls_enabled" = "true" ]; then
+      config="/configs/config-tls.toml"
+    else
+      config="/configs/config.toml"
+    fi
+  fi
+  if [ ! -f "$config" ]; then
+    echo "Config file not found: $config" >&2
+    exit 1
+  fi
+
+  start_ocm_go "$origin" "$mode" "$config"
 }
 
 main "$@"
