@@ -36,6 +36,9 @@ func init() {
 type Config struct {
 	// Ratelimit holds rate limiting configuration for this service.
 	Ratelimit RatelimitConfig `mapstructure:"ratelimit"`
+	// AllowedPaths restricts localPath in outgoing shares to these directory prefixes.
+	// Empty means use handler default (["/tmp", os.TempDir()]).
+	AllowedPaths []string `mapstructure:"allowed_paths"`
 }
 
 // RatelimitConfig holds the per-service rate limiting opt-in.
@@ -130,6 +133,9 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		currentUser,
 		log,
 	)
+	if len(c.AllowedPaths) > 0 {
+		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
+	}
 
 	// Inbox invites handler (per-user scoped, Chi route params)
 	inboxInvitesHandler := inboxinvites.NewHandler(
