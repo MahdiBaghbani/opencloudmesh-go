@@ -283,7 +283,7 @@ func TestNewOutboundPolicy(t *testing.T) {
 	}
 
 	registry := peercompat.NewProfileRegistry(nil, nil)
-	policy := outboundsigning.NewOutboundPolicy(cfg, registry)
+	policy := outboundsigning.NewOutboundPolicy(cfg, registry, nil)
 
 	if policy.OutboundMode != "criteria-only" {
 		t.Errorf("expected outbound_mode=criteria-only, got %s", policy.OutboundMode)

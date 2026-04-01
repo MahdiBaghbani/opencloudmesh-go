@@ -28,10 +28,11 @@ type SubprocessServer struct {
 
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
-	Name        string
-	Mode        string            // dev, interop, strict
-	ExtraConfig string            // Additional TOML config to append
-	ExtraFiles  map[string]string // Extra files to write to tempDir: {relativePath: contents}
+	Name                  string
+	Mode                  string            // dev, interop, strict
+	KeepSignatureDefaults bool              // when true, skip the [signature] override block so mode presets apply
+	ExtraConfig           string            // Additional TOML config to append
+	ExtraFiles            map[string]string // Extra files to write to tempDir: {relativePath: contents}
 }
 
 // BuildBinary builds the opencloudmesh-go binary for testing.
@@ -125,7 +126,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 
 	// Create config file
 	configPath := filepath.Join(tempDir, "config.toml")
-	configContent := generateTOMLConfig(cfg.Name, port, tempDir, cfg.Mode, cfg.ExtraConfig)
+	configContent := generateTOMLConfig(cfg.Name, port, tempDir, cfg.Mode, cfg.KeepSignatureDefaults, cfg.ExtraConfig)
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to write config file: %v", err)
@@ -225,16 +226,16 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 // generateTOMLConfig creates a TOML config for a test server.
 // Uses the new Reva-aligned TOML shape. The mode preset (dev/interop/strict)
 // drives defaults via config.Load(), including token exchange settings.
-// Signature mode is forced off for test simplicity.
+// When keepSigDefaults is false, signature mode is forced off for test simplicity.
+// When true, the [signature] block is omitted so the mode preset's defaults apply.
 //
 // Per-service configuration ([http.services.*]) is NOT included in the base
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode, extra string) string {
+func generateTOMLConfig(name string, port int, dataDir, mode string, keepSigDefaults bool, extra string) string {
 	publicOrigin := fmt.Sprintf("http://localhost:%d", port)
 
-	// Top-level keys must come before any [section] headers in TOML
 	config := fmt.Sprintf(`# Generated config for test server: %s
 mode = "%s"
 listen_addr = ":%d"
@@ -256,12 +257,16 @@ connect_timeout_ms = 2000
 max_redirects = 1
 max_response_bytes = 1048576
 insecure_skip_verify = true
+`, name, mode, port, publicOrigin)
 
+	if !keepSigDefaults {
+		config += `
 [signature]
 inbound_mode = "off"
 outbound_mode = "off"
 advertise_http_request_signatures = false
-`, name, mode, port, publicOrigin)
+`
+	}
 
 	if extra != "" {
 		config += "\n# Extra config appended by test\n" + extra

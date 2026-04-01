@@ -99,6 +99,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	// Create token exchange and remote access clients
 	tokenClient := tokenoutgoing.NewClient(
 		d.HTTPClient,
+		d.DiscoveryClient,
 		d.Signer,
 		d.OutboundPolicy,
 		d.LocalProviderFQDN,
@@ -125,6 +126,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	outgoingHandler := outgoingshares.NewHandler(
 		d.OutgoingShareRepo,
 		d.DiscoveryClient,
+		d.LocalEvaluator,
 		d.HTTPClient,
 		d.Signer,
 		d.OutboundPolicy,

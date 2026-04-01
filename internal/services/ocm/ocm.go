@@ -91,6 +91,8 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.IncomingShareRepo,
 		d.PartyRepo,
 		d.PolicyEngine,
+		d.DiscoveryClient,
+		d.LocalEvaluator,
 		d.LocalProviderFQDNForCompare,
 		d.Config.PublicScheme(),
 		d.Config.Signature.InboundMode,

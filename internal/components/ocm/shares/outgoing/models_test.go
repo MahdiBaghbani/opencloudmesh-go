@@ -22,7 +22,7 @@ func TestOutgoingShareRepo_CreateAndLookup(t *testing.T) {
 		ResourceType: "file",
 		ShareType:    "user",
 		Permissions:  []string{"read"},
-		Status:       "pending",
+		Status:       "sent",
 	}
 
 	if err := repo.Create(ctx, share); err != nil {

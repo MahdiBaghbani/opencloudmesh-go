@@ -10,13 +10,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
+
+func dummyDiscClient() *discovery.Client {
+	return discovery.NewClient(httpclient.New(nil, nil), nil)
+}
 
 // mockSigner adds a Signature header for tests.
 type mockSigner struct {
@@ -73,6 +79,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("strict", nil),
 		"my-instance.example.com",
@@ -120,6 +127,7 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 	// OutboundMode "off" should skip signing
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("off", nil),
 		"my-instance.example.com",
@@ -166,6 +174,7 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("strict", nil),
 		"my-instance.example.com",
@@ -206,6 +215,7 @@ func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("token-only", nil),
 		"my-instance.example.com",
@@ -246,6 +256,7 @@ func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("criteria-only", nil),
 		"my-instance.example.com",
@@ -291,6 +302,7 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("criteria-only", profileRegistry),
 		"my-instance.example.com",
@@ -329,6 +341,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		nil,
 		makePolicy("off", nil),
 		"my-instance.example.com",
@@ -375,6 +388,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		nil,
 		makePolicy("off", nil),
 		"my-instance.example.com",
@@ -425,6 +439,7 @@ func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("criteria-only", profileRegistry),
 		"my-instance.example.com",
@@ -472,6 +487,7 @@ func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("strict", profileRegistry),
 		"my-instance.example.com",

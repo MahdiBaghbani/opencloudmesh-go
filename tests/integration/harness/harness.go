@@ -15,6 +15,8 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
@@ -143,7 +145,9 @@ func StartTestServer(t *testing.T) *TestServer {
 		IncomingInviteRepo: incomingInviteRepo,
 		TokenStore:         tokenStore,
 		// Clients
-		HTTPClient: httpClient,
+		HTTPClient:      httpClient,
+		DiscoveryClient: discovery.NewClient(rawHTTPClient, nil),
+		LocalEvaluator:  evaluator.NewLocalEvaluator(cfg),
 		// Provider identity
 		LocalProviderFQDN:           localProviderFQDN,
 		LocalProviderFQDNForCompare: localProviderFQDNForCompare,

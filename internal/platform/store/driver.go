@@ -68,29 +68,32 @@ type OutgoingShare struct {
 	Name         string `json:"name"`
 	ResourceType string `json:"resource_type"`
 	Permissions  string `json:"permissions"`
-	State        string `json:"state"` // pending, accepted, declined
+	State        string `json:"state"` // sent, accepted, declined
 	CreatedAt    int64  `json:"created_at"`
 	UpdatedAt    int64  `json:"updated_at"`
 }
 
 // IncomingShare represents a share received by this instance (receiver-side).
 type IncomingShare struct {
-	ShareId        string `json:"share_id" gorm:"primaryKey"`         // receiver-local id (UUIDv7)
-	SendingServer  string `json:"sending_server" gorm:"index"`        // sender's host
-	ProviderId     string `json:"provider_id" gorm:"index"`           // sender's share id
-	WebDAVId       string `json:"webdav_id,omitempty"`                // relative webdav path
-	WebDAVUriAbs   string `json:"webdav_uri_absolute,omitempty"`      // absolute URI (deprecated)
-	SharedSecret   string `json:"shared_secret,omitempty"`            // omitempty for redaction
-	Owner          string `json:"owner"`
-	Sender         string `json:"sender"`
-	ShareWith      string `json:"share_with"`
-	Name           string `json:"name"`
-	ResourceType   string `json:"resource_type"`
-	Permissions    string `json:"permissions"`
-	State          string `json:"state"` // pending, accepted, declined
-	UserId         string `json:"user_id" gorm:"index"`
-	CreatedAt      int64  `json:"created_at"`
-	UpdatedAt      int64  `json:"updated_at"`
+	ShareId              string `json:"share_id" gorm:"primaryKey"`         // receiver-local id (UUIDv7)
+	SendingServer        string `json:"sending_server" gorm:"index"`        // sender's host
+	ProviderId           string `json:"provider_id" gorm:"index"`           // sender's share id
+	WebDAVId             string `json:"webdav_id,omitempty"`                // relative webdav path
+	WebDAVUriAbs         string `json:"webdav_uri_absolute,omitempty"`      // absolute URI (deprecated)
+	SharedSecret         string `json:"shared_secret,omitempty"`            // omitempty for redaction
+	Owner                string `json:"owner"`
+	Sender               string `json:"sender"`
+	ShareWith            string `json:"share_with"`
+	Name                 string `json:"name"`
+	ResourceType         string `json:"resource_type"`
+	Permissions          string `json:"permissions"`
+	State                string `json:"state"` // pending, accepted, declined
+	UserId               string `json:"user_id" gorm:"index"`
+	OwnerHost            string `json:"owner_host"`
+	SenderExchangeCapable bool  `json:"sender_exchange_capable"`
+	MustExchangeToken    bool   `json:"must_exchange_token"`
+	CreatedAt            int64  `json:"created_at"`
+	UpdatedAt            int64  `json:"updated_at"`
 }
 
 // Invite represents an OCM invite token.

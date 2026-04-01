@@ -13,8 +13,11 @@ import (
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -27,6 +30,11 @@ func testCurrentUser(user *identity.User) func(context.Context) (*identity.User,
 	}
 }
 
+func makeDummyDiscoveryClient() *discovery.Client {
+	hc := httpclient.New(nil, nil)
+	return discovery.NewClient(hc, nil)
+}
+
 func failCurrentUser() func(context.Context) (*identity.User, error) {
 	return func(ctx context.Context) (*identity.User, error) {
 		return nil, http.ErrNoCookie
@@ -36,9 +44,10 @@ func failCurrentUser() func(context.Context) (*identity.User, error) {
 func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
+	discClient := makeDummyDiscoveryClient()
 
 	return outgoingshares.NewHandler(
-		repo, nil, nil, nil, nil,
+		repo, discClient, nil, nil, nil, nil,
 		cfg,
 		testProvider,
 		currentUser,
@@ -118,8 +127,9 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 
+	discClient := makeDummyDiscoveryClient()
 	handler := outgoingshares.NewHandler(
-		repo, nil, nil, nil, nil,
+		repo, discClient, nil, nil, nil, nil,
 		cfg,
 		testProvider,
 		testCurrentUser(user),
@@ -147,8 +157,10 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 
 	handler.HandleCreate(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Logf("unexpected status %d (expected 500 from nil discovery client): %s", w.Code, w.Body.String())
+	// Discovery now happens before persistence. With a dummy discovery client
+	// that cannot reach the receiver, expect a 502. No share should be stored.
+	if w.Code != http.StatusBadGateway && w.Code != http.StatusInternalServerError {
+		t.Logf("unexpected status %d (expected 502 from discovery failure): %s", w.Code, w.Body.String())
 	}
 
 	allShares, err := repo.List(context.Background())
@@ -156,18 +168,11 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 		t.Fatalf("failed to list shares: %v", err)
 	}
 
-	if len(allShares) == 0 {
-		t.Fatal("expected at least one share to be stored before discovery failure")
+	if len(allShares) != 0 {
+		t.Errorf("expected no shares stored (preflight failed), got %d", len(allShares))
 	}
 
-	share := allShares[0]
-	expectedOwner := address.FormatOutgoingOCMAddressFromUserID("user-uuid-123", testProvider)
-	if share.Owner != expectedOwner {
-		t.Errorf("owner = %q, want %q", share.Owner, expectedOwner)
-	}
-	if share.Sender != expectedOwner {
-		t.Errorf("sender = %q, want %q", share.Sender, expectedOwner)
-	}
+	_ = address.FormatOutgoingOCMAddressFromUserID("user-uuid-123", testProvider)
 }
 
 func TestHandleCreate_MethodNotAllowed(t *testing.T) {

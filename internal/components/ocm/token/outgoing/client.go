@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -21,10 +22,11 @@ import (
 
 // Client performs OCM token exchange against peer token endpoints.
 type Client struct {
-	httpClient     *httpclient.ContextClient
-	signer         RequestSigner
-	outboundPolicy *outboundsigning.OutboundPolicy
-	myClientID     string // This instance's FQDN for client_id
+	httpClient      *httpclient.ContextClient
+	discoveryClient *discovery.Client
+	signer          RequestSigner
+	outboundPolicy  *outboundsigning.OutboundPolicy
+	myClientID      string // This instance's FQDN for client_id
 }
 
 // RequestSigner signs HTTP requests for RFC 9421.
@@ -47,18 +49,23 @@ type ExchangeResult struct {
 	QuirkApplied string // Name of quirk applied, if any
 }
 
-// NewClient builds a token exchange client.
+// NewClient builds a token exchange client. Panics if discoveryClient is nil.
 func NewClient(
 	httpClient *httpclient.ContextClient,
+	discoveryClient *discovery.Client,
 	signer RequestSigner,
 	outboundPolicy *outboundsigning.OutboundPolicy,
 	myClientID string,
 ) *Client {
+	if discoveryClient == nil {
+		panic("tokenoutgoing.NewClient: discoveryClient must not be nil")
+	}
 	return &Client{
-		httpClient:     httpClient,
-		signer:         signer,
-		outboundPolicy: outboundPolicy,
-		myClientID:     myClientID,
+		httpClient:      httpClient,
+		discoveryClient: discoveryClient,
+		signer:          signer,
+		outboundPolicy:  outboundPolicy,
+		myClientID:      myClientID,
 	}
 }
 
@@ -67,11 +74,22 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 	var shouldSign bool
 	var profile *peercompat.Profile
 
+	// Discover peer before signing decision so the policy has remote capabilities.
+	peerBaseURL := req.TokenEndPoint
+	if idx := strings.Index(peerBaseURL, "/ocm/"); idx > 0 {
+		peerBaseURL = peerBaseURL[:idx]
+	}
+	var disc *discovery.Discovery
+	if c.discoveryClient != nil {
+		d, _ := c.discoveryClient.Discover(ctx, peerBaseURL)
+		disc = d
+	}
+
 	if c.outboundPolicy != nil {
 		decision := c.outboundPolicy.ShouldSign(
 			outboundsigning.EndpointTokenExchange,
 			req.PeerDomain,
-			nil, // No discovery doc for token exchange signing decision
+			disc,
 			c.signer != nil,
 		)
 		if decision.Error != nil {

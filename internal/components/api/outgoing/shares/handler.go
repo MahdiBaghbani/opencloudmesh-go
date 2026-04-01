@@ -24,6 +24,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -36,6 +38,7 @@ import (
 type Handler struct {
 	repo            sharesoutgoing.OutgoingShareRepo
 	discoveryClient *discovery.Client
+	evaluator       *evaluator.LocalEvaluator
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
@@ -46,10 +49,11 @@ type Handler struct {
 	allowedPaths    []string
 }
 
-// NewHandler returns a Handler with the given dependencies.
+// NewHandler returns a Handler with the given dependencies. Panics if discoveryClient is nil.
 func NewHandler(
 	repo sharesoutgoing.OutgoingShareRepo,
 	discClient *discovery.Client,
+	eval *evaluator.LocalEvaluator,
 	httpClient httpclient.HTTPClient,
 	signer *crypto.RFC9421Signer,
 	outboundPolicy *outboundsigning.OutboundPolicy,
@@ -58,10 +62,14 @@ func NewHandler(
 	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
 ) *Handler {
+	if discClient == nil {
+		panic("outgoingshares.NewHandler: discoveryClient must not be nil")
+	}
 	logger = logutil.NoopIfNil(logger)
 	return &Handler{
 		repo:            repo,
 		discoveryClient: discClient,
+		evaluator:       eval,
 		httpClient:      httpClient,
 		signer:          signer,
 		outboundPolicy:  outboundPolicy,
@@ -147,52 +155,49 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	owner := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 
-	mustExchangeToken := h.cfg.TokenExchange.Enabled != nil && *h.cfg.TokenExchange.Enabled
-
-	share := &sharesoutgoing.OutgoingShare{
-		ProviderID:        providerID.String(),
-		WebDAVID:          webdavID.String(),
-		SharedSecret:      sharedSecret,
-		LocalPath:         cleanPath,
-		ReceiverHost:      req.ReceiverDomain,
-		ShareWith:         req.ShareWith,
-		Name:              name,
-		ResourceType:      resourceType,
-		ShareType:         "user",
-		Permissions:       req.Permissions,
-		Owner:             owner,
-		Sender:            sender,
-		Status:            "pending",
-		MustExchangeToken: mustExchangeToken,
-	}
-
-	if err := h.repo.Create(r.Context(), share); err != nil {
-		h.logger.Error("failed to store outgoing share", "error", err)
-		api.WriteInternalError(w, "failed to create share")
-		return
-	}
-
-	if h.discoveryClient == nil {
-		h.logger.Error("discovery client not configured")
-		api.WriteInternalError(w, "discovery client not configured")
-		return
-	}
-
+	// Discover the receiver's OCM capabilities before creating any local state.
+	// This prevents orphan rows when the receiver is unreachable or incompatible.
 	receiverBaseURL := "https://" + req.ReceiverDomain
 	disc, err := h.discoveryClient.Discover(r.Context(), receiverBaseURL)
 	if err != nil {
-		share.Status = "failed"
-		share.Error = fmt.Sprintf("discovery failed: %v", err)
-		h.repo.Update(r.Context(), share)
 		h.logger.Warn("receiver discovery failed", "receiver", req.ReceiverDomain, "error", err)
-		api.WriteError(w, http.StatusBadGateway, api.ReasonPeerUnreachable, "could not discover receiver")
+		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed, "could not discover receiver")
 		return
 	}
 
-	share.ReceiverEndPoint = disc.EndPoint
+	// Decide whether this share requires token exchange at the receiver.
+	// The decision combines the receiver's advertised capabilities with local policy.
+	peerHasExchangeToken := disc.HasCapability("exchange-token")
+	peerIsStrict := disc.HasCriteria("token-exchange")
+
+	var eval evaluator.LocalEvaluation
+	if h.evaluator != nil {
+		eval = h.evaluator.Evaluate()
+	}
+
+	mustExchangeToken := false
+	if peerIsStrict {
+		if !eval.CodeFlowCapability {
+			h.logger.Warn("strict peer requires token exchange but local capability is disabled",
+				"receiver", req.ReceiverDomain)
+			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+				"receiver requires token exchange but local code flow is not enabled")
+			return
+		}
+		mustExchangeToken = true
+	} else if peerHasExchangeToken && eval.CodeFlowCapability {
+		switch eval.NonStrictPeerOutboundPolicy {
+		case "prefer-strict":
+			mustExchangeToken = true
+		case "fail-fast":
+			mustExchangeToken = false
+		default: // legacy-compatible
+			mustExchangeToken = false
+		}
+	}
 
 	webdavProto := &spec.WebDAVProtocol{
-		URI:          share.WebDAVID,
+		URI:          webdavID.String(),
 		SharedSecret: sharedSecret,
 		Permissions:  req.Permissions,
 	}
@@ -203,7 +208,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	payload := spec.NewShareRequest{
 		ShareWith:    req.ShareWith,
 		Name:         name,
-		ProviderID:   share.ProviderID,
+		ProviderID:   providerID.String(),
 		Owner:        owner,
 		Sender:       sender,
 		ShareType:    "user",
@@ -215,18 +220,36 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.sendShareToReceiver(r.Context(), disc.EndPoint, payload, disc); err != nil {
-		share.Status = "failed"
-		share.Error = fmt.Sprintf("send failed: %v", err)
-		h.repo.Update(r.Context(), share)
 		h.logger.Warn("failed to send share to receiver", "receiver", req.ReceiverDomain, "error", err)
-		api.WriteError(w, http.StatusBadGateway, api.ReasonPeerUnreachable, err.Error())
+		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, err.Error())
 		return
 	}
 
 	now := time.Now()
-	share.Status = "sent"
-	share.SentAt = &now
-	h.repo.Update(r.Context(), share)
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:        providerID.String(),
+		WebDAVID:          webdavID.String(),
+		SharedSecret:      sharedSecret,
+		LocalPath:         cleanPath,
+		ReceiverHost:      req.ReceiverDomain,
+		ReceiverEndPoint:  disc.EndPoint,
+		ShareWith:         req.ShareWith,
+		Name:              name,
+		ResourceType:      resourceType,
+		ShareType:         "user",
+		Permissions:       req.Permissions,
+		Owner:             owner,
+		Sender:            sender,
+		Status:            "sent",
+		SentAt:            &now,
+		MustExchangeToken: mustExchangeToken,
+	}
+
+	if err := h.repo.Create(r.Context(), share); err != nil {
+		h.logger.Error("failed to store outgoing share", "error", err)
+		api.WriteInternalError(w, "share sent but local persistence failed")
+		return
+	}
 
 	h.logger.Info("outgoing share created and sent",
 		"share_id", share.ShareID,

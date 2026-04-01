@@ -186,9 +186,20 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		capabilities = append(capabilities, "http-sig")
 	}
 
-	// Token exchange capability gated by canonical evaluator
+	// Token exchange capability gated by canonical evaluator.
+	// Per-service explicit disable ([http.services.wellknown.ocmprovider.token_exchange].enabled = false)
+	// overrides the evaluator. This allows test configs to suppress the capability.
 	var localEval localEvaluation
-	if d != nil && d.LocalEvaluator != nil {
+	perServiceExplicitlySet := false
+	if rawTE, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
+		if _, set := rawTE["enabled"]; set {
+			perServiceExplicitlySet = true
+		}
+	}
+
+	if perServiceExplicitlySet {
+		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
+	} else if d != nil && d.LocalEvaluator != nil {
 		ev := d.LocalEvaluator.Evaluate()
 		localEval = localEvaluation{codeFlow: ev.CodeFlowCapability, strict: ev.ReceiverStrictness}
 	} else {

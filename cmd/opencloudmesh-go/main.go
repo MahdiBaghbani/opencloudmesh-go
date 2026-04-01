@@ -258,7 +258,7 @@ func main() {
 
 	localEvaluator := evaluator.NewLocalEvaluator(cfg)
 
-	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry)
+	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry, localEvaluator)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
 	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.PublicOrigin, logger)

@@ -7,6 +7,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 )
 
 // Deterministic reason codes for error classification; keep stable for client compatibility.
@@ -33,14 +35,12 @@ const (
 	ReasonNotFound            = "not_found"
 	ReasonConflict            = "conflict"
 
-	// SSRF and network
-	ReasonSSRFBlocked         = "ssrf_blocked"
-	ReasonNetworkError        = "network_error"
-	ReasonPeerUnreachable     = "peer_unreachable"
-
-	// Federation policy
-	ReasonDeniedByDenylist    = "denied_by_denylist"
-	ReasonNotAllowed          = "not_allowed"
+	// SSRF, network, and federation policy -- canonical source is the reason package.
+	ReasonSSRFBlocked      = reason.SSRFBlocked
+	ReasonNetworkError     = reason.NetworkError
+	ReasonPeerUnreachable  = reason.PeerUnreachable
+	ReasonDeniedByDenylist = reason.DeniedByDenylist
+	ReasonNotAllowed       = reason.NotAllowed
 
 	// Server errors
 	ReasonInternalError       = "internal_error"

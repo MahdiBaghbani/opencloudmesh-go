@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
+
+// ErrDiscoveryDisabled is returned when the discovery client is nil or disabled.
+var ErrDiscoveryDisabled = errors.New("discovery client not configured")
 
 // Client fetches and caches remote OCM discovery documents. Discovers via /.well-known/ocm and /ocm-provider fallback.
 type Client struct {

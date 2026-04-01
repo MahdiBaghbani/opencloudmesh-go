@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -366,8 +367,8 @@ func TestAuthLadder_AllPatternsFail(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if err.Error() != access.ErrRemoteAccessFailed.Error() {
-		t.Errorf("error = %q, want %q", err.Error(), access.ErrRemoteAccessFailed.Error())
+	if !errors.Is(err, access.ErrRemoteAccessFailed) {
+		t.Errorf("error = %q, want wrapped ErrRemoteAccessFailed", err.Error())
 	}
 }
 
@@ -394,8 +395,8 @@ func TestAuthLadder_NilProfileRegistry_BearerFailReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if err.Error() != access.ErrRemoteAccessFailed.Error() {
-		t.Errorf("error = %q, want %q", err.Error(), access.ErrRemoteAccessFailed.Error())
+	if !errors.Is(err, access.ErrRemoteAccessFailed) {
+		t.Errorf("error = %q, want wrapped ErrRemoteAccessFailed", err.Error())
 	}
 	if got := requestCount.Load(); got != 1 {
 		t.Errorf("request count = %d, want 1 (only Bearer)", got)

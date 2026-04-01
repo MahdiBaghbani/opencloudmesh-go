@@ -11,7 +11,10 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
@@ -24,6 +27,8 @@ type Handler struct {
 	repo                        sharesinbox.IncomingShareRepo
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
+	discoveryClient             *discovery.Client
+	evaluator                   *evaluator.LocalEvaluator
 	localProviderFQDNForCompare string
 	localScheme                 string
 	signatureInboundMode        string
@@ -34,6 +39,8 @@ func NewHandler(
 	repo sharesinbox.IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
+	discoveryClient *discovery.Client,
+	eval *evaluator.LocalEvaluator,
 	localProviderFQDNForCompare string,
 	localScheme string,
 	inboundMode string,
@@ -44,6 +51,8 @@ func NewHandler(
 		repo:                        repo,
 		partyRepo:                   partyRepo,
 		policyEngine:                policyEngine,
+		discoveryClient:             discoveryClient,
+		evaluator:                   eval,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 		signatureInboundMode:        inboundMode,
@@ -115,11 +124,11 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 				"sender", senderHost,
 				"reason", decision.Reason,
 				"authenticated", authenticated)
-			msg := decision.ReasonCode
-			if msg == "" {
-				msg = "SENDER_NOT_AUTHORIZED"
+			translated := reason.TranslatePolicyCode(decision.ReasonCode)
+			if translated == "" {
+				translated = "SENDER_NOT_AUTHORIZED"
 			}
-			spec.WriteOCMError(w, http.StatusForbidden, msg)
+			spec.WriteOCMError(w, reason.OCMStatus(translated), translated)
 			return
 		}
 	}
@@ -174,22 +183,81 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The resource-hosting server (owner) determines token exchange requirements.
+	// Owner may differ from sender in reshare or delegated-hosting scenarios.
+	ownerHost := ""
+	if _, ownerProvider, err := address.Parse(req.Owner); err == nil {
+		ownerHost = ownerProvider
+	}
+	if ownerHost == "" {
+		ownerHost = senderHost
+	}
+
+	wireMustExchange := false
+	if req.Protocol.WebDAV != nil && req.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
+		wireMustExchange = true
+	}
+
+	// Classify the share's token exchange requirements by discovering the owner.
+	// The owner's advertised capabilities override the wire-level must-exchange-token
+	// claim to prevent untrusted senders from escalating or downgrading requirements.
+	var classifiedMustExchange, classifiedSenderCapable bool
+	if h.discoveryClient != nil {
+		discURL := h.localScheme + "://" + ownerHost
+		disc, discErr := h.discoveryClient.Discover(r.Context(), discURL)
+		if discErr != nil {
+			// When discovery fails, reject shares that claim token exchange is required
+			// (we cannot verify the claim) but accept plain shares as legacy.
+			if wireMustExchange {
+				log.Warn("discovery failed for share requiring token exchange, rejecting",
+					"owner_host", ownerHost, "error", discErr)
+				spec.WriteOCMError(w, reason.OCMStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed)
+				return
+			}
+			log.Warn("discovery failed, treating share as legacy",
+				"owner_host", ownerHost, "error", discErr)
+		} else {
+			ownerIsStrict := disc.HasCriteria("token-exchange")
+			ownerHasExchangeToken := disc.HasCapability("exchange-token")
+
+			if ownerIsStrict {
+				// Owner enforces token exchange for all shares; override any wire value.
+				classifiedMustExchange = true
+				classifiedSenderCapable = true
+			} else if ownerHasExchangeToken {
+				// Owner supports token exchange but does not enforce it globally.
+				// Honor the per-share wire requirement when present.
+				classifiedSenderCapable = true
+				if wireMustExchange {
+					classifiedMustExchange = true
+				}
+			}
+			// Owner lacks exchange capability: both flags stay false, wire claim is stripped.
+		}
+	} else {
+		// No discovery client configured; pass the wire value through unchanged.
+		classifiedMustExchange = wireMustExchange
+	}
+
 	share := &sharesinbox.IncomingShare{
-		ProviderID:           req.ProviderID,
-		SenderHost:           senderHost,
-		Owner:                req.Owner,
-		Sender:               req.Sender,
-		ShareWith:            req.ShareWith,
-		Name:                 req.Name,
-		Description:          req.Description,
-		ResourceType:         req.ResourceType,
-		ShareType:            req.ShareType,
-		OwnerDisplayName:     req.OwnerDisplayName,
-		SenderDisplayName:    req.SenderDisplayName,
-		Expiration:           req.Expiration,
-		Status:               sharesinbox.ShareStatusPending,
-		RecipientUserID:      resolvedUser.ID,
-		RecipientDisplayName: resolvedUser.DisplayName,
+		ProviderID:            req.ProviderID,
+		SenderHost:            senderHost,
+		OwnerHost:             ownerHost,
+		Owner:                 req.Owner,
+		Sender:                req.Sender,
+		ShareWith:             req.ShareWith,
+		Name:                  req.Name,
+		Description:           req.Description,
+		ResourceType:          req.ResourceType,
+		ShareType:             req.ShareType,
+		OwnerDisplayName:      req.OwnerDisplayName,
+		SenderDisplayName:     req.SenderDisplayName,
+		Expiration:            req.Expiration,
+		Status:                sharesinbox.ShareStatusPending,
+		RecipientUserID:       resolvedUser.ID,
+		RecipientDisplayName:  resolvedUser.DisplayName,
+		MustExchangeToken:     classifiedMustExchange,
+		SenderExchangeCapable: classifiedSenderCapable,
 	}
 	if req.Protocol.WebDAV != nil {
 		webdav := req.Protocol.WebDAV
@@ -200,10 +268,6 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		}
 		share.SharedSecret = webdav.SharedSecret
 		share.Permissions = webdav.Permissions
-
-		if webdav.HasRequirement(spec.RequirementMustExchangeToken) {
-			share.MustExchangeToken = true
-		}
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
@@ -30,13 +31,15 @@ type OutboundPolicy struct {
 	OutboundMode           string
 	PeerProfileOverride    string
 	ProfileRegistry        *peercompat.ProfileRegistry
+	evaluator              *evaluator.LocalEvaluator
 }
 
-func NewOutboundPolicy(cfg *config.Config, registry *peercompat.ProfileRegistry) *OutboundPolicy {
+func NewOutboundPolicy(cfg *config.Config, registry *peercompat.ProfileRegistry, eval *evaluator.LocalEvaluator) *OutboundPolicy {
 	return &OutboundPolicy{
 		OutboundMode:        cfg.Signature.OutboundMode,
 		PeerProfileOverride: cfg.Signature.PeerProfileLevelOverride,
 		ProfileRegistry:     registry,
+		evaluator:           eval,
 	}
 }
 
@@ -60,7 +63,7 @@ func (p *OutboundPolicy) ShouldSign(
 	}
 
 	if kind == EndpointTokenExchange {
-		return p.decideTokenExchange(profile, hasSigner)
+		return p.decideTokenExchange(disc, profile, hasSigner)
 	}
 
 	switch p.OutboundMode {
@@ -82,7 +85,7 @@ func (p *OutboundPolicy) ShouldSign(
 	}
 }
 
-func (p *OutboundPolicy) decideTokenExchange(profile *peercompat.Profile, hasSigner bool) SigningDecision {
+func (p *OutboundPolicy) decideTokenExchange(disc *discovery.Discovery, profile *peercompat.Profile, hasSigner bool) SigningDecision {
 	if profile != nil && profile.HasQuirk("accept_plain_token") {
 		if p.canApplyRelaxation("outbound") {
 			return SigningDecision{

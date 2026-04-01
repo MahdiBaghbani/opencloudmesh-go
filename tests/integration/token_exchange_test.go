@@ -684,3 +684,102 @@ path = "token/v2"
 		}
 	})
 }
+
+// TestInteropModeCanonicalPolicy exercises canonical policy under interop mode,
+// where the mode preset supplies stricter signature and token exchange defaults.
+func TestInteropModeCanonicalPolicy(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                  "interop-policy",
+		Mode:                  "interop",
+		KeepSignatureDefaults: true,
+	})
+	defer srv.Stop(t)
+
+	t.Run("DiscoveryAdvertisesExchangeToken", func(t *testing.T) {
+		resp, err := http.Get(srv.BaseURL + "/.well-known/ocm")
+		if err != nil {
+			srv.DumpLogs(t)
+			t.Fatalf("failed to get discovery: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("discovery returned %d", resp.StatusCode)
+		}
+
+		var disc struct {
+			Enabled       bool     `json:"enabled"`
+			Capabilities  []string `json:"capabilities"`
+			TokenEndPoint string   `json:"tokenEndPoint"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
+			t.Fatalf("failed to decode discovery: %v", err)
+		}
+
+		if !disc.Enabled {
+			t.Fatal("discovery should be enabled in interop mode")
+		}
+
+		hasExchangeToken := false
+		for _, cap := range disc.Capabilities {
+			if strings.Contains(cap, "exchange-token") {
+				hasExchangeToken = true
+			}
+		}
+		if !hasExchangeToken {
+			t.Error("interop mode should advertise exchange-token capability")
+		}
+		if disc.TokenEndPoint == "" {
+			t.Error("interop mode should advertise tokenEndPoint")
+		}
+	})
+
+	t.Run("HealthEndpoint", func(t *testing.T) {
+		resp, err := http.Get(srv.BaseURL + "/api/healthz")
+		if err != nil {
+			t.Fatalf("health check failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("health endpoint returned %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("TokenEndpointRejectsInvalidGrant", func(t *testing.T) {
+		data := url.Values{}
+		data.Set("grant_type", "invalid_type")
+		data.Set("client_id", "receiver.example.com")
+		data.Set("code", "some-secret")
+
+		resp, err := http.Post(
+			srv.BaseURL+"/ocm/token",
+			"application/x-www-form-urlencoded",
+			strings.NewReader(data.Encode()),
+		)
+		if err != nil {
+			t.Fatalf("failed to call token endpoint: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 400 for invalid grant_type, got %d: %s", resp.StatusCode, body)
+		}
+
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+			t.Fatalf("failed to decode error: %v", err)
+		}
+		if errResp.Error != "invalid_grant" {
+			t.Errorf("expected error=invalid_grant, got %q", errResp.Error)
+		}
+	})
+}

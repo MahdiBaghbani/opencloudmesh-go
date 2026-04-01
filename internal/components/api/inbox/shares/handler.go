@@ -23,6 +23,12 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// Verify-access reason codes for structured error responses.
+const (
+	verifyReasonShareNotAccepted = "share_not_accepted"
+	verifyReasonUnsafePath       = "unsafe_path"
+)
+
 // InboxShareView omits sensitive fields (e.g. SharedSecret) from API responses.
 type InboxShareView struct {
 	ShareID           string                `json:"shareId"`
@@ -67,6 +73,7 @@ type InboxShareDetailView struct {
 
 	WebDAVID                 string              `json:"webdavId,omitempty"`
 	MustExchangeToken        bool                `json:"mustExchangeToken"`
+	SenderExchangeCapable    bool                `json:"senderExchangeCapable"`
 	WebDAVURIAbsolutePresent bool                `json:"webdavUriAbsolutePresent"`
 	Protocol                 *ProtocolDetailView `json:"protocol"`
 }
@@ -105,6 +112,7 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 		InboxShareView:           NewInboxShareView(s),
 		WebDAVID:                 s.WebDAVID,
 		MustExchangeToken:        s.MustExchangeToken,
+		SenderExchangeCapable:    s.SenderExchangeCapable,
 		WebDAVURIAbsolutePresent: s.WebDAVURIAbsolute != "",
 		Protocol: &ProtocolDetailView{
 			Name: "webdav",
@@ -378,22 +386,24 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if share.Status != sharesinbox.ShareStatusAccepted {
-		writeVerifyError(w, http.StatusBadRequest, "share_not_accepted", "share must be accepted before verifying access")
+		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share must be accepted before verifying access")
 		return
 	}
 
 	if isUnsafePath(share.Name) {
-		writeVerifyError(w, http.StatusBadRequest, "unsafe_path", "share name contains unsafe path components")
+		writeVerifyError(w, http.StatusBadRequest, verifyReasonUnsafePath, "share name contains unsafe path components")
 		return
 	}
 
 	shareInfo := access.ShareInfo{
-		Status:            string(share.Status),
-		SenderHost:        share.SenderHost,
-		SharedSecret:      share.SharedSecret,
-		WebDAVID:          share.WebDAVID,
-		WebDAVURIAbsolute: share.WebDAVURIAbsolute,
-		MustExchangeToken: share.MustExchangeToken,
+		Status:                string(share.Status),
+		SenderHost:            share.SenderHost,
+		OwnerHost:             share.OwnerHost,
+		SharedSecret:          share.SharedSecret,
+		WebDAVID:              share.WebDAVID,
+		WebDAVURIAbsolute:     share.WebDAVURIAbsolute,
+		MustExchangeToken:     share.MustExchangeToken,
+		SenderExchangeCapable: share.SenderExchangeCapable,
 	}
 
 	result, err := h.accessClient.Access(ctx, access.AccessOptions{
@@ -408,7 +418,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	defer result.Response.Body.Close()
 
 	if result.Response.StatusCode < 200 || result.Response.StatusCode >= 300 {
-		writeVerifyError(w, http.StatusBadGateway, "remote_error",
+		writeVerifyError(w, http.StatusBadGateway, peercompat.ReasonRemoteError,
 			"remote server returned "+result.Response.Status)
 		return
 	}
@@ -459,11 +469,15 @@ func writeVerifyError(w http.ResponseWriter, statusCode int, reasonCode, message
 
 func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
 	if errors.Is(err, access.ErrShareNotAccepted) {
-		writeVerifyError(w, http.StatusBadRequest, "share_not_accepted", "share not accepted")
+		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share not accepted")
 		return
 	}
 	if errors.Is(err, access.ErrTokenExchangeRequired) {
-		writeVerifyError(w, http.StatusBadGateway, "token_exchange_failed", "token exchange required but not available")
+		writeVerifyError(w, http.StatusBadGateway, peercompat.ReasonTokenExchangeFailed, "token exchange required but not available")
+		return
+	}
+	if errors.Is(err, access.ErrRemoteAccessFailed) {
+		writeVerifyError(w, http.StatusBadGateway, peercompat.ReasonRemoteError, "remote access failed: all methods exhausted")
 		return
 	}
 
