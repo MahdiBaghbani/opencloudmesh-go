@@ -65,6 +65,12 @@ func (c *OCMProviderConfig) ApplyDefaults() {
 	}
 }
 
+// localEvaluation is a handler-local snapshot of the canonical evaluator output.
+type localEvaluation struct {
+	codeFlow bool
+	strict   bool
+}
+
 type ocmHandler struct {
 	data      *spec.Discovery      // static, computed once at init
 	overrides []APIVersionOverride // User-Agent based apiVersion overrides
@@ -180,10 +186,17 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		capabilities = append(capabilities, "http-sig")
 	}
 
-	// Token exchange capability (only when enabled)
-	if c.TokenExchange.Enabled {
+	// Token exchange capability gated by canonical evaluator
+	var localEval localEvaluation
+	if d != nil && d.LocalEvaluator != nil {
+		ev := d.LocalEvaluator.Evaluate()
+		localEval = localEvaluation{codeFlow: ev.CodeFlowCapability, strict: ev.ReceiverStrictness}
+	} else {
+		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
+	}
+
+	if localEval.codeFlow {
 		capabilities = append(capabilities, "exchange-token")
-		// Build tokenEndPoint from config
 		tokenPath := c.TokenExchange.Path
 		if tokenPath == "" {
 			tokenPath = "token"
@@ -207,6 +220,9 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 	// Criteria (always present, serializes as [] when empty)
 	if c.AdvertiseHTTPRequestSignatures {
 		disc.Criteria = append(disc.Criteria, "http-request-signatures")
+	}
+	if localEval.strict {
+		disc.Criteria = append(disc.Criteria, "token-exchange")
 	}
 
 	_ = endpointURL // parsed for validation only (keep for future use)

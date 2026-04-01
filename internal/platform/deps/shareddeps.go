@@ -6,9 +6,10 @@ import (
 	"sync"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
@@ -44,6 +45,9 @@ type Deps struct {
 	// Clients
 	HTTPClient      *httpclient.ContextClient
 	DiscoveryClient *discovery.Client
+
+	// Canonical evaluator (local config-to-canonical interpretation)
+	LocalEvaluator *evaluator.LocalEvaluator
 
 	// Crypto
 	KeyManager          *crypto.KeyManager

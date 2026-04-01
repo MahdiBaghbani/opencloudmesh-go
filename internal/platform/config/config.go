@@ -57,6 +57,10 @@ type Config struct {
 	// WebDAVTokenExchange configuration for must-exchange-token enforcement
 	WebDAVTokenExchange WebDAVTokenExchangeConfig `toml:"webdav_token_exchange"`
 
+	// NonStrictPeerOutboundPolicy controls sender behavior toward non-strict peers.
+	// Values: "legacy-compatible" (default), "prefer-strict", "fail-fast".
+	NonStrictPeerOutboundPolicy string `toml:"non_strict_peer_outbound_policy"`
+
 	// HTTP holds per-service HTTP configuration (Reva-style).
 	HTTP HTTPConfig `toml:"http"`
 }
@@ -419,6 +423,7 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  WebDAVTokenExchange: {\n")
 	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.WebDAVTokenExchange.Mode))
 	sb.WriteString("  },\n")
+	sb.WriteString(fmt.Sprintf("  NonStrictPeerOutboundPolicy: %q,\n", c.NonStrictPeerOutboundPolicy))
 	sb.WriteString("  HTTP: {\n")
 	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))
 	if len(c.HTTP.Services) > 0 {

@@ -69,6 +69,7 @@ type FlagOverrides struct {
 	TokenExchangeEnabled          *string // "true", "false", or "" (unset)
 	TokenExchangePath             *string
 	WebDAVTokenExchangeMode       *string
+	NonStrictPeerOutboundPolicy   *string
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -88,8 +89,9 @@ type fileConfig struct {
 	PeerTrust           *peerTrustConfig           `toml:"peer_trust"`
 	Logging             *loggingConfig             `toml:"logging"`
 	TokenExchange       *tokenExchangeConfig       `toml:"token_exchange"`
-	WebDAVTokenExchange *webdavTokenExchangeConfig `toml:"webdav_token_exchange"`
-	HTTP                *httpFileConfig            `toml:"http"`
+	WebDAVTokenExchange         *webdavTokenExchangeConfig `toml:"webdav_token_exchange"`
+	NonStrictPeerOutboundPolicy string                     `toml:"non_strict_peer_outbound_policy"`
+	HTTP                        *httpFileConfig            `toml:"http"`
 }
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
@@ -341,6 +343,7 @@ func StrictConfig() *Config {
 		WebDAVTokenExchange: WebDAVTokenExchangeConfig{
 			Mode: "strict",
 		},
+		NonStrictPeerOutboundPolicy: "legacy-compatible",
 	}
 }
 
@@ -414,6 +417,7 @@ func DevConfig() *Config {
 		WebDAVTokenExchange: WebDAVTokenExchangeConfig{
 			Mode: "lenient",
 		},
+		NonStrictPeerOutboundPolicy: "legacy-compatible",
 	}
 }
 
@@ -593,6 +597,10 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 	}
 
+	if fc.NonStrictPeerOutboundPolicy != "" {
+		cfg.NonStrictPeerOutboundPolicy = fc.NonStrictPeerOutboundPolicy
+	}
+
 	if fc.HTTP != nil {
 		if len(fc.HTTP.Services) > 0 {
 			if cfg.HTTP.Services == nil {
@@ -663,6 +671,9 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.WebDAVTokenExchangeMode != nil && *f.WebDAVTokenExchangeMode != "" {
 		cfg.WebDAVTokenExchange.Mode = *f.WebDAVTokenExchangeMode
+	}
+	if f.NonStrictPeerOutboundPolicy != nil && *f.NonStrictPeerOutboundPolicy != "" {
+		cfg.NonStrictPeerOutboundPolicy = *f.NonStrictPeerOutboundPolicy
 	}
 }
 
@@ -776,6 +787,29 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid webdav_token_exchange.mode %q: must be one of off, lenient, strict", cfg.WebDAVTokenExchange.Mode)
+	}
+
+	// non_strict_peer_outbound_policy validation
+	switch cfg.NonStrictPeerOutboundPolicy {
+	case "legacy-compatible", "prefer-strict", "fail-fast":
+		// valid
+	default:
+		return fmt.Errorf("invalid non_strict_peer_outbound_policy %q: must be one of legacy-compatible, prefer-strict, fail-fast", cfg.NonStrictPeerOutboundPolicy)
+	}
+
+	// Cross-field: strict WebDAV enforcement requires token exchange capability
+	if cfg.WebDAVTokenExchange.Mode == "strict" && !cfg.TokenExchangeEnabled() {
+		return fmt.Errorf("webdav_token_exchange.mode=strict requires token_exchange.enabled=true")
+	}
+
+	// Cross-field: fail-fast outbound policy requires token exchange capability
+	if cfg.NonStrictPeerOutboundPolicy == "fail-fast" && !cfg.TokenExchangeEnabled() {
+		return fmt.Errorf("non_strict_peer_outbound_policy=fail-fast requires token_exchange.enabled=true")
+	}
+
+	// Cross-field: peer_profile_level_override=all undermines strict advertisement
+	if cfg.Signature.PeerProfileLevelOverride == "all" && cfg.WebDAVTokenExchange.Mode == "strict" {
+		return fmt.Errorf("signature.peer_profile_level_override=all is incompatible with webdav_token_exchange.mode=strict")
 	}
 
 	// http.interceptors.ratelimit validation (fail fast)

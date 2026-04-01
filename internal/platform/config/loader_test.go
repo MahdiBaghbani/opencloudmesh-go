@@ -511,7 +511,7 @@ func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	// Test all valid enum combinations
+	// Test all valid enum combinations (webdav mode must be non-strict when peer_profile_level_override=all)
 	tomlContent := `
 mode = "strict"
 
@@ -526,6 +526,9 @@ inbound_mode = "lenient"
 outbound_mode = "criteria-only"
 peer_profile_level_override = "all"
 on_discovery_error = "allow"
+
+[webdav_token_exchange]
+mode = "lenient"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1027,6 +1030,9 @@ mode = "strict"
 [token_exchange]
 enabled = false
 path = "token/v2"
+
+[webdav_token_exchange]
+mode = "off"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1583,6 +1589,145 @@ allowed_basic_auth_patterns = ["token:", "id:token"]
 		if profile.AllowedBasicAuthPatterns[1] != "id:token" {
 			t.Errorf("expected second pattern 'id:token', got %q", profile.AllowedBasicAuthPatterns[1])
 		}
+	}
+}
+
+func TestLoad_NonStrictPeerOutboundPolicy_ValidValues(t *testing.T) {
+	validPolicies := []string{"legacy-compatible", "prefer-strict", "fail-fast"}
+
+	for _, policy := range validPolicies {
+		t.Run(policy, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+
+			tomlContent := `
+mode = "strict"
+non_strict_peer_outbound_policy = "` + policy + `"
+`
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+
+			if cfg.NonStrictPeerOutboundPolicy != policy {
+				t.Errorf("expected non_strict_peer_outbound_policy %q, got %q", policy, cfg.NonStrictPeerOutboundPolicy)
+			}
+		})
+	}
+}
+
+func TestLoad_NonStrictPeerOutboundPolicy_InvalidFails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+non_strict_peer_outbound_policy = "unknown"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid non_strict_peer_outbound_policy")
+	}
+	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy") {
+		t.Errorf("expected error about non_strict_peer_outbound_policy, got: %v", err)
+	}
+}
+
+func TestLoad_CrossField_StrictWebDAVRequiresTokenExchange(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+
+[token_exchange]
+enabled = false
+
+[webdav_token_exchange]
+mode = "strict"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for strict WebDAV mode without token exchange")
+	}
+	if !strings.Contains(err.Error(), "webdav_token_exchange.mode=strict requires token_exchange.enabled=true") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_CrossField_FailFastRequiresTokenExchange(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+non_strict_peer_outbound_policy = "fail-fast"
+
+[token_exchange]
+enabled = false
+
+[webdav_token_exchange]
+mode = "off"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for fail-fast without token exchange")
+	}
+	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy=fail-fast requires token_exchange.enabled=true") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_CrossField_PeerOverrideAllIncompatibleWithStrict(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+
+[signature]
+peer_profile_level_override = "all"
+
+[webdav_token_exchange]
+mode = "strict"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for peer_profile_level_override=all with strict WebDAV")
+	}
+	if !strings.Contains(err.Error(), "peer_profile_level_override=all is incompatible with webdav_token_exchange.mode=strict") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_NonStrictPeerOutboundPolicy_DefaultIsLegacyCompatible(t *testing.T) {
+	cfg, err := Load(LoaderOptions{})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.NonStrictPeerOutboundPolicy != "legacy-compatible" {
+		t.Errorf("expected default non_strict_peer_outbound_policy legacy-compatible, got %q", cfg.NonStrictPeerOutboundPolicy)
 	}
 }
 

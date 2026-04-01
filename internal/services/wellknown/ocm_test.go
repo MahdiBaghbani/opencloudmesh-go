@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -499,4 +500,174 @@ func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 	if disc.Enabled {
 		t.Error("expected Enabled=false in response")
 	}
+}
+
+func ptrBool(b bool) *bool { return &b }
+
+func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
+	t.Run("evaluator CodeFlowCapability=true adds exchange-token", func(t *testing.T) {
+		cfg := &config.Config{
+			PublicOrigin:                "https://example.com",
+			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true), Path: "token"},
+			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "strict"},
+			NonStrictPeerOutboundPolicy: "legacy-compatible",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		c.TokenExchange.Enabled = true
+		c.TokenExchange.Path = "token"
+		d := &deps.Deps{
+			Config:         cfg,
+			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		}
+
+		h, err := newOCMHandler(c, nil, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		found := false
+		for _, cap := range h.data.Capabilities {
+			if cap == "exchange-token" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("expected exchange-token in capabilities when evaluator CodeFlowCapability=true")
+		}
+		if h.data.TokenEndPoint == "" {
+			t.Error("expected non-empty tokenEndPoint")
+		}
+	})
+
+	t.Run("evaluator CodeFlowCapability=false omits exchange-token", func(t *testing.T) {
+		cfg := &config.Config{
+			PublicOrigin:                "https://example.com",
+			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(false)},
+			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "off"},
+			NonStrictPeerOutboundPolicy: "legacy-compatible",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		c.TokenExchange.Enabled = false
+		d := &deps.Deps{
+			Config:         cfg,
+			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		}
+
+		h, err := newOCMHandler(c, nil, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, cap := range h.data.Capabilities {
+			if cap == "exchange-token" {
+				t.Error("expected exchange-token NOT in capabilities when evaluator CodeFlowCapability=false")
+			}
+		}
+		if h.data.TokenEndPoint != "" {
+			t.Errorf("expected empty tokenEndPoint, got %q", h.data.TokenEndPoint)
+		}
+	})
+}
+
+func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
+	t.Run("ReceiverStrictness=true adds token-exchange criteria", func(t *testing.T) {
+		cfg := &config.Config{
+			PublicOrigin:                "https://example.com",
+			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true), Path: "token"},
+			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "strict"},
+			NonStrictPeerOutboundPolicy: "legacy-compatible",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		c.TokenExchange.Enabled = true
+		c.TokenExchange.Path = "token"
+		d := &deps.Deps{
+			Config:         cfg,
+			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		}
+
+		h, err := newOCMHandler(c, nil, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		found := false
+		for _, crit := range h.data.Criteria {
+			if crit == "token-exchange" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("expected token-exchange in criteria when evaluator ReceiverStrictness=true")
+		}
+	})
+
+	t.Run("ReceiverStrictness=false omits token-exchange criteria", func(t *testing.T) {
+		cfg := &config.Config{
+			PublicOrigin:                "https://example.com",
+			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true), Path: "token"},
+			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "lenient"},
+			NonStrictPeerOutboundPolicy: "legacy-compatible",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		c.TokenExchange.Enabled = true
+		c.TokenExchange.Path = "token"
+		d := &deps.Deps{
+			Config:         cfg,
+			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		}
+
+		h, err := newOCMHandler(c, nil, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, crit := range h.data.Criteria {
+			if crit == "token-exchange" {
+				t.Error("expected token-exchange NOT in criteria when evaluator ReceiverStrictness=false")
+			}
+		}
+	})
+
+	t.Run("empty criteria serializes as []", func(t *testing.T) {
+		cfg := &config.Config{
+			PublicOrigin:                "https://example.com",
+			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(false)},
+			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "off"},
+			NonStrictPeerOutboundPolicy: "legacy-compatible",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		d := &deps.Deps{
+			Config:         cfg,
+			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		}
+
+		h, err := newOCMHandler(c, nil, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, err := json.Marshal(h.data)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+
+		var parsed map[string]interface{}
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+
+		criteriaRaw, ok := parsed["criteria"]
+		if !ok {
+			t.Error("criteria key must be present in JSON")
+		}
+		criteriaSlice, ok := criteriaRaw.([]interface{})
+		if !ok {
+			t.Errorf("criteria must be an array, got %T", criteriaRaw)
+		}
+		if len(criteriaSlice) != 0 {
+			t.Errorf("expected empty criteria array, got %v", criteriaSlice)
+		}
+	})
 }

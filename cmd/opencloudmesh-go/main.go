@@ -20,6 +20,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
@@ -65,6 +66,7 @@ func main() {
 	tokenExchangeEnabled := flag.String("token-exchange-enabled", "", "Enable token exchange: true or false (overrides config)")
 	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
 	webdavTokenExchangeMode := flag.String("webdav-token-exchange-mode", "", "WebDAV token exchange enforcement mode: strict, lenient, or off (overrides config)")
+	nonStrictPeerOutboundPolicy := flag.String("non-strict-peer-outbound-policy", "", "Non-strict peer outbound policy: legacy-compatible, prefer-strict, or fail-fast (overrides config)")
 	flag.Parse()
 
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -91,6 +93,7 @@ func main() {
 			TokenExchangeEnabled:          tokenExchangeEnabled,
 			TokenExchangePath:             tokenExchangePath,
 			WebDAVTokenExchangeMode:       webdavTokenExchangeMode,
+			NonStrictPeerOutboundPolicy:   nonStrictPeerOutboundPolicy,
 		},
 		Logger: bootstrapLogger,
 	})
@@ -253,6 +256,8 @@ func main() {
 		signer = crypto.NewRFC9421Signer(keyManager)
 	}
 
+	localEvaluator := evaluator.NewLocalEvaluator(cfg)
+
 	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
@@ -291,6 +296,8 @@ func main() {
 		// Clients
 		HTTPClient:      httpClient,
 		DiscoveryClient: discoveryClient,
+		// Canonical evaluator
+		LocalEvaluator: localEvaluator,
 		// Crypto
 		KeyManager:          keyManager,
 		Signer:              signer,
