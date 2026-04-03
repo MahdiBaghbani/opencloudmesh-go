@@ -145,7 +145,6 @@ outbound_mode = "strict"
 on_discovery_error = "reject"
 allow_mismatch = false
 peer_profile_level_override = "off"
-advertise_http_request_signatures = true
 key_path = "${join(tempDir, 'signing.pem')}"` : `inbound_mode = "off"
 outbound_mode = "off"`}
 `;

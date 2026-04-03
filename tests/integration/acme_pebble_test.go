@@ -104,7 +104,6 @@ tls_root_ca_file = %q
 [signature]
 inbound_mode = "off"
 outbound_mode = "off"
-advertise_http_request_signatures = false
 `, httpsPort, httpPort, httpsPort, acmeDir, minicaPEM)
 
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {

@@ -64,6 +64,109 @@ outbound_mode = "criteria-only"
 	}
 }
 
+func TestRemovedSignatureAdvertiseRootKeyRejectedAtStartup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.toml")
+	config := `mode = "dev"
+listen_addr = "127.0.0.1:0"
+public_origin = "http://localhost:9201"
+external_base_path = ""
+
+[tls]
+mode = "off"
+
+[server]
+trusted_proxies = ["127.0.0.0/8", "::1/128"]
+
+[server.bootstrap_admin]
+username = "admin"
+
+[outbound_http]
+timeout_ms = 5000
+connect_timeout_ms = 2000
+max_redirects = 1
+max_response_bytes = 1048576
+insecure_skip_verify = true
+
+[signature]
+inbound_mode = "off"
+outbound_mode = "off"
+advertise_http_request_signatures = true
+`
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected startup failure for removed root key, got success: %s", output)
+	}
+
+	outputText := string(output)
+	if !strings.Contains(outputText, "signature.advertise_http_request_signatures") ||
+		!strings.Contains(outputText, "was removed") {
+		t.Fatalf("expected removed-root-key error in output, got: %s", outputText)
+	}
+}
+
+func TestRemovedSignatureAdvertiseCLIFlagRejectedAtStartup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.toml")
+	config := `mode = "dev"
+listen_addr = "127.0.0.1:0"
+public_origin = "http://localhost:9202"
+external_base_path = ""
+
+[tls]
+mode = "off"
+
+[server]
+trusted_proxies = ["127.0.0.0/8", "::1/128"]
+
+[server.bootstrap_admin]
+username = "admin"
+
+[outbound_http]
+timeout_ms = 5000
+connect_timeout_ms = 2000
+max_redirects = 1
+max_response_bytes = 1048576
+insecure_skip_verify = true
+`
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cmd := exec.Command(
+		binaryPath,
+		"--config", configPath,
+		"--signature-advertise-http-request-signatures", "true",
+	)
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected startup failure for removed CLI flag, got success: %s", output)
+	}
+
+	outputText := string(output)
+	if !strings.Contains(outputText, "flag provided but not defined") ||
+		!strings.Contains(outputText, "signature-advertise-http-request-signatures") {
+		t.Fatalf("expected removed-flag parse error in output, got: %s", outputText)
+	}
+}
+
 func TestStrictModePeerTrustFailOpenDemotesRuntimePosture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")

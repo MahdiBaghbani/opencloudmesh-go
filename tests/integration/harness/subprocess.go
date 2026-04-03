@@ -264,7 +264,6 @@ insecure_skip_verify = true
 [signature]
 inbound_mode = "off"
 outbound_mode = "off"
-advertise_http_request_signatures = false
 `
 	}
 

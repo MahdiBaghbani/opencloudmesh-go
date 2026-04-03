@@ -721,6 +721,7 @@ func TestInteropModeCanonicalPolicy(t *testing.T) {
 		var disc struct {
 			Enabled       bool     `json:"enabled"`
 			Capabilities  []string `json:"capabilities"`
+			Criteria      []string `json:"criteria"`
 			TokenEndPoint string   `json:"tokenEndPoint"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
@@ -742,6 +743,11 @@ func TestInteropModeCanonicalPolicy(t *testing.T) {
 		}
 		if disc.TokenEndPoint == "" {
 			t.Error("interop mode should advertise tokenEndPoint")
+		}
+		for _, criterion := range disc.Criteria {
+			if criterion == "http-request-signatures" {
+				t.Error("interop mode should not advertise http-request-signatures criterion")
+			}
 		}
 	})
 
@@ -788,6 +794,85 @@ func TestInteropModeCanonicalPolicy(t *testing.T) {
 			t.Errorf("expected error=invalid_grant, got %q", errResp.Error)
 		}
 	})
+}
+
+func TestDiscoverySignatureCriteriaMatrixByMode(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	tests := []struct {
+		name            string
+		mode            string
+		wantHTTPReqSigs bool
+	}{
+		{
+			name:            "strict advertises signature criterion",
+			mode:            "strict",
+			wantHTTPReqSigs: true,
+		},
+		{
+			name:            "interop omits signature criterion",
+			mode:            "interop",
+			wantHTTPReqSigs: false,
+		},
+		{
+			name:            "dev omits signature criterion",
+			mode:            "dev",
+			wantHTTPReqSigs: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+				Name:                  "criteria-matrix-" + tt.mode,
+				Mode:                  tt.mode,
+				KeepSignatureDefaults: true,
+			})
+			defer srv.Stop(t)
+
+			resp, err := http.Get(srv.BaseURL + "/.well-known/ocm")
+			if err != nil {
+				srv.DumpLogs(t)
+				t.Fatalf("failed to get discovery: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("discovery returned %d", resp.StatusCode)
+			}
+
+			var disc struct {
+				Enabled  bool     `json:"enabled"`
+				Criteria []string `json:"criteria"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
+				t.Fatalf("failed to decode discovery: %v", err)
+			}
+			if !disc.Enabled {
+				t.Fatalf("discovery should be enabled in %s mode", tt.mode)
+			}
+
+			hasHTTPReqSigs := false
+			for _, criterion := range disc.Criteria {
+				if criterion == "http-request-signatures" {
+					hasHTTPReqSigs = true
+					break
+				}
+			}
+			if hasHTTPReqSigs != tt.wantHTTPReqSigs {
+				t.Fatalf(
+					"mode %s criteria mismatch: has http-request-signatures=%v, want %v (criteria=%v)",
+					tt.mode,
+					hasHTTPReqSigs,
+					tt.wantHTTPReqSigs,
+					disc.Criteria,
+				)
+			}
+		})
+	}
 }
 
 func TestOutgoingSharePolicyDifferences(t *testing.T) {
