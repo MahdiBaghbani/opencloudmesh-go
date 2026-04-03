@@ -65,7 +65,7 @@ func main() {
 	loggingAllowSensitive := flag.String("logging-allow-sensitive", "", "Allow sensitive values in logs: true or false (overrides config)")
 	tokenExchangeEnabled := flag.String("token-exchange-enabled", "", "Enable token exchange: true or false (overrides config)")
 	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
-	webdavTokenExchangeMode := flag.String("webdav-token-exchange-mode", "", "WebDAV token exchange enforcement mode: strict, lenient, or off (overrides config)")
+	requireTokenExchange := flag.String("require-token-exchange", "", "Require must-exchange-token for receive strictness: true or false (overrides config)")
 	peerPolicy := flag.String("peer-policy", "", "Peer policy: legacy, prefer-strict, or strict (overrides config)")
 	flag.Parse()
 
@@ -92,7 +92,7 @@ func main() {
 			LoggingAllowSensitive:         loggingAllowSensitive,
 			TokenExchangeEnabled:          tokenExchangeEnabled,
 			TokenExchangePath:             tokenExchangePath,
-			WebDAVTokenExchangeMode:       webdavTokenExchangeMode,
+			RequireTokenExchange:          requireTokenExchange,
 			PeerPolicy:                    peerPolicy,
 		},
 		Logger: bootstrapLogger,

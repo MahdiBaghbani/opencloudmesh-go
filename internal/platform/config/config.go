@@ -54,8 +54,9 @@ type Config struct {
 	// TokenExchange configuration
 	TokenExchange TokenExchangeConfig `toml:"token_exchange"`
 
-	// WebDAVTokenExchange configuration for must-exchange-token enforcement
-	WebDAVTokenExchange WebDAVTokenExchangeConfig `toml:"webdav_token_exchange"`
+	// RequireTokenExchange controls whether local receive policy requires
+	// must-exchange-token on WebDAV protocol requirements.
+	RequireTokenExchange bool `toml:"require_token_exchange"`
 
 	// PeerPolicy controls sender behavior toward non-strict peers.
 	// Values: "legacy", "prefer-strict" (default), "strict".
@@ -100,16 +101,6 @@ type TokenExchangeConfig struct {
 	// Path is the token exchange endpoint path (relative to /ocm/).
 	// Default: "token"
 	Path string `toml:"path"`
-}
-
-// WebDAVTokenExchangeConfig holds must-exchange-token enforcement settings.
-type WebDAVTokenExchangeConfig struct {
-	// Mode controls enforcement: strict, lenient, off.
-	// - strict: always enforce must-exchange-token
-	// - lenient: enforce with peer profile relaxations
-	// - off: never enforce must-exchange-token
-	// Default: off in all modes (Reva-aligned; require_token_exchange=false).
-	Mode string `toml:"mode"`
 }
 
 // CacheConfig holds cache settings.
@@ -419,9 +410,7 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    Enabled: %s,\n", enabledStr))
 	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
 	sb.WriteString("  },\n")
-	sb.WriteString("  WebDAVTokenExchange: {\n")
-	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.WebDAVTokenExchange.Mode))
-	sb.WriteString("  },\n")
+	sb.WriteString(fmt.Sprintf("  RequireTokenExchange: %v,\n", c.RequireTokenExchange))
 	sb.WriteString(fmt.Sprintf("  PeerPolicy: %q,\n", c.PeerPolicy))
 	sb.WriteString("  HTTP: {\n")
 	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))

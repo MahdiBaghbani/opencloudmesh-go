@@ -21,7 +21,7 @@ func NewOpenCloudMeshPolicy(cfg *config.Config) *OpenCloudMeshPolicy {
 	return &OpenCloudMeshPolicy{
 		evaluation: Evaluation{
 			TokenExchangeCapable:  cfg.TokenExchangeEnabled(),
-			RequiresTokenExchange: cfg.WebDAVTokenExchange.Mode == "strict",
+			RequiresTokenExchange: cfg.RequireTokenExchange,
 			PeerPolicy:            cfg.PeerPolicy,
 		},
 	}

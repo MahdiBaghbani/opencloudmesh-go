@@ -330,6 +330,7 @@ func TestConfig_Redacted(t *testing.T) {
 			PeerProfileLevelOverride:       "non-strict",
 			KeyPath:                        ".ocm/keys/signing.pem",
 		},
+		RequireTokenExchange: true,
 	}
 
 	redacted := cfg.Redacted()
@@ -344,6 +345,12 @@ func TestConfig_Redacted(t *testing.T) {
 	// Username should be visible
 	if !strings.Contains(redacted, "admin") {
 		t.Error("username should be visible")
+	}
+	if !strings.Contains(redacted, "RequireTokenExchange: true") {
+		t.Error("expected require_token_exchange in redacted output")
+	}
+	if strings.Contains(redacted, "WebDAVTokenExchange") {
+		t.Error("expected WebDAVTokenExchange block removed from redacted output")
 	}
 }
 
@@ -513,7 +520,7 @@ func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	// Test all valid enum combinations (webdav mode must be non-strict when peer_profile_level_override=all)
+	// Test valid enum combinations.
 	tomlContent := `
 mode = "interop"
 
@@ -528,9 +535,6 @@ inbound_mode = "lenient"
 outbound_mode = "criteria-only"
 peer_profile_level_override = "all"
 on_discovery_error = "allow"
-
-[webdav_token_exchange]
-mode = "lenient"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -985,7 +989,7 @@ level = "` + level + `"
 }
 
 func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
-	// Strict mode: enabled=true, path=token, webdav_mode=off
+	// Strict mode: enabled=true, path=token, require_token_exchange=true
 	strictCfg := StrictConfig()
 	if strictCfg.TokenExchange.Enabled == nil || !*strictCfg.TokenExchange.Enabled {
 		t.Error("expected strict mode token_exchange.enabled true")
@@ -993,11 +997,11 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if strictCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected strict mode token_exchange.path 'token', got %q", strictCfg.TokenExchange.Path)
 	}
-	if strictCfg.WebDAVTokenExchange.Mode != "off" {
-		t.Errorf("expected strict mode webdav_token_exchange.mode 'off', got %q", strictCfg.WebDAVTokenExchange.Mode)
+	if !strictCfg.RequireTokenExchange {
+		t.Error("expected strict mode require_token_exchange true")
 	}
 
-	// Interop mode: enabled=true, path=token, webdav_mode=off
+	// Interop mode: enabled=true, path=token, require_token_exchange=false
 	interopCfg := InteropConfig()
 	if interopCfg.TokenExchange.Enabled == nil || !*interopCfg.TokenExchange.Enabled {
 		t.Error("expected interop mode token_exchange.enabled true")
@@ -1005,11 +1009,11 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if interopCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected interop mode token_exchange.path 'token', got %q", interopCfg.TokenExchange.Path)
 	}
-	if interopCfg.WebDAVTokenExchange.Mode != "off" {
-		t.Errorf("expected interop mode webdav_token_exchange.mode 'off', got %q", interopCfg.WebDAVTokenExchange.Mode)
+	if interopCfg.RequireTokenExchange {
+		t.Error("expected interop mode require_token_exchange false")
 	}
 
-	// Dev mode: enabled=true, path=token, webdav_mode=off
+	// Dev mode: enabled=true, path=token, require_token_exchange=false
 	devCfg := DevConfig()
 	if devCfg.TokenExchange.Enabled == nil || !*devCfg.TokenExchange.Enabled {
 		t.Error("expected dev mode token_exchange.enabled true")
@@ -1017,8 +1021,8 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if devCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected dev mode token_exchange.path 'token', got %q", devCfg.TokenExchange.Path)
 	}
-	if devCfg.WebDAVTokenExchange.Mode != "off" {
-		t.Errorf("expected dev mode webdav_token_exchange.mode 'off', got %q", devCfg.WebDAVTokenExchange.Mode)
+	if devCfg.RequireTokenExchange {
+		t.Error("expected dev mode require_token_exchange false")
 	}
 }
 
@@ -1028,13 +1032,11 @@ func TestLoad_TokenExchangeConfig_FromTOML(t *testing.T) {
 
 	tomlContent := `
 mode = "strict"
+require_token_exchange = false
 
 [token_exchange]
 enabled = false
 path = "token/v2"
-
-[webdav_token_exchange]
-mode = "off"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1125,15 +1127,13 @@ path = "` + tt.path + `"
 	}
 }
 
-func TestLoad_WebDAVTokenExchangeConfig_FromTOML(t *testing.T) {
+func TestLoad_RequireTokenExchange_FromTOML(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 mode = "strict"
-
-[webdav_token_exchange]
-mode = "off"
+require_token_exchange = false
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1144,92 +1144,75 @@ mode = "off"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.WebDAVTokenExchange.Mode != "off" {
-		t.Errorf("expected webdav_token_exchange.mode 'off', got %q", cfg.WebDAVTokenExchange.Mode)
+	if cfg.RequireTokenExchange {
+		t.Error("expected require_token_exchange false from TOML")
 	}
 }
 
-func TestLoad_WebDAVTokenExchangeConfig_FlagsOverrideTOML(t *testing.T) {
+func TestLoad_RequireTokenExchange_FlagsOverrideTOML(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 mode = "strict"
-
-[webdav_token_exchange]
-mode = "strict"
+require_token_exchange = true
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	mode := "lenient"
+	require := "false"
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
-			WebDAVTokenExchangeMode: &mode,
+			RequireTokenExchange: &require,
 		},
 	})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.WebDAVTokenExchange.Mode != "lenient" {
-		t.Errorf("expected webdav_token_exchange.mode 'lenient' from flag, got %q", cfg.WebDAVTokenExchange.Mode)
+	if cfg.RequireTokenExchange {
+		t.Error("expected require_token_exchange false from flag")
 	}
 }
 
-func TestLoad_WebDAVTokenExchangeConfig_InvalidMode_FailsFast(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
+func TestLoad_WebDAVTokenExchangeSurface_RemovedFailsFast(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+	}{
+		{
+			name: "removed table",
+			config: `
 mode = "strict"
-
 [webdav_token_exchange]
-mode = "relaxed"
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
+mode = "strict"
+`,
+		},
+		{
+			name: "removed dotted key",
+			config: `
+mode = "strict"
+webdav_token_exchange.mode = "strict"
+`,
+		},
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for invalid webdav_token_exchange.mode")
-	}
-	if !strings.Contains(err.Error(), "invalid webdav_token_exchange.mode") {
-		t.Errorf("expected webdav_token_exchange.mode error, got: %v", err)
-	}
-}
-
-func TestLoad_WebDAVTokenExchangeConfig_AllValidModes(t *testing.T) {
-	validModes := []string{"off", "lenient", "strict"}
-
-	for _, mode := range validModes {
-		t.Run(mode, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
-
-			tomlContent := `
-mode = "strict"
-
-[token_exchange]
-enabled = true
-
-[webdav_token_exchange]
-mode = "` + mode + `"
-`
-			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+			if err := os.WriteFile(configPath, []byte(tt.config), 0644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
 			}
 
-			cfg, err := Load(LoaderOptions{ConfigPath: configPath})
-			if err != nil {
-				t.Fatalf("Load() error = %v", err)
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected removed webdav_token_exchange surface to fail")
 			}
-
-			if cfg.WebDAVTokenExchange.Mode != mode {
-				t.Errorf("expected webdav_token_exchange.mode %q, got %q", mode, cfg.WebDAVTokenExchange.Mode)
+			if !strings.Contains(err.Error(), "webdav_token_exchange") || !strings.Contains(err.Error(), "require_token_exchange") {
+				t.Fatalf("expected migration error to mention removed and replacement keys, got %v", err)
 			}
 		})
 	}
@@ -1691,18 +1674,16 @@ legacy_peer_policy = "prefer-strict"
 	}
 }
 
-func TestLoad_CrossField_StrictWebDAVRequiresTokenExchange(t *testing.T) {
+func TestLoad_CrossField_RequireTokenExchangeRequiresTokenExchange(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 mode = "strict"
+require_token_exchange = true
 
 [token_exchange]
 enabled = false
-
-[webdav_token_exchange]
-mode = "strict"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1710,9 +1691,9 @@ mode = "strict"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for strict WebDAV mode without token exchange")
+		t.Fatal("expected error for require_token_exchange without token exchange capability")
 	}
-	if !strings.Contains(err.Error(), "webdav_token_exchange.mode=strict requires token_exchange.enabled=true") {
+	if !strings.Contains(err.Error(), "require_token_exchange=true requires token_exchange.enabled=true") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -1723,13 +1704,11 @@ func TestLoad_CrossField_StrictPeerPolicyRequiresTokenExchange(t *testing.T) {
 
 	tomlContent := `
 mode = "strict"
+require_token_exchange = false
 peer_policy = "strict"
 
 [token_exchange]
 enabled = false
-
-[webdav_token_exchange]
-mode = "off"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1849,9 +1828,6 @@ peer_profile_level_override = "all"
 
 [token_exchange]
 enabled = true
-
-[webdav_token_exchange]
-mode = "strict"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)

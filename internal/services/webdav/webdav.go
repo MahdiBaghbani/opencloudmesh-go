@@ -63,7 +63,11 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 			mode = "off"
 		}
 	} else if d.Config != nil {
-		mode = d.Config.WebDAVTokenExchange.Mode
+		if d.Config.RequireTokenExchange {
+			mode = "strict"
+		} else {
+			mode = "off"
+		}
 	}
 	settings := &webdav.Settings{
 		WebDAVTokenExchangeMode: mode,
