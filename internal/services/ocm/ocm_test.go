@@ -19,7 +19,7 @@ func setupTestDeps() {
 	cfg := config.DevConfig()
 	deps.SetDeps(&deps.Deps{
 		Config:        cfg,
-		RuntimePolicy: policy.NewRuntimePolicy(cfg),
+		RuntimePolicy: policy.NewRuntimePolicy(cfg, nil),
 	})
 }
 
@@ -203,7 +203,7 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 	deps.SetDeps(&deps.Deps{
 		Config:              cfg,
 		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg),
+		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
 	})
 
 	m := map[string]any{

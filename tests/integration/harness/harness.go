@@ -17,6 +17,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
@@ -143,8 +144,35 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to normalize provider FQDN: %v", err)
 	}
 
+	var profileRegistry *peercompat.ProfileRegistry
+	if len(cfg.PeerProfiles.Mappings) > 0 || len(cfg.PeerProfiles.CustomProfiles) > 0 {
+		customProfiles := make(map[string]*peercompat.Profile)
+		for name, profileCfg := range cfg.PeerProfiles.CustomProfiles {
+			customProfiles[name] = &peercompat.Profile{
+				Name:                     name,
+				AllowUnsignedInbound:     profileCfg.AllowUnsignedInbound,
+				AllowUnsignedOutbound:    profileCfg.AllowUnsignedOutbound,
+				AllowMismatchedHost:      profileCfg.AllowMismatchedHost,
+				AllowHTTP:                profileCfg.AllowHTTP,
+				TokenExchangeQuirks:      profileCfg.TokenExchangeQuirks,
+				RelaxMustExchangeToken:   profileCfg.RelaxMustExchangeToken,
+				AllowedBasicAuthPatterns: profileCfg.AllowedBasicAuthPatterns,
+			}
+		}
+		mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
+		for i, mapping := range cfg.PeerProfiles.Mappings {
+			mappings[i] = peercompat.ProfileMapping{
+				Pattern:     mapping.Pattern,
+				ProfileName: mapping.Profile,
+			}
+		}
+		profileRegistry = peercompat.NewProfileRegistry(customProfiles, mappings)
+	} else {
+		profileRegistry = peercompat.NewProfileRegistry(nil, nil)
+	}
+
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg)
+	runtimePolicy := policy.NewRuntimePolicy(cfg, profileRegistry)
 
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()

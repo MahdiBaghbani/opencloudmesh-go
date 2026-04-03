@@ -48,7 +48,7 @@ func setupTestPartyRepo() identity.PartyRepo {
 func runtimePolicyForMode(mode string) *policy.RuntimePolicy {
 	cfg := config.DevConfig()
 	cfg.Signature.InboundMode = mode
-	return policy.NewRuntimePolicy(cfg)
+	return policy.NewRuntimePolicy(cfg, nil)
 }
 
 // newTestHandler creates a handler wired for testing against localhost:9200 (https).

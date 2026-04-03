@@ -257,7 +257,7 @@ func main() {
 	}
 
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg)
+	runtimePolicy := policy.NewRuntimePolicy(cfg, profileRegistry)
 
 	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry, openCloudMeshPolicy)
 
