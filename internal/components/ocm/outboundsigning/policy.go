@@ -28,10 +28,10 @@ type SigningDecision struct {
 }
 
 type OutboundPolicy struct {
-	OutboundMode           string
-	PeerProfileOverride    string
-	ProfileRegistry        *peercompat.ProfileRegistry
-	evaluator              *evaluator.LocalEvaluator
+	OutboundMode        string
+	PeerProfileOverride string
+	ProfileRegistry     *peercompat.ProfileRegistry
+	evaluator           *evaluator.LocalEvaluator
 }
 
 func NewOutboundPolicy(cfg *config.Config, registry *peercompat.ProfileRegistry, eval *evaluator.LocalEvaluator) *OutboundPolicy {
@@ -86,7 +86,55 @@ func (p *OutboundPolicy) ShouldSign(
 }
 
 func (p *OutboundPolicy) decideTokenExchange(disc *discovery.Discovery, profile *peercompat.Profile, hasSigner bool) SigningDecision {
-	if profile != nil && profile.HasQuirk("accept_plain_token") {
+	localPolicy := "legacy"
+	if p.evaluator != nil {
+		ev := p.evaluator.Evaluate()
+		if ev.PeerPolicy != "" {
+			localPolicy = ev.PeerPolicy
+		}
+	}
+
+	if disc != nil {
+		peerIsStrict := disc.HasCriteria("token-exchange")
+		peerHasExchangeToken := disc.HasCapability("exchange-token")
+
+		if peerIsStrict {
+			if !hasSigner {
+				return SigningDecision{
+					ShouldSign: true,
+					Reason:     "strict peer requires signed token exchange",
+					Error:      fmt.Errorf("strict peer requires signed token exchange but no signer available"),
+				}
+			}
+			return SigningDecision{
+				ShouldSign: true,
+				Reason:     "strict peer requires signed token exchange",
+			}
+		}
+
+		if !peerHasExchangeToken {
+			return SigningDecision{
+				ShouldSign: false,
+				Reason:     "peer does not advertise exchange-token capability",
+			}
+		}
+
+		if localPolicy == "strict" {
+			if !hasSigner {
+				return SigningDecision{
+					ShouldSign: true,
+					Reason:     "strict policy requires signed token exchange",
+					Error:      fmt.Errorf("strict policy requires signed token exchange but no signer available"),
+				}
+			}
+			return SigningDecision{
+				ShouldSign: true,
+				Reason:     "strict policy requires signed token exchange",
+			}
+		}
+	}
+
+	if profile != nil && profile.HasQuirk("accept_plain_token") && localPolicy == "legacy" {
 		if p.canApplyRelaxation("outbound") {
 			return SigningDecision{
 				ShouldSign: false,
@@ -95,6 +143,12 @@ func (p *OutboundPolicy) decideTokenExchange(disc *discovery.Discovery, profile 
 		}
 	}
 	if !hasSigner {
+		if localPolicy == "legacy" {
+			return SigningDecision{
+				ShouldSign: false,
+				Reason:     "legacy policy allows unsigned token exchange when signer is unavailable",
+			}
+		}
 		return SigningDecision{
 			ShouldSign: true,
 			Reason:     "token exchange requires signature",
@@ -104,7 +158,7 @@ func (p *OutboundPolicy) decideTokenExchange(disc *discovery.Discovery, profile 
 
 	return SigningDecision{
 		ShouldSign: true,
-		Reason:     "token exchange signed per outbound_mode",
+		Reason:     "token exchange signed per outbound policy",
 	}
 }
 

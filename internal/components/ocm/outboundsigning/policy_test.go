@@ -6,8 +6,9 @@ package outboundsigning_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
@@ -290,5 +291,52 @@ func TestNewOutboundPolicy(t *testing.T) {
 	}
 	if policy.PeerProfileOverride != "non-strict" {
 		t.Errorf("expected peer_profile_level_override=non-strict, got %s", policy.PeerProfileOverride)
+	}
+}
+
+func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testing.T) {
+	profiles := map[string]*peercompat.Profile{
+		"nextcloud": {
+			Name:                "nextcloud",
+			TokenExchangeQuirks: []string{"accept_plain_token"},
+		},
+	}
+	mappings := []peercompat.ProfileMapping{
+		{Pattern: "cloud.nextcloud.com", ProfileName: "nextcloud"},
+	}
+	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	cfg := config.DevConfig()
+	policy := outboundsigning.NewOutboundPolicy(cfg, registry, evaluator.NewLocalEvaluator(cfg))
+
+	disc := &discovery.Discovery{
+		Capabilities: []string{"exchange-token"},
+		Criteria:     []string{"token-exchange"},
+	}
+	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "cloud.nextcloud.com", disc, true)
+	if !decision.ShouldSign {
+		t.Fatalf("strict peer must require signed token exchange even when accept_plain_token quirk exists: %+v", decision)
+	}
+	if decision.Error != nil {
+		t.Fatalf("unexpected error with signer available: %v", decision.Error)
+	}
+}
+
+func TestOutboundPolicy_TokenExchange_StrictPolicyRequiresSigning(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.PeerPolicy = "strict"
+	enabled := true
+	cfg.TokenExchange.Enabled = &enabled
+	policy := outboundsigning.NewOutboundPolicy(cfg, peercompat.NewProfileRegistry(nil, nil), evaluator.NewLocalEvaluator(cfg))
+
+	disc := &discovery.Discovery{
+		Capabilities: []string{"exchange-token"},
+		Criteria:     []string{},
+	}
+	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "peer.example.com", disc, false)
+	if !decision.ShouldSign {
+		t.Fatalf("strict policy should require signed token exchange: %+v", decision)
+	}
+	if decision.Error == nil {
+		t.Fatal("expected error when signer is unavailable under strict policy")
 	}
 }
