@@ -1024,9 +1024,9 @@ func TestReceiverClassification_ReceiverStrictRequiresWireMustExchange(t *testin
 	partyRepo := setupTestPartyRepo()
 	tokenExchangeEnabled := true
 	cfg := &config.Config{
-		TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
-		PeerPolicy:          "legacy",
+		TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+		RequireTokenExchange: true,
+		PeerPolicy:           "legacy",
 	}
 	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, policy.NewOpenCloudMeshPolicy(cfg))
 

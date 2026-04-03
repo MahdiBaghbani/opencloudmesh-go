@@ -57,29 +57,29 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 // Migrated from TestHandler_CriteriaAdvertiseHTTPRequestSignatures -- now tests
 // evaluator-driven criteria via the canonical three-dimension model.
 func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
-	t.Run("strict mode emits token-exchange criteria", func(t *testing.T) {
+	t.Run("require_token_exchange=true emits token-exchange criteria", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
-			PeerPolicy:          "legacy",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+			RequireTokenExchange: true,
+			PeerPolicy:           "legacy",
 		}
 		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
 		if !eval.RequiresTokenExchange {
-			t.Error("expected RequiresTokenExchange true for strict mode")
+			t.Error("expected RequiresTokenExchange true for require_token_exchange=true")
 		}
 	})
 
-	t.Run("lenient mode does not emit token-exchange criteria", func(t *testing.T) {
+	t.Run("require_token_exchange=false does not emit token-exchange criteria", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"},
-			PeerPolicy:          "legacy",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+			RequireTokenExchange: false,
+			PeerPolicy:           "legacy",
 		}
 		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
 		if eval.RequiresTokenExchange {
-			t.Error("expected RequiresTokenExchange false for lenient mode")
+			t.Error("expected RequiresTokenExchange false for require_token_exchange=false")
 		}
 	})
 }

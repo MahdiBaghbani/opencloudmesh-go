@@ -565,10 +565,10 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 	t.Run("evaluator TokenExchangeCapable=true adds exchange-token", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			PublicOrigin:        "https://example.com",
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
-			PeerPolicy:          "legacy",
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			RequireTokenExchange: true,
+			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
@@ -601,10 +601,10 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 	t.Run("evaluator TokenExchangeCapable=false omits exchange-token", func(t *testing.T) {
 		tokenExchangeEnabled := false
 		cfg := &config.Config{
-			PublicOrigin:        "https://example.com",
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
-			PeerPolicy:          "legacy",
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+			RequireTokenExchange: false,
+			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = false
@@ -633,10 +633,10 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("RequiresTokenExchange=true adds token-exchange criteria", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			PublicOrigin:        "https://example.com",
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
-			PeerPolicy:          "legacy",
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			RequireTokenExchange: true,
+			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
@@ -666,10 +666,10 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("RequiresTokenExchange=false omits token-exchange criteria", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			PublicOrigin:        "https://example.com",
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"},
-			PeerPolicy:          "legacy",
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			RequireTokenExchange: false,
+			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
@@ -694,10 +694,10 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("empty criteria serializes as []", func(t *testing.T) {
 		tokenExchangeEnabled := false
 		cfg := &config.Config{
-			PublicOrigin:        "https://example.com",
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
-			PeerPolicy:          "legacy",
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+			RequireTokenExchange: false,
+			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
@@ -736,10 +736,10 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("per-service token_exchange override keeps evaluator strictness", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			PublicOrigin:        "https://example.com",
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
-			PeerPolicy:          "legacy",
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			RequireTokenExchange: true,
+			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
@@ -772,10 +772,10 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("never emit token-exchange criteria without capability", func(t *testing.T) {
 		tokenExchangeEnabled := false
 		cfg := &config.Config{
-			PublicOrigin:        "https://example.com",
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
-			PeerPolicy:          "legacy",
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			RequireTokenExchange: true,
+			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
@@ -806,10 +806,10 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("per-service override cannot diverge evaluator capability", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			PublicOrigin:        "https://example.com",
-			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
-			PeerPolicy:          "legacy",
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			RequireTokenExchange: false,
+			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
