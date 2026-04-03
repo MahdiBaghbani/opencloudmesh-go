@@ -323,7 +323,7 @@ func StrictConfig() *Config {
 			InboundMode:                    "strict",
 			OutboundMode:                   "strict",
 			AdvertiseHTTPRequestSignatures: true,
-			PeerProfileLevelOverride:       "non-strict",
+			PeerProfileLevelOverride:       "off",
 			KeyPath:                        ".ocm/keys/signing.pem",
 			OnDiscoveryError:               "reject",
 			AllowMismatch:                  false,
@@ -811,6 +811,12 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("peer_policy=strict requires token_exchange.enabled=true")
 	}
 
+	// Strict preset guardrails: when mode=strict, known signature-axis
+	// contradictions should fail before startup.
+	if err := validateStrictPresetPosture(cfg); err != nil {
+		return err
+	}
+
 	// Cross-field: peer_profile_level_override=all undermines strict advertisement
 	if cfg.Signature.PeerProfileLevelOverride == "all" && cfg.WebDAVTokenExchange.Mode == "strict" {
 		return fmt.Errorf("signature.peer_profile_level_override=all is incompatible with webdav_token_exchange.mode=strict")
@@ -821,6 +827,28 @@ func validateEnums(cfg *Config) error {
 		return err
 	}
 
+	return nil
+}
+
+func validateStrictPresetPosture(cfg *Config) error {
+	if cfg == nil || !strings.EqualFold(cfg.Mode, string(ModeStrict)) {
+		return nil
+	}
+	if cfg.Signature.InboundMode != "strict" {
+		return fmt.Errorf("mode=strict requires signature.inbound_mode=strict")
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		return fmt.Errorf("mode=strict requires signature.outbound_mode=strict")
+	}
+	if cfg.Signature.PeerProfileLevelOverride != "off" {
+		return fmt.Errorf("mode=strict requires signature.peer_profile_level_override=off")
+	}
+	if cfg.Signature.OnDiscoveryError != "reject" {
+		return fmt.Errorf("mode=strict requires signature.on_discovery_error=reject")
+	}
+	if cfg.Signature.AllowMismatch {
+		return fmt.Errorf("mode=strict requires signature.allow_mismatch=false")
+	}
 	return nil
 }
 

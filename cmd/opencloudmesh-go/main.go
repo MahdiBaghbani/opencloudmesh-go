@@ -258,6 +258,25 @@ func main() {
 
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg, profileRegistry)
+	runtimeEval := runtimePolicy.Evaluate()
+	if runtimeEval.Strict.IsStrict {
+		logger.Info(
+			"resolved runtime signature posture",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"strict", runtimeEval.Strict.IsStrict,
+			"trust_status", runtimeEval.Trust.Status,
+		)
+	} else {
+		logger.Warn(
+			"resolved runtime signature posture is non-strict",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"strict", runtimeEval.Strict.IsStrict,
+			"reasons", runtimeEval.Strict.ViolationReasons,
+			"trust_status", runtimeEval.Trust.Status,
+		)
+	}
 
 	outboundPolicy := outboundsigning.NewOutboundPolicy(runtimePolicy, profileRegistry, openCloudMeshPolicy)
 

@@ -154,6 +154,37 @@ func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) 
 	}
 }
 
+func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryRejectsByDefault(t *testing.T) {
+	cfg := config.InteropConfig()
+	registry := peercompat.NewProfileRegistry(nil, nil)
+	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, registry)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, nil)
+
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
+	if !decision.ShouldSign {
+		t.Fatalf("criteria-only with on_discovery_error=reject should require signing: %+v", decision)
+	}
+	if decision.Error == nil {
+		t.Fatalf("expected error when discovery is unavailable in reject mode: %+v", decision)
+	}
+}
+
+func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryCanAllow(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.Signature.OutboundMode = "criteria-only"
+	registry := peercompat.NewProfileRegistry(nil, nil)
+	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, registry)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, nil)
+
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
+	if decision.ShouldSign {
+		t.Fatalf("criteria-only with on_discovery_error=allow should not force signing: %+v", decision)
+	}
+	if decision.Error != nil {
+		t.Fatalf("criteria-only with discovery allow should not error: %+v", decision)
+	}
+}
+
 func TestOutboundPolicy_TokenExchange_PeerProfileQuirk(t *testing.T) {
 	profiles := map[string]*peercompat.Profile{
 		"nextcloud": {
@@ -292,6 +323,9 @@ func TestNewOutboundPolicy(t *testing.T) {
 	}
 	if policy.PeerProfileOverride != "non-strict" {
 		t.Errorf("expected peer_profile_level_override=non-strict, got %s", policy.PeerProfileOverride)
+	}
+	if policy.OnDiscoveryError != "reject" {
+		t.Errorf("expected on_discovery_error=reject default, got %s", policy.OnDiscoveryError)
 	}
 }
 

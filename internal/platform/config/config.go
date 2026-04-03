@@ -240,7 +240,7 @@ type SignatureConfig struct {
 	AdvertiseHTTPRequestSignatures bool `toml:"advertise_http_request_signatures"`
 
 	// PeerProfileLevelOverride controls when peer profile relaxations apply:
-	// all, non-strict, off (default: non-strict)
+	// all, non-strict, off (strict preset default: off)
 	PeerProfileLevelOverride string `toml:"peer_profile_level_override"`
 
 	// KeyPath is where the signing private key is stored

@@ -29,6 +29,7 @@ type SigningDecision struct {
 type OutboundPolicy struct {
 	OutboundMode        string
 	PeerProfileOverride string
+	OnDiscoveryError    string
 	ProfileRegistry     *peercompat.ProfileRegistry
 	runtimePolicy       *policy.RuntimePolicy
 	canonicalPolicy     *policy.OpenCloudMeshPolicy
@@ -37,6 +38,7 @@ type OutboundPolicy struct {
 func NewOutboundPolicy(runtimePolicy *policy.RuntimePolicy, registry *peercompat.ProfileRegistry, canonicalPolicy *policy.OpenCloudMeshPolicy) *OutboundPolicy {
 	outboundMode := "off"
 	peerProfileOverride := "off"
+	onDiscoveryError := "reject"
 	if runtimePolicy != nil {
 		signature := runtimePolicy.Evaluate().Signature
 		if signature.OutboundMode != "" {
@@ -45,10 +47,14 @@ func NewOutboundPolicy(runtimePolicy *policy.RuntimePolicy, registry *peercompat
 		if signature.PeerProfileLevelOverride != "" {
 			peerProfileOverride = signature.PeerProfileLevelOverride
 		}
+		if signature.OnDiscoveryError != "" {
+			onDiscoveryError = signature.OnDiscoveryError
+		}
 	}
 	return &OutboundPolicy{
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: peerProfileOverride,
+		OnDiscoveryError:    onDiscoveryError,
 		ProfileRegistry:     registry,
 		runtimePolicy:       runtimePolicy,
 		canonicalPolicy:     canonicalPolicy,
@@ -223,9 +229,16 @@ func (p *OutboundPolicy) decideCriteriaOnly(
 	hasSigner bool,
 ) SigningDecision {
 	if disc == nil {
+		if p.OnDiscoveryError != "allow" {
+			return SigningDecision{
+				ShouldSign: true,
+				Reason:     "discovery unavailable and on_discovery_error=reject",
+				Error:      fmt.Errorf("peer discovery unavailable for criteria-only outbound signing decision"),
+			}
+		}
 		return SigningDecision{
 			ShouldSign: false,
-			Reason:     "no discovery document available",
+			Reason:     "discovery unavailable and on_discovery_error=allow",
 		}
 	}
 	peerRequiresSignatures := disc.HasCriteria("http-request-signatures")

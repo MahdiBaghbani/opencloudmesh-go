@@ -140,6 +140,7 @@ func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
+mode = "interop"
 public_origin = "https://from-toml.com"
 listen_addr = ":9000"
 
@@ -262,8 +263,8 @@ func TestStrictConfig(t *testing.T) {
 	if !cfg.Signature.AdvertiseHTTPRequestSignatures {
 		t.Error("expected advertise_http_request_signatures true in strict")
 	}
-	if cfg.Signature.PeerProfileLevelOverride != "non-strict" {
-		t.Errorf("expected peer_profile_level_override non-strict, got %s", cfg.Signature.PeerProfileLevelOverride)
+	if cfg.Signature.PeerProfileLevelOverride != "off" {
+		t.Errorf("expected peer_profile_level_override off, got %s", cfg.Signature.PeerProfileLevelOverride)
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify false in strict")
@@ -468,6 +469,7 @@ func TestLoad_AdvertiseGuardrail_InboundOffRejectsAdvertiseTrue(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
+mode = "interop"
 [signature]
 inbound_mode = "off"
 outbound_mode = "off"
@@ -513,7 +515,7 @@ func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
 
 	// Test all valid enum combinations (webdav mode must be non-strict when peer_profile_level_override=all)
 	tomlContent := `
-mode = "strict"
+mode = "interop"
 
 [tls]
 mode = "acme"
@@ -1742,6 +1744,99 @@ mode = "off"
 	}
 }
 
+func TestLoad_StrictModeSignatureContradictions_FailFast(t *testing.T) {
+	tests := []struct {
+		name      string
+		signature string
+		wantError string
+	}{
+		{
+			name: "strict mode requires inbound strict",
+			signature: `
+[signature]
+inbound_mode = "lenient"
+`,
+			wantError: "mode=strict requires signature.inbound_mode=strict",
+		},
+		{
+			name: "strict mode requires outbound strict",
+			signature: `
+[signature]
+outbound_mode = "criteria-only"
+`,
+			wantError: "mode=strict requires signature.outbound_mode=strict",
+		},
+		{
+			name: "strict mode requires peer override off",
+			signature: `
+[signature]
+peer_profile_level_override = "non-strict"
+`,
+			wantError: "mode=strict requires signature.peer_profile_level_override=off",
+		},
+		{
+			name: "strict mode requires discovery errors rejected",
+			signature: `
+[signature]
+on_discovery_error = "allow"
+`,
+			wantError: "mode=strict requires signature.on_discovery_error=reject",
+		},
+		{
+			name: "strict mode disallows mismatch",
+			signature: `
+[signature]
+allow_mismatch = true
+`,
+			wantError: "mode=strict requires signature.allow_mismatch=false",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+			tomlContent := `
+mode = "strict"
+` + tt.signature
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatalf("expected strict-mode contradiction error: %s", tt.wantError)
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("expected %q, got %v", tt.wantError, err)
+			}
+		})
+	}
+}
+
+func TestLoad_StrictMode_WithHardenedDefaults_Succeeds(t *testing.T) {
+	cfg, err := Load(LoaderOptions{ModeFlag: "strict"})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected inbound strict, got %q", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Errorf("expected outbound strict, got %q", cfg.Signature.OutboundMode)
+	}
+	if cfg.Signature.PeerProfileLevelOverride != "off" {
+		t.Errorf("expected peer_profile_level_override off, got %q", cfg.Signature.PeerProfileLevelOverride)
+	}
+	if cfg.Signature.OnDiscoveryError != "reject" {
+		t.Errorf("expected on_discovery_error reject, got %q", cfg.Signature.OnDiscoveryError)
+	}
+	if cfg.Signature.AllowMismatch {
+		t.Error("expected allow_mismatch false")
+	}
+}
+
 func TestLoad_CrossField_PeerOverrideAllIncompatibleWithStrict(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -1764,9 +1859,9 @@ mode = "strict"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for peer_profile_level_override=all with strict WebDAV")
+		t.Fatal("expected error for peer_profile_level_override=all with strict mode")
 	}
-	if !strings.Contains(err.Error(), "peer_profile_level_override=all is incompatible with webdav_token_exchange.mode=strict") {
+	if !strings.Contains(err.Error(), "mode=strict requires signature.peer_profile_level_override=off") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
