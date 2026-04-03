@@ -33,11 +33,10 @@ type APIVersionOverride struct {
 
 // OCMProviderConfig holds OCM discovery configuration.
 type OCMProviderConfig struct {
-	Endpoint                       string `mapstructure:"endpoint"`    // This host's full URL (origin + base path)
-	OCMPrefix                      string `mapstructure:"ocm_prefix"`  // Default: "ocm"
-	Provider                       string `mapstructure:"provider"`    // Friendly name
-	WebDAVRoot                     string `mapstructure:"webdav_root"` // WebDAV path
-	AdvertiseHTTPRequestSignatures bool   `mapstructure:"advertise_http_request_signatures"`
+	Endpoint   string `mapstructure:"endpoint"`    // This host's full URL (origin + base path)
+	OCMPrefix  string `mapstructure:"ocm_prefix"`  // Default: "ocm"
+	Provider   string `mapstructure:"provider"`    // Friendly name
+	WebDAVRoot string `mapstructure:"webdav_root"` // WebDAV path
 
 	TokenExchange struct {
 		Enabled bool   `mapstructure:"enabled"`
@@ -67,8 +66,9 @@ func (c *OCMProviderConfig) ApplyDefaults() {
 
 // localEvaluation is a handler-local snapshot of the canonical evaluator output.
 type localEvaluation struct {
-	codeFlow bool
-	strict   bool
+	codeFlow               bool
+	strict                 bool
+	requiresHTTPSignatures bool
 }
 
 type ocmHandler struct {
@@ -97,12 +97,6 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 				c.WebDAVRoot = d.Config.ExternalBasePath + "/webdav/ocm/"
 			} else {
 				c.WebDAVRoot = "/webdav/ocm/"
-			}
-		}
-
-		if _, set := rawOCMProvider["advertise_http_request_signatures"]; !set {
-			if d.RuntimePolicy != nil {
-				c.AdvertiseHTTPRequestSignatures = d.RuntimePolicy.Evaluate().Signature.RequiresHTTPRequestSignatures
 			}
 		}
 
@@ -196,6 +190,9 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 	} else {
 		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
 	}
+	if d != nil && d.RuntimePolicy != nil {
+		localEval.requiresHTTPSignatures = d.RuntimePolicy.Evaluate().Signature.RequiresHTTPRequestSignatures
+	}
 
 	if localEval.codeFlow {
 		capabilities = append(capabilities, "exchange-token")
@@ -220,7 +217,7 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 	disc.Capabilities = capabilities
 
 	// Criteria (always present, serializes as [] when empty)
-	if c.AdvertiseHTTPRequestSignatures {
+	if localEval.requiresHTTPSignatures {
 		disc.Criteria = append(disc.Criteria, "http-request-signatures")
 	}
 	if localEval.strict && localEval.codeFlow {

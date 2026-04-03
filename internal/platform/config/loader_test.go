@@ -260,9 +260,6 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.Signature.OutboundMode != "strict" {
 		t.Errorf("expected signature outbound mode strict, got %s", cfg.Signature.OutboundMode)
 	}
-	if !cfg.Signature.AdvertiseHTTPRequestSignatures {
-		t.Error("expected advertise_http_request_signatures true in strict")
-	}
 	if cfg.Signature.PeerProfileLevelOverride != "off" {
 		t.Errorf("expected peer_profile_level_override off, got %s", cfg.Signature.PeerProfileLevelOverride)
 	}
@@ -303,9 +300,6 @@ func TestInteropConfig(t *testing.T) {
 	if cfg.Signature.OutboundMode != "criteria-only" {
 		t.Errorf("expected signature outbound mode criteria-only, got %s", cfg.Signature.OutboundMode)
 	}
-	if !cfg.Signature.AdvertiseHTTPRequestSignatures {
-		t.Error("expected advertise_http_request_signatures true in interop")
-	}
 	// SSRF stays strict in interop
 	if cfg.OutboundHTTP.SSRFMode != "strict" {
 		t.Errorf("expected SSRF mode strict in interop, got %s", cfg.OutboundHTTP.SSRFMode)
@@ -324,11 +318,10 @@ func TestConfig_Redacted(t *testing.T) {
 			},
 		},
 		Signature: SignatureConfig{
-			InboundMode:                    "strict",
-			OutboundMode:                   "strict",
-			AdvertiseHTTPRequestSignatures: true,
-			PeerProfileLevelOverride:       "non-strict",
-			KeyPath:                        ".ocm/keys/signing.pem",
+			InboundMode:              "strict",
+			OutboundMode:             "strict",
+			PeerProfileLevelOverride: "non-strict",
+			KeyPath:                  ".ocm/keys/signing.pem",
 		},
 		RequireTokenExchange: true,
 	}
@@ -471,27 +464,46 @@ outbound_mode = "relaxed"
 	}
 }
 
-func TestLoad_AdvertiseGuardrail_InboundOffRejectsAdvertiseTrue(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
+func TestLoad_RemovedAdvertiseHTTPSignaturesKey_FailsFast(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+	}{
+		{
+			name: "nested in signature table",
+			config: `
 mode = "interop"
 [signature]
-inbound_mode = "off"
-outbound_mode = "off"
 advertise_http_request_signatures = true
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
+`,
+		},
+		{
+			name: "dotted root key",
+			config: `
+mode = "interop"
+signature.advertise_http_request_signatures = true
+`,
+		},
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for advertise=true when inbound_mode=off")
-	}
-	if !strings.Contains(err.Error(), "advertise_http_request_signatures cannot be true") {
-		t.Errorf("expected guardrail error, got: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+
+			if err := os.WriteFile(configPath, []byte(tt.config), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected removed key error")
+			}
+			if !strings.Contains(err.Error(), "signature.advertise_http_request_signatures") ||
+				!strings.Contains(err.Error(), "removed") {
+				t.Errorf("expected removed-key migration error, got: %v", err)
+			}
+		})
 	}
 }
 

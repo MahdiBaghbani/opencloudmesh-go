@@ -80,6 +80,23 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 	}
 }
 
+func TestNew_RemovedNestedAdvertiseKey_IsNotSpeciallyRejected(t *testing.T) {
+	deps.ResetDeps()
+	deps.SetDeps(&deps.Deps{})
+
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint":                          "https://example.com",
+			"advertise_http_request_signatures": false,
+		},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	if _, err := New(m, log); err != nil {
+		t.Fatalf("expected removed nested key to follow normal decode behavior, got %v", err)
+	}
+}
+
 func TestNew_ConfigDecodeError(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{})
@@ -165,9 +182,9 @@ func TestTrailingSlashAliases_ReturnSameResponse(t *testing.T) {
 	handler := svc.Handler()
 
 	testCases := []struct {
-		name     string
-		path     string
-		aliasOf  string
+		name    string
+		path    string
+		aliasOf string
 	}{
 		{"well-known trailing slash", "/.well-known/ocm/", "/.well-known/ocm"},
 		{"ocm-provider trailing slash", "/ocm-provider/", "/ocm-provider"},

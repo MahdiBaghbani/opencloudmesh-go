@@ -87,7 +87,6 @@ func TestRuntimePolicyEvaluate_DerivesHTTPRequestSignatureRequirement(t *testing
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.DevConfig()
 			cfg.Signature.InboundMode = tt.inboundMode
-			cfg.Signature.AdvertiseHTTPRequestSignatures = !tt.want
 
 			got := policy.NewRuntimePolicy(cfg, nil).Evaluate().Signature.RequiresHTTPRequestSignatures
 			if got != tt.want {

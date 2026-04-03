@@ -30,13 +30,12 @@ const (
 )
 
 type SignaturePosture struct {
-	InboundMode                    string
-	OutboundMode                   string
-	PeerProfileLevelOverride       string
-	OnDiscoveryError               string
-	RequiresHTTPRequestSignatures  bool
-	AdvertiseHTTPRequestSignatures bool
-	AllowMismatch                  bool
+	InboundMode                   string
+	OutboundMode                  string
+	PeerProfileLevelOverride      string
+	OnDiscoveryError              string
+	RequiresHTTPRequestSignatures bool
+	AllowMismatch                 bool
 }
 
 type TransportPosture struct {
@@ -93,13 +92,12 @@ func NewRuntimePolicy(cfg *config.Config, profileRegistry *peercompat.ProfileReg
 	}
 
 	signature := SignaturePosture{
-		InboundMode:                    cfg.Signature.InboundMode,
-		OutboundMode:                   cfg.Signature.OutboundMode,
-		PeerProfileLevelOverride:       cfg.Signature.PeerProfileLevelOverride,
-		OnDiscoveryError:               cfg.Signature.OnDiscoveryError,
-		RequiresHTTPRequestSignatures:  deriveHTTPRequestSignatureRequirement(cfg.Signature.InboundMode),
-		AdvertiseHTTPRequestSignatures: cfg.Signature.AdvertiseHTTPRequestSignatures,
-		AllowMismatch:                  cfg.Signature.AllowMismatch,
+		InboundMode:                   cfg.Signature.InboundMode,
+		OutboundMode:                  cfg.Signature.OutboundMode,
+		PeerProfileLevelOverride:      cfg.Signature.PeerProfileLevelOverride,
+		OnDiscoveryError:              cfg.Signature.OnDiscoveryError,
+		RequiresHTTPRequestSignatures: deriveHTTPRequestSignatureRequirement(cfg.Signature.InboundMode),
+		AllowMismatch:                 cfg.Signature.AllowMismatch,
 	}
 	transport := TransportPosture{
 		SSRFMode:           cfg.OutboundHTTP.SSRFMode,

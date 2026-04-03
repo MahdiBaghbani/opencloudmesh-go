@@ -54,22 +54,21 @@ type LoaderOptions struct {
 
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
-	ListenAddr                    *string
-	PublicOrigin                  *string
-	ExternalBasePath              *string
-	SSRFMode                      *string
-	SignatureInboundMode          *string
-	SignatureOutboundMode         *string
-	SignatureAdvertiseHTTPReqSigs *string // "true", "false", or "" (unset)
-	SignaturePeerProfileOverride  *string
-	AdminUsername                 *string
-	AdminPassword                 *string
-	LoggingLevel                  *string
-	LoggingAllowSensitive         *string // "true", "false", or "" (unset)
-	TokenExchangeEnabled          *string // "true", "false", or "" (unset)
-	TokenExchangePath             *string
-	RequireTokenExchange          *string // "true", "false", or "" (unset)
-	PeerPolicy                    *string
+	ListenAddr                   *string
+	PublicOrigin                 *string
+	ExternalBasePath             *string
+	SSRFMode                     *string
+	SignatureInboundMode         *string
+	SignatureOutboundMode        *string
+	SignaturePeerProfileOverride *string
+	AdminUsername                *string
+	AdminPassword                *string
+	LoggingLevel                 *string
+	LoggingAllowSensitive        *string // "true", "false", or "" (unset)
+	TokenExchangeEnabled         *string // "true", "false", or "" (unset)
+	TokenExchangePath            *string
+	RequireTokenExchange         *string // "true", "false", or "" (unset)
+	PeerPolicy                   *string
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -193,6 +192,9 @@ func Load(opts LoaderOptions) (*Config, error) {
 		}
 		if md.IsDefined("webdav_token_exchange") || md.IsDefined("webdav_token_exchange", "mode") {
 			return nil, fmt.Errorf("config section '[webdav_token_exchange]' and key 'webdav_token_exchange.mode' were removed; use top-level 'require_token_exchange' instead")
+		}
+		if md.IsDefined("signature", "advertise_http_request_signatures") {
+			return nil, fmt.Errorf("config key 'signature.advertise_http_request_signatures' was removed; discovery criteria are now derived from signature.inbound_mode")
 		}
 
 		// Strict breaks: reject renamed keys with clear migration messages.
@@ -318,13 +320,12 @@ func StrictConfig() *Config {
 			InsecureSkipVerify: false,
 		},
 		Signature: SignatureConfig{
-			InboundMode:                    "strict",
-			OutboundMode:                   "strict",
-			AdvertiseHTTPRequestSignatures: true,
-			PeerProfileLevelOverride:       "off",
-			KeyPath:                        ".ocm/keys/signing.pem",
-			OnDiscoveryError:               "reject",
-			AllowMismatch:                  false,
+			InboundMode:              "strict",
+			OutboundMode:             "strict",
+			PeerProfileLevelOverride: "off",
+			KeyPath:                  ".ocm/keys/signing.pem",
+			OnDiscoveryError:         "reject",
+			AllowMismatch:            false,
 		},
 		PeerTrust: PeerTrustConfig{
 			Enabled:     false,
@@ -353,7 +354,6 @@ func InteropConfig() *Config {
 	cfg.Mode = string(ModeInterop)
 	cfg.Signature.InboundMode = "lenient"
 	cfg.Signature.OutboundMode = "criteria-only"
-	cfg.Signature.AdvertiseHTTPRequestSignatures = true
 	cfg.Signature.PeerProfileLevelOverride = "non-strict"
 	cfg.RequireTokenExchange = false
 	// InsecureSkipVerify stays configurable (default false)
@@ -391,13 +391,12 @@ func DevConfig() *Config {
 			InsecureSkipVerify: true,
 		},
 		Signature: SignatureConfig{
-			InboundMode:                    "lenient",
-			OutboundMode:                   "criteria-only",
-			AdvertiseHTTPRequestSignatures: true,
-			PeerProfileLevelOverride:       "non-strict",
-			KeyPath:                        ".ocm/keys/signing.pem",
-			OnDiscoveryError:               "allow",
-			AllowMismatch:                  true,
+			InboundMode:              "lenient",
+			OutboundMode:             "criteria-only",
+			PeerProfileLevelOverride: "non-strict",
+			KeyPath:                  ".ocm/keys/signing.pem",
+			OnDiscoveryError:         "allow",
+			AllowMismatch:            true,
 		},
 		PeerTrust: PeerTrustConfig{
 			Enabled:     false,
@@ -513,8 +512,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Signature.OutboundMode != "" {
 			cfg.Signature.OutboundMode = fc.Signature.OutboundMode
 		}
-		// AdvertiseHTTPRequestSignatures is bool, overlay when section present
-		cfg.Signature.AdvertiseHTTPRequestSignatures = fc.Signature.AdvertiseHTTPRequestSignatures
 		if fc.Signature.PeerProfileLevelOverride != "" {
 			cfg.Signature.PeerProfileLevelOverride = fc.Signature.PeerProfileLevelOverride
 		}
@@ -638,10 +635,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.SignatureOutboundMode != nil && *f.SignatureOutboundMode != "" {
 		cfg.Signature.OutboundMode = *f.SignatureOutboundMode
 	}
-	if f.SignatureAdvertiseHTTPReqSigs != nil && *f.SignatureAdvertiseHTTPReqSigs != "" {
-		// Parse "true" or "false" string (only apply when explicitly set)
-		cfg.Signature.AdvertiseHTTPRequestSignatures = *f.SignatureAdvertiseHTTPReqSigs == "true"
-	}
 	if f.SignaturePeerProfileOverride != nil && *f.SignaturePeerProfileOverride != "" {
 		cfg.Signature.PeerProfileLevelOverride = *f.SignaturePeerProfileOverride
 	}
@@ -716,11 +709,6 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid signature.peer_profile_level_override %q: must be one of off, non-strict, all", cfg.Signature.PeerProfileLevelOverride)
-	}
-
-	// guardrail: inbound_mode=off implies advertise=false
-	if cfg.Signature.InboundMode == "off" && cfg.Signature.AdvertiseHTTPRequestSignatures {
-		return fmt.Errorf("signature.advertise_http_request_signatures cannot be true when signature.inbound_mode is off")
 	}
 
 	// signature.on_discovery_error

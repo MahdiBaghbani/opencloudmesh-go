@@ -57,7 +57,6 @@ func main() {
 	ssrfMode := flag.String("ssrf-mode", "", "SSRF protection mode: strict or off (overrides config)")
 	signatureInboundMode := flag.String("signature-inbound-mode", "", "Signature inbound mode: strict, lenient, or off (overrides config)")
 	signatureOutboundMode := flag.String("signature-outbound-mode", "", "Signature outbound mode: strict, criteria-only, token-only, or off (overrides config)")
-	signatureAdvertise := flag.String("signature-advertise-http-request-signatures", "", "Advertise http-request-signatures in discovery criteria: true or false (overrides config)")
 	signaturePeerOverride := flag.String("signature-peer-profile-level-override", "", "Peer profile override level: all, non-strict, or off (overrides config)")
 	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
@@ -78,22 +77,21 @@ func main() {
 		ConfigPath: *configPath,
 		ModeFlag:   *modeFlag,
 		FlagOverrides: config.FlagOverrides{
-			ListenAddr:                    listenAddr,
-			PublicOrigin:                  publicOrigin,
-			ExternalBasePath:              externalBasePath,
-			SSRFMode:                      ssrfMode,
-			SignatureInboundMode:          signatureInboundMode,
-			SignatureOutboundMode:         signatureOutboundMode,
-			SignatureAdvertiseHTTPReqSigs: signatureAdvertise,
-			SignaturePeerProfileOverride:  signaturePeerOverride,
-			AdminUsername:                 adminUsername,
-			AdminPassword:                 adminPassword,
-			LoggingLevel:                  loggingLevel,
-			LoggingAllowSensitive:         loggingAllowSensitive,
-			TokenExchangeEnabled:          tokenExchangeEnabled,
-			TokenExchangePath:             tokenExchangePath,
-			RequireTokenExchange:          requireTokenExchange,
-			PeerPolicy:                    peerPolicy,
+			ListenAddr:                   listenAddr,
+			PublicOrigin:                 publicOrigin,
+			ExternalBasePath:             externalBasePath,
+			SSRFMode:                     ssrfMode,
+			SignatureInboundMode:         signatureInboundMode,
+			SignatureOutboundMode:        signatureOutboundMode,
+			SignaturePeerProfileOverride: signaturePeerOverride,
+			AdminUsername:                adminUsername,
+			AdminPassword:                adminPassword,
+			LoggingLevel:                 loggingLevel,
+			LoggingAllowSensitive:        loggingAllowSensitive,
+			TokenExchangeEnabled:         tokenExchangeEnabled,
+			TokenExchangePath:            tokenExchangePath,
+			RequireTokenExchange:         requireTokenExchange,
+			PeerPolicy:                   peerPolicy,
 		},
 		Logger: bootstrapLogger,
 	})

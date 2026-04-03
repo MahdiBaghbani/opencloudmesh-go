@@ -222,10 +222,6 @@ type SignatureConfig struct {
 	// OutboundMode controls outbound signing: strict, criteria-only, token-only, off
 	OutboundMode string `toml:"outbound_mode"`
 
-	// AdvertiseHTTPRequestSignatures is a legacy transition knob retained while
-	// runtime posture owns default discovery-criteria derivation.
-	AdvertiseHTTPRequestSignatures bool `toml:"advertise_http_request_signatures"`
-
 	// PeerProfileLevelOverride controls when peer profile relaxations apply:
 	// all, non-strict, off (strict preset default: off)
 	PeerProfileLevelOverride string `toml:"peer_profile_level_override"`
@@ -384,7 +380,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  Signature: {\n")
 	sb.WriteString(fmt.Sprintf("    InboundMode: %q,\n", c.Signature.InboundMode))
 	sb.WriteString(fmt.Sprintf("    OutboundMode: %q,\n", c.Signature.OutboundMode))
-	sb.WriteString(fmt.Sprintf("    AdvertiseHTTPRequestSignatures: %v,\n", c.Signature.AdvertiseHTTPRequestSignatures))
 	sb.WriteString(fmt.Sprintf("    PeerProfileLevelOverride: %q,\n", c.Signature.PeerProfileLevelOverride))
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
 	sb.WriteString(fmt.Sprintf("    OnDiscoveryError: %q,\n", c.Signature.OnDiscoveryError))
