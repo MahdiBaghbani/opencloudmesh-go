@@ -273,7 +273,8 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 	t.Run("derived from runtime policy when not explicitly configured", func(t *testing.T) {
 		cfg := config.DevConfig()
-		cfg.Signature.AdvertiseHTTPRequestSignatures = true
+		cfg.Signature.InboundMode = "strict"
+		cfg.Signature.AdvertiseHTTPRequestSignatures = false
 		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
@@ -300,9 +301,35 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 		}
 	})
 
+	t.Run("lenient runtime posture omits criterion when not explicitly configured", func(t *testing.T) {
+		cfg := config.DevConfig()
+		cfg.Signature.InboundMode = "lenient"
+		cfg.Signature.AdvertiseHTTPRequestSignatures = true
+		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		c := &OCMProviderConfig{
+			Endpoint: "https://example.com",
+		}
+		d := &deps.Deps{
+			Config:        cfg,
+			RuntimePolicy: runtimePolicy,
+		}
+
+		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, crit := range h.data.Criteria {
+			if crit == "http-request-signatures" {
+				t.Error("did not expect http-request-signatures for lenient runtime posture")
+			}
+		}
+	})
+
 	t.Run("explicit service config wins over runtime policy", func(t *testing.T) {
 		cfg := config.DevConfig()
-		cfg.Signature.AdvertiseHTTPRequestSignatures = true
+		cfg.Signature.InboundMode = "strict"
+		cfg.Signature.AdvertiseHTTPRequestSignatures = false
 		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 		c := &OCMProviderConfig{
 			Endpoint:                       "https://example.com",

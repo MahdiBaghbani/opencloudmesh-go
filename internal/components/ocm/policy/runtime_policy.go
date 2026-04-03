@@ -34,6 +34,7 @@ type SignaturePosture struct {
 	OutboundMode                   string
 	PeerProfileLevelOverride       string
 	OnDiscoveryError               string
+	RequiresHTTPRequestSignatures  bool
 	AdvertiseHTTPRequestSignatures bool
 	AllowMismatch                  bool
 }
@@ -96,6 +97,7 @@ func NewRuntimePolicy(cfg *config.Config, profileRegistry *peercompat.ProfileReg
 		OutboundMode:                   cfg.Signature.OutboundMode,
 		PeerProfileLevelOverride:       cfg.Signature.PeerProfileLevelOverride,
 		OnDiscoveryError:               cfg.Signature.OnDiscoveryError,
+		RequiresHTTPRequestSignatures:  deriveHTTPRequestSignatureRequirement(cfg.Signature.InboundMode),
 		AdvertiseHTTPRequestSignatures: cfg.Signature.AdvertiseHTTPRequestSignatures,
 		AllowMismatch:                  cfg.Signature.AllowMismatch,
 	}
@@ -249,6 +251,10 @@ func strictAssessmentReasons(
 		reasons = append(reasons, "peer_trust_fail_open")
 	}
 	return reasons
+}
+
+func deriveHTTPRequestSignatureRequirement(inboundMode string) bool {
+	return strings.EqualFold(inboundMode, "strict")
 }
 
 func hasMappedProfileRelaxations(cfg *config.Config, registry *peercompat.ProfileRegistry) bool {

@@ -60,6 +60,43 @@ func TestRuntimePolicyStrictIncomingSharePayloadValidation(t *testing.T) {
 	}
 }
 
+func TestRuntimePolicyEvaluate_DerivesHTTPRequestSignatureRequirement(t *testing.T) {
+	tests := []struct {
+		name        string
+		inboundMode string
+		want        bool
+	}{
+		{
+			name:        "strict requires HTTP request signatures",
+			inboundMode: "strict",
+			want:        true,
+		},
+		{
+			name:        "lenient does not require HTTP request signatures",
+			inboundMode: "lenient",
+			want:        false,
+		},
+		{
+			name:        "off does not require HTTP request signatures",
+			inboundMode: "off",
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DevConfig()
+			cfg.Signature.InboundMode = tt.inboundMode
+			cfg.Signature.AdvertiseHTTPRequestSignatures = !tt.want
+
+			got := policy.NewRuntimePolicy(cfg, nil).Evaluate().Signature.RequiresHTTPRequestSignatures
+			if got != tt.want {
+				t.Fatalf("Signature.RequiresHTTPRequestSignatures = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRuntimePolicyEvaluate_DerivesStrictTier(t *testing.T) {
 	cfg := config.StrictConfig()
 	cfg.Signature.PeerProfileLevelOverride = "off"
