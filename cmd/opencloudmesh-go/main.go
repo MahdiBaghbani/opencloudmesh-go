@@ -23,6 +23,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -256,7 +257,9 @@ func main() {
 		signer = crypto.NewRFC9421Signer(keyManager)
 	}
 
-	localEvaluator := evaluator.NewLocalEvaluator(cfg)
+	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
+	runtimePolicy := policy.NewRuntimePolicy(cfg)
+	localEvaluator := evaluator.NewLocalEvaluatorFromPolicy(openCloudMeshPolicy)
 
 	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry, localEvaluator)
 
@@ -296,8 +299,10 @@ func main() {
 		// Clients
 		HTTPClient:      httpClient,
 		DiscoveryClient: discoveryClient,
-		// Canonical evaluator
-		LocalEvaluator: localEvaluator,
+		// Policy
+		OpenCloudMeshPolicy: openCloudMeshPolicy,
+		RuntimePolicy:       runtimePolicy,
+		LocalEvaluator:      localEvaluator,
 		// Crypto
 		KeyManager:          keyManager,
 		Signer:              signer,

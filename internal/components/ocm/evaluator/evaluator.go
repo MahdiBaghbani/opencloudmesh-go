@@ -1,33 +1,30 @@
-// Package evaluator owns the local config-to-canonical interpretation for opencloudmesh-go.
+// Package evaluator is temporary compatibility glue during the policy rollout.
 package evaluator
 
 import (
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
-// LocalEvaluation holds the three canonical OCM dimensions derived from local config.
-type LocalEvaluation struct {
-	TokenExchangeCapable  bool
-	RequiresTokenExchange bool
-	PeerPolicy            string
-}
+// LocalEvaluation preserves the pre-policy compatibility type name.
+type LocalEvaluation = policy.Evaluation
 
-// LocalEvaluator interprets local config into canonical OCM dimensions.
-// Constructed once at startup; config is immutable after that.
+// LocalEvaluator preserves the pre-policy compatibility wrapper.
 type LocalEvaluator struct {
-	cfg *config.Config
+	policy *policy.OpenCloudMeshPolicy
 }
 
-// NewLocalEvaluator creates a LocalEvaluator from an immutable config.
+// NewLocalEvaluator creates a LocalEvaluator from immutable config.
 func NewLocalEvaluator(cfg *config.Config) *LocalEvaluator {
-	return &LocalEvaluator{cfg: cfg}
+	return NewLocalEvaluatorFromPolicy(policy.NewOpenCloudMeshPolicy(cfg))
 }
 
-// Evaluate returns the canonical local evaluation. Cheap to call; no allocation beyond the struct copy.
+// NewLocalEvaluatorFromPolicy reuses an existing canonical policy object.
+func NewLocalEvaluatorFromPolicy(p *policy.OpenCloudMeshPolicy) *LocalEvaluator {
+	return &LocalEvaluator{policy: p}
+}
+
+// Evaluate returns the canonical local evaluation.
 func (e *LocalEvaluator) Evaluate() LocalEvaluation {
-	return LocalEvaluation{
-		TokenExchangeCapable:  e.cfg.TokenExchangeEnabled(),
-		RequiresTokenExchange: e.cfg.WebDAVTokenExchange.Mode == "strict",
-		PeerPolicy:            e.cfg.PeerPolicy,
-	}
+	return e.policy.Evaluate()
 }

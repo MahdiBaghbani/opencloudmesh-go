@@ -8,19 +8,20 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
 var (
@@ -46,7 +47,12 @@ type Deps struct {
 	HTTPClient      *httpclient.ContextClient
 	DiscoveryClient *discovery.Client
 
-	// Canonical evaluator (local config-to-canonical interpretation)
+	// Policy objects created once from frozen config at startup.
+	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
+	RuntimePolicy       *policy.RuntimePolicy
+
+	// LocalEvaluator remains temporary compatibility glue until downstream
+	// consumers finish moving to the policy package.
 	LocalEvaluator *evaluator.LocalEvaluator
 
 	// Crypto

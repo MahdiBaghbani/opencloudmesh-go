@@ -13,23 +13,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -131,6 +132,10 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to normalize provider FQDN: %v", err)
 	}
 
+	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
+	runtimePolicy := policy.NewRuntimePolicy(cfg)
+	localEvaluator := evaluator.NewLocalEvaluatorFromPolicy(openCloudMeshPolicy)
+
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
@@ -147,7 +152,10 @@ func StartTestServer(t *testing.T) *TestServer {
 		// Clients
 		HTTPClient:      httpClient,
 		DiscoveryClient: discovery.NewClient(rawHTTPClient, nil),
-		LocalEvaluator:  evaluator.NewLocalEvaluator(cfg),
+		// Policy
+		OpenCloudMeshPolicy: openCloudMeshPolicy,
+		RuntimePolicy:       runtimePolicy,
+		LocalEvaluator:      localEvaluator,
 		// Provider identity
 		LocalProviderFQDN:           localProviderFQDN,
 		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
@@ -283,4 +291,3 @@ func waitForServer(baseURL string, timeout time.Duration) error {
 	}
 	return fmt.Errorf("server not ready after %v", timeout)
 }
-
