@@ -12,7 +12,9 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
 func TestHandler_MissingFields(t *testing.T) {
@@ -84,6 +86,12 @@ func TestHandler_ShareNotFound(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Code)
 	}
+
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["reasonCode"] != reason.PeerCapabilityMismatch {
+		t.Errorf("expected reasonCode %q, got %q", reason.PeerCapabilityMismatch, resp["reasonCode"])
+	}
 }
 
 func TestHandler_SuccessfulNotification(t *testing.T) {
@@ -112,6 +120,42 @@ func TestHandler_SuccessfulNotification(t *testing.T) {
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandler_SenderMismatchReasonCode(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-mismatch",
+		WebDAVID:     "webdav-456",
+		ReceiverHost: "receiver.example.com",
+		LocalPath:    "/tmp/test.txt",
+		Status:       "sent",
+	}
+	repo.Create(context.Background(), share)
+	handler := incoming.NewHandler(repo, "https://example.com", logger)
+
+	body := `{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-mismatch"}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/notifications", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+		Authenticated:       true,
+		AuthorityForCompare: "wrong.example.com",
+	}))
+	w := httptest.NewRecorder()
+
+	handler.HandleNotification(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["error"] != "sender_mismatch" {
+		t.Fatalf("expected sender_mismatch, got %q", resp["error"])
+	}
+	if resp["reasonCode"] != reason.PeerPolicyUnsatisfied {
+		t.Fatalf("expected reasonCode %q, got %q", reason.PeerPolicyUnsatisfied, resp["reasonCode"])
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -31,21 +32,21 @@ const (
 
 // InboxShareView omits sensitive fields (e.g. SharedSecret) from API responses.
 type InboxShareView struct {
-	ShareID           string                `json:"shareId"`
-	ProviderID        string                `json:"providerId"`
-	Name              string                `json:"name"`
-	Description       string                `json:"description,omitempty"`
-	Owner             string                `json:"owner"`
-	Sender            string                `json:"sender"`
-	SenderHost        string                `json:"senderHost"`
-	ShareWith         string                `json:"shareWith"`
-	ResourceType      string                `json:"resourceType"`
-	ShareType         string                `json:"shareType"`
-	Permissions       []string              `json:"permissions"`
+	ShareID           string                  `json:"shareId"`
+	ProviderID        string                  `json:"providerId"`
+	Name              string                  `json:"name"`
+	Description       string                  `json:"description,omitempty"`
+	Owner             string                  `json:"owner"`
+	Sender            string                  `json:"sender"`
+	SenderHost        string                  `json:"senderHost"`
+	ShareWith         string                  `json:"shareWith"`
+	ResourceType      string                  `json:"resourceType"`
+	ShareType         string                  `json:"shareType"`
+	Permissions       []string                `json:"permissions"`
 	Status            sharesinbox.ShareStatus `json:"status"`
-	CreatedAt         time.Time             `json:"createdAt"`
-	OwnerDisplayName  string                `json:"ownerDisplayName,omitempty"`
-	SenderDisplayName string                `json:"senderDisplayName,omitempty"`
+	CreatedAt         time.Time               `json:"createdAt"`
+	OwnerDisplayName  string                  `json:"ownerDisplayName,omitempty"`
+	SenderDisplayName string                  `json:"senderDisplayName,omitempty"`
 }
 
 func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
@@ -418,7 +419,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	defer result.Response.Body.Close()
 
 	if result.Response.StatusCode < 200 || result.Response.StatusCode >= 300 {
-		writeVerifyError(w, http.StatusBadGateway, peercompat.ReasonRemoteError,
+		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable),
 			"remote server returned "+result.Response.Status)
 		return
 	}
@@ -473,30 +474,14 @@ func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
 		return
 	}
 	if errors.Is(err, access.ErrTokenExchangeRequired) {
-		writeVerifyError(w, http.StatusBadGateway, peercompat.ReasonTokenExchangeFailed, "token exchange required but not available")
+		writeVerifyError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.VerifyCode(reason.PeerCapabilityMismatch), "token exchange required but not available")
 		return
 	}
 	if errors.Is(err, access.ErrRemoteAccessFailed) {
-		writeVerifyError(w, http.StatusBadGateway, peercompat.ReasonRemoteError, "remote access failed: all methods exhausted")
+		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable), "remote access failed: all methods exhausted")
 		return
 	}
 
-	reasonCode := peercompat.ClassifyError(err)
-	statusCode := reasonCodeToHTTPStatus(reasonCode)
-	writeVerifyError(w, statusCode, reasonCode, "remote access failed")
-}
-
-func reasonCodeToHTTPStatus(reason string) int {
-	switch reason {
-	case peercompat.ReasonDiscoveryFailed,
-		peercompat.ReasonPeerCapabilityMissing,
-		peercompat.ReasonNetworkError,
-		peercompat.ReasonRemoteError,
-		peercompat.ReasonProtocolMismatch,
-		peercompat.ReasonTokenExchangeFailed,
-		peercompat.ReasonSSRFBlocked:
-		return http.StatusBadGateway
-	default:
-		return http.StatusInternalServerError
-	}
+	reasonCode := reason.CanonicalFromError(err)
+	writeVerifyError(w, reason.APIStatus(reasonCode), reason.VerifyCode(reasonCode), "remote access failed")
 }
