@@ -116,8 +116,6 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.IncomingShareRepo,
 		notificationClient,
 		accessClient,
-		d.ProfileRegistry,
-		d.Config,
 		currentUser,
 		log,
 	)

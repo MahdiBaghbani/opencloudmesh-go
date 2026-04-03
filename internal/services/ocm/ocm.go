@@ -96,9 +96,9 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.PolicyEngine,
 		d.DiscoveryClient,
 		d.OpenCloudMeshPolicy,
+		d.RuntimePolicy,
 		d.LocalProviderFQDNForCompare,
 		d.Config.PublicScheme(),
-		d.Config.Signature.InboundMode,
 		log,
 	)
 	notifHandler := notifincoming.NewHandler(d.OutgoingShareRepo, d.Config.PublicOrigin, log)

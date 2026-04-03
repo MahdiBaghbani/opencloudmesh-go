@@ -17,10 +17,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -148,13 +146,11 @@ const maxPreviewBytes = 4096
 
 // Handler serves list, detail, accept, decline, and verify-access for inbox shares.
 type Handler struct {
-	repo            sharesinbox.IncomingShareRepo
-	sender          sharesinbox.NotificationSender
-	accessClient    access.RemoteAccessor
-	profileRegistry *peercompat.ProfileRegistry
-	cfg             *config.Config
-	currentUser     func(context.Context) (*identity.User, error)
-	log             *slog.Logger
+	repo         sharesinbox.IncomingShareRepo
+	sender       sharesinbox.NotificationSender
+	accessClient access.RemoteAccessor
+	currentUser  func(context.Context) (*identity.User, error)
+	log          *slog.Logger
 }
 
 // NewHandler returns a Handler with the given dependencies.
@@ -162,20 +158,16 @@ func NewHandler(
 	repo sharesinbox.IncomingShareRepo,
 	sender sharesinbox.NotificationSender,
 	accessClient access.RemoteAccessor,
-	profileRegistry *peercompat.ProfileRegistry,
-	cfg *config.Config,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
 ) *Handler {
 	log = logutil.NoopIfNil(log)
 	return &Handler{
-		repo:            repo,
-		sender:          sender,
-		accessClient:    accessClient,
-		profileRegistry: profileRegistry,
-		cfg:             cfg,
-		currentUser:     currentUser,
-		log:             log,
+		repo:         repo,
+		sender:       sender,
+		accessClient: accessClient,
+		currentUser:  currentUser,
+		log:          log,
 	}
 }
 

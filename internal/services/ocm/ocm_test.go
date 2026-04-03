@@ -16,8 +16,10 @@ import (
 // SignatureMiddleware is nil (no-signature path), which is the simplest valid setup.
 func setupTestDeps() {
 	deps.ResetDeps()
+	cfg := config.DevConfig()
 	deps.SetDeps(&deps.Deps{
-		Config: config.DevConfig(),
+		Config:        cfg,
+		RuntimePolicy: policy.NewRuntimePolicy(cfg),
 	})
 }
 
@@ -201,6 +203,7 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 	deps.SetDeps(&deps.Deps{
 		Config:              cfg,
 		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
+		RuntimePolicy:       policy.NewRuntimePolicy(cfg),
 	})
 
 	m := map[string]any{

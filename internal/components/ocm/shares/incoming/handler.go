@@ -29,9 +29,9 @@ type Handler struct {
 	policyEngine                *peertrust.PolicyEngine
 	discoveryClient             *discovery.Client
 	canonicalPolicy             *policy.OpenCloudMeshPolicy
+	runtimePolicy               *policy.RuntimePolicy
 	localProviderFQDNForCompare string
 	localScheme                 string
-	signatureInboundMode        string
 	logger                      *slog.Logger
 }
 
@@ -41,9 +41,9 @@ func NewHandler(
 	policyEngine *peertrust.PolicyEngine,
 	discoveryClient *discovery.Client,
 	canonicalPolicy *policy.OpenCloudMeshPolicy,
+	runtimePolicy *policy.RuntimePolicy,
 	localProviderFQDNForCompare string,
 	localScheme string,
-	inboundMode string,
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
@@ -53,9 +53,9 @@ func NewHandler(
 		policyEngine:                policyEngine,
 		discoveryClient:             discoveryClient,
 		canonicalPolicy:             canonicalPolicy,
+		runtimePolicy:               runtimePolicy,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
-		signatureInboundMode:        inboundMode,
 		logger:                      logger,
 	}
 }
@@ -74,9 +74,10 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	peerIdentity := crypto.GetPeerIdentity(r.Context())
-	strictPayloadValidation := h.signatureInboundMode == "strict"
-	if h.signatureInboundMode == "lenient" {
-		strictPayloadValidation = peerIdentity != nil && peerIdentity.Authenticated
+	authenticated := peerIdentity != nil && peerIdentity.Authenticated
+	strictPayloadValidation := false
+	if h.runtimePolicy != nil {
+		strictPayloadValidation = h.runtimePolicy.StrictIncomingSharePayloadValidation(authenticated)
 	}
 	validationErrs := spec.ValidateRequiredFields(&req)
 	if strictPayloadValidation {
@@ -117,7 +118,6 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 	senderHost := ExtractSenderHost(req.Sender)
 	if h.policyEngine != nil {
-		authenticated := peerIdentity != nil && peerIdentity.Authenticated
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)
 		if !decision.Allowed {
 			log.Warn("share rejected by policy",
