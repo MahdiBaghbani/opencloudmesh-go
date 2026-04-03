@@ -21,10 +21,10 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -167,17 +167,35 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Decide whether this share requires token exchange at the receiver.
 	// The decision combines the receiver's advertised capabilities with local policy.
-	peerHasExchangeToken := disc.HasCapability("exchange-token")
+	peerTokenExchangeCapable := disc.SupportsTokenExchange()
 	peerIsStrict := disc.HasCriteria("token-exchange")
 
-	var eval evaluator.LocalEvaluation
+	localCodeFlow := false
+	localPolicy := "legacy"
+	if h.cfg != nil {
+		localCodeFlow = h.cfg.TokenExchangeEnabled()
+		if h.cfg.PeerPolicy != "" {
+			localPolicy = h.cfg.PeerPolicy
+		}
+	}
 	if h.evaluator != nil {
-		eval = h.evaluator.Evaluate()
+		eval := h.evaluator.Evaluate()
+		localCodeFlow = eval.TokenExchangeCapable
+		if eval.PeerPolicy != "" {
+			localPolicy = eval.PeerPolicy
+		}
 	}
 
 	mustExchangeToken := false
 	if peerIsStrict {
-		if !eval.CodeFlowCapability {
+		if !peerTokenExchangeCapable {
+			h.logger.Warn("strict peer advertised incomplete token-exchange metadata",
+				"receiver", req.ReceiverDomain)
+			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+				"receiver advertises strict token exchange without tokenEndPoint")
+			return
+		}
+		if !localCodeFlow {
 			h.logger.Warn("strict peer requires token exchange but local capability is disabled",
 				"receiver", req.ReceiverDomain)
 			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
@@ -185,15 +203,29 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		mustExchangeToken = true
-	} else if peerHasExchangeToken && eval.CodeFlowCapability {
-		switch eval.NonStrictPeerOutboundPolicy {
+	} else if peerTokenExchangeCapable {
+		switch localPolicy {
 		case "prefer-strict":
-			mustExchangeToken = true
-		case "fail-fast":
-			mustExchangeToken = false
-		default: // legacy-compatible
+			mustExchangeToken = localCodeFlow
+		case "strict":
+			api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
+				"strict policy rejects capable non-strict peers")
+			return
+		default: // legacy
 			mustExchangeToken = false
 		}
+	} else if disc.HasCapability("exchange-token") && disc.TokenEndPoint == "" {
+		if localPolicy == "strict" {
+			api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
+				"strict policy rejects peers with malformed token-exchange discovery")
+			return
+		}
+		h.logger.Warn("peer advertises exchange-token without tokenEndPoint; treating as legacy peer",
+			"receiver", req.ReceiverDomain)
+	} else if localPolicy == "strict" {
+		api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
+			"strict policy rejects legacy peers")
+		return
 	}
 
 	webdavProto := &spec.WebDAVProtocol{
