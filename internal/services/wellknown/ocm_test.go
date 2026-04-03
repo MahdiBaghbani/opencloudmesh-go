@@ -428,8 +428,8 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 
 func TestNewOCMHandler_InviteWAYFCapability(t *testing.T) {
 	c := &OCMProviderConfig{
-		Endpoint:           "https://cloud.example.com/ocm",
-		InviteAcceptDialog: "https://cloud.example.com/ocm/ui/accept-invite",
+		Endpoint:            "https://cloud.example.com/ocm",
+		InviteAcceptDialog:  "https://cloud.example.com/ocm/ui/accept-invite",
 		AdvertiseInviteWAYF: true,
 	}
 	d := &deps.Deps{}
@@ -502,15 +502,14 @@ func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 	}
 }
 
-func ptrBool(b bool) *bool { return &b }
-
 func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
-	t.Run("evaluator CodeFlowCapability=true adds exchange-token", func(t *testing.T) {
+	t.Run("evaluator TokenExchangeCapable=true adds exchange-token", func(t *testing.T) {
+		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			PublicOrigin:                "https://example.com",
-			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true), Path: "token"},
-			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "strict"},
-			NonStrictPeerOutboundPolicy: "legacy-compatible",
+			PublicOrigin:        "https://example.com",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
+			PeerPolicy:          "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
@@ -533,19 +532,20 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Error("expected exchange-token in capabilities when evaluator CodeFlowCapability=true")
+			t.Error("expected exchange-token in capabilities when evaluator TokenExchangeCapable=true")
 		}
 		if h.data.TokenEndPoint == "" {
 			t.Error("expected non-empty tokenEndPoint")
 		}
 	})
 
-	t.Run("evaluator CodeFlowCapability=false omits exchange-token", func(t *testing.T) {
+	t.Run("evaluator TokenExchangeCapable=false omits exchange-token", func(t *testing.T) {
+		tokenExchangeEnabled := false
 		cfg := &config.Config{
-			PublicOrigin:                "https://example.com",
-			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(false)},
-			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "off"},
-			NonStrictPeerOutboundPolicy: "legacy-compatible",
+			PublicOrigin:        "https://example.com",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
+			PeerPolicy:          "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = false
@@ -561,7 +561,7 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 
 		for _, cap := range h.data.Capabilities {
 			if cap == "exchange-token" {
-				t.Error("expected exchange-token NOT in capabilities when evaluator CodeFlowCapability=false")
+				t.Error("expected exchange-token NOT in capabilities when evaluator TokenExchangeCapable=false")
 			}
 		}
 		if h.data.TokenEndPoint != "" {
@@ -571,12 +571,13 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 }
 
 func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
-	t.Run("ReceiverStrictness=true adds token-exchange criteria", func(t *testing.T) {
+	t.Run("RequiresTokenExchange=true adds token-exchange criteria", func(t *testing.T) {
+		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			PublicOrigin:                "https://example.com",
-			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true), Path: "token"},
-			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "strict"},
-			NonStrictPeerOutboundPolicy: "legacy-compatible",
+			PublicOrigin:        "https://example.com",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
+			PeerPolicy:          "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
@@ -599,16 +600,17 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Error("expected token-exchange in criteria when evaluator ReceiverStrictness=true")
+			t.Error("expected token-exchange in criteria when evaluator RequiresTokenExchange=true")
 		}
 	})
 
-	t.Run("ReceiverStrictness=false omits token-exchange criteria", func(t *testing.T) {
+	t.Run("RequiresTokenExchange=false omits token-exchange criteria", func(t *testing.T) {
+		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			PublicOrigin:                "https://example.com",
-			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true), Path: "token"},
-			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "lenient"},
-			NonStrictPeerOutboundPolicy: "legacy-compatible",
+			PublicOrigin:        "https://example.com",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"},
+			PeerPolicy:          "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
@@ -625,17 +627,18 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 
 		for _, crit := range h.data.Criteria {
 			if crit == "token-exchange" {
-				t.Error("expected token-exchange NOT in criteria when evaluator ReceiverStrictness=false")
+				t.Error("expected token-exchange NOT in criteria when evaluator RequiresTokenExchange=false")
 			}
 		}
 	})
 
 	t.Run("empty criteria serializes as []", func(t *testing.T) {
+		tokenExchangeEnabled := false
 		cfg := &config.Config{
-			PublicOrigin:                "https://example.com",
-			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(false)},
-			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "off"},
-			NonStrictPeerOutboundPolicy: "legacy-compatible",
+			PublicOrigin:        "https://example.com",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
+			PeerPolicy:          "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
@@ -668,6 +671,115 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		}
 		if len(criteriaSlice) != 0 {
 			t.Errorf("expected empty criteria array, got %v", criteriaSlice)
+		}
+	})
+
+	t.Run("per-service token_exchange override keeps evaluator strictness", func(t *testing.T) {
+		tokenExchangeEnabled := true
+		cfg := &config.Config{
+			PublicOrigin:        "https://example.com",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
+			PeerPolicy:          "legacy",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		d := &deps.Deps{
+			Config:         cfg,
+			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		}
+		raw := map[string]any{
+			"token_exchange": map[string]any{
+				"enabled": true,
+			},
+		}
+
+		h, err := newOCMHandler(c, raw, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		found := false
+		for _, crit := range h.data.Criteria {
+			if crit == "token-exchange" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("expected token-exchange criteria to follow evaluator strictness even with per-service override")
+		}
+	})
+
+	t.Run("never emit token-exchange criteria without capability", func(t *testing.T) {
+		tokenExchangeEnabled := false
+		cfg := &config.Config{
+			PublicOrigin:        "https://example.com",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
+			PeerPolicy:          "legacy",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		d := &deps.Deps{
+			Config:         cfg,
+			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		}
+
+		h, err := newOCMHandler(c, nil, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, cap := range h.data.Capabilities {
+			if cap == "exchange-token" {
+				t.Fatal("did not expect exchange-token capability when code flow is disabled")
+			}
+		}
+		if h.data.TokenEndPoint != "" {
+			t.Fatalf("expected empty tokenEndPoint when code flow is disabled, got %q", h.data.TokenEndPoint)
+		}
+		for _, crit := range h.data.Criteria {
+			if crit == "token-exchange" {
+				t.Fatal("did not expect token-exchange criteria without exchange-token capability")
+			}
+		}
+	})
+
+	t.Run("per-service override cannot diverge evaluator capability", func(t *testing.T) {
+		tokenExchangeEnabled := true
+		cfg := &config.Config{
+			PublicOrigin:        "https://example.com",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
+			PeerPolicy:          "legacy",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		d := &deps.Deps{
+			Config:         cfg,
+			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		}
+		raw := map[string]any{
+			"token_exchange": map[string]any{
+				"enabled": false,
+			},
+		}
+
+		h, err := newOCMHandler(c, raw, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		foundCapability := false
+		for _, cap := range h.data.Capabilities {
+			if cap == "exchange-token" {
+				foundCapability = true
+				break
+			}
+		}
+		if !foundCapability {
+			t.Fatal("expected exchange-token capability to follow evaluator despite per-service override")
+		}
+		if h.data.TokenEndPoint == "" {
+			t.Fatal("expected tokenEndPoint to be present when exchange-token is advertised")
 		}
 	})
 }

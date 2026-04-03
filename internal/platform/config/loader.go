@@ -69,7 +69,7 @@ type FlagOverrides struct {
 	TokenExchangeEnabled          *string // "true", "false", or "" (unset)
 	TokenExchangePath             *string
 	WebDAVTokenExchangeMode       *string
-	NonStrictPeerOutboundPolicy   *string
+	PeerPolicy                    *string
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -89,9 +89,9 @@ type fileConfig struct {
 	PeerTrust           *peerTrustConfig           `toml:"peer_trust"`
 	Logging             *loggingConfig             `toml:"logging"`
 	TokenExchange       *tokenExchangeConfig       `toml:"token_exchange"`
-	WebDAVTokenExchange         *webdavTokenExchangeConfig `toml:"webdav_token_exchange"`
-	NonStrictPeerOutboundPolicy string                     `toml:"non_strict_peer_outbound_policy"`
-	HTTP                        *httpFileConfig            `toml:"http"`
+	WebDAVTokenExchange *webdavTokenExchangeConfig `toml:"webdav_token_exchange"`
+	PeerPolicy          string                     `toml:"peer_policy"`
+	HTTP                *httpFileConfig            `toml:"http"`
 }
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
@@ -190,6 +190,12 @@ func Load(opts LoaderOptions) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
 		}
+		if md.IsDefined("non_strict_peer_outbound_policy") {
+			return nil, fmt.Errorf("config key 'non_strict_peer_outbound_policy' has been renamed to 'peer_policy'; please update your configuration")
+		}
+		if md.IsDefined("legacy_peer_policy") {
+			return nil, fmt.Errorf("config key 'legacy_peer_policy' has been renamed to 'peer_policy'; please update your configuration")
+		}
 
 		// Strict breaks: reject renamed keys with clear migration messages.
 		if undecoded := md.Undecoded(); len(undecoded) > 0 {
@@ -271,9 +277,6 @@ func Load(opts LoaderOptions) (*Config, error) {
 	return cfg, nil
 }
 
-// ptrBool returns a pointer to the given bool value.
-func ptrBool(b bool) *bool { return &b }
-
 // presetForMode returns the base config for a given mode.
 func presetForMode(mode Mode) *Config {
 	switch mode {
@@ -288,6 +291,7 @@ func presetForMode(mode Mode) *Config {
 
 // StrictConfig returns production-safe strict defaults.
 func StrictConfig() *Config {
+	tokenExchangeEnabled := true
 	return &Config{
 		Mode:             string(ModeStrict),
 		PublicOrigin:     "https://localhost:9200",
@@ -337,13 +341,13 @@ func StrictConfig() *Config {
 			AllowSensitive: false,
 		},
 		TokenExchange: TokenExchangeConfig{
-			Enabled: ptrBool(true),
+			Enabled: &tokenExchangeEnabled,
 			Path:    "token",
 		},
 		WebDAVTokenExchange: WebDAVTokenExchangeConfig{
-			Mode: "strict",
+			Mode: "off",
 		},
-		NonStrictPeerOutboundPolicy: "legacy-compatible",
+		PeerPolicy: "prefer-strict",
 	}
 }
 
@@ -355,13 +359,13 @@ func InteropConfig() *Config {
 	cfg.Signature.OutboundMode = "criteria-only"
 	cfg.Signature.AdvertiseHTTPRequestSignatures = true
 	cfg.Signature.PeerProfileLevelOverride = "non-strict"
-	cfg.WebDAVTokenExchange.Mode = "lenient"
 	// InsecureSkipVerify stays configurable (default false)
 	return cfg
 }
 
 // DevConfig returns development mode defaults.
 func DevConfig() *Config {
+	tokenExchangeEnabled := true
 	return &Config{
 		Mode:             string(ModeDev),
 		PublicOrigin:     "https://localhost:9200",
@@ -411,13 +415,13 @@ func DevConfig() *Config {
 			AllowSensitive: false,
 		},
 		TokenExchange: TokenExchangeConfig{
-			Enabled: ptrBool(true),
+			Enabled: &tokenExchangeEnabled,
 			Path:    "token",
 		},
 		WebDAVTokenExchange: WebDAVTokenExchangeConfig{
-			Mode: "lenient",
+			Mode: "off",
 		},
-		NonStrictPeerOutboundPolicy: "legacy-compatible",
+		PeerPolicy: "prefer-strict",
 	}
 }
 
@@ -597,8 +601,8 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 	}
 
-	if fc.NonStrictPeerOutboundPolicy != "" {
-		cfg.NonStrictPeerOutboundPolicy = fc.NonStrictPeerOutboundPolicy
+	if fc.PeerPolicy != "" {
+		cfg.PeerPolicy = fc.PeerPolicy
 	}
 
 	if fc.HTTP != nil {
@@ -672,8 +676,8 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.WebDAVTokenExchangeMode != nil && *f.WebDAVTokenExchangeMode != "" {
 		cfg.WebDAVTokenExchange.Mode = *f.WebDAVTokenExchangeMode
 	}
-	if f.NonStrictPeerOutboundPolicy != nil && *f.NonStrictPeerOutboundPolicy != "" {
-		cfg.NonStrictPeerOutboundPolicy = *f.NonStrictPeerOutboundPolicy
+	if f.PeerPolicy != nil && *f.PeerPolicy != "" {
+		cfg.PeerPolicy = *f.PeerPolicy
 	}
 }
 
@@ -789,12 +793,12 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("invalid webdav_token_exchange.mode %q: must be one of off, lenient, strict", cfg.WebDAVTokenExchange.Mode)
 	}
 
-	// non_strict_peer_outbound_policy validation
-	switch cfg.NonStrictPeerOutboundPolicy {
-	case "legacy-compatible", "prefer-strict", "fail-fast":
+	// peer_policy validation
+	switch cfg.PeerPolicy {
+	case "legacy", "prefer-strict", "strict":
 		// valid
 	default:
-		return fmt.Errorf("invalid non_strict_peer_outbound_policy %q: must be one of legacy-compatible, prefer-strict, fail-fast", cfg.NonStrictPeerOutboundPolicy)
+		return fmt.Errorf("invalid peer_policy %q: must be one of legacy, prefer-strict, strict", cfg.PeerPolicy)
 	}
 
 	// Cross-field: strict WebDAV enforcement requires token exchange capability
@@ -802,9 +806,9 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("webdav_token_exchange.mode=strict requires token_exchange.enabled=true")
 	}
 
-	// Cross-field: fail-fast outbound policy requires token exchange capability
-	if cfg.NonStrictPeerOutboundPolicy == "fail-fast" && !cfg.TokenExchangeEnabled() {
-		return fmt.Errorf("non_strict_peer_outbound_policy=fail-fast requires token_exchange.enabled=true")
+	// Cross-field: strict peer policy requires token exchange capability
+	if cfg.PeerPolicy == "strict" && !cfg.TokenExchangeEnabled() {
+		return fmt.Errorf("peer_policy=strict requires token_exchange.enabled=true")
 	}
 
 	// Cross-field: peer_profile_level_override=all undermines strict advertisement

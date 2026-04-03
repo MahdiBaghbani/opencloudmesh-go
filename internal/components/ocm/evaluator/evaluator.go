@@ -7,9 +7,9 @@ import (
 
 // LocalEvaluation holds the three canonical OCM dimensions derived from local config.
 type LocalEvaluation struct {
-	CodeFlowCapability          bool
-	ReceiverStrictness          bool
-	NonStrictPeerOutboundPolicy string
+	TokenExchangeCapable  bool
+	RequiresTokenExchange bool
+	PeerPolicy            string
 }
 
 // LocalEvaluator interprets local config into canonical OCM dimensions.
@@ -26,8 +26,8 @@ func NewLocalEvaluator(cfg *config.Config) *LocalEvaluator {
 // Evaluate returns the canonical local evaluation. Cheap to call; no allocation beyond the struct copy.
 func (e *LocalEvaluator) Evaluate() LocalEvaluation {
 	return LocalEvaluation{
-		CodeFlowCapability:          e.cfg.TokenExchangeEnabled(),
-		ReceiverStrictness:          e.cfg.WebDAVTokenExchange.Mode == "strict",
-		NonStrictPeerOutboundPolicy: e.cfg.NonStrictPeerOutboundPolicy,
+		TokenExchangeCapable:  e.cfg.TokenExchangeEnabled(),
+		RequiresTokenExchange: e.cfg.WebDAVTokenExchange.Mode == "strict",
+		PeerPolicy:            e.cfg.PeerPolicy,
 	}
 }

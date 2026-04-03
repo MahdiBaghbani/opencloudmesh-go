@@ -7,15 +7,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
-
-func ptrBool(b bool) *bool { return &b }
 
 // Migrated from TestHandler_CriteriaAlwaysPresent -- now tests the spec type contract directly.
 func TestCriteriaAlwaysPresent(t *testing.T) {
@@ -58,28 +56,30 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 
 // Migrated from TestHandler_CriteriaAdvertiseHTTPRequestSignatures -- now tests
 // evaluator-driven criteria via the canonical three-dimension model.
-func TestEvaluator_ReceiverStrictnessDrivesCriteria(t *testing.T) {
+func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
 	t.Run("strict mode emits token-exchange criteria", func(t *testing.T) {
+		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true)},
-			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "strict"},
-			NonStrictPeerOutboundPolicy: "legacy-compatible",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
+			PeerPolicy:          "legacy",
 		}
 		eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
-		if !eval.ReceiverStrictness {
-			t.Error("expected ReceiverStrictness true for strict mode")
+		if !eval.RequiresTokenExchange {
+			t.Error("expected RequiresTokenExchange true for strict mode")
 		}
 	})
 
 	t.Run("lenient mode does not emit token-exchange criteria", func(t *testing.T) {
+		tokenExchangeEnabled := true
 		cfg := &config.Config{
-			TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true)},
-			WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "lenient"},
-			NonStrictPeerOutboundPolicy: "legacy-compatible",
+			TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"},
+			PeerPolicy:          "legacy",
 		}
 		eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
-		if eval.ReceiverStrictness {
-			t.Error("expected ReceiverStrictness false for lenient mode")
+		if eval.RequiresTokenExchange {
+			t.Error("expected RequiresTokenExchange false for lenient mode")
 		}
 	})
 }

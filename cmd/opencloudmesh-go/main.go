@@ -14,29 +14,29 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -66,7 +66,7 @@ func main() {
 	tokenExchangeEnabled := flag.String("token-exchange-enabled", "", "Enable token exchange: true or false (overrides config)")
 	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
 	webdavTokenExchangeMode := flag.String("webdav-token-exchange-mode", "", "WebDAV token exchange enforcement mode: strict, lenient, or off (overrides config)")
-	nonStrictPeerOutboundPolicy := flag.String("non-strict-peer-outbound-policy", "", "Non-strict peer outbound policy: legacy-compatible, prefer-strict, or fail-fast (overrides config)")
+	peerPolicy := flag.String("peer-policy", "", "Peer policy: legacy, prefer-strict, or strict (overrides config)")
 	flag.Parse()
 
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -93,7 +93,7 @@ func main() {
 			TokenExchangeEnabled:          tokenExchangeEnabled,
 			TokenExchangePath:             tokenExchangePath,
 			WebDAVTokenExchangeMode:       webdavTokenExchangeMode,
-			NonStrictPeerOutboundPolicy:   nonStrictPeerOutboundPolicy,
+			PeerPolicy:                    peerPolicy,
 		},
 		Logger: bootstrapLogger,
 	})
@@ -394,4 +394,3 @@ func main() {
 
 	logger.Info("server stopped")
 }
-

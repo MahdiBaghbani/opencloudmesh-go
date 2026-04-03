@@ -983,7 +983,7 @@ level = "` + level + `"
 }
 
 func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
-	// Strict mode: enabled=true, path=token, webdav_mode=strict
+	// Strict mode: enabled=true, path=token, webdav_mode=off
 	strictCfg := StrictConfig()
 	if strictCfg.TokenExchange.Enabled == nil || !*strictCfg.TokenExchange.Enabled {
 		t.Error("expected strict mode token_exchange.enabled true")
@@ -991,11 +991,11 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if strictCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected strict mode token_exchange.path 'token', got %q", strictCfg.TokenExchange.Path)
 	}
-	if strictCfg.WebDAVTokenExchange.Mode != "strict" {
-		t.Errorf("expected strict mode webdav_token_exchange.mode 'strict', got %q", strictCfg.WebDAVTokenExchange.Mode)
+	if strictCfg.WebDAVTokenExchange.Mode != "off" {
+		t.Errorf("expected strict mode webdav_token_exchange.mode 'off', got %q", strictCfg.WebDAVTokenExchange.Mode)
 	}
 
-	// Interop mode: enabled=true, path=token, webdav_mode=lenient
+	// Interop mode: enabled=true, path=token, webdav_mode=off
 	interopCfg := InteropConfig()
 	if interopCfg.TokenExchange.Enabled == nil || !*interopCfg.TokenExchange.Enabled {
 		t.Error("expected interop mode token_exchange.enabled true")
@@ -1003,11 +1003,11 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if interopCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected interop mode token_exchange.path 'token', got %q", interopCfg.TokenExchange.Path)
 	}
-	if interopCfg.WebDAVTokenExchange.Mode != "lenient" {
-		t.Errorf("expected interop mode webdav_token_exchange.mode 'lenient', got %q", interopCfg.WebDAVTokenExchange.Mode)
+	if interopCfg.WebDAVTokenExchange.Mode != "off" {
+		t.Errorf("expected interop mode webdav_token_exchange.mode 'off', got %q", interopCfg.WebDAVTokenExchange.Mode)
 	}
 
-	// Dev mode: enabled=true, path=token, webdav_mode=lenient
+	// Dev mode: enabled=true, path=token, webdav_mode=off
 	devCfg := DevConfig()
 	if devCfg.TokenExchange.Enabled == nil || !*devCfg.TokenExchange.Enabled {
 		t.Error("expected dev mode token_exchange.enabled true")
@@ -1015,8 +1015,8 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if devCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected dev mode token_exchange.path 'token', got %q", devCfg.TokenExchange.Path)
 	}
-	if devCfg.WebDAVTokenExchange.Mode != "lenient" {
-		t.Errorf("expected dev mode webdav_token_exchange.mode 'lenient', got %q", devCfg.WebDAVTokenExchange.Mode)
+	if devCfg.WebDAVTokenExchange.Mode != "off" {
+		t.Errorf("expected dev mode webdav_token_exchange.mode 'off', got %q", devCfg.WebDAVTokenExchange.Mode)
 	}
 }
 
@@ -1210,6 +1210,9 @@ func TestLoad_WebDAVTokenExchangeConfig_AllValidModes(t *testing.T) {
 
 			tomlContent := `
 mode = "strict"
+
+[token_exchange]
+enabled = true
 
 [webdav_token_exchange]
 mode = "` + mode + `"
@@ -1592,8 +1595,8 @@ allowed_basic_auth_patterns = ["token:", "id:token"]
 	}
 }
 
-func TestLoad_NonStrictPeerOutboundPolicy_ValidValues(t *testing.T) {
-	validPolicies := []string{"legacy-compatible", "prefer-strict", "fail-fast"}
+func TestLoad_PeerPolicy_ValidValues(t *testing.T) {
+	validPolicies := []string{"legacy", "prefer-strict", "strict"}
 
 	for _, policy := range validPolicies {
 		t.Run(policy, func(t *testing.T) {
@@ -1602,7 +1605,10 @@ func TestLoad_NonStrictPeerOutboundPolicy_ValidValues(t *testing.T) {
 
 			tomlContent := `
 mode = "strict"
-non_strict_peer_outbound_policy = "` + policy + `"
+peer_policy = "` + policy + `"
+
+[token_exchange]
+enabled = true
 `
 			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
@@ -1613,20 +1619,20 @@ non_strict_peer_outbound_policy = "` + policy + `"
 				t.Fatalf("Load() error = %v", err)
 			}
 
-			if cfg.NonStrictPeerOutboundPolicy != policy {
-				t.Errorf("expected non_strict_peer_outbound_policy %q, got %q", policy, cfg.NonStrictPeerOutboundPolicy)
+			if cfg.PeerPolicy != policy {
+				t.Errorf("expected peer_policy %q, got %q", policy, cfg.PeerPolicy)
 			}
 		})
 	}
 }
 
-func TestLoad_NonStrictPeerOutboundPolicy_InvalidFails(t *testing.T) {
+func TestLoad_PeerPolicy_InvalidFails(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 mode = "strict"
-non_strict_peer_outbound_policy = "unknown"
+peer_policy = "unknown"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1634,10 +1640,52 @@ non_strict_peer_outbound_policy = "unknown"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for invalid non_strict_peer_outbound_policy")
+		t.Fatal("expected error for invalid peer_policy")
 	}
-	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy") {
-		t.Errorf("expected error about non_strict_peer_outbound_policy, got: %v", err)
+	if !strings.Contains(err.Error(), "peer_policy") {
+		t.Errorf("expected error about peer_policy, got: %v", err)
+	}
+}
+
+func TestLoad_NonStrictPeerOutboundPolicy_StrictBreak_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+non_strict_peer_outbound_policy = "prefer-strict"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for deprecated non_strict_peer_outbound_policy key")
+	}
+	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy") || !strings.Contains(err.Error(), "peer_policy") {
+		t.Errorf("expected rename error, got: %v", err)
+	}
+}
+
+func TestLoad_LegacyPeerPolicy_StrictBreak_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+legacy_peer_policy = "prefer-strict"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for deprecated legacy_peer_policy key")
+	}
+	if !strings.Contains(err.Error(), "legacy_peer_policy") || !strings.Contains(err.Error(), "peer_policy") {
+		t.Errorf("expected rename error, got: %v", err)
 	}
 }
 
@@ -1667,13 +1715,13 @@ mode = "strict"
 	}
 }
 
-func TestLoad_CrossField_FailFastRequiresTokenExchange(t *testing.T) {
+func TestLoad_CrossField_StrictPeerPolicyRequiresTokenExchange(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 mode = "strict"
-non_strict_peer_outbound_policy = "fail-fast"
+peer_policy = "strict"
 
 [token_exchange]
 enabled = false
@@ -1687,9 +1735,9 @@ mode = "off"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for fail-fast without token exchange")
+		t.Fatal("expected error for strict peer policy without token exchange")
 	}
-	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy=fail-fast requires token_exchange.enabled=true") {
+	if !strings.Contains(err.Error(), "peer_policy=strict requires token_exchange.enabled=true") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -1703,6 +1751,9 @@ mode = "strict"
 
 [signature]
 peer_profile_level_override = "all"
+
+[token_exchange]
+enabled = true
 
 [webdav_token_exchange]
 mode = "strict"
@@ -1720,14 +1771,14 @@ mode = "strict"
 	}
 }
 
-func TestLoad_NonStrictPeerOutboundPolicy_DefaultIsLegacyCompatible(t *testing.T) {
+func TestLoad_PeerPolicy_DefaultIsPreferStrict(t *testing.T) {
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.NonStrictPeerOutboundPolicy != "legacy-compatible" {
-		t.Errorf("expected default non_strict_peer_outbound_policy legacy-compatible, got %q", cfg.NonStrictPeerOutboundPolicy)
+	if cfg.PeerPolicy != "prefer-strict" {
+		t.Errorf("expected default peer_policy prefer-strict, got %q", cfg.PeerPolicy)
 	}
 }
 

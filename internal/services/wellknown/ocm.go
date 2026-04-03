@@ -33,10 +33,10 @@ type APIVersionOverride struct {
 
 // OCMProviderConfig holds OCM discovery configuration.
 type OCMProviderConfig struct {
-	Endpoint                       string `mapstructure:"endpoint"`        // This host's full URL (origin + base path)
-	OCMPrefix                      string `mapstructure:"ocm_prefix"`      // Default: "ocm"
-	Provider                       string `mapstructure:"provider"`        // Friendly name
-	WebDAVRoot                     string `mapstructure:"webdav_root"`     // WebDAV path
+	Endpoint                       string `mapstructure:"endpoint"`    // This host's full URL (origin + base path)
+	OCMPrefix                      string `mapstructure:"ocm_prefix"`  // Default: "ocm"
+	Provider                       string `mapstructure:"provider"`    // Friendly name
+	WebDAVRoot                     string `mapstructure:"webdav_root"` // WebDAV path
 	AdvertiseHTTPRequestSignatures bool   `mapstructure:"advertise_http_request_signatures"`
 
 	TokenExchange struct {
@@ -45,7 +45,7 @@ type OCMProviderConfig struct {
 	} `mapstructure:"token_exchange"`
 
 	// Invite accept dialog URL (absolute) for WAYF helpers
-	InviteAcceptDialog string `mapstructure:"invite_accept_dialog"`
+	InviteAcceptDialog  string `mapstructure:"invite_accept_dialog"`
 	AdvertiseInviteWAYF bool   `mapstructure:"advertise_invite_wayf"`
 
 	// APIVersionOverrides allows overriding apiVersion based on User-Agent.
@@ -186,22 +186,11 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		capabilities = append(capabilities, "http-sig")
 	}
 
-	// Token exchange capability gated by canonical evaluator.
-	// Per-service explicit disable ([http.services.wellknown.ocmprovider.token_exchange].enabled = false)
-	// overrides the evaluator. This allows test configs to suppress the capability.
+	// Token exchange capability is evaluator-owned when available.
 	var localEval localEvaluation
-	perServiceExplicitlySet := false
-	if rawTE, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
-		if _, set := rawTE["enabled"]; set {
-			perServiceExplicitlySet = true
-		}
-	}
-
-	if perServiceExplicitlySet {
-		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
-	} else if d != nil && d.LocalEvaluator != nil {
+	if d != nil && d.LocalEvaluator != nil {
 		ev := d.LocalEvaluator.Evaluate()
-		localEval = localEvaluation{codeFlow: ev.CodeFlowCapability, strict: ev.ReceiverStrictness}
+		localEval = localEvaluation{codeFlow: ev.TokenExchangeCapable, strict: ev.RequiresTokenExchange}
 	} else {
 		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
 	}
@@ -232,8 +221,10 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 	if c.AdvertiseHTTPRequestSignatures {
 		disc.Criteria = append(disc.Criteria, "http-request-signatures")
 	}
-	if localEval.strict {
+	if localEval.strict && localEval.codeFlow {
 		disc.Criteria = append(disc.Criteria, "token-exchange")
+	} else if localEval.strict && !localEval.codeFlow {
+		log.Warn("local evaluator requires token exchange but code flow is disabled; omitting token-exchange criteria")
 	}
 
 	_ = endpointURL // parsed for validation only (keep for future use)

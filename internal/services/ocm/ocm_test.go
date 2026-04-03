@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
@@ -185,6 +186,40 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 
 	if !logBuf.contains("unused config keys") {
 		t.Error("expected warning about unused config keys")
+	}
+}
+
+func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
+	deps.ResetDeps()
+	tokenExchangeEnabled := true
+	cfg := &config.Config{
+		TokenExchange: config.TokenExchangeConfig{
+			Enabled: &tokenExchangeEnabled,
+			Path:    "token",
+		},
+	}
+	deps.SetDeps(&deps.Deps{
+		Config:         cfg,
+		LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+	})
+
+	m := map[string]any{
+		"token_exchange": map[string]any{
+			"enabled": false, // per-service override must not disable evaluator-owned state
+		},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/token", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected token route to stay mounted (405 on GET), got %d", w.Code)
 	}
 }
 

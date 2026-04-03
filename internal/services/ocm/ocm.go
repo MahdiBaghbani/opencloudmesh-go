@@ -10,12 +10,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	notifincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
@@ -65,13 +65,16 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized: call deps.SetDeps() before New()")
 	}
 
-	// Derive token exchange from global config when not explicitly set in TOML.
+	// Token exchange enablement is evaluator-owned when available.
+	// Path may still be overridden per-service.
 	if d.Config != nil {
 		var rawTE map[string]any
 		if te, ok := m["token_exchange"].(map[string]any); ok {
 			rawTE = te
 		}
-		if _, set := rawTE["enabled"]; !set {
+		if d.LocalEvaluator != nil {
+			c.TokenExchange.Enabled = d.LocalEvaluator.Evaluate().TokenExchangeCapable
+		} else if _, set := rawTE["enabled"]; !set {
 			c.TokenExchange.Enabled = d.Config.TokenExchangeEnabled()
 		}
 		if _, set := rawTE["path"]; !set {

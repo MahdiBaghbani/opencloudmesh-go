@@ -7,24 +7,23 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
-func ptrBool(b bool) *bool { return &b }
-
 func TestEvaluate_AllEnabled(t *testing.T) {
+	tokenExchangeEnabled := true
 	cfg := &config.Config{
-		TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true)},
-		WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "strict"},
-		NonStrictPeerOutboundPolicy: "prefer-strict",
+		TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
+		PeerPolicy:          "prefer-strict",
 	}
 	eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
 
-	if !eval.CodeFlowCapability {
-		t.Error("expected CodeFlowCapability true")
+	if !eval.TokenExchangeCapable {
+		t.Error("expected TokenExchangeCapable true")
 	}
-	if !eval.ReceiverStrictness {
-		t.Error("expected ReceiverStrictness true")
+	if !eval.RequiresTokenExchange {
+		t.Error("expected RequiresTokenExchange true")
 	}
-	if eval.NonStrictPeerOutboundPolicy != "prefer-strict" {
-		t.Errorf("expected NonStrictPeerOutboundPolicy prefer-strict, got %q", eval.NonStrictPeerOutboundPolicy)
+	if eval.PeerPolicy != "prefer-strict" {
+		t.Errorf("expected PeerPolicy prefer-strict, got %q", eval.PeerPolicy)
 	}
 }
 
@@ -32,70 +31,73 @@ func TestEvaluate_AllDefaults(t *testing.T) {
 	cfg := config.DevConfig()
 	eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
 
-	if !eval.CodeFlowCapability {
-		t.Error("expected CodeFlowCapability true in dev (token exchange enabled by default)")
+	if !eval.TokenExchangeCapable {
+		t.Error("expected TokenExchangeCapable true by default")
 	}
-	if eval.ReceiverStrictness {
-		t.Error("expected ReceiverStrictness false in dev (lenient mode)")
+	if eval.RequiresTokenExchange {
+		t.Error("expected RequiresTokenExchange false in dev (off mode)")
 	}
-	if eval.NonStrictPeerOutboundPolicy != "legacy-compatible" {
-		t.Errorf("expected NonStrictPeerOutboundPolicy legacy-compatible, got %q", eval.NonStrictPeerOutboundPolicy)
+	if eval.PeerPolicy != "prefer-strict" {
+		t.Errorf("expected PeerPolicy prefer-strict, got %q", eval.PeerPolicy)
 	}
 }
 
 func TestEvaluate_TokenExchangeDisabled(t *testing.T) {
+	tokenExchangeEnabled := false
 	cfg := &config.Config{
-		TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(false)},
-		WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "off"},
-		NonStrictPeerOutboundPolicy: "legacy-compatible",
+		TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
+		PeerPolicy:          "legacy",
 	}
 	eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
 
-	if eval.CodeFlowCapability {
-		t.Error("expected CodeFlowCapability false when token exchange disabled")
+	if eval.TokenExchangeCapable {
+		t.Error("expected TokenExchangeCapable false when token exchange disabled")
 	}
-	if eval.ReceiverStrictness {
-		t.Error("expected ReceiverStrictness false when mode=off")
+	if eval.RequiresTokenExchange {
+		t.Error("expected RequiresTokenExchange false when mode=off")
 	}
 }
 
 func TestEvaluate_LenientModeNotStrict(t *testing.T) {
+	tokenExchangeEnabled := true
 	cfg := &config.Config{
-		TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true)},
-		WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "lenient"},
-		NonStrictPeerOutboundPolicy: "legacy-compatible",
+		TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"},
+		PeerPolicy:          "legacy",
 	}
 	eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
 
-	if !eval.CodeFlowCapability {
-		t.Error("expected CodeFlowCapability true")
+	if !eval.TokenExchangeCapable {
+		t.Error("expected TokenExchangeCapable true")
 	}
-	if eval.ReceiverStrictness {
-		t.Error("expected ReceiverStrictness false for lenient mode")
+	if eval.RequiresTokenExchange {
+		t.Error("expected RequiresTokenExchange false for lenient mode")
 	}
 }
 
-func TestEvaluate_FailFastPolicy(t *testing.T) {
+func TestEvaluate_StrictPolicy(t *testing.T) {
+	tokenExchangeEnabled := true
 	cfg := &config.Config{
-		TokenExchange:               config.TokenExchangeConfig{Enabled: ptrBool(true)},
-		WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "strict"},
-		NonStrictPeerOutboundPolicy: "fail-fast",
+		TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
+		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
+		PeerPolicy:          "strict",
 	}
 	eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
 
-	if eval.NonStrictPeerOutboundPolicy != "fail-fast" {
-		t.Errorf("expected NonStrictPeerOutboundPolicy fail-fast, got %q", eval.NonStrictPeerOutboundPolicy)
+	if eval.PeerPolicy != "strict" {
+		t.Errorf("expected PeerPolicy strict, got %q", eval.PeerPolicy)
 	}
 }
 
 func TestEvaluate_NilTokenExchangeEnabled(t *testing.T) {
 	cfg := &config.Config{
-		WebDAVTokenExchange:         config.WebDAVTokenExchangeConfig{Mode: "off"},
-		NonStrictPeerOutboundPolicy: "legacy-compatible",
+		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
+		PeerPolicy:          "legacy",
 	}
 	eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
 
-	if eval.CodeFlowCapability {
-		t.Error("expected CodeFlowCapability false when TokenExchange.Enabled is nil")
+	if eval.TokenExchangeCapable {
+		t.Error("expected TokenExchangeCapable false when TokenExchange.Enabled is nil")
 	}
 }

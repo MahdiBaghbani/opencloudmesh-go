@@ -57,9 +57,9 @@ type Config struct {
 	// WebDAVTokenExchange configuration for must-exchange-token enforcement
 	WebDAVTokenExchange WebDAVTokenExchangeConfig `toml:"webdav_token_exchange"`
 
-	// NonStrictPeerOutboundPolicy controls sender behavior toward non-strict peers.
-	// Values: "legacy-compatible" (default), "prefer-strict", "fail-fast".
-	NonStrictPeerOutboundPolicy string `toml:"non_strict_peer_outbound_policy"`
+	// PeerPolicy controls sender behavior toward non-strict peers.
+	// Values: "legacy", "prefer-strict" (default), "strict".
+	PeerPolicy string `toml:"peer_policy"`
 
 	// HTTP holds per-service HTTP configuration (Reva-style).
 	HTTP HTTPConfig `toml:"http"`
@@ -94,7 +94,7 @@ type LoggingConfig struct {
 type TokenExchangeConfig struct {
 	// Enabled controls whether token exchange is enabled.
 	// Pointer for presence detection; nil = use preset default.
-	// Default: true in all modes.
+	// Default: false in all modes (Reva-aligned).
 	Enabled *bool `toml:"enabled"`
 
 	// Path is the token exchange endpoint path (relative to /ocm/).
@@ -108,7 +108,7 @@ type WebDAVTokenExchangeConfig struct {
 	// - strict: always enforce must-exchange-token
 	// - lenient: enforce with peer profile relaxations
 	// - off: never enforce must-exchange-token
-	// Default: strict in strict mode, lenient in interop/dev mode.
+	// Default: off in all modes (Reva-aligned; require_token_exchange=false).
 	Mode string `toml:"mode"`
 }
 
@@ -325,7 +325,6 @@ type OutboundHTTPConfig struct {
 	TLSRootCADir string `toml:"tls_root_ca_dir"`
 }
 
-
 // OutboundHTTPConfigStrict returns strict outbound HTTP config for production.
 func OutboundHTTPConfigStrict() OutboundHTTPConfig {
 	return OutboundHTTPConfig{
@@ -423,7 +422,7 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  WebDAVTokenExchange: {\n")
 	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.WebDAVTokenExchange.Mode))
 	sb.WriteString("  },\n")
-	sb.WriteString(fmt.Sprintf("  NonStrictPeerOutboundPolicy: %q,\n", c.NonStrictPeerOutboundPolicy))
+	sb.WriteString(fmt.Sprintf("  PeerPolicy: %q,\n", c.PeerPolicy))
 	sb.WriteString("  HTTP: {\n")
 	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))
 	if len(c.HTTP.Services) > 0 {
