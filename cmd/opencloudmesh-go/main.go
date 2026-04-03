@@ -259,10 +259,10 @@ func main() {
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg, profileRegistry)
 
-	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry, openCloudMeshPolicy)
+	outboundPolicy := outboundsigning.NewOutboundPolicy(runtimePolicy, profileRegistry, openCloudMeshPolicy)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
-	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
+	signatureMiddleware := crypto.NewSignatureMiddleware(runtimePolicy, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
 
 	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
 	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()

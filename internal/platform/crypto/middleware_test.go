@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
@@ -30,12 +31,18 @@ func (m *mockPeerDiscovery) GetPublicKey(ctx context.Context, keyID string) (str
 	return "", nil
 }
 
+func runtimePolicyFromSignature(cfg *config.SignatureConfig) *policy.RuntimePolicy {
+	base := config.DevConfig()
+	base.Signature = *cfg
+	return policy.NewRuntimePolicy(base, nil)
+}
+
 func TestSignatureMiddleware_OffMode(t *testing.T) {
 	cfg := &config.SignatureConfig{InboundMode: "off"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := crypto.NewSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -56,7 +63,7 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := crypto.NewSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -86,7 +93,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check peer identity was set
@@ -130,7 +137,7 @@ func TestSignatureMiddleware_LenientMode_AcceptsUnsignedFromNonCapable(t *testin
 		signingCapable: map[string]bool{"sender.example.com": false},
 	}
 
-	mw := crypto.NewSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns the sender host from request body
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
@@ -161,7 +168,7 @@ func TestSignatureMiddleware_LenientMode_RejectsUnsignedFromCapable(t *testing.T
 		signingCapable: map[string]bool{"sender.example.com": true},
 	}
 
-	mw := crypto.NewSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns the sender host
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
@@ -203,7 +210,7 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -239,7 +246,7 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns "sender.example.com" (without :443).
 	// The keyId will contain :443 explicitly.

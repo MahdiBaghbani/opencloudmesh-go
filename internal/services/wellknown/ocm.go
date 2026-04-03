@@ -101,7 +101,9 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		}
 
 		if _, set := rawOCMProvider["advertise_http_request_signatures"]; !set {
-			c.AdvertiseHTTPRequestSignatures = d.Config.Signature.AdvertiseHTTPRequestSignatures
+			if d.RuntimePolicy != nil {
+				c.AdvertiseHTTPRequestSignatures = d.RuntimePolicy.Evaluate().Signature.AdvertiseHTTPRequestSignatures
+			}
 		}
 
 		// Token exchange derivation

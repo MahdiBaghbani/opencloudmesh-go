@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	ocmpolicy "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	ocmpolicy "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
@@ -284,7 +284,8 @@ func TestNewOutboundPolicy(t *testing.T) {
 	}
 
 	registry := peercompat.NewProfileRegistry(nil, nil)
-	policy := outboundsigning.NewOutboundPolicy(cfg, registry, nil)
+	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, registry)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, nil)
 
 	if policy.OutboundMode != "criteria-only" {
 		t.Errorf("expected outbound_mode=criteria-only, got %s", policy.OutboundMode)
@@ -306,7 +307,8 @@ func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testin
 	}
 	registry := peercompat.NewProfileRegistry(profiles, mappings)
 	cfg := config.DevConfig()
-	policy := outboundsigning.NewOutboundPolicy(cfg, registry, ocmpolicy.NewOpenCloudMeshPolicy(cfg))
+	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, registry)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, ocmpolicy.NewOpenCloudMeshPolicy(cfg))
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},
@@ -326,7 +328,9 @@ func TestOutboundPolicy_TokenExchange_StrictPolicyRequiresSigning(t *testing.T) 
 	cfg.PeerPolicy = "strict"
 	enabled := true
 	cfg.TokenExchange.Enabled = &enabled
-	policy := outboundsigning.NewOutboundPolicy(cfg, peercompat.NewProfileRegistry(nil, nil), ocmpolicy.NewOpenCloudMeshPolicy(cfg))
+	registry := peercompat.NewProfileRegistry(nil, nil)
+	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, registry)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, ocmpolicy.NewOpenCloudMeshPolicy(cfg))
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},

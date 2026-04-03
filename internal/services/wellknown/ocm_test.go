@@ -270,6 +270,65 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 	})
 }
 
+func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
+	t.Run("derived from runtime policy when not explicitly configured", func(t *testing.T) {
+		cfg := config.DevConfig()
+		cfg.Signature.AdvertiseHTTPRequestSignatures = true
+		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		c := &OCMProviderConfig{
+			Endpoint: "https://example.com",
+		}
+		d := &deps.Deps{
+			Config:        cfg,
+			RuntimePolicy: runtimePolicy,
+		}
+
+		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		found := false
+		for _, crit := range h.data.Criteria {
+			if crit == "http-request-signatures" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("expected http-request-signatures criteria from runtime policy")
+		}
+	})
+
+	t.Run("explicit service config wins over runtime policy", func(t *testing.T) {
+		cfg := config.DevConfig()
+		cfg.Signature.AdvertiseHTTPRequestSignatures = true
+		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		c := &OCMProviderConfig{
+			Endpoint:                       "https://example.com",
+			AdvertiseHTTPRequestSignatures: false,
+		}
+		d := &deps.Deps{
+			Config:        cfg,
+			RuntimePolicy: runtimePolicy,
+		}
+		raw := map[string]any{
+			"advertise_http_request_signatures": false,
+		}
+
+		h, err := newOCMHandler(c, raw, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, crit := range h.data.Criteria {
+			if crit == "http-request-signatures" {
+				t.Error("did not expect http-request-signatures when explicitly disabled")
+			}
+		}
+	})
+}
+
 func TestNewOCMHandler_InvalidEndpointURL(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "://invalid-url",
@@ -515,7 +574,7 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
 		d := &deps.Deps{
-			Config:         cfg,
+			Config:              cfg,
 			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
@@ -550,7 +609,7 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = false
 		d := &deps.Deps{
-			Config:         cfg,
+			Config:              cfg,
 			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
@@ -583,7 +642,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
 		d := &deps.Deps{
-			Config:         cfg,
+			Config:              cfg,
 			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
@@ -616,7 +675,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
 		d := &deps.Deps{
-			Config:         cfg,
+			Config:              cfg,
 			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
@@ -642,7 +701,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
-			Config:         cfg,
+			Config:              cfg,
 			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
@@ -684,7 +743,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
-			Config:         cfg,
+			Config:              cfg,
 			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 		raw := map[string]any{
@@ -720,7 +779,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
-			Config:         cfg,
+			Config:              cfg,
 			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
@@ -754,7 +813,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
-			Config:         cfg,
+			Config:              cfg,
 			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 		raw := map[string]any{

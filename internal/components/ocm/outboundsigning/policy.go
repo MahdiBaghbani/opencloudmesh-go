@@ -9,7 +9,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 type EndpointKind string
@@ -31,14 +30,27 @@ type OutboundPolicy struct {
 	OutboundMode        string
 	PeerProfileOverride string
 	ProfileRegistry     *peercompat.ProfileRegistry
+	runtimePolicy       *policy.RuntimePolicy
 	canonicalPolicy     *policy.OpenCloudMeshPolicy
 }
 
-func NewOutboundPolicy(cfg *config.Config, registry *peercompat.ProfileRegistry, canonicalPolicy *policy.OpenCloudMeshPolicy) *OutboundPolicy {
+func NewOutboundPolicy(runtimePolicy *policy.RuntimePolicy, registry *peercompat.ProfileRegistry, canonicalPolicy *policy.OpenCloudMeshPolicy) *OutboundPolicy {
+	outboundMode := "off"
+	peerProfileOverride := "off"
+	if runtimePolicy != nil {
+		signature := runtimePolicy.Evaluate().Signature
+		if signature.OutboundMode != "" {
+			outboundMode = signature.OutboundMode
+		}
+		if signature.PeerProfileLevelOverride != "" {
+			peerProfileOverride = signature.PeerProfileLevelOverride
+		}
+	}
 	return &OutboundPolicy{
-		OutboundMode:        cfg.Signature.OutboundMode,
-		PeerProfileOverride: cfg.Signature.PeerProfileLevelOverride,
+		OutboundMode:        outboundMode,
+		PeerProfileOverride: peerProfileOverride,
 		ProfileRegistry:     registry,
+		runtimePolicy:       runtimePolicy,
 		canonicalPolicy:     canonicalPolicy,
 	}
 }

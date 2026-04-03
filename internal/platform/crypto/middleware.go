@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -52,29 +52,46 @@ type PeerDiscovery interface {
 
 // SignatureMiddleware verifies HTTP request signatures.
 type SignatureMiddleware struct {
-	cfg           *config.SignatureConfig
-	verifier      *RFC9421Verifier
-	peerDiscovery PeerDiscovery
-	logger        *slog.Logger
-	localScheme   string // scheme from PublicOrigin for unverified peer normalization
+	inboundMode    string
+	allowMismatch  bool
+	onDiscoveryErr string
+	verifier       *RFC9421Verifier
+	peerDiscovery  PeerDiscovery
+	logger         *slog.Logger
+	localScheme    string // scheme from PublicOrigin for unverified peer normalization
 }
 
 // NewSignatureMiddleware creates a new signature verification middleware.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
-func NewSignatureMiddleware(cfg *config.SignatureConfig, pd PeerDiscovery, publicOrigin string, logger *slog.Logger) *SignatureMiddleware {
+func NewSignatureMiddleware(runtimePolicy *policy.RuntimePolicy, pd PeerDiscovery, publicOrigin string, logger *slog.Logger) *SignatureMiddleware {
 	logger = logutil.NoopIfNil(logger)
 
 	var localScheme string
 	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
 		localScheme = u.Scheme
 	}
+	inboundMode := "off"
+	onDiscoveryErr := "reject"
+	allowMismatch := false
+	if runtimePolicy != nil {
+		signature := runtimePolicy.Evaluate().Signature
+		if signature.InboundMode != "" {
+			inboundMode = signature.InboundMode
+		}
+		if signature.OnDiscoveryError != "" {
+			onDiscoveryErr = signature.OnDiscoveryError
+		}
+		allowMismatch = signature.AllowMismatch
+	}
 
 	return &SignatureMiddleware{
-		cfg:           cfg,
-		verifier:      NewRFC9421Verifier(),
-		peerDiscovery: pd,
-		logger:        logger,
-		localScheme:   localScheme,
+		inboundMode:    inboundMode,
+		allowMismatch:  allowMismatch,
+		onDiscoveryErr: onDiscoveryErr,
+		verifier:       NewRFC9421Verifier(),
+		peerDiscovery:  pd,
+		logger:         logger,
+		localScheme:    localScheme,
 	}
 }
 
@@ -84,7 +101,7 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// If inbound mode is off, skip verification
-			if m.cfg.InboundMode == "off" {
+			if m.inboundMode == "off" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -133,7 +150,7 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 					}
 
 					// Check for mismatch between declared peer and keyId authority
-					if declaredPeer != "" && !m.cfg.AllowMismatch {
+					if declaredPeer != "" && !m.allowMismatch {
 						normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, parsed.Scheme)
 						if err != nil {
 							m.logger.Warn("failed to normalize declared peer for comparison",
@@ -164,16 +181,16 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 				}
 			} else {
 				// No signature present
-				if m.cfg.InboundMode == "strict" {
+				if m.inboundMode == "strict" {
 					http.Error(w, "signature required", http.StatusUnauthorized)
 					return
 				}
 
 				// lenient mode - check if peer is signing-capable
-				if m.cfg.InboundMode == "lenient" && declaredPeer != "" {
+				if m.inboundMode == "lenient" && declaredPeer != "" {
 					isCapable, err := m.peerDiscovery.IsSigningCapable(r.Context(), declaredPeer)
 					if err != nil {
-						if m.cfg.OnDiscoveryError == "allow" {
+						if m.onDiscoveryErr == "allow" {
 							m.logger.Warn("peer discovery failed, allowing unsigned",
 								"peer", declaredPeer, "error", err)
 						} else {
