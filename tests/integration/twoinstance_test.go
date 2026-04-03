@@ -119,8 +119,9 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 	// Note: "strict" mode preset enables SSRF blocking via config.Load() defaults
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "ssrf-test",
-		Mode: "strict",
+		Name:                  "ssrf-test",
+		Mode:                  "strict",
+		KeepSignatureDefaults: true,
 		// ExtraConfig is intentionally empty - strict mode already sets appropriate SSRF settings
 	})
 	defer srv.Stop(t)

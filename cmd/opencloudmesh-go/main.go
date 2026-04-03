@@ -234,7 +234,6 @@ func main() {
 				AllowMismatchedHost:      p.AllowMismatchedHost,
 				AllowHTTP:                p.AllowHTTP,
 				TokenExchangeQuirks:      p.TokenExchangeQuirks,
-				RelaxMustExchangeToken:   p.RelaxMustExchangeToken,
 				AllowedBasicAuthPatterns: p.AllowedBasicAuthPatterns,
 			}
 		}
