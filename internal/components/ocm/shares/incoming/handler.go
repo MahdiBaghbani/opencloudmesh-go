@@ -198,18 +198,26 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		wireMustExchange = true
 	}
 
-	// Classify the share's token exchange requirements by discovering the owner.
-	// The owner's advertised capabilities override the wire-level must-exchange-token
-	// claim to prevent untrusted senders from escalating or downgrading requirements.
+	receiverRequiresExchange := false
+	if h.evaluator != nil {
+		receiverRequiresExchange = h.evaluator.Evaluate().RequiresTokenExchange
+	}
+	if receiverRequiresExchange && !wireMustExchange {
+		log.Warn("share rejected: receiver requires must-exchange-token",
+			"owner_host", ownerHost)
+		spec.WriteOCMError(w, reason.OCMStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied)
+		return
+	}
+
+	// Classify token exchange requirements using local receiver policy plus the
+	// remote owner's exchange-token capability.
 	var classifiedMustExchange, classifiedSenderCapable bool
 	if h.discoveryClient != nil {
 		discURL := h.localScheme + "://" + ownerHost
 		disc, discErr := h.discoveryClient.Discover(r.Context(), discURL)
 		if discErr != nil {
-			// When discovery fails, reject shares that claim token exchange is required
-			// (we cannot verify the claim) but accept plain shares as legacy.
-			if wireMustExchange {
-				log.Warn("discovery failed for share requiring token exchange, rejecting",
+			if wireMustExchange || receiverRequiresExchange {
+				log.Warn("discovery failed for strict share, rejecting",
 					"owner_host", ownerHost, "error", discErr)
 				spec.WriteOCMError(w, reason.OCMStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed)
 				return
@@ -217,26 +225,30 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 			log.Warn("discovery failed, treating share as legacy",
 				"owner_host", ownerHost, "error", discErr)
 		} else {
-			ownerIsStrict := disc.HasCriteria("token-exchange")
-			ownerHasExchangeToken := disc.HasCapability("exchange-token")
-
-			if ownerIsStrict {
-				// Owner enforces token exchange for all shares; override any wire value.
-				classifiedMustExchange = true
-				classifiedSenderCapable = true
-			} else if ownerHasExchangeToken {
-				// Owner supports token exchange but does not enforce it globally.
-				// Honor the per-share wire requirement when present.
-				classifiedSenderCapable = true
+			ownerTokenExchangeCapable := disc.SupportsTokenExchange()
+			if !ownerTokenExchangeCapable {
 				if wireMustExchange {
-					classifiedMustExchange = true
+					log.Warn("share rejected: must-exchange-token claimed but owner is not token-exchange capable",
+						"owner_host", ownerHost)
+					spec.WriteOCMError(w, reason.OCMStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch)
+					return
 				}
+				if disc.HasCapability("exchange-token") && disc.TokenEndPoint == "" {
+					log.Warn("owner advertises exchange-token without tokenEndPoint; treating as non-capable",
+						"owner_host", ownerHost)
+				}
+			} else {
+				classifiedSenderCapable = true
+				classifiedMustExchange = wireMustExchange
 			}
-			// Owner lacks exchange capability: both flags stay false, wire claim is stripped.
 		}
 	} else {
-		// No discovery client configured; pass the wire value through unchanged.
-		classifiedMustExchange = wireMustExchange
+		if wireMustExchange || receiverRequiresExchange {
+			log.Warn("discovery client unavailable for strict share, rejecting",
+				"owner_host", ownerHost)
+			spec.WriteOCMError(w, reason.OCMStatus(reason.PeerDiscoveryDisabled), reason.PeerDiscoveryDisabled)
+			return
+		}
 	}
 
 	share := &sharesinbox.IncomingShare{
