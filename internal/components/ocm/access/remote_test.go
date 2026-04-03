@@ -13,10 +13,12 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func newTestDiscoveryServer() *httptest.Server {
@@ -429,5 +431,166 @@ func TestAuthLadder_ResponseBodiesClosed(t *testing.T) {
 	}
 	if got := requestCount.Load(); got != 5 {
 		t.Errorf("request count = %d, want 5 (Bearer + 4 Basic patterns)", got)
+	}
+}
+
+func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
+	var tokenGrantType string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			disc := discovery.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.2.2",
+				EndPoint:      "http://" + r.Host + "/ocm",
+				Capabilities:  []string{"exchange-token"},
+				TokenEndPoint: "http://" + r.Host + "/ocm/token",
+				ResourceTypes: []discovery.ResourceType{
+					{
+						Name:       "file",
+						ShareTypes: []string{"user"},
+						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+					},
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(disc)
+			return
+		}
+		if r.URL.Path == "/ocm/token" {
+			_ = r.ParseForm()
+			tokenGrantType = r.FormValue("grant_type")
+			if tokenGrantType != "ocm_share" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"wrong grant"}`))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"owner-token","token_type":"Bearer","expires_in":3600}`))
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
+			if r.Header.Get("Authorization") != "Bearer owner-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	discClient, ctxClient := newTestClients(srv.URL)
+	ownerDomain := strings.Split(srv.Listener.Addr().String(), ":")[0]
+	profiles := map[string]*peercompat.Profile{
+		"owner-grant": {
+			Name:                   "owner-grant",
+			TokenExchangeGrantType: "ocm_share",
+		},
+	}
+	mappings := []peercompat.ProfileMapping{
+		{Pattern: ownerDomain, ProfileName: "owner-grant"},
+	}
+	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	policy := &outboundsigning.OutboundPolicy{
+		OutboundMode:        "off",
+		PeerProfileOverride: "non-strict",
+		ProfileRegistry:     registry,
+	}
+	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, nil, policy, "local.example.com")
+	client := access.NewClient(ctxClient, discClient, tokenClient, registry)
+
+	result, err := client.Access(context.Background(), access.AccessOptions{
+		Share: &access.ShareInfo{
+			Status:            "accepted",
+			SenderHost:        "sender.example.com",
+			OwnerHost:         srv.URL,
+			SharedSecret:      "secret",
+			WebDAVID:          "file-123",
+			MustExchangeToken: true,
+		},
+		Method: "GET",
+	})
+	if err != nil {
+		t.Fatalf("unexpected access error: %v", err)
+	}
+	defer result.Response.Body.Close()
+
+	if tokenGrantType != "ocm_share" {
+		t.Fatalf("expected owner profile grant_type ocm_share, got %q", tokenGrantType)
+	}
+	if result.Response.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", result.Response.StatusCode)
+	}
+}
+
+func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
+	token := "my-shared-secret"
+	webdavID := "file-owner-basic-1"
+	ownerAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(webdavID+":"+token))
+
+	var receivedAuths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
+			auth := r.Header.Get("Authorization")
+			receivedAuths = append(receivedAuths, auth)
+			if auth == ownerAuth {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("ok"))
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	discClient, ctxClient := newTestClients(srv.URL)
+
+	ownerHost := srv.Listener.Addr().String()
+	ownerDomain := strings.Split(ownerHost, ":")[0]
+	customProfiles := map[string]*peercompat.Profile{
+		"owner-only-id-token": {
+			Name:                     "owner-only-id-token",
+			AllowedBasicAuthPatterns: []string{"id:token"},
+		},
+		"sender-only-token-colon": {
+			Name:                     "sender-only-token-colon",
+			AllowedBasicAuthPatterns: []string{"token:"},
+		},
+	}
+	mappings := []peercompat.ProfileMapping{
+		{Pattern: ownerDomain, ProfileName: "owner-only-id-token"},
+		{Pattern: "sender.example.com", ProfileName: "sender-only-token-colon"},
+	}
+	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
+
+	client := access.NewClient(ctxClient, discClient, nil, registry)
+	result, err := client.Access(context.Background(), access.AccessOptions{
+		Share: &access.ShareInfo{
+			Status:            "accepted",
+			SenderHost:        "sender.example.com",
+			OwnerHost:         ownerHost,
+			SharedSecret:      token,
+			WebDAVID:          webdavID,
+			WebDAVURIAbsolute: "http://" + ownerHost + "/webdav/ocm/" + webdavID + "/doc.txt",
+		},
+		Method: "GET",
+	})
+	if err != nil {
+		t.Fatalf("unexpected access error: %v", err)
+	}
+	defer result.Response.Body.Close()
+
+	if result.MethodUsed != "basic:id:token" {
+		t.Fatalf("expected owner-profile basic:id:token fallback, got %q", result.MethodUsed)
+	}
+	if result.Response.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", result.Response.StatusCode)
+	}
+	if len(receivedAuths) != 2 {
+		t.Fatalf("expected 2 auth attempts (Bearer, id:token), got %d: %v", len(receivedAuths), receivedAuths)
 	}
 }

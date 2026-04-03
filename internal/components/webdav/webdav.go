@@ -116,11 +116,10 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 		}
 	}
 
-	if share.MustExchangeToken && h.settings.EnforceMustExchangeToken() {
-		if h.settings.WebDAVTokenExchangeMode == "lenient" && profile.RelaxMustExchangeToken {
-		} else {
-			return false, ""
-		}
+	// A share marked must-exchange-token must never allow raw shared-secret
+	// fallback, regardless of local compatibility mode.
+	if share.MustExchangeToken {
+		return false, ""
 	}
 
 	if share.SharedSecret == token {
@@ -350,9 +349,9 @@ type virtualDir struct {
 	offset int
 }
 
-func (d *virtualDir) Close() error                             { return nil }
-func (d *virtualDir) Read(p []byte) (n int, err error)         { return 0, os.ErrInvalid }
-func (d *virtualDir) Write(p []byte) (n int, err error)        { return 0, os.ErrPermission }
+func (d *virtualDir) Close() error                                 { return nil }
+func (d *virtualDir) Read(p []byte) (n int, err error)             { return 0, os.ErrInvalid }
+func (d *virtualDir) Write(p []byte) (n int, err error)            { return 0, os.ErrPermission }
 func (d *virtualDir) Seek(offset int64, whence int) (int64, error) { return 0, os.ErrInvalid }
 
 func (d *virtualDir) Readdir(count int) ([]os.FileInfo, error) {

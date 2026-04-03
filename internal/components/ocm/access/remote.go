@@ -17,8 +17,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 // Share status constants; duplicated here to avoid import cycles.
@@ -209,7 +209,7 @@ func (c *Client) doTokenExchange(ctx context.Context, share *ShareInfo, discover
 	}
 	return c.tokenClient.Exchange(ctx, tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: disc.TokenEndPoint,
-		PeerDomain:    share.SenderHost,
+		PeerDomain:    peerDomainForProfile(discoveryHost),
 		SharedSecret:  share.SharedSecret,
 	})
 }
@@ -226,7 +226,7 @@ func (c *Client) tryBasicPatterns(
 		return nil, fmt.Errorf("%w: no profile registry for Basic auth fallback", ErrRemoteAccessFailed)
 	}
 
-	profile := c.profileRegistry.GetProfile(opts.Share.SenderHost)
+	profile := c.profileRegistry.GetProfile(accessHostForDiscovery(opts.Share))
 
 	for _, pat := range orderedBasicPatterns {
 		if !profile.IsBasicAuthPatternAllowed(pat.key) {
@@ -345,4 +345,13 @@ func senderBaseURL(host string) string {
 		return host
 	}
 	return "https://" + host
+}
+
+func peerDomainForProfile(host string) string {
+	if strings.Contains(host, "://") {
+		if parsed, err := url.Parse(host); err == nil && parsed.Host != "" {
+			return parsed.Host
+		}
+	}
+	return host
 }

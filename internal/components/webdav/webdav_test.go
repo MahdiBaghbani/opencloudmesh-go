@@ -101,7 +101,7 @@ func (m *mockTokenStore) CleanExpired(ctx context.Context) error {
 	return nil
 }
 
-func TestValidateCredential_LenientModeRelaxation(t *testing.T) {
+func TestValidateCredential_LenientModeStillRejectsSharedSecretForStrictShare(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 
@@ -124,12 +124,9 @@ func TestValidateCredential_LenientModeRelaxation(t *testing.T) {
 
 	ctx := context.Background()
 
-	authorized, method := handler.validateCredential(ctx, share, "secret123", "bearer")
-	if !authorized {
-		t.Error("expected authorization to succeed with lenient mode and nextcloud profile")
-	}
-	if method != "shared_secret" {
-		t.Errorf("expected method 'shared_secret', got %q", method)
+	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
+	if authorized {
+		t.Error("expected shared-secret authorization to fail for must-exchange-token share")
 	}
 }
 
@@ -309,5 +306,30 @@ func TestValidateCredential_UnknownPeerUsesStrictProfile(t *testing.T) {
 	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
 	if authorized {
 		t.Error("expected authorization to fail for unknown peer (uses strict profile)")
+	}
+}
+
+func TestValidateCredential_OffModeStillRejectsSharedSecretForStrictShare(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
+
+	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
+		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+	})
+
+	settings := &Settings{WebDAVTokenExchangeMode: "off"}
+	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+
+	share := &sharesoutgoing.OutgoingShare{
+		ShareID:           "share-1",
+		SharedSecret:      "secret123",
+		MustExchangeToken: true,
+		ReceiverHost:      "nextcloud.example.com",
+	}
+
+	ctx := context.Background()
+	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
+	if authorized {
+		t.Error("expected shared-secret authorization to fail even in off mode")
 	}
 }
