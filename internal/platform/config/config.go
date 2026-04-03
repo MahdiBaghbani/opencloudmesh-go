@@ -222,8 +222,8 @@ type SignatureConfig struct {
 	// OutboundMode controls outbound signing: strict, criteria-only, token-only, off
 	OutboundMode string `toml:"outbound_mode"`
 
-	// AdvertiseHTTPRequestSignatures controls whether discovery includes
-	// http-request-signatures in criteria (can be true even when inbound is lenient)
+	// AdvertiseHTTPRequestSignatures is a legacy transition knob retained while
+	// runtime posture owns default discovery-criteria derivation.
 	AdvertiseHTTPRequestSignatures bool `toml:"advertise_http_request_signatures"`
 
 	// PeerProfileLevelOverride controls when peer profile relaxations apply:
