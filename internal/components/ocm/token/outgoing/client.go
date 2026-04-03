@@ -18,6 +18,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
 // Client performs OCM token exchange against peer token endpoints.
@@ -74,14 +75,24 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 	var shouldSign bool
 	var profile *peercompat.Profile
 
-	// Discover peer before signing decision so the policy has remote capabilities.
-	peerBaseURL := req.TokenEndPoint
-	if idx := strings.Index(peerBaseURL, "/ocm/"); idx > 0 {
-		peerBaseURL = peerBaseURL[:idx]
-	}
 	var disc *discovery.Discovery
-	if c.discoveryClient != nil {
-		d, _ := c.discoveryClient.Discover(ctx, peerBaseURL)
+	if c.outboundPolicy != nil && c.discoveryClient != nil {
+		peerBaseURL, baseErr := instanceid.NormalizePublicOrigin(req.TokenEndPoint)
+		if baseErr != nil {
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonDiscoveryFailed,
+				"failed to derive rediscovery origin for token exchange",
+				baseErr,
+			)
+		}
+		d, discErr := c.discoveryClient.Discover(ctx, peerBaseURL)
+		if discErr != nil {
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonDiscoveryFailed,
+				"failed to rediscover peer for token exchange",
+				discErr,
+			)
+		}
 		disc = d
 	}
 
