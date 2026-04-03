@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -516,7 +516,7 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 		c.TokenExchange.Path = "token"
 		d := &deps.Deps{
 			Config:         cfg,
-			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
 		h, err := newOCMHandler(c, nil, d, testLogger())
@@ -551,7 +551,7 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 		c.TokenExchange.Enabled = false
 		d := &deps.Deps{
 			Config:         cfg,
-			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
 		h, err := newOCMHandler(c, nil, d, testLogger())
@@ -584,7 +584,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c.TokenExchange.Path = "token"
 		d := &deps.Deps{
 			Config:         cfg,
-			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
 		h, err := newOCMHandler(c, nil, d, testLogger())
@@ -617,7 +617,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c.TokenExchange.Path = "token"
 		d := &deps.Deps{
 			Config:         cfg,
-			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
 		h, err := newOCMHandler(c, nil, d, testLogger())
@@ -643,7 +643,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
 			Config:         cfg,
-			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
 		h, err := newOCMHandler(c, nil, d, testLogger())
@@ -685,7 +685,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
 			Config:         cfg,
-			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 		raw := map[string]any{
 			"token_exchange": map[string]any{
@@ -721,7 +721,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
 			Config:         cfg,
-			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 
 		h, err := newOCMHandler(c, nil, d, testLogger())
@@ -755,7 +755,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		d := &deps.Deps{
 			Config:         cfg,
-			LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		}
 		raw := map[string]any{
 			"token_exchange": map[string]any{

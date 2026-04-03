@@ -12,8 +12,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -28,7 +28,7 @@ type Handler struct {
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
 	discoveryClient             *discovery.Client
-	evaluator                   *evaluator.LocalEvaluator
+	canonicalPolicy             *policy.OpenCloudMeshPolicy
 	localProviderFQDNForCompare string
 	localScheme                 string
 	signatureInboundMode        string
@@ -40,7 +40,7 @@ func NewHandler(
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
 	discoveryClient *discovery.Client,
-	eval *evaluator.LocalEvaluator,
+	canonicalPolicy *policy.OpenCloudMeshPolicy,
 	localProviderFQDNForCompare string,
 	localScheme string,
 	inboundMode string,
@@ -52,7 +52,7 @@ func NewHandler(
 		partyRepo:                   partyRepo,
 		policyEngine:                policyEngine,
 		discoveryClient:             discoveryClient,
-		evaluator:                   eval,
+		canonicalPolicy:             canonicalPolicy,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 		signatureInboundMode:        inboundMode,
@@ -199,8 +199,8 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	receiverRequiresExchange := false
-	if h.evaluator != nil {
-		receiverRequiresExchange = h.evaluator.Evaluate().RequiresTokenExchange
+	if h.canonicalPolicy != nil {
+		receiverRequiresExchange = h.canonicalPolicy.Evaluate().RequiresTokenExchange
 	}
 	if receiverRequiresExchange && !wireMustExchange {
 		log.Warn("share rejected: receiver requires must-exchange-token",

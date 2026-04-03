@@ -65,15 +65,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized: call deps.SetDeps() before New()")
 	}
 
-	// Token exchange enablement is evaluator-owned when available.
+	// Token exchange enablement is owned by OpenCloudMeshPolicy when available.
 	// Path may still be overridden per-service.
 	if d.Config != nil {
 		var rawTE map[string]any
 		if te, ok := m["token_exchange"].(map[string]any); ok {
 			rawTE = te
 		}
-		if d.LocalEvaluator != nil {
-			c.TokenExchange.Enabled = d.LocalEvaluator.Evaluate().TokenExchangeCapable
+		if d.OpenCloudMeshPolicy != nil {
+			c.TokenExchange.Enabled = d.OpenCloudMeshPolicy.Evaluate().TokenExchangeCapable
 		} else if _, set := rawTE["enabled"]; !set {
 			c.TokenExchange.Enabled = d.Config.TokenExchangeEnabled()
 		}
@@ -95,7 +95,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.PartyRepo,
 		d.PolicyEngine,
 		d.DiscoveryClient,
-		d.LocalEvaluator,
+		d.OpenCloudMeshPolicy,
 		d.LocalProviderFQDNForCompare,
 		d.Config.PublicScheme(),
 		d.Config.Signature.InboundMode,

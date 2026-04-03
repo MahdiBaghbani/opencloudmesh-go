@@ -17,7 +17,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
@@ -259,9 +258,8 @@ func main() {
 
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg)
-	localEvaluator := evaluator.NewLocalEvaluatorFromPolicy(openCloudMeshPolicy)
 
-	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry, localEvaluator)
+	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry, openCloudMeshPolicy)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
 	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
@@ -302,7 +300,6 @@ func main() {
 		// Policy
 		OpenCloudMeshPolicy: openCloudMeshPolicy,
 		RuntimePolicy:       runtimePolicy,
-		LocalEvaluator:      localEvaluator,
 		// Crypto
 		KeyManager:          keyManager,
 		Signer:              signer,

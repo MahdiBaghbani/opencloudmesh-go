@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
@@ -199,8 +199,8 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 		},
 	}
 	deps.SetDeps(&deps.Deps{
-		Config:         cfg,
-		LocalEvaluator: evaluator.NewLocalEvaluator(cfg),
+		Config:              cfg,
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 	})
 
 	m := map[string]any{

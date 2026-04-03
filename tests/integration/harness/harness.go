@@ -15,7 +15,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -54,6 +53,14 @@ type TestServer struct {
 // StartTestServer creates and starts a test server with dynamic port allocation.
 func StartTestServer(t *testing.T) *TestServer {
 	t.Helper()
+	return StartTestServerWithConfig(t, nil)
+}
+
+// StartTestServerWithConfig creates and starts a test server, applying an
+// optional patch function to the config before startup. Use this when tests
+// need a specific policy or config setting at server-creation time.
+func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestServer {
+	t.Helper()
 
 	// Create temp directory for test data
 	tempDir, err := os.MkdirTemp("", "ocm-test-*")
@@ -72,6 +79,10 @@ func StartTestServer(t *testing.T) *TestServer {
 	cfg := config.DevConfig()
 	cfg.ListenAddr = fmt.Sprintf(":%d", port)
 	cfg.PublicOrigin = fmt.Sprintf("http://localhost:%d", port)
+
+	if patch != nil {
+		patch(cfg)
+	}
 
 	// Create logger that discards output (or use t.Log if you want to see logs)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -134,7 +145,6 @@ func StartTestServer(t *testing.T) *TestServer {
 
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg)
-	localEvaluator := evaluator.NewLocalEvaluatorFromPolicy(openCloudMeshPolicy)
 
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()
@@ -155,7 +165,6 @@ func StartTestServer(t *testing.T) *TestServer {
 		// Policy
 		OpenCloudMeshPolicy: openCloudMeshPolicy,
 		RuntimePolicy:       runtimePolicy,
-		LocalEvaluator:      localEvaluator,
 		// Provider identity
 		LocalProviderFQDN:           localProviderFQDN,
 		LocalProviderFQDNForCompare: localProviderFQDNForCompare,

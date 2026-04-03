@@ -13,7 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -52,7 +52,7 @@ func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identit
 		partyRepo,
 		nil, // no policy engine
 		nil, // no discovery client
-		nil, // no evaluator
+		nil, // no canonical policy
 		"localhost:9200",
 		"https",
 		"strict",
@@ -591,7 +591,7 @@ func newHandlerWithDiscovery(
 	repo *sharesinbox.MemoryIncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	fakeSrv *httptest.Server,
-	eval *evaluator.LocalEvaluator,
+	canonicalPolicy *policy.OpenCloudMeshPolicy,
 ) *incoming.Handler {
 	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode:           "off",
@@ -606,7 +606,7 @@ func newHandlerWithDiscovery(
 		partyRepo,
 		nil, // no policy engine
 		discClient,
-		eval,
+		canonicalPolicy,
 		"localhost:9200",
 		"http", // use http so discovery URLs match the httptest server
 		"strict",
@@ -1022,7 +1022,7 @@ func TestReceiverClassification_ReceiverStrictRequiresWireMustExchange(t *testin
 		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
 		PeerPolicy:          "legacy",
 	}
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, evaluator.NewLocalEvaluator(cfg))
+	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, policy.NewOpenCloudMeshPolicy(cfg))
 
 	body := shareBodyWithOwnerHost(ownerHost, false)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))

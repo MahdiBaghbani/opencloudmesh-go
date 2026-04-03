@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	ocmpolicy "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -306,7 +306,7 @@ func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testin
 	}
 	registry := peercompat.NewProfileRegistry(profiles, mappings)
 	cfg := config.DevConfig()
-	policy := outboundsigning.NewOutboundPolicy(cfg, registry, evaluator.NewLocalEvaluator(cfg))
+	policy := outboundsigning.NewOutboundPolicy(cfg, registry, ocmpolicy.NewOpenCloudMeshPolicy(cfg))
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},
@@ -326,7 +326,7 @@ func TestOutboundPolicy_TokenExchange_StrictPolicyRequiresSigning(t *testing.T) 
 	cfg.PeerPolicy = "strict"
 	enabled := true
 	cfg.TokenExchange.Enabled = &enabled
-	policy := outboundsigning.NewOutboundPolicy(cfg, peercompat.NewProfileRegistry(nil, nil), evaluator.NewLocalEvaluator(cfg))
+	policy := outboundsigning.NewOutboundPolicy(cfg, peercompat.NewProfileRegistry(nil, nil), ocmpolicy.NewOpenCloudMeshPolicy(cfg))
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},

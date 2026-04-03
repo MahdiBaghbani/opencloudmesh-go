@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -138,12 +139,10 @@ func failCurrentUser() func(context.Context) (*identity.User, error) {
 
 func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	cfg := config.DevConfig()
 	discClient := makeDummyDiscoveryClient()
 
 	return outgoingshares.NewHandler(
 		repo, discClient, nil, nil, nil, nil,
-		cfg,
 		testProvider,
 		currentUser,
 		testLogger,
@@ -220,12 +219,10 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	user := &identity.User{ID: "user-uuid-123", Username: "alice", Email: "alice@example.org"}
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	cfg := config.DevConfig()
 
 	discClient := makeDummyDiscoveryClient()
 	handler := outgoingshares.NewHandler(
 		repo, discClient, nil, nil, nil, nil,
-		cfg,
 		testProvider,
 		testCurrentUser(user),
 		testLogger,
@@ -330,8 +327,8 @@ func TestHandleCreate_StrictRejectsCapableNonStrictPeer_NoSend(t *testing.T) {
 
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, nil, ctxClient, nil, nil,
-		cfg, testProvider, testCurrentUser(user), testLogger,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
@@ -381,8 +378,8 @@ func TestHandleCreate_StrictRejectsLegacyPeer_NoSend(t *testing.T) {
 
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, nil, ctxClient, nil, nil,
-		cfg, testProvider, testCurrentUser(user), testLogger,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
@@ -434,8 +431,8 @@ func TestHandleCreate_StrictRejectsMalformedStrictPeer_NoSend(t *testing.T) {
 
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, nil, ctxClient, nil, nil,
-		cfg, testProvider, testCurrentUser(user), testLogger,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
@@ -479,8 +476,8 @@ func TestHandleCreate_MalformedCapablePeerDegradesToLegacy(t *testing.T) {
 	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, nil, ctxClient, nil, nil,
-		cfg, testProvider, testCurrentUser(user), testLogger,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
@@ -527,8 +524,8 @@ func TestHandleCreate_SuccessStoresSentRowAndFederatedIDs(t *testing.T) {
 	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, nil, ctxClient, nil, nil,
-		cfg, testProvider, testCurrentUser(user), testLogger,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
@@ -644,8 +641,8 @@ func TestHandleCreate_NonStrictPolicyMatrix(t *testing.T) {
 			cfg.TokenExchange.Enabled = &enabled
 			discClient, ctxClient := makeTLSClients()
 			handler := outgoingshares.NewHandler(
-				repo, discClient, nil, ctxClient, nil, nil,
-				cfg, testProvider, testCurrentUser(user), testLogger,
+				repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+				testProvider, testCurrentUser(user), testLogger,
 			)
 			handler.SetAllowedPaths([]string{"/tmp"})
 

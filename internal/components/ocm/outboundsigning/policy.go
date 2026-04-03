@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
@@ -31,15 +31,15 @@ type OutboundPolicy struct {
 	OutboundMode        string
 	PeerProfileOverride string
 	ProfileRegistry     *peercompat.ProfileRegistry
-	evaluator           *evaluator.LocalEvaluator
+	canonicalPolicy     *policy.OpenCloudMeshPolicy
 }
 
-func NewOutboundPolicy(cfg *config.Config, registry *peercompat.ProfileRegistry, eval *evaluator.LocalEvaluator) *OutboundPolicy {
+func NewOutboundPolicy(cfg *config.Config, registry *peercompat.ProfileRegistry, canonicalPolicy *policy.OpenCloudMeshPolicy) *OutboundPolicy {
 	return &OutboundPolicy{
 		OutboundMode:        cfg.Signature.OutboundMode,
 		PeerProfileOverride: cfg.Signature.PeerProfileLevelOverride,
 		ProfileRegistry:     registry,
-		evaluator:           eval,
+		canonicalPolicy:     canonicalPolicy,
 	}
 }
 
@@ -87,8 +87,8 @@ func (p *OutboundPolicy) ShouldSign(
 
 func (p *OutboundPolicy) decideTokenExchange(disc *discovery.Discovery, profile *peercompat.Profile, hasSigner bool) SigningDecision {
 	localPolicy := "legacy"
-	if p.evaluator != nil {
-		ev := p.evaluator.Evaluate()
+	if p.canonicalPolicy != nil {
+		ev := p.canonicalPolicy.Evaluate()
 		if ev.PeerPolicy != "" {
 			localPolicy = ev.PeerPolicy
 		}

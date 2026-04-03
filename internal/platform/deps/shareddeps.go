@@ -7,7 +7,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
@@ -50,10 +49,6 @@ type Deps struct {
 	// Policy objects created once from frozen config at startup.
 	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
 	RuntimePolicy       *policy.RuntimePolicy
-
-	// LocalEvaluator remains temporary compatibility glue until downstream
-	// consumers finish moving to the policy package.
-	LocalEvaluator *evaluator.LocalEvaluator
 
 	// Crypto
 	KeyManager          *crypto.KeyManager

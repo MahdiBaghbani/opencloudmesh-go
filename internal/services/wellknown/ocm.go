@@ -186,10 +186,10 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		capabilities = append(capabilities, "http-sig")
 	}
 
-	// Token exchange capability is evaluator-owned when available.
+	// Token exchange capability is owned by OpenCloudMeshPolicy when available.
 	var localEval localEvaluation
-	if d != nil && d.LocalEvaluator != nil {
-		ev := d.LocalEvaluator.Evaluate()
+	if d != nil && d.OpenCloudMeshPolicy != nil {
+		ev := d.OpenCloudMeshPolicy.Evaluate()
 		localEval = localEvaluation{codeFlow: ev.TokenExchangeCapable, strict: ev.RequiresTokenExchange}
 	} else {
 		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}

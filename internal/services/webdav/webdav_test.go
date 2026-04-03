@@ -9,7 +9,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -92,10 +92,10 @@ func TestNew_UsesEvaluatorStrictnessOverConfig(t *testing.T) {
 		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
 	}
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: shareRepo,
-		TokenStore:        tokenStore,
-		Config:            cfg,
-		LocalEvaluator:    evaluator.NewLocalEvaluator(evalCfg),
+		OutgoingShareRepo:   shareRepo,
+		TokenStore:          tokenStore,
+		Config:              cfg,
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(evalCfg),
 	})
 
 	m := map[string]any{}
@@ -167,10 +167,10 @@ func TestService_StrictShareRejectsSharedSecretWhenEvaluatorNotStrict(t *testing
 		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
 	}
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: repo,
-		TokenStore:        token.NewMemoryTokenStore(),
-		Config:            &config.Config{WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"}},
-		LocalEvaluator:    evaluator.NewLocalEvaluator(evalCfg),
+		OutgoingShareRepo:   repo,
+		TokenStore:          token.NewMemoryTokenStore(),
+		Config:              &config.Config{WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"}},
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(evalCfg),
 	})
 
 	svc, err := New(map[string]any{}, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))

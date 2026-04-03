@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 
@@ -64,7 +64,7 @@ func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
 			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
 			PeerPolicy:          "legacy",
 		}
-		eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
+		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
 		if !eval.RequiresTokenExchange {
 			t.Error("expected RequiresTokenExchange true for strict mode")
 		}
@@ -77,7 +77,7 @@ func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
 			WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"},
 			PeerPolicy:          "legacy",
 		}
-		eval := evaluator.NewLocalEvaluator(cfg).Evaluate()
+		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
 		if eval.RequiresTokenExchange {
 			t.Error("expected RequiresTokenExchange false for lenient mode")
 		}

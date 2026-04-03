@@ -23,12 +23,11 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/evaluator"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -38,11 +37,10 @@ import (
 type Handler struct {
 	repo            sharesoutgoing.OutgoingShareRepo
 	discoveryClient *discovery.Client
-	evaluator       *evaluator.LocalEvaluator
+	canonicalPolicy *policy.OpenCloudMeshPolicy
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
-	cfg             *config.Config
 	localProvider   string // raw host[:port] for owner/sender identity
 	currentUser     func(context.Context) (*identity.User, error)
 	logger          *slog.Logger
@@ -53,11 +51,10 @@ type Handler struct {
 func NewHandler(
 	repo sharesoutgoing.OutgoingShareRepo,
 	discClient *discovery.Client,
-	eval *evaluator.LocalEvaluator,
+	canonicalPolicy *policy.OpenCloudMeshPolicy,
 	httpClient httpclient.HTTPClient,
 	signer *crypto.RFC9421Signer,
 	outboundPolicy *outboundsigning.OutboundPolicy,
-	cfg *config.Config,
 	localProvider string,
 	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
@@ -69,11 +66,10 @@ func NewHandler(
 	return &Handler{
 		repo:            repo,
 		discoveryClient: discClient,
-		evaluator:       eval,
+		canonicalPolicy: canonicalPolicy,
 		httpClient:      httpClient,
 		signer:          signer,
 		outboundPolicy:  outboundPolicy,
-		cfg:             cfg,
 		localProvider:   localProvider,
 		currentUser:     currentUser,
 		logger:          logger,
@@ -172,14 +168,8 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	localCodeFlow := false
 	localPolicy := "legacy"
-	if h.cfg != nil {
-		localCodeFlow = h.cfg.TokenExchangeEnabled()
-		if h.cfg.PeerPolicy != "" {
-			localPolicy = h.cfg.PeerPolicy
-		}
-	}
-	if h.evaluator != nil {
-		eval := h.evaluator.Evaluate()
+	if h.canonicalPolicy != nil {
+		eval := h.canonicalPolicy.Evaluate()
 		localCodeFlow = eval.TokenExchangeCapable
 		if eval.PeerPolicy != "" {
 			localPolicy = eval.PeerPolicy

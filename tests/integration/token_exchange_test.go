@@ -18,6 +18,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
@@ -794,27 +795,6 @@ func TestOutgoingSharePolicyDifferences(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	ts := harness.StartTestServer(t)
-	defer ts.Stop(t)
-
-	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
-	d := deps.GetDeps()
-	if d == nil || d.Config == nil {
-		t.Fatal("shared deps/config not initialized")
-	}
-
-	shareFile, err := os.CreateTemp("/tmp", "policy-diff-share-*")
-	if err != nil {
-		t.Fatalf("failed to create temp share file: %v", err)
-	}
-	if _, err := shareFile.WriteString("policy diff integration payload"); err != nil {
-		t.Fatalf("failed to seed temp share file: %v", err)
-	}
-	if err := shareFile.Close(); err != nil {
-		t.Fatalf("failed to close temp share file: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
-
 	trueVal := true
 	falseVal := false
 	tests := []struct {
@@ -847,11 +827,31 @@ func TestOutgoingSharePolicyDifferences(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			// Each subtest needs its own server because policy is frozen at startup.
+			ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+				cfg.PeerPolicy = tc.peerPolicy
+			})
+			defer ts.Stop(t)
+
+			token := loginAdmin(t, ts.BaseURL, "admin", "admin")
+
+			shareFile, err := os.CreateTemp("/tmp", "policy-diff-share-*")
+			if err != nil {
+				t.Fatalf("failed to create temp share file: %v", err)
+			}
+			if _, err := shareFile.WriteString("policy diff integration payload"); err != nil {
+				t.Fatalf("failed to seed temp share file: %v", err)
+			}
+			if err := shareFile.Close(); err != nil {
+				t.Fatalf("failed to close temp share file: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
+
 			receiver, postCount, mustExchangeFlag := startCapableNonStrictReceiver(t)
 			defer receiver.Close()
 
-			d.Config.PeerPolicy = tc.peerPolicy
 			receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
 			status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
 				"receiverDomain": receiverDomain,
@@ -887,27 +887,6 @@ func TestOutgoingSharePolicyDifferences_MalformedDiscovery(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	ts := harness.StartTestServer(t)
-	defer ts.Stop(t)
-
-	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
-	d := deps.GetDeps()
-	if d == nil || d.Config == nil {
-		t.Fatal("shared deps/config not initialized")
-	}
-
-	shareFile, err := os.CreateTemp("/tmp", "policy-diff-malformed-*")
-	if err != nil {
-		t.Fatalf("failed to create temp share file: %v", err)
-	}
-	if _, err := shareFile.WriteString("policy diff malformed integration payload"); err != nil {
-		t.Fatalf("failed to seed temp share file: %v", err)
-	}
-	if err := shareFile.Close(); err != nil {
-		t.Fatalf("failed to close temp share file: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
-
 	falseVal := false
 	tests := []struct {
 		name         string
@@ -932,11 +911,31 @@ func TestOutgoingSharePolicyDifferences_MalformedDiscovery(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			// Each subtest needs its own server because policy is frozen at startup.
+			ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+				cfg.PeerPolicy = tc.peerPolicy
+			})
+			defer ts.Stop(t)
+
+			token := loginAdmin(t, ts.BaseURL, "admin", "admin")
+
+			shareFile, err := os.CreateTemp("/tmp", "policy-diff-malformed-*")
+			if err != nil {
+				t.Fatalf("failed to create temp share file: %v", err)
+			}
+			if _, err := shareFile.WriteString("policy diff malformed integration payload"); err != nil {
+				t.Fatalf("failed to seed temp share file: %v", err)
+			}
+			if err := shareFile.Close(); err != nil {
+				t.Fatalf("failed to close temp share file: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
+
 			receiver, postCount, mustExchangeFlag := startMalformedCapableNonStrictReceiver(t)
 			defer receiver.Close()
 
-			d.Config.PeerPolicy = tc.peerPolicy
 			receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
 			status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
 				"receiverDomain": receiverDomain,
@@ -977,11 +976,11 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 
 	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
 	d := deps.GetDeps()
-	if d == nil || d.Config == nil || d.LocalEvaluator == nil || d.OutgoingShareRepo == nil {
+	if d == nil || d.Config == nil || d.OpenCloudMeshPolicy == nil || d.OutgoingShareRepo == nil {
 		t.Fatal("shared deps are not fully initialized")
 	}
-	if d.LocalEvaluator.Evaluate().RequiresTokenExchange {
-		t.Fatal("test requires local evaluator strictness=false")
+	if d.OpenCloudMeshPolicy.Evaluate().RequiresTokenExchange {
+		t.Fatal("test requires local policy strictness=false")
 	}
 
 	shareFile, err := os.CreateTemp("/tmp", "webdav-strict-share-*")

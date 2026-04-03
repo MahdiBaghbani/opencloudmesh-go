@@ -52,12 +52,12 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized")
 	}
 
-	// Derive WebDAV token exchange enforcement from canonical local evaluation.
-	// Local evaluator owns the strictness dimension; config fallback is for tests
-	// that do not set LocalEvaluator.
+	// Derive WebDAV token exchange enforcement from canonical local policy.
+	// OpenCloudMeshPolicy owns the strictness dimension; config fallback is for tests
+	// that do not set OpenCloudMeshPolicy.
 	mode := ""
-	if d.LocalEvaluator != nil {
-		if d.LocalEvaluator.Evaluate().RequiresTokenExchange {
+	if d.OpenCloudMeshPolicy != nil {
+		if d.OpenCloudMeshPolicy.Evaluate().RequiresTokenExchange {
 			mode = "strict"
 		} else {
 			mode = "off"

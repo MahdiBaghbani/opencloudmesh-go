@@ -126,11 +126,10 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	outgoingHandler := outgoingshares.NewHandler(
 		d.OutgoingShareRepo,
 		d.DiscoveryClient,
-		d.LocalEvaluator,
+		d.OpenCloudMeshPolicy,
 		d.HTTPClient,
 		d.Signer,
 		d.OutboundPolicy,
-		d.Config,
 		d.LocalProviderFQDN,
 		currentUser,
 		log,
