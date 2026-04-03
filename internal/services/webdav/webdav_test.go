@@ -5,14 +5,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"testing"
-	"unsafe"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
@@ -49,82 +45,7 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 	}
 }
 
-func TestNew_AcceptsConfigFromSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		TokenStore:        token.NewMemoryTokenStore(),
-		Config:            &config.Config{WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"}},
-	})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if svc == nil {
-		t.Fatal("expected non-nil service")
-	}
-
-	// Verify mode was derived from SharedDeps (check handler enforcement)
-	s := svc.(*Service)
-	if s.handler == nil {
-		t.Fatal("expected non-nil handler")
-	}
-}
-
-func TestNew_UsesEvaluatorStrictnessOverConfig(t *testing.T) {
-	deps.ResetDeps()
-
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	tokenStore := token.NewMemoryTokenStore()
-
-	cfg := &config.Config{
-		// Intentionally off in raw config; evaluator should override this.
-		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
-	}
-	tokenExchangeEnabled := true
-	evalCfg := &config.Config{
-		TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "strict"},
-	}
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo:   shareRepo,
-		TokenStore:          tokenStore,
-		Config:              cfg,
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(evalCfg),
-	})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	s := svc.(*Service)
-	if s.handler == nil {
-		t.Fatal("expected non-nil handler")
-	}
-	handlerValue := reflect.ValueOf(s.handler).Elem()
-	settingsField := handlerValue.FieldByName("settings")
-	if !settingsField.IsValid() {
-		t.Fatal("failed to access handler settings")
-	}
-	settingsValue := reflect.NewAt(settingsField.Type(), unsafe.Pointer(settingsField.UnsafeAddr())).Elem()
-	modeValue := settingsValue.Elem().FieldByName("WebDAVTokenExchangeMode")
-	if !modeValue.IsValid() {
-		t.Fatal("failed to read WebDAVTokenExchangeMode")
-	}
-	if got := modeValue.String(); got != "strict" {
-		t.Fatalf("expected evaluator-owned strict mode, got %q", got)
-	}
-}
-
-func TestNew_DefaultsToStrictMode(t *testing.T) {
+func TestNew_UsesMinimalSharedDeps(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
@@ -139,14 +60,13 @@ func TestNew_DefaultsToStrictMode(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// With nil Config, Settings.ApplyDefaults() fills "strict"
 	s := svc.(*Service)
 	if s.handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
 }
 
-func TestService_StrictShareRejectsSharedSecretWhenEvaluatorNotStrict(t *testing.T) {
+func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 	deps.ResetDeps()
 
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
@@ -161,16 +81,9 @@ func TestService_StrictShareRejectsSharedSecretWhenEvaluatorNotStrict(t *testing
 		t.Fatalf("failed to seed outgoing share: %v", err)
 	}
 
-	tokenExchangeEnabled := true
-	evalCfg := &config.Config{
-		TokenExchange:       config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-		WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"},
-	}
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo:   repo,
-		TokenStore:          token.NewMemoryTokenStore(),
-		Config:              &config.Config{WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "off"}},
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(evalCfg),
+		OutgoingShareRepo: repo,
+		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
 	svc, err := New(map[string]any{}, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))

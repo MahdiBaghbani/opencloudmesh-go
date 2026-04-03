@@ -286,7 +286,6 @@ func lookupProfile(
 			AllowHTTP:                custom.AllowHTTP,
 			TokenExchangeQuirks:      custom.TokenExchangeQuirks,
 			TokenExchangeGrantType:   "",
-			RelaxMustExchangeToken:   custom.RelaxMustExchangeToken,
 			AllowedBasicAuthPatterns: custom.AllowedBasicAuthPatterns,
 		}
 	}
@@ -301,9 +300,6 @@ func profileHasRelaxations(profile *peercompat.Profile) bool {
 		return true
 	}
 	if profile.AllowMismatchedHost || profile.AllowHTTP {
-		return true
-	}
-	if profile.RelaxMustExchangeToken {
 		return true
 	}
 	if len(profile.TokenExchangeQuirks) > 0 {

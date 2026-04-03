@@ -24,22 +24,16 @@ import (
 type Handler struct {
 	outgoingRepo    sharesoutgoing.OutgoingShareRepo
 	tokenStore      token.TokenStore
-	settings        *Settings
 	profileRegistry *peercompat.ProfileRegistry
 	logger          *slog.Logger
 }
 
-// NewHandler builds a WebDAV handler. Settings control must-exchange-token enforcement; ProfileRegistry enables peer relaxations in lenient mode.
-func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
+// NewHandler builds a WebDAV handler.
+func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
-	if settings == nil {
-		settings = &Settings{}
-		settings.ApplyDefaults()
-	}
 	return &Handler{
 		outgoingRepo:    outgoingRepo,
 		tokenStore:      tokenStore,
-		settings:        settings,
 		profileRegistry: profileRegistry,
 		logger:          logger,
 	}

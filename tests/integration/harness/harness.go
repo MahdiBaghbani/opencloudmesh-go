@@ -155,7 +155,6 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 				AllowMismatchedHost:      profileCfg.AllowMismatchedHost,
 				AllowHTTP:                profileCfg.AllowHTTP,
 				TokenExchangeQuirks:      profileCfg.TokenExchangeQuirks,
-				RelaxMustExchangeToken:   profileCfg.RelaxMustExchangeToken,
 				AllowedBasicAuthPatterns: profileCfg.AllowedBasicAuthPatterns,
 			}
 		}

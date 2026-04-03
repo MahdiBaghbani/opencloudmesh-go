@@ -236,34 +236,6 @@ func TestMatchPattern(t *testing.T) {
 	}
 }
 
-// Peer profile extensions
-
-func TestProfile_RelaxMustExchangeToken(t *testing.T) {
-	profiles := BuiltinProfiles()
-
-	tests := []struct {
-		name     string
-		expected bool
-	}{
-		{"strict", false},
-		{"nextcloud", true},
-		{"owncloud", true},
-		{"dev", true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			p, ok := profiles[tc.name]
-			if !ok {
-				t.Fatalf("profile %q not found", tc.name)
-			}
-			if p.RelaxMustExchangeToken != tc.expected {
-				t.Errorf("RelaxMustExchangeToken = %v, want %v", p.RelaxMustExchangeToken, tc.expected)
-			}
-		})
-	}
-}
-
 func TestProfile_IsBasicAuthPatternAllowed_EmptyAllowsAll(t *testing.T) {
 	p := &Profile{
 		Name:                     "test",

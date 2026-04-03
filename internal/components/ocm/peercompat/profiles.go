@@ -36,10 +36,6 @@ type Profile struct {
 	// Set to "ocm_share" for peers that expect the legacy grant type.
 	TokenExchangeGrantType string `json:"token_exchange_grant_type" toml:"token_exchange_grant_type"`
 
-	// RelaxMustExchangeToken allows sharedSecret even when must-exchange-token is set.
-	// Only applies in lenient mode; ignored in strict mode.
-	RelaxMustExchangeToken bool `json:"relax_must_exchange_token" toml:"relax_must_exchange_token"`
-
 	// AllowedBasicAuthPatterns whitelists specific Basic auth patterns.
 	// Empty means allow all implemented patterns.
 	// Patterns correspond to webdav.credentialResult.Source values with the "basic:" prefix removed:
@@ -132,7 +128,6 @@ func BuiltinProfiles() map[string]*Profile {
 			AllowMismatchedHost:      false,
 			AllowHTTP:                false,
 			TokenExchangeQuirks:      nil,
-			RelaxMustExchangeToken:   false,
 			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
 
@@ -149,8 +144,7 @@ func BuiltinProfiles() map[string]*Profile {
 				"send_token_in_body",     // Send token in request body
 				"skip_digest_validation", // Skip Content-Digest check
 			},
-			RelaxMustExchangeToken:   true, // Nextcloud may not support token exchange
-			AllowedBasicAuthPatterns: nil,  // allow all patterns
+			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
 
 		// ownCloud profile: similar to Nextcloud with minor differences
@@ -165,7 +159,6 @@ func BuiltinProfiles() map[string]*Profile {
 				"accept_plain_token",
 				"send_token_in_body",
 			},
-			RelaxMustExchangeToken:   true,
 			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
 
@@ -181,7 +174,6 @@ func BuiltinProfiles() map[string]*Profile {
 				"send_token_in_body",
 				"skip_digest_validation",
 			},
-			RelaxMustExchangeToken:   true,
 			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
 	}

@@ -52,33 +52,10 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized")
 	}
 
-	// Derive WebDAV token exchange enforcement from canonical local policy.
-	// OpenCloudMeshPolicy owns the strictness dimension; config fallback is for tests
-	// that do not set OpenCloudMeshPolicy.
-	mode := ""
-	if d.OpenCloudMeshPolicy != nil {
-		if d.OpenCloudMeshPolicy.Evaluate().RequiresTokenExchange {
-			mode = "strict"
-		} else {
-			mode = "off"
-		}
-	} else if d.Config != nil {
-		if d.Config.RequireTokenExchange {
-			mode = "strict"
-		} else {
-			mode = "off"
-		}
-	}
-	settings := &webdav.Settings{
-		WebDAVTokenExchangeMode: mode,
-	}
-	settings.ApplyDefaults()
-
-	// Create WebDAV handler with ProfileRegistry for peer relaxations
+	// Create WebDAV handler with profile registry for Basic auth allowlists.
 	handler := webdav.NewHandler(
 		d.OutgoingShareRepo,
 		d.TokenStore,
-		settings,
 		d.ProfileRegistry,
 		log.With("component", "webdav"),
 	)

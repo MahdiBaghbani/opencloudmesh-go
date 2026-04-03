@@ -1523,10 +1523,7 @@ public_origin = "https://example.com:9200"
 }
 
 func TestLoad_PeerProfileCustomFields(t *testing.T) {
-	// Verify that RelaxMustExchangeToken and AllowedBasicAuthPatterns
-	// round-trip through TOML deserialization into config.PeerProfile.
-	// This catches the silent zero-value regression that existed before
-	// these fields were added to config.PeerProfile.
+	// Verify custom profile fields still round-trip into config.PeerProfile.
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -1540,7 +1537,6 @@ allow_unsigned_outbound = false
 allow_mismatched_host = true
 allow_http = false
 token_exchange_quirks = ["accept_plain_token"]
-relax_must_exchange_token = true
 allowed_basic_auth_patterns = ["token:", "id:token"]
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
@@ -1564,9 +1560,6 @@ allowed_basic_auth_patterns = ["token:", "id:token"]
 	}
 	if !profile.AllowMismatchedHost {
 		t.Error("expected AllowMismatchedHost = true")
-	}
-	if !profile.RelaxMustExchangeToken {
-		t.Error("expected RelaxMustExchangeToken = true, got false (field not deserialized from TOML)")
 	}
 	if len(profile.AllowedBasicAuthPatterns) != 2 {
 		t.Errorf("expected 2 AllowedBasicAuthPatterns, got %d (field not deserialized from TOML)", len(profile.AllowedBasicAuthPatterns))

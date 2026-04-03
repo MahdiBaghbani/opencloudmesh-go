@@ -101,20 +101,15 @@ func (m *mockTokenStore) CleanExpired(ctx context.Context) error {
 	return nil
 }
 
-func TestValidateCredential_LenientModeStillRejectsSharedSecretForStrictShare(t *testing.T) {
+func TestValidateCredential_RejectsSharedSecretForStrictShare(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 
-	// Create profile registry with nextcloud profile (has RelaxMustExchangeToken=true)
 	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	})
+	handler := NewHandler(repo, tokenStore, registry, nil)
 
-	settings := &Settings{WebDAVTokenExchangeMode: "lenient"}
-
-	handler := NewHandler(repo, tokenStore, settings, registry, nil)
-
-	// Create share with must-exchange-token from a Nextcloud peer
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
 		SharedSecret:      "secret123",
@@ -127,35 +122,6 @@ func TestValidateCredential_LenientModeStillRejectsSharedSecretForStrictShare(t 
 	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
 	if authorized {
 		t.Error("expected shared-secret authorization to fail for must-exchange-token share")
-	}
-}
-
-func TestValidateCredential_StrictModeIgnoresRelaxation(t *testing.T) {
-	repo := newMockOutgoingShareRepo()
-	tokenStore := newMockTokenStore()
-
-	// Create profile registry with nextcloud profile (has RelaxMustExchangeToken=true)
-	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
-		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
-	})
-
-	settings := &Settings{WebDAVTokenExchangeMode: "strict"}
-
-	handler := NewHandler(repo, tokenStore, settings, registry, nil)
-
-	// Create share with must-exchange-token from a Nextcloud peer
-	share := &sharesoutgoing.OutgoingShare{
-		ShareID:           "share-1",
-		SharedSecret:      "secret123",
-		MustExchangeToken: true,
-		ReceiverHost:      "nextcloud.example.com",
-	}
-
-	ctx := context.Background()
-
-	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
-	if authorized {
-		t.Error("expected authorization to fail in strict mode despite nextcloud profile")
 	}
 }
 
@@ -175,8 +141,7 @@ func TestValidateCredential_BasicAuthPatternRejection(t *testing.T) {
 		},
 	)
 
-	settings := &Settings{WebDAVTokenExchangeMode: "lenient"}
-	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+	handler := NewHandler(repo, tokenStore, registry, nil)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
@@ -206,9 +171,7 @@ func TestValidateCredential_EmptyPatternListAllowsAll(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	registry := peercompat.NewProfileRegistry(nil, nil)
-
-	settings := &Settings{WebDAVTokenExchangeMode: "off"} // off mode to skip must-exchange-token
-	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+	handler := NewHandler(repo, tokenStore, registry, nil)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
@@ -231,9 +194,7 @@ func TestValidateCredential_EmptyPatternListAllowsAll(t *testing.T) {
 func TestValidateCredential_NoProfileRegistry(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-
-	settings := &Settings{WebDAVTokenExchangeMode: "lenient"}
-	handler := NewHandler(repo, tokenStore, settings, nil, nil)
+	handler := NewHandler(repo, tokenStore, nil, nil)
 
 	// Create share with must-exchange-token
 	share := &sharesoutgoing.OutgoingShare{
@@ -263,8 +224,7 @@ func TestValidateCredential_ExchangedTokenAlwaysWorks(t *testing.T) {
 	_ = tokenStore.Store(ctx, issuedToken)
 
 	registry := peercompat.NewProfileRegistry(nil, nil)
-	settings := &Settings{WebDAVTokenExchangeMode: "strict"}
-	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+	handler := NewHandler(repo, tokenStore, registry, nil)
 
 	// Create share with must-exchange-token
 	share := &sharesoutgoing.OutgoingShare{
@@ -290,9 +250,7 @@ func TestValidateCredential_UnknownPeerUsesStrictProfile(t *testing.T) {
 	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	})
-
-	settings := &Settings{WebDAVTokenExchangeMode: "lenient"}
-	handler := NewHandler(repo, tokenStore, settings, registry, nil)
+	handler := NewHandler(repo, tokenStore, registry, nil)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
@@ -306,30 +264,5 @@ func TestValidateCredential_UnknownPeerUsesStrictProfile(t *testing.T) {
 	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
 	if authorized {
 		t.Error("expected authorization to fail for unknown peer (uses strict profile)")
-	}
-}
-
-func TestValidateCredential_OffModeStillRejectsSharedSecretForStrictShare(t *testing.T) {
-	repo := newMockOutgoingShareRepo()
-	tokenStore := newMockTokenStore()
-
-	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
-		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
-	})
-
-	settings := &Settings{WebDAVTokenExchangeMode: "off"}
-	handler := NewHandler(repo, tokenStore, settings, registry, nil)
-
-	share := &sharesoutgoing.OutgoingShare{
-		ShareID:           "share-1",
-		SharedSecret:      "secret123",
-		MustExchangeToken: true,
-		ReceiverHost:      "nextcloud.example.com",
-	}
-
-	ctx := context.Background()
-	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
-	if authorized {
-		t.Error("expected shared-secret authorization to fail even in off mode")
 	}
 }
