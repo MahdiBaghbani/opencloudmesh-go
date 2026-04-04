@@ -235,12 +235,16 @@ func TestOutboundPolicy_TokenExchange_PeerProfileQuirk(t *testing.T) {
 		{Pattern: "*.nextcloud.com", ProfileName: "nextcloud"},
 	}
 	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
 
 	// With non-strict override, quirk should apply
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "criteria-only",
 		PeerProfileOverride: "non-strict",
-		ProfileRegistry:     registry,
+		PeerContract:        contract,
 	}
 
 	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "cloud.nextcloud.com", nil, true)
@@ -252,7 +256,7 @@ func TestOutboundPolicy_TokenExchange_PeerProfileQuirk(t *testing.T) {
 	policyOff := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "criteria-only",
 		PeerProfileOverride: "off",
-		ProfileRegistry:     registry,
+		PeerContract:        contract,
 	}
 
 	decision = policyOff.ShouldSign(outboundsigning.EndpointTokenExchange, "cloud.nextcloud.com", nil, true)
@@ -272,6 +276,10 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 		{Pattern: "legacy.example.com", ProfileName: "compat"},
 	}
 	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
 
 	// Discovery doc without criteria requirement
 	discNoCriteria := &discovery.Discovery{
@@ -284,7 +292,7 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "strict",
 		PeerProfileOverride: "all",
-		ProfileRegistry:     registry,
+		PeerContract:        contract,
 	}
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "legacy.example.com", discNoCriteria, true)
@@ -311,6 +319,10 @@ func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
 		{Pattern: "strict-peer.example.com", ProfileName: "compat"},
 	}
 	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
 
 	// Peer requires signatures via criteria
 	discRequiresSigs := &discovery.Discovery{
@@ -322,7 +334,7 @@ func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "strict",
 		PeerProfileOverride: "all",
-		ProfileRegistry:     registry,
+		PeerContract:        contract,
 	}
 
 	// Even with override=all and AllowUnsignedOutbound=true, must sign because peer requires it

@@ -30,7 +30,7 @@ type OutboundPolicy struct {
 	OutboundMode        string
 	PeerProfileOverride string
 	OnDiscoveryError    string
-	ProfileRegistry     *peercompat.ProfileRegistry
+	profileRegistry     *peercompat.ProfileRegistry
 	PeerContract        *peercompat.CompiledContract
 	runtimePolicy       *policy.RuntimePolicy
 	canonicalPolicy     *policy.OpenCloudMeshPolicy
@@ -61,7 +61,7 @@ func NewOutboundPolicy(
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: peerProfileOverride,
 		OnDiscoveryError:    onDiscoveryError,
-		ProfileRegistry:     registry,
+		profileRegistry:     registry,
 		PeerContract:        peerContract,
 		runtimePolicy:       runtimePolicy,
 		canonicalPolicy:     canonicalPolicy,
@@ -82,14 +82,10 @@ func (p *OutboundPolicy) ShouldSign(
 		}
 	}
 
-	var profile *peercompat.Profile
-	if p.ProfileRegistry != nil {
-		profile = p.ProfileRegistry.GetProfile(peerDomain)
-	}
 	peerDecision := p.signatureDecision(peerDomain)
 
 	if kind == EndpointTokenExchange {
-		return p.decideTokenExchange(disc, profile, hasSigner)
+		return p.decideTokenExchange(peerDomain, disc, hasSigner)
 	}
 
 	switch p.OutboundMode {
@@ -111,7 +107,8 @@ func (p *OutboundPolicy) ShouldSign(
 	}
 }
 
-func (p *OutboundPolicy) decideTokenExchange(disc *discovery.Discovery, profile *peercompat.Profile, hasSigner bool) SigningDecision {
+func (p *OutboundPolicy) decideTokenExchange(peerDomain string, disc *discovery.Discovery, hasSigner bool) SigningDecision {
+	tokenDecision := p.TokenExchangeDecisionForPeer(peerDomain)
 	localPolicy := "legacy"
 	if p.canonicalPolicy != nil {
 		ev := p.canonicalPolicy.Evaluate()
@@ -160,7 +157,7 @@ func (p *OutboundPolicy) decideTokenExchange(disc *discovery.Discovery, profile 
 		}
 	}
 
-	if profile != nil && profile.HasQuirk("accept_plain_token") && localPolicy == "legacy" {
+	if tokenDecision.AcceptPlainToken && localPolicy == "legacy" {
 		if p.canApplyRelaxation("outbound") {
 			return SigningDecision{
 				ShouldSign: false,
@@ -186,6 +183,32 @@ func (p *OutboundPolicy) decideTokenExchange(disc *discovery.Discovery, profile 
 		ShouldSign: true,
 		Reason:     "token exchange signed per outbound policy",
 	}
+}
+
+// TokenExchangeDecisionForPeer returns compiled token compatibility decisions
+// for the peer. Without a compiled contract, strict defaults are returned.
+func (p *OutboundPolicy) TokenExchangeDecisionForPeer(peerDomain string) peercompat.TokenExchangeDecision {
+	if p == nil || p.PeerContract == nil {
+		return peercompat.TokenExchangeDecision{
+			PeerDomain: peerDomain,
+			Profile:    "strict",
+			GrantType:  "authorization_code",
+		}
+	}
+	return p.PeerContract.TokenExchangeDecisionForPeer(peerDomain)
+}
+
+// TokenExchangeFallbackForReason returns typed retry permissions keyed by
+// classified failure reason.
+func (p *OutboundPolicy) TokenExchangeFallbackForReason(peerDomain, reasonCode string) peercompat.TokenExchangeFallbackDecision {
+	if p == nil || p.PeerContract == nil {
+		return peercompat.TokenExchangeFallbackDecision{
+			PeerDomain: peerDomain,
+			Profile:    "strict",
+			ReasonCode: reasonCode,
+		}
+	}
+	return p.PeerContract.TokenExchangeFallbackForReason(peerDomain, reasonCode)
 }
 
 // decideStrict handles strict mode signing decisions.
@@ -293,10 +316,10 @@ func (p *OutboundPolicy) signatureDecision(peerDomain string) peercompat.Signatu
 		PeerDomain: peerDomain,
 		Profile:    "strict",
 	}
-	if p.ProfileRegistry == nil {
+	if p.profileRegistry == nil {
 		return decision
 	}
-	profile := p.ProfileRegistry.GetProfile(peerDomain)
+	profile := p.profileRegistry.GetProfile(peerDomain)
 	if profile == nil {
 		return decision
 	}

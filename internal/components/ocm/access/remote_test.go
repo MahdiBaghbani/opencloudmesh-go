@@ -493,10 +493,14 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		{Pattern: ownerDomain, ProfileName: "owner-grant"},
 	}
 	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "off",
 		PeerProfileOverride: "non-strict",
-		ProfileRegistry:     registry,
+		PeerContract:        contract,
 	}
 	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, nil, policy, "local.example.com")
 	client := access.NewClient(ctxClient, discClient, tokenClient, registry)

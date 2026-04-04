@@ -45,11 +45,18 @@ func (s *mockSigner) Sign(req *http.Request) error {
 
 // makePolicy builds an OutboundPolicy for tests.
 func makePolicy(outboundMode string, profileRegistry *peercompat.ProfileRegistry) *outboundsigning.OutboundPolicy {
-	return &outboundsigning.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: "non-strict",
-		ProfileRegistry:     profileRegistry,
 	}
+	if profileRegistry != nil {
+		contract, err := peercompat.BuildCompiledContractFromRegistry(profileRegistry)
+		if err != nil {
+			panic(err)
+		}
+		policy.PeerContract = contract
+	}
+	return policy
 }
 
 func newDiscoveryAwareTokenServer(tokenHandler http.HandlerFunc) *httptest.Server {

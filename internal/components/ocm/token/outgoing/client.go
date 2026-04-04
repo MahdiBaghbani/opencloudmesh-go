@@ -73,7 +73,6 @@ func NewClient(
 // Exchange performs token exchange with the peer; OutboundPolicy controls signing.
 func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
 	var shouldSign bool
-	var profile *peercompat.Profile
 
 	var disc *discovery.Discovery
 	if c.outboundPolicy != nil && c.discoveryClient != nil {
@@ -111,16 +110,17 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 			)
 		}
 		shouldSign = decision.ShouldSign
-
-		if c.outboundPolicy.ProfileRegistry != nil {
-			profile = c.outboundPolicy.ProfileRegistry.GetProfile(req.PeerDomain)
-		}
 	}
 
-	grantType := token.GrantTypeAuthorizationCode
-	if profile != nil {
-		grantType = profile.GetTokenExchangeGrantType()
+	tokenDecision := peercompat.TokenExchangeDecision{
+		PeerDomain: req.PeerDomain,
+		Profile:    "strict",
+		GrantType:  token.GrantTypeAuthorizationCode,
 	}
+	if c.outboundPolicy != nil {
+		tokenDecision = c.outboundPolicy.TokenExchangeDecisionForPeer(req.PeerDomain)
+	}
+	grantType := tokenDecision.GrantType
 
 	if !shouldSign {
 		return c.exchangeUnsigned(ctx, req, grantType)
@@ -133,23 +133,19 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 
 	reasonCode := peercompat.ClassifyError(err)
 
-	if profile != nil && c.outboundPolicy != nil {
-		if profile.HasQuirk("accept_plain_token") &&
-			(reasonCode == peercompat.ReasonSignatureRequired ||
-				reasonCode == peercompat.ReasonSignatureInvalid ||
-				reasonCode == peercompat.ReasonKeyNotFound) {
+	if c.outboundPolicy != nil {
+		fallback := c.outboundPolicy.TokenExchangeFallbackForReason(req.PeerDomain, reasonCode)
+		if fallback.AllowUnsignedRetry {
 			result, err = c.exchangeUnsigned(ctx, req, grantType)
 			if err == nil {
-				result.QuirkApplied = "accept_plain_token"
+				result.QuirkApplied = fallback.Quirk
 				return result, nil
 			}
 		}
-		if profile.HasQuirk("send_token_in_body") &&
-			(reasonCode == peercompat.ReasonTokenExchangeFailed ||
-				reasonCode == peercompat.ReasonProtocolMismatch) {
+		if fallback.AllowJSONBodyRetry {
 			result, err = c.exchangeJSON(ctx, req, grantType, shouldSign)
 			if err == nil {
-				result.QuirkApplied = "send_token_in_body"
+				result.QuirkApplied = fallback.Quirk
 				return result, nil
 			}
 		}
