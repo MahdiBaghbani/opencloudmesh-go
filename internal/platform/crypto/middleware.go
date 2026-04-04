@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -55,6 +56,7 @@ type SignatureMiddleware struct {
 	inboundMode    string
 	allowMismatch  bool
 	onDiscoveryErr string
+	peerContract   *peercompat.CompiledContract
 	verifier       *RFC9421Verifier
 	peerDiscovery  PeerDiscovery
 	logger         *slog.Logger
@@ -63,7 +65,13 @@ type SignatureMiddleware struct {
 
 // NewSignatureMiddleware creates a new signature verification middleware.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
-func NewSignatureMiddleware(runtimePolicy *policy.RuntimePolicy, pd PeerDiscovery, publicOrigin string, logger *slog.Logger) *SignatureMiddleware {
+func NewSignatureMiddleware(
+	runtimePolicy *policy.RuntimePolicy,
+	peerContract *peercompat.CompiledContract,
+	pd PeerDiscovery,
+	publicOrigin string,
+	logger *slog.Logger,
+) *SignatureMiddleware {
 	logger = logutil.NoopIfNil(logger)
 
 	var localScheme string
@@ -88,6 +96,7 @@ func NewSignatureMiddleware(runtimePolicy *policy.RuntimePolicy, pd PeerDiscover
 		inboundMode:    inboundMode,
 		allowMismatch:  allowMismatch,
 		onDiscoveryErr: onDiscoveryErr,
+		peerContract:   peerContract,
 		verifier:       NewRFC9421Verifier(),
 		peerDiscovery:  pd,
 		logger:         logger,
@@ -149,8 +158,10 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 						return
 					}
 
-					// Check for mismatch between declared peer and keyId authority
-					if declaredPeer != "" && !m.allowMismatch {
+					// Check for mismatch between declared peer and keyId authority.
+					peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
+					allowMismatch := m.allowMismatch || (peerDecision.Matched && peerDecision.AllowMismatchedHost)
+					if declaredPeer != "" && !allowMismatch {
 						normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, parsed.Scheme)
 						if err != nil {
 							m.logger.Warn("failed to normalize declared peer for comparison",
@@ -190,21 +201,27 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 				if m.inboundMode == "lenient" && declaredPeer != "" {
 					isCapable, err := m.peerDiscovery.IsSigningCapable(r.Context(), declaredPeer)
 					if err != nil {
-						if m.onDiscoveryErr == "allow" {
+						discoveryDecision := m.peerContract.ResolveDiscoveryFailure(declaredPeer, m.onDiscoveryErr)
+						if discoveryDecision.Allow {
 							m.logger.Warn("peer discovery failed, allowing unsigned",
-								"peer", declaredPeer, "error", err)
+								"peer", declaredPeer, "error", err, "reason_code", discoveryDecision.ReasonCode)
 						} else {
 							m.logger.Error("peer discovery failed",
-								"peer", declaredPeer, "error", err)
+								"peer", declaredPeer, "error", err, "reason_code", discoveryDecision.ReasonCode)
 							http.Error(w, "peer discovery failed", http.StatusBadGateway)
 							return
 						}
 					} else if isCapable {
-						// Peer is signing-capable but didn't sign - reject
-						m.logger.Warn("signing-capable peer sent unsigned request",
-							"peer", declaredPeer)
-						http.Error(w, "signature required from signing-capable peer", http.StatusUnauthorized)
-						return
+						peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
+						if !peerDecision.Matched || !peerDecision.AllowUnsignedInbound {
+							// Peer is signing-capable and no matched compatibility relaxation applies.
+							m.logger.Warn("signing-capable peer sent unsigned request",
+								"peer", declaredPeer)
+							http.Error(w, "signature required from signing-capable peer", http.StatusUnauthorized)
+							return
+						}
+						m.logger.Warn("signing-capable peer allowed unsigned by compatibility profile",
+							"peer", declaredPeer, "profile", peerDecision.Profile)
 					}
 				}
 

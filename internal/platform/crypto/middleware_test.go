@@ -3,12 +3,14 @@ package crypto_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -17,10 +19,14 @@ import (
 // mockPeerDiscovery implements crypto.PeerDiscovery for testing.
 type mockPeerDiscovery struct {
 	signingCapable map[string]bool
+	signingErrors  map[string]error
 	publicKeysPEM  map[string]string // keyID -> PEM string
 }
 
 func (m *mockPeerDiscovery) IsSigningCapable(ctx context.Context, host string) (bool, error) {
+	if err, ok := m.signingErrors[host]; ok {
+		return false, err
+	}
 	return m.signingCapable[host], nil
 }
 
@@ -37,12 +43,25 @@ func runtimePolicyFromSignature(cfg *config.SignatureConfig) *policy.RuntimePoli
 	return policy.NewRuntimePolicy(base, nil)
 }
 
+func buildContract(
+	t *testing.T,
+	customProfiles map[string]*peercompat.Profile,
+	mappings []peercompat.ProfileMapping,
+) *peercompat.CompiledContract {
+	t.Helper()
+	contract, err := peercompat.NewCompiledContract(customProfiles, mappings)
+	if err != nil {
+		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
+	}
+	return contract
+}
+
 func TestSignatureMiddleware_OffMode(t *testing.T) {
 	cfg := &config.SignatureConfig{InboundMode: "off"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -63,7 +82,7 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -93,7 +112,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check peer identity was set
@@ -137,7 +156,7 @@ func TestSignatureMiddleware_LenientMode_AcceptsUnsignedFromNonCapable(t *testin
 		signingCapable: map[string]bool{"sender.example.com": false},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns the sender host from request body
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
@@ -168,7 +187,7 @@ func TestSignatureMiddleware_LenientMode_RejectsUnsignedFromCapable(t *testing.T
 		signingCapable: map[string]bool{"sender.example.com": true},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns the sender host
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
@@ -210,7 +229,7 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -246,7 +265,7 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), pd, "https://receiver.example.com", logger)
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns "sender.example.com" (without :443).
 	// The keyId will contain :443 explicitly.
@@ -281,6 +300,173 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("default port equivalence: expected 200, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSignatureMiddleware_LenientMode_AllowsCapablePeerByProfile(t *testing.T) {
+	cfg := &config.SignatureConfig{InboundMode: "lenient"}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{
+		signingCapable: map[string]bool{"sender.example.com": true},
+	}
+	contract := buildContract(
+		t,
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                 "compat",
+				AllowUnsignedInbound: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "sender.example.com", ProfileName: "compat"},
+		},
+	)
+
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com", nil
+	}
+	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"sender":"user@sender.example.com"}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected profile relaxation to allow unsigned request, got %d", w.Code)
+	}
+}
+
+func TestSignatureMiddleware_LenientMode_AllowsDiscoveryFailureByProfile(t *testing.T) {
+	cfg := &config.SignatureConfig{
+		InboundMode:      "lenient",
+		OnDiscoveryError: "reject",
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{
+		signingErrors: map[string]error{
+			"sender.example.com": fmt.Errorf("discovery failed"),
+		},
+	}
+	contract := buildContract(
+		t,
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                   "compat",
+				AllowUnsignedDiscovery: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "sender.example.com", ProfileName: "compat"},
+		},
+	)
+
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com", nil
+	}
+	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"sender":"user@sender.example.com"}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected profile-based discovery fail-open, got %d", w.Code)
+	}
+}
+
+func TestSignatureMiddleware_LenientMode_RejectsDiscoveryFailureWhenUnmatched(t *testing.T) {
+	cfg := &config.SignatureConfig{
+		InboundMode:      "lenient",
+		OnDiscoveryError: "reject",
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{
+		signingErrors: map[string]error{
+			"sender.example.com": fmt.Errorf("discovery failed"),
+		},
+	}
+	contract := buildContract(
+		t,
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                   "compat",
+				AllowUnsignedDiscovery: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "other.example.com", ProfileName: "compat"},
+		},
+	)
+
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com", nil
+	}
+	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"sender":"user@sender.example.com"}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("expected unmatched peer discovery failure rejection, got %d", w.Code)
+	}
+}
+
+func TestSignatureMiddleware_StrictMode_MatchedProfileAllowsMismatch(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://sender.example.com")
+	km.LoadOrGenerate()
+	signer := crypto.NewRFC9421Signer(km)
+
+	cfg := &config.SignatureConfig{
+		InboundMode:      "strict",
+		AllowMismatch:    false,
+		OnDiscoveryError: "reject",
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{
+		publicKeysPEM: map[string]string{
+			km.GetKeyID(): km.GetPublicKeyPEM(),
+		},
+	}
+	contract := buildContract(
+		t,
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                "compat",
+				AllowMismatchedHost: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "declared.example.com", ProfileName: "compat"},
+		},
+	)
+
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "declared.example.com", nil
+	}
+	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	body := []byte(`{"sender":"user@declared.example.com"}`)
+	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req.Host = "receiver.example.com"
+	req.Header.Set("Content-Type", "application/json")
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("failed to sign request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected matched profile mismatch relaxation to pass, got %d", w.Code)
 	}
 }
 
