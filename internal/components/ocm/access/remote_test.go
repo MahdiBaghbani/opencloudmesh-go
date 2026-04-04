@@ -58,6 +58,34 @@ func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextCli
 	return discClient, ctxClient
 }
 
+func buildContractFromRegistry(t *testing.T, registry *peercompat.ProfileRegistry) *peercompat.CompiledContract {
+	t.Helper()
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
+	return contract
+}
+
+func newHTTPTestContract(t *testing.T) *peercompat.CompiledContract {
+	t.Helper()
+	contract, err := peercompat.NewCompiledContract(
+		map[string]*peercompat.Profile{
+			"http-test": {
+				Name:      "http-test",
+				AllowHTTP: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "*", ProfileName: "http-test"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
+	}
+	return contract
+}
+
 func TestBuildWebDAVURL_AbsoluteURIMatchingHost(t *testing.T) {
 	// When absolute URI host matches sender, the absolute URI is used directly.
 	// No discovery call needed, so we pass a nil-safe discovery server.
@@ -200,8 +228,7 @@ func TestAuthLadder_BearerSucceeds_NoBasicAttempts(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	registry := peercompat.NewProfileRegistry(nil, nil)
-	client := access.NewClient(ctxClient, discClient, nil, registry)
+	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t))
 
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -239,8 +266,7 @@ func TestAuthLadder_Bearer401_BasicTokenColonSucceeds(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	registry := peercompat.NewProfileRegistry(nil, nil)
-	client := access.NewClient(ctxClient, discClient, nil, registry)
+	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t))
 
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -311,6 +337,7 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 	customProfiles := map[string]*peercompat.Profile{
 		"restricted": {
 			Name:                     "restricted",
+			AllowHTTP:                true,
 			AllowedBasicAuthPatterns: []string{"id:token"},
 		},
 	}
@@ -319,7 +346,7 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 	}
 	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
 
-	client := access.NewClient(ctxClient, discClient, nil, registry)
+	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry))
 
 	senderHost := srv.Listener.Addr().String()
 	webdavAbsolute := srv.URL + "/webdav/ocm/" + webdavID + "/data.csv"
@@ -354,8 +381,7 @@ func TestAuthLadder_AllPatternsFail(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	registry := peercompat.NewProfileRegistry(nil, nil)
-	client := access.NewClient(ctxClient, discClient, nil, registry)
+	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t))
 
 	_, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -374,7 +400,7 @@ func TestAuthLadder_AllPatternsFail(t *testing.T) {
 	}
 }
 
-func TestAuthLadder_NilProfileRegistry_BearerFailReturnsError(t *testing.T) {
+func TestAuthLadder_NilPeerContract_BearerFailReturnsError(t *testing.T) {
 	var requestCount atomic.Int32
 	srv := newAuthLadderServer(func(authHeader string) bool {
 		requestCount.Add(1)
@@ -414,8 +440,7 @@ func TestAuthLadder_ResponseBodiesClosed(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	registry := peercompat.NewProfileRegistry(nil, nil)
-	client := access.NewClient(ctxClient, discClient, nil, registry)
+	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t))
 
 	_, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -486,6 +511,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	profiles := map[string]*peercompat.Profile{
 		"owner-grant": {
 			Name:                   "owner-grant",
+			AllowHTTP:              true,
 			TokenExchangeGrantType: "ocm_share",
 		},
 	}
@@ -503,7 +529,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		PeerContract:        contract,
 	}
 	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, nil, policy, "local.example.com")
-	client := access.NewClient(ctxClient, discClient, tokenClient, registry)
+	client := access.NewClient(ctxClient, discClient, tokenClient, contract)
 
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -558,10 +584,12 @@ func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
 	customProfiles := map[string]*peercompat.Profile{
 		"owner-only-id-token": {
 			Name:                     "owner-only-id-token",
+			AllowHTTP:                true,
 			AllowedBasicAuthPatterns: []string{"id:token"},
 		},
 		"sender-only-token-colon": {
 			Name:                     "sender-only-token-colon",
+			AllowHTTP:                true,
 			AllowedBasicAuthPatterns: []string{"token:"},
 		},
 	}
@@ -571,7 +599,7 @@ func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
 	}
 	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
 
-	client := access.NewClient(ctxClient, discClient, nil, registry)
+	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry))
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
 			Status:            "accepted",

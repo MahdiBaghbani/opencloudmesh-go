@@ -52,11 +52,11 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized")
 	}
 
-	// Create WebDAV handler with profile registry for Basic auth allowlists.
+	// Create WebDAV handler with compiled contract for Basic auth decisions.
 	handler := webdav.NewHandler(
 		d.OutgoingShareRepo,
 		d.TokenStore,
-		d.ProfileRegistry,
+		d.PeerContract,
 		log.With("component", "webdav"),
 	)
 

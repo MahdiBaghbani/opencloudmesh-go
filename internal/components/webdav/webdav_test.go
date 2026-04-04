@@ -101,6 +101,15 @@ func (m *mockTokenStore) CleanExpired(ctx context.Context) error {
 	return nil
 }
 
+func buildContractFromRegistry(t *testing.T, registry *peercompat.ProfileRegistry) *peercompat.CompiledContract {
+	t.Helper()
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
+	return contract
+}
+
 func TestValidateCredential_RejectsSharedSecretForStrictShare(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
@@ -108,7 +117,7 @@ func TestValidateCredential_RejectsSharedSecretForStrictShare(t *testing.T) {
 	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	})
-	handler := NewHandler(repo, tokenStore, registry, nil)
+	handler := NewHandler(repo, tokenStore, buildContractFromRegistry(t, registry), nil)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
@@ -141,7 +150,7 @@ func TestValidateCredential_BasicAuthPatternRejection(t *testing.T) {
 		},
 	)
 
-	handler := NewHandler(repo, tokenStore, registry, nil)
+	handler := NewHandler(repo, tokenStore, buildContractFromRegistry(t, registry), nil)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
@@ -171,7 +180,7 @@ func TestValidateCredential_EmptyPatternListAllowsAll(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	registry := peercompat.NewProfileRegistry(nil, nil)
-	handler := NewHandler(repo, tokenStore, registry, nil)
+	handler := NewHandler(repo, tokenStore, buildContractFromRegistry(t, registry), nil)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",
@@ -191,7 +200,7 @@ func TestValidateCredential_EmptyPatternListAllowsAll(t *testing.T) {
 	}
 }
 
-func TestValidateCredential_NoProfileRegistry(t *testing.T) {
+func TestValidateCredential_NoPeerContract(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 	handler := NewHandler(repo, tokenStore, nil, nil)
@@ -208,7 +217,7 @@ func TestValidateCredential_NoProfileRegistry(t *testing.T) {
 
 	authorized, _ := handler.validateCredential(ctx, share, "secret123", "bearer")
 	if authorized {
-		t.Error("expected authorization to fail without profile registry (falls back to strict)")
+		t.Error("expected authorization to fail without peer contract (falls back to strict)")
 	}
 }
 
@@ -224,7 +233,7 @@ func TestValidateCredential_ExchangedTokenAlwaysWorks(t *testing.T) {
 	_ = tokenStore.Store(ctx, issuedToken)
 
 	registry := peercompat.NewProfileRegistry(nil, nil)
-	handler := NewHandler(repo, tokenStore, registry, nil)
+	handler := NewHandler(repo, tokenStore, buildContractFromRegistry(t, registry), nil)
 
 	// Create share with must-exchange-token
 	share := &sharesoutgoing.OutgoingShare{
@@ -250,7 +259,7 @@ func TestValidateCredential_UnknownPeerUsesStrictProfile(t *testing.T) {
 	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
 		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
 	})
-	handler := NewHandler(repo, tokenStore, registry, nil)
+	handler := NewHandler(repo, tokenStore, buildContractFromRegistry(t, registry), nil)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:           "share-1",

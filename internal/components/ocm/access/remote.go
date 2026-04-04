@@ -52,16 +52,16 @@ type Client struct {
 	httpClient      *httpclient.ContextClient
 	discoveryClient *discovery.Client
 	tokenClient     *tokenoutgoing.Client
-	profileRegistry *peercompat.ProfileRegistry
 	peerContract    *peercompat.CompiledContract
 }
 
-// NewClient returns a Client; panics if discoveryClient is nil. Nil profileRegistry disables Basic auth fallback.
+// NewClient returns a Client; panics if discoveryClient is nil. A nil peer
+// contract keeps legacy nil-dependency behavior and disables Basic fallback.
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	discoveryClient *discovery.Client,
 	tokenClient *tokenoutgoing.Client,
-	profileRegistry *peercompat.ProfileRegistry,
+	peerContract *peercompat.CompiledContract,
 ) *Client {
 	if discoveryClient == nil {
 		panic("access.NewClient: discoveryClient must not be nil")
@@ -70,14 +70,8 @@ func NewClient(
 		httpClient:      httpClient,
 		discoveryClient: discoveryClient,
 		tokenClient:     tokenClient,
-		profileRegistry: profileRegistry,
+		peerContract:    peerContract,
 	}
-}
-
-// SetPeerContract wires the compiled compatibility contract for resolver-based
-// peer origin and host validation decisions.
-func (c *Client) SetPeerContract(peerContract *peercompat.CompiledContract) {
-	c.peerContract = peerContract
 }
 
 type AccessOptions struct {
@@ -227,14 +221,14 @@ func (c *Client) tryBasicPatterns(
 	accessToken string,
 	tokenExchanged bool,
 ) (*AccessResult, error) {
-	if c.profileRegistry == nil {
-		return nil, fmt.Errorf("%w: no profile registry for Basic auth fallback", ErrRemoteAccessFailed)
+	if c.peerContract == nil {
+		return nil, fmt.Errorf("%w: no peer contract for Basic auth fallback", ErrRemoteAccessFailed)
 	}
 
-	profile := c.profileRegistry.GetProfile(accessHostForDiscovery(opts.Share))
+	peerDomain := accessHostForDiscovery(opts.Share)
 
 	for _, pat := range orderedBasicPatterns {
-		if !profile.IsBasicAuthPatternAllowed(pat.key) {
+		if !c.peerContract.IsBasicAuthPatternAllowedForPeer(peerDomain, pat.key) {
 			continue
 		}
 

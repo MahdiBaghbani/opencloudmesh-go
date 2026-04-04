@@ -57,10 +57,9 @@ type Deps struct {
 	SignatureMiddleware *crypto.SignatureMiddleware
 
 	// Peer trust (optional)
-	TrustGroupMgr   *peertrust.TrustGroupManager
-	PolicyEngine    *peertrust.PolicyEngine
-	ProfileRegistry *peercompat.ProfileRegistry
-	PeerContract    *peercompat.CompiledContract
+	TrustGroupMgr *peertrust.TrustGroupManager
+	PolicyEngine  *peertrust.PolicyEngine
+	PeerContract  *peercompat.CompiledContract
 
 	// Provider identity derived from PublicOrigin at startup
 	LocalProviderFQDN           string // raw host[:port] from PublicOrigin (lowercased)

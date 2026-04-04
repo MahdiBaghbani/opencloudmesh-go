@@ -304,10 +304,9 @@ func main() {
 		OutboundPolicy:      outboundPolicy,
 		SignatureMiddleware: signatureMiddleware,
 		// Peer trust
-		TrustGroupMgr:   trustGroupMgr,
-		PolicyEngine:    policyEngine,
-		ProfileRegistry: profileRegistry,
-		PeerContract:    peerContract,
+		TrustGroupMgr: trustGroupMgr,
+		PolicyEngine:  policyEngine,
+		PeerContract:  peerContract,
 		// Provider identity
 		LocalProviderFQDN:           localProviderFQDN,
 		LocalProviderFQDNForCompare: localProviderFQDNForCompare,

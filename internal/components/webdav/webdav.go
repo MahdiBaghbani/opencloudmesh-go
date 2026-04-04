@@ -22,20 +22,20 @@ import (
 
 // Handler provides WebDAV access to shared files.
 type Handler struct {
-	outgoingRepo    sharesoutgoing.OutgoingShareRepo
-	tokenStore      token.TokenStore
-	profileRegistry *peercompat.ProfileRegistry
-	logger          *slog.Logger
+	outgoingRepo sharesoutgoing.OutgoingShareRepo
+	tokenStore   token.TokenStore
+	peerContract *peercompat.CompiledContract
+	logger       *slog.Logger
 }
 
 // NewHandler builds a WebDAV handler.
-func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, peerContract *peercompat.CompiledContract, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 	return &Handler{
-		outgoingRepo:    outgoingRepo,
-		tokenStore:      tokenStore,
-		profileRegistry: profileRegistry,
-		logger:          logger,
+		outgoingRepo: outgoingRepo,
+		tokenStore:   tokenStore,
+		peerContract: peerContract,
+		logger:       logger,
 	}
 }
 
@@ -101,11 +101,9 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 		}
 	}
 
-	profile := h.getProfileForShare(share)
-
 	if strings.HasPrefix(authSource, "basic:") {
 		patternKey := strings.TrimPrefix(authSource, "basic:")
-		if !profile.IsBasicAuthPatternAllowed(patternKey) {
+		if !h.isBasicPatternAllowedForShare(share, patternKey) {
 			return false, ""
 		}
 	}
@@ -123,12 +121,11 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 	return false, ""
 }
 
-// getProfileForShare returns the peer profile; falls back to strict if no registry.
-func (h *Handler) getProfileForShare(share *sharesoutgoing.OutgoingShare) *peercompat.Profile {
-	if h.profileRegistry == nil {
-		return peercompat.BuiltinProfiles()["strict"]
+func (h *Handler) isBasicPatternAllowedForShare(share *sharesoutgoing.OutgoingShare, pattern string) bool {
+	if h.peerContract == nil {
+		return peercompat.BuiltinProfiles()["strict"].IsBasicAuthPatternAllowed(pattern)
 	}
-	return h.profileRegistry.GetProfile(share.ReceiverHost)
+	return h.peerContract.IsBasicAuthPatternAllowedForPeer(share.ReceiverHost, pattern)
 }
 
 // serveFile serves share.LocalPath via WebDAV.

@@ -109,9 +109,8 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.HTTPClient,
 		d.DiscoveryClient,
 		tokenClient,
-		d.ProfileRegistry,
+		d.PeerContract,
 	)
-	accessClient.SetPeerContract(d.PeerContract)
 
 	// Inbox shares handler (per-user scoped, Chi route params)
 	inboxSharesHandler := inboxshares.NewHandler(
