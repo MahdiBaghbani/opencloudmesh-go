@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
@@ -30,6 +31,7 @@ type Handler struct {
 	discoveryClient             *discovery.Client
 	canonicalPolicy             *policy.OpenCloudMeshPolicy
 	runtimePolicy               *policy.RuntimePolicy
+	peerContract                *peercompat.CompiledContract
 	localProviderFQDNForCompare string
 	localScheme                 string
 	logger                      *slog.Logger
@@ -42,6 +44,7 @@ func NewHandler(
 	discoveryClient *discovery.Client,
 	canonicalPolicy *policy.OpenCloudMeshPolicy,
 	runtimePolicy *policy.RuntimePolicy,
+	peerContract *peercompat.CompiledContract,
 	localProviderFQDNForCompare string,
 	localScheme string,
 	logger *slog.Logger,
@@ -54,6 +57,7 @@ func NewHandler(
 		discoveryClient:             discoveryClient,
 		canonicalPolicy:             canonicalPolicy,
 		runtimePolicy:               runtimePolicy,
+		peerContract:                peerContract,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 		logger:                      logger,
@@ -213,8 +217,8 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	// remote owner's exchange-token capability.
 	var classifiedMustExchange, classifiedSenderCapable bool
 	if h.discoveryClient != nil {
-		discURL := h.localScheme + "://" + ownerHost
-		disc, discErr := h.discoveryClient.Discover(r.Context(), discURL)
+		ownerOrigin := h.peerContract.ResolvePeerOrigin(ownerHost)
+		disc, discErr := h.discoveryClient.Discover(r.Context(), ownerOrigin.BaseURL)
 		if discErr != nil {
 			if wireMustExchange || receiverRequiresExchange {
 				log.Warn("discovery failed for strict share, rejecting",

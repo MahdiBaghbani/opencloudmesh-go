@@ -97,6 +97,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.DiscoveryClient,
 		d.OpenCloudMeshPolicy,
 		d.RuntimePolicy,
+		d.PeerContract,
 		d.LocalProviderFQDNForCompare,
 		d.Config.PublicScheme(),
 		log,

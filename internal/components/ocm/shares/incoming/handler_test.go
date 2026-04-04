@@ -13,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
@@ -60,6 +61,7 @@ func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identit
 		nil, // no discovery client
 		nil, // no canonical policy
 		runtimePolicyForMode("strict"),
+		nil, // no peer contract
 		"localhost:9200",
 		"https",
 		testLogger(),
@@ -593,12 +595,35 @@ func fakeDiscoveryServerWithTokenEndPoint(capabilities, criteria []string, token
 // newHandlerWithDiscovery creates a handler that uses a real discovery.Client
 // pointed at a fake server. The owner address in the share body must use
 // fakeSrv's host so discovery routes to the fake server.
+func newAllowHTTPPeerContract(t *testing.T) *peercompat.CompiledContract {
+	t.Helper()
+
+	contract, err := peercompat.NewCompiledContract(
+		map[string]*peercompat.Profile{
+			"allow-http-test": {
+				Name:      "allow-http-test",
+				AllowHTTP: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "*", ProfileName: "allow-http-test"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to build test peer contract: %v", err)
+	}
+	return contract
+}
+
 func newHandlerWithDiscovery(
+	t *testing.T,
 	repo *sharesinbox.MemoryIncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	fakeSrv *httptest.Server,
 	canonicalPolicy *policy.OpenCloudMeshPolicy,
 ) *incoming.Handler {
+	t.Helper()
+
 	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
 		SSRFMode:           "off",
 		TimeoutMS:          5000,
@@ -614,8 +639,9 @@ func newHandlerWithDiscovery(
 		discClient,
 		canonicalPolicy,
 		runtimePolicyForMode("strict"),
+		newAllowHTTPPeerContract(t),
 		"localhost:9200",
-		"http", // use http so discovery URLs match the httptest server
+		"https",
 		testLogger(),
 	)
 }
@@ -674,7 +700,7 @@ func TestReceiverClassification_StrictOwner(t *testing.T) {
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, nil)
 
 	// Wire does NOT set must-exchange-token; this remains opportunistic.
 	body := shareBodyWithOwnerHost(ownerHost, false)
@@ -714,7 +740,7 @@ func TestReceiverClassification_CapableOwnerWithWireRequirement(t *testing.T) {
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, nil)
 
 	body := shareBodyWithOwnerHost(ownerHost, true)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -753,7 +779,7 @@ func TestReceiverClassification_CapableOwnerOpportunistic(t *testing.T) {
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, nil)
 
 	body := shareBodyWithOwnerHost(ownerHost, false)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -790,7 +816,7 @@ func TestReceiverClassification_CapabilityWithoutTokenEndpoint_IsNotCapable(t *t
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, nil)
 
 	body := shareBodyWithOwnerHost(ownerHost, false)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -827,7 +853,7 @@ func TestReceiverClassification_CapabilityWithoutTokenEndpoint_WithMustExchangeR
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, nil)
 
 	body := shareBodyWithOwnerHost(ownerHost, true)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -853,7 +879,7 @@ func TestReceiverClassification_OwnerSenderSplitUsesOwnerForClassifying(t *testi
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, nil)
 
 	body := shareBodyWithOwnerAndSenderHosts(ownerHost, senderHost, false)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -895,7 +921,7 @@ func TestReceiverClassification_LegacyOwner(t *testing.T) {
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, nil)
 
 	// Wire sets must-exchange-token, but owner lacks capability: reject.
 	body := shareBodyWithOwnerHost(ownerHost, true)
@@ -924,7 +950,7 @@ func TestReceiverClassification_DiscoveryFailure_PlainShare(t *testing.T) {
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, failSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, failSrv, nil)
 
 	body := shareBodyWithOwnerHost(ownerHost, false)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -959,7 +985,7 @@ func TestReceiverClassification_DiscoveryFailure_WithMustExchange(t *testing.T) 
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newHandlerWithDiscovery(repo, partyRepo, failSrv, nil)
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, failSrv, nil)
 
 	body := shareBodyWithOwnerHost(ownerHost, true)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -1028,7 +1054,7 @@ func TestReceiverClassification_ReceiverStrictRequiresWireMustExchange(t *testin
 		RequireTokenExchange: true,
 		PeerPolicy:           "legacy",
 	}
-	handler := newHandlerWithDiscovery(repo, partyRepo, fakeSrv, policy.NewOpenCloudMeshPolicy(cfg))
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, policy.NewOpenCloudMeshPolicy(cfg))
 
 	body := shareBodyWithOwnerHost(ownerHost, false)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -1039,5 +1065,56 @@ func TestReceiverClassification_ReceiverStrictRequiresWireMustExchange(t *testin
 
 	if w.Code == http.StatusCreated {
 		t.Fatalf("expected rejection for strict receiver without wire must-exchange-token, got %d", w.Code)
+	}
+}
+
+func TestReceiverClassification_RemoteDiscoveryUsesPeerOriginPolicy(t *testing.T) {
+	fakeSrv := fakeDiscoveryServer(
+		[]string{"exchange-token"},
+		[]string{},
+	)
+	defer fakeSrv.Close()
+
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode:           "off",
+		TimeoutMS:          5000,
+		ConnectTimeoutMS:   2000,
+		MaxResponseBytes:   1048576,
+		InsecureSkipVerify: true,
+	}, nil)
+	discClient := discovery.NewClient(rawHTTP, nil)
+	handler := incoming.NewHandler(
+		repo,
+		partyRepo,
+		nil,
+		discClient,
+		nil,
+		runtimePolicyForMode("strict"),
+		newAllowHTTPPeerContract(t),
+		"localhost:9200",
+		"https",
+		testLogger(),
+	)
+
+	ownerHost := stripSchemeHost(fakeSrv.URL)
+	body := shareBodyWithOwnerHost(ownerHost, false)
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 when peer contract allows http owner discovery, got %d: %s", w.Code, w.Body.String())
+	}
+
+	shares, _ := repo.ListByRecipientUserID(context.Background(), "user-a-uuid")
+	if len(shares) != 1 {
+		t.Fatalf("expected 1 share, got %d", len(shares))
+	}
+	if !shares[0].SenderExchangeCapable {
+		t.Fatal("expected owner discovery to succeed through peer origin policy")
 	}
 }

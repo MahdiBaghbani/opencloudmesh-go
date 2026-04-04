@@ -105,6 +105,7 @@ func TestNoAdHocPeerOriginSchemeInApprovedCallSites(t *testing.T) {
 	targets := []string{
 		"internal/components/ocm/access/remote.go",
 		"internal/components/ocm/discovery/peer_adapter.go",
+		"internal/components/ocm/shares/incoming/handler.go",
 		"internal/components/api/outgoing/shares/handler.go",
 		"internal/components/ocm/notifications/outgoing/client.go",
 		"internal/components/api/inbox/invites/handler.go",
@@ -118,7 +119,9 @@ func TestNoAdHocPeerOriginSchemeInApprovedCallSites(t *testing.T) {
 			t.Fatalf("read %s failed: %v", relPath, err)
 		}
 		content := string(data)
-		if strings.Contains(content, `"https://"`) || strings.Contains(content, `"http://"`) {
+		if strings.Contains(content, `"://"`) ||
+			strings.Contains(content, `"https://"`) ||
+			strings.Contains(content, `"http://"`) {
 			violations = append(violations, relPath)
 		}
 	}
