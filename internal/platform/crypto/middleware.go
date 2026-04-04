@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
+	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
 // contextKey is used for storing values in request context.
@@ -53,14 +54,15 @@ type PeerDiscovery interface {
 
 // SignatureMiddleware verifies HTTP request signatures.
 type SignatureMiddleware struct {
-	inboundMode    string
-	allowMismatch  bool
-	onDiscoveryErr string
-	peerContract   *peercompat.CompiledContract
-	verifier       *RFC9421Verifier
-	peerDiscovery  PeerDiscovery
-	logger         *slog.Logger
-	localScheme    string // scheme from PublicOrigin for unverified peer normalization
+	inboundMode        string
+	allowMismatch      bool
+	onDiscoveryErr     string
+	peerContract       *peercompat.CompiledContract
+	compatibilityScope string
+	verifier           *RFC9421Verifier
+	peerDiscovery      PeerDiscovery
+	logger             *slog.Logger
+	localScheme        string // scheme from PublicOrigin for unverified peer normalization
 }
 
 // NewSignatureMiddleware creates a new signature verification middleware.
@@ -81,8 +83,10 @@ func NewSignatureMiddleware(
 	inboundMode := "off"
 	onDiscoveryErr := "reject"
 	allowMismatch := false
+	compatibilityScope := "none"
 	if runtimePolicy != nil {
-		signature := runtimePolicy.Evaluate().Signature
+		eval := runtimePolicy.Evaluate()
+		signature := eval.Signature
 		if signature.InboundMode != "" {
 			inboundMode = signature.InboundMode
 		}
@@ -90,18 +94,49 @@ func NewSignatureMiddleware(
 			onDiscoveryErr = signature.OnDiscoveryError
 		}
 		allowMismatch = signature.AllowMismatch
+		if eval.CompatibilityScope != "" {
+			compatibilityScope = eval.CompatibilityScope
+		}
 	}
 
 	return &SignatureMiddleware{
-		inboundMode:    inboundMode,
-		allowMismatch:  allowMismatch,
-		onDiscoveryErr: onDiscoveryErr,
-		peerContract:   peerContract,
-		verifier:       NewRFC9421Verifier(),
-		peerDiscovery:  pd,
-		logger:         logger,
-		localScheme:    localScheme,
+		inboundMode:        inboundMode,
+		allowMismatch:      allowMismatch,
+		onDiscoveryErr:     onDiscoveryErr,
+		peerContract:       peerContract,
+		compatibilityScope: compatibilityScope,
+		verifier:           NewRFC9421Verifier(),
+		peerDiscovery:      pd,
+		logger:             logger,
+		localScheme:        localScheme,
 	}
+}
+
+func (m *SignatureMiddleware) logCompatibilityDecision(
+	r *http.Request,
+	level slog.Level,
+	message string,
+	entry peercompat.CompatibilityDecisionLog,
+	extraAttrs ...any,
+) {
+	if reqID := chimw.GetReqID(r.Context()); reqID != "" {
+		entry.RequestID = reqID
+	}
+	attrs := entry.SlogAttrs()
+	if len(extraAttrs) > 0 {
+		attrs = append(attrs, extraAttrs...)
+	}
+	m.logger.Log(r.Context(), level, message, attrs...)
+}
+
+func (m *SignatureMiddleware) decisionCompatibilityScope(profile string) string {
+	if profile != "" && profile != "strict" {
+		return "peer-profile-relaxations"
+	}
+	if m.compatibilityScope != "" {
+		return m.compatibilityScope
+	}
+	return "none"
 }
 
 // VerifyOCMRequest is middleware for /ocm/* endpoints.
@@ -202,26 +237,63 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 					isCapable, err := m.peerDiscovery.IsSigningCapable(r.Context(), declaredPeer)
 					if err != nil {
 						discoveryDecision := m.peerContract.ResolveDiscoveryFailure(declaredPeer, m.onDiscoveryErr)
+						logEntry := peercompat.CompatibilityDecisionLog{
+							PeerDomain:         discoveryDecision.PeerDomain,
+							Profile:            discoveryDecision.Profile,
+							Operation:          "unsigned_inbound_discovery",
+							ReasonCode:         discoveryDecision.ReasonCode,
+							CompatibilityScope: m.decisionCompatibilityScope(discoveryDecision.Profile),
+						}
 						if discoveryDecision.Allow {
-							m.logger.Warn("peer discovery failed, allowing unsigned",
-								"peer", declaredPeer, "error", err, "reason_code", discoveryDecision.ReasonCode)
+							logEntry.Decision = "allow"
+							m.logCompatibilityDecision(
+								r,
+								slog.LevelWarn,
+								"peer discovery failed, allowing unsigned",
+								logEntry,
+								"error", err,
+							)
 						} else {
-							m.logger.Error("peer discovery failed",
-								"peer", declaredPeer, "error", err, "reason_code", discoveryDecision.ReasonCode)
+							logEntry.Decision = "reject"
+							m.logCompatibilityDecision(
+								r,
+								slog.LevelError,
+								"peer discovery failed",
+								logEntry,
+								"error", err,
+							)
 							http.Error(w, "peer discovery failed", http.StatusBadGateway)
 							return
 						}
 					} else if isCapable {
 						peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
+						logEntry := peercompat.CompatibilityDecisionLog{
+							PeerDomain:         peerDecision.PeerDomain,
+							Profile:            peerDecision.Profile,
+							Operation:          "unsigned_inbound_capability",
+							CompatibilityScope: m.decisionCompatibilityScope(peerDecision.Profile),
+						}
 						if !peerDecision.Matched || !peerDecision.AllowUnsignedInbound {
 							// Peer is signing-capable and no matched compatibility relaxation applies.
-							m.logger.Warn("signing-capable peer sent unsigned request",
-								"peer", declaredPeer)
+							logEntry.Decision = "reject"
+							logEntry.ReasonCode = "signing_capable_peer_requires_signature"
+							m.logCompatibilityDecision(
+								r,
+								slog.LevelWarn,
+								"signing-capable peer sent unsigned request",
+								logEntry,
+							)
 							http.Error(w, "signature required from signing-capable peer", http.StatusUnauthorized)
 							return
 						}
-						m.logger.Warn("signing-capable peer allowed unsigned by compatibility profile",
-							"peer", declaredPeer, "profile", peerDecision.Profile)
+						logEntry.Decision = "allow"
+						logEntry.ReasonCode = "peer_allow_unsigned_inbound"
+						m.logCompatibilityDecision(
+							r,
+							slog.LevelWarn,
+							"signing-capable peer allowed unsigned by compatibility profile",
+							logEntry,
+						)
 					}
 				}
 
