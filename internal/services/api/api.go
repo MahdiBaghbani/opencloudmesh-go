@@ -95,6 +95,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.Signer,
 		d.OutboundPolicy,
 	)
+	notificationClient.SetPeerContract(d.PeerContract)
 
 	// Create token exchange and remote access clients
 	tokenClient := tokenoutgoing.NewClient(
@@ -110,6 +111,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		tokenClient,
 		d.ProfileRegistry,
 	)
+	accessClient.SetPeerContract(d.PeerContract)
 
 	// Inbox shares handler (per-user scoped, Chi route params)
 	inboxSharesHandler := inboxshares.NewHandler(
@@ -132,6 +134,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		currentUser,
 		log,
 	)
+	outgoingHandler.SetPeerContract(d.PeerContract)
 	if len(c.AllowedPaths) > 0 {
 		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
 	}
@@ -147,6 +150,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		currentUser,
 		log,
 	)
+	inboxInvitesHandler.SetPeerContract(d.PeerContract)
 
 	// Outgoing invites handler (session-gated, tracks CreatedByUserID)
 	outgoingInvitesHandler := outgoinginvites.NewHandler(

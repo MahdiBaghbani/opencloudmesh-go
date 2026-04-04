@@ -11,13 +11,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
@@ -56,6 +53,7 @@ type Client struct {
 	discoveryClient *discovery.Client
 	tokenClient     *tokenoutgoing.Client
 	profileRegistry *peercompat.ProfileRegistry
+	peerContract    *peercompat.CompiledContract
 }
 
 // NewClient returns a Client; panics if discoveryClient is nil. Nil profileRegistry disables Basic auth fallback.
@@ -74,6 +72,12 @@ func NewClient(
 		tokenClient:     tokenClient,
 		profileRegistry: profileRegistry,
 	}
+}
+
+// SetPeerContract wires the compiled compatibility contract for resolver-based
+// peer origin and host validation decisions.
+func (c *Client) SetPeerContract(peerContract *peercompat.CompiledContract) {
+	c.peerContract = peerContract
 }
 
 type AccessOptions struct {
@@ -185,7 +189,8 @@ func (c *Client) doTokenExchange(ctx context.Context, share *ShareInfo, discover
 		return nil, ErrTokenExchangeRequired
 	}
 
-	disc, err := c.discoveryClient.Discover(ctx, senderBaseURL(discoveryHost))
+	origin := c.resolvePeerOrigin(discoveryHost)
+	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
 		return nil, peercompat.NewClassifiedError(
 			peercompat.ReasonDiscoveryFailed,
@@ -209,7 +214,7 @@ func (c *Client) doTokenExchange(ctx context.Context, share *ShareInfo, discover
 	}
 	return c.tokenClient.Exchange(ctx, tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: disc.TokenEndPoint,
-		PeerDomain:    peerDomainForProfile(discoveryHost),
+		PeerDomain:    origin.peerDomain,
 		SharedSecret:  share.SharedSecret,
 	})
 }
@@ -295,7 +300,8 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 			return u, nil
 		}
 	}
-	disc, err := c.discoveryClient.Discover(ctx, senderBaseURL(host))
+	origin := c.resolvePeerOrigin(host)
+	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
 		return "", peercompat.NewClassifiedError(
 			peercompat.ReasonDiscoveryFailed,
@@ -321,37 +327,18 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 
 // isAbsoluteURIHostValid compares absolute URI host to sender host via scheme-aware normalization.
 func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
-	parsed, err := url.Parse(absoluteURI)
-	if err != nil || parsed.Host == "" {
-		return false
-	}
-
-	normalizedURI, err := hostport.Normalize(parsed.Host, "https")
-	if err != nil {
-		return false
-	}
-
-	normalizedSender, err := hostport.Normalize(senderHost, "https")
-	if err != nil {
-		return false
-	}
-
-	return normalizedURI == normalizedSender
+	return c.peerContract.IsPeerAbsoluteURIAllowed(absoluteURI, senderHost)
 }
 
-// senderBaseURL returns "https://" + host for bare host[:port]; passes through values with scheme (e.g. srv.URL).
-func senderBaseURL(host string) string {
-	if strings.Contains(host, "://") {
-		return host
-	}
-	return "https://" + host
+type resolvedPeerOrigin struct {
+	baseURL    string
+	peerDomain string
 }
 
-func peerDomainForProfile(host string) string {
-	if strings.Contains(host, "://") {
-		if parsed, err := url.Parse(host); err == nil && parsed.Host != "" {
-			return parsed.Host
-		}
+func (c *Client) resolvePeerOrigin(host string) resolvedPeerOrigin {
+	decision := c.peerContract.ResolvePeerOrigin(host)
+	return resolvedPeerOrigin{
+		baseURL:    decision.BaseURL,
+		peerDomain: decision.PeerDomain,
 	}
-	return host
 }

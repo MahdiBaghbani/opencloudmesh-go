@@ -24,6 +24,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
@@ -41,6 +42,7 @@ type Handler struct {
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
+	peerContract    *peercompat.CompiledContract
 	localProvider   string // raw host[:port] for owner/sender identity
 	currentUser     func(context.Context) (*identity.User, error)
 	logger          *slog.Logger
@@ -80,6 +82,12 @@ func NewHandler(
 // SetAllowedPaths restricts localPath to the given directory prefixes.
 func (h *Handler) SetAllowedPaths(paths []string) {
 	h.allowedPaths = paths
+}
+
+// SetPeerContract wires the compiled compatibility contract so receiver
+// discovery and signing decisions use the shared peer-origin resolver.
+func (h *Handler) SetPeerContract(peerContract *peercompat.CompiledContract) {
+	h.peerContract = peerContract
 }
 
 // HandleCreate handles POST /api/shares/outgoing.
@@ -153,8 +161,8 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Discover the receiver's OCM capabilities before creating any local state.
 	// This prevents orphan rows when the receiver is unreachable or incompatible.
-	receiverBaseURL := "https://" + req.ReceiverDomain
-	disc, err := h.discoveryClient.Discover(r.Context(), receiverBaseURL)
+	receiverOrigin := h.resolvePeerOrigin(req.ReceiverDomain)
+	disc, err := h.discoveryClient.Discover(r.Context(), receiverOrigin.baseURL)
 	if err != nil {
 		h.logger.Warn("receiver discovery failed", "receiver", req.ReceiverDomain, "error", err)
 		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed, "could not discover receiver")
@@ -241,7 +249,13 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if err := h.sendShareToReceiver(r.Context(), disc.EndPoint, payload, disc); err != nil {
+	if err := h.sendShareToReceiver(
+		r.Context(),
+		disc.EndPoint,
+		receiverOrigin.peerDomain,
+		payload,
+		disc,
+	); err != nil {
 		h.logger.Warn("failed to send share to receiver", "receiver", req.ReceiverDomain, "error", err)
 		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, err.Error())
 		return
@@ -315,7 +329,13 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	return cleanPath, nil
 }
 
-func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payload spec.NewShareRequest, disc *discovery.Discovery) error {
+func (h *Handler) sendShareToReceiver(
+	ctx context.Context,
+	endPoint string,
+	peerDomain string,
+	payload spec.NewShareRequest,
+	disc *discovery.Discovery,
+) error {
 	sharesURL, err := url.JoinPath(endPoint, "shares")
 	if err != nil {
 		return fmt.Errorf("failed to build shares URL: %w", err)
@@ -333,12 +353,13 @@ func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payl
 	req.Header.Set("Content-Type", "application/json")
 
 	if h.outboundPolicy != nil {
-		peerURL, parseErr := url.Parse(endPoint)
-		var peerDomain string
-		if parseErr != nil || peerURL.Host == "" {
-			peerDomain = endPoint
-		} else {
-			peerDomain = peerURL.Host
+		if peerDomain == "" {
+			peerURL, parseErr := url.Parse(endPoint)
+			if parseErr != nil || peerURL.Host == "" {
+				peerDomain = endPoint
+			} else {
+				peerDomain = peerURL.Host
+			}
 		}
 		decision := h.outboundPolicy.ShouldSign(
 			outboundsigning.EndpointShares,
@@ -378,4 +399,17 @@ func generateSharedSecret() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return base64.URLEncoding.EncodeToString(b)
+}
+
+type resolvedPeerOrigin struct {
+	baseURL    string
+	peerDomain string
+}
+
+func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
+	decision := h.peerContract.ResolvePeerOrigin(peerDomain)
+	return resolvedPeerOrigin{
+		baseURL:    decision.BaseURL,
+		peerDomain: decision.PeerDomain,
+	}
 }

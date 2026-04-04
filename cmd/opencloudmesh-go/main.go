@@ -259,6 +259,7 @@ func main() {
 	outboundPolicy := outboundsigning.NewOutboundPolicy(runtimePolicy, profileRegistry, openCloudMeshPolicy)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
+	peerDiscoveryAdapter.SetPeerContract(peerContract)
 	signatureMiddleware := crypto.NewSignatureMiddleware(runtimePolicy, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
 
 	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
