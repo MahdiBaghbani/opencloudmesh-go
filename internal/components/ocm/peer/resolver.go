@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 )
@@ -54,6 +55,9 @@ func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (s
 
 	if req.RecipientProvider == "" {
 		return "", fmt.Errorf("no recipientProvider in invite-accepted request")
+	}
+	if strings.Contains(req.RecipientProvider, "://") {
+		return "", fmt.Errorf("invalid recipientProvider in invite-accepted request")
 	}
 
 	return req.RecipientProvider, nil

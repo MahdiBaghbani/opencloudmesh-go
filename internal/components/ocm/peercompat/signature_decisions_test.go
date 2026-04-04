@@ -54,6 +54,32 @@ func TestSignatureDecisionForPeer_UnmatchedUsesStrictDefaults(t *testing.T) {
 	}
 }
 
+func TestSignatureDecisionForPeer_URLShapedInputDoesNotMatch(t *testing.T) {
+	contract, err := NewCompiledContract(
+		map[string]*Profile{
+			"compat": {
+				Name:                 "compat",
+				AllowUnsignedInbound: true,
+			},
+		},
+		[]ProfileMapping{{Pattern: "peer.example", ProfileName: "compat"}},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
+	}
+
+	decision := contract.SignatureDecisionForPeer("https://peer.example")
+	if decision.Matched {
+		t.Fatalf("expected URL-shaped input to stay unmatched: %+v", decision)
+	}
+	if decision.PeerDomain != "" {
+		t.Fatalf("expected empty peer domain for invalid input, got %q", decision.PeerDomain)
+	}
+	if decision.Profile != "strict" {
+		t.Fatalf("expected strict profile fallback, got %q", decision.Profile)
+	}
+}
+
 func TestResolveDiscoveryFailure_GlobalAllowWins(t *testing.T) {
 	contract, err := NewCompiledContract(nil, nil)
 	if err != nil {

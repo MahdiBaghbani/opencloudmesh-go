@@ -29,7 +29,7 @@ type DiscoveryFailureDecision struct {
 // SignatureDecisionForPeer returns peer-scoped signature compatibility
 // decisions. Relaxations apply only when a peer mapping matched.
 func (c *CompiledContract) SignatureDecisionForPeer(peerDomain string) SignaturePeerDecision {
-	domain := normalizeDomain(peerDomain)
+	domain := signatureDecisionPeerDomain(peerDomain)
 	decision := SignaturePeerDecision{
 		PeerDomain: domain,
 		Profile:    "strict",
@@ -56,6 +56,14 @@ func (c *CompiledContract) SignatureDecisionForPeer(peerDomain string) Signature
 	}
 
 	return decision
+}
+
+func signatureDecisionPeerDomain(peerInput string) string {
+	domain, inputScheme := peerDomainFromInput(peerInput)
+	if inputScheme != "" {
+		return ""
+	}
+	return normalizeDomain(domain)
 }
 
 // ResolveDiscoveryFailure decides whether discovery errors can fail open. Global

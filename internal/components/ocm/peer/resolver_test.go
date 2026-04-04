@@ -95,6 +95,17 @@ func TestResolveInviteAcceptedRequest_MissingProvider(t *testing.T) {
 	}
 }
 
+func TestResolveInviteAcceptedRequest_RejectsURLShapedProvider(t *testing.T) {
+	body := []byte(`{"recipientProvider":"https://recipient.example","token":"abc","userID":"u"}`)
+	r := httptest.NewRequest("POST", "/ocm/invite-accepted", nil)
+
+	resolver := NewResolver()
+	_, err := resolver.ResolveInviteAcceptedRequest(r, body)
+	if err == nil {
+		t.Fatal("expected error for URL-shaped recipientProvider")
+	}
+}
+
 func TestResolveNotificationsRequest_ReturnsEmpty(t *testing.T) {
 	body := []byte(`{"notificationId":"123"}`)
 	r := httptest.NewRequest("POST", "/ocm/notifications", nil)
