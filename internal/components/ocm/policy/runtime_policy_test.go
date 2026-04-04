@@ -190,11 +190,79 @@ func TestRuntimePolicyEvaluate_DetectsMappedProfileRelaxations(t *testing.T) {
 	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
 		{Pattern: "*.nextcloud.example", ProfileName: "nextcloud"},
 	})
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
 
-	eval := policy.NewRuntimePolicy(cfg, registry).Evaluate()
+	eval := policy.NewRuntimePolicy(cfg, contract).Evaluate()
 
 	if !eval.HasLiveProfileRelaxations {
 		t.Fatal("expected live profile relaxations to be detected")
+	}
+	if !hasReason(eval.Strict.ViolationReasons, "peer_profile_relaxations_active") {
+		t.Fatalf("expected profile-relaxations reason, got %v", eval.Strict.ViolationReasons)
+	}
+}
+
+func TestRuntimePolicyEvaluate_DetectsBasicAuthAllowlistRelaxation(t *testing.T) {
+	cfg := config.StrictConfig()
+	cfg.Signature.PeerProfileLevelOverride = "non-strict"
+	cfg.PeerProfiles.Mappings = []config.PeerProfileMapping{
+		{Pattern: "*.peer.example", Profile: "basicauth-compat"},
+	}
+	registry := peercompat.NewProfileRegistry(
+		map[string]*peercompat.Profile{
+			"basicauth-compat": {
+				Name:                     "basicauth-compat",
+				AllowedBasicAuthPatterns: []string{"token:"},
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "*.peer.example", ProfileName: "basicauth-compat"},
+		},
+	)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
+
+	eval := policy.NewRuntimePolicy(cfg, contract).Evaluate()
+
+	if !eval.HasLiveProfileRelaxations {
+		t.Fatal("expected basic-auth allowlist to be treated as live relaxation")
+	}
+	if !hasReason(eval.Strict.ViolationReasons, "peer_profile_relaxations_active") {
+		t.Fatalf("expected profile-relaxations reason, got %v", eval.Strict.ViolationReasons)
+	}
+}
+
+func TestRuntimePolicyEvaluate_DetectsGrantTypeRelaxation(t *testing.T) {
+	cfg := config.StrictConfig()
+	cfg.Signature.PeerProfileLevelOverride = "non-strict"
+	cfg.PeerProfiles.Mappings = []config.PeerProfileMapping{
+		{Pattern: "*.peer.example", Profile: "grant-compat"},
+	}
+	registry := peercompat.NewProfileRegistry(
+		map[string]*peercompat.Profile{
+			"grant-compat": {
+				Name:                   "grant-compat",
+				TokenExchangeGrantType: "ocm_share",
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "*.peer.example", ProfileName: "grant-compat"},
+		},
+	)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
+
+	eval := policy.NewRuntimePolicy(cfg, contract).Evaluate()
+
+	if !eval.HasLiveProfileRelaxations {
+		t.Fatal("expected non-default grant type to be treated as live relaxation")
 	}
 	if !hasReason(eval.Strict.ViolationReasons, "peer_profile_relaxations_active") {
 		t.Fatalf("expected profile-relaxations reason, got %v", eval.Strict.ViolationReasons)

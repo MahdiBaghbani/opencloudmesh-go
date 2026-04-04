@@ -257,7 +257,7 @@ func main() {
 	}
 
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, profileRegistry)
+	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
 	runtimeEval := runtimePolicy.Evaluate()
 	if runtimeEval.Strict.IsStrict {
 		logger.Info(

@@ -65,7 +65,7 @@ type RuntimeEvaluation struct {
 }
 
 // NewRuntimePolicy constructs the resolved runtime posture from frozen config.
-func NewRuntimePolicy(cfg *config.Config, profileRegistry *peercompat.ProfileRegistry) *RuntimePolicy {
+func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContract) *RuntimePolicy {
 	if cfg == nil {
 		return &RuntimePolicy{
 			evaluation: RuntimeEvaluation{
@@ -104,7 +104,11 @@ func NewRuntimePolicy(cfg *config.Config, profileRegistry *peercompat.ProfileReg
 		InsecureSkipVerify: cfg.OutboundHTTP.InsecureSkipVerify,
 	}
 	trust := deriveTrustPosture(cfg)
-	hasLiveRelaxations := hasMappedProfileRelaxations(cfg, profileRegistry)
+	compatSummary := peercompat.CompatibilitySummary{}
+	if peerContract != nil {
+		compatSummary = peerContract.Summary()
+	}
+	hasLiveRelaxations := hasMappedProfileRelaxations(cfg, compatSummary)
 	violationReasons := strictAssessmentReasons(signature, transport, trust, hasLiveRelaxations)
 	isStrict := len(violationReasons) == 0
 
@@ -255,63 +259,28 @@ func deriveHTTPRequestSignatureRequirement(inboundMode string) bool {
 	return strings.EqualFold(inboundMode, "strict")
 }
 
-func hasMappedProfileRelaxations(cfg *config.Config, registry *peercompat.ProfileRegistry) bool {
+func hasMappedProfileRelaxations(cfg *config.Config, summary peercompat.CompatibilitySummary) bool {
 	if cfg.Signature.PeerProfileLevelOverride == "off" {
 		return false
 	}
 	if len(cfg.PeerProfiles.Mappings) == 0 {
 		return false
 	}
+	if len(summary.Profiles) == 0 {
+		return false
+	}
+	summaryByName := make(map[string]peercompat.ProfileSummary, len(summary.Profiles))
+	for _, profileSummary := range summary.Profiles {
+		summaryByName[profileSummary.Name] = profileSummary
+	}
 	for _, mapping := range cfg.PeerProfiles.Mappings {
-		profile := lookupProfile(mapping.Profile, cfg, registry)
-		if profileHasRelaxations(profile) {
+		profileSummary, ok := summaryByName[mapping.Profile]
+		if !ok {
+			continue
+		}
+		if profileSummary.HasRelaxations {
 			return true
 		}
 	}
 	return false
-}
-
-func lookupProfile(
-	name string,
-	cfg *config.Config,
-	registry *peercompat.ProfileRegistry,
-) *peercompat.Profile {
-	if registry != nil {
-		if profile := registry.GetProfileByName(name); profile != nil {
-			return profile
-		}
-	}
-	if custom, ok := cfg.PeerProfiles.CustomProfiles[name]; ok {
-		return &peercompat.Profile{
-			Name:                     name,
-			AllowUnsignedInbound:     custom.AllowUnsignedInbound,
-			AllowUnsignedOutbound:    custom.AllowUnsignedOutbound,
-			AllowMismatchedHost:      custom.AllowMismatchedHost,
-			AllowHTTP:                custom.AllowHTTP,
-			TokenExchangeQuirks:      custom.TokenExchangeQuirks,
-			TokenExchangeGrantType:   "",
-			AllowedBasicAuthPatterns: custom.AllowedBasicAuthPatterns,
-		}
-	}
-	return peercompat.BuiltinProfiles()[name]
-}
-
-func profileHasRelaxations(profile *peercompat.Profile) bool {
-	if profile == nil {
-		return false
-	}
-	if profile.AllowUnsignedInbound || profile.AllowUnsignedOutbound {
-		return true
-	}
-	if profile.AllowMismatchedHost || profile.AllowHTTP {
-		return true
-	}
-	if len(profile.TokenExchangeQuirks) > 0 {
-		return true
-	}
-	if len(profile.AllowedBasicAuthPatterns) > 0 {
-		return true
-	}
-	return profile.TokenExchangeGrantType != "" &&
-		profile.TokenExchangeGrantType != "authorization_code"
 }

@@ -171,10 +171,9 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to compile peer compatibility contract: %v", err)
 	}
-	profileRegistry := peerContract.ProfileRegistry()
 
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, profileRegistry)
+	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
 
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()
