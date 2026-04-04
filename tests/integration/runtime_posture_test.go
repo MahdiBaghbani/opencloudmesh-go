@@ -64,6 +64,55 @@ outbound_mode = "criteria-only"
 	}
 }
 
+func TestStrictModeRejectsTokenOnlyAtStartup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.toml")
+	config := `mode = "strict"
+listen_addr = "127.0.0.1:0"
+public_origin = "http://localhost:9203"
+external_base_path = ""
+
+[tls]
+mode = "off"
+
+[server]
+trusted_proxies = ["127.0.0.0/8", "::1/128"]
+
+[server.bootstrap_admin]
+username = "admin"
+
+[outbound_http]
+timeout_ms = 5000
+connect_timeout_ms = 2000
+max_redirects = 1
+max_response_bytes = 1048576
+insecure_skip_verify = true
+
+[signature]
+outbound_mode = "token-only"
+`
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected startup failure for strict token-only posture, got success: %s", output)
+	}
+
+	outputText := string(output)
+	if !strings.Contains(outputText, "mode=strict requires signature.outbound_mode=strict") {
+		t.Fatalf("expected strict token-only error in output, got: %s", outputText)
+	}
+}
+
 func TestStrictModeDefaultPeerPolicyDemotesRuntimePosture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -236,12 +285,50 @@ global_enforce = false
 
 	logPath := filepath.Join(srv.TempDir, "server.log")
 	logs := waitForLogSubstrings(t, logPath,
+		"peer trust is enabled without global enforcement",
 		"resolved runtime posture is non-strict",
 		"trust_status",
 		"fail-open",
 	)
 	if logs == "" {
 		t.Fatalf("expected non-strict runtime posture log with fail-open trust status")
+	}
+}
+
+func TestInteropModeTokenOnlyDemotesRuntimePosture(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                  "interop-token-only",
+		Mode:                  "interop",
+		KeepSignatureDefaults: true,
+		ExtraConfig: `
+[signature]
+outbound_mode = "token-only"
+`,
+	})
+	defer srv.Stop(t)
+
+	resp, err := http.Get(srv.BaseURL + "/api/healthz")
+	if err != nil {
+		t.Fatalf("health check failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected healthz 200, got %d", resp.StatusCode)
+	}
+
+	logPath := filepath.Join(srv.TempDir, "server.log")
+	logs := waitForLogSubstrings(t, logPath,
+		"token-only",
+		"resolved runtime posture is non-strict",
+		"signature_outbound_mode_not_strict",
+	)
+	if logs == "" {
+		t.Fatalf("expected token-only runtime posture log")
 	}
 }
 

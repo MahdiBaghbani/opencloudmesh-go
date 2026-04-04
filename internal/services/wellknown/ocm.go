@@ -99,13 +99,11 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 			}
 		}
 
-		// Token exchange derivation
+		// Token exchange path derivation. Capability enablement belongs to the
+		// canonical OCM policy when SharedDeps provides it.
 		var rawTE map[string]any
 		if te, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
 			rawTE = te
-		}
-		if _, set := rawTE["enabled"]; !set {
-			c.TokenExchange.Enabled = d.Config.TokenExchangeEnabled()
 		}
 		if _, set := rawTE["path"]; !set {
 			c.TokenExchange.Path = d.Config.TokenExchange.Path
@@ -187,6 +185,8 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		ev := d.OpenCloudMeshPolicy.Evaluate()
 		localEval = localEvaluation{codeFlow: ev.TokenExchangeCapable, strict: ev.RequiresTokenExchange}
 	} else {
+		// Keep narrow tests usable when they seed the service-local config
+		// directly, but do not silently re-derive this from shared raw config.
 		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
 	}
 	if d != nil && d.RuntimePolicy != nil {

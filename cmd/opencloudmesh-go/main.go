@@ -50,7 +50,7 @@ import (
 
 func main() {
 	configPath := flag.String("config", "", "Path to TOML config file (optional)")
-	modeFlag := flag.String("mode", "", "Operating mode: strict, interop, or dev (overrides config)")
+	modeFlag := flag.String("mode", "", "Preset bundle: strict, interop (compat tier), or dev (overrides config)")
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
 	publicOrigin := flag.String("public-origin", "", "Public origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
@@ -72,7 +72,7 @@ func main() {
 		Level: slog.LevelInfo,
 	}))
 
-	// Config precedence: mode preset -> TOML file -> CLI flags
+	// Config precedence: preset bundle -> TOML file -> CLI flags
 	cfg, err := config.Load(config.LoaderOptions{
 		ConfigPath: *configPath,
 		ModeFlag:   *modeFlag,
@@ -222,6 +222,13 @@ func main() {
 		}
 		policyEngine = peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
 		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
+		if runtimeEval.Trust.Status == policy.TrustStatusFailOpen {
+			logger.Warn(
+				"peer trust is enabled without global enforcement",
+				"trust_status", runtimeEval.Trust.Status,
+				"compatibility_scope", runtimeEval.CompatibilityScope,
+			)
+		}
 	}
 
 	discoveryClient.SetPeerContract(peerContract)

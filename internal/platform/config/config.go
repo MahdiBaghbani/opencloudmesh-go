@@ -11,7 +11,7 @@ import (
 
 // Config holds the server configuration.
 type Config struct {
-	// Mode is the operating mode: strict, interop, or dev.
+	// Mode selects a preset bundle: strict, interop (compat tier), or dev.
 	Mode string `toml:"mode"`
 
 	// PublicOrigin is the public origin (scheme + host + port) for this instance.

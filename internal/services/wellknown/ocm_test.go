@@ -972,4 +972,32 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			t.Fatal("expected tokenEndPoint to be present when exchange-token is advertised")
 		}
 	})
+
+	t.Run("raw config alone does not backfill capability", func(t *testing.T) {
+		tokenExchangeEnabled := true
+		cfg := &config.Config{
+			PublicOrigin:         "https://example.com",
+			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
+			RequireTokenExchange: true,
+			PeerPolicy:           "strict",
+		}
+		c := &OCMProviderConfig{Endpoint: "https://example.com"}
+		d := &deps.Deps{
+			Config: cfg,
+		}
+
+		h, err := newOCMHandler(c, nil, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, cap := range h.data.Capabilities {
+			if cap == "exchange-token" {
+				t.Fatal("did not expect exchange-token capability without canonical policy")
+			}
+		}
+		if h.data.TokenEndPoint != "" {
+			t.Fatalf("expected empty tokenEndPoint without canonical policy, got %q", h.data.TokenEndPoint)
+		}
+	})
 }

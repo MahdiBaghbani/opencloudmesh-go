@@ -135,7 +135,7 @@ validate_mode() {
       printf "%s" "$mode"
       ;;
     *)
-      echo "OCM_GO_MODE must be strict, interop, or dev; got: $mode" >&2
+      echo "OCM_GO_MODE must be strict, interop (compat tier), or dev; got: $mode" >&2
       exit 1
       ;;
   esac

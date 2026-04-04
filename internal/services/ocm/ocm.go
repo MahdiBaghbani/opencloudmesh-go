@@ -67,15 +67,13 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 
 	// Token exchange enablement is owned by OpenCloudMeshPolicy when available.
 	// Path may still be overridden per-service.
+	if d.OpenCloudMeshPolicy != nil {
+		c.TokenExchange.Enabled = d.OpenCloudMeshPolicy.Evaluate().TokenExchangeCapable
+	}
 	if d.Config != nil {
 		var rawTE map[string]any
 		if te, ok := m["token_exchange"].(map[string]any); ok {
 			rawTE = te
-		}
-		if d.OpenCloudMeshPolicy != nil {
-			c.TokenExchange.Enabled = d.OpenCloudMeshPolicy.Evaluate().TokenExchangeCapable
-		} else if _, set := rawTE["enabled"]; !set {
-			c.TokenExchange.Enabled = d.Config.TokenExchangeEnabled()
 		}
 		if _, set := rawTE["path"]; !set {
 			c.TokenExchange.Path = d.Config.TokenExchange.Path

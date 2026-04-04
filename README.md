@@ -1,10 +1,22 @@
 # opencloudmesh-go
 
-Open Cloud Mesh (OCM) reference implementation in Go. Delivered as the M5 (OCM Stub Implementation) milestone of the [Sovereign Tech Fund](https://github.com/orgs/cs3org/projects/3/views/1) funded OCM project.
+Open Cloud Mesh (OCM) server implementation in Go. Delivered as the M5 (OCM
+Stub Implementation) milestone of the [Sovereign Tech
+Fund](https://github.com/orgs/cs3org/projects/3/views/1) funded OCM project.
 
 ## Purpose
 
-This project provides an OCM-compliant server stub: capability discovery, loading certificates, ACME auto TLS, configurability, Docker deployment, and full support in the OCM Test Suite. It is the reference implementation of the OCM protocol.
+This project provides an Open Cloud Mesh server implementation in Go. The
+current strict target is a practical WebDAV-centered subset of the pinned
+OCM-API surface: latest-shape discovery, `shareType=user`, the current
+notification subset, and strict token-exchange and HTTP-signature behavior on
+that reduced path.
+
+The runtime still exposes preset bundles `strict`, `interop`, and `dev`.
+Those presets are convenience entry points, not the architecture authority:
+the effective posture is derived from canonical OCM policy plus signature,
+transport, trust, and peer-compat settings. In that model, `interop` is the
+current config label for the compatibility tier.
 
 ## OCM-STA and Milestones
 
@@ -70,7 +82,7 @@ docker run -d -p 8080:8080 -v /path/to/config.toml:/config/config.toml:ro \
 
 | Variable    | Default | Description                                   |
 | ----------- | ------- | --------------------------------------------- |
-| OCM_GO_MODE | (none)  | Override mode: `strict`, `interop`, or `dev`. |
+| OCM_GO_MODE | (none)  | Override preset bundle: `strict`, `interop` (compat tier), or `dev`. |
 
 **Config:**
 
