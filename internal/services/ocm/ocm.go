@@ -115,7 +115,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		// Signed OCM endpoints - apply per-endpoint signature verification
 		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveSharesRequest)).
 			Post("/shares", sharesHandler.CreateShare)
-		r.With(d.SignatureMiddleware.VerifyOCMRequestRequireSignature(peerResolver.ResolveNotificationsRequest)).
+		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveNotificationsRequest)).
 			Post("/notifications", notifHandler.HandleNotification)
 		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveInviteAcceptedRequest)).
 			Post("/invite-accepted", invitesHandler.HandleInviteAccepted)

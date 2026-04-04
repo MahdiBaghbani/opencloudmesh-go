@@ -46,7 +46,8 @@ func GetPeerIdentity(ctx context.Context) *PeerIdentity {
 
 // PeerDiscovery provides peer discovery information for signature verification.
 type PeerDiscovery interface {
-	// IsSigningCapable returns true if the peer advertises http-sig capability.
+	// IsSigningCapable returns true if peer discovery says unsigned OCM requests
+	// should be rejected on the signature axis.
 	IsSigningCapable(ctx context.Context, host string) (bool, error)
 	// GetPublicKey fetches the public key for a keyId.
 	GetPublicKey(ctx context.Context, keyID string) (string, error) // returns PEM

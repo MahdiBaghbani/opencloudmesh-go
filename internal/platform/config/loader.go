@@ -16,10 +16,10 @@ import (
 type Mode string
 
 const (
-	ModeStrict Mode = "strict"
-	ModeCompat Mode = "compat"
-	ModeDev    Mode = "dev"
-	ModeInterop     = ModeCompat
+	ModeStrict  Mode = "strict"
+	ModeCompat  Mode = "compat"
+	ModeDev     Mode = "dev"
+	ModeInterop      = ModeCompat
 )
 
 // ParseMode parses a mode string, returning an error for invalid values.
@@ -824,9 +824,20 @@ func validateEnums(cfg *Config) error {
 }
 
 func validateCompatibilityScopeGuardrails(cfg *Config) error {
-	if cfg == nil || cfg.CompatibilityScope != "none" {
+	if cfg == nil {
 		return nil
 	}
+	switch cfg.CompatibilityScope {
+	case "none":
+		return validateNoneCompatibilityScopeGuardrails(cfg)
+	case "scoped":
+		return validateScopedCompatibilityScopeGuardrails(cfg)
+	default:
+		return nil
+	}
+}
+
+func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
 	if cfg.Signature.InboundMode != "strict" {
 		return fmt.Errorf("compatibility_scope=none requires signature.inbound_mode=strict")
 	}
@@ -859,6 +870,37 @@ func validateCompatibilityScopeGuardrails(cfg *Config) error {
 	}
 	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
 		return fmt.Errorf("compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled")
+	}
+	return nil
+}
+
+func validateScopedCompatibilityScopeGuardrails(cfg *Config) error {
+	if cfg.Signature.InboundMode != "strict" {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.inbound_mode=strict")
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.outbound_mode=strict")
+	}
+	if cfg.Signature.PeerProfileLevelOverride == "all" {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.peer_profile_level_override!=all")
+	}
+	if cfg.Signature.OnDiscoveryError != "reject" {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.on_discovery_error=reject")
+	}
+	if cfg.Signature.AllowMismatch {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.allow_mismatch=false")
+	}
+	if cfg.TLS.Mode == "off" {
+		return fmt.Errorf("compatibility_scope=scoped requires tls.mode!=off")
+	}
+	if cfg.OutboundHTTP.SSRFMode != "strict" {
+		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.ssrf_mode=strict")
+	}
+	if cfg.OutboundHTTP.InsecureSkipVerify {
+		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.insecure_skip_verify=false")
+	}
+	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
+		return fmt.Errorf("compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled")
 	}
 	return nil
 }

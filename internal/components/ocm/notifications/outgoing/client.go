@@ -49,6 +49,9 @@ func (c *Client) SendNotification(ctx context.Context, targetHost string, notifi
 	if c.discoveryClient == nil {
 		return fmt.Errorf("discovery client not configured, cannot send notification to %s", targetHost)
 	}
+	if c.outboundPolicy == nil {
+		return fmt.Errorf("outbound signing policy not configured for notifications")
+	}
 	origin := c.resolvePeerOrigin(targetHost)
 	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
@@ -67,22 +70,16 @@ func (c *Client) SendNotification(ctx context.Context, targetHost string, notifi
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.outboundPolicy != nil {
-		decision := c.outboundPolicy.ShouldSign(
-			outboundsigning.EndpointNotifications,
-			origin.peerDomain,
-			disc,
-			c.signer != nil,
-		)
-		if decision.Error != nil {
-			return fmt.Errorf("outbound signing policy error: %w", decision.Error)
-		}
-		if decision.ShouldSign && c.signer != nil {
-			if err := c.signer.SignRequest(req, body); err != nil {
-				return fmt.Errorf("failed to sign request: %w", err)
-			}
-		}
-	} else if c.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+	decision := c.outboundPolicy.ShouldSign(
+		outboundsigning.EndpointNotifications,
+		origin.peerDomain,
+		disc,
+		c.signer != nil,
+	)
+	if decision.Error != nil {
+		return fmt.Errorf("outbound signing policy error: %w", decision.Error)
+	}
+	if decision.ShouldSign && c.signer != nil {
 		if err := c.signer.SignRequest(req, body); err != nil {
 			return fmt.Errorf("failed to sign request: %w", err)
 		}

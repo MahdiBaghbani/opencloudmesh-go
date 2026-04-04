@@ -9,8 +9,8 @@ import (
 	"os"
 	"testing"
 
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
@@ -209,7 +209,7 @@ func TestService_RoutingSmoke(t *testing.T) {
 	}
 }
 
-func TestService_NotificationsRequireSignatureWhenActive(t *testing.T) {
+func TestService_NotificationsFollowInboundSignaturePolicy(t *testing.T) {
 	setupTestDepsWithSignature(t)
 
 	m := map[string]any{}
@@ -230,8 +230,8 @@ func TestService_NotificationsRequireSignatureWhenActive(t *testing.T) {
 
 	svc.Handler().ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected unsigned notification to be rejected with 401, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected unsigned notification to reach the handler under lenient inbound policy, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

@@ -309,6 +309,49 @@ outbound_mode = "token-only"
 	}
 }
 
+func TestScopedCompatibilityRejectsTokenOnlyAtStartup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.toml")
+	config := `mode = "strict"
+compatibility_scope = "scoped"
+listen_addr = "127.0.0.1:0"
+public_origin = "https://localhost:9206"
+external_base_path = ""
+
+[tls]
+mode = "selfsigned"
+
+[server]
+trusted_proxies = ["127.0.0.0/8", "::1/128"]
+
+[server.bootstrap_admin]
+username = "admin"
+
+[signature]
+outbound_mode = "token-only"
+`
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected startup failure for scoped token-only posture, got success: %s", output)
+	}
+
+	outputText := string(output)
+	if !strings.Contains(outputText, "compatibility_scope=scoped requires signature.outbound_mode=strict") {
+		t.Fatalf("expected scoped token-only error in output, got: %s", outputText)
+	}
+}
+
 func TestScopedCompatibilityMappedGrantOverrideDemotesRuntimePosture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")

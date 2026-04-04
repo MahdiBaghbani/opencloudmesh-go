@@ -93,6 +93,35 @@ func TestClient_SendNotification_StrictWithoutSignerReturnsPolicyError(t *testin
 	}
 }
 
+func TestClient_SendNotification_RequiresOutboundPolicy(t *testing.T) {
+	receiver, notificationCalls, _ := startNotificationReceiver(t)
+	defer receiver.Close()
+
+	requestClient, discoveryClient := newNotificationClients(t)
+	client := notificationsoutgoing.NewClient(
+		requestClient,
+		discoveryClient,
+		nil,
+		nil,
+	)
+	targetHost := strings.TrimPrefix(receiver.URL, "https://")
+
+	err := client.SendNotification(context.Background(), targetHost, &notifications.NewNotification{
+		NotificationType: notifications.NotificationShareAccepted,
+		ResourceType:     "file",
+		ProviderID:       "provider-a",
+	})
+	if err == nil {
+		t.Fatal("expected error when outbound signing policy is missing")
+	}
+	if !strings.Contains(err.Error(), "outbound signing policy not configured") {
+		t.Fatalf("expected missing outbound policy error, got %v", err)
+	}
+	if notificationCalls.Load() != 0 {
+		t.Fatalf("expected notification endpoint not called, got %d calls", notificationCalls.Load())
+	}
+}
+
 func TestClient_SendNotification_TokenOnlyModeSkipsSigning(t *testing.T) {
 	receiver, notificationCalls, sawSignature := startNotificationReceiver(t)
 	defer receiver.Close()

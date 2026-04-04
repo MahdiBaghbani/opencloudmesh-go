@@ -8,7 +8,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
-// PeerDiscoveryAdapter implements crypto.PeerDiscovery using discovery.Client (peer verification).
+// PeerDiscoveryAdapter implements crypto.PeerDiscovery using discovery.Client.
 type PeerDiscoveryAdapter struct {
 	client       *Client
 	peerContract *peercompat.CompiledContract
@@ -37,7 +37,7 @@ func (p *PeerDiscoveryAdapter) IsSigningCapable(ctx context.Context, host string
 		return false, fmt.Errorf("discovery failed for %s: %w", host, err)
 	}
 
-	return disc.HasCapability("http-sig"), nil
+	return disc.HasCriteria("http-request-signatures"), nil
 }
 
 // GetPublicKey fetches the public key for a keyId.
