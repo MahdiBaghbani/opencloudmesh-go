@@ -15,26 +15,24 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-// TestTokenExchangeFlow tests the full token exchange flow between two instances.
-// This verifies:
-// 1. Sender advertises exchange-token capability
-// 2. Receiver can create a share with must-exchange-token requirement
-// 3. Token exchange endpoint works correctly
-// 4. WebDAV access works with the exchanged token
+// TestTokenExchangeFlow exercises the full signed code-flow happy path:
+// share creation to a strict peer, signed token exchange, and WebDAV access
+// with the exchanged bearer token.
 func TestTokenExchangeFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	// Create test file that will be shared
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.txt")
 	testContent := []byte("Hello from token exchange test - this is the file content!")
@@ -42,229 +40,131 @@ func TestTokenExchangeFlow(t *testing.T) {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
-	// Start two instances
-	// Instance1 = sender (shares the file)
-	// Instance2 = receiver (requests the file)
-	// Note: [token_exchange] and [shares] sections were removed - they were phantom knobs
-	// (not decoded by the loader). Token exchange capability is always available.
-	h := harness.StartTwoInstances(t,
-		harness.SubprocessConfig{Name: "sender", Mode: "dev"},
-		harness.SubprocessConfig{Name: "receiver", Mode: "dev"},
+	binaryPath := harness.BuildBinary(t)
+	sender := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                  "token-flow-sender",
+		Mode:                  "compat",
+		KeepSignatureDefaults: true,
+		ExtraConfig: `
+ssrf_mode = "off"
+`,
+	})
+	defer sender.Stop(t)
+
+	receiver := startStrictCodeFlowReceiver(t)
+	defer receiver.Close()
+
+	token := loginSubprocessAdmin(t, sender)
+	status, body := createOutgoingShare(t, sender.BaseURL, token, map[string]any{
+		"receiverDomain": receiver.peerDomain,
+		"shareWith":      "bob@" + receiver.peerDomain,
+		"localPath":      testFile,
+		"permissions":    []string{"read"},
+	})
+	if status != http.StatusCreated {
+		sender.DumpLogs(t)
+		t.Fatalf("expected 201 from outgoing share create, got %d: %s", status, body)
+	}
+
+	var created struct {
+		ProviderID string `json:"providerId"`
+		WebDAVID   string `json:"webdavId"`
+	}
+	if err := json.Unmarshal([]byte(body), &created); err != nil {
+		t.Fatalf("failed to decode outgoing share response: %v", err)
+	}
+	if created.ProviderID == "" || created.WebDAVID == "" {
+		t.Fatalf("outgoing share response missing providerId/webdavId: %s", body)
+	}
+
+	captured := receiver.waitForShare(t)
+	if captured.ProviderID != created.ProviderID {
+		t.Fatalf("captured providerId %q does not match API response %q", captured.ProviderID, created.ProviderID)
+	}
+	if captured.SharedSecret == "" {
+		t.Fatal("captured strict share is missing sharedSecret")
+	}
+	if !captured.MustExchangeToken {
+		t.Fatal("expected strict receiver to receive must-exchange-token share")
+	}
+	if !captured.SawSignature {
+		t.Fatal("expected outbound /ocm/shares request to be signed for strict receiver")
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("client_id", receiver.peerDomain)
+	form.Set("code", captured.SharedSecret)
+
+	unsignedResp, err := http.Post(
+		sender.BaseURL+"/ocm/token",
+		"application/x-www-form-urlencoded",
+		strings.NewReader(form.Encode()),
 	)
-	defer h.Stop(t)
+	if err != nil {
+		t.Fatalf("failed to call unsigned token endpoint: %v", err)
+	}
+	defer unsignedResp.Body.Close()
+	if unsignedResp.StatusCode != http.StatusUnauthorized {
+		respBody, _ := io.ReadAll(unsignedResp.Body)
+		t.Fatalf("expected unsigned token request to be rejected with 401, got %d: %s", unsignedResp.StatusCode, respBody)
+	}
 
-	t.Run("DiscoveryAdvertisesTokenExchange", func(t *testing.T) {
-		resp, err := http.Get(h.Server1.BaseURL + "/.well-known/ocm")
-		if err != nil {
-			h.DumpLogs(t)
-			t.Fatalf("failed to get discovery: %v", err)
-		}
-		defer resp.Body.Close()
+	signedReq, err := http.NewRequest(
+		http.MethodPost,
+		sender.BaseURL+"/ocm/token",
+		strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		t.Fatalf("failed to create signed token request: %v", err)
+	}
+	signedReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := receiver.signer.Sign(signedReq); err != nil {
+		t.Fatalf("failed to sign token request: %v", err)
+	}
 
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("discovery returned %d", resp.StatusCode)
-		}
+	signedResp, err := http.DefaultClient.Do(signedReq)
+	if err != nil {
+		t.Fatalf("failed to call signed token endpoint: %v", err)
+	}
+	defer signedResp.Body.Close()
+	if signedResp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(signedResp.Body)
+		t.Fatalf("expected signed token request to succeed, got %d: %s", signedResp.StatusCode, respBody)
+	}
 
-		var disc struct {
-			Enabled       bool     `json:"enabled"`
-			EndPoint      string   `json:"endPoint"`
-			TokenEndPoint string   `json:"tokenEndPoint"`
-			Capabilities  []string `json:"capabilities"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
-			t.Fatalf("failed to decode discovery: %v", err)
-		}
+	var tokenResp spec.TokenResponse
+	if err := json.NewDecoder(signedResp.Body).Decode(&tokenResp); err != nil {
+		t.Fatalf("failed to decode token response: %v", err)
+	}
+	if tokenResp.AccessToken == "" {
+		t.Fatal("signed token exchange returned empty access_token")
+	}
 
-		t.Logf("Sender discovery: tokenEndPoint=%q, capabilities=%v", disc.TokenEndPoint, disc.Capabilities)
+	webdavURL := sender.BaseURL + "/webdav/ocm/" + created.WebDAVID + "/" + url.PathEscape(filepath.Base(testFile))
+	webdavReq, err := http.NewRequest(http.MethodGet, webdavURL, nil)
+	if err != nil {
+		t.Fatalf("failed to create WebDAV request: %v", err)
+	}
+	webdavReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
 
-		// Verify exchange-token capability is advertised
-		hasExchangeToken := false
-		for _, cap := range disc.Capabilities {
-			if strings.Contains(cap, "exchange-token") {
-				hasExchangeToken = true
-				break
-			}
-		}
-		if !hasExchangeToken {
-			t.Errorf("exchange-token capability MUST be advertised when token exchange is enabled (default)")
-		}
+	webdavResp, err := http.DefaultClient.Do(webdavReq)
+	if err != nil {
+		t.Fatalf("failed to call WebDAV endpoint: %v", err)
+	}
+	defer webdavResp.Body.Close()
+	if webdavResp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(webdavResp.Body)
+		t.Fatalf("expected WebDAV bearer access to succeed, got %d: %s", webdavResp.StatusCode, respBody)
+	}
 
-		// Verify tokenEndPoint is present when enabled (regression: must not be empty)
-		if disc.TokenEndPoint == "" {
-			t.Errorf("tokenEndPoint MUST be present when token exchange is enabled; got empty string")
-		}
-	})
-
-	t.Run("TokenEndpointExists", func(t *testing.T) {
-		// The token endpoint should exist and respond to POST
-		// Sending a malformed request should get an error response, not 404
-		resp, err := http.Post(h.Server1.BaseURL+"/ocm/token", "application/x-www-form-urlencoded", nil)
-		if err != nil {
-			t.Fatalf("failed to call token endpoint: %v", err)
-		}
-		defer resp.Body.Close()
-
-		// Should return 400 (bad request) not 404 (not found)
-		if resp.StatusCode == http.StatusNotFound {
-			t.Fatal("token endpoint not found - /ocm/token should exist")
-		}
-
-		// 400 or 401 are expected for malformed request
-		if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnauthorized {
-			t.Logf("token endpoint returned %d (expected 400 for invalid request)", resp.StatusCode)
-		}
-	})
-
-	t.Run("TokenExchangeWithMockedShare", func(t *testing.T) {
-		// This test exercises the token exchange endpoint directly.
-		// In a real scenario, the share would be created first via /ocm/shares.
-		// For this test, we'll verify the endpoint behavior with known invalid inputs.
-
-		// Send a token exchange request with proper form data but invalid code
-		data := url.Values{}
-		data.Set("grant_type", "ocm_share")
-		data.Set("client_id", "receiver.example.com")
-		data.Set("code", "nonexistent-shared-secret")
-
-		resp, err := http.Post(
-			h.Server1.BaseURL+"/ocm/token",
-			"application/x-www-form-urlencoded",
-			strings.NewReader(data.Encode()),
-		)
-		if err != nil {
-			t.Fatalf("failed to call token endpoint: %v", err)
-		}
-		defer resp.Body.Close()
-
-		// Should return 400 with invalid_grant because the code (shared secret) doesn't exist
-		if resp.StatusCode != http.StatusBadRequest {
-			body, _ := io.ReadAll(resp.Body)
-			t.Fatalf("expected 400 for invalid code, got %d: %s", resp.StatusCode, body)
-		}
-
-		var errResp struct {
-			Error            string `json:"error"`
-			ErrorDescription string `json:"error_description"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			t.Fatalf("failed to decode error response: %v", err)
-		}
-
-		if errResp.Error != "invalid_grant" {
-			t.Errorf("expected error=invalid_grant, got %q", errResp.Error)
-		}
-	})
-
-	t.Run("TokenExchangeWithJSONBody", func(t *testing.T) {
-		// Test Nextcloud interop: JSON body instead of form-urlencoded
-		reqBody := map[string]string{
-			"grant_type": "ocm_share",
-			"client_id":  "receiver.example.com",
-			"code":       "nonexistent-shared-secret",
-		}
-		body, _ := json.Marshal(reqBody)
-
-		resp, err := http.Post(
-			h.Server1.BaseURL+"/ocm/token",
-			"application/json",
-			bytes.NewReader(body),
-		)
-		if err != nil {
-			t.Fatalf("failed to call token endpoint: %v", err)
-		}
-		defer resp.Body.Close()
-
-		// Should also return 400 with invalid_grant
-		if resp.StatusCode != http.StatusBadRequest {
-			respBody, _ := io.ReadAll(resp.Body)
-			t.Fatalf("expected 400 for invalid code (JSON), got %d: %s", resp.StatusCode, respBody)
-		}
-
-		var errResp struct {
-			Error string `json:"error"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			t.Fatalf("failed to decode error response: %v", err)
-		}
-
-		if errResp.Error != "invalid_grant" {
-			t.Errorf("expected error=invalid_grant, got %q", errResp.Error)
-		}
-	})
-
-	t.Run("InvalidGrantTypeRejected", func(t *testing.T) {
-		data := url.Values{}
-		data.Set("grant_type", "password") // Invalid grant type
-		data.Set("client_id", "receiver.example.com")
-		data.Set("code", "some-secret")
-
-		resp, err := http.Post(
-			h.Server1.BaseURL+"/ocm/token",
-			"application/x-www-form-urlencoded",
-			strings.NewReader(data.Encode()),
-		)
-		if err != nil {
-			t.Fatalf("failed to call token endpoint: %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusBadRequest {
-			body, _ := io.ReadAll(resp.Body)
-			t.Fatalf("expected 400 for invalid grant_type, got %d: %s", resp.StatusCode, body)
-		}
-
-		var errResp struct {
-			Error string `json:"error"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			t.Fatalf("failed to decode error response: %v", err)
-		}
-
-		if errResp.Error != "invalid_grant" {
-			t.Errorf("expected error=invalid_grant, got %q", errResp.Error)
-		}
-	})
-
-	t.Run("AuthorizationCodeGrantTypeAccepted", func(t *testing.T) {
-		// authorization_code is now a valid grant_type (spec-first).
-		// It should pass the grant_type check and fail on invalid code, not on grant_type.
-		data := url.Values{}
-		data.Set("grant_type", "authorization_code")
-		data.Set("client_id", "receiver.example.com")
-		data.Set("code", "nonexistent-secret")
-
-		resp, err := http.Post(
-			h.Server1.BaseURL+"/ocm/token",
-			"application/x-www-form-urlencoded",
-			strings.NewReader(data.Encode()),
-		)
-		if err != nil {
-			t.Fatalf("failed to call token endpoint: %v", err)
-		}
-		defer resp.Body.Close()
-
-		// Should return 400 with invalid_grant (code not found), NOT unsupported grant_type
-		if resp.StatusCode != http.StatusBadRequest {
-			body, _ := io.ReadAll(resp.Body)
-			t.Fatalf("expected 400 for invalid code with authorization_code grant, got %d: %s", resp.StatusCode, body)
-		}
-
-		var errResp struct {
-			Error            string `json:"error"`
-			ErrorDescription string `json:"error_description"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			t.Fatalf("failed to decode error response: %v", err)
-		}
-
-		if errResp.Error != "invalid_grant" {
-			t.Errorf("expected error=invalid_grant (code not found), got %q", errResp.Error)
-		}
-		// The error should be about the code, not about grant_type
-		if strings.Contains(errResp.ErrorDescription, "grant_type") {
-			t.Errorf("error_description should not mention grant_type (it should be about invalid code), got %q", errResp.ErrorDescription)
-		}
-	})
+	gotContent, err := io.ReadAll(webdavResp.Body)
+	if err != nil {
+		t.Fatalf("failed to read WebDAV response body: %v", err)
+	}
+	if !bytes.Equal(gotContent, testContent) {
+		t.Fatalf("unexpected WebDAV body %q, want %q", gotContent, testContent)
+	}
 }
 
 // TestWebDAVWithBearerToken tests WebDAV access with bearer token authentication.
@@ -284,8 +184,9 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 	// Note: [shares] allowed_paths section was removed - it was a phantom knob (not decoded).
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "webdav-test",
-		Mode: "dev",
+		Name:                  "webdav-test",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 	})
 	defer srv.Stop(t)
 
@@ -338,8 +239,9 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "token-errors",
-		Mode: "dev",
+		Name:                  "token-errors",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 	})
 	defer srv.Stop(t)
 
@@ -415,8 +317,9 @@ func TestTokenExchangeDisabled(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "token-disabled",
-		Mode: "dev", // dev mode so signature middleware doesn't interfere
+		Name:                  "token-disabled",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 		ExtraConfig: `
 # Disable token exchange globally for evaluator-owned capability/criteria derivation
 [token_exchange]
@@ -513,8 +416,9 @@ func TestTokenExchangeWithPerServiceConfig(t *testing.T) {
 
 	// Use the new per-service config shape instead of flat [token_exchange]
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "per-service-config",
-		Mode: "dev",
+		Name:                  "per-service-config",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 		ExtraConfig: `
 # Per-service configuration (new Reva-aligned shape)
 [http.services.wellknown]
@@ -600,8 +504,9 @@ func TestTokenExchangeNestedPath(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "token-nested-path",
-		Mode: "dev",
+		Name:                  "token-nested-path",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 		ExtraConfig: `
 # Override per-service config for nested path
 [http.services.wellknown.ocmprovider.token_exchange]
@@ -692,7 +597,7 @@ path = "token/v2"
 }
 
 // TestInteropModeCanonicalPolicy exercises canonical policy under interop mode,
-// where the mode preset supplies stricter signature and token exchange defaults.
+// which is the repo's compatibility preset with lenient inbound verification.
 func TestInteropModeCanonicalPolicy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -703,6 +608,9 @@ func TestInteropModeCanonicalPolicy(t *testing.T) {
 		Name:                  "interop-policy",
 		Mode:                  "interop",
 		KeepSignatureDefaults: true,
+		ExtraConfig: `
+ssrf_mode = "off"
+`,
 	})
 	defer srv.Stop(t)
 
@@ -764,16 +672,28 @@ func TestInteropModeCanonicalPolicy(t *testing.T) {
 	})
 
 	t.Run("TokenEndpointRejectsInvalidGrant", func(t *testing.T) {
+		peer := startStrictCodeFlowReceiver(t)
+		defer peer.Close()
+
 		data := url.Values{}
 		data.Set("grant_type", "invalid_type")
-		data.Set("client_id", "receiver.example.com")
+		data.Set("client_id", peer.peerDomain)
 		data.Set("code", "some-secret")
 
-		resp, err := http.Post(
+		req, err := http.NewRequest(
+			http.MethodPost,
 			srv.BaseURL+"/ocm/token",
-			"application/x-www-form-urlencoded",
 			strings.NewReader(data.Encode()),
 		)
+		if err != nil {
+			t.Fatalf("failed to build token request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if err := peer.signer.Sign(req); err != nil {
+			t.Fatalf("failed to sign token request: %v", err)
+		}
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("failed to call token endpoint: %v", err)
 		}
@@ -1240,6 +1160,194 @@ func startMalformedCapableNonStrictReceiver(t *testing.T) (*httptest.Server, *at
 	}))
 
 	return srv, postCount, mustExchangeFlag
+}
+
+type strictCodeFlowShareCapture struct {
+	ProviderID        string
+	SharedSecret      string
+	MustExchangeToken bool
+	SawSignature      bool
+}
+
+type strictCodeFlowReceiver struct {
+	server     *httptest.Server
+	peerDomain string
+	signer     *crypto.RFC9421Signer
+	captures   chan strictCodeFlowShareCapture
+}
+
+func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
+	t.Helper()
+
+	captures := make(chan strictCodeFlowShareCapture, 1)
+	var srv *httptest.Server
+	var km *crypto.KeyManager
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/ocm", "/ocm-provider":
+			if km == nil {
+				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
+				return
+			}
+			disc := spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.2.2",
+				EndPoint:      srv.URL + "/ocm",
+				ResourceTypes: []spec.ResourceType{{Name: "file", ShareTypes: []string{"user"}, Protocols: map[string]string{"webdav": "/webdav/ocm/"}}},
+				Capabilities:  []string{"exchange-token", "http-sig"},
+				Criteria:      []string{"token-exchange", "http-request-signatures"},
+				PublicKeys: []spec.PublicKey{{
+					KeyID:        km.GetKeyID(),
+					PublicKeyPem: km.GetPublicKeyPEM(),
+					Algorithm:    "ed25519",
+				}},
+				TokenEndPoint: srv.URL + "/ocm/token",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(disc)
+		case "/ocm/shares":
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "failed to read share body", http.StatusBadRequest)
+				return
+			}
+			var req spec.NewShareRequest
+			if err := json.Unmarshal(body, &req); err != nil {
+				http.Error(w, "failed to parse share body", http.StatusBadRequest)
+				return
+			}
+			if req.Protocol.WebDAV == nil {
+				http.Error(w, "missing webdav payload", http.StatusBadRequest)
+				return
+			}
+			capture := strictCodeFlowShareCapture{
+				ProviderID:        req.ProviderID,
+				SharedSecret:      req.Protocol.WebDAV.SharedSecret,
+				MustExchangeToken: req.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken),
+				SawSignature:      r.Header.Get("Signature") != "",
+			}
+			select {
+			case captures <- capture:
+			default:
+				<-captures
+				captures <- capture
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"recipientDisplayName":"Strict Receiver"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	km = crypto.NewKeyManager("", srv.URL)
+	if err := km.LoadOrGenerate(); err != nil {
+		srv.Close()
+		t.Fatalf("failed to create strict receiver signing key: %v", err)
+	}
+
+	parsedURL, err := url.Parse(srv.URL)
+	if err != nil {
+		srv.Close()
+		t.Fatalf("failed to parse strict receiver URL: %v", err)
+	}
+
+	return &strictCodeFlowReceiver{
+		server:     srv,
+		peerDomain: parsedURL.Host,
+		signer:     crypto.NewRFC9421Signer(km),
+		captures:   captures,
+	}
+}
+
+func (r *strictCodeFlowReceiver) Close() {
+	if r != nil && r.server != nil {
+		r.server.Close()
+	}
+}
+
+func (r *strictCodeFlowReceiver) waitForShare(t *testing.T) strictCodeFlowShareCapture {
+	t.Helper()
+
+	select {
+	case capture := <-r.captures:
+		return capture
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for strict share capture")
+		return strictCodeFlowShareCapture{}
+	}
+}
+
+func loginSubprocessAdmin(t *testing.T, srv *harness.SubprocessServer) string {
+	t.Helper()
+
+	if token, _, ok := tryLogin(t, srv.BaseURL, "admin", "admin"); ok {
+		return token
+	}
+
+	logPath := filepath.Join(srv.TempDir, "server.log")
+	logs, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read subprocess log for bootstrap password: %v", err)
+	}
+
+	password := extractBootstrapPassword(string(logs))
+	if password == "" {
+		t.Fatalf("could not find bootstrap admin password in server log:\n%s", logs)
+	}
+
+	token, body, ok := tryLogin(t, srv.BaseURL, "admin", password)
+	if !ok {
+		t.Fatalf("login failed with logged bootstrap password %q: %s", password, body)
+	}
+	return token
+}
+
+func tryLogin(t *testing.T, baseURL, username, password string) (string, string, bool) {
+	t.Helper()
+
+	reqBody, err := json.Marshal(map[string]string{
+		"username": username,
+		"password": password,
+	})
+	if err != nil {
+		t.Fatalf("failed to encode login request: %v", err)
+	}
+	resp, err := http.Post(baseURL+"/api/auth/login", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("failed to call login endpoint: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", string(body), false
+	}
+
+	var parsed struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		t.Fatalf("failed to parse login response: %v", err)
+	}
+	if parsed.Token == "" {
+		return "", string(body), false
+	}
+	return parsed.Token, string(body), true
+}
+
+func extractBootstrapPassword(logs string) string {
+	marker := `"password":"`
+	start := strings.Index(logs, marker)
+	if start == -1 {
+		return ""
+	}
+	start += len(marker)
+	end := strings.Index(logs[start:], `"`)
+	if end == -1 {
+		return ""
+	}
+	return logs[start : start+end]
 }
 
 func loginAdmin(t *testing.T, baseURL, username, password string) string {

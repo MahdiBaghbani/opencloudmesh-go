@@ -178,6 +178,27 @@ func TestSignatureMiddleware_OffMode(t *testing.T) {
 	}
 }
 
+func TestSignatureMiddleware_OffMode_RequireSignaturePasses(t *testing.T) {
+	cfg := &config.SignatureConfig{InboundMode: "off"}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{}
+
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+
+	handler := mw.VerifyOCMRequestRequireSignature(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/ocm/notifications", bytes.NewBufferString(`{"providerId":"abc"}`))
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("off mode should skip signature enforcement, got status %d", w.Code)
+	}
+}
+
 func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -196,6 +217,27 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("strict mode should reject unsigned requests, got status %d", w.Code)
+	}
+}
+
+func TestSignatureMiddleware_LenientMode_RequireSignatureRejectsUnsigned(t *testing.T) {
+	cfg := &config.SignatureConfig{InboundMode: "lenient"}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{}
+
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+
+	handler := mw.VerifyOCMRequestRequireSignature(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/ocm/notifications", bytes.NewBufferString(`{"providerId":"abc"}`))
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("lenient require-signature mode should reject unsigned requests, got status %d", w.Code)
 	}
 }
 

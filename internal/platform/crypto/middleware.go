@@ -142,6 +142,21 @@ func (m *SignatureMiddleware) decisionCompatibilityScope(profile string) string 
 // VerifyOCMRequest is middleware for /ocm/* endpoints.
 // declaredPeerResolver extracts the declared peer from the request body.
 func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http.Request, body []byte) (string, error)) func(http.Handler) http.Handler {
+	return m.verifyOCMRequest(declaredPeerResolver, false)
+}
+
+// VerifyOCMRequestRequireSignature enforces a verified signature whenever the
+// signature axis is active, even if inbound mode is lenient.
+func (m *SignatureMiddleware) VerifyOCMRequestRequireSignature(
+	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
+) func(http.Handler) http.Handler {
+	return m.verifyOCMRequest(declaredPeerResolver, true)
+}
+
+func (m *SignatureMiddleware) verifyOCMRequest(
+	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
+	requireSignature bool,
+) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// If inbound mode is off, skip verification
@@ -227,7 +242,7 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 				}
 			} else {
 				// No signature present
-				if m.inboundMode == "strict" {
+				if requireSignature || m.inboundMode == "strict" {
 					http.Error(w, "signature required", http.StatusUnauthorized)
 					return
 				}

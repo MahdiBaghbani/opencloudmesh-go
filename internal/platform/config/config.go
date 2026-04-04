@@ -100,7 +100,7 @@ type LoggingConfig struct {
 type TokenExchangeConfig struct {
 	// Enabled controls whether token exchange is enabled.
 	// Pointer for presence detection; nil = use preset default.
-	// Default: false in all modes (Reva-aligned).
+	// Default: preset-driven. Strict and dev enable it; compat inherits strict.
 	Enabled *bool `toml:"enabled"`
 
 	// Path is the token exchange endpoint path (relative to /ocm/).

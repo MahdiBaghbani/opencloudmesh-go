@@ -44,8 +44,9 @@ max_stale_seconds = 600
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "federation-test",
-		Mode: "dev",
+		Name:                  "federation-test",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 		ExtraFiles: map[string]string{
 			"trust-group.json": trustGroupJSON,
 		},
@@ -85,8 +86,9 @@ func TestFederationsEndpointWithoutFederation(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "no-federation-test",
-		Mode: "dev",
+		Name:                  "no-federation-test",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 	})
 	defer srv.Stop(t)
 

@@ -18,8 +18,8 @@ func TestTwoInstanceDiscovery(t *testing.T) {
 	}
 
 	h := harness.StartTwoInstances(t,
-		harness.SubprocessConfig{Name: "instance1", Mode: "dev"},
-		harness.SubprocessConfig{Name: "instance2", Mode: "dev"},
+		harness.SubprocessConfig{Name: "instance1", Mode: "dev", KeepSignatureDefaults: true},
+		harness.SubprocessConfig{Name: "instance2", Mode: "dev", KeepSignatureDefaults: true},
 	)
 	defer h.Stop(t)
 
@@ -57,8 +57,8 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	}
 
 	h := harness.StartTwoInstances(t,
-		harness.SubprocessConfig{Name: "instance1", Mode: "dev"},
-		harness.SubprocessConfig{Name: "instance2", Mode: "dev"},
+		harness.SubprocessConfig{Name: "instance1", Mode: "dev", KeepSignatureDefaults: true},
+		harness.SubprocessConfig{Name: "instance2", Mode: "dev", KeepSignatureDefaults: true},
 	)
 	defer h.Stop(t)
 
@@ -180,8 +180,9 @@ func TestHealthEndpointSubprocess(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "health-test",
-		Mode: "dev",
+		Name:                  "health-test",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 	})
 	defer srv.Stop(t)
 

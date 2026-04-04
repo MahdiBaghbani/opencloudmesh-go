@@ -1,14 +1,18 @@
 package ocm
 
 import (
+	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
@@ -21,6 +25,39 @@ func setupTestDeps() {
 		Config:              cfg,
 		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
+	})
+}
+
+type ocmTestPeerDiscovery struct{}
+
+func (ocmTestPeerDiscovery) IsSigningCapable(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (ocmTestPeerDiscovery) GetPublicKey(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func setupTestDepsWithSignature(t *testing.T) {
+	t.Helper()
+
+	deps.ResetDeps()
+	cfg := config.DevConfig()
+	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	signatureMiddleware := crypto.NewSignatureMiddleware(
+		runtimePolicy,
+		nil,
+		ocmTestPeerDiscovery{},
+		cfg.PublicOrigin,
+		logger,
+	)
+	deps.SetDeps(&deps.Deps{
+		Config:              cfg,
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
+		RuntimePolicy:       runtimePolicy,
+		OutgoingShareRepo:   sharesoutgoing.NewMemoryOutgoingShareRepo(),
+		SignatureMiddleware: signatureMiddleware,
 	})
 }
 
@@ -169,6 +206,32 @@ func TestService_RoutingSmoke(t *testing.T) {
 				t.Errorf("GET %s: expected status 405, got %d", tt.path, w.Code)
 			}
 		})
+	}
+}
+
+func TestService_NotificationsRequireSignatureWhenActive(t *testing.T) {
+	setupTestDepsWithSignature(t)
+
+	m := map[string]any{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/notifications",
+		bytes.NewBufferString(`{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-123"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unsigned notification to be rejected with 401, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
