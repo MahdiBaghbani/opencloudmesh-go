@@ -221,29 +221,7 @@ func main() {
 		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
 	}
 
-	customProfiles := make(map[string]*peercompat.Profile, len(cfg.PeerProfiles.CustomProfiles))
-	for name, p := range cfg.PeerProfiles.CustomProfiles {
-		customProfiles[name] = &peercompat.Profile{
-			Name:                     name,
-			AllowUnsignedInbound:     p.AllowUnsignedInbound,
-			AllowUnsignedOutbound:    p.AllowUnsignedOutbound,
-			AllowMismatchedHost:      p.AllowMismatchedHost,
-			AllowHTTP:                p.AllowHTTP,
-			AllowUnsignedDiscovery:   p.AllowUnsignedDiscovery,
-			TokenExchangeQuirks:      p.TokenExchangeQuirks,
-			TokenExchangeGrantType:   p.TokenExchangeGrantType,
-			AllowedBasicAuthPatterns: p.AllowedBasicAuthPatterns,
-		}
-	}
-	mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
-	for i, m := range cfg.PeerProfiles.Mappings {
-		mappings[i] = peercompat.ProfileMapping{
-			Pattern:     m.Pattern,
-			ProfileName: m.Profile,
-		}
-	}
-
-	peerContract, err := peercompat.NewCompiledContract(customProfiles, mappings)
+	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
 	if err != nil {
 		logger.Error("failed to compile peer compatibility contract", "error", err)
 		os.Exit(1)

@@ -6,6 +6,8 @@ package peercompat
 import (
 	"strings"
 	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 func TestNewCompiledContract_CompilesExplicitUnsignedDiscovery(t *testing.T) {
@@ -80,5 +82,45 @@ func TestNewCompiledContract_RejectsInvalidGrantType(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unsupported token_exchange_grant_type") {
 		t.Fatalf("expected unsupported grant type error, got %v", err)
+	}
+}
+
+func TestNewCompiledContractFromConfig_CopiesRetainedFields(t *testing.T) {
+	cfg := config.InteropConfig()
+	cfg.PeerProfiles.Mappings = []config.PeerProfileMapping{
+		{Pattern: "peer.example.com", Profile: "compat-peer"},
+	}
+	cfg.PeerProfiles.CustomProfiles = map[string]config.PeerProfile{
+		"compat-peer": {
+			AllowUnsignedDiscovery:   true,
+			TokenExchangeQuirks:      []string{"accept_plain_token"},
+			TokenExchangeGrantType:   "ocm_share",
+			AllowedBasicAuthPatterns: []string{"token:", "id:token"},
+		},
+	}
+
+	contract, err := NewCompiledContractFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("NewCompiledContractFromConfig() unexpected error: %v", err)
+	}
+
+	profile, ok := contract.ProfileForPeer("peer.example.com")
+	if !ok {
+		t.Fatal("expected compiled profile for mapped peer")
+	}
+	if !profile.Signing.AllowUnsignedDiscovery {
+		t.Fatal("expected AllowUnsignedDiscovery to survive config builder path")
+	}
+	if !profile.TokenExchange.AcceptPlainToken {
+		t.Fatal("expected token exchange quirk to survive config builder path")
+	}
+	if profile.TokenExchange.GrantType != "ocm_share" {
+		t.Fatalf("expected grant type ocm_share, got %q", profile.TokenExchange.GrantType)
+	}
+	if profile.BasicAuth.AllowAllPatterns {
+		t.Fatal("expected explicit Basic auth allowlist to stay explicit")
+	}
+	if len(profile.BasicAuth.AllowedPatterns) != 2 {
+		t.Fatalf("expected 2 Basic auth patterns, got %d", len(profile.BasicAuth.AllowedPatterns))
 	}
 }

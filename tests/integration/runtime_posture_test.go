@@ -201,6 +201,61 @@ global_enforce = false
 	}
 
 	logPath := filepath.Join(srv.TempDir, "server.log")
+	logs := waitForLogSubstrings(t, logPath,
+		"resolved runtime signature posture is non-strict",
+		"trust_status",
+		"fail-open",
+	)
+	if logs == "" {
+		t.Fatalf("expected non-strict runtime posture log with fail-open trust status")
+	}
+}
+
+func TestInteropModeMappedGrantOverrideChangesRuntimePostureScope(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                  "interop-grant-override",
+		Mode:                  "interop",
+		KeepSignatureDefaults: true,
+		ExtraConfig: `
+[[peer_profiles.mappings]]
+pattern = "peer.example.com"
+profile = "grant-compat"
+
+[peer_profiles.custom_profiles.grant-compat]
+token_exchange_grant_type = "ocm_share"
+`,
+	})
+	defer srv.Stop(t)
+
+	resp, err := http.Get(srv.BaseURL + "/api/healthz")
+	if err != nil {
+		t.Fatalf("health check failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected healthz 200, got %d", resp.StatusCode)
+	}
+
+	logPath := filepath.Join(srv.TempDir, "server.log")
+	logs := waitForLogSubstrings(t, logPath,
+		"resolved runtime signature posture is non-strict",
+		"compatibility_scope",
+		"peer-profile-relaxations",
+		"peer_profile_relaxations_active",
+	)
+	if logs == "" {
+		t.Fatalf("expected compiled-summary posture log for mapped grant override")
+	}
+}
+
+func waitForLogSubstrings(t *testing.T, logPath string, want ...string) string {
+	t.Helper()
+
 	var logs string
 	for i := 0; i < 20; i++ {
 		content, readErr := os.ReadFile(logPath)
@@ -208,16 +263,20 @@ global_enforce = false
 			t.Fatalf("failed to read server log: %v", readErr)
 		}
 		logs = string(content)
-		if strings.Contains(logs, "resolved runtime signature posture is non-strict") &&
-			strings.Contains(logs, "trust_status") &&
-			strings.Contains(logs, "fail-open") {
-			return
+
+		allPresent := true
+		for _, needle := range want {
+			if !strings.Contains(logs, needle) {
+				allPresent = false
+				break
+			}
+		}
+		if allPresent {
+			return logs
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	t.Fatalf(
-		"expected non-strict runtime posture log with fail-open trust status, got logs:\n%s",
-		logs,
-	)
+	t.Fatalf("expected log to contain %v, got logs:\n%s", want, logs)
+	return ""
 }

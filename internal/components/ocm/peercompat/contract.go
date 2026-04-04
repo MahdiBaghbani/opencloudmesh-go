@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+
+	platformconfig "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 const (
@@ -91,6 +93,40 @@ func NewCompiledContract(
 ) (*CompiledContract, error) {
 	registry := NewProfileRegistry(customProfiles, mappings)
 	return BuildCompiledContractFromRegistry(registry)
+}
+
+// NewCompiledContractFromConfig builds the compiled contract from config.
+func NewCompiledContractFromConfig(
+	cfg *platformconfig.Config,
+) (*CompiledContract, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
+	customProfiles := make(map[string]*Profile, len(cfg.PeerProfiles.CustomProfiles))
+	for name, profileCfg := range cfg.PeerProfiles.CustomProfiles {
+		customProfiles[name] = &Profile{
+			Name:                     name,
+			AllowUnsignedInbound:     profileCfg.AllowUnsignedInbound,
+			AllowUnsignedOutbound:    profileCfg.AllowUnsignedOutbound,
+			AllowMismatchedHost:      profileCfg.AllowMismatchedHost,
+			AllowHTTP:                profileCfg.AllowHTTP,
+			AllowUnsignedDiscovery:   profileCfg.AllowUnsignedDiscovery,
+			TokenExchangeQuirks:      slices.Clone(profileCfg.TokenExchangeQuirks),
+			TokenExchangeGrantType:   profileCfg.TokenExchangeGrantType,
+			AllowedBasicAuthPatterns: slices.Clone(profileCfg.AllowedBasicAuthPatterns),
+		}
+	}
+
+	mappings := make([]ProfileMapping, len(cfg.PeerProfiles.Mappings))
+	for idx, mapping := range cfg.PeerProfiles.Mappings {
+		mappings[idx] = ProfileMapping{
+			Pattern:     mapping.Pattern,
+			ProfileName: mapping.Profile,
+		}
+	}
+
+	return NewCompiledContract(customProfiles, mappings)
 }
 
 // BuildCompiledContractFromRegistry compiles typed compatibility decisions.

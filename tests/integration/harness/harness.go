@@ -144,29 +144,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to normalize provider FQDN: %v", err)
 	}
 
-	customProfiles := make(map[string]*peercompat.Profile, len(cfg.PeerProfiles.CustomProfiles))
-	for name, profileCfg := range cfg.PeerProfiles.CustomProfiles {
-		customProfiles[name] = &peercompat.Profile{
-			Name:                     name,
-			AllowUnsignedInbound:     profileCfg.AllowUnsignedInbound,
-			AllowUnsignedOutbound:    profileCfg.AllowUnsignedOutbound,
-			AllowMismatchedHost:      profileCfg.AllowMismatchedHost,
-			AllowHTTP:                profileCfg.AllowHTTP,
-			AllowUnsignedDiscovery:   profileCfg.AllowUnsignedDiscovery,
-			TokenExchangeQuirks:      profileCfg.TokenExchangeQuirks,
-			TokenExchangeGrantType:   profileCfg.TokenExchangeGrantType,
-			AllowedBasicAuthPatterns: profileCfg.AllowedBasicAuthPatterns,
-		}
-	}
-	mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
-	for i, mapping := range cfg.PeerProfiles.Mappings {
-		mappings[i] = peercompat.ProfileMapping{
-			Pattern:     mapping.Pattern,
-			ProfileName: mapping.Profile,
-		}
-	}
-
-	peerContract, err := peercompat.NewCompiledContract(customProfiles, mappings)
+	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to compile peer compatibility contract: %v", err)
