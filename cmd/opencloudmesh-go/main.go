@@ -120,6 +120,15 @@ func main() {
 	slog.SetDefault(logger)
 	logger.Info("effective configuration", "config", cfg.Redacted())
 
+	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
+	if err != nil {
+		logger.Error("failed to compile peer compatibility contract", "error", err)
+		os.Exit(1)
+	}
+	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
+	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
+	runtimeEval := runtimePolicy.Evaluate()
+
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
 	userAuth := identity.NewUserAuth(3) // argon2id time parameter
@@ -191,13 +200,7 @@ func main() {
 			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
 		}
 
-		// Strict mode requires verified Directory Service signatures; interop/dev accept unsigned
-		dsMode, _ := config.ParseMode(cfg.Mode)
-		defaultVerificationPolicy := "required"
-		if dsMode == config.ModeInterop || dsMode == config.ModeDev {
-			defaultVerificationPolicy = "optional"
-		}
-
+		defaultVerificationPolicy := runtimePolicy.DirectoryServiceVerificationPolicy()
 		dirServiceClient := directoryservice.NewClient(rawHTTPClient, defaultVerificationPolicy, logger)
 		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, cfg.PublicScheme(), logger, refreshTimeout)
 
@@ -221,11 +224,6 @@ func main() {
 		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
 	}
 
-	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
-	if err != nil {
-		logger.Error("failed to compile peer compatibility contract", "error", err)
-		os.Exit(1)
-	}
 	discoveryClient.SetPeerContract(peerContract)
 
 	// Create signer for outbound requests (needed for SharedDeps)
@@ -234,9 +232,6 @@ func main() {
 		signer = crypto.NewRFC9421Signer(keyManager)
 	}
 
-	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
-	runtimeEval := runtimePolicy.Evaluate()
 	if runtimeEval.Strict.IsStrict {
 		logger.Info(
 			"resolved runtime posture",

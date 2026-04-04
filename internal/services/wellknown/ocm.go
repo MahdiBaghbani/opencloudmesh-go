@@ -10,7 +10,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -115,10 +114,10 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 			}
 		}
 
-		// API version overrides for interop/dev mode (Nextcloud crawler compat)
+		// API version overrides for unbounded compatibility posture
+		// (Nextcloud crawler compat).
 		if _, set := rawOCMProvider["api_version_overrides"]; !set {
-			mode, _ := config.ParseMode(d.Config.Mode)
-			if mode == config.ModeInterop || mode == config.ModeDev {
+			if d.RuntimePolicy != nil && d.RuntimePolicy.AllowsGlobalCompatibilityDefaults() {
 				c.APIVersionOverrides = []APIVersionOverride{{
 					UserAgentContains: "Nextcloud Server Crawler",
 					APIVersion:        "1.1",

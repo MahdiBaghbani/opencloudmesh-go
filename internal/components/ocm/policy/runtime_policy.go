@@ -118,7 +118,7 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 
 	evaluation := RuntimeEvaluation{
 		Signature:                 signature,
-		DerivedTier:               deriveTier(cfg.Mode, isStrict),
+		DerivedTier:               deriveTier(isStrict, signature, transport, trust),
 		CompatibilityScope:        deriveCompatibilityScope(cfg, hasLiveRelaxations, transport, trust),
 		Strict:                    StrictAssessment{IsStrict: isStrict, ViolationReasons: violationReasons},
 		Transport:                 transport,
@@ -155,12 +155,35 @@ func (p *RuntimePolicy) Evaluate() RuntimeEvaluation {
 	return out
 }
 
-func deriveTier(mode string, isStrict bool) RuntimeTier {
-	if strings.EqualFold(mode, string(config.ModeDev)) {
-		return RuntimeTierDev
+// AllowsGlobalCompatibilityDefaults reports whether node-wide compatibility
+// defaults may take effect for this runtime posture.
+func (p *RuntimePolicy) AllowsGlobalCompatibilityDefaults() bool {
+	if p == nil {
+		return false
 	}
+	return p.evaluation.CompatibilityScope == "unbounded"
+}
+
+// DirectoryServiceVerificationPolicy reports the default JWS verification
+// policy for Directory Service lookups on the trust axis.
+func (p *RuntimePolicy) DirectoryServiceVerificationPolicy() string {
+	if p != nil && p.AllowsGlobalCompatibilityDefaults() {
+		return "optional"
+	}
+	return "required"
+}
+
+func deriveTier(
+	isStrict bool,
+	signature SignaturePosture,
+	transport TransportPosture,
+	trust TrustPosture,
+) RuntimeTier {
 	if isStrict {
 		return RuntimeTierStrict
+	}
+	if hasDevelopmentRelaxations(signature, transport, trust) {
+		return RuntimeTierDev
 	}
 	return RuntimeTierCompat
 }
@@ -172,9 +195,6 @@ func deriveCompatibilityScope(
 	trust TrustPosture,
 ) string {
 	if cfg == nil {
-		return "unbounded"
-	}
-	if strings.EqualFold(cfg.Mode, string(config.ModeDev)) {
 		return "unbounded"
 	}
 	if cfg.Signature.PeerProfileLevelOverride == "all" {
@@ -196,6 +216,29 @@ func deriveCompatibilityScope(
 		return "scoped"
 	}
 	return "none"
+}
+
+func hasDevelopmentRelaxations(
+	signature SignaturePosture,
+	transport TransportPosture,
+	trust TrustPosture,
+) bool {
+	if transport.TLSMode == "off" ||
+		transport.SSRFMode != "strict" ||
+		transport.InsecureSkipVerify {
+		return true
+	}
+	if signature.InboundMode == "off" ||
+		signature.OutboundMode == "off" ||
+		signature.OnDiscoveryError == "allow" ||
+		signature.AllowMismatch ||
+		signature.PeerProfileLevelOverride == "all" {
+		return true
+	}
+	if trust.Status == TrustStatusFailOpen {
+		return true
+	}
+	return false
 }
 
 func deriveTrustPosture(cfg *config.Config) TrustPosture {

@@ -382,6 +382,84 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 	})
 }
 
+func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
+	t.Run("unbounded compatibility adds crawler override", func(t *testing.T) {
+		cfg := config.InteropConfig()
+		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		c := &OCMProviderConfig{
+			Endpoint: "https://example.com",
+		}
+		d := &deps.Deps{
+			Config:        cfg,
+			RuntimePolicy: runtimePolicy,
+		}
+
+		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(h.overrides) != 1 {
+			t.Fatalf("expected one crawler override, got %d", len(h.overrides))
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+		req.Header.Set("User-Agent", "Nextcloud Server Crawler")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+
+		var disc spec.Discovery
+		if err := json.Unmarshal(rr.Body.Bytes(), &disc); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if disc.APIVersion != "1.1" {
+			t.Fatalf("expected apiVersion 1.1 for crawler override, got %q", disc.APIVersion)
+		}
+	})
+
+	t.Run("strict runtime posture suppresses crawler override even on dev preset", func(t *testing.T) {
+		cfg := config.DevConfig()
+		cfg.RequireTokenExchange = true
+		cfg.PeerPolicy = "strict"
+		cfg.Signature.InboundMode = "strict"
+		cfg.Signature.OutboundMode = "strict"
+		cfg.Signature.PeerProfileLevelOverride = "off"
+		cfg.Signature.OnDiscoveryError = "reject"
+		cfg.Signature.AllowMismatch = false
+		cfg.TLS.Mode = "selfsigned"
+		cfg.OutboundHTTP.SSRFMode = "strict"
+		cfg.OutboundHTTP.InsecureSkipVerify = false
+		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		c := &OCMProviderConfig{
+			Endpoint: "https://example.com",
+		}
+		d := &deps.Deps{
+			Config:        cfg,
+			RuntimePolicy: runtimePolicy,
+		}
+
+		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(h.overrides) != 0 {
+			t.Fatalf("expected no crawler overrides for strict runtime posture, got %d", len(h.overrides))
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+		req.Header.Set("User-Agent", "Nextcloud Server Crawler")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+
+		var disc spec.Discovery
+		if err := json.Unmarshal(rr.Body.Bytes(), &disc); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if disc.APIVersion != "1.2.2" {
+			t.Fatalf("expected default apiVersion 1.2.2, got %q", disc.APIVersion)
+		}
+	})
+}
+
 func TestNewOCMHandler_InvalidEndpointURL(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "://invalid-url",

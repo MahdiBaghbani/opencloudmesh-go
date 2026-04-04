@@ -176,6 +176,60 @@ func TestRuntimePolicyEvaluate_DerivesDevTier(t *testing.T) {
 	}
 }
 
+func TestRuntimePolicyEvaluate_DevPresetCanResolveStrictPosture(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.RequireTokenExchange = true
+	cfg.PeerPolicy = "strict"
+	cfg.Signature.InboundMode = "strict"
+	cfg.Signature.OutboundMode = "strict"
+	cfg.Signature.PeerProfileLevelOverride = "off"
+	cfg.Signature.OnDiscoveryError = "reject"
+	cfg.Signature.AllowMismatch = false
+	cfg.TLS.Mode = "selfsigned"
+	cfg.OutboundHTTP.SSRFMode = "strict"
+	cfg.OutboundHTTP.InsecureSkipVerify = false
+
+	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
+
+	if eval.DerivedTier != policy.RuntimeTierStrict {
+		t.Fatalf("expected strict tier after posture overrides, got %q", eval.DerivedTier)
+	}
+	if !eval.Strict.IsStrict {
+		t.Fatalf("expected strict assessment true, reasons=%v", eval.Strict.ViolationReasons)
+	}
+	if eval.CompatibilityScope != "none" {
+		t.Fatalf("expected compatibility scope none, got %q", eval.CompatibilityScope)
+	}
+}
+
+func TestRuntimePolicy_DirectoryServiceVerificationPolicy(t *testing.T) {
+	t.Run("strict posture keeps verification required", func(t *testing.T) {
+		cfg := config.StrictConfig()
+		cfg.PeerPolicy = "strict"
+		cfg.Signature.PeerProfileLevelOverride = "off"
+
+		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		if runtimePolicy.AllowsGlobalCompatibilityDefaults() {
+			t.Fatal("expected strict posture to keep global compatibility defaults disabled")
+		}
+		if got := runtimePolicy.DirectoryServiceVerificationPolicy(); got != "required" {
+			t.Fatalf("expected required verification, got %q", got)
+		}
+	})
+
+	t.Run("unbounded compatibility makes verification optional", func(t *testing.T) {
+		cfg := config.InteropConfig()
+
+		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		if !runtimePolicy.AllowsGlobalCompatibilityDefaults() {
+			t.Fatal("expected interop posture to allow global compatibility defaults")
+		}
+		if got := runtimePolicy.DirectoryServiceVerificationPolicy(); got != "optional" {
+			t.Fatalf("expected optional verification, got %q", got)
+		}
+	})
+}
+
 func TestRuntimePolicyEvaluate_ReportsTrustAxis(t *testing.T) {
 	t.Run("feature-off", func(t *testing.T) {
 		cfg := config.StrictConfig()
