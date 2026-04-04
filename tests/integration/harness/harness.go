@@ -144,31 +144,34 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to normalize provider FQDN: %v", err)
 	}
 
-	var profileRegistry *peercompat.ProfileRegistry
-	if len(cfg.PeerProfiles.Mappings) > 0 || len(cfg.PeerProfiles.CustomProfiles) > 0 {
-		customProfiles := make(map[string]*peercompat.Profile)
-		for name, profileCfg := range cfg.PeerProfiles.CustomProfiles {
-			customProfiles[name] = &peercompat.Profile{
-				Name:                     name,
-				AllowUnsignedInbound:     profileCfg.AllowUnsignedInbound,
-				AllowUnsignedOutbound:    profileCfg.AllowUnsignedOutbound,
-				AllowMismatchedHost:      profileCfg.AllowMismatchedHost,
-				AllowHTTP:                profileCfg.AllowHTTP,
-				TokenExchangeQuirks:      profileCfg.TokenExchangeQuirks,
-				AllowedBasicAuthPatterns: profileCfg.AllowedBasicAuthPatterns,
-			}
+	customProfiles := make(map[string]*peercompat.Profile, len(cfg.PeerProfiles.CustomProfiles))
+	for name, profileCfg := range cfg.PeerProfiles.CustomProfiles {
+		customProfiles[name] = &peercompat.Profile{
+			Name:                     name,
+			AllowUnsignedInbound:     profileCfg.AllowUnsignedInbound,
+			AllowUnsignedOutbound:    profileCfg.AllowUnsignedOutbound,
+			AllowMismatchedHost:      profileCfg.AllowMismatchedHost,
+			AllowHTTP:                profileCfg.AllowHTTP,
+			AllowUnsignedDiscovery:   profileCfg.AllowUnsignedDiscovery,
+			TokenExchangeQuirks:      profileCfg.TokenExchangeQuirks,
+			TokenExchangeGrantType:   profileCfg.TokenExchangeGrantType,
+			AllowedBasicAuthPatterns: profileCfg.AllowedBasicAuthPatterns,
 		}
-		mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
-		for i, mapping := range cfg.PeerProfiles.Mappings {
-			mappings[i] = peercompat.ProfileMapping{
-				Pattern:     mapping.Pattern,
-				ProfileName: mapping.Profile,
-			}
-		}
-		profileRegistry = peercompat.NewProfileRegistry(customProfiles, mappings)
-	} else {
-		profileRegistry = peercompat.NewProfileRegistry(nil, nil)
 	}
+	mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
+	for i, mapping := range cfg.PeerProfiles.Mappings {
+		mappings[i] = peercompat.ProfileMapping{
+			Pattern:     mapping.Pattern,
+			ProfileName: mapping.Profile,
+		}
+	}
+
+	peerContract, err := peercompat.NewCompiledContract(customProfiles, mappings)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to compile peer compatibility contract: %v", err)
+	}
+	profileRegistry := peerContract.ProfileRegistry()
 
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg, profileRegistry)
@@ -201,6 +204,8 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		Cache: cacheInstance,
 		// RealIP (for trusted-proxy-aware client identity)
 		RealIP: realIPExtractor,
+		// Compatibility contract
+		PeerContract: peerContract,
 		// KeyManager is nil (no signatures in basic tests)
 	})
 

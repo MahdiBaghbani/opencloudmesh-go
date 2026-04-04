@@ -1548,7 +1548,9 @@ allow_unsigned_inbound = true
 allow_unsigned_outbound = false
 allow_mismatched_host = true
 allow_http = false
+allow_unsigned_discovery = true
 token_exchange_quirks = ["accept_plain_token"]
+token_exchange_grant_type = "ocm_share"
 allowed_basic_auth_patterns = ["token:", "id:token"]
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
@@ -1572,6 +1574,12 @@ allowed_basic_auth_patterns = ["token:", "id:token"]
 	}
 	if !profile.AllowMismatchedHost {
 		t.Error("expected AllowMismatchedHost = true")
+	}
+	if !profile.AllowUnsignedDiscovery {
+		t.Error("expected AllowUnsignedDiscovery = true")
+	}
+	if profile.TokenExchangeGrantType != "ocm_share" {
+		t.Errorf("expected TokenExchangeGrantType %q, got %q", "ocm_share", profile.TokenExchangeGrantType)
 	}
 	if len(profile.AllowedBasicAuthPatterns) != 2 {
 		t.Errorf("expected 2 AllowedBasicAuthPatterns, got %d (field not deserialized from TOML)", len(profile.AllowedBasicAuthPatterns))

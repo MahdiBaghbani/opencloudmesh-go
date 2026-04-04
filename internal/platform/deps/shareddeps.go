@@ -60,6 +60,7 @@ type Deps struct {
 	TrustGroupMgr   *peertrust.TrustGroupManager
 	PolicyEngine    *peertrust.PolicyEngine
 	ProfileRegistry *peercompat.ProfileRegistry
+	PeerContract    *peercompat.CompiledContract
 
 	// Provider identity derived from PublicOrigin at startup
 	LocalProviderFQDN           string // raw host[:port] from PublicOrigin (lowercased)

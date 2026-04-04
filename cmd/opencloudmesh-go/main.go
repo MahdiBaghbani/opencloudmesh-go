@@ -221,31 +221,34 @@ func main() {
 		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
 	}
 
-	var profileRegistry *peercompat.ProfileRegistry
-	if len(cfg.PeerProfiles.Mappings) > 0 || len(cfg.PeerProfiles.CustomProfiles) > 0 {
-		customProfiles := make(map[string]*peercompat.Profile)
-		for name, p := range cfg.PeerProfiles.CustomProfiles {
-			customProfiles[name] = &peercompat.Profile{
-				Name:                     name,
-				AllowUnsignedInbound:     p.AllowUnsignedInbound,
-				AllowUnsignedOutbound:    p.AllowUnsignedOutbound,
-				AllowMismatchedHost:      p.AllowMismatchedHost,
-				AllowHTTP:                p.AllowHTTP,
-				TokenExchangeQuirks:      p.TokenExchangeQuirks,
-				AllowedBasicAuthPatterns: p.AllowedBasicAuthPatterns,
-			}
+	customProfiles := make(map[string]*peercompat.Profile, len(cfg.PeerProfiles.CustomProfiles))
+	for name, p := range cfg.PeerProfiles.CustomProfiles {
+		customProfiles[name] = &peercompat.Profile{
+			Name:                     name,
+			AllowUnsignedInbound:     p.AllowUnsignedInbound,
+			AllowUnsignedOutbound:    p.AllowUnsignedOutbound,
+			AllowMismatchedHost:      p.AllowMismatchedHost,
+			AllowHTTP:                p.AllowHTTP,
+			AllowUnsignedDiscovery:   p.AllowUnsignedDiscovery,
+			TokenExchangeQuirks:      p.TokenExchangeQuirks,
+			TokenExchangeGrantType:   p.TokenExchangeGrantType,
+			AllowedBasicAuthPatterns: p.AllowedBasicAuthPatterns,
 		}
-		mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
-		for i, m := range cfg.PeerProfiles.Mappings {
-			mappings[i] = peercompat.ProfileMapping{
-				Pattern:     m.Pattern,
-				ProfileName: m.Profile,
-			}
-		}
-		profileRegistry = peercompat.NewProfileRegistry(customProfiles, mappings)
-	} else {
-		profileRegistry = peercompat.NewProfileRegistry(nil, nil)
 	}
+	mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
+	for i, m := range cfg.PeerProfiles.Mappings {
+		mappings[i] = peercompat.ProfileMapping{
+			Pattern:     m.Pattern,
+			ProfileName: m.Profile,
+		}
+	}
+
+	peerContract, err := peercompat.NewCompiledContract(customProfiles, mappings)
+	if err != nil {
+		logger.Error("failed to compile peer compatibility contract", "error", err)
+		os.Exit(1)
+	}
+	profileRegistry := peerContract.ProfileRegistry()
 
 	// Create signer for outbound requests (needed for SharedDeps)
 	var signer *crypto.RFC9421Signer
@@ -325,6 +328,7 @@ func main() {
 		TrustGroupMgr:   trustGroupMgr,
 		PolicyEngine:    policyEngine,
 		ProfileRegistry: profileRegistry,
+		PeerContract:    peerContract,
 		// Provider identity
 		LocalProviderFQDN:           localProviderFQDN,
 		LocalProviderFQDNForCompare: localProviderFQDNForCompare,

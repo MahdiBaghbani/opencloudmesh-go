@@ -28,6 +28,10 @@ type Profile struct {
 	// AllowHTTP allows HTTP (non-TLS) connections to this peer (dev-only)
 	AllowHTTP bool `json:"allow_http" toml:"allow_http"`
 
+	// AllowUnsignedDiscovery allows discovery-based signature capability checks
+	// to fail open for this peer in the narrow retained call sites.
+	AllowUnsignedDiscovery bool `json:"allow_unsigned_discovery" toml:"allow_unsigned_discovery"`
+
 	// TokenExchangeQuirks lists token exchange quirks to apply
 	TokenExchangeQuirks []string `json:"token_exchange_quirks" toml:"token_exchange_quirks"`
 
@@ -127,6 +131,7 @@ func BuiltinProfiles() map[string]*Profile {
 			AllowUnsignedOutbound:    false,
 			AllowMismatchedHost:      false,
 			AllowHTTP:                false,
+			AllowUnsignedDiscovery:   false,
 			TokenExchangeQuirks:      nil,
 			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
@@ -138,11 +143,11 @@ func BuiltinProfiles() map[string]*Profile {
 			AllowUnsignedOutbound:  true, // May need to send unsigned for compat
 			AllowMismatchedHost:    true, // Nextcloud keyId may not match sender
 			AllowHTTP:              false,
+			AllowUnsignedDiscovery: false,
 			TokenExchangeGrantType: "ocm_share", // Nextcloud expects legacy grant type
 			TokenExchangeQuirks: []string{
-				"accept_plain_token",     // Accept token in request body
-				"send_token_in_body",     // Send token in request body
-				"skip_digest_validation", // Skip Content-Digest check
+				"accept_plain_token", // Accept token in request body
+				"send_token_in_body", // Send token in request body
 			},
 			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},
@@ -154,6 +159,7 @@ func BuiltinProfiles() map[string]*Profile {
 			AllowUnsignedOutbound:  true,
 			AllowMismatchedHost:    true,
 			AllowHTTP:              false,
+			AllowUnsignedDiscovery: false,
 			TokenExchangeGrantType: "ocm_share", // ownCloud expects legacy grant type
 			TokenExchangeQuirks: []string{
 				"accept_plain_token",
@@ -164,15 +170,15 @@ func BuiltinProfiles() map[string]*Profile {
 
 		// Dev profile: allows everything for local testing
 		"dev": {
-			Name:                  "dev",
-			AllowUnsignedInbound:  true,
-			AllowUnsignedOutbound: true,
-			AllowMismatchedHost:   true,
-			AllowHTTP:             true, // Allow HTTP for local dev
+			Name:                   "dev",
+			AllowUnsignedInbound:   true,
+			AllowUnsignedOutbound:  true,
+			AllowMismatchedHost:    true,
+			AllowHTTP:              true, // Allow HTTP for local dev
+			AllowUnsignedDiscovery: false,
 			TokenExchangeQuirks: []string{
 				"accept_plain_token",
 				"send_token_in_body",
-				"skip_digest_validation",
 			},
 			AllowedBasicAuthPatterns: nil, // allow all patterns
 		},

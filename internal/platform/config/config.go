@@ -186,8 +186,16 @@ type PeerProfile struct {
 	// AllowHTTP allows HTTP connections (dev-only)
 	AllowHTTP bool `toml:"allow_http"`
 
+	// AllowUnsignedDiscovery allows discovery-based signature capability checks
+	// to fail open for this peer in the narrow retained call sites.
+	AllowUnsignedDiscovery bool `toml:"allow_unsigned_discovery"`
+
 	// TokenExchangeQuirks lists quirks to apply for token exchange
 	TokenExchangeQuirks []string `toml:"token_exchange_quirks"`
+
+	// TokenExchangeGrantType overrides the outbound token exchange grant_type.
+	// Empty means the protocol default ("authorization_code").
+	TokenExchangeGrantType string `toml:"token_exchange_grant_type"`
 
 	// AllowedBasicAuthPatterns whitelists specific Basic auth patterns.
 	// Empty means allow all implemented patterns.

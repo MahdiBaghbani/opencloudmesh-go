@@ -1,2 +1,2 @@
-// Package peercompat provides peer profiles and strict-first orchestration with quirk fallbacks.
+// Package peercompat provides peer profiles and the compiled compatibility contract.
 package peercompat

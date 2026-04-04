@@ -97,8 +97,8 @@ func TestProfileRegistry_GetProfile_StripsPort(t *testing.T) {
 
 func TestProfileRegistry_GetProfile_FirstMatchWins(t *testing.T) {
 	mappings := []ProfileMapping{
-		{Pattern: "cloud.example.com", ProfileName: "owncloud"},  // First match
-		{Pattern: "*.example.com", ProfileName: "nextcloud"},     // Would also match
+		{Pattern: "cloud.example.com", ProfileName: "owncloud"}, // First match
+		{Pattern: "*.example.com", ProfileName: "nextcloud"},    // Would also match
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -139,15 +139,15 @@ func TestProfile_HasQuirk(t *testing.T) {
 		Name: "test",
 		TokenExchangeQuirks: []string{
 			"accept_plain_token",
-			"skip_digest_validation",
+			"send_token_in_body",
 		},
 	}
 
 	if !profile.HasQuirk("accept_plain_token") {
 		t.Error("expected HasQuirk to return true for accept_plain_token")
 	}
-	if !profile.HasQuirk("skip_digest_validation") {
-		t.Error("expected HasQuirk to return true for skip_digest_validation")
+	if !profile.HasQuirk("send_token_in_body") {
+		t.Error("expected HasQuirk to return true for send_token_in_body")
 	}
 	if profile.HasQuirk("nonexistent_quirk") {
 		t.Error("expected HasQuirk to return false for nonexistent quirk")
