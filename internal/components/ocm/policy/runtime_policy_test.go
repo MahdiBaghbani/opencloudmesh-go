@@ -119,25 +119,21 @@ func TestRuntimePolicyEvaluate_DerivesStrictTier(t *testing.T) {
 	}
 }
 
-func TestRuntimePolicyEvaluate_DefaultStrictPresetDoesNotClaimStrict(t *testing.T) {
+func TestRuntimePolicyEvaluate_DefaultStrictPresetClaimsStrict(t *testing.T) {
 	cfg := config.StrictConfig()
-	cfg.Signature.PeerProfileLevelOverride = "off"
 	cfg.PeerTrust.Enabled = true
 	cfg.PeerTrust.Policy.GlobalEnforce = true
 
 	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
 
-	if eval.DerivedTier != policy.RuntimeTierCompat {
-		t.Fatalf("expected compat tier for default strict preset, got %q", eval.DerivedTier)
+	if eval.DerivedTier != policy.RuntimeTierStrict {
+		t.Fatalf("expected strict tier for default strict preset, got %q", eval.DerivedTier)
 	}
-	if eval.Strict.IsStrict {
-		t.Fatalf("expected default strict preset to stay non-strict")
+	if !eval.Strict.IsStrict {
+		t.Fatalf("expected default strict preset to be strict, reasons=%v", eval.Strict.ViolationReasons)
 	}
 	if eval.CompatibilityScope != "none" {
-		t.Fatalf("expected compatibility scope none without active relaxations, got %q", eval.CompatibilityScope)
-	}
-	if !hasReason(eval.Strict.ViolationReasons, "ocm_peer_policy_not_strict") {
-		t.Fatalf("expected peer-policy reason, got %v", eval.Strict.ViolationReasons)
+		t.Fatalf("expected compatibility scope none, got %q", eval.CompatibilityScope)
 	}
 }
 
@@ -178,6 +174,7 @@ func TestRuntimePolicyEvaluate_DerivesDevTier(t *testing.T) {
 
 func TestRuntimePolicyEvaluate_DevPresetCanResolveStrictPosture(t *testing.T) {
 	cfg := config.DevConfig()
+	cfg.CompatibilityScope = "none"
 	cfg.RequireTokenExchange = true
 	cfg.PeerPolicy = "strict"
 	cfg.Signature.InboundMode = "strict"
@@ -218,11 +215,11 @@ func TestRuntimePolicy_DirectoryServiceVerificationPolicy(t *testing.T) {
 	})
 
 	t.Run("unbounded compatibility makes verification optional", func(t *testing.T) {
-		cfg := config.InteropConfig()
+		cfg := config.CompatConfig()
 
 		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 		if !runtimePolicy.AllowsGlobalCompatibilityDefaults() {
-			t.Fatal("expected interop posture to allow global compatibility defaults")
+			t.Fatal("expected compat posture to allow global compatibility defaults")
 		}
 		if got := runtimePolicy.DirectoryServiceVerificationPolicy(); got != "optional" {
 			t.Fatalf("expected optional verification, got %q", got)
@@ -263,6 +260,7 @@ func TestRuntimePolicyEvaluate_ReportsTrustAxis(t *testing.T) {
 
 func TestRuntimePolicyEvaluate_DetectsMappedProfileRelaxations(t *testing.T) {
 	cfg := config.StrictConfig()
+	cfg.CompatibilityScope = "scoped"
 	cfg.Signature.PeerProfileLevelOverride = "non-strict"
 	cfg.PeerProfiles.Mappings = []config.PeerProfileMapping{
 		{Pattern: "*.nextcloud.example", Profile: "nextcloud"},
@@ -290,6 +288,7 @@ func TestRuntimePolicyEvaluate_DetectsMappedProfileRelaxations(t *testing.T) {
 
 func TestRuntimePolicyEvaluate_DetectsBasicAuthAllowlistRelaxation(t *testing.T) {
 	cfg := config.StrictConfig()
+	cfg.CompatibilityScope = "scoped"
 	cfg.Signature.PeerProfileLevelOverride = "non-strict"
 	cfg.PeerProfiles.Mappings = []config.PeerProfileMapping{
 		{Pattern: "*.peer.example", Profile: "basicauth-compat"},
@@ -325,6 +324,7 @@ func TestRuntimePolicyEvaluate_DetectsBasicAuthAllowlistRelaxation(t *testing.T)
 
 func TestRuntimePolicyEvaluate_DetectsGrantTypeRelaxation(t *testing.T) {
 	cfg := config.StrictConfig()
+	cfg.CompatibilityScope = "scoped"
 	cfg.Signature.PeerProfileLevelOverride = "non-strict"
 	cfg.PeerProfiles.Mappings = []config.PeerProfileMapping{
 		{Pattern: "*.peer.example", Profile: "grant-compat"},

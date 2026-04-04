@@ -115,14 +115,14 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	// Start a single server with strict SSRF mode
-	// Note: "strict" mode preset enables SSRF blocking via config.Load() defaults
+	// Start a single server with SSRF blocking enabled.
+	// The compat preset keeps SSRF strict while still fitting the plain-HTTP harness.
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:                  "ssrf-test",
-		Mode:                  "strict",
+		Mode:                  "compat",
 		KeepSignatureDefaults: true,
-		// ExtraConfig is intentionally empty - strict mode already sets appropriate SSRF settings
+		// ExtraConfig is intentionally empty - compat mode already sets ssrf_mode=strict.
 	})
 	defer srv.Stop(t)
 

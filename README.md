@@ -12,11 +12,22 @@ OCM-API surface: latest-shape discovery, `shareType=user`, the current
 notification subset, and strict token-exchange and HTTP-signature behavior on
 that reduced path.
 
-The runtime still exposes preset bundles `strict`, `interop`, and `dev`.
+The runtime exposes preset bundles `strict`, `compat`, and `dev`. The legacy
+alias `interop` is still accepted for `compat`.
+
 Those presets are convenience entry points, not the architecture authority:
-the effective posture is derived from canonical OCM policy plus signature,
-transport, trust, and peer-compat settings. In that model, `interop` is the
-current config label for the compatibility tier.
+the effective posture is resolved from canonical OCM policy,
+`compatibility_scope`, and the signature, transport, trust, and peer-compat
+axes.
+
+`compatibility_scope` is the supervising exception-governance axis:
+`none` means no compatibility relaxations, `scoped` allows explicit peer-scoped
+exceptions, and `unbounded` allows node-wide compatibility defaults. A strict
+runtime posture is derived only when the resolved behavior stays inside the
+WebDAV-centered strict target and `compatibility_scope=none`.
+
+`token-only` is an outbound-only HTTP-signature relaxation. It is useful for
+compatibility, but it is never part of the strict posture.
 
 ## OCM-STA and Milestones
 
@@ -82,7 +93,7 @@ docker run -d -p 8080:8080 -v /path/to/config.toml:/config/config.toml:ro \
 
 | Variable    | Default | Description                                   |
 | ----------- | ------- | --------------------------------------------- |
-| OCM_GO_MODE | (none)  | Override preset bundle: `strict`, `interop` (compat tier), or `dev`. |
+| OCM_GO_MODE | (none)  | Override preset bundle: `strict`, `compat`, or `dev`. The legacy alias `interop` is also accepted. |
 
 **Config:**
 

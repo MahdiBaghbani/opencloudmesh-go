@@ -11,8 +11,13 @@ import (
 
 // Config holds the server configuration.
 type Config struct {
-	// Mode selects a preset bundle: strict, interop (compat tier), or dev.
+	// Mode selects a preset bundle: strict, compat, or dev.
+	// The legacy alias "interop" is normalized to "compat" at load time.
 	Mode string `toml:"mode"`
+
+	// CompatibilityScope is the supervising exception-governance axis.
+	// Values: "none", "scoped", "unbounded".
+	CompatibilityScope string `toml:"compatibility_scope"`
 
 	// PublicOrigin is the public origin (scheme + host + port) for this instance.
 	// Example: "https://localhost:9200"
@@ -39,7 +44,7 @@ type Config struct {
 	// Signature configuration
 	Signature SignatureConfig `toml:"signature"`
 
-	// PeerProfiles configuration for interop with different OCM implementations
+	// PeerProfiles configuration for compatibility with different OCM implementations
 	PeerProfiles PeerProfilesConfig `toml:"peer_profiles"`
 
 	// Cache configuration
@@ -83,7 +88,7 @@ type HTTPConfig struct {
 // LoggingConfig holds logging settings.
 type LoggingConfig struct {
 	// Level is the minimum log level: trace, debug, info, warn, error.
-	// Default: info in strict/interop mode, debug in dev mode.
+	// Default: info in strict/compat mode, debug in dev mode.
 	Level string `toml:"level"`
 
 	// AllowSensitive permits logging of sensitive values (tokens, secrets).
@@ -153,7 +158,7 @@ type PeerTrustMembershipCacheConfig struct {
 	MaxStaleSeconds int `toml:"max_stale_seconds"`
 }
 
-// PeerProfilesConfig holds peer interop profile settings.
+// PeerProfilesConfig holds peer compatibility profile settings.
 type PeerProfilesConfig struct {
 	// Mappings maps domain patterns to profile names
 	// Example: [{ pattern = "*.nextcloud.com", profile = "nextcloud" }]
@@ -172,7 +177,7 @@ type PeerProfileMapping struct {
 	Profile string `toml:"profile"`
 }
 
-// PeerProfile defines interop behavior for a class of peers.
+// PeerProfile defines compatibility behavior for a class of peers.
 type PeerProfile struct {
 	// AllowUnsignedInbound allows accepting unsigned requests
 	AllowUnsignedInbound bool `toml:"allow_unsigned_inbound"`
@@ -361,6 +366,7 @@ func (c *Config) Redacted() string {
 	var sb strings.Builder
 	sb.WriteString("Config{\n")
 	sb.WriteString(fmt.Sprintf("  Mode: %q,\n", c.Mode))
+	sb.WriteString(fmt.Sprintf("  CompatibilityScope: %q,\n", c.CompatibilityScope))
 	sb.WriteString(fmt.Sprintf("  PublicOrigin: %q,\n", c.PublicOrigin))
 	sb.WriteString(fmt.Sprintf("  ExternalBasePath: %q,\n", c.ExternalBasePath))
 	sb.WriteString(fmt.Sprintf("  ListenAddr: %q,\n", c.ListenAddr))

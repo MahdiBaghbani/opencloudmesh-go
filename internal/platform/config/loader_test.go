@@ -107,8 +107,8 @@ timeout_ms = 5000
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Mode != "interop" {
-		t.Errorf("expected mode interop, got %s", cfg.Mode)
+	if cfg.Mode != "compat" {
+		t.Errorf("expected mode compat, got %s", cfg.Mode)
 	}
 	if cfg.PublicOrigin != "https://example.com:8443" {
 		t.Errorf("expected origin https://example.com:8443, got %s", cfg.PublicOrigin)
@@ -251,6 +251,9 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.Mode != "strict" {
 		t.Errorf("expected mode strict, got %s", cfg.Mode)
 	}
+	if cfg.CompatibilityScope != "none" {
+		t.Errorf("expected compatibility scope none, got %s", cfg.CompatibilityScope)
+	}
 	if cfg.OutboundHTTP.SSRFMode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRFMode)
 	}
@@ -269,6 +272,9 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.OutboundHTTP.MaxRedirects != 1 {
 		t.Errorf("expected MaxRedirects 1 in strict, got %d", cfg.OutboundHTTP.MaxRedirects)
 	}
+	if cfg.PeerPolicy != "strict" {
+		t.Errorf("expected peer_policy strict in strict config, got %q", cfg.PeerPolicy)
+	}
 }
 
 func TestDevConfig(t *testing.T) {
@@ -276,6 +282,9 @@ func TestDevConfig(t *testing.T) {
 
 	if cfg.Mode != "dev" {
 		t.Errorf("expected mode dev, got %s", cfg.Mode)
+	}
+	if cfg.CompatibilityScope != "unbounded" {
+		t.Errorf("expected compatibility scope unbounded, got %s", cfg.CompatibilityScope)
 	}
 	if cfg.OutboundHTTP.SSRFMode != "off" {
 		t.Errorf("expected SSRF mode off, got %s", cfg.OutboundHTTP.SSRFMode)
@@ -288,11 +297,14 @@ func TestDevConfig(t *testing.T) {
 	}
 }
 
-func TestInteropConfig(t *testing.T) {
-	cfg := InteropConfig()
+func TestCompatConfig(t *testing.T) {
+	cfg := CompatConfig()
 
-	if cfg.Mode != "interop" {
-		t.Errorf("expected mode interop, got %s", cfg.Mode)
+	if cfg.Mode != "compat" {
+		t.Errorf("expected mode compat, got %s", cfg.Mode)
+	}
+	if cfg.CompatibilityScope != "unbounded" {
+		t.Errorf("expected compatibility scope unbounded, got %s", cfg.CompatibilityScope)
 	}
 	if cfg.Signature.InboundMode != "lenient" {
 		t.Errorf("expected signature inbound mode lenient, got %s", cfg.Signature.InboundMode)
@@ -300,9 +312,9 @@ func TestInteropConfig(t *testing.T) {
 	if cfg.Signature.OutboundMode != "criteria-only" {
 		t.Errorf("expected signature outbound mode criteria-only, got %s", cfg.Signature.OutboundMode)
 	}
-	// SSRF stays strict in interop
+	// SSRF stays strict in compat
 	if cfg.OutboundHTTP.SSRFMode != "strict" {
-		t.Errorf("expected SSRF mode strict in interop, got %s", cfg.OutboundHTTP.SSRFMode)
+		t.Errorf("expected SSRF mode strict in compat, got %s", cfg.OutboundHTTP.SSRFMode)
 	}
 }
 
@@ -752,6 +764,9 @@ mode = "strict"
 [peer_trust]
 enabled = true
 config_paths = ["` + tgPath + `"]
+
+[peer_trust.policy]
+global_enforce = true
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1043,7 +1058,7 @@ func TestLoad_TokenExchangeConfig_FromTOML(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
-mode = "strict"
+mode = "compat"
 require_token_exchange = false
 
 [token_exchange]
@@ -1144,7 +1159,7 @@ func TestLoad_RequireTokenExchange_FromTOML(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
-mode = "strict"
+mode = "compat"
 require_token_exchange = false
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
@@ -1166,7 +1181,7 @@ func TestLoad_RequireTokenExchange_FlagsOverrideTOML(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
-mode = "strict"
+mode = "compat"
 require_token_exchange = true
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
@@ -1602,7 +1617,7 @@ func TestLoad_PeerPolicy_ValidValues(t *testing.T) {
 			configPath := filepath.Join(dir, "config.toml")
 
 			tomlContent := `
-mode = "strict"
+mode = "compat"
 peer_policy = "` + policy + `"
 
 [token_exchange]
@@ -1748,7 +1763,7 @@ func TestLoad_StrictModeSignatureContradictions_FailFast(t *testing.T) {
 [signature]
 inbound_mode = "lenient"
 `,
-			wantError: "mode=strict requires signature.inbound_mode=strict",
+			wantError: "compatibility_scope=none requires signature.inbound_mode=strict",
 		},
 		{
 			name: "strict mode requires outbound strict",
@@ -1756,7 +1771,7 @@ inbound_mode = "lenient"
 [signature]
 outbound_mode = "criteria-only"
 `,
-			wantError: "mode=strict requires signature.outbound_mode=strict",
+			wantError: "compatibility_scope=none requires signature.outbound_mode=strict",
 		},
 		{
 			name: "strict mode requires peer override off",
@@ -1764,7 +1779,7 @@ outbound_mode = "criteria-only"
 [signature]
 peer_profile_level_override = "non-strict"
 `,
-			wantError: "mode=strict requires signature.peer_profile_level_override=off",
+			wantError: "compatibility_scope=none requires signature.peer_profile_level_override=off",
 		},
 		{
 			name: "strict mode requires discovery errors rejected",
@@ -1772,7 +1787,7 @@ peer_profile_level_override = "non-strict"
 [signature]
 on_discovery_error = "allow"
 `,
-			wantError: "mode=strict requires signature.on_discovery_error=reject",
+			wantError: "compatibility_scope=none requires signature.on_discovery_error=reject",
 		},
 		{
 			name: "strict mode disallows mismatch",
@@ -1780,7 +1795,7 @@ on_discovery_error = "allow"
 [signature]
 allow_mismatch = true
 `,
-			wantError: "mode=strict requires signature.allow_mismatch=false",
+			wantError: "compatibility_scope=none requires signature.allow_mismatch=false",
 		},
 	}
 
@@ -1850,19 +1865,19 @@ enabled = true
 	if err == nil {
 		t.Fatal("expected error for peer_profile_level_override=all with strict mode")
 	}
-	if !strings.Contains(err.Error(), "mode=strict requires signature.peer_profile_level_override=off") {
+	if !strings.Contains(err.Error(), "compatibility_scope=none requires signature.peer_profile_level_override=off") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
 
-func TestLoad_PeerPolicy_DefaultIsPreferStrict(t *testing.T) {
+func TestLoad_PeerPolicy_DefaultIsStrict(t *testing.T) {
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.PeerPolicy != "prefer-strict" {
-		t.Errorf("expected default peer_policy prefer-strict, got %q", cfg.PeerPolicy)
+	if cfg.PeerPolicy != "strict" {
+		t.Errorf("expected default peer_policy strict, got %q", cfg.PeerPolicy)
 	}
 }
 

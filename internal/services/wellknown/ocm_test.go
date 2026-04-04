@@ -425,6 +425,7 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 		cfg.Signature.PeerProfileLevelOverride = "off"
 		cfg.Signature.OnDiscoveryError = "reject"
 		cfg.Signature.AllowMismatch = false
+		cfg.CompatibilityScope = "none"
 		cfg.TLS.Mode = "selfsigned"
 		cfg.OutboundHTTP.SSRFMode = "strict"
 		cfg.OutboundHTTP.InsecureSkipVerify = false

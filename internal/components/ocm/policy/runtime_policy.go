@@ -113,13 +113,21 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 		compatSummary = peerContract.Summary()
 	}
 	hasLiveRelaxations := hasMappedProfileRelaxations(cfg, compatSummary)
-	violationReasons := strictAssessmentReasons(core, signature, transport, trust, hasLiveRelaxations)
+	compatibilityScope := configuredCompatibilityScope(cfg)
+	violationReasons := strictAssessmentReasons(
+		core,
+		signature,
+		compatibilityScope,
+		transport,
+		trust,
+		hasLiveRelaxations,
+	)
 	isStrict := len(violationReasons) == 0
 
 	evaluation := RuntimeEvaluation{
 		Signature:                 signature,
 		DerivedTier:               deriveTier(isStrict, signature, transport, trust),
-		CompatibilityScope:        deriveCompatibilityScope(cfg, hasLiveRelaxations, transport, trust),
+		CompatibilityScope:        compatibilityScope,
 		Strict:                    StrictAssessment{IsStrict: isStrict, ViolationReasons: violationReasons},
 		Transport:                 transport,
 		Trust:                     trust,
@@ -188,34 +196,14 @@ func deriveTier(
 	return RuntimeTierCompat
 }
 
-func deriveCompatibilityScope(
-	cfg *config.Config,
-	hasLiveRelaxations bool,
-	transport TransportPosture,
-	trust TrustPosture,
-) string {
+func configuredCompatibilityScope(cfg *config.Config) string {
 	if cfg == nil {
 		return "unbounded"
 	}
-	if cfg.Signature.PeerProfileLevelOverride == "all" {
+	if cfg.CompatibilityScope == "" {
 		return "unbounded"
 	}
-	if cfg.Signature.InboundMode != "strict" ||
-		cfg.Signature.OutboundMode != "strict" ||
-		cfg.Signature.OnDiscoveryError != "reject" ||
-		cfg.Signature.AllowMismatch {
-		return "unbounded"
-	}
-	if transport.TLSMode == "off" || transport.SSRFMode != "strict" || transport.InsecureSkipVerify {
-		return "unbounded"
-	}
-	if trust.Status == TrustStatusFailOpen {
-		return "unbounded"
-	}
-	if hasLiveRelaxations {
-		return "scoped"
-	}
-	return "none"
+	return cfg.CompatibilityScope
 }
 
 func hasDevelopmentRelaxations(
@@ -261,11 +249,15 @@ func deriveTrustPosture(cfg *config.Config) TrustPosture {
 func strictAssessmentReasons(
 	core Evaluation,
 	signature SignaturePosture,
+	compatibilityScope string,
 	transport TransportPosture,
 	trust TrustPosture,
 	hasLiveRelaxations bool,
 ) []string {
 	reasons := make([]string, 0, 8)
+	if compatibilityScope != "none" {
+		reasons = append(reasons, "compatibility_scope_not_none")
+	}
 	if !core.TokenExchangeCapable {
 		reasons = append(reasons, "ocm_token_exchange_capability_disabled")
 	}
@@ -313,9 +305,6 @@ func deriveHTTPRequestSignatureRequirement(inboundMode string) bool {
 }
 
 func hasMappedProfileRelaxations(cfg *config.Config, summary peercompat.CompatibilitySummary) bool {
-	if cfg.Signature.PeerProfileLevelOverride == "off" {
-		return false
-	}
 	if len(cfg.PeerProfiles.Mappings) == 0 {
 		return false
 	}

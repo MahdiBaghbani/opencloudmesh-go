@@ -796,7 +796,7 @@ func TestInteropModeCanonicalPolicy(t *testing.T) {
 	})
 }
 
-func TestDiscoverySignatureCriteriaMatrixByMode(t *testing.T) {
+func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -805,16 +805,22 @@ func TestDiscoverySignatureCriteriaMatrixByMode(t *testing.T) {
 	tests := []struct {
 		name            string
 		mode            string
+		extraConfig     string
 		wantHTTPReqSigs bool
 	}{
 		{
-			name:            "strict advertises signature criterion",
-			mode:            "strict",
+			name: "strict signature posture advertises signature criterion",
+			mode: "compat",
+			extraConfig: `
+[signature]
+inbound_mode = "strict"
+outbound_mode = "strict"
+`,
 			wantHTTPReqSigs: true,
 		},
 		{
-			name:            "interop omits signature criterion",
-			mode:            "interop",
+			name:            "compat omits signature criterion",
+			mode:            "compat",
 			wantHTTPReqSigs: false,
 		},
 		{
@@ -831,6 +837,7 @@ func TestDiscoverySignatureCriteriaMatrixByMode(t *testing.T) {
 				Name:                  "criteria-matrix-" + tt.mode,
 				Mode:                  tt.mode,
 				KeepSignatureDefaults: true,
+				ExtraConfig:           tt.extraConfig,
 			})
 			defer srv.Stop(t)
 

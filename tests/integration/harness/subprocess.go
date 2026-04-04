@@ -29,7 +29,8 @@ type SubprocessServer struct {
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
 	Name                  string
-	Mode                  string            // dev, interop, strict
+	Mode                  string            // dev, compat, strict; legacy alias interop also works
+	CompatibilityScope    string
 	KeepSignatureDefaults bool              // when true, skip the [signature] override block so mode presets apply
 	ExtraConfig           string            // Additional TOML config to append
 	ExtraFiles            map[string]string // Extra files to write to tempDir: {relativePath: contents}
@@ -126,7 +127,15 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 
 	// Create config file
 	configPath := filepath.Join(tempDir, "config.toml")
-	configContent := generateTOMLConfig(cfg.Name, port, tempDir, cfg.Mode, cfg.KeepSignatureDefaults, cfg.ExtraConfig)
+	configContent := generateTOMLConfig(
+		cfg.Name,
+		port,
+		tempDir,
+		cfg.Mode,
+		cfg.CompatibilityScope,
+		cfg.KeepSignatureDefaults,
+		cfg.ExtraConfig,
+	)
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to write config file: %v", err)
@@ -224,7 +233,7 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 }
 
 // generateTOMLConfig creates a TOML config for a test server.
-// Uses the new Reva-aligned TOML shape. The mode preset (dev/interop/strict)
+// Uses the new Reva-aligned TOML shape. The mode preset (dev/compat/strict)
 // drives defaults via config.Load(), including token exchange settings.
 // When keepSigDefaults is false, signature mode is forced off for test simplicity.
 // When true, the [signature] block is omitted so the mode preset's defaults apply.
@@ -233,7 +242,7 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode string, keepSigDefaults bool, extra string) string {
+func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, extra string) string {
 	publicOrigin := fmt.Sprintf("http://localhost:%d", port)
 
 	config := fmt.Sprintf(`# Generated config for test server: %s
@@ -242,7 +251,13 @@ listen_addr = ":%d"
 public_origin = "%s"
 external_base_path = ""
 
-[tls]
+`, name, mode, port, publicOrigin)
+
+	if compatibilityScope != "" {
+		config += fmt.Sprintf("compatibility_scope = %q\n\n", compatibilityScope)
+	}
+
+	config += `[tls]
 mode = "off"
 
 [server]
@@ -257,7 +272,7 @@ connect_timeout_ms = 2000
 max_redirects = 1
 max_response_bytes = 1048576
 insecure_skip_verify = true
-`, name, mode, port, publicOrigin)
+`
 
 	if !keepSigDefaults {
 		config += `

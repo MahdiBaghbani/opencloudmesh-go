@@ -59,7 +59,7 @@ outbound_mode = "criteria-only"
 	}
 
 	outputText := string(output)
-	if !strings.Contains(outputText, "mode=strict requires signature.outbound_mode=strict") {
+	if !strings.Contains(outputText, "compatibility_scope=none requires signature.outbound_mode=strict") {
 		t.Fatalf("expected strict contradiction error in output, got: %s", outputText)
 	}
 }
@@ -108,42 +108,8 @@ outbound_mode = "token-only"
 	}
 
 	outputText := string(output)
-	if !strings.Contains(outputText, "mode=strict requires signature.outbound_mode=strict") {
+	if !strings.Contains(outputText, "compatibility_scope=none requires signature.outbound_mode=strict") {
 		t.Fatalf("expected strict token-only error in output, got: %s", outputText)
-	}
-}
-
-func TestStrictModeDefaultPeerPolicyDemotesRuntimePosture(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping subprocess test in short mode")
-	}
-
-	binaryPath := harness.BuildBinary(t)
-	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "strict-default-peer-policy",
-		Mode:                  "strict",
-		KeepSignatureDefaults: true,
-	})
-	defer srv.Stop(t)
-
-	resp, err := http.Get(srv.BaseURL + "/api/healthz")
-	if err != nil {
-		t.Fatalf("health check failed: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected healthz 200, got %d", resp.StatusCode)
-	}
-
-	logPath := filepath.Join(srv.TempDir, "server.log")
-	logs := waitForLogSubstrings(t, logPath,
-		"resolved runtime posture is non-strict",
-		"compatibility_scope",
-		"unbounded",
-		"ocm_peer_policy_not_strict",
-	)
-	if logs == "" {
-		t.Fatalf("expected non-strict runtime posture log for default strict preset")
 	}
 }
 
@@ -256,54 +222,65 @@ func TestStrictModePeerTrustFailOpenDemotesRuntimePosture(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
-	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "strict-trust-fail-open",
-		Mode:                  "strict",
-		KeepSignatureDefaults: true,
-		ExtraConfig: `
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.toml")
+	config := `mode = "strict"
+listen_addr = "127.0.0.1:0"
+public_origin = "https://localhost:9204"
+external_base_path = ""
+
+[tls]
+mode = "selfsigned"
+
+[server]
+trusted_proxies = ["127.0.0.0/8", "::1/128"]
+
+[server.bootstrap_admin]
+username = "admin"
+
+[outbound_http]
+timeout_ms = 5000
+connect_timeout_ms = 2000
+max_redirects = 1
+max_response_bytes = 1048576
+insecure_skip_verify = false
+
 [peer_trust]
 enabled = true
 config_paths = ["trust-group.json"]
 
 [peer_trust.policy]
 global_enforce = false
-`,
-		ExtraFiles: map[string]string{
-			"trust-group.json": "{}",
-		},
-	})
-	defer srv.Stop(t)
-
-	resp, err := http.Get(srv.BaseURL + "/api/healthz")
-	if err != nil {
-		t.Fatalf("health check failed: %v", err)
+`
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected healthz 200, got %d", resp.StatusCode)
+	if err := os.WriteFile(filepath.Join(tempDir, "trust-group.json"), []byte("{}"), 0644); err != nil {
+		t.Fatalf("failed to write trust-group.json: %v", err)
 	}
 
-	logPath := filepath.Join(srv.TempDir, "server.log")
-	logs := waitForLogSubstrings(t, logPath,
-		"peer trust is enabled without global enforcement",
-		"resolved runtime posture is non-strict",
-		"trust_status",
-		"fail-open",
-	)
-	if logs == "" {
-		t.Fatalf("expected non-strict runtime posture log with fail-open trust status")
+	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected startup failure for strict fail-open peer trust, got success: %s", output)
+	}
+
+	outputText := string(output)
+	if !strings.Contains(outputText, "compatibility_scope=none requires peer_trust.policy.global_enforce=true") {
+		t.Fatalf("expected strict peer-trust contradiction error in output, got: %s", outputText)
 	}
 }
 
-func TestInteropModeTokenOnlyDemotesRuntimePosture(t *testing.T) {
+func TestCompatModeTokenOnlyDemotesRuntimePosture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "interop-token-only",
-		Mode:                  "interop",
+		Name:                  "compat-token-only",
+		Mode:                  "compat",
 		KeepSignatureDefaults: true,
 		ExtraConfig: `
 [signature]
@@ -332,17 +309,21 @@ outbound_mode = "token-only"
 	}
 }
 
-func TestInteropModeMappedGrantOverrideChangesRuntimePostureScope(t *testing.T) {
+func TestScopedCompatibilityMappedGrantOverrideDemotesRuntimePosture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "interop-grant-override",
-		Mode:                  "interop",
+		Name:                  "scoped-grant-override",
+		Mode:                  "strict",
+		CompatibilityScope:    "scoped",
 		KeepSignatureDefaults: true,
 		ExtraConfig: `
+[signature]
+peer_profile_level_override = "non-strict"
+
 [[peer_profiles.mappings]]
 pattern = "peer.example.com"
 profile = "grant-compat"
@@ -366,7 +347,7 @@ token_exchange_grant_type = "ocm_share"
 	logs := waitForLogSubstrings(t, logPath,
 		"resolved runtime posture is non-strict",
 		"compatibility_scope",
-		"unbounded",
+		"scoped",
 		"peer_profile_relaxations_active",
 	)
 	if logs == "" {

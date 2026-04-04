@@ -50,10 +50,11 @@ import (
 
 func main() {
 	configPath := flag.String("config", "", "Path to TOML config file (optional)")
-	modeFlag := flag.String("mode", "", "Preset bundle: strict, interop (compat tier), or dev (overrides config)")
+	modeFlag := flag.String("mode", "", "Preset bundle: strict, compat, or dev (legacy alias: interop)")
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
 	publicOrigin := flag.String("public-origin", "", "Public origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
+	compatibilityScope := flag.String("compatibility-scope", "", "Compatibility scope: none, scoped, or unbounded (overrides config)")
 	ssrfMode := flag.String("ssrf-mode", "", "SSRF protection mode: strict or off (overrides config)")
 	signatureInboundMode := flag.String("signature-inbound-mode", "", "Signature inbound mode: strict, lenient, or off (overrides config)")
 	signatureOutboundMode := flag.String("signature-outbound-mode", "", "Signature outbound mode: strict, criteria-only, token-only, or off (overrides config)")
@@ -80,6 +81,7 @@ func main() {
 			ListenAddr:                   listenAddr,
 			PublicOrigin:                 publicOrigin,
 			ExternalBasePath:             externalBasePath,
+			CompatibilityScope:           compatibilityScope,
 			SSRFMode:                     ssrfMode,
 			SignatureInboundMode:         signatureInboundMode,
 			SignatureOutboundMode:        signatureOutboundMode,
@@ -128,6 +130,15 @@ func main() {
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
 	runtimeEval := runtimePolicy.Evaluate()
+	if cfg.CompatibilityScope == "none" && !runtimeEval.Strict.IsStrict {
+		logger.Error(
+			"compatibility_scope=none contradicts resolved runtime posture",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"reasons", runtimeEval.Strict.ViolationReasons,
+		)
+		os.Exit(1)
+	}
 
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
@@ -258,7 +269,10 @@ func main() {
 		)
 	}
 
-	outboundPolicy := outboundsigning.NewOutboundPolicy(runtimePolicy, peerContract, openCloudMeshPolicy)
+	outboundPolicy := outboundsigning.NewOutboundPolicy(
+		outboundsigning.ResolveInputs(runtimePolicy, openCloudMeshPolicy),
+		peerContract,
+	)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
 	peerDiscoveryAdapter.SetPeerContract(peerContract)

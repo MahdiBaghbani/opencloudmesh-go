@@ -16,9 +16,10 @@ import (
 type Mode string
 
 const (
-	ModeStrict  Mode = "strict"
-	ModeInterop Mode = "interop"
-	ModeDev     Mode = "dev"
+	ModeStrict Mode = "strict"
+	ModeCompat Mode = "compat"
+	ModeDev    Mode = "dev"
+	ModeInterop     = ModeCompat
 )
 
 // ParseMode parses a mode string, returning an error for invalid values.
@@ -26,12 +27,12 @@ func ParseMode(s string) (Mode, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "strict", "":
 		return ModeStrict, nil
-	case "interop":
-		return ModeInterop, nil
+	case "compat", "interop":
+		return ModeCompat, nil
 	case "dev":
 		return ModeDev, nil
 	default:
-		return "", fmt.Errorf("invalid mode %q: must be one of strict, interop, dev", s)
+		return "", fmt.Errorf("invalid mode %q: must be one of strict, compat, dev", s)
 	}
 }
 
@@ -57,6 +58,7 @@ type FlagOverrides struct {
 	ListenAddr                   *string
 	PublicOrigin                 *string
 	ExternalBasePath             *string
+	CompatibilityScope           *string
 	SSRFMode                     *string
 	SignatureInboundMode         *string
 	SignatureOutboundMode        *string
@@ -76,9 +78,10 @@ type fileConfig struct {
 	Mode   string        `toml:"mode"`
 	Server *serverConfig `toml:"server"`
 
-	PublicOrigin     string `toml:"public_origin"`
-	ExternalBasePath string `toml:"external_base_path"`
-	ListenAddr       string `toml:"listen_addr"`
+	PublicOrigin       string `toml:"public_origin"`
+	ExternalBasePath   string `toml:"external_base_path"`
+	ListenAddr         string `toml:"listen_addr"`
+	CompatibilityScope string `toml:"compatibility_scope"`
 
 	TLS                  *TLSConfig           `toml:"tls"`
 	OutboundHTTP         *OutboundHTTPConfig  `toml:"outbound_http"`
@@ -282,8 +285,8 @@ func presetForMode(mode Mode) *Config {
 	switch mode {
 	case ModeDev:
 		return DevConfig()
-	case ModeInterop:
-		return InteropConfig()
+	case ModeCompat:
+		return CompatConfig()
 	default:
 		return StrictConfig()
 	}
@@ -293,10 +296,11 @@ func presetForMode(mode Mode) *Config {
 func StrictConfig() *Config {
 	tokenExchangeEnabled := true
 	return &Config{
-		Mode:             string(ModeStrict),
-		PublicOrigin:     "https://localhost:9200",
-		ExternalBasePath: "",
-		ListenAddr:       ":9200",
+		Mode:               string(ModeStrict),
+		CompatibilityScope: "none",
+		PublicOrigin:       "https://localhost:9200",
+		ExternalBasePath:   "",
+		ListenAddr:         ":9200",
 		Server: ServerConfig{
 			TrustedProxies: []string{"127.0.0.0/8", "::1/128"},
 		},
@@ -344,30 +348,38 @@ func StrictConfig() *Config {
 			Path:    "token",
 		},
 		RequireTokenExchange: true,
-		PeerPolicy:           "prefer-strict",
+		PeerPolicy:           "strict",
 	}
 }
 
-// InteropConfig returns interop mode defaults.
-func InteropConfig() *Config {
+// CompatConfig returns compatibility mode defaults.
+func CompatConfig() *Config {
 	cfg := StrictConfig()
-	cfg.Mode = string(ModeInterop)
+	cfg.Mode = string(ModeCompat)
+	cfg.CompatibilityScope = "unbounded"
 	cfg.Signature.InboundMode = "lenient"
 	cfg.Signature.OutboundMode = "criteria-only"
 	cfg.Signature.PeerProfileLevelOverride = "non-strict"
 	cfg.RequireTokenExchange = false
+	cfg.PeerPolicy = "prefer-strict"
 	// InsecureSkipVerify stays configurable (default false)
 	return cfg
+}
+
+// InteropConfig returns the compatibility defaults under the legacy name.
+func InteropConfig() *Config {
+	return CompatConfig()
 }
 
 // DevConfig returns development mode defaults.
 func DevConfig() *Config {
 	tokenExchangeEnabled := true
 	return &Config{
-		Mode:             string(ModeDev),
-		PublicOrigin:     "https://localhost:9200",
-		ExternalBasePath: "",
-		ListenAddr:       ":9200",
+		Mode:               string(ModeDev),
+		CompatibilityScope: "unbounded",
+		PublicOrigin:       "https://localhost:9200",
+		ExternalBasePath:   "",
+		ListenAddr:         ":9200",
 		Server: ServerConfig{
 			TrustedProxies: []string{"127.0.0.0/8", "::1/128"},
 		},
@@ -429,6 +441,9 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 	if fc.ListenAddr != "" {
 		cfg.ListenAddr = fc.ListenAddr
+	}
+	if fc.CompatibilityScope != "" {
+		cfg.CompatibilityScope = fc.CompatibilityScope
 	}
 
 	if fc.Server != nil {
@@ -626,6 +641,9 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.ExternalBasePath != nil && *f.ExternalBasePath != "" {
 		cfg.ExternalBasePath = *f.ExternalBasePath
 	}
+	if f.CompatibilityScope != nil && *f.CompatibilityScope != "" {
+		cfg.CompatibilityScope = *f.CompatibilityScope
+	}
 	if f.SSRFMode != nil && *f.SSRFMode != "" {
 		cfg.OutboundHTTP.SSRFMode = *f.SSRFMode
 	}
@@ -670,6 +688,13 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 // validateEnums validates enum-like config fields and returns an error for invalid values.
 func validateEnums(cfg *Config) error {
 	// mode is already validated by ParseMode before we get here
+
+	switch cfg.CompatibilityScope {
+	case "none", "scoped", "unbounded":
+		// valid
+	default:
+		return fmt.Errorf("invalid compatibility_scope %q: must be one of none, scoped, unbounded", cfg.CompatibilityScope)
+	}
 
 	// tls.mode
 	switch cfg.TLS.Mode {
@@ -784,9 +809,9 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("peer_policy=strict requires token_exchange.enabled=true")
 	}
 
-	// Strict preset guardrails: when mode=strict, known signature-axis
-	// contradictions should fail before startup.
-	if err := validateStrictPresetPosture(cfg); err != nil {
+	// compatibility_scope=none is the supervising strictness contract. Reject
+	// obvious contradictions here before runtime posture is derived.
+	if err := validateCompatibilityScopeGuardrails(cfg); err != nil {
 		return err
 	}
 
@@ -798,24 +823,42 @@ func validateEnums(cfg *Config) error {
 	return nil
 }
 
-func validateStrictPresetPosture(cfg *Config) error {
-	if cfg == nil || !strings.EqualFold(cfg.Mode, string(ModeStrict)) {
+func validateCompatibilityScopeGuardrails(cfg *Config) error {
+	if cfg == nil || cfg.CompatibilityScope != "none" {
 		return nil
 	}
 	if cfg.Signature.InboundMode != "strict" {
-		return fmt.Errorf("mode=strict requires signature.inbound_mode=strict")
+		return fmt.Errorf("compatibility_scope=none requires signature.inbound_mode=strict")
 	}
 	if cfg.Signature.OutboundMode != "strict" {
-		return fmt.Errorf("mode=strict requires signature.outbound_mode=strict")
+		return fmt.Errorf("compatibility_scope=none requires signature.outbound_mode=strict")
 	}
 	if cfg.Signature.PeerProfileLevelOverride != "off" {
-		return fmt.Errorf("mode=strict requires signature.peer_profile_level_override=off")
+		return fmt.Errorf("compatibility_scope=none requires signature.peer_profile_level_override=off")
 	}
 	if cfg.Signature.OnDiscoveryError != "reject" {
-		return fmt.Errorf("mode=strict requires signature.on_discovery_error=reject")
+		return fmt.Errorf("compatibility_scope=none requires signature.on_discovery_error=reject")
 	}
 	if cfg.Signature.AllowMismatch {
-		return fmt.Errorf("mode=strict requires signature.allow_mismatch=false")
+		return fmt.Errorf("compatibility_scope=none requires signature.allow_mismatch=false")
+	}
+	if !cfg.RequireTokenExchange {
+		return fmt.Errorf("compatibility_scope=none requires require_token_exchange=true")
+	}
+	if cfg.PeerPolicy != "strict" {
+		return fmt.Errorf("compatibility_scope=none requires peer_policy=strict")
+	}
+	if cfg.TLS.Mode == "off" {
+		return fmt.Errorf("compatibility_scope=none requires tls.mode!=off")
+	}
+	if cfg.OutboundHTTP.SSRFMode != "strict" {
+		return fmt.Errorf("compatibility_scope=none requires outbound_http.ssrf_mode=strict")
+	}
+	if cfg.OutboundHTTP.InsecureSkipVerify {
+		return fmt.Errorf("compatibility_scope=none requires outbound_http.insecure_skip_verify=false")
+	}
+	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
+		return fmt.Errorf("compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled")
 	}
 	return nil
 }

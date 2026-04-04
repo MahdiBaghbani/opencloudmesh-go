@@ -30,19 +30,25 @@ type OutboundPolicy struct {
 	OutboundMode        string
 	PeerProfileOverride string
 	OnDiscoveryError    string
+	LocalPeerPolicy     string
 	PeerContract        *peercompat.CompiledContract
-	runtimePolicy       *policy.RuntimePolicy
-	canonicalPolicy     *policy.OpenCloudMeshPolicy
 }
 
-func NewOutboundPolicy(
+type ResolvedInputs struct {
+	OutboundMode        string
+	PeerProfileOverride string
+	OnDiscoveryError    string
+	LocalPeerPolicy     string
+}
+
+func ResolveInputs(
 	runtimePolicy *policy.RuntimePolicy,
-	peerContract *peercompat.CompiledContract,
 	canonicalPolicy *policy.OpenCloudMeshPolicy,
-) *OutboundPolicy {
+) ResolvedInputs {
 	outboundMode := "off"
 	peerProfileOverride := "off"
 	onDiscoveryError := "reject"
+	localPeerPolicy := "legacy"
 	if runtimePolicy != nil {
 		signature := runtimePolicy.Evaluate().Signature
 		if signature.OutboundMode != "" {
@@ -55,13 +61,30 @@ func NewOutboundPolicy(
 			onDiscoveryError = signature.OnDiscoveryError
 		}
 	}
-	return &OutboundPolicy{
+	if canonicalPolicy != nil {
+		eval := canonicalPolicy.Evaluate()
+		if eval.PeerPolicy != "" {
+			localPeerPolicy = eval.PeerPolicy
+		}
+	}
+	return ResolvedInputs{
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: peerProfileOverride,
 		OnDiscoveryError:    onDiscoveryError,
+		LocalPeerPolicy:     localPeerPolicy,
+	}
+}
+
+func NewOutboundPolicy(
+	inputs ResolvedInputs,
+	peerContract *peercompat.CompiledContract,
+) *OutboundPolicy {
+	return &OutboundPolicy{
+		OutboundMode:        inputs.OutboundMode,
+		PeerProfileOverride: inputs.PeerProfileOverride,
+		OnDiscoveryError:    inputs.OnDiscoveryError,
+		LocalPeerPolicy:     inputs.LocalPeerPolicy,
 		PeerContract:        peerContract,
-		runtimePolicy:       runtimePolicy,
-		canonicalPolicy:     canonicalPolicy,
 	}
 }
 
@@ -106,12 +129,9 @@ func (p *OutboundPolicy) ShouldSign(
 
 func (p *OutboundPolicy) decideTokenExchange(peerDomain string, disc *discovery.Discovery, hasSigner bool) SigningDecision {
 	tokenDecision := p.TokenExchangeDecisionForPeer(peerDomain)
-	localPolicy := "legacy"
-	if p.canonicalPolicy != nil {
-		ev := p.canonicalPolicy.Evaluate()
-		if ev.PeerPolicy != "" {
-			localPolicy = ev.PeerPolicy
-		}
+	localPolicy := p.LocalPeerPolicy
+	if localPolicy == "" {
+		localPolicy = "legacy"
 	}
 
 	if disc != nil {
