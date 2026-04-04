@@ -226,7 +226,6 @@ func main() {
 		logger.Error("failed to compile peer compatibility contract", "error", err)
 		os.Exit(1)
 	}
-	profileRegistry := peerContract.ProfileRegistry()
 
 	// Create signer for outbound requests (needed for SharedDeps)
 	var signer *crypto.RFC9421Signer
@@ -256,7 +255,7 @@ func main() {
 		)
 	}
 
-	outboundPolicy := outboundsigning.NewOutboundPolicy(runtimePolicy, profileRegistry, peerContract, openCloudMeshPolicy)
+	outboundPolicy := outboundsigning.NewOutboundPolicy(runtimePolicy, peerContract, openCloudMeshPolicy)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
 	peerDiscoveryAdapter.SetPeerContract(peerContract)

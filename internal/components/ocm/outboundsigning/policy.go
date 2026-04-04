@@ -30,7 +30,6 @@ type OutboundPolicy struct {
 	OutboundMode        string
 	PeerProfileOverride string
 	OnDiscoveryError    string
-	profileRegistry     *peercompat.ProfileRegistry
 	PeerContract        *peercompat.CompiledContract
 	runtimePolicy       *policy.RuntimePolicy
 	canonicalPolicy     *policy.OpenCloudMeshPolicy
@@ -38,7 +37,6 @@ type OutboundPolicy struct {
 
 func NewOutboundPolicy(
 	runtimePolicy *policy.RuntimePolicy,
-	registry *peercompat.ProfileRegistry,
 	peerContract *peercompat.CompiledContract,
 	canonicalPolicy *policy.OpenCloudMeshPolicy,
 ) *OutboundPolicy {
@@ -61,7 +59,6 @@ func NewOutboundPolicy(
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: peerProfileOverride,
 		OnDiscoveryError:    onDiscoveryError,
-		profileRegistry:     registry,
 		PeerContract:        peerContract,
 		runtimePolicy:       runtimePolicy,
 		canonicalPolicy:     canonicalPolicy,
@@ -312,24 +309,10 @@ func (p *OutboundPolicy) signatureDecision(peerDomain string) peercompat.Signatu
 		return p.PeerContract.SignatureDecisionForPeer(peerDomain)
 	}
 
-	decision := peercompat.SignaturePeerDecision{
+	return peercompat.SignaturePeerDecision{
 		PeerDomain: peerDomain,
 		Profile:    "strict",
 	}
-	if p.profileRegistry == nil {
-		return decision
-	}
-	profile := p.profileRegistry.GetProfile(peerDomain)
-	if profile == nil {
-		return decision
-	}
-	decision.Profile = profile.Name
-	decision.Matched = profile.Name != "strict"
-	decision.AllowUnsignedInbound = profile.AllowUnsignedInbound
-	decision.AllowUnsignedOutbound = profile.AllowUnsignedOutbound
-	decision.AllowMismatchedHost = profile.AllowMismatchedHost
-	decision.AllowUnsignedDiscovery = profile.AllowUnsignedDiscovery
-	return decision
 }
 
 func (p *OutboundPolicy) resolveDiscoveryFailure(peerDomain string) peercompat.DiscoveryFailureDecision {

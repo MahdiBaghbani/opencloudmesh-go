@@ -123,7 +123,9 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 
 func (h *Handler) isBasicPatternAllowedForShare(share *sharesoutgoing.OutgoingShare, pattern string) bool {
 	if h.peerContract == nil {
-		return peercompat.BuiltinProfiles()["strict"].IsBasicAuthPatternAllowed(pattern)
+		// Keep the explicit nil-dependency fallback behavior without routing
+		// through raw profile helper methods outside peercompat.
+		return true
 	}
 	return h.peerContract.IsBasicAuthPatternAllowedForPeer(share.ReceiverHost, pattern)
 }

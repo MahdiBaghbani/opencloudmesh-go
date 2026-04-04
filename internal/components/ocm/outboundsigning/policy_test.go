@@ -162,7 +162,7 @@ func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryRejectsByDefault(t *testing
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, contract, nil)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, contract, nil)
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
 	if !decision.ShouldSign {
@@ -182,7 +182,7 @@ func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryCanAllow(t *testing.T) {
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, contract, nil)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, contract, nil)
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
 	if decision.ShouldSign {
@@ -213,7 +213,7 @@ func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryAllowsMatchedPeerOverride(t
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, contract, nil)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, contract, nil)
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "peer.example.com", nil, true)
 	if decision.ShouldSign {
@@ -371,7 +371,7 @@ func TestNewOutboundPolicy(t *testing.T) {
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, contract, nil)
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, contract, nil)
 
 	if policy.OutboundMode != "criteria-only" {
 		t.Errorf("expected outbound_mode=criteria-only, got %s", policy.OutboundMode)
@@ -401,7 +401,7 @@ func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testin
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, contract, ocmpolicy.NewOpenCloudMeshPolicy(cfg))
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, contract, ocmpolicy.NewOpenCloudMeshPolicy(cfg))
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},
@@ -427,7 +427,7 @@ func TestOutboundPolicy_TokenExchange_StrictPolicyRequiresSigning(t *testing.T) 
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, registry, contract, ocmpolicy.NewOpenCloudMeshPolicy(cfg))
+	policy := outboundsigning.NewOutboundPolicy(runtimePolicy, contract, ocmpolicy.NewOpenCloudMeshPolicy(cfg))
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},

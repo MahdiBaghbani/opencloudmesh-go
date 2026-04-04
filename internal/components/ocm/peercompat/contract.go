@@ -185,14 +185,6 @@ func BuildCompiledContractFromRegistry(
 	}, nil
 }
 
-// ProfileRegistry returns the underlying profile registry for transitional paths.
-func (c *CompiledContract) ProfileRegistry() *ProfileRegistry {
-	if c == nil {
-		return nil
-	}
-	return c.registry
-}
-
 // ProfileByName returns the compiled profile by name.
 func (c *CompiledContract) ProfileByName(name string) (CompiledProfile, bool) {
 	if c == nil {
