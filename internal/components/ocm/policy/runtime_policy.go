@@ -39,6 +39,7 @@ type SignaturePosture struct {
 }
 
 type TransportPosture struct {
+	TLSMode            string
 	SSRFMode           string
 	InsecureSkipVerify bool
 }
@@ -76,12 +77,13 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 					OnDiscoveryError:         "reject",
 				},
 				DerivedTier:        RuntimeTierCompat,
-				CompatibilityScope: "config-unavailable",
+				CompatibilityScope: "unbounded",
 				Strict: StrictAssessment{
 					IsStrict:         false,
 					ViolationReasons: []string{"config_unavailable"},
 				},
 				Transport: TransportPosture{
+					TLSMode:  "off",
 					SSRFMode: "strict",
 				},
 				Trust: TrustPosture{
@@ -91,6 +93,7 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 		}
 	}
 
+	core := NewOpenCloudMeshPolicy(cfg).Evaluate()
 	signature := SignaturePosture{
 		InboundMode:                   cfg.Signature.InboundMode,
 		OutboundMode:                  cfg.Signature.OutboundMode,
@@ -100,6 +103,7 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 		AllowMismatch:                 cfg.Signature.AllowMismatch,
 	}
 	transport := TransportPosture{
+		TLSMode:            cfg.TLS.Mode,
 		SSRFMode:           cfg.OutboundHTTP.SSRFMode,
 		InsecureSkipVerify: cfg.OutboundHTTP.InsecureSkipVerify,
 	}
@@ -109,13 +113,13 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 		compatSummary = peerContract.Summary()
 	}
 	hasLiveRelaxations := hasMappedProfileRelaxations(cfg, compatSummary)
-	violationReasons := strictAssessmentReasons(signature, transport, trust, hasLiveRelaxations)
+	violationReasons := strictAssessmentReasons(core, signature, transport, trust, hasLiveRelaxations)
 	isStrict := len(violationReasons) == 0
 
 	evaluation := RuntimeEvaluation{
 		Signature:                 signature,
 		DerivedTier:               deriveTier(cfg.Mode, isStrict),
-		CompatibilityScope:        deriveCompatibilityScope(cfg, isStrict, hasLiveRelaxations, transport, trust),
+		CompatibilityScope:        deriveCompatibilityScope(cfg, hasLiveRelaxations, transport, trust),
 		Strict:                    StrictAssessment{IsStrict: isStrict, ViolationReasons: violationReasons},
 		Transport:                 transport,
 		Trust:                     trust,
@@ -163,42 +167,35 @@ func deriveTier(mode string, isStrict bool) RuntimeTier {
 
 func deriveCompatibilityScope(
 	cfg *config.Config,
-	isStrict bool,
 	hasLiveRelaxations bool,
 	transport TransportPosture,
 	trust TrustPosture,
 ) string {
 	if cfg == nil {
-		return "config-unavailable"
+		return "unbounded"
 	}
 	if strings.EqualFold(cfg.Mode, string(config.ModeDev)) {
-		return "dev-mode"
+		return "unbounded"
 	}
-	if isStrict {
-		return "none"
-	}
-	if hasLiveRelaxations {
-		return "peer-profile-relaxations"
-	}
-	switch cfg.Signature.OutboundMode {
-	case "token-only":
-		return "token-only-outbound"
-	case "criteria-only":
-		return "criteria-only-outbound"
+	if cfg.Signature.PeerProfileLevelOverride == "all" {
+		return "unbounded"
 	}
 	if cfg.Signature.InboundMode != "strict" ||
 		cfg.Signature.OutboundMode != "strict" ||
 		cfg.Signature.OnDiscoveryError != "reject" ||
 		cfg.Signature.AllowMismatch {
-		return "signature-non-strict"
+		return "unbounded"
 	}
-	if transport.SSRFMode != "strict" || transport.InsecureSkipVerify {
-		return "transport-relaxed"
+	if transport.TLSMode == "off" || transport.SSRFMode != "strict" || transport.InsecureSkipVerify {
+		return "unbounded"
 	}
 	if trust.Status == TrustStatusFailOpen {
-		return "peer-trust-fail-open"
+		return "unbounded"
 	}
-	return "compat"
+	if hasLiveRelaxations {
+		return "scoped"
+	}
+	return "none"
 }
 
 func deriveTrustPosture(cfg *config.Config) TrustPosture {
@@ -219,12 +216,22 @@ func deriveTrustPosture(cfg *config.Config) TrustPosture {
 }
 
 func strictAssessmentReasons(
+	core Evaluation,
 	signature SignaturePosture,
 	transport TransportPosture,
 	trust TrustPosture,
 	hasLiveRelaxations bool,
 ) []string {
 	reasons := make([]string, 0, 8)
+	if !core.TokenExchangeCapable {
+		reasons = append(reasons, "ocm_token_exchange_capability_disabled")
+	}
+	if !core.RequiresTokenExchange {
+		reasons = append(reasons, "ocm_require_token_exchange_disabled")
+	}
+	if !strings.EqualFold(core.PeerPolicy, "strict") {
+		reasons = append(reasons, "ocm_peer_policy_not_strict")
+	}
 	if signature.InboundMode != "strict" {
 		reasons = append(reasons, "signature_inbound_mode_not_strict")
 	}
@@ -242,6 +249,9 @@ func strictAssessmentReasons(
 	}
 	if hasLiveRelaxations {
 		reasons = append(reasons, "peer_profile_relaxations_active")
+	}
+	if transport.TLSMode == "off" {
+		reasons = append(reasons, "tls_mode_off")
 	}
 	if transport.SSRFMode != "strict" {
 		reasons = append(reasons, "outbound_http_ssrf_mode_not_strict")

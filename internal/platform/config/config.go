@@ -190,6 +190,10 @@ type PeerProfile struct {
 	// to fail open for this peer in the narrow retained call sites.
 	AllowUnsignedDiscovery bool `toml:"allow_unsigned_discovery"`
 
+	// AcceptLegacyDiscoveryPublicKey allows this peer to fall back from legacy
+	// discovery publicKey into canonical publicKeys during normalization.
+	AcceptLegacyDiscoveryPublicKey bool `toml:"accept_legacy_discovery_public_key"`
+
 	// TokenExchangeQuirks lists quirks to apply for token exchange
 	TokenExchangeQuirks []string `toml:"token_exchange_quirks"`
 

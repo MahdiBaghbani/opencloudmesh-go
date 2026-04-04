@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -182,5 +184,114 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	}
 	if disc2.EndPoint != disc.EndPoint {
 		t.Error("expected same discovery result from cache")
+	}
+}
+
+func TestClientDiscover_RejectsLegacyPublicKeyWithoutCompat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/ocm" {
+			http.NotFound(w, r)
+			return
+		}
+		raw := map[string]any{
+			"enabled":       true,
+			"apiVersion":    "1.2.2",
+			"endPoint":      "https://peer.example.com/ocm",
+			"resourceTypes": []any{},
+			"criteria":      []any{},
+			"capabilities":  []string{"http-sig"},
+			"publicKey": map[string]string{
+				"keyId":        "https://peer.example.com/ocm#legacy",
+				"publicKeyPem": "legacy-pem",
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(raw)
+	}))
+	defer server.Close()
+
+	httpCfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
+	disc, err := client.Discover(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+	if len(disc.PublicKeys) != 0 {
+		t.Fatalf("expected legacy publicKey to stay disabled without compat, got %+v", disc.PublicKeys)
+	}
+}
+
+func TestClientDiscover_AllowsLegacyPublicKeyWithPeerCompat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/ocm" {
+			http.NotFound(w, r)
+			return
+		}
+		raw := map[string]any{
+			"enabled":       true,
+			"apiVersion":    "1.2.2",
+			"endPoint":      "https://peer.example.com/ocm",
+			"resourceTypes": []any{},
+			"criteria":      []any{"http-request-signatures"},
+			"capabilities":  []string{"http-sig"},
+			"publicKey": map[string]string{
+				"keyId":        "https://peer.example.com/ocm#legacy",
+				"publicKeyPem": "legacy-pem",
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(raw)
+	}))
+	defer server.Close()
+
+	parsed, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("failed to parse server URL: %v", err)
+	}
+	registry := peercompat.NewProfileRegistry(
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                           "compat",
+				AcceptLegacyDiscoveryPublicKey: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: parsed.Hostname(), ProfileName: "compat"},
+		},
+	)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
+
+	httpCfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+	client.SetPeerContract(contract)
+
+	disc, err := client.Discover(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+	if len(disc.PublicKeys) != 1 {
+		t.Fatalf("expected legacy publicKey to normalize into one publicKeys entry, got %+v", disc.PublicKeys)
+	}
+	if disc.PublicKeys[0].KeyID != "https://peer.example.com/ocm#legacy" {
+		t.Fatalf("unexpected key ID %q", disc.PublicKeys[0].KeyID)
+	}
+	if disc.PublicKeys[0].Algorithm != "rsa" {
+		t.Fatalf("expected normalized legacy key algorithm rsa, got %q", disc.PublicKeys[0].Algorithm)
 	}
 }

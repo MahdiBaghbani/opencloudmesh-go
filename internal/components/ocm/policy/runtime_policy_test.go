@@ -98,6 +98,7 @@ func TestRuntimePolicyEvaluate_DerivesHTTPRequestSignatureRequirement(t *testing
 
 func TestRuntimePolicyEvaluate_DerivesStrictTier(t *testing.T) {
 	cfg := config.StrictConfig()
+	cfg.PeerPolicy = "strict"
 	cfg.Signature.PeerProfileLevelOverride = "off"
 	cfg.PeerTrust.Enabled = true
 	cfg.PeerTrust.Policy.GlobalEnforce = true
@@ -118,6 +119,28 @@ func TestRuntimePolicyEvaluate_DerivesStrictTier(t *testing.T) {
 	}
 }
 
+func TestRuntimePolicyEvaluate_DefaultStrictPresetDoesNotClaimStrict(t *testing.T) {
+	cfg := config.StrictConfig()
+	cfg.Signature.PeerProfileLevelOverride = "off"
+	cfg.PeerTrust.Enabled = true
+	cfg.PeerTrust.Policy.GlobalEnforce = true
+
+	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
+
+	if eval.DerivedTier != policy.RuntimeTierCompat {
+		t.Fatalf("expected compat tier for default strict preset, got %q", eval.DerivedTier)
+	}
+	if eval.Strict.IsStrict {
+		t.Fatalf("expected default strict preset to stay non-strict")
+	}
+	if eval.CompatibilityScope != "none" {
+		t.Fatalf("expected compatibility scope none without active relaxations, got %q", eval.CompatibilityScope)
+	}
+	if !hasReason(eval.Strict.ViolationReasons, "ocm_peer_policy_not_strict") {
+		t.Fatalf("expected peer-policy reason, got %v", eval.Strict.ViolationReasons)
+	}
+}
+
 func TestRuntimePolicyEvaluate_DerivesCompatTier(t *testing.T) {
 	cfg := config.InteropConfig()
 
@@ -135,6 +158,9 @@ func TestRuntimePolicyEvaluate_DerivesCompatTier(t *testing.T) {
 	if !hasReason(eval.Strict.ViolationReasons, "signature_outbound_mode_not_strict") {
 		t.Fatalf("expected outbound-mode strict reason, got %v", eval.Strict.ViolationReasons)
 	}
+	if eval.CompatibilityScope != "unbounded" {
+		t.Fatalf("expected unbounded compatibility scope, got %q", eval.CompatibilityScope)
+	}
 }
 
 func TestRuntimePolicyEvaluate_DerivesDevTier(t *testing.T) {
@@ -145,8 +171,8 @@ func TestRuntimePolicyEvaluate_DerivesDevTier(t *testing.T) {
 	if eval.DerivedTier != policy.RuntimeTierDev {
 		t.Fatalf("expected dev tier, got %q", eval.DerivedTier)
 	}
-	if eval.CompatibilityScope != "dev-mode" {
-		t.Fatalf("expected dev-mode scope, got %q", eval.CompatibilityScope)
+	if eval.CompatibilityScope != "unbounded" {
+		t.Fatalf("expected unbounded scope, got %q", eval.CompatibilityScope)
 	}
 }
 
@@ -203,6 +229,9 @@ func TestRuntimePolicyEvaluate_DetectsMappedProfileRelaxations(t *testing.T) {
 	if !hasReason(eval.Strict.ViolationReasons, "peer_profile_relaxations_active") {
 		t.Fatalf("expected profile-relaxations reason, got %v", eval.Strict.ViolationReasons)
 	}
+	if eval.CompatibilityScope != "scoped" {
+		t.Fatalf("expected scoped compatibility scope, got %q", eval.CompatibilityScope)
+	}
 }
 
 func TestRuntimePolicyEvaluate_DetectsBasicAuthAllowlistRelaxation(t *testing.T) {
@@ -235,6 +264,9 @@ func TestRuntimePolicyEvaluate_DetectsBasicAuthAllowlistRelaxation(t *testing.T)
 	if !hasReason(eval.Strict.ViolationReasons, "peer_profile_relaxations_active") {
 		t.Fatalf("expected profile-relaxations reason, got %v", eval.Strict.ViolationReasons)
 	}
+	if eval.CompatibilityScope != "scoped" {
+		t.Fatalf("expected scoped compatibility scope, got %q", eval.CompatibilityScope)
+	}
 }
 
 func TestRuntimePolicyEvaluate_DetectsGrantTypeRelaxation(t *testing.T) {
@@ -266,6 +298,9 @@ func TestRuntimePolicyEvaluate_DetectsGrantTypeRelaxation(t *testing.T) {
 	}
 	if !hasReason(eval.Strict.ViolationReasons, "peer_profile_relaxations_active") {
 		t.Fatalf("expected profile-relaxations reason, got %v", eval.Strict.ViolationReasons)
+	}
+	if eval.CompatibilityScope != "scoped" {
+		t.Fatalf("expected scoped compatibility scope, got %q", eval.CompatibilityScope)
 	}
 }
 

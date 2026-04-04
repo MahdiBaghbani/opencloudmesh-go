@@ -64,6 +64,40 @@ outbound_mode = "criteria-only"
 	}
 }
 
+func TestStrictModeDefaultPeerPolicyDemotesRuntimePosture(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                  "strict-default-peer-policy",
+		Mode:                  "strict",
+		KeepSignatureDefaults: true,
+	})
+	defer srv.Stop(t)
+
+	resp, err := http.Get(srv.BaseURL + "/api/healthz")
+	if err != nil {
+		t.Fatalf("health check failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected healthz 200, got %d", resp.StatusCode)
+	}
+
+	logPath := filepath.Join(srv.TempDir, "server.log")
+	logs := waitForLogSubstrings(t, logPath,
+		"resolved runtime posture is non-strict",
+		"compatibility_scope",
+		"unbounded",
+		"ocm_peer_policy_not_strict",
+	)
+	if logs == "" {
+		t.Fatalf("expected non-strict runtime posture log for default strict preset")
+	}
+}
+
 func TestRemovedSignatureAdvertiseRootKeyRejectedAtStartup(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -202,7 +236,7 @@ global_enforce = false
 
 	logPath := filepath.Join(srv.TempDir, "server.log")
 	logs := waitForLogSubstrings(t, logPath,
-		"resolved runtime signature posture is non-strict",
+		"resolved runtime posture is non-strict",
 		"trust_status",
 		"fail-open",
 	)
@@ -243,9 +277,9 @@ token_exchange_grant_type = "ocm_share"
 
 	logPath := filepath.Join(srv.TempDir, "server.log")
 	logs := waitForLogSubstrings(t, logPath,
-		"resolved runtime signature posture is non-strict",
+		"resolved runtime posture is non-strict",
 		"compatibility_scope",
-		"peer-profile-relaxations",
+		"unbounded",
 		"peer_profile_relaxations_active",
 	)
 	if logs == "" {

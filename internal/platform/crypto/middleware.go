@@ -131,7 +131,7 @@ func (m *SignatureMiddleware) logCompatibilityDecision(
 
 func (m *SignatureMiddleware) decisionCompatibilityScope(profile string) string {
 	if profile != "" && profile != "strict" {
-		return "peer-profile-relaxations"
+		return "scoped"
 	}
 	if m.compatibilityScope != "" {
 		return m.compatibilityScope

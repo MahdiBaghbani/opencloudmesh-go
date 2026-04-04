@@ -13,7 +13,7 @@ func TestCompatibilityDecisionLogSlogAttrs_WithOptionalFields(t *testing.T) {
 		Operation:          "outbound_signing",
 		Decision:           "allow_unsigned",
 		ReasonCode:         "compat_override",
-		CompatibilityScope: "peer-profile-relaxations",
+		CompatibilityScope: "scoped",
 		Quirk:              "accept_plain_token",
 	}
 

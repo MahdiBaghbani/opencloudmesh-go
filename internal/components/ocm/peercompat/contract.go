@@ -25,10 +25,11 @@ var supportedBasicAuthPatterns = map[string]struct{}{
 
 // SigningCompatibility is the typed signing compatibility decision payload.
 type SigningCompatibility struct {
-	AllowUnsignedInbound   bool
-	AllowUnsignedOutbound  bool
-	AllowMismatchedHost    bool
-	AllowUnsignedDiscovery bool
+	AllowUnsignedInbound           bool
+	AllowUnsignedOutbound          bool
+	AllowMismatchedHost            bool
+	AllowUnsignedDiscovery         bool
+	AcceptLegacyDiscoveryPublicKey bool
 }
 
 // TransportCompatibility is the typed transport compatibility decision payload.
@@ -60,12 +61,13 @@ type CompiledProfile struct {
 
 // ProfileSummary captures per-profile summary facts used by runtime posture.
 type ProfileSummary struct {
-	Name                   string
-	HasRelaxations         bool
-	AllowUnsignedDiscovery bool
-	AllowHTTP              bool
-	HasBasicAuthAllowlist  bool
-	NonDefaultGrantType    bool
+	Name                           string
+	HasRelaxations                 bool
+	AllowUnsignedDiscovery         bool
+	AcceptLegacyDiscoveryPublicKey bool
+	AllowHTTP                      bool
+	HasBasicAuthAllowlist          bool
+	NonDefaultGrantType            bool
 }
 
 // CompatibilitySummary captures the compiled contract summary for runtime policy.
@@ -106,15 +108,16 @@ func NewCompiledContractFromConfig(
 	customProfiles := make(map[string]*Profile, len(cfg.PeerProfiles.CustomProfiles))
 	for name, profileCfg := range cfg.PeerProfiles.CustomProfiles {
 		customProfiles[name] = &Profile{
-			Name:                     name,
-			AllowUnsignedInbound:     profileCfg.AllowUnsignedInbound,
-			AllowUnsignedOutbound:    profileCfg.AllowUnsignedOutbound,
-			AllowMismatchedHost:      profileCfg.AllowMismatchedHost,
-			AllowHTTP:                profileCfg.AllowHTTP,
-			AllowUnsignedDiscovery:   profileCfg.AllowUnsignedDiscovery,
-			TokenExchangeQuirks:      slices.Clone(profileCfg.TokenExchangeQuirks),
-			TokenExchangeGrantType:   profileCfg.TokenExchangeGrantType,
-			AllowedBasicAuthPatterns: slices.Clone(profileCfg.AllowedBasicAuthPatterns),
+			Name:                           name,
+			AllowUnsignedInbound:           profileCfg.AllowUnsignedInbound,
+			AllowUnsignedOutbound:          profileCfg.AllowUnsignedOutbound,
+			AllowMismatchedHost:            profileCfg.AllowMismatchedHost,
+			AllowHTTP:                      profileCfg.AllowHTTP,
+			AllowUnsignedDiscovery:         profileCfg.AllowUnsignedDiscovery,
+			AcceptLegacyDiscoveryPublicKey: profileCfg.AcceptLegacyDiscoveryPublicKey,
+			TokenExchangeQuirks:            slices.Clone(profileCfg.TokenExchangeQuirks),
+			TokenExchangeGrantType:         profileCfg.TokenExchangeGrantType,
+			AllowedBasicAuthPatterns:       slices.Clone(profileCfg.AllowedBasicAuthPatterns),
 		}
 	}
 
@@ -262,10 +265,11 @@ func compileProfile(profile *Profile) (CompiledProfile, error) {
 	return CompiledProfile{
 		Name: profile.Name,
 		Signing: SigningCompatibility{
-			AllowUnsignedInbound:   profile.AllowUnsignedInbound,
-			AllowUnsignedOutbound:  profile.AllowUnsignedOutbound,
-			AllowMismatchedHost:    profile.AllowMismatchedHost,
-			AllowUnsignedDiscovery: profile.AllowUnsignedDiscovery,
+			AllowUnsignedInbound:           profile.AllowUnsignedInbound,
+			AllowUnsignedOutbound:          profile.AllowUnsignedOutbound,
+			AllowMismatchedHost:            profile.AllowMismatchedHost,
+			AllowUnsignedDiscovery:         profile.AllowUnsignedDiscovery,
+			AcceptLegacyDiscoveryPublicKey: profile.AcceptLegacyDiscoveryPublicKey,
 		},
 		Transport: TransportCompatibility{
 			AllowHTTP: profile.AllowHTTP,
@@ -282,15 +286,17 @@ func summarizeProfile(profile CompiledProfile) ProfileSummary {
 			profile.Signing.AllowUnsignedOutbound ||
 			profile.Signing.AllowMismatchedHost ||
 			profile.Signing.AllowUnsignedDiscovery ||
+			profile.Signing.AcceptLegacyDiscoveryPublicKey ||
 			profile.Transport.AllowHTTP ||
 			profile.TokenExchange.AcceptPlainToken ||
 			profile.TokenExchange.SendTokenInBody ||
 			(len(profile.BasicAuth.AllowedPatterns) > 0) ||
 			profile.TokenExchange.GrantType != "authorization_code",
-		AllowUnsignedDiscovery: profile.Signing.AllowUnsignedDiscovery,
-		AllowHTTP:              profile.Transport.AllowHTTP,
-		HasBasicAuthAllowlist:  len(profile.BasicAuth.AllowedPatterns) > 0,
-		NonDefaultGrantType:    profile.TokenExchange.GrantType != "authorization_code",
+		AllowUnsignedDiscovery:         profile.Signing.AllowUnsignedDiscovery,
+		AcceptLegacyDiscoveryPublicKey: profile.Signing.AcceptLegacyDiscoveryPublicKey,
+		AllowHTTP:                      profile.Transport.AllowHTTP,
+		HasBasicAuthAllowlist:          len(profile.BasicAuth.AllowedPatterns) > 0,
+		NonDefaultGrantType:            profile.TokenExchange.GrantType != "authorization_code",
 	}
 }
 

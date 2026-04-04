@@ -87,7 +87,7 @@ func (p *OutboundPolicy) ShouldSign(
 
 	switch p.OutboundMode {
 	case "strict":
-		return p.decideStrict(disc, peerDecision, hasSigner)
+		return p.decideStrict(peerDomain, disc, peerDecision, hasSigner)
 	case "token-only":
 		return SigningDecision{
 			ShouldSign: false,
@@ -210,29 +210,40 @@ func (p *OutboundPolicy) TokenExchangeFallbackForReason(peerDomain, reasonCode s
 
 // decideStrict handles strict mode signing decisions.
 func (p *OutboundPolicy) decideStrict(
+	peerDomain string,
 	disc *discovery.Discovery,
 	peerDecision peercompat.SignaturePeerDecision,
 	hasSigner bool,
 ) SigningDecision {
 	if peerDecision.Matched && peerDecision.AllowUnsignedOutbound {
 		if p.PeerProfileOverride == "all" {
-			peerRequiresSignatures := disc != nil && disc.HasCriteria("http-request-signatures")
-			if peerRequiresSignatures {
-				if !hasSigner {
+			if disc == nil {
+				discoveryDecision := p.resolveDiscoveryFailure(peerDomain)
+				if discoveryDecision.Allow {
+					return SigningDecision{
+						ShouldSign: false,
+						Reason:     "discovery unavailable and resolved decision=allow",
+					}
+				}
+			} else {
+				peerRequiresSignatures := disc.HasCriteria("http-request-signatures")
+				if peerRequiresSignatures {
+					if !hasSigner {
+						return SigningDecision{
+							ShouldSign: true,
+							Reason:     "peer requires signatures (criteria) but no signer available",
+							Error:      fmt.Errorf("peer requires http-request-signatures but no signer available"),
+						}
+					}
 					return SigningDecision{
 						ShouldSign: true,
-						Reason:     "peer requires signatures (criteria) but no signer available",
-						Error:      fmt.Errorf("peer requires http-request-signatures but no signer available"),
+						Reason:     "peer requires signatures (criteria overrides profile relaxation)",
 					}
 				}
 				return SigningDecision{
-					ShouldSign: true,
-					Reason:     "peer requires signatures (criteria overrides profile relaxation)",
+					ShouldSign: false,
+					Reason:     "peer profile allows unsigned outbound with peer_profile_level_override=all",
 				}
-			}
-			return SigningDecision{
-				ShouldSign: false,
-				Reason:     "peer profile allows unsigned outbound with peer_profile_level_override=all",
 			}
 		}
 	}

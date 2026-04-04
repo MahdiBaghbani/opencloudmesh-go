@@ -152,6 +152,8 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
+	discoveryClient := discovery.NewClient(rawHTTPClient, nil)
+	discoveryClient.SetPeerContract(peerContract)
 
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()
@@ -168,7 +170,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		TokenStore:         tokenStore,
 		// Clients
 		HTTPClient:      httpClient,
-		DiscoveryClient: discovery.NewClient(rawHTTPClient, nil),
+		DiscoveryClient: discoveryClient,
 		// Policy
 		OpenCloudMeshPolicy: openCloudMeshPolicy,
 		RuntimePolicy:       runtimePolicy,

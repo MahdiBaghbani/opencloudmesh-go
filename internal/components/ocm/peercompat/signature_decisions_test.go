@@ -9,11 +9,12 @@ func TestSignatureDecisionForPeer_MatchedProfile(t *testing.T) {
 	contract, err := NewCompiledContract(
 		map[string]*Profile{
 			"compat": {
-				Name:                   "compat",
-				AllowUnsignedInbound:   true,
-				AllowUnsignedOutbound:  true,
-				AllowMismatchedHost:    true,
-				AllowUnsignedDiscovery: true,
+				Name:                           "compat",
+				AllowUnsignedInbound:           true,
+				AllowUnsignedOutbound:          true,
+				AllowMismatchedHost:            true,
+				AllowUnsignedDiscovery:         true,
+				AcceptLegacyDiscoveryPublicKey: true,
 			},
 		},
 		[]ProfileMapping{{Pattern: "*.compat.example", ProfileName: "compat"}},
@@ -30,7 +31,8 @@ func TestSignatureDecisionForPeer_MatchedProfile(t *testing.T) {
 		t.Fatalf("expected profile compat, got %q", decision.Profile)
 	}
 	if !decision.AllowUnsignedInbound || !decision.AllowUnsignedOutbound ||
-		!decision.AllowMismatchedHost || !decision.AllowUnsignedDiscovery {
+		!decision.AllowMismatchedHost || !decision.AllowUnsignedDiscovery ||
+		!decision.AcceptLegacyDiscoveryPublicKey {
 		t.Fatalf("expected all relaxations enabled for matched profile: %+v", decision)
 	}
 }
@@ -49,7 +51,8 @@ func TestSignatureDecisionForPeer_UnmatchedUsesStrictDefaults(t *testing.T) {
 		t.Fatalf("expected strict profile fallback, got %q", decision.Profile)
 	}
 	if decision.AllowUnsignedInbound || decision.AllowUnsignedOutbound ||
-		decision.AllowMismatchedHost || decision.AllowUnsignedDiscovery {
+		decision.AllowMismatchedHost || decision.AllowUnsignedDiscovery ||
+		decision.AcceptLegacyDiscoveryPublicKey {
 		t.Fatalf("expected strict defaults for unmatched peer: %+v", decision)
 	}
 }
@@ -137,6 +140,52 @@ func TestResolveDiscoveryFailure_UnmatchedPeerRejects(t *testing.T) {
 		t.Fatalf("expected unmatched peer to reject discovery failure: %+v", decision)
 	}
 	if decision.ReasonCode != "discovery_error_reject" {
+		t.Fatalf("unexpected reason code: %s", decision.ReasonCode)
+	}
+}
+
+func TestLegacyDiscoveryPublicKeyDecisionForPeer_MatchedPeerAllows(t *testing.T) {
+	contract, err := NewCompiledContract(
+		map[string]*Profile{
+			"compat": {
+				Name:                           "compat",
+				AcceptLegacyDiscoveryPublicKey: true,
+			},
+		},
+		[]ProfileMapping{{Pattern: "peer.example", ProfileName: "compat"}},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
+	}
+
+	decision := contract.LegacyDiscoveryPublicKeyDecisionForPeer("peer.example")
+	if !decision.Allow {
+		t.Fatalf("expected matched peer to allow legacy discovery fallback: %+v", decision)
+	}
+	if decision.ReasonCode != "peer_accept_legacy_discovery_public_key" {
+		t.Fatalf("unexpected reason code: %s", decision.ReasonCode)
+	}
+}
+
+func TestLegacyDiscoveryPublicKeyDecisionForPeer_UnmatchedRejects(t *testing.T) {
+	contract, err := NewCompiledContract(
+		map[string]*Profile{
+			"compat": {
+				Name:                           "compat",
+				AcceptLegacyDiscoveryPublicKey: true,
+			},
+		},
+		[]ProfileMapping{{Pattern: "peer.example", ProfileName: "compat"}},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
+	}
+
+	decision := contract.LegacyDiscoveryPublicKeyDecisionForPeer("other.example")
+	if decision.Allow {
+		t.Fatalf("expected unmatched peer to reject legacy discovery fallback: %+v", decision)
+	}
+	if decision.ReasonCode != "legacy_discovery_public_key_reject" {
 		t.Fatalf("unexpected reason code: %s", decision.ReasonCode)
 	}
 }

@@ -226,6 +226,7 @@ func main() {
 		logger.Error("failed to compile peer compatibility contract", "error", err)
 		os.Exit(1)
 	}
+	discoveryClient.SetPeerContract(peerContract)
 
 	// Create signer for outbound requests (needed for SharedDeps)
 	var signer *crypto.RFC9421Signer
@@ -238,7 +239,7 @@ func main() {
 	runtimeEval := runtimePolicy.Evaluate()
 	if runtimeEval.Strict.IsStrict {
 		logger.Info(
-			"resolved runtime signature posture",
+			"resolved runtime posture",
 			"tier", runtimeEval.DerivedTier,
 			"compatibility_scope", runtimeEval.CompatibilityScope,
 			"strict", runtimeEval.Strict.IsStrict,
@@ -246,7 +247,7 @@ func main() {
 		)
 	} else {
 		logger.Warn(
-			"resolved runtime signature posture is non-strict",
+			"resolved runtime posture is non-strict",
 			"tier", runtimeEval.DerivedTier,
 			"compatibility_scope", runtimeEval.CompatibilityScope,
 			"strict", runtimeEval.Strict.IsStrict,

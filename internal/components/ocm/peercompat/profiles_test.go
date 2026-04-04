@@ -180,8 +180,20 @@ func TestBuiltinProfiles_StrictIsDefault(t *testing.T) {
 	if strict.AllowHTTP {
 		t.Error("strict profile should not allow HTTP")
 	}
+	if strict.AcceptLegacyDiscoveryPublicKey {
+		t.Error("strict profile should not allow legacy discovery publicKey fallback")
+	}
 	if len(strict.TokenExchangeQuirks) > 0 {
 		t.Error("strict profile should have no quirks")
+	}
+}
+
+func TestBuiltinProfiles_CompatProfilesAllowLegacyDiscoveryFallback(t *testing.T) {
+	profiles := BuiltinProfiles()
+	for _, name := range []string{"nextcloud", "owncloud", "dev"} {
+		if !profiles[name].AcceptLegacyDiscoveryPublicKey {
+			t.Fatalf("expected %s profile to allow legacy discovery publicKey fallback", name)
+		}
 	}
 }
 

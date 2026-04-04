@@ -650,8 +650,8 @@ func TestSignatureMiddleware_LogsCompatibilityDecisionFields(t *testing.T) {
 	if record.attrs["reason_code"] != "peer_allow_unsigned_discovery" {
 		t.Fatalf("expected profile discovery reason code, got %v", record.attrs["reason_code"])
 	}
-	if record.attrs["compatibility_scope"] != "peer-profile-relaxations" {
-		t.Fatalf("expected peer-profile-relaxations scope, got %v", record.attrs["compatibility_scope"])
+	if record.attrs["compatibility_scope"] != "scoped" {
+		t.Fatalf("expected scoped compatibility scope, got %v", record.attrs["compatibility_scope"])
 	}
 }
 

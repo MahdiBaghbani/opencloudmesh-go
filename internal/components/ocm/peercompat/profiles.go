@@ -32,6 +32,10 @@ type Profile struct {
 	// to fail open for this peer in the narrow retained call sites.
 	AllowUnsignedDiscovery bool `json:"allow_unsigned_discovery" toml:"allow_unsigned_discovery"`
 
+	// AcceptLegacyDiscoveryPublicKey allows compatibility fallback from legacy
+	// discovery publicKey into canonical publicKeys for this peer.
+	AcceptLegacyDiscoveryPublicKey bool `json:"accept_legacy_discovery_public_key" toml:"accept_legacy_discovery_public_key"`
+
 	// TokenExchangeQuirks lists token exchange quirks to apply
 	TokenExchangeQuirks []string `json:"token_exchange_quirks" toml:"token_exchange_quirks"`
 
@@ -126,25 +130,27 @@ func BuiltinProfiles() map[string]*Profile {
 	return map[string]*Profile{
 		// Strict profile: full RFC 9421 compliance expected
 		"strict": {
-			Name:                     "strict",
-			AllowUnsignedInbound:     false,
-			AllowUnsignedOutbound:    false,
-			AllowMismatchedHost:      false,
-			AllowHTTP:                false,
-			AllowUnsignedDiscovery:   false,
-			TokenExchangeQuirks:      nil,
-			AllowedBasicAuthPatterns: nil, // allow all patterns
+			Name:                           "strict",
+			AllowUnsignedInbound:           false,
+			AllowUnsignedOutbound:          false,
+			AllowMismatchedHost:            false,
+			AllowHTTP:                      false,
+			AllowUnsignedDiscovery:         false,
+			AcceptLegacyDiscoveryPublicKey: false,
+			TokenExchangeQuirks:            nil,
+			AllowedBasicAuthPatterns:       nil, // allow all patterns
 		},
 
 		// Nextcloud profile: common Nextcloud interop quirks
 		"nextcloud": {
-			Name:                   "nextcloud",
-			AllowUnsignedInbound:   true, // Nextcloud may not sign requests
-			AllowUnsignedOutbound:  true, // May need to send unsigned for compat
-			AllowMismatchedHost:    true, // Nextcloud keyId may not match sender
-			AllowHTTP:              false,
-			AllowUnsignedDiscovery: false,
-			TokenExchangeGrantType: "ocm_share", // Nextcloud expects legacy grant type
+			Name:                           "nextcloud",
+			AllowUnsignedInbound:           true, // Nextcloud may not sign requests
+			AllowUnsignedOutbound:          true, // May need to send unsigned for compat
+			AllowMismatchedHost:            true, // Nextcloud keyId may not match sender
+			AllowHTTP:                      false,
+			AllowUnsignedDiscovery:         false,
+			AcceptLegacyDiscoveryPublicKey: true,        // Older peers may still use publicKey
+			TokenExchangeGrantType:         "ocm_share", // Nextcloud expects legacy grant type
 			TokenExchangeQuirks: []string{
 				"accept_plain_token", // Accept token in request body
 				"send_token_in_body", // Send token in request body
@@ -154,13 +160,14 @@ func BuiltinProfiles() map[string]*Profile {
 
 		// ownCloud profile: similar to Nextcloud with minor differences
 		"owncloud": {
-			Name:                   "owncloud",
-			AllowUnsignedInbound:   true,
-			AllowUnsignedOutbound:  true,
-			AllowMismatchedHost:    true,
-			AllowHTTP:              false,
-			AllowUnsignedDiscovery: false,
-			TokenExchangeGrantType: "ocm_share", // ownCloud expects legacy grant type
+			Name:                           "owncloud",
+			AllowUnsignedInbound:           true,
+			AllowUnsignedOutbound:          true,
+			AllowMismatchedHost:            true,
+			AllowHTTP:                      false,
+			AllowUnsignedDiscovery:         false,
+			AcceptLegacyDiscoveryPublicKey: true,
+			TokenExchangeGrantType:         "ocm_share", // ownCloud expects legacy grant type
 			TokenExchangeQuirks: []string{
 				"accept_plain_token",
 				"send_token_in_body",
@@ -170,12 +177,13 @@ func BuiltinProfiles() map[string]*Profile {
 
 		// Dev profile: allows everything for local testing
 		"dev": {
-			Name:                   "dev",
-			AllowUnsignedInbound:   true,
-			AllowUnsignedOutbound:  true,
-			AllowMismatchedHost:    true,
-			AllowHTTP:              true, // Allow HTTP for local dev
-			AllowUnsignedDiscovery: false,
+			Name:                           "dev",
+			AllowUnsignedInbound:           true,
+			AllowUnsignedOutbound:          true,
+			AllowMismatchedHost:            true,
+			AllowHTTP:                      true, // Allow HTTP for local dev
+			AllowUnsignedDiscovery:         false,
+			AcceptLegacyDiscoveryPublicKey: true,
 			TokenExchangeQuirks: []string{
 				"accept_plain_token",
 				"send_token_in_body",

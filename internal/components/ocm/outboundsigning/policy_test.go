@@ -357,6 +357,74 @@ func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
 	}
 }
 
+func TestOutboundPolicy_Strict_MissingDiscoveryDoesNotImplyUnsigned(t *testing.T) {
+	profiles := map[string]*peercompat.Profile{
+		"compat": {
+			Name:                  "compat",
+			AllowUnsignedOutbound: true,
+		},
+	}
+	mappings := []peercompat.ProfileMapping{
+		{Pattern: "legacy.example.com", ProfileName: "compat"},
+	}
+	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
+
+	policy := &outboundsigning.OutboundPolicy{
+		OutboundMode:        "strict",
+		PeerProfileOverride: "all",
+		PeerContract:        contract,
+		OnDiscoveryError:    "reject",
+	}
+
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "legacy.example.com", nil, true)
+	if !decision.ShouldSign {
+		t.Fatalf("missing discovery must not imply unsigned fallback in strict mode: %+v", decision)
+	}
+	if decision.Error != nil {
+		t.Fatalf("unexpected error with signer available: %+v", decision)
+	}
+}
+
+func TestOutboundPolicy_Strict_MissingDiscoveryAllowsExplicitFailOpen(t *testing.T) {
+	profiles := map[string]*peercompat.Profile{
+		"compat": {
+			Name:                   "compat",
+			AllowUnsignedOutbound:  true,
+			AllowUnsignedDiscovery: true,
+		},
+	}
+	mappings := []peercompat.ProfileMapping{
+		{Pattern: "legacy.example.com", ProfileName: "compat"},
+	}
+	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
+
+	policy := &outboundsigning.OutboundPolicy{
+		OutboundMode:        "strict",
+		PeerProfileOverride: "all",
+		PeerContract:        contract,
+		OnDiscoveryError:    "reject",
+	}
+
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "legacy.example.com", nil, true)
+	if decision.ShouldSign {
+		t.Fatalf("explicit fail-open should allow unsigned strict compatibility path: %+v", decision)
+	}
+	if decision.Error != nil {
+		t.Fatalf("unexpected error for explicit fail-open: %+v", decision)
+	}
+	if decision.Reason != "discovery unavailable and resolved decision=allow" {
+		t.Fatalf("unexpected reason: %s", decision.Reason)
+	}
+}
+
 func TestNewOutboundPolicy(t *testing.T) {
 	cfg := &config.Config{
 		Signature: config.SignatureConfig{
