@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
-// PeerDiscoveryAdapter implements crypto.PeerDiscovery using discovery.Client (peer verification).
+// PeerDiscoveryAdapter implements crypto.PeerDiscovery using discovery.Client.
 type PeerDiscoveryAdapter struct {
-	client *Client
+	client       *Client
+	peerContract *peercompat.CompiledContract
 }
 
 func NewPeerDiscoveryAdapter(client *Client) *PeerDiscoveryAdapter {
@@ -19,17 +21,23 @@ func NewPeerDiscoveryAdapter(client *Client) *PeerDiscoveryAdapter {
 	return &PeerDiscoveryAdapter{client: client}
 }
 
+// SetPeerContract wires the compiled compatibility contract so peer discovery
+// follows the shared peer-origin resolver.
+func (p *PeerDiscoveryAdapter) SetPeerContract(peerContract *peercompat.CompiledContract) {
+	p.peerContract = peerContract
+}
+
 func (p *PeerDiscoveryAdapter) IsSigningCapable(ctx context.Context, host string) (bool, error) {
 	if p.client == nil {
 		return false, fmt.Errorf("no discovery client configured")
 	}
-	baseURL := "https://" + host
+	baseURL := p.resolvePeerBaseURL(host)
 	disc, err := p.client.Discover(ctx, baseURL)
 	if err != nil {
 		return false, fmt.Errorf("discovery failed for %s: %w", host, err)
 	}
 
-	return disc.HasCapability("http-sig"), nil
+	return disc.HasCriteria("http-request-signatures"), nil
 }
 
 // GetPublicKey fetches the public key for a keyId.
@@ -44,7 +52,7 @@ func (p *PeerDiscoveryAdapter) GetPublicKey(ctx context.Context, keyID string) (
 		return "", fmt.Errorf("invalid keyId %q: %w", keyID, err)
 	}
 	authority := keyid.Authority(parsed)
-	baseURL := "https://" + authority
+	baseURL := p.resolvePeerBaseURL(authority)
 	disc, err := p.client.Discover(ctx, baseURL)
 	if err != nil {
 		return "", fmt.Errorf("discovery failed for %s: %w", authority, err)
@@ -57,3 +65,7 @@ func (p *PeerDiscoveryAdapter) GetPublicKey(ctx context.Context, keyID string) (
 	return pk.PublicKeyPem, nil
 }
 
+func (p *PeerDiscoveryAdapter) resolvePeerBaseURL(host string) string {
+	decision := p.peerContract.ResolvePeerOrigin(host)
+	return decision.BaseURL
+}

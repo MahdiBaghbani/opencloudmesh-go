@@ -6,20 +6,21 @@ import (
 	"sync"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
 var (
@@ -45,6 +46,10 @@ type Deps struct {
 	HTTPClient      *httpclient.ContextClient
 	DiscoveryClient *discovery.Client
 
+	// Policy objects created once from frozen config at startup.
+	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
+	RuntimePolicy       *policy.RuntimePolicy
+
 	// Crypto
 	KeyManager          *crypto.KeyManager
 	Signer              *crypto.RFC9421Signer
@@ -52,9 +57,9 @@ type Deps struct {
 	SignatureMiddleware *crypto.SignatureMiddleware
 
 	// Peer trust (optional)
-	TrustGroupMgr   *peertrust.TrustGroupManager
-	PolicyEngine    *peertrust.PolicyEngine
-	ProfileRegistry *peercompat.ProfileRegistry
+	TrustGroupMgr *peertrust.TrustGroupManager
+	PolicyEngine  *peertrust.PolicyEngine
+	PeerContract  *peercompat.CompiledContract
 
 	// Provider identity derived from PublicOrigin at startup
 	LocalProviderFQDN           string // raw host[:port] from PublicOrigin (lowercased)

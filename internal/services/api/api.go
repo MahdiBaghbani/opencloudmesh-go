@@ -95,10 +95,12 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.Signer,
 		d.OutboundPolicy,
 	)
+	notificationClient.SetPeerContract(d.PeerContract)
 
 	// Create token exchange and remote access clients
 	tokenClient := tokenoutgoing.NewClient(
 		d.HTTPClient,
+		d.DiscoveryClient,
 		d.Signer,
 		d.OutboundPolicy,
 		d.LocalProviderFQDN,
@@ -107,7 +109,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.HTTPClient,
 		d.DiscoveryClient,
 		tokenClient,
-		d.ProfileRegistry,
+		d.PeerContract,
 	)
 
 	// Inbox shares handler (per-user scoped, Chi route params)
@@ -115,8 +117,6 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		d.IncomingShareRepo,
 		notificationClient,
 		accessClient,
-		d.ProfileRegistry,
-		d.Config,
 		currentUser,
 		log,
 	)
@@ -125,14 +125,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	outgoingHandler := outgoingshares.NewHandler(
 		d.OutgoingShareRepo,
 		d.DiscoveryClient,
+		d.OpenCloudMeshPolicy,
 		d.HTTPClient,
 		d.Signer,
 		d.OutboundPolicy,
-		d.Config,
 		d.LocalProviderFQDN,
 		currentUser,
 		log,
 	)
+	outgoingHandler.SetPeerContract(d.PeerContract)
 	if len(c.AllowedPaths) > 0 {
 		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
 	}
@@ -148,6 +149,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		currentUser,
 		log,
 	)
+	inboxInvitesHandler.SetPeerContract(d.PeerContract)
 
 	// Outgoing invites handler (session-gated, tracks CreatedByUserID)
 	outgoingInvitesHandler := outgoinginvites.NewHandler(

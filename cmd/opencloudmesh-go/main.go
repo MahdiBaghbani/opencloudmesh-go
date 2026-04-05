@@ -14,28 +14,29 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -49,14 +50,14 @@ import (
 
 func main() {
 	configPath := flag.String("config", "", "Path to TOML config file (optional)")
-	modeFlag := flag.String("mode", "", "Operating mode: strict, interop, or dev (overrides config)")
+	modeFlag := flag.String("mode", "", "Preset bundle: strict, compat, or dev (legacy alias: interop)")
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
 	publicOrigin := flag.String("public-origin", "", "Public origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
+	compatibilityScope := flag.String("compatibility-scope", "", "Compatibility scope: none, scoped, or unbounded (overrides config)")
 	ssrfMode := flag.String("ssrf-mode", "", "SSRF protection mode: strict or off (overrides config)")
 	signatureInboundMode := flag.String("signature-inbound-mode", "", "Signature inbound mode: strict, lenient, or off (overrides config)")
 	signatureOutboundMode := flag.String("signature-outbound-mode", "", "Signature outbound mode: strict, criteria-only, token-only, or off (overrides config)")
-	signatureAdvertise := flag.String("signature-advertise-http-request-signatures", "", "Advertise http-request-signatures in discovery criteria: true or false (overrides config)")
 	signaturePeerOverride := flag.String("signature-peer-profile-level-override", "", "Peer profile override level: all, non-strict, or off (overrides config)")
 	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
@@ -64,33 +65,35 @@ func main() {
 	loggingAllowSensitive := flag.String("logging-allow-sensitive", "", "Allow sensitive values in logs: true or false (overrides config)")
 	tokenExchangeEnabled := flag.String("token-exchange-enabled", "", "Enable token exchange: true or false (overrides config)")
 	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
-	webdavTokenExchangeMode := flag.String("webdav-token-exchange-mode", "", "WebDAV token exchange enforcement mode: strict, lenient, or off (overrides config)")
+	requireTokenExchange := flag.String("require-token-exchange", "", "Require must-exchange-token for receive strictness: true or false (overrides config)")
+	peerPolicy := flag.String("peer-policy", "", "Peer policy: legacy, prefer-strict, or strict (overrides config)")
 	flag.Parse()
 
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 
-	// Config precedence: mode preset -> TOML file -> CLI flags
+	// Config precedence: preset bundle -> TOML file -> CLI flags
 	cfg, err := config.Load(config.LoaderOptions{
 		ConfigPath: *configPath,
 		ModeFlag:   *modeFlag,
 		FlagOverrides: config.FlagOverrides{
-			ListenAddr:                    listenAddr,
-			PublicOrigin:                  publicOrigin,
-			ExternalBasePath:              externalBasePath,
-			SSRFMode:                      ssrfMode,
-			SignatureInboundMode:          signatureInboundMode,
-			SignatureOutboundMode:         signatureOutboundMode,
-			SignatureAdvertiseHTTPReqSigs: signatureAdvertise,
-			SignaturePeerProfileOverride:  signaturePeerOverride,
-			AdminUsername:                 adminUsername,
-			AdminPassword:                 adminPassword,
-			LoggingLevel:                  loggingLevel,
-			LoggingAllowSensitive:         loggingAllowSensitive,
-			TokenExchangeEnabled:          tokenExchangeEnabled,
-			TokenExchangePath:             tokenExchangePath,
-			WebDAVTokenExchangeMode:       webdavTokenExchangeMode,
+			ListenAddr:                   listenAddr,
+			PublicOrigin:                 publicOrigin,
+			ExternalBasePath:             externalBasePath,
+			CompatibilityScope:           compatibilityScope,
+			SSRFMode:                     ssrfMode,
+			SignatureInboundMode:         signatureInboundMode,
+			SignatureOutboundMode:        signatureOutboundMode,
+			SignaturePeerProfileOverride: signaturePeerOverride,
+			AdminUsername:                adminUsername,
+			AdminPassword:                adminPassword,
+			LoggingLevel:                 loggingLevel,
+			LoggingAllowSensitive:        loggingAllowSensitive,
+			TokenExchangeEnabled:         tokenExchangeEnabled,
+			TokenExchangePath:            tokenExchangePath,
+			RequireTokenExchange:         requireTokenExchange,
+			PeerPolicy:                   peerPolicy,
 		},
 		Logger: bootstrapLogger,
 	})
@@ -118,6 +121,24 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(logger)
 	logger.Info("effective configuration", "config", cfg.Redacted())
+
+	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
+	if err != nil {
+		logger.Error("failed to compile peer compatibility contract", "error", err)
+		os.Exit(1)
+	}
+	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
+	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
+	runtimeEval := runtimePolicy.Evaluate()
+	if cfg.CompatibilityScope == "none" && !runtimeEval.Strict.IsStrict {
+		logger.Error(
+			"compatibility_scope=none contradicts resolved runtime posture",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"reasons", runtimeEval.Strict.ViolationReasons,
+		)
+		os.Exit(1)
+	}
 
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
@@ -190,13 +211,7 @@ func main() {
 			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
 		}
 
-		// Strict mode requires verified Directory Service signatures; interop/dev accept unsigned
-		dsMode, _ := config.ParseMode(cfg.Mode)
-		defaultVerificationPolicy := "required"
-		if dsMode == config.ModeInterop || dsMode == config.ModeDev {
-			defaultVerificationPolicy = "optional"
-		}
-
+		defaultVerificationPolicy := runtimePolicy.DirectoryServiceVerificationPolicy()
 		dirServiceClient := directoryservice.NewClient(rawHTTPClient, defaultVerificationPolicy, logger)
 		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, cfg.PublicScheme(), logger, refreshTimeout)
 
@@ -218,34 +233,16 @@ func main() {
 		}
 		policyEngine = peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
 		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
+		if runtimeEval.Trust.Status == policy.TrustStatusFailOpen {
+			logger.Warn(
+				"peer trust is enabled without global enforcement",
+				"trust_status", runtimeEval.Trust.Status,
+				"compatibility_scope", runtimeEval.CompatibilityScope,
+			)
+		}
 	}
 
-	var profileRegistry *peercompat.ProfileRegistry
-	if len(cfg.PeerProfiles.Mappings) > 0 || len(cfg.PeerProfiles.CustomProfiles) > 0 {
-		customProfiles := make(map[string]*peercompat.Profile)
-		for name, p := range cfg.PeerProfiles.CustomProfiles {
-			customProfiles[name] = &peercompat.Profile{
-				Name:                     name,
-				AllowUnsignedInbound:     p.AllowUnsignedInbound,
-				AllowUnsignedOutbound:    p.AllowUnsignedOutbound,
-				AllowMismatchedHost:      p.AllowMismatchedHost,
-				AllowHTTP:                p.AllowHTTP,
-				TokenExchangeQuirks:      p.TokenExchangeQuirks,
-				RelaxMustExchangeToken:   p.RelaxMustExchangeToken,
-				AllowedBasicAuthPatterns: p.AllowedBasicAuthPatterns,
-			}
-		}
-		mappings := make([]peercompat.ProfileMapping, len(cfg.PeerProfiles.Mappings))
-		for i, m := range cfg.PeerProfiles.Mappings {
-			mappings[i] = peercompat.ProfileMapping{
-				Pattern:     m.Pattern,
-				ProfileName: m.Profile,
-			}
-		}
-		profileRegistry = peercompat.NewProfileRegistry(customProfiles, mappings)
-	} else {
-		profileRegistry = peercompat.NewProfileRegistry(nil, nil)
-	}
+	discoveryClient.SetPeerContract(peerContract)
 
 	// Create signer for outbound requests (needed for SharedDeps)
 	var signer *crypto.RFC9421Signer
@@ -253,10 +250,33 @@ func main() {
 		signer = crypto.NewRFC9421Signer(keyManager)
 	}
 
-	outboundPolicy := outboundsigning.NewOutboundPolicy(cfg, profileRegistry)
+	if runtimeEval.Strict.IsStrict {
+		logger.Info(
+			"resolved runtime posture",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"strict", runtimeEval.Strict.IsStrict,
+			"trust_status", runtimeEval.Trust.Status,
+		)
+	} else {
+		logger.Warn(
+			"resolved runtime posture is non-strict",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"strict", runtimeEval.Strict.IsStrict,
+			"reasons", runtimeEval.Strict.ViolationReasons,
+			"trust_status", runtimeEval.Trust.Status,
+		)
+	}
+
+	outboundPolicy := outboundsigning.NewOutboundPolicy(
+		outboundsigning.ResolveInputs(runtimePolicy, openCloudMeshPolicy),
+		peerContract,
+	)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
-	signatureMiddleware := crypto.NewSignatureMiddleware(&cfg.Signature, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
+	peerDiscoveryAdapter.SetPeerContract(peerContract)
+	signatureMiddleware := crypto.NewSignatureMiddleware(runtimePolicy, peerContract, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
 
 	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
 	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
@@ -291,15 +311,18 @@ func main() {
 		// Clients
 		HTTPClient:      httpClient,
 		DiscoveryClient: discoveryClient,
+		// Policy
+		OpenCloudMeshPolicy: openCloudMeshPolicy,
+		RuntimePolicy:       runtimePolicy,
 		// Crypto
 		KeyManager:          keyManager,
 		Signer:              signer,
 		OutboundPolicy:      outboundPolicy,
 		SignatureMiddleware: signatureMiddleware,
 		// Peer trust
-		TrustGroupMgr:   trustGroupMgr,
-		PolicyEngine:    policyEngine,
-		ProfileRegistry: profileRegistry,
+		TrustGroupMgr: trustGroupMgr,
+		PolicyEngine:  policyEngine,
+		PeerContract:  peerContract,
 		// Provider identity
 		LocalProviderFQDN:           localProviderFQDN,
 		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
@@ -387,4 +410,3 @@ func main() {
 
 	logger.Info("server stopped")
 }
-

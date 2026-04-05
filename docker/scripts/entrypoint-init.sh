@@ -131,11 +131,11 @@ validate_mode() {
   fi
 
   case "$mode" in
-    strict|interop|dev)
+    strict|compat|interop|dev)
       printf "%s" "$mode"
       ;;
     *)
-      echo "OCM_GO_MODE must be strict, interop, or dev; got: $mode" >&2
+      echo "OCM_GO_MODE must be strict, compat, or dev; interop is a legacy alias. Got: $mode" >&2
       exit 1
       ;;
   esac

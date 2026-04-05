@@ -13,21 +13,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -51,6 +54,14 @@ type TestServer struct {
 // StartTestServer creates and starts a test server with dynamic port allocation.
 func StartTestServer(t *testing.T) *TestServer {
 	t.Helper()
+	return StartTestServerWithConfig(t, nil)
+}
+
+// StartTestServerWithConfig creates and starts a test server, applying an
+// optional patch function to the config before startup. Use this when tests
+// need a specific policy or config setting at server-creation time.
+func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestServer {
+	t.Helper()
 
 	// Create temp directory for test data
 	tempDir, err := os.MkdirTemp("", "ocm-test-*")
@@ -69,6 +80,10 @@ func StartTestServer(t *testing.T) *TestServer {
 	cfg := config.DevConfig()
 	cfg.ListenAddr = fmt.Sprintf(":%d", port)
 	cfg.PublicOrigin = fmt.Sprintf("http://localhost:%d", port)
+
+	if patch != nil {
+		patch(cfg)
+	}
 
 	// Create logger that discards output (or use t.Log if you want to see logs)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -129,6 +144,17 @@ func StartTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to normalize provider FQDN: %v", err)
 	}
 
+	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to compile peer compatibility contract: %v", err)
+	}
+
+	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
+	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
+	discoveryClient := discovery.NewClient(rawHTTPClient, nil)
+	discoveryClient.SetPeerContract(peerContract)
+
 	// Reset and set SharedDeps for this test (important for test isolation)
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
@@ -143,7 +169,11 @@ func StartTestServer(t *testing.T) *TestServer {
 		IncomingInviteRepo: incomingInviteRepo,
 		TokenStore:         tokenStore,
 		// Clients
-		HTTPClient: httpClient,
+		HTTPClient:      httpClient,
+		DiscoveryClient: discoveryClient,
+		// Policy
+		OpenCloudMeshPolicy: openCloudMeshPolicy,
+		RuntimePolicy:       runtimePolicy,
 		// Provider identity
 		LocalProviderFQDN:           localProviderFQDN,
 		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
@@ -153,6 +183,8 @@ func StartTestServer(t *testing.T) *TestServer {
 		Cache: cacheInstance,
 		// RealIP (for trusted-proxy-aware client identity)
 		RealIP: realIPExtractor,
+		// Compatibility contract
+		PeerContract: peerContract,
 		// KeyManager is nil (no signatures in basic tests)
 	})
 
@@ -279,4 +311,3 @@ func waitForServer(baseURL string, timeout time.Duration) error {
 	}
 	return fmt.Errorf("server not ready after %v", timeout)
 }
-

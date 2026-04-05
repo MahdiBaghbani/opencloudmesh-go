@@ -13,18 +13,21 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
 // Client performs OCM token exchange against peer token endpoints.
 type Client struct {
-	httpClient     *httpclient.ContextClient
-	signer         RequestSigner
-	outboundPolicy *outboundsigning.OutboundPolicy
-	myClientID     string // This instance's FQDN for client_id
+	httpClient      *httpclient.ContextClient
+	discoveryClient *discovery.Client
+	signer          RequestSigner
+	outboundPolicy  *outboundsigning.OutboundPolicy
+	myClientID      string // This instance's FQDN for client_id
 }
 
 // RequestSigner signs HTTP requests for RFC 9421.
@@ -47,31 +50,56 @@ type ExchangeResult struct {
 	QuirkApplied string // Name of quirk applied, if any
 }
 
-// NewClient builds a token exchange client.
+// NewClient builds a token exchange client. Panics if discoveryClient is nil.
 func NewClient(
 	httpClient *httpclient.ContextClient,
+	discoveryClient *discovery.Client,
 	signer RequestSigner,
 	outboundPolicy *outboundsigning.OutboundPolicy,
 	myClientID string,
 ) *Client {
+	if discoveryClient == nil {
+		panic("tokenoutgoing.NewClient: discoveryClient must not be nil")
+	}
 	return &Client{
-		httpClient:     httpClient,
-		signer:         signer,
-		outboundPolicy: outboundPolicy,
-		myClientID:     myClientID,
+		httpClient:      httpClient,
+		discoveryClient: discoveryClient,
+		signer:          signer,
+		outboundPolicy:  outboundPolicy,
+		myClientID:      myClientID,
 	}
 }
 
 // Exchange performs token exchange with the peer; OutboundPolicy controls signing.
 func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
 	var shouldSign bool
-	var profile *peercompat.Profile
+
+	var disc *discovery.Discovery
+	if c.outboundPolicy != nil && c.discoveryClient != nil {
+		peerBaseURL, baseErr := instanceid.NormalizePublicOrigin(req.TokenEndPoint)
+		if baseErr != nil {
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonDiscoveryFailed,
+				"failed to derive rediscovery origin for token exchange",
+				baseErr,
+			)
+		}
+		d, discErr := c.discoveryClient.Discover(ctx, peerBaseURL)
+		if discErr != nil {
+			return nil, peercompat.NewClassifiedError(
+				peercompat.ReasonDiscoveryFailed,
+				"failed to rediscover peer for token exchange",
+				discErr,
+			)
+		}
+		disc = d
+	}
 
 	if c.outboundPolicy != nil {
 		decision := c.outboundPolicy.ShouldSign(
 			outboundsigning.EndpointTokenExchange,
 			req.PeerDomain,
-			nil, // No discovery doc for token exchange signing decision
+			disc,
 			c.signer != nil,
 		)
 		if decision.Error != nil {
@@ -82,16 +110,17 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 			)
 		}
 		shouldSign = decision.ShouldSign
-
-		if c.outboundPolicy.ProfileRegistry != nil {
-			profile = c.outboundPolicy.ProfileRegistry.GetProfile(req.PeerDomain)
-		}
 	}
 
-	grantType := token.GrantTypeAuthorizationCode
-	if profile != nil {
-		grantType = profile.GetTokenExchangeGrantType()
+	tokenDecision := peercompat.TokenExchangeDecision{
+		PeerDomain: req.PeerDomain,
+		Profile:    "strict",
+		GrantType:  token.GrantTypeAuthorizationCode,
 	}
+	if c.outboundPolicy != nil {
+		tokenDecision = c.outboundPolicy.TokenExchangeDecisionForPeer(req.PeerDomain)
+	}
+	grantType := tokenDecision.GrantType
 
 	if !shouldSign {
 		return c.exchangeUnsigned(ctx, req, grantType)
@@ -104,23 +133,19 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 
 	reasonCode := peercompat.ClassifyError(err)
 
-	if profile != nil && c.outboundPolicy != nil {
-		if profile.HasQuirk("accept_plain_token") &&
-			(reasonCode == peercompat.ReasonSignatureRequired ||
-				reasonCode == peercompat.ReasonSignatureInvalid ||
-				reasonCode == peercompat.ReasonKeyNotFound) {
+	if c.outboundPolicy != nil {
+		fallback := c.outboundPolicy.TokenExchangeFallbackForReason(req.PeerDomain, reasonCode)
+		if fallback.AllowUnsignedRetry {
 			result, err = c.exchangeUnsigned(ctx, req, grantType)
 			if err == nil {
-				result.QuirkApplied = "accept_plain_token"
+				result.QuirkApplied = fallback.Quirk
 				return result, nil
 			}
 		}
-		if profile.HasQuirk("send_token_in_body") &&
-			(reasonCode == peercompat.ReasonTokenExchangeFailed ||
-				reasonCode == peercompat.ReasonProtocolMismatch) {
+		if fallback.AllowJSONBodyRetry {
 			result, err = c.exchangeJSON(ctx, req, grantType, shouldSign)
 			if err == nil {
-				result.QuirkApplied = "send_token_in_body"
+				result.QuirkApplied = fallback.Quirk
 				return result, nil
 			}
 		}

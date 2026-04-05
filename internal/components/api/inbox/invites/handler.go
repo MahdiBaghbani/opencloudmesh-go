@@ -10,17 +10,19 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -28,9 +30,9 @@ import (
 )
 
 type InboxInviteView struct {
-	ID         string              `json:"id"`
-	SenderFQDN string              `json:"senderFqdn"`
-	ReceivedAt time.Time           `json:"receivedAt"`
+	ID         string               `json:"id"`
+	SenderFQDN string               `json:"senderFqdn"`
+	ReceivedAt time.Time            `json:"receivedAt"`
 	Status     invites.InviteStatus `json:"status"`
 }
 
@@ -45,9 +47,9 @@ type InviteImportRequest struct {
 
 // InviteImportResponse is the safe response for invite import (no token leaked).
 type InviteImportResponse struct {
-	ID         string              `json:"id"`
-	SenderFQDN string             `json:"senderFqdn"`
-	ReceivedAt string             `json:"receivedAt"`
+	ID         string               `json:"id"`
+	SenderFQDN string               `json:"senderFqdn"`
+	ReceivedAt string               `json:"receivedAt"`
 	Status     invites.InviteStatus `json:"status"`
 }
 
@@ -58,6 +60,7 @@ type Handler struct {
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
+	peerContract    *peercompat.CompiledContract
 	localProvider   string // raw host[:port] for recipientProvider in invite-accepted
 	currentUser     func(context.Context) (*identity.User, error)
 	log             *slog.Logger
@@ -85,6 +88,12 @@ func NewHandler(
 		currentUser:     currentUser,
 		log:             log,
 	}
+}
+
+// SetPeerContract wires the compiled compatibility contract so invite sender
+// discovery uses the shared peer-origin resolver.
+func (h *Handler) SetPeerContract(peerContract *peercompat.CompiledContract) {
+	h.peerContract = peerContract
 }
 
 // HandleList handles GET /api/inbox/invites; returns only invites for the authenticated user.
@@ -296,13 +305,16 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 // sendInviteAccepted sends POST /ocm/invite-accepted to the sender with all spec-required fields.
 func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.IncomingInvite, user *identity.User) error {
-	baseURL := "https://" + invite.SenderFQDN
-	disc, err := h.discoveryClient.Discover(ctx, baseURL)
+	origin := h.resolvePeerOrigin(invite.SenderFQDN)
+	disc, err := h.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
 		return fmt.Errorf("discovery failed for %s: %w", invite.SenderFQDN, err)
 	}
 
-	inviteAcceptedURL := disc.EndPoint + "/invite-accepted"
+	inviteAcceptedURL, err := url.JoinPath(disc.EndPoint, "invite-accepted")
+	if err != nil {
+		return fmt.Errorf("failed to build invite-accepted URL: %w", err)
+	}
 
 	reqBody := spec.InviteAcceptedRequest{
 		RecipientProvider: h.localProvider,
@@ -326,7 +338,7 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 	if h.outboundPolicy != nil {
 		decision := h.outboundPolicy.ShouldSign(
 			outboundsigning.EndpointInvites,
-			invite.SenderFQDN,
+			origin.peerDomain,
 			disc,
 			h.signer != nil,
 		)
@@ -356,4 +368,17 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 	}
 
 	return nil
+}
+
+type resolvedPeerOrigin struct {
+	baseURL    string
+	peerDomain string
+}
+
+func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
+	decision := h.peerContract.ResolvePeerOrigin(peerDomain)
+	return resolvedPeerOrigin{
+		baseURL:    decision.BaseURL,
+		peerDomain: decision.PeerDomain,
+	}
 }

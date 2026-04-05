@@ -2,12 +2,13 @@ package webdav
 
 import (
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
@@ -44,12 +45,11 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 	}
 }
 
-func TestNew_AcceptsConfigFromSharedDeps(t *testing.T) {
+func TestNew_UsesMinimalSharedDeps(t *testing.T) {
 	deps.ResetDeps()
 	deps.SetDeps(&deps.Deps{
 		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
 		TokenStore:        token.NewMemoryTokenStore(),
-		Config:            &config.Config{WebDAVTokenExchange: config.WebDAVTokenExchangeConfig{Mode: "lenient"}},
 	})
 
 	m := map[string]any{}
@@ -60,36 +60,46 @@ func TestNew_AcceptsConfigFromSharedDeps(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if svc == nil {
-		t.Fatal("expected non-nil service")
-	}
-
-	// Verify mode was derived from SharedDeps (check handler enforcement)
 	s := svc.(*Service)
 	if s.handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
 }
 
-func TestNew_DefaultsToStrictMode(t *testing.T) {
+func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 	deps.ResetDeps()
+
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	strictShare := &sharesoutgoing.OutgoingShare{
+		ProviderID:        "provider-strict-share",
+		WebDAVID:          "11111111-1111-1111-1111-111111111111",
+		SharedSecret:      "strict-share-secret",
+		MustExchangeToken: true,
+		ReceiverHost:      "receiver.example.com",
+	}
+	if err := repo.Create(nil, strictShare); err != nil {
+		t.Fatalf("failed to seed outgoing share: %v", err)
+	}
+
 	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: repo,
 		TokenStore:        token.NewMemoryTokenStore(),
 	})
 
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(map[string]any{}, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// With nil Config, Settings.ApplyDefaults() fills "strict"
 	s := svc.(*Service)
-	if s.handler == nil {
-		t.Fatal("expected non-nil handler")
+	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+strictShare.WebDAVID, nil)
+	req.Header.Set("Authorization", "Bearer "+strictShare.SharedSecret)
+	w := httptest.NewRecorder()
+
+	s.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for strict share shared-secret access, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

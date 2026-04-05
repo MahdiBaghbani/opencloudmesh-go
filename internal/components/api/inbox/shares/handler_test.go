@@ -19,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 )
 
@@ -55,7 +56,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 
 // newTestRouter mounts the inbox shares handler; nil accessClient/cfg suffice for list/accept/decline.
 func newTestRouter(repo sharesinbox.IncomingShareRepo, sender sharesinbox.NotificationSender, user *identity.User) http.Handler {
-	h := inboxshares.NewHandler(repo, sender, nil, nil, nil, currentUserFunc(user), testLogger)
+	h := inboxshares.NewHandler(repo, sender, nil, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
 	r.Route("/inbox/shares", func(r chi.Router) {
 		r.Get("/", h.HandleList)
@@ -698,7 +699,7 @@ func newTestRouterWithAccess(
 	ac access.RemoteAccessor,
 	user *identity.User,
 ) http.Handler {
-	h := inboxshares.NewHandler(repo, sender, ac, nil, nil, currentUserFunc(user), testLogger)
+	h := inboxshares.NewHandler(repo, sender, ac, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
 	r.Route("/inbox/shares", func(r chi.Router) {
 		r.Get("/", h.HandleList)
@@ -888,6 +889,60 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	}
 }
 
+func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	share := createAcceptedShareForUser(repo, userAID, "prov-va-signature", "sender.example.com", "missing.txt")
+
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+		return nil, peercompat.NewClassifiedError(
+			peercompat.ReasonSignatureRequired,
+			"signature required",
+			nil,
+		)
+	}}
+	router := newTestRouterWithAccess(repo, nil, ac, userA)
+
+	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp inboxshares.VerifyAccessResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.ReasonCode != "policy_denied" {
+		t.Errorf("expected reasonCode policy_denied, got %s", resp.ReasonCode)
+	}
+}
+
+func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	share := createAcceptedShareForUser(repo, userAID, "prov-va-disabled", "sender.example.com", "missing.txt")
+
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+		return nil, reason.New(reason.PeerDiscoveryDisabled, "discovery disabled", nil)
+	}}
+	router := newTestRouterWithAccess(repo, nil, ac, userA)
+
+	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp inboxshares.VerifyAccessResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.ReasonCode != "discovery_disabled" {
+		t.Errorf("expected reasonCode discovery_disabled, got %s", resp.ReasonCode)
+	}
+}
+
 func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, userAID, "prov-va-big", "sender.example.com", "big.bin")
@@ -960,8 +1015,8 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 	if resp.OK {
 		t.Error("expected ok=false")
 	}
-	if resp.ReasonCode != "remote_error" {
-		t.Errorf("expected reasonCode remote_error, got %s", resp.ReasonCode)
+	if resp.ReasonCode != "unreachable" {
+		t.Errorf("expected reasonCode unreachable, got %s", resp.ReasonCode)
 	}
 	if !containsStr(resp.Error, "403") {
 		t.Errorf("expected error to mention status code, got %q", resp.Error)

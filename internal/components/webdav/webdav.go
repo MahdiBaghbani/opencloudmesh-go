@@ -22,26 +22,20 @@ import (
 
 // Handler provides WebDAV access to shared files.
 type Handler struct {
-	outgoingRepo    sharesoutgoing.OutgoingShareRepo
-	tokenStore      token.TokenStore
-	settings        *Settings
-	profileRegistry *peercompat.ProfileRegistry
-	logger          *slog.Logger
+	outgoingRepo sharesoutgoing.OutgoingShareRepo
+	tokenStore   token.TokenStore
+	peerContract *peercompat.CompiledContract
+	logger       *slog.Logger
 }
 
-// NewHandler builds a WebDAV handler. Settings control must-exchange-token enforcement; ProfileRegistry enables peer relaxations in lenient mode.
-func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *Settings, profileRegistry *peercompat.ProfileRegistry, logger *slog.Logger) *Handler {
+// NewHandler builds a WebDAV handler.
+func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, peerContract *peercompat.CompiledContract, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
-	if settings == nil {
-		settings = &Settings{}
-		settings.ApplyDefaults()
-	}
 	return &Handler{
-		outgoingRepo:    outgoingRepo,
-		tokenStore:      tokenStore,
-		settings:        settings,
-		profileRegistry: profileRegistry,
-		logger:          logger,
+		outgoingRepo: outgoingRepo,
+		tokenStore:   tokenStore,
+		peerContract: peerContract,
+		logger:       logger,
 	}
 }
 
@@ -107,20 +101,17 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 		}
 	}
 
-	profile := h.getProfileForShare(share)
-
 	if strings.HasPrefix(authSource, "basic:") {
 		patternKey := strings.TrimPrefix(authSource, "basic:")
-		if !profile.IsBasicAuthPatternAllowed(patternKey) {
+		if !h.isBasicPatternAllowedForShare(share, patternKey) {
 			return false, ""
 		}
 	}
 
-	if share.MustExchangeToken && h.settings.EnforceMustExchangeToken() {
-		if h.settings.WebDAVTokenExchangeMode == "lenient" && profile.RelaxMustExchangeToken {
-		} else {
-			return false, ""
-		}
+	// A share marked must-exchange-token must never allow raw shared-secret
+	// fallback, regardless of local compatibility mode.
+	if share.MustExchangeToken {
+		return false, ""
 	}
 
 	if share.SharedSecret == token {
@@ -130,12 +121,13 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 	return false, ""
 }
 
-// getProfileForShare returns the peer profile; falls back to strict if no registry.
-func (h *Handler) getProfileForShare(share *sharesoutgoing.OutgoingShare) *peercompat.Profile {
-	if h.profileRegistry == nil {
-		return peercompat.BuiltinProfiles()["strict"]
+func (h *Handler) isBasicPatternAllowedForShare(share *sharesoutgoing.OutgoingShare, pattern string) bool {
+	if h.peerContract == nil {
+		// Keep the explicit nil-dependency fallback behavior without routing
+		// through raw profile helper methods outside peercompat.
+		return true
 	}
-	return h.profileRegistry.GetProfile(share.ReceiverHost)
+	return h.peerContract.IsBasicAuthPatternAllowedForPeer(share.ReceiverHost, pattern)
 }
 
 // serveFile serves share.LocalPath via WebDAV.
@@ -350,9 +342,9 @@ type virtualDir struct {
 	offset int
 }
 
-func (d *virtualDir) Close() error                             { return nil }
-func (d *virtualDir) Read(p []byte) (n int, err error)         { return 0, os.ErrInvalid }
-func (d *virtualDir) Write(p []byte) (n int, err error)        { return 0, os.ErrPermission }
+func (d *virtualDir) Close() error                                 { return nil }
+func (d *virtualDir) Read(p []byte) (n int, err error)             { return 0, os.ErrInvalid }
+func (d *virtualDir) Write(p []byte) (n int, err error)            { return 0, os.ErrPermission }
 func (d *virtualDir) Seek(offset int64, whence int) (int64, error) { return 0, os.ErrInvalid }
 
 func (d *virtualDir) Readdir(count int) ([]os.FileInfo, error) {

@@ -10,14 +10,21 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 
 	inboxinvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -38,12 +45,23 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 
 // newTestRouter mounts the inbox invites handler; nil clients suffice for list/import/decline (accept needs outbound).
 func newTestRouter(repo invitesinbox.IncomingInviteRepo, user *identity.User) http.Handler {
+	return newTestRouterWithDeps(repo, user, nil, nil, nil, nil)
+}
+
+func newTestRouterWithDeps(
+	repo invitesinbox.IncomingInviteRepo,
+	user *identity.User,
+	httpClient httpclient.HTTPClient,
+	discoveryClient *discovery.Client,
+	signer *crypto.RFC9421Signer,
+	outboundPolicy *outboundsigning.OutboundPolicy,
+) http.Handler {
 	h := inboxinvites.NewHandler(
 		repo,
-		nil, // httpClient
-		nil, // discoveryClient
-		nil, // signer
-		nil, // outboundPolicy
+		httpClient,
+		discoveryClient,
+		signer,
+		outboundPolicy,
 		"localhost:9200",
 		currentUserFunc(user),
 		testLogger,
@@ -56,6 +74,49 @@ func newTestRouter(repo invitesinbox.IncomingInviteRepo, user *identity.User) ht
 		r.Post("/{inviteId}/decline", h.HandleDecline)
 	})
 	return r
+}
+
+func newTestOutboundClients(t *testing.T) (httpclient.HTTPClient, *discovery.Client) {
+	t.Helper()
+	outboundCfg := &config.OutboundHTTPConfig{
+		SSRFMode:           "off",
+		InsecureSkipVerify: true,
+		MaxResponseBytes:   1 << 20,
+	}
+	requestClient := httpclient.NewContextClient(httpclient.New(outboundCfg, nil))
+	discoveryClient := discovery.NewClient(httpclient.New(outboundCfg, nil), nil)
+	return requestClient, discoveryClient
+}
+
+func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *atomic.Int32) {
+	t.Helper()
+
+	inviteAcceptedCalls := &atomic.Int32{}
+	sawSignature := &atomic.Int32{}
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/ocm", "/ocm-provider":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(discovery.Discovery{
+				Enabled:      true,
+				APIVersion:   "1.2.2",
+				EndPoint:     srv.URL + "/ocm",
+				Capabilities: []string{"exchange-token"},
+			})
+		case "/ocm/invite-accepted":
+			inviteAcceptedCalls.Add(1)
+			if r.Header.Get("Signature") != "" {
+				sawSignature.Store(1)
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	return srv, inviteAcceptedCalls, sawSignature
 }
 
 func createInviteForUser(repo *invitesinbox.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesinbox.IncomingInvite {
@@ -352,6 +413,87 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	senderServer, inviteAcceptedCalls, _ := startInviteSenderServer(t)
+	defer senderServer.Close()
+
+	senderFQDN := strings.TrimPrefix(senderServer.URL, "https://")
+	invite := createInviteForUser(repo, userAID, "strict-accept-token", senderFQDN)
+
+	requestClient, discoveryClient := newTestOutboundClients(t)
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	router := newTestRouterWithDeps(
+		repo,
+		userA,
+		requestClient,
+		discoveryClient,
+		nil,
+		&outboundsigning.OutboundPolicy{OutboundMode: "strict"},
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 when strict invite-accepted signing has no signer, got %d: %s", w.Code, w.Body.String())
+	}
+	if inviteAcceptedCalls.Load() != 0 {
+		t.Fatalf("expected invite-accepted endpoint not to be called, got %d calls", inviteAcceptedCalls.Load())
+	}
+
+	stored, err := repo.GetByIDForRecipientUserID(context.Background(), invite.ID, userAID)
+	if err != nil {
+		t.Fatalf("expected invite to remain pending after outbound failure: %v", err)
+	}
+	if stored.Status != invites.InviteStatusPending {
+		t.Fatalf("expected pending status after outbound failure, got %s", stored.Status)
+	}
+}
+
+func TestHandleAccept_TokenOnlyModeSendsUnsignedInviteAccepted(t *testing.T) {
+	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	senderServer, inviteAcceptedCalls, sawSignature := startInviteSenderServer(t)
+	defer senderServer.Close()
+
+	senderFQDN := strings.TrimPrefix(senderServer.URL, "https://")
+	invite := createInviteForUser(repo, userAID, "token-only-accept-token", senderFQDN)
+
+	requestClient, discoveryClient := newTestOutboundClients(t)
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	router := newTestRouterWithDeps(
+		repo,
+		userA,
+		requestClient,
+		discoveryClient,
+		nil,
+		&outboundsigning.OutboundPolicy{OutboundMode: "token-only"},
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for token-only invite accept path, got %d: %s", w.Code, w.Body.String())
+	}
+	if inviteAcceptedCalls.Load() != 1 {
+		t.Fatalf("expected invite-accepted endpoint to be called once, got %d", inviteAcceptedCalls.Load())
+	}
+	if sawSignature.Load() != 0 {
+		t.Fatal("did not expect Signature header in token-only invite-accepted path")
+	}
+
+	stored, err := repo.GetByIDForRecipientUserID(context.Background(), invite.ID, userAID)
+	if err != nil {
+		t.Fatalf("expected accepted invite to remain in repo: %v", err)
+	}
+	if stored.Status != invites.InviteStatusAccepted {
+		t.Fatalf("expected invite status accepted, got %s", stored.Status)
 	}
 }
 

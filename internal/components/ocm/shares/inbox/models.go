@@ -33,7 +33,9 @@ type IncomingShare struct {
 	Status    ShareStatus `json:"status"`
 	CreatedAt time.Time   `json:"createdAt"`
 	UpdatedAt time.Time   `json:"updatedAt"`
-	MustExchangeToken bool `json:"mustExchangeToken,omitempty"`
+	OwnerHost             string `json:"ownerHost,omitempty"`
+	MustExchangeToken     bool   `json:"mustExchangeToken,omitempty"`
+	SenderExchangeCapable bool   `json:"senderExchangeCapable,omitempty"`
 }
 
 type ShareStatus string

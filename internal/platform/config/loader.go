@@ -17,8 +17,9 @@ type Mode string
 
 const (
 	ModeStrict  Mode = "strict"
-	ModeInterop Mode = "interop"
+	ModeCompat  Mode = "compat"
 	ModeDev     Mode = "dev"
+	ModeInterop      = ModeCompat
 )
 
 // ParseMode parses a mode string, returning an error for invalid values.
@@ -26,12 +27,12 @@ func ParseMode(s string) (Mode, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "strict", "":
 		return ModeStrict, nil
-	case "interop":
-		return ModeInterop, nil
+	case "compat", "interop":
+		return ModeCompat, nil
 	case "dev":
 		return ModeDev, nil
 	default:
-		return "", fmt.Errorf("invalid mode %q: must be one of strict, interop, dev", s)
+		return "", fmt.Errorf("invalid mode %q: must be one of strict, compat, dev", s)
 	}
 }
 
@@ -54,21 +55,22 @@ type LoaderOptions struct {
 
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
-	ListenAddr                    *string
-	PublicOrigin                  *string
-	ExternalBasePath              *string
-	SSRFMode                      *string
-	SignatureInboundMode          *string
-	SignatureOutboundMode         *string
-	SignatureAdvertiseHTTPReqSigs *string // "true", "false", or "" (unset)
-	SignaturePeerProfileOverride  *string
-	AdminUsername                 *string
-	AdminPassword                 *string
-	LoggingLevel                  *string
-	LoggingAllowSensitive         *string // "true", "false", or "" (unset)
-	TokenExchangeEnabled          *string // "true", "false", or "" (unset)
-	TokenExchangePath             *string
-	WebDAVTokenExchangeMode       *string
+	ListenAddr                   *string
+	PublicOrigin                 *string
+	ExternalBasePath             *string
+	CompatibilityScope           *string
+	SSRFMode                     *string
+	SignatureInboundMode         *string
+	SignatureOutboundMode        *string
+	SignaturePeerProfileOverride *string
+	AdminUsername                *string
+	AdminPassword                *string
+	LoggingLevel                 *string
+	LoggingAllowSensitive        *string // "true", "false", or "" (unset)
+	TokenExchangeEnabled         *string // "true", "false", or "" (unset)
+	TokenExchangePath            *string
+	RequireTokenExchange         *string // "true", "false", or "" (unset)
+	PeerPolicy                   *string
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -76,20 +78,22 @@ type fileConfig struct {
 	Mode   string        `toml:"mode"`
 	Server *serverConfig `toml:"server"`
 
-	PublicOrigin     string `toml:"public_origin"`
-	ExternalBasePath string `toml:"external_base_path"`
-	ListenAddr       string `toml:"listen_addr"`
+	PublicOrigin       string `toml:"public_origin"`
+	ExternalBasePath   string `toml:"external_base_path"`
+	ListenAddr         string `toml:"listen_addr"`
+	CompatibilityScope string `toml:"compatibility_scope"`
 
-	TLS                 *TLSConfig                 `toml:"tls"`
-	OutboundHTTP        *OutboundHTTPConfig        `toml:"outbound_http"`
-	Signature           *SignatureConfig           `toml:"signature"`
-	PeerProfiles        *peerProfilesConfig        `toml:"peer_profiles"`
-	Cache               *cacheConfig               `toml:"cache"`
-	PeerTrust           *peerTrustConfig           `toml:"peer_trust"`
-	Logging             *loggingConfig             `toml:"logging"`
-	TokenExchange       *tokenExchangeConfig       `toml:"token_exchange"`
-	WebDAVTokenExchange *webdavTokenExchangeConfig `toml:"webdav_token_exchange"`
-	HTTP                *httpFileConfig            `toml:"http"`
+	TLS                  *TLSConfig           `toml:"tls"`
+	OutboundHTTP         *OutboundHTTPConfig  `toml:"outbound_http"`
+	Signature            *SignatureConfig     `toml:"signature"`
+	PeerProfiles         *peerProfilesConfig  `toml:"peer_profiles"`
+	Cache                *cacheConfig         `toml:"cache"`
+	PeerTrust            *peerTrustConfig     `toml:"peer_trust"`
+	Logging              *loggingConfig       `toml:"logging"`
+	TokenExchange        *tokenExchangeConfig `toml:"token_exchange"`
+	RequireTokenExchange *bool                `toml:"require_token_exchange"`
+	PeerPolicy           string               `toml:"peer_policy"`
+	HTTP                 *httpFileConfig      `toml:"http"`
 }
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
@@ -108,11 +112,6 @@ type loggingConfig struct {
 type tokenExchangeConfig struct {
 	Enabled *bool  `toml:"enabled"`
 	Path    string `toml:"path"`
-}
-
-// webdavTokenExchangeConfig holds WebDAV token exchange enforcement settings from TOML.
-type webdavTokenExchangeConfig struct {
-	Mode string `toml:"mode"`
 }
 
 // cacheConfig holds cache settings from TOML.
@@ -187,6 +186,18 @@ func Load(opts LoaderOptions) (*Config, error) {
 		md, err = toml.Decode(string(data), &fc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
+		}
+		if md.IsDefined("non_strict_peer_outbound_policy") {
+			return nil, fmt.Errorf("config key 'non_strict_peer_outbound_policy' has been renamed to 'peer_policy'; please update your configuration")
+		}
+		if md.IsDefined("legacy_peer_policy") {
+			return nil, fmt.Errorf("config key 'legacy_peer_policy' has been renamed to 'peer_policy'; please update your configuration")
+		}
+		if md.IsDefined("webdav_token_exchange") || md.IsDefined("webdav_token_exchange", "mode") {
+			return nil, fmt.Errorf("config section '[webdav_token_exchange]' and key 'webdav_token_exchange.mode' were removed; use top-level 'require_token_exchange' instead")
+		}
+		if md.IsDefined("signature", "advertise_http_request_signatures") {
+			return nil, fmt.Errorf("config key 'signature.advertise_http_request_signatures' was removed; discovery criteria are now derived from signature.inbound_mode")
 		}
 
 		// Strict breaks: reject renamed keys with clear migration messages.
@@ -269,16 +280,13 @@ func Load(opts LoaderOptions) (*Config, error) {
 	return cfg, nil
 }
 
-// ptrBool returns a pointer to the given bool value.
-func ptrBool(b bool) *bool { return &b }
-
 // presetForMode returns the base config for a given mode.
 func presetForMode(mode Mode) *Config {
 	switch mode {
 	case ModeDev:
 		return DevConfig()
-	case ModeInterop:
-		return InteropConfig()
+	case ModeCompat:
+		return CompatConfig()
 	default:
 		return StrictConfig()
 	}
@@ -286,11 +294,13 @@ func presetForMode(mode Mode) *Config {
 
 // StrictConfig returns production-safe strict defaults.
 func StrictConfig() *Config {
+	tokenExchangeEnabled := true
 	return &Config{
-		Mode:             string(ModeStrict),
-		PublicOrigin:     "https://localhost:9200",
-		ExternalBasePath: "",
-		ListenAddr:       ":9200",
+		Mode:               string(ModeStrict),
+		CompatibilityScope: "none",
+		PublicOrigin:       "https://localhost:9200",
+		ExternalBasePath:   "",
+		ListenAddr:         ":9200",
 		Server: ServerConfig{
 			TrustedProxies: []string{"127.0.0.0/8", "::1/128"},
 		},
@@ -314,13 +324,12 @@ func StrictConfig() *Config {
 			InsecureSkipVerify: false,
 		},
 		Signature: SignatureConfig{
-			InboundMode:                    "strict",
-			OutboundMode:                   "strict",
-			AdvertiseHTTPRequestSignatures: true,
-			PeerProfileLevelOverride:       "non-strict",
-			KeyPath:                        ".ocm/keys/signing.pem",
-			OnDiscoveryError:               "reject",
-			AllowMismatch:                  false,
+			InboundMode:              "strict",
+			OutboundMode:             "strict",
+			PeerProfileLevelOverride: "off",
+			KeyPath:                  ".ocm/keys/signing.pem",
+			OnDiscoveryError:         "reject",
+			AllowMismatch:            false,
 		},
 		PeerTrust: PeerTrustConfig{
 			Enabled:     false,
@@ -335,35 +344,42 @@ func StrictConfig() *Config {
 			AllowSensitive: false,
 		},
 		TokenExchange: TokenExchangeConfig{
-			Enabled: ptrBool(true),
+			Enabled: &tokenExchangeEnabled,
 			Path:    "token",
 		},
-		WebDAVTokenExchange: WebDAVTokenExchangeConfig{
-			Mode: "strict",
-		},
+		RequireTokenExchange: true,
+		PeerPolicy:           "strict",
 	}
 }
 
-// InteropConfig returns interop mode defaults.
-func InteropConfig() *Config {
+// CompatConfig returns compatibility mode defaults.
+func CompatConfig() *Config {
 	cfg := StrictConfig()
-	cfg.Mode = string(ModeInterop)
+	cfg.Mode = string(ModeCompat)
+	cfg.CompatibilityScope = "unbounded"
 	cfg.Signature.InboundMode = "lenient"
 	cfg.Signature.OutboundMode = "criteria-only"
-	cfg.Signature.AdvertiseHTTPRequestSignatures = true
 	cfg.Signature.PeerProfileLevelOverride = "non-strict"
-	cfg.WebDAVTokenExchange.Mode = "lenient"
+	cfg.RequireTokenExchange = false
+	cfg.PeerPolicy = "prefer-strict"
 	// InsecureSkipVerify stays configurable (default false)
 	return cfg
 }
 
+// InteropConfig returns the compatibility defaults under the legacy name.
+func InteropConfig() *Config {
+	return CompatConfig()
+}
+
 // DevConfig returns development mode defaults.
 func DevConfig() *Config {
+	tokenExchangeEnabled := true
 	return &Config{
-		Mode:             string(ModeDev),
-		PublicOrigin:     "https://localhost:9200",
-		ExternalBasePath: "",
-		ListenAddr:       ":9200",
+		Mode:               string(ModeDev),
+		CompatibilityScope: "unbounded",
+		PublicOrigin:       "https://localhost:9200",
+		ExternalBasePath:   "",
+		ListenAddr:         ":9200",
 		Server: ServerConfig{
 			TrustedProxies: []string{"127.0.0.0/8", "::1/128"},
 		},
@@ -387,13 +403,12 @@ func DevConfig() *Config {
 			InsecureSkipVerify: true,
 		},
 		Signature: SignatureConfig{
-			InboundMode:                    "lenient",
-			OutboundMode:                   "criteria-only",
-			AdvertiseHTTPRequestSignatures: true,
-			PeerProfileLevelOverride:       "non-strict",
-			KeyPath:                        ".ocm/keys/signing.pem",
-			OnDiscoveryError:               "allow",
-			AllowMismatch:                  true,
+			InboundMode:              "lenient",
+			OutboundMode:             "criteria-only",
+			PeerProfileLevelOverride: "non-strict",
+			KeyPath:                  ".ocm/keys/signing.pem",
+			OnDiscoveryError:         "allow",
+			AllowMismatch:            true,
 		},
 		PeerTrust: PeerTrustConfig{
 			Enabled:     false,
@@ -408,12 +423,11 @@ func DevConfig() *Config {
 			AllowSensitive: false,
 		},
 		TokenExchange: TokenExchangeConfig{
-			Enabled: ptrBool(true),
+			Enabled: &tokenExchangeEnabled,
 			Path:    "token",
 		},
-		WebDAVTokenExchange: WebDAVTokenExchangeConfig{
-			Mode: "lenient",
-		},
+		RequireTokenExchange: false,
+		PeerPolicy:           "prefer-strict",
 	}
 }
 
@@ -427,6 +441,9 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 	if fc.ListenAddr != "" {
 		cfg.ListenAddr = fc.ListenAddr
+	}
+	if fc.CompatibilityScope != "" {
+		cfg.CompatibilityScope = fc.CompatibilityScope
 	}
 
 	if fc.Server != nil {
@@ -510,8 +527,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Signature.OutboundMode != "" {
 			cfg.Signature.OutboundMode = fc.Signature.OutboundMode
 		}
-		// AdvertiseHTTPRequestSignatures is bool, overlay when section present
-		cfg.Signature.AdvertiseHTTPRequestSignatures = fc.Signature.AdvertiseHTTPRequestSignatures
 		if fc.Signature.PeerProfileLevelOverride != "" {
 			cfg.Signature.PeerProfileLevelOverride = fc.Signature.PeerProfileLevelOverride
 		}
@@ -587,10 +602,12 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 	}
 
-	if fc.WebDAVTokenExchange != nil {
-		if fc.WebDAVTokenExchange.Mode != "" {
-			cfg.WebDAVTokenExchange.Mode = fc.WebDAVTokenExchange.Mode
-		}
+	if fc.RequireTokenExchange != nil {
+		cfg.RequireTokenExchange = *fc.RequireTokenExchange
+	}
+
+	if fc.PeerPolicy != "" {
+		cfg.PeerPolicy = fc.PeerPolicy
 	}
 
 	if fc.HTTP != nil {
@@ -624,6 +641,9 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.ExternalBasePath != nil && *f.ExternalBasePath != "" {
 		cfg.ExternalBasePath = *f.ExternalBasePath
 	}
+	if f.CompatibilityScope != nil && *f.CompatibilityScope != "" {
+		cfg.CompatibilityScope = *f.CompatibilityScope
+	}
 	if f.SSRFMode != nil && *f.SSRFMode != "" {
 		cfg.OutboundHTTP.SSRFMode = *f.SSRFMode
 	}
@@ -632,10 +652,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.SignatureOutboundMode != nil && *f.SignatureOutboundMode != "" {
 		cfg.Signature.OutboundMode = *f.SignatureOutboundMode
-	}
-	if f.SignatureAdvertiseHTTPReqSigs != nil && *f.SignatureAdvertiseHTTPReqSigs != "" {
-		// Parse "true" or "false" string (only apply when explicitly set)
-		cfg.Signature.AdvertiseHTTPRequestSignatures = *f.SignatureAdvertiseHTTPReqSigs == "true"
 	}
 	if f.SignaturePeerProfileOverride != nil && *f.SignaturePeerProfileOverride != "" {
 		cfg.Signature.PeerProfileLevelOverride = *f.SignaturePeerProfileOverride
@@ -661,14 +677,24 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.TokenExchangePath != nil && *f.TokenExchangePath != "" {
 		cfg.TokenExchange.Path = *f.TokenExchangePath
 	}
-	if f.WebDAVTokenExchangeMode != nil && *f.WebDAVTokenExchangeMode != "" {
-		cfg.WebDAVTokenExchange.Mode = *f.WebDAVTokenExchangeMode
+	if f.RequireTokenExchange != nil && *f.RequireTokenExchange != "" {
+		cfg.RequireTokenExchange = *f.RequireTokenExchange == "true"
+	}
+	if f.PeerPolicy != nil && *f.PeerPolicy != "" {
+		cfg.PeerPolicy = *f.PeerPolicy
 	}
 }
 
 // validateEnums validates enum-like config fields and returns an error for invalid values.
 func validateEnums(cfg *Config) error {
 	// mode is already validated by ParseMode before we get here
+
+	switch cfg.CompatibilityScope {
+	case "none", "scoped", "unbounded":
+		// valid
+	default:
+		return fmt.Errorf("invalid compatibility_scope %q: must be one of none, scoped, unbounded", cfg.CompatibilityScope)
+	}
 
 	// tls.mode
 	switch cfg.TLS.Mode {
@@ -708,11 +734,6 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid signature.peer_profile_level_override %q: must be one of off, non-strict, all", cfg.Signature.PeerProfileLevelOverride)
-	}
-
-	// guardrail: inbound_mode=off implies advertise=false
-	if cfg.Signature.InboundMode == "off" && cfg.Signature.AdvertiseHTTPRequestSignatures {
-		return fmt.Errorf("signature.advertise_http_request_signatures cannot be true when signature.inbound_mode is off")
 	}
 
 	// signature.on_discovery_error
@@ -770,12 +791,28 @@ func validateEnums(cfg *Config) error {
 		}
 	}
 
-	// webdav_token_exchange.mode validation
-	switch cfg.WebDAVTokenExchange.Mode {
-	case "off", "lenient", "strict":
+	// peer_policy validation
+	switch cfg.PeerPolicy {
+	case "legacy", "prefer-strict", "strict":
 		// valid
 	default:
-		return fmt.Errorf("invalid webdav_token_exchange.mode %q: must be one of off, lenient, strict", cfg.WebDAVTokenExchange.Mode)
+		return fmt.Errorf("invalid peer_policy %q: must be one of legacy, prefer-strict, strict", cfg.PeerPolicy)
+	}
+
+	// Cross-field: canonical receive strictness requires token exchange capability
+	if cfg.RequireTokenExchange && !cfg.TokenExchangeEnabled() {
+		return fmt.Errorf("require_token_exchange=true requires token_exchange.enabled=true")
+	}
+
+	// Cross-field: strict peer policy requires token exchange capability
+	if cfg.PeerPolicy == "strict" && !cfg.TokenExchangeEnabled() {
+		return fmt.Errorf("peer_policy=strict requires token_exchange.enabled=true")
+	}
+
+	// compatibility_scope=none is the supervising strictness contract. Reject
+	// obvious contradictions here before runtime posture is derived.
+	if err := validateCompatibilityScopeGuardrails(cfg); err != nil {
+		return err
 	}
 
 	// http.interceptors.ratelimit validation (fail fast)
@@ -783,6 +820,88 @@ func validateEnums(cfg *Config) error {
 		return err
 	}
 
+	return nil
+}
+
+func validateCompatibilityScopeGuardrails(cfg *Config) error {
+	if cfg == nil {
+		return nil
+	}
+	switch cfg.CompatibilityScope {
+	case "none":
+		return validateNoneCompatibilityScopeGuardrails(cfg)
+	case "scoped":
+		return validateScopedCompatibilityScopeGuardrails(cfg)
+	default:
+		return nil
+	}
+}
+
+func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
+	if cfg.Signature.InboundMode != "strict" {
+		return fmt.Errorf("compatibility_scope=none requires signature.inbound_mode=strict")
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		return fmt.Errorf("compatibility_scope=none requires signature.outbound_mode=strict")
+	}
+	if cfg.Signature.PeerProfileLevelOverride != "off" {
+		return fmt.Errorf("compatibility_scope=none requires signature.peer_profile_level_override=off")
+	}
+	if cfg.Signature.OnDiscoveryError != "reject" {
+		return fmt.Errorf("compatibility_scope=none requires signature.on_discovery_error=reject")
+	}
+	if cfg.Signature.AllowMismatch {
+		return fmt.Errorf("compatibility_scope=none requires signature.allow_mismatch=false")
+	}
+	if !cfg.RequireTokenExchange {
+		return fmt.Errorf("compatibility_scope=none requires require_token_exchange=true")
+	}
+	if cfg.PeerPolicy != "strict" {
+		return fmt.Errorf("compatibility_scope=none requires peer_policy=strict")
+	}
+	if cfg.TLS.Mode == "off" {
+		return fmt.Errorf("compatibility_scope=none requires tls.mode!=off")
+	}
+	if cfg.OutboundHTTP.SSRFMode != "strict" {
+		return fmt.Errorf("compatibility_scope=none requires outbound_http.ssrf_mode=strict")
+	}
+	if cfg.OutboundHTTP.InsecureSkipVerify {
+		return fmt.Errorf("compatibility_scope=none requires outbound_http.insecure_skip_verify=false")
+	}
+	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
+		return fmt.Errorf("compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled")
+	}
+	return nil
+}
+
+func validateScopedCompatibilityScopeGuardrails(cfg *Config) error {
+	if cfg.Signature.InboundMode != "strict" {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.inbound_mode=strict")
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.outbound_mode=strict")
+	}
+	if cfg.Signature.PeerProfileLevelOverride == "all" {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.peer_profile_level_override!=all")
+	}
+	if cfg.Signature.OnDiscoveryError != "reject" {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.on_discovery_error=reject")
+	}
+	if cfg.Signature.AllowMismatch {
+		return fmt.Errorf("compatibility_scope=scoped requires signature.allow_mismatch=false")
+	}
+	if cfg.TLS.Mode == "off" {
+		return fmt.Errorf("compatibility_scope=scoped requires tls.mode!=off")
+	}
+	if cfg.OutboundHTTP.SSRFMode != "strict" {
+		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.ssrf_mode=strict")
+	}
+	if cfg.OutboundHTTP.InsecureSkipVerify {
+		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.insecure_skip_verify=false")
+	}
+	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
+		return fmt.Errorf("compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled")
+	}
 	return nil
 }
 

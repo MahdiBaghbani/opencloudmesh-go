@@ -1,10 +1,33 @@
 # opencloudmesh-go
 
-Open Cloud Mesh (OCM) reference implementation in Go. Delivered as the M5 (OCM Stub Implementation) milestone of the [Sovereign Tech Fund](https://github.com/orgs/cs3org/projects/3/views/1) funded OCM project.
+Open Cloud Mesh (OCM) server implementation in Go. Delivered as the M5 (OCM
+Stub Implementation) milestone of the [Sovereign Tech
+Fund](https://github.com/orgs/cs3org/projects/3/views/1) funded OCM project.
 
 ## Purpose
 
-This project provides an OCM-compliant server stub: capability discovery, loading certificates, ACME auto TLS, configurability, Docker deployment, and full support in the OCM Test Suite. It is the reference implementation of the OCM protocol.
+This project provides an Open Cloud Mesh server implementation in Go. The
+current strict target is a practical WebDAV-centered subset of the pinned
+OCM-API surface: latest-shape discovery, `shareType=user`, the current
+notification subset, and strict token-exchange and HTTP-signature behavior on
+that reduced path.
+
+The runtime exposes preset bundles `strict`, `compat`, and `dev`. The legacy
+alias `interop` is still accepted for `compat`.
+
+Those presets are convenience entry points, not the architecture authority:
+the effective posture is resolved from canonical OCM policy,
+`compatibility_scope`, and the signature, transport, trust, and peer-compat
+axes.
+
+`compatibility_scope` is the supervising exception-governance axis:
+`none` means no compatibility relaxations, `scoped` allows explicit peer-scoped
+exceptions, and `unbounded` allows node-wide compatibility defaults. A strict
+runtime posture is derived only when the resolved behavior stays inside the
+WebDAV-centered strict target and `compatibility_scope=none`.
+
+`token-only` is an outbound-only HTTP-signature relaxation. It is useful for
+compatibility, but it is never part of the strict posture.
 
 ## OCM-STA and Milestones
 
@@ -70,7 +93,7 @@ docker run -d -p 8080:8080 -v /path/to/config.toml:/config/config.toml:ro \
 
 | Variable    | Default | Description                                   |
 | ----------- | ------- | --------------------------------------------- |
-| OCM_GO_MODE | (none)  | Override mode: `strict`, `interop`, or `dev`. |
+| OCM_GO_MODE | (none)  | Override preset bundle: `strict`, `compat`, or `dev`. The legacy alias `interop` is also accepted. |
 
 **Config:**
 
@@ -89,4 +112,4 @@ docker run -d -p 8080:8080 -v /path/to/config.toml:/config/config.toml:ro \
 
 ## OCM-API specification
 
-Protocol behavior is defined in the [OCM-API IETF-RFC](https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#ocm-api-discovery).
+Protocol behavior is defined in the [OCM-API IETF-RFC](https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery).

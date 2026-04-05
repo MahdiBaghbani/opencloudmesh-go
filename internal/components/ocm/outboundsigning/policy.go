@@ -8,7 +8,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 )
 
 type EndpointKind string
@@ -27,16 +27,64 @@ type SigningDecision struct {
 }
 
 type OutboundPolicy struct {
-	OutboundMode           string
-	PeerProfileOverride    string
-	ProfileRegistry        *peercompat.ProfileRegistry
+	OutboundMode        string
+	PeerProfileOverride string
+	OnDiscoveryError    string
+	LocalPeerPolicy     string
+	PeerContract        *peercompat.CompiledContract
 }
 
-func NewOutboundPolicy(cfg *config.Config, registry *peercompat.ProfileRegistry) *OutboundPolicy {
+type ResolvedInputs struct {
+	OutboundMode        string
+	PeerProfileOverride string
+	OnDiscoveryError    string
+	LocalPeerPolicy     string
+}
+
+func ResolveInputs(
+	runtimePolicy *policy.RuntimePolicy,
+	canonicalPolicy *policy.OpenCloudMeshPolicy,
+) ResolvedInputs {
+	outboundMode := "off"
+	peerProfileOverride := "off"
+	onDiscoveryError := "reject"
+	localPeerPolicy := "legacy"
+	if runtimePolicy != nil {
+		signature := runtimePolicy.Evaluate().Signature
+		if signature.OutboundMode != "" {
+			outboundMode = signature.OutboundMode
+		}
+		if signature.PeerProfileLevelOverride != "" {
+			peerProfileOverride = signature.PeerProfileLevelOverride
+		}
+		if signature.OnDiscoveryError != "" {
+			onDiscoveryError = signature.OnDiscoveryError
+		}
+	}
+	if canonicalPolicy != nil {
+		eval := canonicalPolicy.Evaluate()
+		if eval.PeerPolicy != "" {
+			localPeerPolicy = eval.PeerPolicy
+		}
+	}
+	return ResolvedInputs{
+		OutboundMode:        outboundMode,
+		PeerProfileOverride: peerProfileOverride,
+		OnDiscoveryError:    onDiscoveryError,
+		LocalPeerPolicy:     localPeerPolicy,
+	}
+}
+
+func NewOutboundPolicy(
+	inputs ResolvedInputs,
+	peerContract *peercompat.CompiledContract,
+) *OutboundPolicy {
 	return &OutboundPolicy{
-		OutboundMode:        cfg.Signature.OutboundMode,
-		PeerProfileOverride: cfg.Signature.PeerProfileLevelOverride,
-		ProfileRegistry:     registry,
+		OutboundMode:        inputs.OutboundMode,
+		PeerProfileOverride: inputs.PeerProfileOverride,
+		OnDiscoveryError:    inputs.OnDiscoveryError,
+		LocalPeerPolicy:     inputs.LocalPeerPolicy,
+		PeerContract:        peerContract,
 	}
 }
 
@@ -54,25 +102,22 @@ func (p *OutboundPolicy) ShouldSign(
 		}
 	}
 
-	var profile *peercompat.Profile
-	if p.ProfileRegistry != nil {
-		profile = p.ProfileRegistry.GetProfile(peerDomain)
-	}
+	peerDecision := p.signatureDecision(peerDomain)
 
 	if kind == EndpointTokenExchange {
-		return p.decideTokenExchange(profile, hasSigner)
+		return p.decideTokenExchange(peerDomain, disc, hasSigner)
 	}
 
 	switch p.OutboundMode {
 	case "strict":
-		return p.decideStrict(kind, disc, profile, hasSigner)
+		return p.decideStrict(peerDomain, disc, peerDecision, hasSigner)
 	case "token-only":
 		return SigningDecision{
 			ShouldSign: false,
 			Reason:     "outbound_mode=token-only does not sign " + string(kind),
 		}
 	case "criteria-only":
-		return p.decideCriteriaOnly(kind, disc, profile, hasSigner)
+		return p.decideCriteriaOnly(peerDomain, disc, peerDecision, hasSigner)
 	default:
 		return SigningDecision{
 			ShouldSign: false,
@@ -82,8 +127,54 @@ func (p *OutboundPolicy) ShouldSign(
 	}
 }
 
-func (p *OutboundPolicy) decideTokenExchange(profile *peercompat.Profile, hasSigner bool) SigningDecision {
-	if profile != nil && profile.HasQuirk("accept_plain_token") {
+func (p *OutboundPolicy) decideTokenExchange(peerDomain string, disc *discovery.Discovery, hasSigner bool) SigningDecision {
+	tokenDecision := p.TokenExchangeDecisionForPeer(peerDomain)
+	localPolicy := p.LocalPeerPolicy
+	if localPolicy == "" {
+		localPolicy = "legacy"
+	}
+
+	if disc != nil {
+		peerIsStrict := disc.HasCriteria("token-exchange")
+		peerHasExchangeToken := disc.HasCapability("exchange-token")
+
+		if peerIsStrict {
+			if !hasSigner {
+				return SigningDecision{
+					ShouldSign: true,
+					Reason:     "strict peer requires signed token exchange",
+					Error:      fmt.Errorf("strict peer requires signed token exchange but no signer available"),
+				}
+			}
+			return SigningDecision{
+				ShouldSign: true,
+				Reason:     "strict peer requires signed token exchange",
+			}
+		}
+
+		if !peerHasExchangeToken {
+			return SigningDecision{
+				ShouldSign: false,
+				Reason:     "peer does not advertise exchange-token capability",
+			}
+		}
+
+		if localPolicy == "strict" {
+			if !hasSigner {
+				return SigningDecision{
+					ShouldSign: true,
+					Reason:     "strict policy requires signed token exchange",
+					Error:      fmt.Errorf("strict policy requires signed token exchange but no signer available"),
+				}
+			}
+			return SigningDecision{
+				ShouldSign: true,
+				Reason:     "strict policy requires signed token exchange",
+			}
+		}
+	}
+
+	if tokenDecision.AcceptPlainToken && localPolicy == "legacy" {
 		if p.canApplyRelaxation("outbound") {
 			return SigningDecision{
 				ShouldSign: false,
@@ -92,6 +183,12 @@ func (p *OutboundPolicy) decideTokenExchange(profile *peercompat.Profile, hasSig
 		}
 	}
 	if !hasSigner {
+		if localPolicy == "legacy" {
+			return SigningDecision{
+				ShouldSign: false,
+				Reason:     "legacy policy allows unsigned token exchange when signer is unavailable",
+			}
+		}
 		return SigningDecision{
 			ShouldSign: true,
 			Reason:     "token exchange requires signature",
@@ -101,36 +198,72 @@ func (p *OutboundPolicy) decideTokenExchange(profile *peercompat.Profile, hasSig
 
 	return SigningDecision{
 		ShouldSign: true,
-		Reason:     "token exchange signed per outbound_mode",
+		Reason:     "token exchange signed per outbound policy",
 	}
+}
+
+// TokenExchangeDecisionForPeer returns compiled token compatibility decisions
+// for the peer. Without a compiled contract, strict defaults are returned.
+func (p *OutboundPolicy) TokenExchangeDecisionForPeer(peerDomain string) peercompat.TokenExchangeDecision {
+	if p == nil || p.PeerContract == nil {
+		return peercompat.TokenExchangeDecision{
+			PeerDomain: peerDomain,
+			Profile:    "strict",
+			GrantType:  "authorization_code",
+		}
+	}
+	return p.PeerContract.TokenExchangeDecisionForPeer(peerDomain)
+}
+
+// TokenExchangeFallbackForReason returns typed retry permissions keyed by
+// classified failure reason.
+func (p *OutboundPolicy) TokenExchangeFallbackForReason(peerDomain, reasonCode string) peercompat.TokenExchangeFallbackDecision {
+	if p == nil || p.PeerContract == nil {
+		return peercompat.TokenExchangeFallbackDecision{
+			PeerDomain: peerDomain,
+			Profile:    "strict",
+			ReasonCode: reasonCode,
+		}
+	}
+	return p.PeerContract.TokenExchangeFallbackForReason(peerDomain, reasonCode)
 }
 
 // decideStrict handles strict mode signing decisions.
 func (p *OutboundPolicy) decideStrict(
-	kind EndpointKind,
+	peerDomain string,
 	disc *discovery.Discovery,
-	profile *peercompat.Profile,
+	peerDecision peercompat.SignaturePeerDecision,
 	hasSigner bool,
 ) SigningDecision {
-	if profile != nil && profile.AllowUnsignedOutbound {
+	if peerDecision.Matched && peerDecision.AllowUnsignedOutbound {
 		if p.PeerProfileOverride == "all" {
-			peerRequiresSignatures := disc != nil && disc.HasCriteria("http-request-signatures")
-			if peerRequiresSignatures {
-				if !hasSigner {
+			if disc == nil {
+				discoveryDecision := p.resolveDiscoveryFailure(peerDomain)
+				if discoveryDecision.Allow {
+					return SigningDecision{
+						ShouldSign: false,
+						Reason:     "discovery unavailable and resolved decision=allow",
+					}
+				}
+			} else {
+				peerRequiresSignatures := disc.HasCriteria("http-request-signatures")
+				if peerRequiresSignatures {
+					if !hasSigner {
+						return SigningDecision{
+							ShouldSign: true,
+							Reason:     "peer requires signatures (criteria) but no signer available",
+							Error:      fmt.Errorf("peer requires http-request-signatures but no signer available"),
+						}
+					}
 					return SigningDecision{
 						ShouldSign: true,
-						Reason:     "peer requires signatures (criteria) but no signer available",
-						Error:      fmt.Errorf("peer requires http-request-signatures but no signer available"),
+						Reason:     "peer requires signatures (criteria overrides profile relaxation)",
 					}
 				}
 				return SigningDecision{
-					ShouldSign: true,
-					Reason:     "peer requires signatures (criteria overrides profile relaxation)",
+					ShouldSign: false,
+					Reason:     "peer profile allows unsigned outbound with peer_profile_level_override=all",
 				}
-			}
-			return SigningDecision{
-				ShouldSign: false,
-				Reason:     "peer profile allows unsigned outbound with peer_profile_level_override=all",
 			}
 		}
 	}
@@ -148,21 +281,29 @@ func (p *OutboundPolicy) decideStrict(
 }
 
 func (p *OutboundPolicy) decideCriteriaOnly(
-	kind EndpointKind,
+	peerDomain string,
 	disc *discovery.Discovery,
-	profile *peercompat.Profile,
+	peerDecision peercompat.SignaturePeerDecision,
 	hasSigner bool,
 ) SigningDecision {
 	if disc == nil {
+		discoveryDecision := p.resolveDiscoveryFailure(peerDomain)
+		if !discoveryDecision.Allow {
+			return SigningDecision{
+				ShouldSign: true,
+				Reason:     "discovery unavailable and resolved decision=reject",
+				Error:      fmt.Errorf("peer discovery unavailable for criteria-only outbound signing decision"),
+			}
+		}
 		return SigningDecision{
 			ShouldSign: false,
-			Reason:     "no discovery document available",
+			Reason:     "discovery unavailable and resolved decision=allow",
 		}
 	}
 	peerRequiresSignatures := disc.HasCriteria("http-request-signatures")
 
 	if !peerRequiresSignatures {
-		if profile != nil && profile.AllowUnsignedOutbound && p.canApplyRelaxation("outbound") {
+		if peerDecision.Matched && peerDecision.AllowUnsignedOutbound && p.canApplyRelaxation("outbound") {
 			return SigningDecision{
 				ShouldSign: false,
 				Reason:     "peer does not require signatures and profile allows unsigned",
@@ -191,6 +332,37 @@ func (p *OutboundPolicy) decideCriteriaOnly(
 	return SigningDecision{
 		ShouldSign: true,
 		Reason:     "peer criteria includes http-request-signatures",
+	}
+}
+
+func (p *OutboundPolicy) signatureDecision(peerDomain string) peercompat.SignaturePeerDecision {
+	if p.PeerContract != nil {
+		return p.PeerContract.SignatureDecisionForPeer(peerDomain)
+	}
+
+	return peercompat.SignaturePeerDecision{
+		PeerDomain: peerDomain,
+		Profile:    "strict",
+	}
+}
+
+func (p *OutboundPolicy) resolveDiscoveryFailure(peerDomain string) peercompat.DiscoveryFailureDecision {
+	if p.PeerContract != nil {
+		return p.PeerContract.ResolveDiscoveryFailure(peerDomain, p.OnDiscoveryError)
+	}
+
+	if p.OnDiscoveryError == "allow" {
+		return peercompat.DiscoveryFailureDecision{
+			PeerDomain: peerDomain,
+			Allow:      true,
+			ReasonCode: "global_on_discovery_error_allow",
+		}
+	}
+
+	return peercompat.DiscoveryFailureDecision{
+		PeerDomain: peerDomain,
+		Allow:      false,
+		ReasonCode: "discovery_error_reject",
 	}
 }
 

@@ -10,7 +10,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -33,11 +32,10 @@ type APIVersionOverride struct {
 
 // OCMProviderConfig holds OCM discovery configuration.
 type OCMProviderConfig struct {
-	Endpoint                       string `mapstructure:"endpoint"`        // This host's full URL (origin + base path)
-	OCMPrefix                      string `mapstructure:"ocm_prefix"`      // Default: "ocm"
-	Provider                       string `mapstructure:"provider"`        // Friendly name
-	WebDAVRoot                     string `mapstructure:"webdav_root"`     // WebDAV path
-	AdvertiseHTTPRequestSignatures bool   `mapstructure:"advertise_http_request_signatures"`
+	Endpoint   string `mapstructure:"endpoint"`    // This host's full URL (origin + base path)
+	OCMPrefix  string `mapstructure:"ocm_prefix"`  // Default: "ocm"
+	Provider   string `mapstructure:"provider"`    // Friendly name
+	WebDAVRoot string `mapstructure:"webdav_root"` // WebDAV path
 
 	TokenExchange struct {
 		Enabled bool   `mapstructure:"enabled"`
@@ -45,7 +43,7 @@ type OCMProviderConfig struct {
 	} `mapstructure:"token_exchange"`
 
 	// Invite accept dialog URL (absolute) for WAYF helpers
-	InviteAcceptDialog string `mapstructure:"invite_accept_dialog"`
+	InviteAcceptDialog  string `mapstructure:"invite_accept_dialog"`
 	AdvertiseInviteWAYF bool   `mapstructure:"advertise_invite_wayf"`
 
 	// APIVersionOverrides allows overriding apiVersion based on User-Agent.
@@ -63,6 +61,13 @@ func (c *OCMProviderConfig) ApplyDefaults() {
 	if c.Provider == "" {
 		c.Provider = "OpenCloudMesh"
 	}
+}
+
+// localEvaluation is a handler-local snapshot of the canonical evaluator output.
+type localEvaluation struct {
+	codeFlow               bool
+	strict                 bool
+	requiresHTTPSignatures bool
 }
 
 type ocmHandler struct {
@@ -94,17 +99,11 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 			}
 		}
 
-		if _, set := rawOCMProvider["advertise_http_request_signatures"]; !set {
-			c.AdvertiseHTTPRequestSignatures = d.Config.Signature.AdvertiseHTTPRequestSignatures
-		}
-
-		// Token exchange derivation
+		// Token exchange path derivation. Capability enablement belongs to the
+		// canonical OCM policy when SharedDeps provides it.
 		var rawTE map[string]any
 		if te, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
 			rawTE = te
-		}
-		if _, set := rawTE["enabled"]; !set {
-			c.TokenExchange.Enabled = d.Config.TokenExchangeEnabled()
 		}
 		if _, set := rawTE["path"]; !set {
 			c.TokenExchange.Path = d.Config.TokenExchange.Path
@@ -113,10 +112,10 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 			}
 		}
 
-		// API version overrides for interop/dev mode (Nextcloud crawler compat)
+		// API version overrides for unbounded compatibility posture
+		// (Nextcloud crawler compat).
 		if _, set := rawOCMProvider["api_version_overrides"]; !set {
-			mode, _ := config.ParseMode(d.Config.Mode)
-			if mode == config.ModeInterop || mode == config.ModeDev {
+			if d.RuntimePolicy != nil && d.RuntimePolicy.AllowsGlobalCompatibilityDefaults() {
 				c.APIVersionOverrides = []APIVersionOverride{{
 					UserAgentContains: "Nextcloud Server Crawler",
 					APIVersion:        "1.1",
@@ -180,10 +179,22 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		capabilities = append(capabilities, "http-sig")
 	}
 
-	// Token exchange capability (only when enabled)
-	if c.TokenExchange.Enabled {
+	// Token exchange capability is owned by OpenCloudMeshPolicy when available.
+	var localEval localEvaluation
+	if d != nil && d.OpenCloudMeshPolicy != nil {
+		ev := d.OpenCloudMeshPolicy.Evaluate()
+		localEval = localEvaluation{codeFlow: ev.TokenExchangeCapable, strict: ev.RequiresTokenExchange}
+	} else {
+		// Keep narrow tests usable when they seed the service-local config
+		// directly, but do not silently re-derive this from shared raw config.
+		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
+	}
+	if d != nil && d.RuntimePolicy != nil {
+		localEval.requiresHTTPSignatures = d.RuntimePolicy.Evaluate().Signature.RequiresHTTPRequestSignatures
+	}
+
+	if localEval.codeFlow {
 		capabilities = append(capabilities, "exchange-token")
-		// Build tokenEndPoint from config
 		tokenPath := c.TokenExchange.Path
 		if tokenPath == "" {
 			tokenPath = "token"
@@ -191,7 +202,7 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		disc.TokenEndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix, tokenPath)
 	}
 
-	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#ocm-api-discovery
+	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery
 	capabilities = append(capabilities, "invites", "webdav-uri", "protocol-object", "notifications")
 
 	// Invite accept dialog (WAYF)
@@ -205,8 +216,13 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 	disc.Capabilities = capabilities
 
 	// Criteria (always present, serializes as [] when empty)
-	if c.AdvertiseHTTPRequestSignatures {
+	if localEval.requiresHTTPSignatures {
 		disc.Criteria = append(disc.Criteria, "http-request-signatures")
+	}
+	if localEval.strict && localEval.codeFlow {
+		disc.Criteria = append(disc.Criteria, "token-exchange")
+	} else if localEval.strict && !localEval.codeFlow {
+		log.Warn("local evaluator requires token exchange but code flow is disabled; omitting token-exchange criteria")
 	}
 
 	_ = endpointURL // parsed for validation only (keep for future use)

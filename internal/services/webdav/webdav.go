@@ -52,22 +52,11 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, errors.New("shared deps not initialized")
 	}
 
-	// Derive webdav token exchange mode from global config
-	mode := ""
-	if d.Config != nil {
-		mode = d.Config.WebDAVTokenExchange.Mode
-	}
-	settings := &webdav.Settings{
-		WebDAVTokenExchangeMode: mode,
-	}
-	settings.ApplyDefaults()
-
-	// Create WebDAV handler with ProfileRegistry for peer relaxations
+	// Create WebDAV handler with compiled contract for Basic auth decisions.
 	handler := webdav.NewHandler(
 		d.OutgoingShareRepo,
 		d.TokenStore,
-		settings,
-		d.ProfileRegistry,
+		d.PeerContract,
 		log.With("component", "webdav"),
 	)
 

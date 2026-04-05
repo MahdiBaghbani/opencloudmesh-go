@@ -21,12 +21,14 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -36,36 +38,40 @@ import (
 type Handler struct {
 	repo            sharesoutgoing.OutgoingShareRepo
 	discoveryClient *discovery.Client
+	canonicalPolicy *policy.OpenCloudMeshPolicy
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
-	cfg             *config.Config
+	peerContract    *peercompat.CompiledContract
 	localProvider   string // raw host[:port] for owner/sender identity
 	currentUser     func(context.Context) (*identity.User, error)
 	logger          *slog.Logger
 	allowedPaths    []string
 }
 
-// NewHandler returns a Handler with the given dependencies.
+// NewHandler returns a Handler with the given dependencies. Panics if discoveryClient is nil.
 func NewHandler(
 	repo sharesoutgoing.OutgoingShareRepo,
 	discClient *discovery.Client,
+	canonicalPolicy *policy.OpenCloudMeshPolicy,
 	httpClient httpclient.HTTPClient,
 	signer *crypto.RFC9421Signer,
 	outboundPolicy *outboundsigning.OutboundPolicy,
-	cfg *config.Config,
 	localProvider string,
 	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
 ) *Handler {
+	if discClient == nil {
+		panic("outgoingshares.NewHandler: discoveryClient must not be nil")
+	}
 	logger = logutil.NoopIfNil(logger)
 	return &Handler{
 		repo:            repo,
 		discoveryClient: discClient,
+		canonicalPolicy: canonicalPolicy,
 		httpClient:      httpClient,
 		signer:          signer,
 		outboundPolicy:  outboundPolicy,
-		cfg:             cfg,
 		localProvider:   localProvider,
 		currentUser:     currentUser,
 		logger:          logger,
@@ -76,6 +82,12 @@ func NewHandler(
 // SetAllowedPaths restricts localPath to the given directory prefixes.
 func (h *Handler) SetAllowedPaths(paths []string) {
 	h.allowedPaths = paths
+}
+
+// SetPeerContract wires the compiled compatibility contract so receiver
+// discovery and signing decisions use the shared peer-origin resolver.
+func (h *Handler) SetPeerContract(peerContract *peercompat.CompiledContract) {
+	h.peerContract = peerContract
 }
 
 // HandleCreate handles POST /api/shares/outgoing.
@@ -147,52 +159,75 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	owner := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 
-	mustExchangeToken := h.cfg.TokenExchange.Enabled != nil && *h.cfg.TokenExchange.Enabled
-
-	share := &sharesoutgoing.OutgoingShare{
-		ProviderID:        providerID.String(),
-		WebDAVID:          webdavID.String(),
-		SharedSecret:      sharedSecret,
-		LocalPath:         cleanPath,
-		ReceiverHost:      req.ReceiverDomain,
-		ShareWith:         req.ShareWith,
-		Name:              name,
-		ResourceType:      resourceType,
-		ShareType:         "user",
-		Permissions:       req.Permissions,
-		Owner:             owner,
-		Sender:            sender,
-		Status:            "pending",
-		MustExchangeToken: mustExchangeToken,
-	}
-
-	if err := h.repo.Create(r.Context(), share); err != nil {
-		h.logger.Error("failed to store outgoing share", "error", err)
-		api.WriteInternalError(w, "failed to create share")
-		return
-	}
-
-	if h.discoveryClient == nil {
-		h.logger.Error("discovery client not configured")
-		api.WriteInternalError(w, "discovery client not configured")
-		return
-	}
-
-	receiverBaseURL := "https://" + req.ReceiverDomain
-	disc, err := h.discoveryClient.Discover(r.Context(), receiverBaseURL)
+	// Discover the receiver's OCM capabilities before creating any local state.
+	// This prevents orphan rows when the receiver is unreachable or incompatible.
+	receiverOrigin := h.resolvePeerOrigin(req.ReceiverDomain)
+	disc, err := h.discoveryClient.Discover(r.Context(), receiverOrigin.baseURL)
 	if err != nil {
-		share.Status = "failed"
-		share.Error = fmt.Sprintf("discovery failed: %v", err)
-		h.repo.Update(r.Context(), share)
 		h.logger.Warn("receiver discovery failed", "receiver", req.ReceiverDomain, "error", err)
-		api.WriteError(w, http.StatusBadGateway, api.ReasonPeerUnreachable, "could not discover receiver")
+		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed, "could not discover receiver")
 		return
 	}
 
-	share.ReceiverEndPoint = disc.EndPoint
+	// Decide whether this share requires token exchange at the receiver.
+	// The decision combines the receiver's advertised capabilities with local policy.
+	peerTokenExchangeCapable := disc.SupportsTokenExchange()
+	peerIsStrict := disc.HasCriteria("token-exchange")
+
+	localCodeFlow := false
+	localPolicy := "legacy"
+	if h.canonicalPolicy != nil {
+		eval := h.canonicalPolicy.Evaluate()
+		localCodeFlow = eval.TokenExchangeCapable
+		if eval.PeerPolicy != "" {
+			localPolicy = eval.PeerPolicy
+		}
+	}
+
+	mustExchangeToken := false
+	if peerIsStrict {
+		if !peerTokenExchangeCapable {
+			h.logger.Warn("strict peer advertised incomplete token-exchange metadata",
+				"receiver", req.ReceiverDomain)
+			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+				"receiver advertises strict token exchange without tokenEndPoint")
+			return
+		}
+		if !localCodeFlow {
+			h.logger.Warn("strict peer requires token exchange but local capability is disabled",
+				"receiver", req.ReceiverDomain)
+			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+				"receiver requires token exchange but local code flow is not enabled")
+			return
+		}
+		mustExchangeToken = true
+	} else if peerTokenExchangeCapable {
+		switch localPolicy {
+		case "prefer-strict":
+			mustExchangeToken = localCodeFlow
+		case "strict":
+			api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
+				"strict policy rejects capable non-strict peers")
+			return
+		default: // legacy
+			mustExchangeToken = false
+		}
+	} else if disc.HasCapability("exchange-token") && disc.TokenEndPoint == "" {
+		if localPolicy == "strict" {
+			api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
+				"strict policy rejects peers with malformed token-exchange discovery")
+			return
+		}
+		h.logger.Warn("peer advertises exchange-token without tokenEndPoint; treating as legacy peer",
+			"receiver", req.ReceiverDomain)
+	} else if localPolicy == "strict" {
+		api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
+			"strict policy rejects legacy peers")
+		return
+	}
 
 	webdavProto := &spec.WebDAVProtocol{
-		URI:          share.WebDAVID,
+		URI:          webdavID.String(),
 		SharedSecret: sharedSecret,
 		Permissions:  req.Permissions,
 	}
@@ -203,7 +238,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	payload := spec.NewShareRequest{
 		ShareWith:    req.ShareWith,
 		Name:         name,
-		ProviderID:   share.ProviderID,
+		ProviderID:   providerID.String(),
 		Owner:        owner,
 		Sender:       sender,
 		ShareType:    "user",
@@ -214,19 +249,43 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if err := h.sendShareToReceiver(r.Context(), disc.EndPoint, payload, disc); err != nil {
-		share.Status = "failed"
-		share.Error = fmt.Sprintf("send failed: %v", err)
-		h.repo.Update(r.Context(), share)
+	if err := h.sendShareToReceiver(
+		r.Context(),
+		disc.EndPoint,
+		receiverOrigin.peerDomain,
+		payload,
+		disc,
+	); err != nil {
 		h.logger.Warn("failed to send share to receiver", "receiver", req.ReceiverDomain, "error", err)
-		api.WriteError(w, http.StatusBadGateway, api.ReasonPeerUnreachable, err.Error())
+		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, err.Error())
 		return
 	}
 
 	now := time.Now()
-	share.Status = "sent"
-	share.SentAt = &now
-	h.repo.Update(r.Context(), share)
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:        providerID.String(),
+		WebDAVID:          webdavID.String(),
+		SharedSecret:      sharedSecret,
+		LocalPath:         cleanPath,
+		ReceiverHost:      req.ReceiverDomain,
+		ReceiverEndPoint:  disc.EndPoint,
+		ShareWith:         req.ShareWith,
+		Name:              name,
+		ResourceType:      resourceType,
+		ShareType:         "user",
+		Permissions:       req.Permissions,
+		Owner:             owner,
+		Sender:            sender,
+		Status:            "sent",
+		SentAt:            &now,
+		MustExchangeToken: mustExchangeToken,
+	}
+
+	if err := h.repo.Create(r.Context(), share); err != nil {
+		h.logger.Error("failed to store outgoing share", "error", err)
+		api.WriteInternalError(w, "share sent but local persistence failed")
+		return
+	}
 
 	h.logger.Info("outgoing share created and sent",
 		"share_id", share.ShareID,
@@ -270,7 +329,13 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	return cleanPath, nil
 }
 
-func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payload spec.NewShareRequest, disc *discovery.Discovery) error {
+func (h *Handler) sendShareToReceiver(
+	ctx context.Context,
+	endPoint string,
+	peerDomain string,
+	payload spec.NewShareRequest,
+	disc *discovery.Discovery,
+) error {
 	sharesURL, err := url.JoinPath(endPoint, "shares")
 	if err != nil {
 		return fmt.Errorf("failed to build shares URL: %w", err)
@@ -288,12 +353,13 @@ func (h *Handler) sendShareToReceiver(ctx context.Context, endPoint string, payl
 	req.Header.Set("Content-Type", "application/json")
 
 	if h.outboundPolicy != nil {
-		peerURL, parseErr := url.Parse(endPoint)
-		var peerDomain string
-		if parseErr != nil || peerURL.Host == "" {
-			peerDomain = endPoint
-		} else {
-			peerDomain = peerURL.Host
+		if peerDomain == "" {
+			peerURL, parseErr := url.Parse(endPoint)
+			if parseErr != nil || peerURL.Host == "" {
+				peerDomain = endPoint
+			} else {
+				peerDomain = peerURL.Host
+			}
 		}
 		decision := h.outboundPolicy.ShouldSign(
 			outboundsigning.EndpointShares,
@@ -333,4 +399,17 @@ func generateSharedSecret() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return base64.URLEncoding.EncodeToString(b)
+}
+
+type resolvedPeerOrigin struct {
+	baseURL    string
+	peerDomain string
+}
+
+func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
+	decision := h.peerContract.ResolvePeerOrigin(peerDomain)
+	return resolvedPeerOrigin{
+		baseURL:    decision.BaseURL,
+		peerDomain: decision.PeerDomain,
+	}
 }

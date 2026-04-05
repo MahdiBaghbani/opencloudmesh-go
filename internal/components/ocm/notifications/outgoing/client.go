@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -21,6 +22,7 @@ type Client struct {
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
+	peerContract    *peercompat.CompiledContract
 }
 
 func NewClient(
@@ -37,12 +39,21 @@ func NewClient(
 	}
 }
 
+// SetPeerContract wires the compiled compatibility contract so discovery and
+// signing decisions use one shared peer-origin resolver.
+func (c *Client) SetPeerContract(peerContract *peercompat.CompiledContract) {
+	c.peerContract = peerContract
+}
+
 func (c *Client) SendNotification(ctx context.Context, targetHost string, notification *notifications.NewNotification) error {
 	if c.discoveryClient == nil {
 		return fmt.Errorf("discovery client not configured, cannot send notification to %s", targetHost)
 	}
-	baseURL := "https://" + targetHost
-	disc, err := c.discoveryClient.Discover(ctx, baseURL)
+	if c.outboundPolicy == nil {
+		return fmt.Errorf("outbound signing policy not configured for notifications")
+	}
+	origin := c.resolvePeerOrigin(targetHost)
+	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
 		return fmt.Errorf("discovery failed for %s: %w", targetHost, err)
 	}
@@ -59,22 +70,16 @@ func (c *Client) SendNotification(ctx context.Context, targetHost string, notifi
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.outboundPolicy != nil {
-		decision := c.outboundPolicy.ShouldSign(
-			outboundsigning.EndpointNotifications,
-			targetHost,
-			disc,
-			c.signer != nil,
-		)
-		if decision.Error != nil {
-			return fmt.Errorf("outbound signing policy error: %w", decision.Error)
-		}
-		if decision.ShouldSign && c.signer != nil {
-			if err := c.signer.SignRequest(req, body); err != nil {
-				return fmt.Errorf("failed to sign request: %w", err)
-			}
-		}
-	} else if c.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+	decision := c.outboundPolicy.ShouldSign(
+		outboundsigning.EndpointNotifications,
+		origin.peerDomain,
+		disc,
+		c.signer != nil,
+	)
+	if decision.Error != nil {
+		return fmt.Errorf("outbound signing policy error: %w", decision.Error)
+	}
+	if decision.ShouldSign && c.signer != nil {
 		if err := c.signer.SignRequest(req, body); err != nil {
 			return fmt.Errorf("failed to sign request: %w", err)
 		}
@@ -107,4 +112,17 @@ func (c *Client) SendShareDeclined(ctx context.Context, targetHost, providerID, 
 		ResourceType:     resourceType,
 		ProviderID:       providerID,
 	})
+}
+
+type resolvedPeerOrigin struct {
+	baseURL    string
+	peerDomain string
+}
+
+func (c *Client) resolvePeerOrigin(targetHost string) resolvedPeerOrigin {
+	decision := c.peerContract.ResolvePeerOrigin(targetHost)
+	return resolvedPeerOrigin{
+		baseURL:    decision.BaseURL,
+		peerDomain: decision.PeerDomain,
+	}
 }

@@ -1,5 +1,5 @@
 // Package spec defines OCM wire-format types (discovery, shares, invites, errors).
-// See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#ocm-api-discovery
+// See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery
 package spec
 
 import (
@@ -9,16 +9,16 @@ import (
 )
 
 type Discovery struct {
-	Enabled       bool           `json:"enabled"`
-	APIVersion    string         `json:"apiVersion"`
-	EndPoint      string         `json:"endPoint"`
-	Provider      string         `json:"provider,omitempty"`
-	ResourceTypes []ResourceType `json:"resourceTypes"`
-	Capabilities  []string       `json:"capabilities,omitempty"`
-	Criteria      []string       `json:"criteria"` // Always present, serializes as [] when empty
-	PublicKeys    []PublicKey    `json:"publicKeys,omitempty"`
-	TokenEndPoint      string `json:"tokenEndPoint,omitempty"`      // Required when exchange-token capability is advertised
-	InviteAcceptDialog string `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
+	Enabled            bool           `json:"enabled"`
+	APIVersion         string         `json:"apiVersion"`
+	EndPoint           string         `json:"endPoint"`
+	Provider           string         `json:"provider,omitempty"`
+	ResourceTypes      []ResourceType `json:"resourceTypes"`
+	Capabilities       []string       `json:"capabilities,omitempty"`
+	Criteria           []string       `json:"criteria"` // Always present, serializes as [] when empty
+	PublicKeys         []PublicKey    `json:"publicKeys,omitempty"`
+	TokenEndPoint      string         `json:"tokenEndPoint,omitempty"`      // Required when exchange-token capability is advertised
+	InviteAcceptDialog string         `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
 }
 
 type ResourceType struct {
@@ -49,6 +49,12 @@ func (d *Discovery) HasCriteria(criterion string) bool {
 		}
 	}
 	return false
+}
+
+// SupportsTokenExchange reports whether the peer advertises a complete
+// token-exchange capability set (capability + token endpoint).
+func (d *Discovery) SupportsTokenExchange() bool {
+	return d.HasCapability("exchange-token") && d.TokenEndPoint != ""
 }
 
 func (d *Discovery) GetEndpoint() string {

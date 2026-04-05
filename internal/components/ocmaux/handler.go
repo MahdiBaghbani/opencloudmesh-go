@@ -10,6 +10,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -128,6 +129,7 @@ func resolveInviteDialog(serverURL, dialog string) string {
 type DiscoverResponse struct {
 	Success                    bool                 `json:"success"`
 	Error                      string               `json:"error,omitempty"`
+	ReasonCode                 string               `json:"reasonCode,omitempty"`
 	Discovery                  *discovery.Discovery `json:"discovery,omitempty"`
 	InviteAcceptDialogAbsolute string               `json:"inviteAcceptDialogAbsolute,omitempty"`
 }
@@ -143,28 +145,28 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 
 	baseParam := r.URL.Query().Get("base")
 	if baseParam == "" {
-		h.sendDiscoverError(w, http.StatusBadRequest, "missing 'base' query parameter")
+		h.sendDiscoverError(w, http.StatusBadRequest, "missing 'base' query parameter", "")
 		return
 	}
 
 	originURL, err := normalizeToOrigin(baseParam)
 	if err != nil {
-		h.sendDiscoverError(w, http.StatusBadRequest, err.Error())
+		h.sendDiscoverError(w, http.StatusBadRequest, err.Error(), "")
 		return
 	}
 
 	if h.discoveryClient == nil {
-		h.sendDiscoverError(w, http.StatusNotImplemented, "discovery client not configured")
+		h.sendDiscoverError(w, http.StatusNotImplemented, "discovery client not configured", reason.PeerDiscoveryDisabled)
 		return
 	}
 
 	disc, err := h.discoveryClient.Discover(ctx, originURL)
 	if err != nil {
 		if httpclient.IsSSRFError(err) {
-			h.sendDiscoverError(w, http.StatusForbidden, err.Error())
+			h.sendDiscoverError(w, http.StatusForbidden, err.Error(), reason.PeerPolicyUnsatisfied)
 			return
 		}
-		h.sendDiscoverError(w, http.StatusBadGateway, err.Error())
+		h.sendDiscoverError(w, http.StatusBadGateway, err.Error(), reason.PeerDiscoveryFailed)
 		return
 	}
 
@@ -182,13 +184,17 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 }
 
 // sendDiscoverError returns a JSON error for the discover endpoint.
-func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, message string) {
+func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, message, reasonCode string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(DiscoverResponse{
+	resp := DiscoverResponse{
 		Success: false,
 		Error:   message,
-	})
+	}
+	if reasonCode != "" {
+		resp.ReasonCode = reasonCode
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 // normalizeToOrigin parses a URL and returns scheme://host.

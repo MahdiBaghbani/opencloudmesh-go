@@ -28,11 +28,11 @@ func TestSpecPinPresent(t *testing.T) {
 		t.Fatalf("failed to parse pin.json: %v", err)
 	}
 
-	if pin.Commit != "615192eeff00bcd479364dfa9c1f91641ac7b505" {
-		t.Errorf("pin.json commit = %q, want 615192eeff00bcd479364dfa9c1f91641ac7b505", pin.Commit)
+	if pin.Commit != "a2b8bacd4590ff201a06883330b67636e99c4f5b" {
+		t.Errorf("pin.json commit = %q, want a2b8bacd4590ff201a06883330b67636e99c4f5b", pin.Commit)
 	}
-	if pin.Version != "1.2.2" {
-		t.Errorf("pin.json version = %q, want 1.2.2", pin.Version)
+	if pin.Version != "develop" {
+		t.Errorf("pin.json version = %q, want develop", pin.Version)
 	}
 
 	// Verify the spec file itself exists

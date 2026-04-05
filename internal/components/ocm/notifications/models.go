@@ -1,5 +1,5 @@
 // Package notifications implements OCM notification handling.
-// See https://github.com/cs3org/OCM-API/blob/615192eeff00bcd479364dfa9c1f91641ac7b505/IETF-RFC.md?plain=1#share-acceptance-notification
+// See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#share-acceptance-notification
 package notifications
 
 import (

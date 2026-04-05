@@ -11,8 +11,13 @@ import (
 
 // Config holds the server configuration.
 type Config struct {
-	// Mode is the operating mode: strict, interop, or dev.
+	// Mode selects a preset bundle: strict, compat, or dev.
+	// The legacy alias "interop" is normalized to "compat" at load time.
 	Mode string `toml:"mode"`
+
+	// CompatibilityScope is the supervising exception-governance axis.
+	// Values: "none", "scoped", "unbounded".
+	CompatibilityScope string `toml:"compatibility_scope"`
 
 	// PublicOrigin is the public origin (scheme + host + port) for this instance.
 	// Example: "https://localhost:9200"
@@ -39,7 +44,7 @@ type Config struct {
 	// Signature configuration
 	Signature SignatureConfig `toml:"signature"`
 
-	// PeerProfiles configuration for interop with different OCM implementations
+	// PeerProfiles configuration for compatibility with different OCM implementations
 	PeerProfiles PeerProfilesConfig `toml:"peer_profiles"`
 
 	// Cache configuration
@@ -54,8 +59,13 @@ type Config struct {
 	// TokenExchange configuration
 	TokenExchange TokenExchangeConfig `toml:"token_exchange"`
 
-	// WebDAVTokenExchange configuration for must-exchange-token enforcement
-	WebDAVTokenExchange WebDAVTokenExchangeConfig `toml:"webdav_token_exchange"`
+	// RequireTokenExchange controls whether local receive policy requires
+	// must-exchange-token on WebDAV protocol requirements.
+	RequireTokenExchange bool `toml:"require_token_exchange"`
+
+	// PeerPolicy controls sender behavior toward non-strict peers.
+	// Values: "legacy", "prefer-strict" (default), "strict".
+	PeerPolicy string `toml:"peer_policy"`
 
 	// HTTP holds per-service HTTP configuration (Reva-style).
 	HTTP HTTPConfig `toml:"http"`
@@ -78,7 +88,7 @@ type HTTPConfig struct {
 // LoggingConfig holds logging settings.
 type LoggingConfig struct {
 	// Level is the minimum log level: trace, debug, info, warn, error.
-	// Default: info in strict/interop mode, debug in dev mode.
+	// Default: info in strict/compat mode, debug in dev mode.
 	Level string `toml:"level"`
 
 	// AllowSensitive permits logging of sensitive values (tokens, secrets).
@@ -90,22 +100,12 @@ type LoggingConfig struct {
 type TokenExchangeConfig struct {
 	// Enabled controls whether token exchange is enabled.
 	// Pointer for presence detection; nil = use preset default.
-	// Default: true in all modes.
+	// Default: preset-driven. Strict and dev enable it; compat inherits strict.
 	Enabled *bool `toml:"enabled"`
 
 	// Path is the token exchange endpoint path (relative to /ocm/).
 	// Default: "token"
 	Path string `toml:"path"`
-}
-
-// WebDAVTokenExchangeConfig holds must-exchange-token enforcement settings.
-type WebDAVTokenExchangeConfig struct {
-	// Mode controls enforcement: strict, lenient, off.
-	// - strict: always enforce must-exchange-token
-	// - lenient: enforce with peer profile relaxations
-	// - off: never enforce must-exchange-token
-	// Default: strict in strict mode, lenient in interop/dev mode.
-	Mode string `toml:"mode"`
 }
 
 // CacheConfig holds cache settings.
@@ -158,7 +158,7 @@ type PeerTrustMembershipCacheConfig struct {
 	MaxStaleSeconds int `toml:"max_stale_seconds"`
 }
 
-// PeerProfilesConfig holds peer interop profile settings.
+// PeerProfilesConfig holds peer compatibility profile settings.
 type PeerProfilesConfig struct {
 	// Mappings maps domain patterns to profile names
 	// Example: [{ pattern = "*.nextcloud.com", profile = "nextcloud" }]
@@ -177,7 +177,7 @@ type PeerProfileMapping struct {
 	Profile string `toml:"profile"`
 }
 
-// PeerProfile defines interop behavior for a class of peers.
+// PeerProfile defines compatibility behavior for a class of peers.
 type PeerProfile struct {
 	// AllowUnsignedInbound allows accepting unsigned requests
 	AllowUnsignedInbound bool `toml:"allow_unsigned_inbound"`
@@ -191,12 +191,20 @@ type PeerProfile struct {
 	// AllowHTTP allows HTTP connections (dev-only)
 	AllowHTTP bool `toml:"allow_http"`
 
+	// AllowUnsignedDiscovery allows discovery-based signature capability checks
+	// to fail open for this peer in the narrow retained call sites.
+	AllowUnsignedDiscovery bool `toml:"allow_unsigned_discovery"`
+
+	// AcceptLegacyDiscoveryPublicKey allows this peer to fall back from legacy
+	// discovery publicKey into canonical publicKeys during normalization.
+	AcceptLegacyDiscoveryPublicKey bool `toml:"accept_legacy_discovery_public_key"`
+
 	// TokenExchangeQuirks lists quirks to apply for token exchange
 	TokenExchangeQuirks []string `toml:"token_exchange_quirks"`
 
-	// RelaxMustExchangeToken allows sharedSecret even when must-exchange-token is set.
-	// Only applies in lenient mode; ignored in strict mode.
-	RelaxMustExchangeToken bool `toml:"relax_must_exchange_token"`
+	// TokenExchangeGrantType overrides the outbound token exchange grant_type.
+	// Empty means the protocol default ("authorization_code").
+	TokenExchangeGrantType string `toml:"token_exchange_grant_type"`
 
 	// AllowedBasicAuthPatterns whitelists specific Basic auth patterns.
 	// Empty means allow all implemented patterns.
@@ -231,12 +239,8 @@ type SignatureConfig struct {
 	// OutboundMode controls outbound signing: strict, criteria-only, token-only, off
 	OutboundMode string `toml:"outbound_mode"`
 
-	// AdvertiseHTTPRequestSignatures controls whether discovery includes
-	// http-request-signatures in criteria (can be true even when inbound is lenient)
-	AdvertiseHTTPRequestSignatures bool `toml:"advertise_http_request_signatures"`
-
 	// PeerProfileLevelOverride controls when peer profile relaxations apply:
-	// all, non-strict, off (default: non-strict)
+	// all, non-strict, off (strict preset default: off)
 	PeerProfileLevelOverride string `toml:"peer_profile_level_override"`
 
 	// KeyPath is where the signing private key is stored
@@ -321,7 +325,6 @@ type OutboundHTTPConfig struct {
 	TLSRootCADir string `toml:"tls_root_ca_dir"`
 }
 
-
 // OutboundHTTPConfigStrict returns strict outbound HTTP config for production.
 func OutboundHTTPConfigStrict() OutboundHTTPConfig {
 	return OutboundHTTPConfig{
@@ -363,6 +366,7 @@ func (c *Config) Redacted() string {
 	var sb strings.Builder
 	sb.WriteString("Config{\n")
 	sb.WriteString(fmt.Sprintf("  Mode: %q,\n", c.Mode))
+	sb.WriteString(fmt.Sprintf("  CompatibilityScope: %q,\n", c.CompatibilityScope))
 	sb.WriteString(fmt.Sprintf("  PublicOrigin: %q,\n", c.PublicOrigin))
 	sb.WriteString(fmt.Sprintf("  ExternalBasePath: %q,\n", c.ExternalBasePath))
 	sb.WriteString(fmt.Sprintf("  ListenAddr: %q,\n", c.ListenAddr))
@@ -394,7 +398,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  Signature: {\n")
 	sb.WriteString(fmt.Sprintf("    InboundMode: %q,\n", c.Signature.InboundMode))
 	sb.WriteString(fmt.Sprintf("    OutboundMode: %q,\n", c.Signature.OutboundMode))
-	sb.WriteString(fmt.Sprintf("    AdvertiseHTTPRequestSignatures: %v,\n", c.Signature.AdvertiseHTTPRequestSignatures))
 	sb.WriteString(fmt.Sprintf("    PeerProfileLevelOverride: %q,\n", c.Signature.PeerProfileLevelOverride))
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
 	sb.WriteString(fmt.Sprintf("    OnDiscoveryError: %q,\n", c.Signature.OnDiscoveryError))
@@ -416,9 +419,8 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    Enabled: %s,\n", enabledStr))
 	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
 	sb.WriteString("  },\n")
-	sb.WriteString("  WebDAVTokenExchange: {\n")
-	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.WebDAVTokenExchange.Mode))
-	sb.WriteString("  },\n")
+	sb.WriteString(fmt.Sprintf("  RequireTokenExchange: %v,\n", c.RequireTokenExchange))
+	sb.WriteString(fmt.Sprintf("  PeerPolicy: %q,\n", c.PeerPolicy))
 	sb.WriteString("  HTTP: {\n")
 	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))
 	if len(c.HTTP.Services) > 0 {

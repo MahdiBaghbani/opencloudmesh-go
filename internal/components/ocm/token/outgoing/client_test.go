@@ -10,13 +10,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
+
+func dummyDiscClient() *discovery.Client {
+	return discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		MaxResponseBytes: 1 << 20,
+	}, nil), nil)
+}
 
 // mockSigner adds a Signature header for tests.
 type mockSigner struct {
@@ -36,15 +45,48 @@ func (s *mockSigner) Sign(req *http.Request) error {
 
 // makePolicy builds an OutboundPolicy for tests.
 func makePolicy(outboundMode string, profileRegistry *peercompat.ProfileRegistry) *outboundsigning.OutboundPolicy {
-	return &outboundsigning.OutboundPolicy{
+	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: "non-strict",
-		ProfileRegistry:     profileRegistry,
 	}
+	if profileRegistry != nil {
+		contract, err := peercompat.BuildCompiledContractFromRegistry(profileRegistry)
+		if err != nil {
+			panic(err)
+		}
+		policy.PeerContract = contract
+	}
+	return policy
+}
+
+func newDiscoveryAwareTokenServer(tokenHandler http.HandlerFunc) *httptest.Server {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(discovery.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.2.2",
+				EndPoint:      server.URL + "/ocm",
+				Capabilities:  []string{"exchange-token"},
+				TokenEndPoint: server.URL,
+				ResourceTypes: []discovery.ResourceType{
+					{
+						Name:       "file",
+						ShareTypes: []string{"user"},
+						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+					},
+				},
+			})
+			return
+		}
+		tokenHandler(w, r)
+	}))
+	return server
 }
 
 func TestClient_Exchange_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
@@ -73,6 +115,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("strict", nil),
 		"my-instance.example.com",
@@ -98,8 +141,193 @@ func TestClient_Exchange_Success(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_OutboundModeOff(t *testing.T) {
+func TestClient_Exchange_RediscoveryFailureIsReturned(t *testing.T) {
+	tokenEndpointCalled := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/ocm":
+			http.Error(w, "discovery unavailable", http.StatusServiceUnavailable)
+		case "/ocm/token":
+			tokenEndpointCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(token.TokenResponse{
+				AccessToken: "should-not-be-returned",
+				TokenType:   "Bearer",
+				ExpiresIn:   3600,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode: "off",
+	}, nil))
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		dummyDiscClient(),
+		&mockSigner{},
+		makePolicy("strict", nil),
+		"my-instance.example.com",
+	)
+
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL + "/ocm/token",
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+	if err == nil {
+		t.Fatal("expected rediscovery failure")
+	}
+
+	var ce *peercompat.ClassifiedError
+	if !isClassifiedError(err, &ce) {
+		t.Fatalf("expected ClassifiedError, got %T", err)
+	}
+	if ce.ReasonCode != peercompat.ReasonDiscoveryFailed {
+		t.Fatalf("expected reason %q, got %q", peercompat.ReasonDiscoveryFailed, ce.ReasonCode)
+	}
+	if tokenEndpointCalled {
+		t.Fatal("token endpoint should not be called when rediscovery fails")
+	}
+}
+
+func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
+	tokenEndpointCalled := false
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/ocm":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(discovery.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.2.2",
+				EndPoint:      server.URL + "/ocm",
+				Capabilities:  []string{"exchange-token"},
+				Criteria:      []string{"token-exchange"},
+				TokenEndPoint: server.URL + "/token-exchange/v2",
+				ResourceTypes: []discovery.ResourceType{
+					{
+						Name:       "file",
+						ShareTypes: []string{"user"},
+						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+					},
+				},
+			})
+		case "/token-exchange/v2":
+			tokenEndpointCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(token.TokenResponse{
+				AccessToken: "should-not-be-returned",
+				TokenType:   "Bearer",
+				ExpiresIn:   3600,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		MaxResponseBytes: 1 << 20,
+	}, nil))
+	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		MaxResponseBytes: 1 << 20,
+	}, nil), nil)
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		discClient,
+		nil, // no signer
+		makePolicy("strict", nil),
+		"my-instance.example.com",
+	)
+
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL + "/token-exchange/v2",
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+	if err == nil {
+		t.Fatal("expected signing failure for strict peer without signer")
+	}
+
+	var ce *peercompat.ClassifiedError
+	if !isClassifiedError(err, &ce) {
+		t.Fatalf("expected ClassifiedError, got %T", err)
+	}
+	if ce.ReasonCode != peercompat.ReasonSignatureRequired {
+		t.Fatalf("expected reason %q, got %q (cause=%v err=%v)", peercompat.ReasonSignatureRequired, ce.ReasonCode, ce.Cause, err)
+	}
+	if tokenEndpointCalled {
+		t.Fatal("token endpoint should not be called when strict signing precondition fails")
+	}
+}
+
+func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T) {
+	tokenEndpointCalled := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/ocm":
+			http.Error(w, "discovery unavailable", http.StatusServiceUnavailable)
+		case "/token-exchange/v2":
+			tokenEndpointCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(token.TokenResponse{
+				AccessToken: "should-not-be-returned",
+				TokenType:   "Bearer",
+				ExpiresIn:   3600,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		MaxResponseBytes: 1 << 20,
+	}, nil))
+	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		MaxResponseBytes: 1 << 20,
+	}, nil), nil)
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		discClient,
+		&mockSigner{},
+		makePolicy("strict", nil),
+		"my-instance.example.com",
+	)
+
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL + "/token-exchange/v2",
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+	if err == nil {
+		t.Fatal("expected rediscovery failure")
+	}
+
+	var ce *peercompat.ClassifiedError
+	if !isClassifiedError(err, &ce) {
+		t.Fatalf("expected ClassifiedError, got %T", err)
+	}
+	if ce.ReasonCode != peercompat.ReasonDiscoveryFailed {
+		t.Fatalf("expected reason %q, got %q", peercompat.ReasonDiscoveryFailed, ce.ReasonCode)
+	}
+	if tokenEndpointCalled {
+		t.Fatal("token endpoint should not be called when rediscovery fails")
+	}
+}
+
+func TestClient_Exchange_OutboundModeOff(t *testing.T) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") != "" {
 			t.Error("should not have Signature header in off mode")
 		}
@@ -120,6 +348,7 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 	// OutboundMode "off" should skip signing
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("off", nil),
 		"my-instance.example.com",
@@ -140,7 +369,7 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 }
 
 func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -166,6 +395,7 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("strict", nil),
 		"my-instance.example.com",
@@ -186,7 +416,7 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 }
 
 func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			t.Error("expected Signature header in token-only mode for token exchange")
 		}
@@ -206,6 +436,7 @@ func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("token-only", nil),
 		"my-instance.example.com",
@@ -226,7 +457,7 @@ func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
 }
 
 func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			t.Error("expected Signature header in criteria-only mode for token exchange")
 		}
@@ -246,6 +477,7 @@ func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("criteria-only", nil),
 		"my-instance.example.com",
@@ -266,7 +498,7 @@ func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
 }
 
 func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") != "" {
 			t.Error("expected unsigned request when accept_plain_token quirk applies")
 		}
@@ -291,6 +523,7 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("criteria-only", profileRegistry),
 		"my-instance.example.com",
@@ -313,7 +546,7 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 }
 
 func TestClient_Exchange_OAuthError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(token.OAuthError{
@@ -329,6 +562,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		nil,
 		makePolicy("off", nil),
 		"my-instance.example.com",
@@ -351,7 +585,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 }
 
 func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)
 		}
@@ -375,6 +609,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		nil,
 		makePolicy("off", nil),
 		"my-instance.example.com",
@@ -396,7 +631,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 
 func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 	// Nextcloud profile overrides grant_type to ocm_share.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)
 		}
@@ -425,6 +660,7 @@ func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("criteria-only", profileRegistry),
 		"my-instance.example.com",
@@ -445,7 +681,7 @@ func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 }
 
 func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)
 		}
@@ -472,6 +708,7 @@ func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
 
 	client := tokenoutgoing.NewClient(
 		httpClient,
+		dummyDiscClient(),
 		&mockSigner{},
 		makePolicy("strict", profileRegistry),
 		"my-instance.example.com",

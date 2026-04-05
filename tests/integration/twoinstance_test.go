@@ -18,8 +18,8 @@ func TestTwoInstanceDiscovery(t *testing.T) {
 	}
 
 	h := harness.StartTwoInstances(t,
-		harness.SubprocessConfig{Name: "instance1", Mode: "dev"},
-		harness.SubprocessConfig{Name: "instance2", Mode: "dev"},
+		harness.SubprocessConfig{Name: "instance1", Mode: "dev", KeepSignatureDefaults: true},
+		harness.SubprocessConfig{Name: "instance2", Mode: "dev", KeepSignatureDefaults: true},
 	)
 	defer h.Stop(t)
 
@@ -57,8 +57,8 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	}
 
 	h := harness.StartTwoInstances(t,
-		harness.SubprocessConfig{Name: "instance1", Mode: "dev"},
-		harness.SubprocessConfig{Name: "instance2", Mode: "dev"},
+		harness.SubprocessConfig{Name: "instance1", Mode: "dev", KeepSignatureDefaults: true},
+		harness.SubprocessConfig{Name: "instance2", Mode: "dev", KeepSignatureDefaults: true},
 	)
 	defer h.Stop(t)
 
@@ -115,13 +115,14 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	// Start a single server with strict SSRF mode
-	// Note: "strict" mode preset enables SSRF blocking via config.Load() defaults
+	// Start a single server with SSRF blocking enabled.
+	// The compat preset keeps SSRF strict while still fitting the plain-HTTP harness.
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "ssrf-test",
-		Mode: "strict",
-		// ExtraConfig is intentionally empty - strict mode already sets appropriate SSRF settings
+		Name:                  "ssrf-test",
+		Mode:                  "compat",
+		KeepSignatureDefaults: true,
+		// ExtraConfig is intentionally empty - compat mode already sets ssrf_mode=strict.
 	})
 	defer srv.Stop(t)
 
@@ -179,8 +180,9 @@ func TestHealthEndpointSubprocess(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "health-test",
-		Mode: "dev",
+		Name:                  "health-test",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
 	})
 	defer srv.Stop(t)
 

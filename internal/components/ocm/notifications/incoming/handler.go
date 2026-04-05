@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -45,23 +46,23 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 	var req notifications.NewNotification
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Warn("failed to parse notification request", "error", err)
-		h.sendError(w, http.StatusBadRequest, "invalid_json", "failed to parse request body")
+		h.sendError(w, http.StatusBadRequest, "invalid_json", "", "failed to parse request body")
 		return
 	}
 	if req.NotificationType == "" {
-		h.sendError(w, http.StatusBadRequest, "missing_field", "notificationType is required")
+		h.sendError(w, http.StatusBadRequest, "missing_field", "", "notificationType is required")
 		return
 	}
 	if !notifications.IsValidNotificationType(req.NotificationType) {
-		h.sendError(w, http.StatusBadRequest, "invalid_notification_type", "unsupported notification type")
+		h.sendError(w, http.StatusBadRequest, "invalid_notification_type", "", "unsupported notification type")
 		return
 	}
 	if req.ResourceType == "" {
-		h.sendError(w, http.StatusBadRequest, "missing_field", "resourceType is required")
+		h.sendError(w, http.StatusBadRequest, "missing_field", "", "resourceType is required")
 		return
 	}
 	if req.ProviderID == "" {
-		h.sendError(w, http.StatusBadRequest, "missing_field", "providerId is required")
+		h.sendError(w, http.StatusBadRequest, "missing_field", "", "providerId is required")
 		return
 	}
 	var senderAuthority string
@@ -73,11 +74,11 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if senderAuthority == "" {
 			log.Warn("notification for unknown share", "provider_id", req.ProviderID)
-			h.sendError(w, http.StatusNotFound, "share_not_found", "no share found for providerId")
+			h.sendError(w, http.StatusNotFound, "share_not_found", reason.PeerCapabilityMismatch, "no share found for providerId")
 			return
 		}
 		log.Warn("notification for unknown share", "provider_id", req.ProviderID, "sender", senderAuthority)
-		h.sendError(w, http.StatusNotFound, "share_not_found", "no share found for providerId")
+		h.sendError(w, http.StatusNotFound, "share_not_found", reason.PeerCapabilityMismatch, "no share found for providerId")
 		return
 	}
 	if senderAuthority != "" {
@@ -90,7 +91,7 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 				"provider_id", req.ProviderID,
 				"expected", normalizedReceiver,
 				"got", senderAuthority)
-			h.sendError(w, http.StatusForbidden, "sender_mismatch", "notification sender does not match share receiver")
+			h.sendError(w, http.StatusForbidden, "sender_mismatch", reason.PeerPolicyUnsatisfied, "notification sender does not match share receiver")
 			return
 		}
 	}
@@ -116,11 +117,15 @@ func (h *Handler) HandleNotification(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *Handler) sendError(w http.ResponseWriter, status int, code, message string) {
+func (h *Handler) sendError(w http.ResponseWriter, status int, code, reasonCode, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{
+	resp := map[string]string{
 		"error":       code,
 		"description": message,
-	})
+	}
+	if reasonCode != "" {
+		resp["reasonCode"] = reasonCode
+	}
+	json.NewEncoder(w).Encode(resp)
 }

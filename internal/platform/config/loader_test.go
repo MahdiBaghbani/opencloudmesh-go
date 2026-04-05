@@ -107,8 +107,8 @@ timeout_ms = 5000
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Mode != "interop" {
-		t.Errorf("expected mode interop, got %s", cfg.Mode)
+	if cfg.Mode != "compat" {
+		t.Errorf("expected mode compat, got %s", cfg.Mode)
 	}
 	if cfg.PublicOrigin != "https://example.com:8443" {
 		t.Errorf("expected origin https://example.com:8443, got %s", cfg.PublicOrigin)
@@ -140,6 +140,7 @@ func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
+mode = "interop"
 public_origin = "https://from-toml.com"
 listen_addr = ":9000"
 
@@ -250,6 +251,9 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.Mode != "strict" {
 		t.Errorf("expected mode strict, got %s", cfg.Mode)
 	}
+	if cfg.CompatibilityScope != "none" {
+		t.Errorf("expected compatibility scope none, got %s", cfg.CompatibilityScope)
+	}
 	if cfg.OutboundHTTP.SSRFMode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRFMode)
 	}
@@ -259,17 +263,17 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.Signature.OutboundMode != "strict" {
 		t.Errorf("expected signature outbound mode strict, got %s", cfg.Signature.OutboundMode)
 	}
-	if !cfg.Signature.AdvertiseHTTPRequestSignatures {
-		t.Error("expected advertise_http_request_signatures true in strict")
-	}
-	if cfg.Signature.PeerProfileLevelOverride != "non-strict" {
-		t.Errorf("expected peer_profile_level_override non-strict, got %s", cfg.Signature.PeerProfileLevelOverride)
+	if cfg.Signature.PeerProfileLevelOverride != "off" {
+		t.Errorf("expected peer_profile_level_override off, got %s", cfg.Signature.PeerProfileLevelOverride)
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify false in strict")
 	}
 	if cfg.OutboundHTTP.MaxRedirects != 1 {
 		t.Errorf("expected MaxRedirects 1 in strict, got %d", cfg.OutboundHTTP.MaxRedirects)
+	}
+	if cfg.PeerPolicy != "strict" {
+		t.Errorf("expected peer_policy strict in strict config, got %q", cfg.PeerPolicy)
 	}
 }
 
@@ -278,6 +282,9 @@ func TestDevConfig(t *testing.T) {
 
 	if cfg.Mode != "dev" {
 		t.Errorf("expected mode dev, got %s", cfg.Mode)
+	}
+	if cfg.CompatibilityScope != "unbounded" {
+		t.Errorf("expected compatibility scope unbounded, got %s", cfg.CompatibilityScope)
 	}
 	if cfg.OutboundHTTP.SSRFMode != "off" {
 		t.Errorf("expected SSRF mode off, got %s", cfg.OutboundHTTP.SSRFMode)
@@ -290,11 +297,14 @@ func TestDevConfig(t *testing.T) {
 	}
 }
 
-func TestInteropConfig(t *testing.T) {
-	cfg := InteropConfig()
+func TestCompatConfig(t *testing.T) {
+	cfg := CompatConfig()
 
-	if cfg.Mode != "interop" {
-		t.Errorf("expected mode interop, got %s", cfg.Mode)
+	if cfg.Mode != "compat" {
+		t.Errorf("expected mode compat, got %s", cfg.Mode)
+	}
+	if cfg.CompatibilityScope != "unbounded" {
+		t.Errorf("expected compatibility scope unbounded, got %s", cfg.CompatibilityScope)
 	}
 	if cfg.Signature.InboundMode != "lenient" {
 		t.Errorf("expected signature inbound mode lenient, got %s", cfg.Signature.InboundMode)
@@ -302,12 +312,9 @@ func TestInteropConfig(t *testing.T) {
 	if cfg.Signature.OutboundMode != "criteria-only" {
 		t.Errorf("expected signature outbound mode criteria-only, got %s", cfg.Signature.OutboundMode)
 	}
-	if !cfg.Signature.AdvertiseHTTPRequestSignatures {
-		t.Error("expected advertise_http_request_signatures true in interop")
-	}
-	// SSRF stays strict in interop
+	// SSRF stays strict in compat
 	if cfg.OutboundHTTP.SSRFMode != "strict" {
-		t.Errorf("expected SSRF mode strict in interop, got %s", cfg.OutboundHTTP.SSRFMode)
+		t.Errorf("expected SSRF mode strict in compat, got %s", cfg.OutboundHTTP.SSRFMode)
 	}
 }
 
@@ -323,12 +330,12 @@ func TestConfig_Redacted(t *testing.T) {
 			},
 		},
 		Signature: SignatureConfig{
-			InboundMode:                    "strict",
-			OutboundMode:                   "strict",
-			AdvertiseHTTPRequestSignatures: true,
-			PeerProfileLevelOverride:       "non-strict",
-			KeyPath:                        ".ocm/keys/signing.pem",
+			InboundMode:              "strict",
+			OutboundMode:             "strict",
+			PeerProfileLevelOverride: "non-strict",
+			KeyPath:                  ".ocm/keys/signing.pem",
 		},
+		RequireTokenExchange: true,
 	}
 
 	redacted := cfg.Redacted()
@@ -343,6 +350,12 @@ func TestConfig_Redacted(t *testing.T) {
 	// Username should be visible
 	if !strings.Contains(redacted, "admin") {
 		t.Error("username should be visible")
+	}
+	if !strings.Contains(redacted, "RequireTokenExchange: true") {
+		t.Error("expected require_token_exchange in redacted output")
+	}
+	if strings.Contains(redacted, "WebDAVTokenExchange") {
+		t.Error("expected WebDAVTokenExchange block removed from redacted output")
 	}
 }
 
@@ -463,26 +476,46 @@ outbound_mode = "relaxed"
 	}
 }
 
-func TestLoad_AdvertiseGuardrail_InboundOffRejectsAdvertiseTrue(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
+func TestLoad_RemovedAdvertiseHTTPSignaturesKey_FailsFast(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+	}{
+		{
+			name: "nested in signature table",
+			config: `
+mode = "interop"
 [signature]
-inbound_mode = "off"
-outbound_mode = "off"
 advertise_http_request_signatures = true
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
+`,
+		},
+		{
+			name: "dotted root key",
+			config: `
+mode = "interop"
+signature.advertise_http_request_signatures = true
+`,
+		},
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for advertise=true when inbound_mode=off")
-	}
-	if !strings.Contains(err.Error(), "advertise_http_request_signatures cannot be true") {
-		t.Errorf("expected guardrail error, got: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+
+			if err := os.WriteFile(configPath, []byte(tt.config), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected removed key error")
+			}
+			if !strings.Contains(err.Error(), "signature.advertise_http_request_signatures") ||
+				!strings.Contains(err.Error(), "removed") {
+				t.Errorf("expected removed-key migration error, got: %v", err)
+			}
+		})
 	}
 }
 
@@ -511,9 +544,9 @@ func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	// Test all valid enum combinations
+	// Test valid enum combinations.
 	tomlContent := `
-mode = "strict"
+mode = "interop"
 
 [tls]
 mode = "acme"
@@ -731,6 +764,9 @@ mode = "strict"
 [peer_trust]
 enabled = true
 config_paths = ["` + tgPath + `"]
+
+[peer_trust.policy]
+global_enforce = true
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -980,7 +1016,7 @@ level = "` + level + `"
 }
 
 func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
-	// Strict mode: enabled=true, path=token, webdav_mode=strict
+	// Strict mode: enabled=true, path=token, require_token_exchange=true
 	strictCfg := StrictConfig()
 	if strictCfg.TokenExchange.Enabled == nil || !*strictCfg.TokenExchange.Enabled {
 		t.Error("expected strict mode token_exchange.enabled true")
@@ -988,11 +1024,11 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if strictCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected strict mode token_exchange.path 'token', got %q", strictCfg.TokenExchange.Path)
 	}
-	if strictCfg.WebDAVTokenExchange.Mode != "strict" {
-		t.Errorf("expected strict mode webdav_token_exchange.mode 'strict', got %q", strictCfg.WebDAVTokenExchange.Mode)
+	if !strictCfg.RequireTokenExchange {
+		t.Error("expected strict mode require_token_exchange true")
 	}
 
-	// Interop mode: enabled=true, path=token, webdav_mode=lenient
+	// Interop mode: enabled=true, path=token, require_token_exchange=false
 	interopCfg := InteropConfig()
 	if interopCfg.TokenExchange.Enabled == nil || !*interopCfg.TokenExchange.Enabled {
 		t.Error("expected interop mode token_exchange.enabled true")
@@ -1000,11 +1036,11 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if interopCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected interop mode token_exchange.path 'token', got %q", interopCfg.TokenExchange.Path)
 	}
-	if interopCfg.WebDAVTokenExchange.Mode != "lenient" {
-		t.Errorf("expected interop mode webdav_token_exchange.mode 'lenient', got %q", interopCfg.WebDAVTokenExchange.Mode)
+	if interopCfg.RequireTokenExchange {
+		t.Error("expected interop mode require_token_exchange false")
 	}
 
-	// Dev mode: enabled=true, path=token, webdav_mode=lenient
+	// Dev mode: enabled=true, path=token, require_token_exchange=false
 	devCfg := DevConfig()
 	if devCfg.TokenExchange.Enabled == nil || !*devCfg.TokenExchange.Enabled {
 		t.Error("expected dev mode token_exchange.enabled true")
@@ -1012,8 +1048,8 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if devCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected dev mode token_exchange.path 'token', got %q", devCfg.TokenExchange.Path)
 	}
-	if devCfg.WebDAVTokenExchange.Mode != "lenient" {
-		t.Errorf("expected dev mode webdav_token_exchange.mode 'lenient', got %q", devCfg.WebDAVTokenExchange.Mode)
+	if devCfg.RequireTokenExchange {
+		t.Error("expected dev mode require_token_exchange false")
 	}
 }
 
@@ -1022,7 +1058,8 @@ func TestLoad_TokenExchangeConfig_FromTOML(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
-mode = "strict"
+mode = "compat"
+require_token_exchange = false
 
 [token_exchange]
 enabled = false
@@ -1117,15 +1154,13 @@ path = "` + tt.path + `"
 	}
 }
 
-func TestLoad_WebDAVTokenExchangeConfig_FromTOML(t *testing.T) {
+func TestLoad_RequireTokenExchange_FromTOML(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
-mode = "strict"
-
-[webdav_token_exchange]
-mode = "off"
+mode = "compat"
+require_token_exchange = false
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -1136,89 +1171,75 @@ mode = "off"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.WebDAVTokenExchange.Mode != "off" {
-		t.Errorf("expected webdav_token_exchange.mode 'off', got %q", cfg.WebDAVTokenExchange.Mode)
+	if cfg.RequireTokenExchange {
+		t.Error("expected require_token_exchange false from TOML")
 	}
 }
 
-func TestLoad_WebDAVTokenExchangeConfig_FlagsOverrideTOML(t *testing.T) {
+func TestLoad_RequireTokenExchange_FlagsOverrideTOML(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
-mode = "strict"
-
-[webdav_token_exchange]
-mode = "strict"
+mode = "compat"
+require_token_exchange = true
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	mode := "lenient"
+	require := "false"
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
-			WebDAVTokenExchangeMode: &mode,
+			RequireTokenExchange: &require,
 		},
 	})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.WebDAVTokenExchange.Mode != "lenient" {
-		t.Errorf("expected webdav_token_exchange.mode 'lenient' from flag, got %q", cfg.WebDAVTokenExchange.Mode)
+	if cfg.RequireTokenExchange {
+		t.Error("expected require_token_exchange false from flag")
 	}
 }
 
-func TestLoad_WebDAVTokenExchangeConfig_InvalidMode_FailsFast(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
+func TestLoad_WebDAVTokenExchangeSurface_RemovedFailsFast(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+	}{
+		{
+			name: "removed table",
+			config: `
 mode = "strict"
-
 [webdav_token_exchange]
-mode = "relaxed"
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
+mode = "strict"
+`,
+		},
+		{
+			name: "removed dotted key",
+			config: `
+mode = "strict"
+webdav_token_exchange.mode = "strict"
+`,
+		},
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for invalid webdav_token_exchange.mode")
-	}
-	if !strings.Contains(err.Error(), "invalid webdav_token_exchange.mode") {
-		t.Errorf("expected webdav_token_exchange.mode error, got: %v", err)
-	}
-}
-
-func TestLoad_WebDAVTokenExchangeConfig_AllValidModes(t *testing.T) {
-	validModes := []string{"off", "lenient", "strict"}
-
-	for _, mode := range validModes {
-		t.Run(mode, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
-
-			tomlContent := `
-mode = "strict"
-
-[webdav_token_exchange]
-mode = "` + mode + `"
-`
-			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+			if err := os.WriteFile(configPath, []byte(tt.config), 0644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
 			}
 
-			cfg, err := Load(LoaderOptions{ConfigPath: configPath})
-			if err != nil {
-				t.Fatalf("Load() error = %v", err)
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected removed webdav_token_exchange surface to fail")
 			}
-
-			if cfg.WebDAVTokenExchange.Mode != mode {
-				t.Errorf("expected webdav_token_exchange.mode %q, got %q", mode, cfg.WebDAVTokenExchange.Mode)
+			if !strings.Contains(err.Error(), "webdav_token_exchange") || !strings.Contains(err.Error(), "require_token_exchange") {
+				t.Fatalf("expected migration error to mention removed and replacement keys, got %v", err)
 			}
 		})
 	}
@@ -1529,10 +1550,7 @@ public_origin = "https://example.com:9200"
 }
 
 func TestLoad_PeerProfileCustomFields(t *testing.T) {
-	// Verify that RelaxMustExchangeToken and AllowedBasicAuthPatterns
-	// round-trip through TOML deserialization into config.PeerProfile.
-	// This catches the silent zero-value regression that existed before
-	// these fields were added to config.PeerProfile.
+	// Verify custom profile fields still round-trip into config.PeerProfile.
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -1545,8 +1563,9 @@ allow_unsigned_inbound = true
 allow_unsigned_outbound = false
 allow_mismatched_host = true
 allow_http = false
+allow_unsigned_discovery = true
 token_exchange_quirks = ["accept_plain_token"]
-relax_must_exchange_token = true
+token_exchange_grant_type = "ocm_share"
 allowed_basic_auth_patterns = ["token:", "id:token"]
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
@@ -1571,8 +1590,11 @@ allowed_basic_auth_patterns = ["token:", "id:token"]
 	if !profile.AllowMismatchedHost {
 		t.Error("expected AllowMismatchedHost = true")
 	}
-	if !profile.RelaxMustExchangeToken {
-		t.Error("expected RelaxMustExchangeToken = true, got false (field not deserialized from TOML)")
+	if !profile.AllowUnsignedDiscovery {
+		t.Error("expected AllowUnsignedDiscovery = true")
+	}
+	if profile.TokenExchangeGrantType != "ocm_share" {
+		t.Errorf("expected TokenExchangeGrantType %q, got %q", "ocm_share", profile.TokenExchangeGrantType)
 	}
 	if len(profile.AllowedBasicAuthPatterns) != 2 {
 		t.Errorf("expected 2 AllowedBasicAuthPatterns, got %d (field not deserialized from TOML)", len(profile.AllowedBasicAuthPatterns))
@@ -1583,6 +1605,428 @@ allowed_basic_auth_patterns = ["token:", "id:token"]
 		if profile.AllowedBasicAuthPatterns[1] != "id:token" {
 			t.Errorf("expected second pattern 'id:token', got %q", profile.AllowedBasicAuthPatterns[1])
 		}
+	}
+}
+
+func TestLoad_PeerPolicy_ValidValues(t *testing.T) {
+	validPolicies := []string{"legacy", "prefer-strict", "strict"}
+
+	for _, policy := range validPolicies {
+		t.Run(policy, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+
+			tomlContent := `
+mode = "compat"
+peer_policy = "` + policy + `"
+
+[token_exchange]
+enabled = true
+`
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+
+			if cfg.PeerPolicy != policy {
+				t.Errorf("expected peer_policy %q, got %q", policy, cfg.PeerPolicy)
+			}
+		})
+	}
+}
+
+func TestLoad_PeerPolicy_InvalidFails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+peer_policy = "unknown"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid peer_policy")
+	}
+	if !strings.Contains(err.Error(), "peer_policy") {
+		t.Errorf("expected error about peer_policy, got: %v", err)
+	}
+}
+
+func TestLoad_NonStrictPeerOutboundPolicy_StrictBreak_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+non_strict_peer_outbound_policy = "prefer-strict"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for deprecated non_strict_peer_outbound_policy key")
+	}
+	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy") || !strings.Contains(err.Error(), "peer_policy") {
+		t.Errorf("expected rename error, got: %v", err)
+	}
+}
+
+func TestLoad_LegacyPeerPolicy_StrictBreak_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+legacy_peer_policy = "prefer-strict"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for deprecated legacy_peer_policy key")
+	}
+	if !strings.Contains(err.Error(), "legacy_peer_policy") || !strings.Contains(err.Error(), "peer_policy") {
+		t.Errorf("expected rename error, got: %v", err)
+	}
+}
+
+func TestLoad_CrossField_RequireTokenExchangeRequiresTokenExchange(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+require_token_exchange = true
+
+[token_exchange]
+enabled = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for require_token_exchange without token exchange capability")
+	}
+	if !strings.Contains(err.Error(), "require_token_exchange=true requires token_exchange.enabled=true") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_CrossField_StrictPeerPolicyRequiresTokenExchange(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+require_token_exchange = false
+peer_policy = "strict"
+
+[token_exchange]
+enabled = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for strict peer policy without token exchange")
+	}
+	if !strings.Contains(err.Error(), "peer_policy=strict requires token_exchange.enabled=true") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_StrictModeSignatureContradictions_FailFast(t *testing.T) {
+	tests := []struct {
+		name      string
+		signature string
+		wantError string
+	}{
+		{
+			name: "strict mode requires inbound strict",
+			signature: `
+[signature]
+inbound_mode = "lenient"
+`,
+			wantError: "compatibility_scope=none requires signature.inbound_mode=strict",
+		},
+		{
+			name: "strict mode requires outbound strict",
+			signature: `
+[signature]
+outbound_mode = "criteria-only"
+`,
+			wantError: "compatibility_scope=none requires signature.outbound_mode=strict",
+		},
+		{
+			name: "strict mode requires peer override off",
+			signature: `
+[signature]
+peer_profile_level_override = "non-strict"
+`,
+			wantError: "compatibility_scope=none requires signature.peer_profile_level_override=off",
+		},
+		{
+			name: "strict mode requires discovery errors rejected",
+			signature: `
+[signature]
+on_discovery_error = "allow"
+`,
+			wantError: "compatibility_scope=none requires signature.on_discovery_error=reject",
+		},
+		{
+			name: "strict mode disallows mismatch",
+			signature: `
+[signature]
+allow_mismatch = true
+`,
+			wantError: "compatibility_scope=none requires signature.allow_mismatch=false",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+			tomlContent := `
+mode = "strict"
+` + tt.signature
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatalf("expected strict-mode contradiction error: %s", tt.wantError)
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("expected %q, got %v", tt.wantError, err)
+			}
+		})
+	}
+}
+
+func TestLoad_StrictMode_WithHardenedDefaults_Succeeds(t *testing.T) {
+	cfg, err := Load(LoaderOptions{ModeFlag: "strict"})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected inbound strict, got %q", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Errorf("expected outbound strict, got %q", cfg.Signature.OutboundMode)
+	}
+	if cfg.Signature.PeerProfileLevelOverride != "off" {
+		t.Errorf("expected peer_profile_level_override off, got %q", cfg.Signature.PeerProfileLevelOverride)
+	}
+	if cfg.Signature.OnDiscoveryError != "reject" {
+		t.Errorf("expected on_discovery_error reject, got %q", cfg.Signature.OnDiscoveryError)
+	}
+	if cfg.Signature.AllowMismatch {
+		t.Error("expected allow_mismatch false")
+	}
+}
+
+func TestLoad_CrossField_PeerOverrideAllIncompatibleWithStrict(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+
+[signature]
+peer_profile_level_override = "all"
+
+[token_exchange]
+enabled = true
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for peer_profile_level_override=all with strict mode")
+	}
+	if !strings.Contains(err.Error(), "compatibility_scope=none requires signature.peer_profile_level_override=off") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_ScopedCompatibilityRejectsGlobalRelaxations(t *testing.T) {
+	tests := []struct {
+		name      string
+		extra     string
+		wantError string
+	}{
+		{
+			name: "rejects inbound lenient",
+			extra: `
+[signature]
+inbound_mode = "lenient"
+`,
+			wantError: "compatibility_scope=scoped requires signature.inbound_mode=strict",
+		},
+		{
+			name: "rejects outbound token only",
+			extra: `
+[signature]
+outbound_mode = "token-only"
+`,
+			wantError: "compatibility_scope=scoped requires signature.outbound_mode=strict",
+		},
+		{
+			name: "rejects peer override all",
+			extra: `
+[signature]
+peer_profile_level_override = "all"
+`,
+			wantError: "compatibility_scope=scoped requires signature.peer_profile_level_override!=all",
+		},
+		{
+			name: "rejects discovery fail open",
+			extra: `
+[signature]
+on_discovery_error = "allow"
+`,
+			wantError: "compatibility_scope=scoped requires signature.on_discovery_error=reject",
+		},
+		{
+			name: "rejects mismatch allowance",
+			extra: `
+[signature]
+allow_mismatch = true
+`,
+			wantError: "compatibility_scope=scoped requires signature.allow_mismatch=false",
+		},
+		{
+			name: "rejects tls off",
+			extra: `
+[tls]
+mode = "off"
+`,
+			wantError: "compatibility_scope=scoped requires tls.mode!=off",
+		},
+		{
+			name: "rejects ssrf off",
+			extra: `
+[outbound_http]
+ssrf_mode = "off"
+`,
+			wantError: "compatibility_scope=scoped requires outbound_http.ssrf_mode=strict",
+		},
+		{
+			name: "rejects insecure skip verify",
+			extra: `
+[outbound_http]
+insecure_skip_verify = true
+`,
+			wantError: "compatibility_scope=scoped requires outbound_http.insecure_skip_verify=false",
+		},
+		{
+			name: "rejects fail open peer trust",
+			extra: `
+[peer_trust]
+enabled = true
+config_paths = ["trust-group.json"]
+
+[peer_trust.policy]
+global_enforce = false
+`,
+			wantError: "compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+			tomlContent := `
+mode = "strict"
+compatibility_scope = "scoped"
+` + tt.extra
+			if strings.Contains(tt.extra, "[peer_trust]") {
+				trustGroupPath := filepath.Join(dir, "trust-group.json")
+				if err := os.WriteFile(trustGroupPath, []byte(`{}`), 0644); err != nil {
+					t.Fatalf("failed to write trust group fixture: %v", err)
+				}
+				tomlContent = strings.ReplaceAll(tomlContent, "trust-group.json", trustGroupPath)
+			}
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatalf("expected scoped compatibility error: %s", tt.wantError)
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("expected %q, got %v", tt.wantError, err)
+			}
+		})
+	}
+}
+
+func TestLoad_ScopedCompatibilityAllowsPeerScopedRelaxationWiring(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+compatibility_scope = "scoped"
+
+[signature]
+peer_profile_level_override = "non-strict"
+
+[[peer_profiles.mappings]]
+pattern = "peer.example.com"
+profile = "compat"
+
+[peer_profiles.custom_profiles.compat]
+allow_mismatched_host = true
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() unexpected error = %v", err)
+	}
+
+	if cfg.CompatibilityScope != "scoped" {
+		t.Fatalf("expected compatibility_scope scoped, got %q", cfg.CompatibilityScope)
+	}
+	if cfg.Signature.PeerProfileLevelOverride != "non-strict" {
+		t.Fatalf("expected peer_profile_level_override non-strict, got %q", cfg.Signature.PeerProfileLevelOverride)
+	}
+}
+
+func TestLoad_PeerPolicy_DefaultIsStrict(t *testing.T) {
+	cfg, err := Load(LoaderOptions{})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.PeerPolicy != "strict" {
+		t.Errorf("expected default peer_policy strict, got %q", cfg.PeerPolicy)
 	}
 }
 

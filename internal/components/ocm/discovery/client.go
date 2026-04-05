@@ -3,19 +3,26 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
+// ErrDiscoveryDisabled is returned when the discovery client is nil or disabled.
+var ErrDiscoveryDisabled = errors.New("discovery client not configured")
+
 // Client fetches and caches remote OCM discovery documents. Discovers via /.well-known/ocm and /ocm-provider fallback.
 type Client struct {
-	httpClient *httpclient.Client
-	cache      cache.Cache
-	cacheTTL   time.Duration
+	httpClient   *httpclient.Client
+	cache        cache.Cache
+	cacheTTL     time.Duration
+	peerContract *peercompat.CompiledContract
 }
 
 // NewClient creates a discovery client. Nil cache is replaced with default in-memory cache.
@@ -30,13 +37,22 @@ func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
 	}
 }
 
+// SetPeerContract wires the compiled peer contract so discovery normalization can
+// apply explicit peer-scoped compatibility fallbacks.
+func (c *Client) SetPeerContract(peerContract *peercompat.CompiledContract) {
+	if c == nil {
+		return
+	}
+	c.peerContract = peerContract
+}
+
 // Discover fetches the discovery document for a remote OCM server. Uses cache when available.
 func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, error) {
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	cacheKey := "discovery:" + baseURL
 	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
-		var disc Discovery
-		if err := json.Unmarshal(data, &disc); err == nil {
+		disc, err := c.normalizeDiscovery(data, baseURL)
+		if err == nil {
 			return &disc, nil
 		}
 	}
@@ -65,8 +81,8 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) (*Disc
 		return nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
 	}
 
-	var disc Discovery
-	if err := json.Unmarshal(data, &disc); err != nil {
+	disc, err := c.normalizeDiscovery(data, discoveryURL)
+	if err != nil {
 		return nil, fmt.Errorf("invalid discovery JSON: %w", err)
 	}
 
@@ -75,4 +91,58 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) (*Disc
 	}
 
 	return &disc, nil
+}
+
+type rawDiscoveryEnvelope struct {
+	Discovery
+	LegacyPublicKey *legacyDiscoveryPublicKey `json:"publicKey,omitempty"`
+}
+
+type legacyDiscoveryPublicKey struct {
+	KeyID        string `json:"keyId"`
+	PublicKeyPem string `json:"publicKeyPem"`
+}
+
+func (c *Client) normalizeDiscovery(data []byte, baseURL string) (Discovery, error) {
+	var raw rawDiscoveryEnvelope
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return Discovery{}, err
+	}
+
+	disc := raw.Discovery
+	if len(disc.PublicKeys) > 0 || raw.LegacyPublicKey == nil {
+		return disc, nil
+	}
+
+	decision := c.resolveLegacyDiscoveryPublicKey(baseURL)
+	if !decision.Allow {
+		return disc, nil
+	}
+	if raw.LegacyPublicKey.KeyID == "" || raw.LegacyPublicKey.PublicKeyPem == "" {
+		return disc, nil
+	}
+
+	disc.PublicKeys = []PublicKey{{
+		KeyID:        raw.LegacyPublicKey.KeyID,
+		PublicKeyPem: raw.LegacyPublicKey.PublicKeyPem,
+		Algorithm:    "rsa",
+	}}
+	return disc, nil
+}
+
+func (c *Client) resolveLegacyDiscoveryPublicKey(baseURL string) peercompat.LegacyDiscoveryDecision {
+	decision := peercompat.LegacyDiscoveryDecision{
+		Allow:      false,
+		ReasonCode: "legacy_discovery_public_key_reject",
+	}
+	if c == nil || c.peerContract == nil {
+		return decision
+	}
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Host == "" {
+		return decision
+	}
+
+	return c.peerContract.LegacyDiscoveryPublicKeyDecisionForPeer(parsed.Host)
 }

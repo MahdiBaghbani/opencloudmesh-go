@@ -13,7 +13,7 @@ import * as https from 'https';
 
 export interface ServerConfig {
   name: string;
-  mode?: 'dev' | 'interop' | 'strict';
+  mode?: 'dev' | 'compat' | 'interop' | 'strict';
   extraConfig?: string;
 }
 
@@ -109,7 +109,8 @@ export function buildBinary(): string {
 
 /**
  * Generates TOML config for a test server.
- * The mode preset (dev/interop/strict) drives SSRF defaults via config.Load().
+ * The mode preset (dev/compat/strict) drives SSRF defaults via config.Load().
+ * The legacy alias "interop" still maps to the compat preset.
  * Strict mode enables full HTTP request signatures with auto-generated keys.
  */
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
@@ -145,7 +146,6 @@ outbound_mode = "strict"
 on_discovery_error = "reject"
 allow_mismatch = false
 peer_profile_level_override = "off"
-advertise_http_request_signatures = true
 key_path = "${join(tempDir, 'signing.pem')}"` : `inbound_mode = "off"
 outbound_mode = "off"`}
 `;
@@ -257,7 +257,7 @@ export async function startTwoServers(
   config?: {
     nameA?: string;
     nameB?: string;
-    mode?: 'dev' | 'interop' | 'strict';
+    mode?: 'dev' | 'compat' | 'interop' | 'strict';
     extraConfigA?: string;
     extraConfigB?: string;
   }

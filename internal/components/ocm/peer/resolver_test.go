@@ -95,8 +95,19 @@ func TestResolveInviteAcceptedRequest_MissingProvider(t *testing.T) {
 	}
 }
 
+func TestResolveInviteAcceptedRequest_RejectsURLShapedProvider(t *testing.T) {
+	body := []byte(`{"recipientProvider":"https://recipient.example","token":"abc","userID":"u"}`)
+	r := httptest.NewRequest("POST", "/ocm/invite-accepted", nil)
+
+	resolver := NewResolver()
+	_, err := resolver.ResolveInviteAcceptedRequest(r, body)
+	if err == nil {
+		t.Fatal("expected error for URL-shaped recipientProvider")
+	}
+}
+
 func TestResolveNotificationsRequest_ReturnsEmpty(t *testing.T) {
-	body := []byte(`{"notificationId":"123"}`)
+	body := []byte(`{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"abc123"}`)
 	r := httptest.NewRequest("POST", "/ocm/notifications", nil)
 
 	resolver := NewResolver()
@@ -109,16 +120,56 @@ func TestResolveNotificationsRequest_ReturnsEmpty(t *testing.T) {
 	}
 }
 
-func TestResolveTokenRequest_ReturnsEmpty(t *testing.T) {
-	body := []byte(`{"grant_type":"urn:example"}`)
+func TestResolveTokenRequest_FormBody(t *testing.T) {
+	body := []byte(`grant_type=authorization_code&client_id=receiver.example.com%3A443&code=abc`)
 	r := httptest.NewRequest("POST", "/ocm/token", nil)
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resolver := NewResolver()
 	got, err := resolver.ResolveTokenRequest(r, body)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "" {
-		t.Errorf("got %q, want empty string", got)
+	if got != "receiver.example.com:443" {
+		t.Errorf("got %q, want %q", got, "receiver.example.com:443")
+	}
+}
+
+func TestResolveTokenRequest_JSONBody(t *testing.T) {
+	body := []byte(`{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"abc"}`)
+	r := httptest.NewRequest("POST", "/ocm/token", nil)
+	r.Header.Set("Content-Type", "application/json")
+
+	resolver := NewResolver()
+	got, err := resolver.ResolveTokenRequest(r, body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "receiver.example.com" {
+		t.Errorf("got %q, want %q", got, "receiver.example.com")
+	}
+}
+
+func TestResolveTokenRequest_MissingClientID(t *testing.T) {
+	body := []byte(`grant_type=authorization_code&code=abc`)
+	r := httptest.NewRequest("POST", "/ocm/token", nil)
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resolver := NewResolver()
+	_, err := resolver.ResolveTokenRequest(r, body)
+	if err == nil {
+		t.Fatal("expected error for missing client_id")
+	}
+}
+
+func TestResolveTokenRequest_RejectsURLShapedClientID(t *testing.T) {
+	body := []byte(`grant_type=authorization_code&client_id=https%3A%2F%2Freceiver.example.com&code=abc`)
+	r := httptest.NewRequest("POST", "/ocm/token", nil)
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resolver := NewResolver()
+	_, err := resolver.ResolveTokenRequest(r, body)
+	if err == nil {
+		t.Fatal("expected error for URL-shaped client_id")
 	}
 }

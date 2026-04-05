@@ -81,7 +81,6 @@ insecure_skip_verify = true
 [signature]
 inbound_mode = "off"
 outbound_mode = "off"
-advertise_http_request_signatures = false
 `, httpsPort, httpPort, httpsPort, acmeDir)
 
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {

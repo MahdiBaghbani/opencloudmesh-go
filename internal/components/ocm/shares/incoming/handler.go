@@ -11,7 +11,11 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
@@ -24,9 +28,12 @@ type Handler struct {
 	repo                        sharesinbox.IncomingShareRepo
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
+	discoveryClient             *discovery.Client
+	canonicalPolicy             *policy.OpenCloudMeshPolicy
+	runtimePolicy               *policy.RuntimePolicy
+	peerContract                *peercompat.CompiledContract
 	localProviderFQDNForCompare string
 	localScheme                 string
-	signatureInboundMode        string
 	logger                      *slog.Logger
 }
 
@@ -34,9 +41,12 @@ func NewHandler(
 	repo sharesinbox.IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
+	discoveryClient *discovery.Client,
+	canonicalPolicy *policy.OpenCloudMeshPolicy,
+	runtimePolicy *policy.RuntimePolicy,
+	peerContract *peercompat.CompiledContract,
 	localProviderFQDNForCompare string,
 	localScheme string,
-	inboundMode string,
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
@@ -44,9 +54,12 @@ func NewHandler(
 		repo:                        repo,
 		partyRepo:                   partyRepo,
 		policyEngine:                policyEngine,
+		discoveryClient:             discoveryClient,
+		canonicalPolicy:             canonicalPolicy,
+		runtimePolicy:               runtimePolicy,
+		peerContract:                peerContract,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
-		signatureInboundMode:        inboundMode,
 		logger:                      logger,
 	}
 }
@@ -65,9 +78,10 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	peerIdentity := crypto.GetPeerIdentity(r.Context())
-	strictPayloadValidation := h.signatureInboundMode == "strict"
-	if h.signatureInboundMode == "lenient" {
-		strictPayloadValidation = peerIdentity != nil && peerIdentity.Authenticated
+	authenticated := peerIdentity != nil && peerIdentity.Authenticated
+	strictPayloadValidation := false
+	if h.runtimePolicy != nil {
+		strictPayloadValidation = h.runtimePolicy.StrictIncomingSharePayloadValidation(authenticated)
 	}
 	validationErrs := spec.ValidateRequiredFields(&req)
 	if strictPayloadValidation {
@@ -108,18 +122,17 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 	senderHost := ExtractSenderHost(req.Sender)
 	if h.policyEngine != nil {
-		authenticated := peerIdentity != nil && peerIdentity.Authenticated
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)
 		if !decision.Allowed {
 			log.Warn("share rejected by policy",
 				"sender", senderHost,
 				"reason", decision.Reason,
 				"authenticated", authenticated)
-			msg := decision.ReasonCode
-			if msg == "" {
-				msg = "SENDER_NOT_AUTHORIZED"
+			translated := reason.TranslatePolicyCode(decision.ReasonCode)
+			if translated == "" {
+				translated = "SENDER_NOT_AUTHORIZED"
 			}
-			spec.WriteOCMError(w, http.StatusForbidden, msg)
+			spec.WriteOCMError(w, reason.OCMStatus(translated), translated)
 			return
 		}
 	}
@@ -174,22 +187,93 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The resource-hosting server (owner) determines token exchange requirements.
+	// Owner may differ from sender in reshare or delegated-hosting scenarios.
+	ownerHost := ""
+	if _, ownerProvider, err := address.Parse(req.Owner); err == nil {
+		ownerHost = ownerProvider
+	}
+	if ownerHost == "" {
+		ownerHost = senderHost
+	}
+
+	wireMustExchange := false
+	if req.Protocol.WebDAV != nil && req.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
+		wireMustExchange = true
+	}
+
+	receiverRequiresExchange := false
+	if h.canonicalPolicy != nil {
+		receiverRequiresExchange = h.canonicalPolicy.Evaluate().RequiresTokenExchange
+	}
+	if receiverRequiresExchange && !wireMustExchange {
+		log.Warn("share rejected: receiver requires must-exchange-token",
+			"owner_host", ownerHost)
+		spec.WriteOCMError(w, reason.OCMStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied)
+		return
+	}
+
+	// Classify token exchange requirements using local receiver policy plus the
+	// remote owner's exchange-token capability.
+	var classifiedMustExchange, classifiedSenderCapable bool
+	if h.discoveryClient != nil {
+		ownerOrigin := h.peerContract.ResolvePeerOrigin(ownerHost)
+		disc, discErr := h.discoveryClient.Discover(r.Context(), ownerOrigin.BaseURL)
+		if discErr != nil {
+			if wireMustExchange || receiverRequiresExchange {
+				log.Warn("discovery failed for strict share, rejecting",
+					"owner_host", ownerHost, "error", discErr)
+				spec.WriteOCMError(w, reason.OCMStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed)
+				return
+			}
+			log.Warn("discovery failed, treating share as legacy",
+				"owner_host", ownerHost, "error", discErr)
+		} else {
+			ownerTokenExchangeCapable := disc.SupportsTokenExchange()
+			if !ownerTokenExchangeCapable {
+				if wireMustExchange {
+					log.Warn("share rejected: must-exchange-token claimed but owner is not token-exchange capable",
+						"owner_host", ownerHost)
+					spec.WriteOCMError(w, reason.OCMStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch)
+					return
+				}
+				if disc.HasCapability("exchange-token") && disc.TokenEndPoint == "" {
+					log.Warn("owner advertises exchange-token without tokenEndPoint; treating as non-capable",
+						"owner_host", ownerHost)
+				}
+			} else {
+				classifiedSenderCapable = true
+				classifiedMustExchange = wireMustExchange
+			}
+		}
+	} else {
+		if wireMustExchange || receiverRequiresExchange {
+			log.Warn("discovery client unavailable for strict share, rejecting",
+				"owner_host", ownerHost)
+			spec.WriteOCMError(w, reason.OCMStatus(reason.PeerDiscoveryDisabled), reason.PeerDiscoveryDisabled)
+			return
+		}
+	}
+
 	share := &sharesinbox.IncomingShare{
-		ProviderID:           req.ProviderID,
-		SenderHost:           senderHost,
-		Owner:                req.Owner,
-		Sender:               req.Sender,
-		ShareWith:            req.ShareWith,
-		Name:                 req.Name,
-		Description:          req.Description,
-		ResourceType:         req.ResourceType,
-		ShareType:            req.ShareType,
-		OwnerDisplayName:     req.OwnerDisplayName,
-		SenderDisplayName:    req.SenderDisplayName,
-		Expiration:           req.Expiration,
-		Status:               sharesinbox.ShareStatusPending,
-		RecipientUserID:      resolvedUser.ID,
-		RecipientDisplayName: resolvedUser.DisplayName,
+		ProviderID:            req.ProviderID,
+		SenderHost:            senderHost,
+		OwnerHost:             ownerHost,
+		Owner:                 req.Owner,
+		Sender:                req.Sender,
+		ShareWith:             req.ShareWith,
+		Name:                  req.Name,
+		Description:           req.Description,
+		ResourceType:          req.ResourceType,
+		ShareType:             req.ShareType,
+		OwnerDisplayName:      req.OwnerDisplayName,
+		SenderDisplayName:     req.SenderDisplayName,
+		Expiration:            req.Expiration,
+		Status:                sharesinbox.ShareStatusPending,
+		RecipientUserID:       resolvedUser.ID,
+		RecipientDisplayName:  resolvedUser.DisplayName,
+		MustExchangeToken:     classifiedMustExchange,
+		SenderExchangeCapable: classifiedSenderCapable,
 	}
 	if req.Protocol.WebDAV != nil {
 		webdav := req.Protocol.WebDAV
@@ -200,10 +284,6 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		}
 		share.SharedSecret = webdav.SharedSecret
 		share.Permissions = webdav.Permissions
-
-		if webdav.HasRequirement(spec.RequirementMustExchangeToken) {
-			share.MustExchangeToken = true
-		}
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {

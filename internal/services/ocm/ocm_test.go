@@ -1,13 +1,18 @@
 package ocm
 
 import (
+	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
@@ -15,8 +20,44 @@ import (
 // SignatureMiddleware is nil (no-signature path), which is the simplest valid setup.
 func setupTestDeps() {
 	deps.ResetDeps()
+	cfg := config.DevConfig()
 	deps.SetDeps(&deps.Deps{
-		Config: config.DevConfig(),
+		Config:              cfg,
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
+		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
+	})
+}
+
+type ocmTestPeerDiscovery struct{}
+
+func (ocmTestPeerDiscovery) IsSigningCapable(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (ocmTestPeerDiscovery) GetPublicKey(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func setupTestDepsWithSignature(t *testing.T) {
+	t.Helper()
+
+	deps.ResetDeps()
+	cfg := config.DevConfig()
+	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	signatureMiddleware := crypto.NewSignatureMiddleware(
+		runtimePolicy,
+		nil,
+		ocmTestPeerDiscovery{},
+		cfg.PublicOrigin,
+		logger,
+	)
+	deps.SetDeps(&deps.Deps{
+		Config:              cfg,
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
+		RuntimePolicy:       runtimePolicy,
+		OutgoingShareRepo:   sharesoutgoing.NewMemoryOutgoingShareRepo(),
+		SignatureMiddleware: signatureMiddleware,
 	})
 }
 
@@ -168,6 +209,32 @@ func TestService_RoutingSmoke(t *testing.T) {
 	}
 }
 
+func TestService_NotificationsFollowInboundSignaturePolicy(t *testing.T) {
+	setupTestDepsWithSignature(t)
+
+	m := map[string]any{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/notifications",
+		bytes.NewBufferString(`{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-123"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected unsigned notification to reach the handler under lenient inbound policy, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	setupTestDeps()
 
@@ -185,6 +252,70 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 
 	if !logBuf.contains("unused config keys") {
 		t.Error("expected warning about unused config keys")
+	}
+}
+
+func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
+	deps.ResetDeps()
+	tokenExchangeEnabled := true
+	cfg := &config.Config{
+		TokenExchange: config.TokenExchangeConfig{
+			Enabled: &tokenExchangeEnabled,
+			Path:    "token",
+		},
+	}
+	deps.SetDeps(&deps.Deps{
+		Config:              cfg,
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
+		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
+	})
+
+	m := map[string]any{
+		"token_exchange": map[string]any{
+			"enabled": false, // per-service override must not disable evaluator-owned state
+		},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/token", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected token route to stay mounted (405 on GET), got %d", w.Code)
+	}
+}
+
+func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
+	deps.ResetDeps()
+	tokenExchangeEnabled := true
+	cfg := &config.Config{
+		PublicOrigin: "https://example.com",
+		TokenExchange: config.TokenExchangeConfig{
+			Enabled: &tokenExchangeEnabled,
+			Path:    "token",
+		},
+	}
+	deps.SetDeps(&deps.Deps{
+		Config:        cfg,
+		RuntimePolicy: policy.NewRuntimePolicy(cfg, nil),
+	})
+
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc, err := New(map[string]any{}, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/token", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected disabled token exchange without canonical policy, got %d", w.Code)
 	}
 }
 

@@ -17,29 +17,34 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
+)
+
+// Verify-access reason codes for structured error responses.
+const (
+	verifyReasonShareNotAccepted = "share_not_accepted"
+	verifyReasonUnsafePath       = "unsafe_path"
 )
 
 // InboxShareView omits sensitive fields (e.g. SharedSecret) from API responses.
 type InboxShareView struct {
-	ShareID           string                `json:"shareId"`
-	ProviderID        string                `json:"providerId"`
-	Name              string                `json:"name"`
-	Description       string                `json:"description,omitempty"`
-	Owner             string                `json:"owner"`
-	Sender            string                `json:"sender"`
-	SenderHost        string                `json:"senderHost"`
-	ShareWith         string                `json:"shareWith"`
-	ResourceType      string                `json:"resourceType"`
-	ShareType         string                `json:"shareType"`
-	Permissions       []string              `json:"permissions"`
+	ShareID           string                  `json:"shareId"`
+	ProviderID        string                  `json:"providerId"`
+	Name              string                  `json:"name"`
+	Description       string                  `json:"description,omitempty"`
+	Owner             string                  `json:"owner"`
+	Sender            string                  `json:"sender"`
+	SenderHost        string                  `json:"senderHost"`
+	ShareWith         string                  `json:"shareWith"`
+	ResourceType      string                  `json:"resourceType"`
+	ShareType         string                  `json:"shareType"`
+	Permissions       []string                `json:"permissions"`
 	Status            sharesinbox.ShareStatus `json:"status"`
-	CreatedAt         time.Time             `json:"createdAt"`
-	OwnerDisplayName  string                `json:"ownerDisplayName,omitempty"`
-	SenderDisplayName string                `json:"senderDisplayName,omitempty"`
+	CreatedAt         time.Time               `json:"createdAt"`
+	OwnerDisplayName  string                  `json:"ownerDisplayName,omitempty"`
+	SenderDisplayName string                  `json:"senderDisplayName,omitempty"`
 }
 
 func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
@@ -67,6 +72,7 @@ type InboxShareDetailView struct {
 
 	WebDAVID                 string              `json:"webdavId,omitempty"`
 	MustExchangeToken        bool                `json:"mustExchangeToken"`
+	SenderExchangeCapable    bool                `json:"senderExchangeCapable"`
 	WebDAVURIAbsolutePresent bool                `json:"webdavUriAbsolutePresent"`
 	Protocol                 *ProtocolDetailView `json:"protocol"`
 }
@@ -105,6 +111,7 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 		InboxShareView:           NewInboxShareView(s),
 		WebDAVID:                 s.WebDAVID,
 		MustExchangeToken:        s.MustExchangeToken,
+		SenderExchangeCapable:    s.SenderExchangeCapable,
 		WebDAVURIAbsolutePresent: s.WebDAVURIAbsolute != "",
 		Protocol: &ProtocolDetailView{
 			Name: "webdav",
@@ -139,13 +146,11 @@ const maxPreviewBytes = 4096
 
 // Handler serves list, detail, accept, decline, and verify-access for inbox shares.
 type Handler struct {
-	repo            sharesinbox.IncomingShareRepo
-	sender          sharesinbox.NotificationSender
-	accessClient    access.RemoteAccessor
-	profileRegistry *peercompat.ProfileRegistry
-	cfg             *config.Config
-	currentUser     func(context.Context) (*identity.User, error)
-	log             *slog.Logger
+	repo         sharesinbox.IncomingShareRepo
+	sender       sharesinbox.NotificationSender
+	accessClient access.RemoteAccessor
+	currentUser  func(context.Context) (*identity.User, error)
+	log          *slog.Logger
 }
 
 // NewHandler returns a Handler with the given dependencies.
@@ -153,20 +158,16 @@ func NewHandler(
 	repo sharesinbox.IncomingShareRepo,
 	sender sharesinbox.NotificationSender,
 	accessClient access.RemoteAccessor,
-	profileRegistry *peercompat.ProfileRegistry,
-	cfg *config.Config,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
 ) *Handler {
 	log = logutil.NoopIfNil(log)
 	return &Handler{
-		repo:            repo,
-		sender:          sender,
-		accessClient:    accessClient,
-		profileRegistry: profileRegistry,
-		cfg:             cfg,
-		currentUser:     currentUser,
-		log:             log,
+		repo:         repo,
+		sender:       sender,
+		accessClient: accessClient,
+		currentUser:  currentUser,
+		log:          log,
 	}
 }
 
@@ -378,22 +379,24 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if share.Status != sharesinbox.ShareStatusAccepted {
-		writeVerifyError(w, http.StatusBadRequest, "share_not_accepted", "share must be accepted before verifying access")
+		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share must be accepted before verifying access")
 		return
 	}
 
 	if isUnsafePath(share.Name) {
-		writeVerifyError(w, http.StatusBadRequest, "unsafe_path", "share name contains unsafe path components")
+		writeVerifyError(w, http.StatusBadRequest, verifyReasonUnsafePath, "share name contains unsafe path components")
 		return
 	}
 
 	shareInfo := access.ShareInfo{
-		Status:            string(share.Status),
-		SenderHost:        share.SenderHost,
-		SharedSecret:      share.SharedSecret,
-		WebDAVID:          share.WebDAVID,
-		WebDAVURIAbsolute: share.WebDAVURIAbsolute,
-		MustExchangeToken: share.MustExchangeToken,
+		Status:                string(share.Status),
+		SenderHost:            share.SenderHost,
+		OwnerHost:             share.OwnerHost,
+		SharedSecret:          share.SharedSecret,
+		WebDAVID:              share.WebDAVID,
+		WebDAVURIAbsolute:     share.WebDAVURIAbsolute,
+		MustExchangeToken:     share.MustExchangeToken,
+		SenderExchangeCapable: share.SenderExchangeCapable,
 	}
 
 	result, err := h.accessClient.Access(ctx, access.AccessOptions{
@@ -408,7 +411,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	defer result.Response.Body.Close()
 
 	if result.Response.StatusCode < 200 || result.Response.StatusCode >= 300 {
-		writeVerifyError(w, http.StatusBadGateway, "remote_error",
+		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable),
 			"remote server returned "+result.Response.Status)
 		return
 	}
@@ -459,30 +462,18 @@ func writeVerifyError(w http.ResponseWriter, statusCode int, reasonCode, message
 
 func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
 	if errors.Is(err, access.ErrShareNotAccepted) {
-		writeVerifyError(w, http.StatusBadRequest, "share_not_accepted", "share not accepted")
+		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share not accepted")
 		return
 	}
 	if errors.Is(err, access.ErrTokenExchangeRequired) {
-		writeVerifyError(w, http.StatusBadGateway, "token_exchange_failed", "token exchange required but not available")
+		writeVerifyError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.VerifyCode(reason.PeerCapabilityMismatch), "token exchange required but not available")
+		return
+	}
+	if errors.Is(err, access.ErrRemoteAccessFailed) {
+		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable), "remote access failed: all methods exhausted")
 		return
 	}
 
-	reasonCode := peercompat.ClassifyError(err)
-	statusCode := reasonCodeToHTTPStatus(reasonCode)
-	writeVerifyError(w, statusCode, reasonCode, "remote access failed")
-}
-
-func reasonCodeToHTTPStatus(reason string) int {
-	switch reason {
-	case peercompat.ReasonDiscoveryFailed,
-		peercompat.ReasonPeerCapabilityMissing,
-		peercompat.ReasonNetworkError,
-		peercompat.ReasonRemoteError,
-		peercompat.ReasonProtocolMismatch,
-		peercompat.ReasonTokenExchangeFailed,
-		peercompat.ReasonSSRFBlocked:
-		return http.StatusBadGateway
-	default:
-		return http.StatusInternalServerError
-	}
+	reasonCode := reason.CanonicalFromError(err)
+	writeVerifyError(w, reason.APIStatus(reasonCode), reason.VerifyCode(reasonCode), "remote access failed")
 }

@@ -23,7 +23,7 @@ func TestOutgoingShare() *store.OutgoingShare {
 		Name:         "file.txt",
 		ResourceType: "file",
 		Permissions:  "read",
-		State:        "pending",
+		State:        "sent",
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}

@@ -97,8 +97,8 @@ func TestProfileRegistry_GetProfile_StripsPort(t *testing.T) {
 
 func TestProfileRegistry_GetProfile_FirstMatchWins(t *testing.T) {
 	mappings := []ProfileMapping{
-		{Pattern: "cloud.example.com", ProfileName: "owncloud"},  // First match
-		{Pattern: "*.example.com", ProfileName: "nextcloud"},     // Would also match
+		{Pattern: "cloud.example.com", ProfileName: "owncloud"}, // First match
+		{Pattern: "*.example.com", ProfileName: "nextcloud"},    // Would also match
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -139,15 +139,15 @@ func TestProfile_HasQuirk(t *testing.T) {
 		Name: "test",
 		TokenExchangeQuirks: []string{
 			"accept_plain_token",
-			"skip_digest_validation",
+			"send_token_in_body",
 		},
 	}
 
 	if !profile.HasQuirk("accept_plain_token") {
 		t.Error("expected HasQuirk to return true for accept_plain_token")
 	}
-	if !profile.HasQuirk("skip_digest_validation") {
-		t.Error("expected HasQuirk to return true for skip_digest_validation")
+	if !profile.HasQuirk("send_token_in_body") {
+		t.Error("expected HasQuirk to return true for send_token_in_body")
 	}
 	if profile.HasQuirk("nonexistent_quirk") {
 		t.Error("expected HasQuirk to return false for nonexistent quirk")
@@ -180,8 +180,20 @@ func TestBuiltinProfiles_StrictIsDefault(t *testing.T) {
 	if strict.AllowHTTP {
 		t.Error("strict profile should not allow HTTP")
 	}
+	if strict.AcceptLegacyDiscoveryPublicKey {
+		t.Error("strict profile should not allow legacy discovery publicKey fallback")
+	}
 	if len(strict.TokenExchangeQuirks) > 0 {
 		t.Error("strict profile should have no quirks")
+	}
+}
+
+func TestBuiltinProfiles_CompatProfilesAllowLegacyDiscoveryFallback(t *testing.T) {
+	profiles := BuiltinProfiles()
+	for _, name := range []string{"nextcloud", "owncloud", "dev"} {
+		if !profiles[name].AcceptLegacyDiscoveryPublicKey {
+			t.Fatalf("expected %s profile to allow legacy discovery publicKey fallback", name)
+		}
 	}
 }
 
@@ -233,34 +245,6 @@ func TestMatchPattern(t *testing.T) {
 		if result != tt.match {
 			t.Errorf("matchPattern(%q, %q) = %v, expected %v", tt.pattern, tt.domain, result, tt.match)
 		}
-	}
-}
-
-// Peer profile extensions
-
-func TestProfile_RelaxMustExchangeToken(t *testing.T) {
-	profiles := BuiltinProfiles()
-
-	tests := []struct {
-		name     string
-		expected bool
-	}{
-		{"strict", false},
-		{"nextcloud", true},
-		{"owncloud", true},
-		{"dev", true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			p, ok := profiles[tc.name]
-			if !ok {
-				t.Fatalf("profile %q not found", tc.name)
-			}
-			if p.RelaxMustExchangeToken != tc.expected {
-				t.Errorf("RelaxMustExchangeToken = %v, want %v", p.RelaxMustExchangeToken, tc.expected)
-			}
-		})
 	}
 }
 

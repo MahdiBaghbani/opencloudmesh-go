@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocmaux"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -322,6 +323,13 @@ func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
 	if w.Code != http.StatusNotImplemented {
 		t.Errorf("expected 501, got %d", w.Code)
 	}
+	var resp struct {
+		ReasonCode string `json:"reasonCode"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.ReasonCode != reason.PeerDiscoveryDisabled {
+		t.Errorf("expected reasonCode %q, got %q", reason.PeerDiscoveryDisabled, resp.ReasonCode)
+	}
 }
 
 func TestHandleDiscover_Success(t *testing.T) {
@@ -492,5 +500,43 @@ func TestHandleDiscover_MethodNotAllowed(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
+	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+	}))
+	defer discServer.Close()
+
+	httpCfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	w := httptest.NewRecorder()
+	h.HandleDiscover(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Success    bool   `json:"success"`
+		ReasonCode string `json:"reasonCode"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected success=false")
+	}
+	if resp.ReasonCode != reason.PeerDiscoveryFailed {
+		t.Fatalf("expected reasonCode %q, got %q", reason.PeerDiscoveryFailed, resp.ReasonCode)
 	}
 }

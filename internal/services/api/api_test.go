@@ -11,11 +11,13 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
@@ -34,7 +36,8 @@ func setupTestDeps() {
 		IncomingInviteRepo: invitesinbox.NewMemoryIncomingInviteRepo(),
 		TokenStore:         token.NewMemoryTokenStore(),
 		// Clients
-		HTTPClient: httpclient.NewContextClient(httpclient.New(nil, nil)),
+		HTTPClient:      httpclient.NewContextClient(httpclient.New(nil, nil)),
+		DiscoveryClient: discovery.NewClient(httpclient.New(nil, nil), nil),
 		// Provider identity
 		LocalProviderFQDN:           "localhost",
 		LocalProviderFQDNForCompare: "localhost",
