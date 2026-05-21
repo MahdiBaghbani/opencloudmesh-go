@@ -377,7 +377,9 @@ token_exchange_grant_type = "ocm_share"
 	})
 	defer srv.Stop(t)
 
-	resp, err := http.Get(srv.BaseURL + "/api/healthz")
+	// srv.Client() returns an insecure client to accept the self-signed cert
+	// used by selfsigned TLS mode; the server config itself enforces strict TLS.
+	resp, err := srv.Client().Get(srv.BaseURL + "/api/healthz")
 	if err != nil {
 		t.Fatalf("health check failed: %v", err)
 	}
