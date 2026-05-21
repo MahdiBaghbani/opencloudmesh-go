@@ -5,31 +5,33 @@
 package harness
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
 
 // SubprocessServer represents a server running as a subprocess.
 type SubprocessServer struct {
-	Name     string
-	TempDir  string
-	BaseURL  string
-	Port     int
-	cmd      *exec.Cmd
-	logFile  *os.File
+	Name       string
+	TempDir    string
+	BaseURL    string
+	Port       int
+	cmd        *exec.Cmd
+	logFile    *os.File
 	configFile string
 }
 
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
 	Name                  string
-	Mode                  string            // dev, compat, strict; legacy alias interop also works
+	Mode                  string // dev, compat, strict; legacy alias interop also works
 	CompatibilityScope    string
 	KeepSignatureDefaults bool              // when true, skip the [signature] override block so mode presets apply
 	ExtraConfig           string            // Additional TOML config to append
@@ -161,7 +163,12 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		t.Fatalf("failed to start subprocess: %v", err)
 	}
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	var baseURL string
+	if needsSecureTransport(cfg.Mode, cfg.CompatibilityScope) {
+		baseURL = fmt.Sprintf("https://localhost:%d", port)
+	} else {
+		baseURL = fmt.Sprintf("http://localhost:%d", port)
+	}
 
 	srv := &SubprocessServer{
 		Name:       cfg.Name,
@@ -183,6 +190,16 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	t.Logf("Started subprocess server %s at %s (port %d)", cfg.Name, baseURL, port)
 
 	return srv
+}
+
+// Client returns an HTTP client appropriate for this server's transport.
+// For HTTPS servers with a self-signed certificate, the returned client skips
+// TLS verification -- this is intentional and test-only.
+func (s *SubprocessServer) Client() *http.Client {
+	if strings.HasPrefix(s.BaseURL, "https://") {
+		return newInsecureHTTPSClient(30 * time.Second)
+	}
+	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // Stop stops the subprocess server and cleans up resources.
@@ -232,18 +249,44 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 	t.Logf("=== Logs for server %s ===\n%s\n=== End logs ===", s.Name, string(content))
 }
 
+// needsSecureTransport reports whether the mode+scope combination requires HTTPS.
+// The config loader rejects tls.mode=off for compatibility_scope "none" and "scoped".
+// An empty scope with strict (or default-empty) mode implies "none" via the preset.
+func needsSecureTransport(mode, compatibilityScope string) bool {
+	scope := strings.ToLower(strings.TrimSpace(compatibilityScope))
+	switch scope {
+	case "none", "scoped":
+		return true
+	case "":
+		m := strings.ToLower(strings.TrimSpace(mode))
+		return m == "strict" || m == ""
+	}
+	return false
+}
+
 // generateTOMLConfig creates a TOML config for a test server.
 // Uses the new Reva-aligned TOML shape. The mode preset (dev/compat/strict)
 // drives defaults via config.Load(), including token exchange settings.
 // When keepSigDefaults is false, signature mode is forced off for test simplicity.
 // When true, the [signature] block is omitted so the mode preset's defaults apply.
 //
+// For strict/scoped-like configurations (CompatibilityScope "none" or "scoped"),
+// the generated config uses HTTPS with a self-signed certificate instead of
+// plain HTTP, matching the transport requirements enforced by the loader.
+//
 // Per-service configuration ([http.services.*]) is NOT included in the base
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
 func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, extra string) string {
-	publicOrigin := fmt.Sprintf("http://localhost:%d", port)
+	secure := needsSecureTransport(mode, compatibilityScope)
+
+	var publicOrigin string
+	if secure {
+		publicOrigin = fmt.Sprintf("https://localhost:%d", port)
+	} else {
+		publicOrigin = fmt.Sprintf("http://localhost:%d", port)
+	}
 
 	config := fmt.Sprintf(`# Generated config for test server: %s
 mode = "%s"
@@ -257,7 +300,28 @@ external_base_path = ""
 		config += fmt.Sprintf("compatibility_scope = %q\n\n", compatibilityScope)
 	}
 
-	config += `[tls]
+	if secure {
+		// selfsigned TLS; self_signed_dir defaults to ".ocm/certs" relative to
+		// the process working directory (tempDir). insecure_skip_verify must be
+		// false for scoped/none scope guardrails to pass.
+		config += `[tls]
+mode = "selfsigned"
+
+[server]
+trusted_proxies = ["127.0.0.0/8", "::1/128"]
+
+[server.bootstrap_admin]
+username = "admin"
+
+[outbound_http]
+timeout_ms = 5000
+connect_timeout_ms = 2000
+max_redirects = 1
+max_response_bytes = 1048576
+insecure_skip_verify = false
+`
+	} else {
+		config += `[tls]
 mode = "off"
 
 [server]
@@ -273,6 +337,7 @@ max_redirects = 1
 max_response_bytes = 1048576
 insecure_skip_verify = true
 `
+	}
 
 	if !keepSigDefaults {
 		config += `
@@ -289,10 +354,39 @@ outbound_mode = "off"
 	return config
 }
 
+// newInsecureHTTPSClient returns an http.Client that skips TLS verification.
+// It clones http.DefaultTransport when possible so connection pooling and other
+// defaults are preserved; falls back to a fresh Transport when DefaultTransport
+// has been replaced with a non-*http.Transport. Use only for test-only
+// self-signed certificate probing.
+//
+//nolint:gosec // InsecureSkipVerify is intentional for test-only self-signed cert probing.
+func newInsecureHTTPSClient(timeout time.Duration) *http.Client {
+	var transport *http.Transport
+	if base, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = base.Clone()
+	} else {
+		transport = &http.Transport{}
+	}
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
+}
+
 // waitForServerReady waits for a server to respond to HTTP requests.
+// For HTTPS base URLs (self-signed TLS), uses an insecure client for the
+// readiness probe only -- the server config itself still enforces strict TLS.
 func waitForServerReady(baseURL string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	client := &http.Client{Timeout: 1 * time.Second}
+
+	var client *http.Client
+	if strings.HasPrefix(baseURL, "https://") {
+		client = newInsecureHTTPSClient(1 * time.Second)
+	} else {
+		client = &http.Client{Timeout: 1 * time.Second}
+	}
 
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(baseURL + "/api/healthz")
