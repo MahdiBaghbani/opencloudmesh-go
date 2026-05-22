@@ -104,7 +104,10 @@ func (p *OutboundPolicy) ShouldSign(
 
 	peerDecision := p.signatureDecision(peerDomain)
 
-	if kind == EndpointTokenExchange {
+	// strict+none (compatibility_scope=none) signs all endpoint kinds uniformly;
+	// token exchange gets no special-case in this lane.
+	isStrictNone := p.OutboundMode == "strict" && p.PeerProfileOverride == "off"
+	if kind == EndpointTokenExchange && !isStrictNone {
 		return p.decideTokenExchange(peerDomain, disc, hasSigner)
 	}
 
