@@ -26,6 +26,9 @@ exceptions, and `unbounded` allows node-wide compatibility defaults. A strict
 runtime posture is derived only when the resolved behavior stays inside the
 WebDAV-centered strict target and `compatibility_scope=none`.
 
+Verification boundaries for the strict target are documented in
+[`docs/verification-boundary.md`](docs/verification-boundary.md).
+
 `token-only` is an outbound-only HTTP-signature relaxation. It is useful for
 compatibility, but it is never part of the strict posture.
 
