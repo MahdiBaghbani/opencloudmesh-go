@@ -323,6 +323,20 @@ type OutboundHTTPConfig struct {
 
 	// TLSRootCADir is a directory of .pem/.crt files for outbound TLS root CAs.
 	TLSRootCADir string `toml:"tls_root_ca_dir"`
+
+	// ProxyURL is an optional HTTP/HTTPS proxy for all outbound requests.
+	// Must be an absolute http or https URL with no userinfo.
+	// When set under compatibility_scope=none the proxy host is
+	// operator-trusted; private and loopback addresses are permitted.
+	// When set, proxy_url takes precedence over proxy_env_fallback; the
+	// explicit URL is used and environment variables are not consulted.
+	ProxyURL string `toml:"proxy_url"`
+
+	// ProxyEnvFallback enables reading HTTP_PROXY/HTTPS_PROXY/NO_PROXY from
+	// the environment when proxy_url is not set.
+	// Default: true for strict and compat presets, false for dev preset.
+	// Set to false to disable environment-based proxy discovery entirely.
+	ProxyEnvFallback bool `toml:"proxy_env_fallback"`
 }
 
 // OutboundHTTPConfigStrict returns strict outbound HTTP config for production.
@@ -394,6 +408,8 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    MaxRedirects: %d,\n", c.OutboundHTTP.MaxRedirects))
 	sb.WriteString(fmt.Sprintf("    MaxResponseBytes: %d,\n", c.OutboundHTTP.MaxResponseBytes))
 	sb.WriteString(fmt.Sprintf("    InsecureSkipVerify: %v,\n", c.OutboundHTTP.InsecureSkipVerify))
+	sb.WriteString(fmt.Sprintf("    ProxyURL: %q,\n", c.OutboundHTTP.ProxyURL))
+	sb.WriteString(fmt.Sprintf("    ProxyEnvFallback: %v,\n", c.OutboundHTTP.ProxyEnvFallback))
 	sb.WriteString("  },\n")
 	sb.WriteString("  Signature: {\n")
 	sb.WriteString(fmt.Sprintf("    InboundMode: %q,\n", c.Signature.InboundMode))

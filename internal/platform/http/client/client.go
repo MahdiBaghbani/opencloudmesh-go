@@ -11,8 +11,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
+
+	"golang.org/x/net/http/httpproxy"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
@@ -42,14 +45,23 @@ type Resolver interface {
 
 // Client is a safe HTTP client with SSRF protections and bounded behavior.
 type Client struct {
-	cfg        *config.OutboundHTTPConfig
-	httpClient *http.Client
-	resolver   Resolver // for context-aware DNS in SSRF checks; nil uses net.DefaultResolver
+	cfg               *config.OutboundHTTPConfig
+	httpClient        *http.Client
+	resolver          Resolver // for context-aware DNS in SSRF checks; nil uses net.DefaultResolver
+	trustedProxyHosts map[string]struct{}
 }
 
 // New creates a new safe HTTP client.
-// The client ignores proxy environment variables (HTTP_PROXY, HTTPS_PROXY, NO_PROXY).
-// rootCAs is optional; when nil, the system default pool is used.
+// Proxy selection precedence:
+//   - cfg.ProxyURL set: all requests route through this explicit proxy; env vars ignored.
+//   - cfg.ProxyURL empty and cfg.ProxyEnvFallback true: HTTP_PROXY, HTTPS_PROXY, and
+//     NO_PROXY env vars are read once at New() time and honored for all requests.
+//     To pick up env changes, recreate the client.
+//   - cfg.ProxyURL empty and cfg.ProxyEnvFallback false: requests go direct; env
+//     proxy vars are ignored.
+//
+// Destination SSRF checks always apply in strict mode regardless of proxy routing.
+// rootCAs is optional; nil uses the system certificate pool.
 func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 	if cfg == nil {
 		cfg = &config.OutboundHTTPConfig{
@@ -64,26 +76,80 @@ func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 
 	c := &Client{cfg: cfg}
 
-	// Create dialer with SSRF protection
+	// Build the trusted proxy host set and the request-aware proxy function.
+	// Precedence: explicit ProxyURL > env fallback > direct (nil proxy).
+	//
+	// trustedProxyHosts is used at dial time to skip the SSRF check for dials
+	// that go to an operator-trusted proxy host. All other dials - including
+	// direct connections when NO_PROXY routes around an env proxy - are checked.
+	// Destination SSRF is also enforced unconditionally by the preflight check
+	// in DoWithOptions and by the redirect check in followRedirect, so the dial
+	// check is defense-in-depth for the direct-dial case.
+	trustedHosts := map[string]struct{}{}
+	var proxyFunc func(*http.Request) (*url.URL, error)
+
+	switch {
+	case cfg.ProxyURL != "":
+		// Explicit proxy wins; env vars are ignored even if ProxyEnvFallback is set.
+		if p, err := url.Parse(cfg.ProxyURL); err == nil {
+			proxyFunc = http.ProxyURL(p)
+			trustedHosts[strings.ToLower(p.Hostname())] = struct{}{}
+		}
+	case cfg.ProxyEnvFallback:
+		// Snapshot the proxy configuration from the environment at New() time.
+		// Both routing and trusted-host extraction use the same snapshot so
+		// their behavior is consistent for the lifetime of this client.
+		// To pick up env changes (proxy or NO_PROXY), recreate the client.
+		envCfg := httpproxy.FromEnvironment()
+		envProxyFn := envCfg.ProxyFunc()
+		proxyFunc = func(req *http.Request) (*url.URL, error) {
+			return envProxyFn(req.URL)
+		}
+		for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"} {
+			if raw := os.Getenv(key); raw != "" {
+				p, err := url.Parse(raw)
+				if err != nil || p.Hostname() == "" {
+					// Scheme-less values like "proxy:3128" parse with the
+					// hostname in the scheme field; add http:// to match
+					// the fallback in httpproxy's own parseProxy.
+					p, err = url.Parse("http://" + raw)
+				}
+				if err == nil && p.Hostname() != "" {
+					trustedHosts[strings.ToLower(p.Hostname())] = struct{}{}
+				}
+			}
+		}
+	}
+	// default (neither branch): nil proxyFunc blocks all env proxies.
+
+	c.trustedProxyHosts = trustedHosts
+
 	dialer := &net.Dialer{
 		Timeout: time.Duration(cfg.ConnectTimeoutMS) * time.Millisecond,
 	}
 
 	transport := &http.Transport{
-		// Explicitly ignore proxy environment variables
-		Proxy: nil,
+		Proxy: proxyFunc,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Check SSRF before dialing (addr is host:port from net.SplitHostPort)
+			// In strict mode: skip the SSRF check only when dialing a trusted
+			// proxy host (operator-controlled). All other dials - direct
+			// connections including those caused by NO_PROXY - are checked.
 			if cfg.SSRFMode == "strict" {
-				if err := c.checkSSRF(ctx, addr); err != nil {
-					return nil, err
+				host, _, _ := net.SplitHostPort(addr)
+				if host == "" {
+					host = addr
+				}
+				if _, trusted := c.trustedProxyHosts[strings.ToLower(host)]; !trusted {
+					if err := c.checkSSRF(ctx, addr); err != nil {
+						return nil, err
+					}
 				}
 			}
 			return dialer.DialContext(ctx, network, addr)
 		},
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.InsecureSkipVerify,
-			RootCAs:           rootCAs,
+			RootCAs:            rootCAs,
 		},
 		MaxIdleConns:       10,
 		IdleConnTimeout:    30 * time.Second,
@@ -91,11 +157,10 @@ func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 		DisableKeepAlives:  false,
 	}
 
-	// Default redirect policy - unsigned requests with constraints
+	// No automatic redirect following - handled manually in DoWithOptions.
 	c.httpClient = &http.Client{
 		Transport: transport,
 		Timeout:   time.Duration(cfg.TimeoutMS) * time.Millisecond,
-		// Default: no automatic redirect following - we handle it manually
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

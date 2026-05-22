@@ -73,6 +73,23 @@ type FlagOverrides struct {
 	PeerPolicy                   *string
 }
 
+// outboundHTTPFileConfig mirrors OutboundHTTPConfig for TOML decoding, using
+// *bool for proxy_env_fallback so an omitted key preserves the preset,
+// an explicit false can opt out of a preset that defaults true (e.g. strict),
+// and an explicit true can opt in from a preset that defaults false (e.g. dev).
+type outboundHTTPFileConfig struct {
+	SSRFMode           string `toml:"ssrf_mode"`
+	TimeoutMS          int    `toml:"timeout_ms"`
+	ConnectTimeoutMS   int    `toml:"connect_timeout_ms"`
+	MaxRedirects       int    `toml:"max_redirects"`
+	MaxResponseBytes   int64  `toml:"max_response_bytes"`
+	InsecureSkipVerify bool   `toml:"insecure_skip_verify"`
+	TLSRootCAFile      string `toml:"tls_root_ca_file"`
+	TLSRootCADir       string `toml:"tls_root_ca_dir"`
+	ProxyURL           string `toml:"proxy_url"`
+	ProxyEnvFallback   *bool  `toml:"proxy_env_fallback"`
+}
+
 // fileConfig mirrors Config but with pointer fields to detect presence.
 type fileConfig struct {
 	Mode   string        `toml:"mode"`
@@ -83,17 +100,17 @@ type fileConfig struct {
 	ListenAddr         string `toml:"listen_addr"`
 	CompatibilityScope string `toml:"compatibility_scope"`
 
-	TLS                  *TLSConfig           `toml:"tls"`
-	OutboundHTTP         *OutboundHTTPConfig  `toml:"outbound_http"`
-	Signature            *SignatureConfig     `toml:"signature"`
-	PeerProfiles         *peerProfilesConfig  `toml:"peer_profiles"`
-	Cache                *cacheConfig         `toml:"cache"`
-	PeerTrust            *peerTrustConfig     `toml:"peer_trust"`
-	Logging              *loggingConfig       `toml:"logging"`
-	TokenExchange        *tokenExchangeConfig `toml:"token_exchange"`
-	RequireTokenExchange *bool                `toml:"require_token_exchange"`
-	PeerPolicy           string               `toml:"peer_policy"`
-	HTTP                 *httpFileConfig      `toml:"http"`
+	TLS                  *TLSConfig              `toml:"tls"`
+	OutboundHTTP         *outboundHTTPFileConfig `toml:"outbound_http"`
+	Signature            *SignatureConfig        `toml:"signature"`
+	PeerProfiles         *peerProfilesConfig     `toml:"peer_profiles"`
+	Cache                *cacheConfig            `toml:"cache"`
+	PeerTrust            *peerTrustConfig        `toml:"peer_trust"`
+	Logging              *loggingConfig          `toml:"logging"`
+	TokenExchange        *tokenExchangeConfig    `toml:"token_exchange"`
+	RequireTokenExchange *bool                   `toml:"require_token_exchange"`
+	PeerPolicy           string                  `toml:"peer_policy"`
+	HTTP                 *httpFileConfig         `toml:"http"`
 }
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
@@ -277,6 +294,11 @@ func Load(opts LoaderOptions) (*Config, error) {
 		return nil, err
 	}
 
+	// Step 9: Validate outbound proxy URL (fail fast)
+	if err := validateProxyURL(cfg); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
 }
 
@@ -322,6 +344,7 @@ func StrictConfig() *Config {
 			MaxRedirects:       1,
 			MaxResponseBytes:   1048576,
 			InsecureSkipVerify: false,
+			ProxyEnvFallback:   true,
 		},
 		Signature: SignatureConfig{
 			InboundMode:              "strict",
@@ -401,6 +424,7 @@ func DevConfig() *Config {
 			MaxRedirects:       3,
 			MaxResponseBytes:   1048576,
 			InsecureSkipVerify: true,
+			ProxyEnvFallback:   false,
 		},
 		Signature: SignatureConfig{
 			InboundMode:              "lenient",
@@ -517,6 +541,12 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 		if fc.OutboundHTTP.TLSRootCADir != "" {
 			cfg.OutboundHTTP.TLSRootCADir = fc.OutboundHTTP.TLSRootCADir
+		}
+		if fc.OutboundHTTP.ProxyURL != "" {
+			cfg.OutboundHTTP.ProxyURL = fc.OutboundHTTP.ProxyURL
+		}
+		if fc.OutboundHTTP.ProxyEnvFallback != nil {
+			cfg.OutboundHTTP.ProxyEnvFallback = *fc.OutboundHTTP.ProxyEnvFallback
 		}
 	}
 
@@ -945,6 +975,43 @@ func validateRatelimitConfig(cfg *Config) error {
 				}
 			}
 		}
+	}
+
+	return nil
+}
+
+// validateProxyURL checks the outbound_http.proxy_url config value when set.
+// Must be an absolute http or https URL with a non-empty host and no userinfo.
+// Private and loopback hosts are permitted; the proxy endpoint is always
+// operator-controlled and is not subject to SSRF restrictions.
+func validateProxyURL(cfg *Config) error {
+	raw := cfg.OutboundHTTP.ProxyURL
+	if raw == "" {
+		return nil
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid outbound_http.proxy_url %q: %w", raw, err)
+	}
+
+	if !u.IsAbs() {
+		return fmt.Errorf("invalid outbound_http.proxy_url %q: must be an absolute URL with http or https scheme", raw)
+	}
+
+	switch u.Scheme {
+	case "http", "https":
+		// valid
+	default:
+		return fmt.Errorf("invalid outbound_http.proxy_url %q: scheme must be http or https, got %q", raw, u.Scheme)
+	}
+
+	if u.Hostname() == "" {
+		return fmt.Errorf("invalid outbound_http.proxy_url %q: must include a non-empty host", raw)
+	}
+
+	if u.User != nil {
+		return fmt.Errorf("invalid outbound_http.proxy_url %q: must not include userinfo", raw)
 	}
 
 	return nil
