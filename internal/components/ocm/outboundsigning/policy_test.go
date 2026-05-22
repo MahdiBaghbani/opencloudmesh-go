@@ -499,6 +499,101 @@ func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testin
 	}
 }
 
+func TestOutboundPolicy_StrictNone_AllKindsSign(t *testing.T) {
+	// strict + peer_profile_level_override=off is the compatibility_scope=none lane.
+	// Every endpoint kind must sign when a signer is present.
+	policy := &outboundsigning.OutboundPolicy{
+		OutboundMode:        "strict",
+		PeerProfileOverride: "off",
+	}
+
+	kinds := []outboundsigning.EndpointKind{
+		outboundsigning.EndpointShares,
+		outboundsigning.EndpointNotifications,
+		outboundsigning.EndpointInvites,
+		outboundsigning.EndpointTokenExchange,
+	}
+
+	for _, kind := range kinds {
+		decision := policy.ShouldSign(kind, "example.com", nil, true)
+		if !decision.ShouldSign {
+			t.Errorf("strict-none should sign %s, got reason: %s", kind, decision.Reason)
+		}
+		if decision.Error != nil {
+			t.Errorf("strict-none with signer should not error for %s: %v", kind, decision.Error)
+		}
+	}
+}
+
+func TestOutboundPolicy_StrictNone_NoSigner_Errors(t *testing.T) {
+	// Without a signer every endpoint kind in strict+none must report ShouldSign=true
+	// and a non-nil error.
+	policy := &outboundsigning.OutboundPolicy{
+		OutboundMode:        "strict",
+		PeerProfileOverride: "off",
+	}
+
+	kinds := []outboundsigning.EndpointKind{
+		outboundsigning.EndpointShares,
+		outboundsigning.EndpointNotifications,
+		outboundsigning.EndpointInvites,
+		outboundsigning.EndpointTokenExchange,
+	}
+
+	for _, kind := range kinds {
+		decision := policy.ShouldSign(kind, "example.com", nil, false)
+		if !decision.ShouldSign {
+			t.Errorf("strict-none no-signer: ShouldSign must be true for %s", kind)
+		}
+		if decision.Error == nil {
+			t.Errorf("strict-none no-signer: expected error for %s", kind)
+		}
+	}
+}
+
+func TestOutboundPolicy_StrictNone_TokenExchange_NoUnsignedFallback(t *testing.T) {
+	// Even when the peer profile carries accept_plain_token quirk, strict+none
+	// must sign token exchange and never fall back to unsigned.
+	profiles := map[string]*peercompat.Profile{
+		"nextcloud": {
+			Name:                "nextcloud",
+			TokenExchangeQuirks: []string{"accept_plain_token"},
+		},
+	}
+	mappings := []peercompat.ProfileMapping{
+		{Pattern: "cloud.nextcloud.com", ProfileName: "nextcloud"},
+	}
+	registry := peercompat.NewProfileRegistry(profiles, mappings)
+	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+	}
+
+	policy := &outboundsigning.OutboundPolicy{
+		OutboundMode:        "strict",
+		PeerProfileOverride: "off",
+		PeerContract:        contract,
+	}
+
+	// Signer present: must sign, no error.
+	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "cloud.nextcloud.com", nil, true)
+	if !decision.ShouldSign {
+		t.Errorf("strict-none must sign token exchange even with accept_plain_token quirk: %+v", decision)
+	}
+	if decision.Error != nil {
+		t.Errorf("strict-none with signer should not error: %v", decision.Error)
+	}
+
+	// No signer: must signal error, not fall back to unsigned.
+	decision = policy.ShouldSign(outboundsigning.EndpointTokenExchange, "cloud.nextcloud.com", nil, false)
+	if !decision.ShouldSign {
+		t.Errorf("strict-none no-signer token exchange: ShouldSign must be true: %+v", decision)
+	}
+	if decision.Error == nil {
+		t.Errorf("strict-none no-signer token exchange: expected error, got unsigned fallback: %+v", decision)
+	}
+}
+
 func TestOutboundPolicy_TokenExchange_StrictPolicyRequiresSigning(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PeerPolicy = "strict"
