@@ -308,7 +308,12 @@ func extractKeyID(sigParams string) (string, error) {
 		return "", fmt.Errorf("malformed keyid")
 	}
 
-	return sigParams[start : start+end], nil
+	keyID := sigParams[start : start+end]
+	if keyID == "" {
+		return "", fmt.Errorf("empty keyid")
+	}
+
+	return keyID, nil
 }
 
 // extractComponents extracts the covered components from signature params.
