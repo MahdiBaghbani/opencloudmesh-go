@@ -1993,6 +1993,25 @@ allowed_basic_auth_patterns = ["token:"]
 	}
 }
 
+func TestLoad_NoneScope_RequireTokenExchangeFalse_FailFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	tomlContent := `mode = "strict"
+require_token_exchange = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for require_token_exchange=false under compatibility_scope=none")
+	}
+	if !strings.Contains(err.Error(), "compatibility_scope=none requires require_token_exchange=true") {
+		t.Fatalf("expected none-scope require_token_exchange error, got: %v", err)
+	}
+}
+
 func TestLoad_ScopedCompatibilityRejectsGlobalRelaxations(t *testing.T) {
 	tests := []struct {
 		name      string
