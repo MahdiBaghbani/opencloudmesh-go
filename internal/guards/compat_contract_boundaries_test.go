@@ -131,6 +131,13 @@ func TestNoAdHocPeerOriginSchemeInApprovedCallSites(t *testing.T) {
 	}
 }
 
+// allowUnsignedDiscoveryPattern matches allow_unsigned_discovery only when it
+// is NOT immediately preceded by a dot. This excludes occurrences that appear
+// solely as a dotted-path segment inside diagnostic format strings (e.g.
+// `fmt.Errorf("...%s.allow_unsigned_discovery", name)`), while still matching
+// struct-tag values, comments, and direct identifier references.
+var allowUnsignedDiscoveryPattern = regexp.MustCompile(`[^.]allow_unsigned_discovery`)
+
 func TestAllowUnsignedDiscoveryLiveCarrierPaths(t *testing.T) {
 	repoRoot := findRepoRoot(t)
 	allowedCarrierFiles := map[string]struct{}{
@@ -164,7 +171,7 @@ func TestAllowUnsignedDiscoveryLiveCarrierPaths(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !strings.Contains(string(data), "allow_unsigned_discovery") {
+		if !allowUnsignedDiscoveryPattern.Match(data) {
 			return nil
 		}
 
