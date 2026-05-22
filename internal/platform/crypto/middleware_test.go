@@ -3,6 +3,7 @@ package crypto_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -724,5 +725,89 @@ func TestGetPeerIdentity(t *testing.T) {
 	}
 	if !pi.Authenticated {
 		t.Error("expected authenticated=true")
+	}
+}
+
+// TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial checks
+// that the strict middleware returns 401 for incomplete or malformed signature
+// material rather than passing the request through.
+func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *testing.T) {
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{
+		publicKeysPEM: map[string]string{},
+	}
+
+	mw := crypto.NewSignatureMiddleware(
+		runtimePolicyFromSignature(cfg),
+		nil,
+		pd,
+		"https://receiver.example.com",
+		logger,
+	)
+
+	// A syntactically valid but wrong 64-byte signature in RFC 9421 format.
+	zeroSig := base64.StdEncoding.EncodeToString(make([]byte, 64))
+
+	tests := []struct {
+		name           string
+		signatureInput string
+		signature      string
+		wantStatus     int
+	}{
+		{
+			name:           "signature-input only, no signature header",
+			signatureInput: `sig1=("@method");created=1234567890;keyid="https://example.com#key1";alg="ed25519"`,
+			signature:      "",
+			wantStatus:     http.StatusUnauthorized,
+		},
+		{
+			name:           "signature header only, no signature-input",
+			signatureInput: "",
+			signature:      fmt.Sprintf("sig1=:%s:", zeroSig),
+			wantStatus:     http.StatusUnauthorized,
+		},
+		{
+			name:           "empty keyid in signature params",
+			signatureInput: `sig1=("@method");created=1234567890;keyid="";alg="ed25519"`,
+			signature:      fmt.Sprintf("sig1=:%s:", zeroSig),
+			wantStatus:     http.StatusUnauthorized,
+		},
+		{
+			name:           "invalid base64 in signature value",
+			signatureInput: `sig1=("@method");created=1234567890;keyid="https://example.com#key1";alg="ed25519"`,
+			signature:      "sig1=:not!valid!base64!!!:",
+			wantStatus:     http.StatusUnauthorized,
+		},
+		{
+			name:           "malformed keyid missing closing quote",
+			signatureInput: `sig1=("@method");created=1234567890;keyid="https://example.com#key1`,
+			signature:      fmt.Sprintf("sig1=:%s:", zeroSig),
+			wantStatus:     http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
+			if tt.signatureInput != "" {
+				req.Header.Set("Signature-Input", tt.signatureInput)
+			}
+			if tt.signature != "" {
+				req.Header.Set("Signature", tt.signature)
+			}
+
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("expected status %d, got %d (body: %s)",
+					tt.wantStatus, w.Code, w.Body.String())
+			}
+		})
 	}
 }
