@@ -1870,6 +1870,129 @@ enabled = true
 	}
 }
 
+func TestLoad_NoneScope_PeerProfileMappingsRejected(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	tomlContent := `mode = "strict"
+
+[[peer_profiles.mappings]]
+pattern = "peer.example.com"
+profile = "some-compat"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for peer_profiles.mappings under compatibility_scope=none")
+	}
+	if !strings.Contains(err.Error(), "compatibility_scope=none forbids peer_profiles.mappings") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_NoneScope_CustomProfiles_RelaxingFields_Rejected(t *testing.T) {
+	tests := []struct {
+		name      string
+		extra     string
+		wantError string
+	}{
+		{
+			name: "rejects allow_unsigned_inbound",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+allow_unsigned_inbound = true
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.allow_unsigned_inbound",
+		},
+		{
+			name: "rejects allow_unsigned_outbound",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+allow_unsigned_outbound = true
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.allow_unsigned_outbound",
+		},
+		{
+			name: "rejects allow_mismatched_host",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+allow_mismatched_host = true
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.allow_mismatched_host",
+		},
+		{
+			name: "rejects allow_http",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+allow_http = true
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.allow_http",
+		},
+		{
+			name: "rejects allow_unsigned_discovery",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+allow_unsigned_discovery = true
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.allow_unsigned_discovery",
+		},
+		{
+			name: "rejects accept_legacy_discovery_public_key",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+accept_legacy_discovery_public_key = true
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.accept_legacy_discovery_public_key",
+		},
+		{
+			name: "rejects token_exchange_grant_type",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+token_exchange_grant_type = "ocm_share"
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.token_exchange_grant_type",
+		},
+		{
+			name: "rejects token_exchange_quirks",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+token_exchange_quirks = ["accept_plain_token"]
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.token_exchange_quirks",
+		},
+		{
+			name: "rejects allowed_basic_auth_patterns",
+			extra: `
+[peer_profiles.custom_profiles.peer-a]
+allowed_basic_auth_patterns = ["token:"]
+`,
+			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.allowed_basic_auth_patterns",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+			tomlContent := `mode = "strict"
+` + tt.extra
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatalf("expected none-scope custom profile rejection: %s", tt.wantError)
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("expected %q, got %v", tt.wantError, err)
+			}
+		})
+	}
+}
+
 func TestLoad_ScopedCompatibilityRejectsGlobalRelaxations(t *testing.T) {
 	tests := []struct {
 		name      string
