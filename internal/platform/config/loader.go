@@ -901,6 +901,47 @@ func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
 	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
 		return fmt.Errorf("compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled")
 	}
+	if len(cfg.PeerProfiles.Mappings) > 0 {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.mappings")
+	}
+	for name, profile := range cfg.PeerProfiles.CustomProfiles {
+		if err := validateNoneScopePeerProfile(name, profile); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateNoneScopePeerProfile rejects any relaxing field in a custom peer
+// profile when compatibility_scope=none is in effect.
+func validateNoneScopePeerProfile(name string, p PeerProfile) error {
+	if p.AllowUnsignedInbound {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_unsigned_inbound", name)
+	}
+	if p.AllowUnsignedOutbound {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_unsigned_outbound", name)
+	}
+	if p.AllowMismatchedHost {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_mismatched_host", name)
+	}
+	if p.AllowHTTP {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_http", name)
+	}
+	if p.AllowUnsignedDiscovery {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_unsigned_discovery", name)
+	}
+	if p.AcceptLegacyDiscoveryPublicKey {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.accept_legacy_discovery_public_key", name)
+	}
+	if p.TokenExchangeGrantType != "" {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.token_exchange_grant_type", name)
+	}
+	if len(p.TokenExchangeQuirks) > 0 {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.token_exchange_quirks", name)
+	}
+	if len(p.AllowedBasicAuthPatterns) > 0 {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allowed_basic_auth_patterns", name)
+	}
 	return nil
 }
 

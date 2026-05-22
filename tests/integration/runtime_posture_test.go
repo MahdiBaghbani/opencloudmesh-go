@@ -309,6 +309,49 @@ outbound_mode = "token-only"
 	}
 }
 
+func TestNoneScopePeerProfileMappingsRejectedAtStartup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.toml")
+	config := `mode = "strict"
+listen_addr = "127.0.0.1:0"
+public_origin = "https://localhost:9207"
+external_base_path = ""
+
+[tls]
+mode = "selfsigned"
+
+[server]
+trusted_proxies = ["127.0.0.0/8", "::1/128"]
+
+[server.bootstrap_admin]
+username = "admin"
+
+[[peer_profiles.mappings]]
+pattern = "peer.example.com"
+profile = "some-compat"
+`
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected startup failure for peer_profiles.mappings under none, got success: %s", output)
+	}
+
+	outputText := string(output)
+	if !strings.Contains(outputText, "compatibility_scope=none forbids peer_profiles.mappings") {
+		t.Fatalf("expected peer_profiles.mappings rejection error in output, got: %s", outputText)
+	}
+}
+
 func TestScopedCompatibilityRejectsTokenOnlyAtStartup(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
