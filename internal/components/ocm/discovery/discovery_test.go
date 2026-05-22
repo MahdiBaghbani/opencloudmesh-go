@@ -228,6 +228,117 @@ func TestClientDiscover_RejectsLegacyPublicKeyWithoutCompat(t *testing.T) {
 	}
 }
 
+// TestClientDiscover_CacheContractDrift proves that the discovery cache stores
+// raw response bytes, so normalization always reflects the current peer contract
+// rather than the contract that was active at fetch time.
+//
+// Sequence:
+//  1. Fetch with no compat contract -> publicKeys empty, raw bytes cached.
+//  2. Set compat contract (same client, no new HTTP call) -> cache hit re-normalizes
+//     -> legacy publicKey promoted into publicKeys.
+//  3. Remove contract -> cache hit re-normalizes again -> publicKeys empty.
+func TestClientDiscover_CacheContractDrift(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/ocm" {
+			http.NotFound(w, r)
+			return
+		}
+		callCount++
+		raw := map[string]any{
+			"enabled":       true,
+			"apiVersion":    "1.2.2",
+			"endPoint":      "https://peer.example.com/ocm",
+			"resourceTypes": []any{},
+			"criteria":      []any{},
+			"capabilities":  []string{"http-sig"},
+			"publicKey": map[string]string{
+				"keyId":        "https://peer.example.com/ocm#legacy",
+				"publicKeyPem": "legacy-pem",
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(raw)
+	}))
+	defer server.Close()
+
+	parsed, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("failed to parse server URL: %v", err)
+	}
+
+	buildContract := func(t *testing.T) *peercompat.CompiledContract {
+		t.Helper()
+		registry := peercompat.NewProfileRegistry(
+			map[string]*peercompat.Profile{
+				"compat": {
+					Name:                           "compat",
+					AcceptLegacyDiscoveryPublicKey: true,
+				},
+			},
+			[]peercompat.ProfileMapping{
+				{Pattern: parsed.Hostname(), ProfileName: "compat"},
+			},
+		)
+		contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
+		if err != nil {
+			t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
+		}
+		return contract
+	}
+
+	httpCfg := &config.OutboundHTTPConfig{
+		SSRFMode:         "off",
+		TimeoutMS:        5000,
+		ConnectTimeoutMS: 2000,
+		MaxRedirects:     1,
+		MaxResponseBytes: 1048576,
+	}
+	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
+	// Step 1: no compat contract -> legacy key must NOT be promoted.
+	disc1, err := client.Discover(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("step 1 Discover failed: %v", err)
+	}
+	if len(disc1.PublicKeys) != 0 {
+		t.Fatalf("step 1: expected empty publicKeys without compat, got %+v", disc1.PublicKeys)
+	}
+	if callCount != 1 {
+		t.Fatalf("step 1: expected exactly 1 HTTP call, got %d", callCount)
+	}
+
+	// Step 2: add compat contract; same client, no new HTTP call (cache hit).
+	// Re-normalization must now promote the legacy key.
+	client.SetPeerContract(buildContract(t))
+	disc2, err := client.Discover(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("step 2 Discover failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("step 2: unexpected HTTP call (should have used cache), call count %d", callCount)
+	}
+	if len(disc2.PublicKeys) != 1 {
+		t.Fatalf("step 2: expected legacy key promoted to publicKeys, got %+v", disc2.PublicKeys)
+	}
+	if disc2.PublicKeys[0].KeyID != "https://peer.example.com/ocm#legacy" {
+		t.Fatalf("step 2: unexpected key ID %q", disc2.PublicKeys[0].KeyID)
+	}
+
+	// Step 3: remove compat contract; cache hit must re-normalize without compat.
+	client.SetPeerContract(nil)
+	disc3, err := client.Discover(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("step 3 Discover failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("step 3: unexpected HTTP call (should have used cache), call count %d", callCount)
+	}
+	if len(disc3.PublicKeys) != 0 {
+		t.Fatalf("step 3: expected empty publicKeys after contract removed, got %+v", disc3.PublicKeys)
+	}
+}
+
 func TestClientDiscover_AllowsLegacyPublicKeyWithPeerCompat(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {

@@ -47,6 +47,9 @@ func (c *Client) SetPeerContract(peerContract *peercompat.CompiledContract) {
 }
 
 // Discover fetches the discovery document for a remote OCM server. Uses cache when available.
+//
+// Raw response bytes are cached so that re-normalization on every cache read reflects
+// the current peer contract rather than the contract active at fetch time.
 func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, error) {
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	cacheKey := "discovery:" + baseURL
@@ -57,40 +60,38 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 		}
 	}
 
-	disc, err := c.fetchDiscovery(ctx, baseURL+"/.well-known/ocm")
+	rawBytes, disc, err := c.fetchDiscovery(ctx, baseURL+"/.well-known/ocm")
 	if err != nil {
-		disc, err = c.fetchDiscovery(ctx, baseURL+"/ocm-provider")
+		rawBytes, disc, err = c.fetchDiscovery(ctx, baseURL+"/ocm-provider")
 		if err != nil {
 			return nil, fmt.Errorf("failed to discover OCM at %s: %w", baseURL, err)
 		}
 	}
-	if data, err := json.Marshal(disc); err == nil {
-		c.cache.Set(ctx, cacheKey, data, c.cacheTTL)
-	}
+	c.cache.Set(ctx, cacheKey, rawBytes, c.cacheTTL)
 
 	return disc, nil
 }
 
-func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) (*Discovery, error) {
+func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *Discovery, error) {
 	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
+		return nil, nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
 	}
 
 	disc, err := c.normalizeDiscovery(data, discoveryURL)
 	if err != nil {
-		return nil, fmt.Errorf("invalid discovery JSON: %w", err)
+		return nil, nil, fmt.Errorf("invalid discovery JSON: %w", err)
 	}
 
 	if !disc.Enabled {
-		return nil, fmt.Errorf("OCM is disabled at %s", discoveryURL)
+		return nil, nil, fmt.Errorf("OCM is disabled at %s", discoveryURL)
 	}
 
-	return &disc, nil
+	return data, &disc, nil
 }
 
 type rawDiscoveryEnvelope struct {
