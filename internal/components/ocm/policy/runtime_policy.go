@@ -41,6 +41,7 @@ type SignaturePosture struct {
 type TransportPosture struct {
 	TLSMode            string
 	SSRFMode           string
+	SSRFRoutePolicy    string
 	InsecureSkipVerify bool
 }
 
@@ -102,9 +103,17 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 		RequiresHTTPRequestSignatures: deriveHTTPRequestSignatureRequirement(cfg.Signature.InboundMode),
 		AllowMismatch:                 cfg.Signature.AllowMismatch,
 	}
+	// Mirror the client's own fallback: when the nested SSRF.Mode is empty,
+	// consult the legacy SSRFMode shim so programmatic configs that have not
+	// yet migrated to the nested field are classified consistently.
+	ssrfMode := cfg.OutboundHTTP.SSRF.Mode
+	if ssrfMode == "" {
+		ssrfMode = cfg.OutboundHTTP.SSRFMode
+	}
 	transport := TransportPosture{
 		TLSMode:            cfg.TLS.Mode,
-		SSRFMode:           cfg.OutboundHTTP.SSRFMode,
+		SSRFMode:           ssrfMode,
+		SSRFRoutePolicy:    cfg.OutboundHTTP.SSRF.RoutePolicy,
 		InsecureSkipVerify: cfg.OutboundHTTP.InsecureSkipVerify,
 	}
 	trust := deriveTrustPosture(cfg)
