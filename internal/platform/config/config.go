@@ -298,10 +298,55 @@ type ACMEConfig struct {
 	UseStaging bool `toml:"use_staging"`
 }
 
+// SSRFRoutePolicyConfig defines a named SSRF route policy with explicit
+// allow-lists for private destinations.
+type SSRFRoutePolicyConfig struct {
+	// AllowPrivateHostSuffixes lists host suffixes permitted for private routing.
+	AllowPrivateHostSuffixes []string `toml:"allow_private_host_suffixes"`
+
+	// AllowPrivateCIDRs lists CIDR ranges permitted for private routing.
+	// Catch-all CIDRs (0.0.0.0/0, ::/0) are rejected under none/scoped scopes.
+	AllowPrivateCIDRs []string `toml:"allow_private_cidrs"`
+
+	// AllowedPorts restricts which destination ports are permitted.
+	AllowedPorts []int `toml:"allowed_ports"`
+
+	// AllowIPLiterals permits direct IP address targets when true.
+	// Must be false under compatibility_scope=none and scoped.
+	AllowIPLiterals bool `toml:"allow_ip_literals"`
+}
+
+// SSRFConfig holds SSRF protection settings for outbound HTTP requests.
+type SSRFConfig struct {
+	// Mode is one of: strict, off.
+	Mode string `toml:"mode"`
+
+	// RoutePolicy names the active route policy from RoutePolicies.
+	// When set the named policy must exist in RoutePolicies.
+	RoutePolicy string `toml:"route_policy"`
+
+	// RedirectMode controls how redirects are handled.
+	// Allowed value in v1: "same-host".
+	RedirectMode string `toml:"redirect_mode"`
+
+	// DNSResolution controls DNS resolution behavior.
+	// Allowed value in v1: "all-records".
+	DNSResolution string `toml:"dns_resolution"`
+
+	// RoutePolicies maps policy names to their definitions.
+	RoutePolicies map[string]SSRFRoutePolicyConfig `toml:"route_policies"`
+}
+
 // OutboundHTTPConfig holds settings for outbound HTTP requests.
 type OutboundHTTPConfig struct {
-	// SSRFMode is one of: strict, off
-	SSRFMode string `toml:"ssrf_mode"`
+	// SSRF holds SSRF protection settings.
+	// Configure via [outbound_http.ssrf] in TOML.
+	SSRF SSRFConfig `toml:"ssrf"`
+
+	// SSRFMode is a derived shim populated from SSRF.Mode by the config loader.
+	// It is not decoded from TOML; use [outbound_http.ssrf] instead.
+	// Retained for runtime client compatibility until T2 migrates the client.
+	SSRFMode string `toml:"-"`
 
 	// TimeoutMS is the overall request timeout in milliseconds
 	TimeoutMS int `toml:"timeout_ms"`
@@ -342,6 +387,7 @@ type OutboundHTTPConfig struct {
 // OutboundHTTPConfigStrict returns strict outbound HTTP config for production.
 func OutboundHTTPConfigStrict() OutboundHTTPConfig {
 	return OutboundHTTPConfig{
+		SSRF:               SSRFConfig{Mode: "strict"},
 		SSRFMode:           "strict",
 		TimeoutMS:          10000,
 		ConnectTimeoutMS:   2000,
@@ -401,7 +447,19 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    TLSDir: %q,\n", c.TLS.TLSDir))
 	sb.WriteString("  },\n")
 	sb.WriteString("  OutboundHTTP: {\n")
-	sb.WriteString(fmt.Sprintf("    SSRFMode: %q,\n", c.OutboundHTTP.SSRFMode))
+	sb.WriteString("    SSRF: {\n")
+	sb.WriteString(fmt.Sprintf("      Mode: %q,\n", c.OutboundHTTP.SSRF.Mode))
+	if c.OutboundHTTP.SSRF.RoutePolicy != "" {
+		sb.WriteString(fmt.Sprintf("      RoutePolicy: %q,\n", c.OutboundHTTP.SSRF.RoutePolicy))
+	}
+	if c.OutboundHTTP.SSRF.RedirectMode != "" {
+		sb.WriteString(fmt.Sprintf("      RedirectMode: %q,\n", c.OutboundHTTP.SSRF.RedirectMode))
+	}
+	if c.OutboundHTTP.SSRF.DNSResolution != "" {
+		sb.WriteString(fmt.Sprintf("      DNSResolution: %q,\n", c.OutboundHTTP.SSRF.DNSResolution))
+	}
+	sb.WriteString(fmt.Sprintf("      RoutePoliciesCount: %d,\n", len(c.OutboundHTTP.SSRF.RoutePolicies)))
+	sb.WriteString("    },\n")
 	sb.WriteString(fmt.Sprintf("    TLSRootCAFile: %q,\n", c.OutboundHTTP.TLSRootCAFile))
 	sb.WriteString(fmt.Sprintf("    TLSRootCADir: %q,\n", c.OutboundHTTP.TLSRootCADir))
 	sb.WriteString(fmt.Sprintf("    TimeoutMS: %d,\n", c.OutboundHTTP.TimeoutMS))

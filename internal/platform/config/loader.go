@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -59,7 +60,6 @@ type FlagOverrides struct {
 	PublicOrigin                 *string
 	ExternalBasePath             *string
 	CompatibilityScope           *string
-	SSRFMode                     *string
 	SignatureInboundMode         *string
 	SignatureOutboundMode        *string
 	SignaturePeerProfileOverride *string
@@ -73,21 +73,30 @@ type FlagOverrides struct {
 	PeerPolicy                   *string
 }
 
+// ssrfFileConfig mirrors SSRFConfig for TOML decoding.
+type ssrfFileConfig struct {
+	Mode          string                           `toml:"mode"`
+	RoutePolicy   string                           `toml:"route_policy"`
+	RedirectMode  string                           `toml:"redirect_mode"`
+	DNSResolution string                           `toml:"dns_resolution"`
+	RoutePolicies map[string]SSRFRoutePolicyConfig `toml:"route_policies"`
+}
+
 // outboundHTTPFileConfig mirrors OutboundHTTPConfig for TOML decoding, using
 // *bool for proxy_env_fallback so an omitted key preserves the preset,
 // an explicit false can opt out of a preset that defaults true (e.g. strict),
 // and an explicit true can opt in from a preset that defaults false (e.g. dev).
 type outboundHTTPFileConfig struct {
-	SSRFMode           string `toml:"ssrf_mode"`
-	TimeoutMS          int    `toml:"timeout_ms"`
-	ConnectTimeoutMS   int    `toml:"connect_timeout_ms"`
-	MaxRedirects       int    `toml:"max_redirects"`
-	MaxResponseBytes   int64  `toml:"max_response_bytes"`
-	InsecureSkipVerify bool   `toml:"insecure_skip_verify"`
-	TLSRootCAFile      string `toml:"tls_root_ca_file"`
-	TLSRootCADir       string `toml:"tls_root_ca_dir"`
-	ProxyURL           string `toml:"proxy_url"`
-	ProxyEnvFallback   *bool  `toml:"proxy_env_fallback"`
+	SSRF               *ssrfFileConfig `toml:"ssrf"`
+	TimeoutMS          int             `toml:"timeout_ms"`
+	ConnectTimeoutMS   int             `toml:"connect_timeout_ms"`
+	MaxRedirects       int             `toml:"max_redirects"`
+	MaxResponseBytes   int64           `toml:"max_response_bytes"`
+	InsecureSkipVerify bool            `toml:"insecure_skip_verify"`
+	TLSRootCAFile      string          `toml:"tls_root_ca_file"`
+	TLSRootCADir       string          `toml:"tls_root_ca_dir"`
+	ProxyURL           string          `toml:"proxy_url"`
+	ProxyEnvFallback   *bool           `toml:"proxy_env_fallback"`
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -228,6 +237,9 @@ func Load(opts LoaderOptions) (*Config, error) {
 				if keyStr == "federation" || strings.HasPrefix(keyStr, "federation.") {
 					return nil, fmt.Errorf("config section '[federation]' has been renamed to '[peer_trust]'; please update your configuration")
 				}
+				if keyStr == "outbound_http.ssrf_mode" {
+					return nil, fmt.Errorf("config key 'outbound_http.ssrf_mode' has been replaced by nested keys under '[outbound_http.ssrf]'; please update your configuration")
+				}
 				keys = append(keys, keyStr)
 			}
 			// Warn about remaining undecoded keys (do not fail)
@@ -262,7 +274,10 @@ func Load(opts LoaderOptions) (*Config, error) {
 	// Step 5: Overlay CLI flags
 	overlayFlags(cfg, opts.FlagOverrides)
 
-	// Step 5b: tls_dir validation and derivation
+	// Step 5b: sync SSRFMode shim from SSRF.Mode for runtime client compatibility
+	cfg.OutboundHTTP.SSRFMode = cfg.OutboundHTTP.SSRF.Mode
+
+	// Step 5d: tls_dir validation and derivation
 	if md.IsDefined("tls", "tls_dir") && strings.TrimSpace(cfg.TLS.TLSDir) == "" {
 		return nil, fmt.Errorf("tls.tls_dir is set but empty; provide a path or remove the key")
 	}
@@ -338,6 +353,7 @@ func StrictConfig() *Config {
 			},
 		},
 		OutboundHTTP: OutboundHTTPConfig{
+			SSRF:               SSRFConfig{Mode: "strict"},
 			SSRFMode:           "strict",
 			TimeoutMS:          10000,
 			ConnectTimeoutMS:   2000,
@@ -418,6 +434,7 @@ func DevConfig() *Config {
 			},
 		},
 		OutboundHTTP: OutboundHTTPConfig{
+			SSRF:               SSRFConfig{Mode: "off"},
 			SSRFMode:           "off",
 			TimeoutMS:          10000,
 			ConnectTimeoutMS:   2000,
@@ -519,8 +536,22 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 
 	if fc.OutboundHTTP != nil {
-		if fc.OutboundHTTP.SSRFMode != "" {
-			cfg.OutboundHTTP.SSRFMode = fc.OutboundHTTP.SSRFMode
+		if fc.OutboundHTTP.SSRF != nil {
+			if fc.OutboundHTTP.SSRF.Mode != "" {
+				cfg.OutboundHTTP.SSRF.Mode = fc.OutboundHTTP.SSRF.Mode
+			}
+			if fc.OutboundHTTP.SSRF.RoutePolicy != "" {
+				cfg.OutboundHTTP.SSRF.RoutePolicy = fc.OutboundHTTP.SSRF.RoutePolicy
+			}
+			if fc.OutboundHTTP.SSRF.RedirectMode != "" {
+				cfg.OutboundHTTP.SSRF.RedirectMode = fc.OutboundHTTP.SSRF.RedirectMode
+			}
+			if fc.OutboundHTTP.SSRF.DNSResolution != "" {
+				cfg.OutboundHTTP.SSRF.DNSResolution = fc.OutboundHTTP.SSRF.DNSResolution
+			}
+			if len(fc.OutboundHTTP.SSRF.RoutePolicies) > 0 {
+				cfg.OutboundHTTP.SSRF.RoutePolicies = fc.OutboundHTTP.SSRF.RoutePolicies
+			}
 		}
 		if fc.OutboundHTTP.TimeoutMS != 0 {
 			cfg.OutboundHTTP.TimeoutMS = fc.OutboundHTTP.TimeoutMS
@@ -674,9 +705,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.CompatibilityScope != nil && *f.CompatibilityScope != "" {
 		cfg.CompatibilityScope = *f.CompatibilityScope
 	}
-	if f.SSRFMode != nil && *f.SSRFMode != "" {
-		cfg.OutboundHTTP.SSRFMode = *f.SSRFMode
-	}
 	if f.SignatureInboundMode != nil && *f.SignatureInboundMode != "" {
 		cfg.Signature.InboundMode = *f.SignatureInboundMode
 	}
@@ -734,12 +762,43 @@ func validateEnums(cfg *Config) error {
 		return fmt.Errorf("invalid tls.mode %q: must be one of off, static, selfsigned, acme", cfg.TLS.Mode)
 	}
 
-	// outbound_http.ssrf_mode
-	switch cfg.OutboundHTTP.SSRFMode {
+	// outbound_http.ssrf.mode
+	switch cfg.OutboundHTTP.SSRF.Mode {
 	case "strict", "off":
 		// valid
 	default:
-		return fmt.Errorf("invalid outbound_http.ssrf_mode %q: must be one of strict, off", cfg.OutboundHTTP.SSRFMode)
+		return fmt.Errorf("invalid outbound_http.ssrf.mode %q: must be one of strict, off", cfg.OutboundHTTP.SSRF.Mode)
+	}
+
+	// outbound_http.ssrf.redirect_mode (optional; only "same-host" in v1)
+	if cfg.OutboundHTTP.SSRF.RedirectMode != "" {
+		switch cfg.OutboundHTTP.SSRF.RedirectMode {
+		case "same-host":
+			// valid
+		default:
+			return fmt.Errorf("invalid outbound_http.ssrf.redirect_mode %q: must be same-host", cfg.OutboundHTTP.SSRF.RedirectMode)
+		}
+	}
+
+	// outbound_http.ssrf.dns_resolution (optional; only "all-records" in v1)
+	if cfg.OutboundHTTP.SSRF.DNSResolution != "" {
+		switch cfg.OutboundHTTP.SSRF.DNSResolution {
+		case "all-records":
+			// valid
+		default:
+			return fmt.Errorf("invalid outbound_http.ssrf.dns_resolution %q: must be all-records", cfg.OutboundHTTP.SSRF.DNSResolution)
+		}
+	}
+
+	// outbound_http.ssrf.route_policy must reference a defined policy
+	if cfg.OutboundHTTP.SSRF.RoutePolicy != "" {
+		if _, ok := cfg.OutboundHTTP.SSRF.RoutePolicies[cfg.OutboundHTTP.SSRF.RoutePolicy]; !ok {
+			return fmt.Errorf(
+				"outbound_http.ssrf.route_policy %q references an undefined policy; define it under [outbound_http.ssrf.route_policies.%s]",
+				cfg.OutboundHTTP.SSRF.RoutePolicy,
+				cfg.OutboundHTTP.SSRF.RoutePolicy,
+			)
+		}
 	}
 
 	// signature.inbound_mode
@@ -892,8 +951,11 @@ func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
 	if cfg.TLS.Mode == "off" {
 		return fmt.Errorf("compatibility_scope=none requires tls.mode!=off")
 	}
-	if cfg.OutboundHTTP.SSRFMode != "strict" {
-		return fmt.Errorf("compatibility_scope=none requires outbound_http.ssrf_mode=strict")
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		return fmt.Errorf("compatibility_scope=none requires outbound_http.ssrf.mode=strict")
+	}
+	if err := validateSSRFRoutePolicyGuardrails(cfg, "none"); err != nil {
+		return err
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		return fmt.Errorf("compatibility_scope=none requires outbound_http.insecure_skip_verify=false")
@@ -964,14 +1026,90 @@ func validateScopedCompatibilityScopeGuardrails(cfg *Config) error {
 	if cfg.TLS.Mode == "off" {
 		return fmt.Errorf("compatibility_scope=scoped requires tls.mode!=off")
 	}
-	if cfg.OutboundHTTP.SSRFMode != "strict" {
-		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.ssrf_mode=strict")
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.ssrf.mode=strict")
+	}
+	if err := validateSSRFRoutePolicyGuardrails(cfg, "scoped"); err != nil {
+		return err
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.insecure_skip_verify=false")
 	}
 	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
 		return fmt.Errorf("compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled")
+	}
+	return nil
+}
+
+// validateSSRFRoutePolicyGuardrails enforces strict guardrails on the active
+// route policy when compatibility_scope is "none" or "scoped".
+func validateSSRFRoutePolicyGuardrails(cfg *Config, scope string) error {
+	activePolicy := cfg.OutboundHTTP.SSRF.RoutePolicy
+	if activePolicy == "" {
+		return nil
+	}
+
+	policy, ok := cfg.OutboundHTTP.SSRF.RoutePolicies[activePolicy]
+	if !ok {
+		// already caught by validateEnums; defensive skip
+		return nil
+	}
+
+	prefix := fmt.Sprintf("outbound_http.ssrf.route_policies.%s", activePolicy)
+
+	if len(policy.AllowPrivateHostSuffixes) == 0 {
+		return fmt.Errorf(
+			"compatibility_scope=%s: active ssrf route policy %q requires non-empty %s.allow_private_host_suffixes",
+			scope, activePolicy, prefix,
+		)
+	}
+	for _, suffix := range policy.AllowPrivateHostSuffixes {
+		if strings.TrimSpace(suffix) == "" {
+			return fmt.Errorf(
+				"compatibility_scope=%s: active ssrf route policy %q has blank entry in %s.allow_private_host_suffixes",
+				scope, activePolicy, prefix,
+			)
+		}
+	}
+	if len(policy.AllowPrivateCIDRs) == 0 {
+		return fmt.Errorf(
+			"compatibility_scope=%s: active ssrf route policy %q requires non-empty %s.allow_private_cidrs",
+			scope, activePolicy, prefix,
+		)
+	}
+	if len(policy.AllowedPorts) == 0 {
+		return fmt.Errorf(
+			"compatibility_scope=%s: active ssrf route policy %q requires non-empty %s.allowed_ports",
+			scope, activePolicy, prefix,
+		)
+	}
+	if policy.AllowIPLiterals {
+		return fmt.Errorf(
+			"compatibility_scope=%s: active ssrf route policy %q requires %s.allow_ip_literals=false",
+			scope, activePolicy, prefix,
+		)
+	}
+	for _, cidr := range policy.AllowPrivateCIDRs {
+		if cidr == "0.0.0.0/0" || cidr == "::/0" {
+			return fmt.Errorf(
+				"compatibility_scope=%s: active ssrf route policy %q forbids catch-all CIDR %q in %s.allow_private_cidrs",
+				scope, activePolicy, cidr, prefix,
+			)
+		}
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf(
+				"compatibility_scope=%s: active ssrf route policy %q has invalid CIDR %q in %s.allow_private_cidrs: %w",
+				scope, activePolicy, cidr, prefix, err,
+			)
+		}
+	}
+	for _, port := range policy.AllowedPorts {
+		if port < 1 || port > 65535 {
+			return fmt.Errorf(
+				"compatibility_scope=%s: active ssrf route policy %q has invalid port %d in %s.allowed_ports: must be in range 1-65535",
+				scope, activePolicy, port, prefix,
+			)
+		}
 	}
 	return nil
 }

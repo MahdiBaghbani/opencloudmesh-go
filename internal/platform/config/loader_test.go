@@ -48,8 +48,8 @@ func TestLoad_NoConfigFile(t *testing.T) {
 	if cfg.Mode != "strict" {
 		t.Errorf("expected mode strict, got %s", cfg.Mode)
 	}
-	if cfg.OutboundHTTP.SSRFMode != "strict" {
-		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRFMode)
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 	if cfg.Signature.InboundMode != "strict" {
 		t.Errorf("expected signature inbound mode strict, got %s", cfg.Signature.InboundMode)
@@ -69,8 +69,8 @@ func TestLoad_ModeFlag(t *testing.T) {
 	if cfg.Mode != "dev" {
 		t.Errorf("expected mode dev, got %s", cfg.Mode)
 	}
-	if cfg.OutboundHTTP.SSRFMode != "off" {
-		t.Errorf("expected SSRF mode off in dev, got %s", cfg.OutboundHTTP.SSRFMode)
+	if cfg.OutboundHTTP.SSRF.Mode != "off" {
+		t.Errorf("expected SSRF mode off in dev, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify != true {
 		t.Errorf("expected InsecureSkipVerify true in dev")
@@ -95,8 +95,10 @@ username = "root"
 password = "secret123"
 
 [outbound_http]
-ssrf_mode = "strict"
 timeout_ms = 5000
+
+[outbound_http.ssrf]
+mode = "strict"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -126,8 +128,8 @@ timeout_ms = 5000
 		t.Errorf("expected admin password secret123, got %s", cfg.Server.BootstrapAdmin.Password)
 	}
 	// TOML overrides mode preset
-	if cfg.OutboundHTTP.SSRFMode != "strict" {
-		t.Errorf("expected SSRF mode strict from TOML, got %s", cfg.OutboundHTTP.SSRFMode)
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		t.Errorf("expected SSRF mode strict from TOML, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 	if cfg.OutboundHTTP.TimeoutMS != 5000 {
 		t.Errorf("expected timeout 5000, got %d", cfg.OutboundHTTP.TimeoutMS)
@@ -202,8 +204,8 @@ mode = "interop"
 		t.Errorf("expected mode dev from flag, got %s", cfg.Mode)
 	}
 	// Dev preset defaults should apply
-	if cfg.OutboundHTTP.SSRFMode != "off" {
-		t.Errorf("expected SSRF mode off from dev preset, got %s", cfg.OutboundHTTP.SSRFMode)
+	if cfg.OutboundHTTP.SSRF.Mode != "off" {
+		t.Errorf("expected SSRF mode off from dev preset, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 }
 
@@ -254,8 +256,8 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.CompatibilityScope != "none" {
 		t.Errorf("expected compatibility scope none, got %s", cfg.CompatibilityScope)
 	}
-	if cfg.OutboundHTTP.SSRFMode != "strict" {
-		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRFMode)
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 	if cfg.Signature.InboundMode != "strict" {
 		t.Errorf("expected signature inbound mode strict, got %s", cfg.Signature.InboundMode)
@@ -286,8 +288,8 @@ func TestDevConfig(t *testing.T) {
 	if cfg.CompatibilityScope != "unbounded" {
 		t.Errorf("expected compatibility scope unbounded, got %s", cfg.CompatibilityScope)
 	}
-	if cfg.OutboundHTTP.SSRFMode != "off" {
-		t.Errorf("expected SSRF mode off, got %s", cfg.OutboundHTTP.SSRFMode)
+	if cfg.OutboundHTTP.SSRF.Mode != "off" {
+		t.Errorf("expected SSRF mode off, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 	if cfg.TLS.Mode != "off" {
 		t.Errorf("expected TLS mode off, got %s", cfg.TLS.Mode)
@@ -313,8 +315,8 @@ func TestCompatConfig(t *testing.T) {
 		t.Errorf("expected signature outbound mode criteria-only, got %s", cfg.Signature.OutboundMode)
 	}
 	// SSRF stays strict in compat
-	if cfg.OutboundHTTP.SSRFMode != "strict" {
-		t.Errorf("expected SSRF mode strict in compat, got %s", cfg.OutboundHTTP.SSRFMode)
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		t.Errorf("expected SSRF mode strict in compat, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 }
 
@@ -413,13 +415,13 @@ mode = "letsencrypt"
 	}
 }
 
-func TestLoad_InvalidSSRFMode_FailsFast(t *testing.T) {
+func TestLoad_OldFlatSSRFKey_FailsClearly(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 [outbound_http]
-ssrf_mode = "block"
+ssrf_mode = "strict"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -427,10 +429,383 @@ ssrf_mode = "block"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for invalid outbound_http.ssrf_mode")
+		t.Fatal("expected error for removed outbound_http.ssrf_mode key")
 	}
-	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf_mode") {
-		t.Errorf("expected ssrf_mode error, got: %v", err)
+	if !strings.Contains(err.Error(), "outbound_http.ssrf_mode") {
+		t.Errorf("expected error mentioning outbound_http.ssrf_mode, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "[outbound_http.ssrf]") {
+		t.Errorf("expected error mentioning [outbound_http.ssrf], got: %v", err)
+	}
+}
+
+func TestLoad_InvalidNestedSSRFMode_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[outbound_http.ssrf]
+mode = "block"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid outbound_http.ssrf.mode")
+	}
+	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf.mode") {
+		t.Errorf("expected ssrf.mode error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NestedSchemaLoads(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "interop"
+
+[outbound_http.ssrf]
+mode = "strict"
+redirect_mode = "same-host"
+dns_resolution = "all-records"
+
+[outbound_http.ssrf.route_policies.internal]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = ["10.0.0.0/8"]
+allowed_ports = [8080, 8443]
+allow_ip_literals = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v (nested SSRF schema should load)", err)
+	}
+
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		t.Errorf("expected ssrf.mode strict, got %q", cfg.OutboundHTTP.SSRF.Mode)
+	}
+	if cfg.OutboundHTTP.SSRF.RedirectMode != "same-host" {
+		t.Errorf("expected ssrf.redirect_mode same-host, got %q", cfg.OutboundHTTP.SSRF.RedirectMode)
+	}
+	if cfg.OutboundHTTP.SSRF.DNSResolution != "all-records" {
+		t.Errorf("expected ssrf.dns_resolution all-records, got %q", cfg.OutboundHTTP.SSRF.DNSResolution)
+	}
+	policy, ok := cfg.OutboundHTTP.SSRF.RoutePolicies["internal"]
+	if !ok {
+		t.Fatal("expected route policy 'internal' to be defined")
+	}
+	if len(policy.AllowPrivateHostSuffixes) != 1 || policy.AllowPrivateHostSuffixes[0] != "svc.cluster.local" {
+		t.Errorf("unexpected allow_private_host_suffixes: %v", policy.AllowPrivateHostSuffixes)
+	}
+	if policy.AllowIPLiterals {
+		t.Error("expected allow_ip_literals=false")
+	}
+}
+
+func TestLoad_SSRF_InvalidRoutePolicyRef_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[outbound_http.ssrf]
+mode = "strict"
+route_policy = "nonexistent"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid route_policy reference")
+	}
+	if !strings.Contains(err.Error(), "nonexistent") {
+		t.Errorf("expected error mentioning policy name, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_InvalidRedirectMode_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[outbound_http.ssrf]
+mode = "strict"
+redirect_mode = "follow-all"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid redirect_mode")
+	}
+	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf.redirect_mode") {
+		t.Errorf("expected redirect_mode error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_InvalidDNSResolution_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+[outbound_http.ssrf]
+mode = "strict"
+dns_resolution = "first-record"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid dns_resolution")
+	}
+	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf.dns_resolution") {
+		t.Errorf("expected dns_resolution error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_RejectsOff(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+compatibility_scope = "none"
+
+[outbound_http.ssrf]
+mode = "off"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error: compatibility_scope=none must reject ssrf.mode=off")
+	}
+	if !strings.Contains(err.Error(), "compatibility_scope=none requires outbound_http.ssrf.mode=strict") {
+		t.Errorf("expected none+off rejection error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_StrictWithValidRoutePolicy_Loads(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	// strict preset satisfies all compatibility_scope=none guardrails, so
+	// a valid route policy under mode=strict must load without error.
+	tomlContent := `
+mode = "strict"
+compatibility_scope = "none"
+
+[outbound_http.ssrf]
+mode = "strict"
+route_policy = "internal"
+
+[outbound_http.ssrf.route_policies.internal]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = ["10.0.0.0/8"]
+allowed_ports = [8080]
+allow_ip_literals = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() error = %v; none + strict + valid route policy must load cleanly", err)
+	}
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		t.Errorf("expected outbound_http.ssrf.mode %q, got %q", "strict", cfg.OutboundHTTP.SSRF.Mode)
+	}
+	if cfg.OutboundHTTP.SSRF.RoutePolicy != "internal" {
+		t.Errorf("expected outbound_http.ssrf.route_policy %q, got %q", "internal", cfg.OutboundHTTP.SSRF.RoutePolicy)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_RoutePolicyWithIPLiterals_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+compatibility_scope = "none"
+
+[outbound_http.ssrf]
+mode = "strict"
+route_policy = "internal"
+
+[outbound_http.ssrf.route_policies.internal]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = ["10.0.0.0/8"]
+allowed_ports = [8080]
+allow_ip_literals = true
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error: allow_ip_literals=true forbidden under compatibility_scope=none")
+	}
+	if !strings.Contains(err.Error(), "allow_ip_literals=false") {
+		t.Errorf("expected allow_ip_literals error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_RoutePolicyWithCatchAllCIDR_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+compatibility_scope = "none"
+
+[outbound_http.ssrf]
+mode = "strict"
+route_policy = "catchall"
+
+[outbound_http.ssrf.route_policies.catchall]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = ["0.0.0.0/0"]
+allowed_ports = [8080]
+allow_ip_literals = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error: catch-all CIDR 0.0.0.0/0 forbidden under compatibility_scope=none")
+	}
+	if !strings.Contains(err.Error(), "0.0.0.0/0") {
+		t.Errorf("expected catch-all CIDR error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_RoutePolicyMissingHostSuffixes_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+compatibility_scope = "none"
+
+[outbound_http.ssrf]
+mode = "strict"
+route_policy = "minimal"
+
+[outbound_http.ssrf.route_policies.minimal]
+allow_private_host_suffixes = []
+allow_private_cidrs = ["10.0.0.0/8"]
+allowed_ports = [8080]
+allow_ip_literals = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error: empty allow_private_host_suffixes forbidden under compatibility_scope=none")
+	}
+	if !strings.Contains(err.Error(), "allow_private_host_suffixes") {
+		t.Errorf("expected host suffixes error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_RoutePolicyWithInvalidCIDR_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "strict"
+compatibility_scope = "none"
+
+[outbound_http.ssrf]
+mode = "strict"
+route_policy = "internal"
+
+[outbound_http.ssrf.route_policies.internal]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = ["not-a-cidr"]
+allowed_ports = [8080]
+allow_ip_literals = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error: invalid CIDR in allow_private_cidrs should be rejected")
+	}
+	if !strings.Contains(err.Error(), "invalid CIDR") {
+		t.Errorf("expected invalid CIDR error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_RoutePolicyWithInvalidPort_Fails(t *testing.T) {
+	tests := []struct {
+		name        string
+		port        string
+		wantContain string
+	}{
+		{
+			name:        "port zero",
+			port:        "0",
+			wantContain: "invalid port",
+		},
+		{
+			name:        "port above max",
+			port:        "65536",
+			wantContain: "invalid port",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+
+			tomlContent := `
+mode = "strict"
+compatibility_scope = "none"
+
+[outbound_http.ssrf]
+mode = "strict"
+route_policy = "internal"
+
+[outbound_http.ssrf.route_policies.internal]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = ["10.0.0.0/8"]
+allowed_ports = [` + tc.port + `]
+allow_ip_literals = false
+`
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatalf("expected error for port %s: should be rejected as out of range", tc.port)
+			}
+			if !strings.Contains(err.Error(), tc.wantContain) {
+				t.Errorf("expected %q in error, got: %v", tc.wantContain, err)
+			}
+		})
 	}
 }
 
@@ -551,8 +926,8 @@ mode = "interop"
 [tls]
 mode = "acme"
 
-[outbound_http]
-ssrf_mode = "off"
+[outbound_http.ssrf]
+mode = "off"
 
 [signature]
 inbound_mode = "lenient"
@@ -572,8 +947,8 @@ on_discovery_error = "allow"
 	if cfg.TLS.Mode != "acme" {
 		t.Errorf("expected tls.mode acme, got %s", cfg.TLS.Mode)
 	}
-	if cfg.OutboundHTTP.SSRFMode != "off" {
-		t.Errorf("expected ssrf_mode off, got %s", cfg.OutboundHTTP.SSRFMode)
+	if cfg.OutboundHTTP.SSRF.Mode != "off" {
+		t.Errorf("expected ssrf.mode off, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 	if cfg.Signature.InboundMode != "lenient" {
 		t.Errorf("expected signature.inbound_mode lenient, got %s", cfg.Signature.InboundMode)
@@ -2069,10 +2444,10 @@ mode = "off"
 		{
 			name: "rejects ssrf off",
 			extra: `
-[outbound_http]
-ssrf_mode = "off"
+[outbound_http.ssrf]
+mode = "off"
 `,
-			wantError: "compatibility_scope=scoped requires outbound_http.ssrf_mode=strict",
+			wantError: "compatibility_scope=scoped requires outbound_http.ssrf.mode=strict",
 		},
 		{
 			name: "rejects insecure skip verify",
@@ -2643,6 +3018,91 @@ func TestOutboundHTTPConfigStrict_ProxyEnvFallbackFalse(t *testing.T) {
 	cfg := OutboundHTTPConfigStrict()
 	if cfg.ProxyEnvFallback {
 		t.Error("OutboundHTTPConfigStrict() must return ProxyEnvFallback=false (non-ambient by default)")
+	}
+}
+
+func TestSSRFRoutePolicyGuardrails_BlankHostSuffix_NoneScope(t *testing.T) {
+	tests := []struct {
+		name     string
+		suffixes string
+	}{
+		{"empty string entry", `[""]`},
+		{"whitespace-only entry", `["   "]`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+			tomlContent := `mode = "strict"
+
+[outbound_http.ssrf]
+route_policy = "myp"
+
+[outbound_http.ssrf.route_policies.myp]
+allow_private_host_suffixes = ` + tt.suffixes + `
+allow_private_cidrs = ["10.0.0.0/8"]
+allowed_ports = [8080]
+allow_ip_literals = false
+`
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected error for blank entry in allow_private_host_suffixes under compatibility_scope=none")
+			}
+			if !strings.Contains(err.Error(), "allow_private_host_suffixes") {
+				t.Errorf("expected error to mention allow_private_host_suffixes, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "compatibility_scope=none") {
+				t.Errorf("expected error to mention compatibility_scope=none, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestSSRFRoutePolicyGuardrails_BlankHostSuffix_ScopedScope(t *testing.T) {
+	tests := []struct {
+		name     string
+		suffixes string
+	}{
+		{"empty string entry", `[""]`},
+		{"whitespace-only entry", `["   "]`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+			tomlContent := `mode = "strict"
+compatibility_scope = "scoped"
+
+[outbound_http.ssrf]
+route_policy = "myp"
+
+[outbound_http.ssrf.route_policies.myp]
+allow_private_host_suffixes = ` + tt.suffixes + `
+allow_private_cidrs = ["10.0.0.0/8"]
+allowed_ports = [8080]
+allow_ip_literals = false
+`
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected error for blank entry in allow_private_host_suffixes under compatibility_scope=scoped")
+			}
+			if !strings.Contains(err.Error(), "allow_private_host_suffixes") {
+				t.Errorf("expected error to mention allow_private_host_suffixes, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "compatibility_scope=scoped") {
+				t.Errorf("expected error to mention compatibility_scope=scoped, got: %v", err)
+			}
+		})
 	}
 }
 
