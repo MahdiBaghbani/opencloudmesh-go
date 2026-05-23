@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,7 +66,7 @@ type Client struct {
 func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 	if cfg == nil {
 		cfg = &config.OutboundHTTPConfig{
-			SSRFMode:           "strict",
+			SSRF:               config.SSRFConfig{Mode: "strict"},
 			TimeoutMS:          10000,
 			ConnectTimeoutMS:   2000,
 			MaxRedirects:       1,
@@ -79,12 +80,13 @@ func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 	// Build the trusted proxy host set and the request-aware proxy function.
 	// Precedence: explicit ProxyURL > env fallback > direct (nil proxy).
 	//
-	// trustedProxyHosts is used at dial time to skip the SSRF check for dials
-	// that go to an operator-trusted proxy host. All other dials - including
-	// direct connections when NO_PROXY routes around an env proxy - are checked.
-	// Destination SSRF is also enforced unconditionally by the preflight check
-	// in DoWithOptions and by the redirect check in followRedirect, so the dial
-	// check is defense-in-depth for the direct-dial case.
+	// trustedProxyHosts is used at dial time to skip the SSRF check only for
+	// dials that go to an operator-trusted proxy host. All other dials -
+	// including direct connections when NO_PROXY routes around an env proxy -
+	// are still checked. Destination SSRF is also enforced unconditionally by
+	// the preflight check in DoWithOptions and the redirect check in
+	// followRedirect; the dial check is defense-in-depth for the direct-dial
+	// case.
 	trustedHosts := map[string]struct{}{}
 	var proxyFunc func(*http.Request) (*url.URL, error)
 
@@ -134,7 +136,7 @@ func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 			// In strict mode: skip the SSRF check only when dialing a trusted
 			// proxy host (operator-controlled). All other dials - direct
 			// connections including those caused by NO_PROXY - are checked.
-			if cfg.SSRFMode == "strict" {
+			if c.isStrictMode() {
 				host, _, _ := net.SplitHostPort(addr)
 				if host == "" {
 					host = addr
@@ -182,85 +184,200 @@ func (c *Client) getResolver() Resolver {
 	return net.DefaultResolver
 }
 
-// checkSSRF validates that the address is not a private/loopback address.
-// The addr is in host:port format from the dialer.
-func (c *Client) checkSSRF(ctx context.Context, addr string) error {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		// No port, use the whole thing as host
-		host = addr
+// isStrictMode reports whether SSRF enforcement is active.
+// cfg.SSRF.Mode is the authoritative source. When it is empty, the legacy
+// shim cfg.SSRFMode is consulted as a fallback for programmatic callers that
+// set only the top-level field during the SSRF.Mode transition period.
+func (c *Client) isStrictMode() bool {
+	if c.cfg.SSRF.Mode != "" {
+		return c.cfg.SSRF.Mode == "strict"
 	}
-
-	return c.checkSSRFHost(ctx, host)
+	return c.cfg.SSRFMode == "strict"
 }
 
-// checkSSRFHost validates that the host is not a private/loopback address.
-// Handles IPv6 bracket notation (e.g., "[::1]").
-// Uses context-aware DNS resolution so cancellation is respected.
-func (c *Client) checkSSRFHost(ctx context.Context, host string) error {
-	// Strip IPv6 brackets if present
+// activeRoutePolicy returns the named active route policy, or nil if none is
+// configured. Returns nil when RoutePolicy is empty or the name is not found.
+func (c *Client) activeRoutePolicy() *config.SSRFRoutePolicyConfig {
+	name := c.cfg.SSRF.RoutePolicy
+	if name == "" || c.cfg.SSRF.RoutePolicies == nil {
+		return nil
+	}
+	p, ok := c.cfg.SSRF.RoutePolicies[name]
+	if !ok {
+		return nil
+	}
+	return &p
+}
+
+// checkSSRFURL runs a preflight SSRF check for a URL target.
+// Derives the effective port from scheme defaults when the URL omits a port.
+// Fails closed when the effective port cannot be derived (unknown scheme).
+func (c *Client) checkSSRFURL(ctx context.Context, u *url.URL) error {
+	port := effectivePort(u)
+	if port == "" {
+		return fmt.Errorf("%w: cannot derive effective port for scheme %q", ErrSSRFBlocked, u.Scheme)
+	}
+	return c.checkSSRFHostPort(ctx, u.Hostname(), port)
+}
+
+// checkSSRF validates that the address is not a blocked destination.
+// The addr is in host:port format from the dialer.
+func (c *Client) checkSSRF(ctx context.Context, addr string) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+		port = ""
+	}
+	return c.checkSSRFHostPort(ctx, host, port)
+}
+
+// checkSSRFHostPort is the core SSRF enforcement function.
+//
+// Public destinations pass unconditionally. Private destinations require an
+// active route policy where all three checks pass together: hostname suffix,
+// resolved IP/CIDR, and destination port (all-records semantics: fail closed
+// if any resolved address fails policy).
+func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error {
+	// Strip IPv6 brackets if present.
 	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
 		host = host[1 : len(host)-1]
 	}
 
-	// Check for localhost names
 	lowerHost := strings.ToLower(host)
 	if lowerHost == "localhost" || lowerHost == "localhost.localdomain" {
 		return fmt.Errorf("%w: localhost is blocked", ErrSSRFBlocked)
 	}
 
-	// Try to parse as IP first (avoids DNS lookup for IP literals)
+	policy := c.activeRoutePolicy()
+
+	// IP literal: check allow_ip_literals then CIDR and port rules.
 	if ip := net.ParseIP(host); ip != nil {
-		if !c.isAllowedIP(ip) {
-			return fmt.Errorf("%w: IP %s is blocked", ErrSSRFBlocked, ip)
-		}
-		return nil
+		return c.checkIPWithPolicy(ip, port, policy)
 	}
 
-	// Resolve the hostname to IP addresses using context-aware resolver
+	// Hostname: resolve all A and AAAA records (all-records semantics).
+	// Fail closed if any private IP fails policy.
 	ipAddrs, err := c.getResolver().LookupIPAddr(ctx, host)
 	if err != nil {
-		// Cannot resolve - fail closed (block the request)
 		return fmt.Errorf("%w: %s: %v", ErrHostUnresolvable, host, err)
 	}
 
+	// Evaluate host suffix match once; it applies to every private IP result.
+	hostAllowed := hostMatchesSuffix(lowerHost, policy)
+
 	for _, ipAddr := range ipAddrs {
-		if !c.isAllowedIP(ipAddr.IP) {
-			return fmt.Errorf("%w: %s resolves to blocked IP %s", ErrSSRFBlocked, host, ipAddr.IP)
+		ip := ipAddr.IP
+		if c.isAllowedIP(ip) {
+			continue // public IP: always allowed
+		}
+		// Private IP: all three checks must pass together.
+		if policy == nil {
+			return fmt.Errorf("%w: %s resolves to private IP %s and no active route policy is configured",
+				ErrSSRFBlocked, host, ip)
+		}
+		if !hostAllowed {
+			return fmt.Errorf("%w: %s resolves to private IP %s and host suffix is not in allowed list",
+				ErrSSRFBlocked, host, ip)
+		}
+		if !ipMatchesCIDRs(ip, policy) {
+			return fmt.Errorf("%w: %s resolves to IP %s not in allowed private CIDRs",
+				ErrSSRFBlocked, host, ip)
+		}
+		if !portAllowed(port, policy) {
+			return fmt.Errorf("%w: destination port %s is not in allowed ports",
+				ErrSSRFBlocked, port)
 		}
 	}
 
 	return nil
 }
 
-// isAllowedIP checks if an IP address is allowed (not private/loopback/link-local).
+// checkIPWithPolicy validates a private IP literal against the active route policy.
+// Public IPs are always allowed. Private IPs require allow_ip_literals=true
+// plus matching CIDR and port rules.
+func (c *Client) checkIPWithPolicy(ip net.IP, port string, policy *config.SSRFRoutePolicyConfig) error {
+	if c.isAllowedIP(ip) {
+		return nil
+	}
+	if policy == nil || !policy.AllowIPLiterals {
+		return fmt.Errorf("%w: IP %s is blocked (allow_ip_literals=false)", ErrSSRFBlocked, ip)
+	}
+	if !ipMatchesCIDRs(ip, policy) {
+		return fmt.Errorf("%w: IP %s not in allowed private CIDRs", ErrSSRFBlocked, ip)
+	}
+	if !portAllowed(port, policy) {
+		return fmt.Errorf("%w: destination port %s is not in allowed ports", ErrSSRFBlocked, port)
+	}
+	return nil
+}
+
+// isAllowedIP reports whether the IP is a public address.
+// Returns false for loopback, private, link-local, unspecified, and multicast.
 func (c *Client) isAllowedIP(ip net.IP) bool {
-	// Block loopback
-	if ip.IsLoopback() {
+	return !ip.IsLoopback() &&
+		!ip.IsPrivate() &&
+		!ip.IsLinkLocalUnicast() &&
+		!ip.IsLinkLocalMulticast() &&
+		!ip.IsUnspecified() &&
+		!ip.IsMulticast()
+}
+
+// hostMatchesSuffix reports whether host matches any allowed private host suffix
+// in the route policy. Empty entries are skipped. A single leading dot in a
+// suffix entry (e.g. ".internal") is stripped before comparison so that
+// operators using the common "dot-TLD" notation get the expected behavior.
+func hostMatchesSuffix(host string, policy *config.SSRFRoutePolicyConfig) bool {
+	if policy == nil {
 		return false
 	}
+	for _, suffix := range policy.AllowPrivateHostSuffixes {
+		sfx := strings.ToLower(strings.TrimSpace(suffix))
+		sfx = strings.TrimPrefix(sfx, ".") // normalize exactly one leading dot
+		if sfx == "" {
+			continue
+		}
+		if host == sfx || strings.HasSuffix(host, "."+sfx) {
+			return true
+		}
+	}
+	return false
+}
 
-	// Block private ranges
-	if ip.IsPrivate() {
+// ipMatchesCIDRs reports whether ip falls within any allowed private CIDR in
+// the route policy. Malformed CIDR entries are silently skipped.
+func ipMatchesCIDRs(ip net.IP, policy *config.SSRFRoutePolicyConfig) bool {
+	if policy == nil {
 		return false
 	}
+	for _, cidr := range policy.AllowPrivateCIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
 
-	// Block link-local
-	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+// portAllowed reports whether the destination port is explicitly permitted by
+// the route policy. Private-route evaluation fails closed when the policy is
+// nil, the AllowedPorts list is empty, or the port string cannot be parsed.
+func portAllowed(port string, policy *config.SSRFRoutePolicyConfig) bool {
+	if policy == nil || len(policy.AllowedPorts) == 0 {
 		return false
 	}
-
-	// Block unspecified (0.0.0.0, ::)
-	if ip.IsUnspecified() {
+	n, err := strconv.Atoi(port)
+	if err != nil {
 		return false
 	}
-
-	// Block multicast
-	if ip.IsMulticast() {
-		return false
+	for _, p := range policy.AllowedPorts {
+		if p == n {
+			return true
+		}
 	}
-
-	return true
+	return false
 }
 
 // Get performs a GET request with safety protections.
@@ -289,14 +406,13 @@ func (c *Client) DoSigned(req *http.Request) (*http.Response, error) {
 func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Response, error) {
 	ctx := req.Context()
 
-	// Pre-flight SSRF check using Hostname() (not Host which includes port)
-	if c.cfg.SSRFMode == "strict" {
-		if err := c.checkSSRFHost(ctx, req.URL.Hostname()); err != nil {
+	// Pre-flight SSRF check on the full URL (hostname + effective port).
+	if c.isStrictMode() {
+		if err := c.checkSSRFURL(ctx, req.URL); err != nil {
 			return nil, err
 		}
 	}
 
-	// Detect signed request via RFC 9421 headers (centralized enforcement)
 	isSigned := opts.IsSigned || hasSignatureHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
@@ -304,15 +420,11 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 		return nil, err
 	}
 
-	// Handle redirects based on signing status
 	if isRedirect(resp.StatusCode) {
 		if isSigned {
-			// Signed requests must not follow redirects
 			resp.Body.Close()
 			return nil, fmt.Errorf("%w: received %d", ErrSignedNoRedirect, resp.StatusCode)
 		}
-
-		// Unsigned: follow redirect under strict constraints
 		return c.followRedirect(req, resp, 0)
 	}
 
@@ -329,7 +441,6 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	defer resp.Body.Close()
 	ctx := origReq.Context()
 
-	// Check redirect limit (default 1 for unsigned)
 	maxRedirects := c.cfg.MaxRedirects
 	if maxRedirects <= 0 {
 		maxRedirects = 1
@@ -338,54 +449,48 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 		return nil, fmt.Errorf("%w: exceeded limit of %d", ErrTooManyRedirects, maxRedirects)
 	}
 
-	// Get redirect location
 	location := resp.Header.Get("Location")
 	if location == "" {
 		return nil, fmt.Errorf("%w: no Location header", ErrRedirectBlocked)
 	}
 
-	// Parse redirect URL
 	redirectURL, err := url.Parse(location)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid Location: %v", ErrRedirectBlocked, err)
 	}
 
-	// Resolve relative URLs
 	redirectURL = origReq.URL.ResolveReference(redirectURL)
 
-	// Constraint: https -> https only (no downgrade); http -> https is allowed
+	// No HTTPS -> HTTP downgrade; http -> https is allowed.
 	if origReq.URL.Scheme == "https" && redirectURL.Scheme != "https" {
 		return nil, fmt.Errorf("%w: %s -> %s", ErrRedirectDowngrade, origReq.URL.Scheme, redirectURL.Scheme)
 	}
 
-	// Constraint: same host only (hostname + effective port must match)
+	// Same-host constraint: hostname + effective port must match.
 	if !isSameHost(origReq.URL, redirectURL) {
 		return nil, fmt.Errorf("%w: %s -> %s", ErrRedirectNotSameHost, origReq.URL.Host, redirectURL.Host)
 	}
 
-	// SSRF check on redirect target using Hostname() (not Host)
-	if c.cfg.SSRFMode == "strict" {
-		if err := c.checkSSRFHost(ctx, redirectURL.Hostname()); err != nil {
+	// SSRF revalidation on redirect target (defense-in-depth; same-host is
+	// already enforced above). Catches DNS rebinding and enforces route policy.
+	if c.isStrictMode() {
+		if err := c.checkSSRFURL(ctx, redirectURL); err != nil {
 			return nil, err
 		}
 	}
 
-	// Create new request for redirect
 	newReq, err := http.NewRequestWithContext(ctx, origReq.Method, redirectURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRedirectBlocked, err)
 	}
 
-	// Copy safe headers (not auth headers for security)
 	copyRedirectHeaders(origReq, newReq)
 
-	// Execute redirect request
 	newResp, err := c.httpClient.Do(newReq)
 	if err != nil {
 		return nil, err
 	}
 
-	// If another redirect, recurse (with depth check)
 	if isRedirect(newResp.StatusCode) {
 		return c.followRedirect(newReq, newResp, depth+1)
 	}
@@ -398,32 +503,28 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 // Effective port: missing port = scheme default (http=80, https=443).
 // Explicit default port is equivalent to missing (https://example.com:443 == https://example.com).
 func isSameHost(a, b *url.URL) bool {
-	// Hostname comparison (case-insensitive)
 	if !strings.EqualFold(a.Hostname(), b.Hostname()) {
 		return false
 	}
-
-	// Effective port comparison
-	portA := effectivePort(a)
-	portB := effectivePort(b)
-	return portA == portB
+	return effectivePort(a) == effectivePort(b)
 }
 
 // effectivePort returns the effective port for a URL.
 // Missing port = scheme default. Explicit default port = same as missing.
+// Returns "" for unknown schemes.
 func effectivePort(u *url.URL) string {
 	port := u.Port()
 	if port == "" {
 		return defaultPort(u.Scheme)
 	}
-	// Normalize explicit default ports to empty (treated as default)
+	// Normalize explicit default port to the canonical form.
 	if port == defaultPort(u.Scheme) {
 		return defaultPort(u.Scheme)
 	}
 	return port
 }
 
-// defaultPort returns the default port for a scheme.
+// defaultPort returns the well-known default port for a scheme.
 func defaultPort(scheme string) string {
 	switch strings.ToLower(scheme) {
 	case "http":
@@ -435,9 +536,9 @@ func defaultPort(scheme string) string {
 	}
 }
 
-// copyRedirectHeaders copies safe headers for redirects.
+// copyRedirectHeaders copies safe headers to the redirect request.
+// Authorization and signature headers are intentionally omitted.
 func copyRedirectHeaders(src, dst *http.Request) {
-	// Copy User-Agent and Accept headers, but not Authorization
 	if ua := src.Header.Get("User-Agent"); ua != "" {
 		dst.Header.Set("User-Agent", ua)
 	}
@@ -463,7 +564,6 @@ func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Resp
 	}
 	defer resp.Body.Close()
 
-	// Read with size limit
 	limitedReader := io.LimitReader(resp.Body, c.cfg.MaxResponseBytes+1)
 	body, err := io.ReadAll(limitedReader)
 	if err != nil {
