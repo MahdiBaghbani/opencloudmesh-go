@@ -12,6 +12,20 @@ and operator-managed validation.
   the strict signature, transport, token-exchange, and trust settings
   that keep the runtime inside the current WebDAV-centered strict
   target.
+- The transport axis uses a nested SSRF subsystem. The strict preset is
+  deny-by-default there: `ssrf.mode=strict`, no active route policy, and
+  no private-route exceptions unless an operator-declared transport
+  allowlist is configured.
+- Private-route exceptions stay narrow. They require an active route
+  policy, and transport allowlisting stays separate from peer
+  compatibility.
+- A strict route policy does not by itself demote the runtime to dev
+  posture. Under `compatibility_scope=none`, strict SSRF plus a named
+  route policy can still resolve to the strict tier. Under broader
+  compatibility scope, the non-strict result comes from the compatibility
+  axis, not from the route policy itself.
+- `ssrf.mode=off` is a real transport relaxation. It is outside the
+  strict posture and remains distinct from peer-compatibility settings.
 - In that lane, outbound signing stays strict across endpoint kinds.
   Token exchange does not get a special outbound-signing exception when
   `compatibility_scope=none` is in effect.
