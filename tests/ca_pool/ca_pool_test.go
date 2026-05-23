@@ -2,7 +2,8 @@
 //
 // Verifies that a client with tls_root_ca_file connects to an HTTPS server
 // signed by that CA without InsecureSkipVerify. Run:
-//   go test -v ./tests/ca_pool/...
+//
+//	go test -v ./tests/ca_pool/...
 package ca_pool
 
 import (
@@ -117,6 +118,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	cfg := &config.OutboundHTTPConfig{
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		SSRFMode:           "off",
 		TimeoutMS:          5000,
 		InsecureSkipVerify: false,

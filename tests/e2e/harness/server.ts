@@ -109,15 +109,25 @@ export function buildBinary(): string {
 
 /**
  * Generates TOML config for a test server.
- * The mode preset (dev/compat/strict) drives SSRF defaults via config.Load().
  * The legacy alias "interop" still maps to the compat preset.
  * Strict mode enables full HTTP request signatures with auto-generated keys.
+ * Strict mode also requires compatibility_scope = "unbounded" to allow
+ * outbound_http.ssrf.mode = "off"; the strict preset defaults to "none" which
+ * would otherwise reject it.
  */
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
-  let config = `mode = "${mode}"
-listen_addr = ":${port}"
-public_origin = "https://localhost:${port}"
-external_base_path = ""
+  // Root-level keys must all appear here, before any [table] header.
+  // compatibility_scope is a root key required by strict mode; placing it
+  // inside [outbound_http.ssrf] would make TOML parse it as a nested key.
+  const rootKeys = [
+    `mode = "${mode}"`,
+    `listen_addr = ":${port}"`,
+    `public_origin = "https://localhost:${port}"`,
+    `external_base_path = ""`,
+    ...(mode === 'strict' ? [`compatibility_scope = "unbounded"`] : []),
+  ].join('\n');
+
+  let config = `${rootKeys}
 
 [tls]
 mode = "static"
@@ -138,7 +148,9 @@ max_redirects = 1
 max_response_bytes = 1048576
 insecure_skip_verify = false
 tls_root_ca_file = "${CA_CERT}"
-ssrf_mode = "off"
+
+[outbound_http.ssrf]
+mode = "off"
 
 [signature]
 ${mode === 'strict' ? `inbound_mode = "strict"
