@@ -110,7 +110,8 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 
 	// Create HTTP client for outbound requests (SSRF off for tests to allow localhost)
 	rawHTTPClient := httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:           "off", // Allow localhost connections in tests
+		SSRF:               config.SSRFConfig{Mode: "off"}, // Allow localhost connections in tests
+		SSRFMode:           "off",
 		TimeoutMS:          5000,
 		ConnectTimeoutMS:   2000,
 		MaxRedirects:       1,

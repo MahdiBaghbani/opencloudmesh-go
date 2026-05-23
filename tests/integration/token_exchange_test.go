@@ -46,7 +46,8 @@ func TestTokenExchangeFlow(t *testing.T) {
 		Mode:                  "compat",
 		KeepSignatureDefaults: true,
 		ExtraConfig: `
-ssrf_mode = "off"
+[outbound_http.ssrf]
+mode = "off"
 `,
 	})
 	defer sender.Stop(t)
@@ -609,7 +610,8 @@ func TestInteropModeCanonicalPolicy(t *testing.T) {
 		Mode:                  "interop",
 		KeepSignatureDefaults: true,
 		ExtraConfig: `
-ssrf_mode = "off"
+[outbound_http.ssrf]
+mode = "off"
 `,
 	})
 	defer srv.Stop(t)
