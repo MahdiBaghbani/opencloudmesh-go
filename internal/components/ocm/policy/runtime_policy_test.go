@@ -183,7 +183,7 @@ func TestRuntimePolicyEvaluate_DevPresetCanResolveStrictPosture(t *testing.T) {
 	cfg.Signature.OnDiscoveryError = "reject"
 	cfg.Signature.AllowMismatch = false
 	cfg.TLS.Mode = "selfsigned"
-	cfg.OutboundHTTP.SSRFMode = "strict"
+	cfg.OutboundHTTP.SSRF.Mode = "strict"
 	cfg.OutboundHTTP.InsecureSkipVerify = false
 
 	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
@@ -358,6 +358,86 @@ func TestRuntimePolicyEvaluate_DetectsGrantTypeRelaxation(t *testing.T) {
 	}
 }
 
+// TestRuntimePolicyEvaluate_StrictRoutePolicyUnderNoneIsStrict confirms that
+// strict SSRF mode with a named route policy and compatibility_scope=none does
+// not get mislabeled as dev posture and remains in the strict tier.
+func TestRuntimePolicyEvaluate_StrictRoutePolicyUnderNoneIsStrict(t *testing.T) {
+	cfg := config.StrictConfig()
+	cfg.PeerTrust.Enabled = true
+	cfg.PeerTrust.Policy.GlobalEnforce = true
+	cfg.Signature.PeerProfileLevelOverride = "off"
+	cfg.OutboundHTTP.SSRF.RoutePolicy = "private"
+	cfg.OutboundHTTP.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"private": {AllowPrivateHostSuffixes: []string{".internal"}},
+	}
+
+	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
+
+	if eval.DerivedTier != policy.RuntimeTierStrict {
+		t.Fatalf(
+			"strict route policy under none mislabeled: got %q (reasons=%v)",
+			eval.DerivedTier, eval.Strict.ViolationReasons,
+		)
+	}
+	if !eval.Strict.IsStrict {
+		t.Fatalf("expected strict assessment, got reasons=%v", eval.Strict.ViolationReasons)
+	}
+	if eval.Transport.SSRFRoutePolicy != "private" {
+		t.Fatalf("expected SSRFRoutePolicy=private, got %q", eval.Transport.SSRFRoutePolicy)
+	}
+}
+
+// TestRuntimePolicyEvaluate_StrictRoutePolicyUnderScopedIsCompatNotDev confirms
+// that strict SSRF mode with a route policy under compatibility_scope=scoped
+// resolves to compat (not dev) even though it cannot be fully strict.
+func TestRuntimePolicyEvaluate_StrictRoutePolicyUnderScopedIsCompatNotDev(t *testing.T) {
+	cfg := config.StrictConfig()
+	cfg.CompatibilityScope = "scoped"
+	cfg.OutboundHTTP.SSRF.RoutePolicy = "private"
+	cfg.OutboundHTTP.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"private": {AllowPrivateHostSuffixes: []string{".internal"}},
+	}
+
+	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
+
+	if eval.DerivedTier != policy.RuntimeTierCompat {
+		t.Fatalf(
+			"strict route policy under scoped should be compat, got %q (reasons=%v)",
+			eval.DerivedTier, eval.Strict.ViolationReasons,
+		)
+	}
+	if eval.Strict.IsStrict {
+		t.Fatalf("expected non-strict due to scoped compatibility_scope")
+	}
+	if !hasReason(eval.Strict.ViolationReasons, "compatibility_scope_not_none") {
+		t.Fatalf("expected compatibility_scope_not_none reason, got %v", eval.Strict.ViolationReasons)
+	}
+	if hasReason(eval.Strict.ViolationReasons, "outbound_http_ssrf_mode_not_strict") {
+		t.Fatalf("strict SSRF mode with route policy should not add ssrf-not-strict reason")
+	}
+	if eval.Transport.SSRFRoutePolicy != "private" {
+		t.Fatalf("expected SSRFRoutePolicy=private, got %q", eval.Transport.SSRFRoutePolicy)
+	}
+}
+
+// TestRuntimePolicyEvaluate_SSRFOffUnderUnboundedIsDev confirms that
+// outbound_http.ssrf.mode=off under unbounded scope demotes posture to dev tier.
+func TestRuntimePolicyEvaluate_SSRFOffUnderUnboundedIsDev(t *testing.T) {
+	cfg := config.DevConfig()
+
+	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
+
+	if eval.DerivedTier != policy.RuntimeTierDev {
+		t.Fatalf("SSRF off under unbounded should be dev tier, got %q", eval.DerivedTier)
+	}
+	if !hasReason(eval.Strict.ViolationReasons, "outbound_http_ssrf_mode_not_strict") {
+		t.Fatalf("expected outbound_http_ssrf_mode_not_strict reason, got %v", eval.Strict.ViolationReasons)
+	}
+	if eval.CompatibilityScope != "unbounded" {
+		t.Fatalf("expected unbounded scope, got %q", eval.CompatibilityScope)
+	}
+}
+
 func hasReason(reasons []string, want string) bool {
 	for _, reason := range reasons {
 		if reason == want {
@@ -365,4 +445,20 @@ func hasReason(reasons []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// TestRuntimePolicyEvaluate_LegacySSRFModeFallback verifies that when
+// OutboundHTTP.SSRF.Mode is empty but the legacy SSRFMode shim is set,
+// the posture derives SSRFMode from the shim so programmatic configs are
+// classified consistently during the migration period.
+func TestRuntimePolicyEvaluate_LegacySSRFModeFallback(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.OutboundHTTP.SSRF.Mode = ""      // nested mode empty
+	cfg.OutboundHTTP.SSRFMode = "strict" // legacy shim only
+
+	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
+
+	if eval.Transport.SSRFMode != "strict" {
+		t.Fatalf("expected SSRFMode=strict via legacy fallback, got %q", eval.Transport.SSRFMode)
+	}
 }
