@@ -77,8 +77,6 @@ type FlagOverrides struct {
 type ssrfFileConfig struct {
 	Mode          string                           `toml:"mode"`
 	RoutePolicy   string                           `toml:"route_policy"`
-	RedirectMode  string                           `toml:"redirect_mode"`
-	DNSResolution string                           `toml:"dns_resolution"`
 	RoutePolicies map[string]SSRFRoutePolicyConfig `toml:"route_policies"`
 }
 
@@ -239,6 +237,12 @@ func Load(opts LoaderOptions) (*Config, error) {
 				}
 				if keyStr == "outbound_http.ssrf_mode" {
 					return nil, fmt.Errorf("config key 'outbound_http.ssrf_mode' has been replaced by nested keys under '[outbound_http.ssrf]'; please update your configuration")
+				}
+				if keyStr == "outbound_http.ssrf.redirect_mode" {
+					return nil, fmt.Errorf("config key 'outbound_http.ssrf.redirect_mode' was removed; redirect behavior is fixed as same-host and is not configurable")
+				}
+				if keyStr == "outbound_http.ssrf.dns_resolution" {
+					return nil, fmt.Errorf("config key 'outbound_http.ssrf.dns_resolution' was removed; DNS resolution behavior is fixed as all-records and is not configurable")
 				}
 				keys = append(keys, keyStr)
 			}
@@ -543,12 +547,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			if fc.OutboundHTTP.SSRF.RoutePolicy != "" {
 				cfg.OutboundHTTP.SSRF.RoutePolicy = fc.OutboundHTTP.SSRF.RoutePolicy
 			}
-			if fc.OutboundHTTP.SSRF.RedirectMode != "" {
-				cfg.OutboundHTTP.SSRF.RedirectMode = fc.OutboundHTTP.SSRF.RedirectMode
-			}
-			if fc.OutboundHTTP.SSRF.DNSResolution != "" {
-				cfg.OutboundHTTP.SSRF.DNSResolution = fc.OutboundHTTP.SSRF.DNSResolution
-			}
 			if len(fc.OutboundHTTP.SSRF.RoutePolicies) > 0 {
 				cfg.OutboundHTTP.SSRF.RoutePolicies = fc.OutboundHTTP.SSRF.RoutePolicies
 			}
@@ -768,26 +766,6 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid outbound_http.ssrf.mode %q: must be one of strict, off", cfg.OutboundHTTP.SSRF.Mode)
-	}
-
-	// outbound_http.ssrf.redirect_mode (optional; only "same-host" in v1)
-	if cfg.OutboundHTTP.SSRF.RedirectMode != "" {
-		switch cfg.OutboundHTTP.SSRF.RedirectMode {
-		case "same-host":
-			// valid
-		default:
-			return fmt.Errorf("invalid outbound_http.ssrf.redirect_mode %q: must be same-host", cfg.OutboundHTTP.SSRF.RedirectMode)
-		}
-	}
-
-	// outbound_http.ssrf.dns_resolution (optional; only "all-records" in v1)
-	if cfg.OutboundHTTP.SSRF.DNSResolution != "" {
-		switch cfg.OutboundHTTP.SSRF.DNSResolution {
-		case "all-records":
-			// valid
-		default:
-			return fmt.Errorf("invalid outbound_http.ssrf.dns_resolution %q: must be all-records", cfg.OutboundHTTP.SSRF.DNSResolution)
-		}
 	}
 
 	// outbound_http.ssrf.route_policy must reference a defined policy

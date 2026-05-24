@@ -469,8 +469,6 @@ mode = "interop"
 
 [outbound_http.ssrf]
 mode = "strict"
-redirect_mode = "same-host"
-dns_resolution = "all-records"
 
 [outbound_http.ssrf.route_policies.internal]
 allow_private_host_suffixes = ["svc.cluster.local"]
@@ -489,12 +487,6 @@ allow_ip_literals = false
 
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected ssrf.mode strict, got %q", cfg.OutboundHTTP.SSRF.Mode)
-	}
-	if cfg.OutboundHTTP.SSRF.RedirectMode != "same-host" {
-		t.Errorf("expected ssrf.redirect_mode same-host, got %q", cfg.OutboundHTTP.SSRF.RedirectMode)
-	}
-	if cfg.OutboundHTTP.SSRF.DNSResolution != "all-records" {
-		t.Errorf("expected ssrf.dns_resolution all-records, got %q", cfg.OutboundHTTP.SSRF.DNSResolution)
 	}
 	policy, ok := cfg.OutboundHTTP.SSRF.RoutePolicies["internal"]
 	if !ok {
@@ -530,47 +522,77 @@ route_policy = "nonexistent"
 	}
 }
 
-func TestLoad_SSRF_InvalidRedirectMode_Fails(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
+func TestLoad_SSRF_RemovedRedirectMode_FailsClearly(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{"formerly valid value", "same-host"},
+		{"invalid value", "follow-all"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
+			tomlContent := `
 [outbound_http.ssrf]
 mode = "strict"
-redirect_mode = "follow-all"
+redirect_mode = "` + tt.value + `"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for invalid redirect_mode")
-	}
-	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf.redirect_mode") {
-		t.Errorf("expected redirect_mode error, got: %v", err)
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected error: outbound_http.ssrf.redirect_mode was removed")
+			}
+			if !strings.Contains(err.Error(), "outbound_http.ssrf.redirect_mode") ||
+				!strings.Contains(err.Error(), "removed") {
+				t.Errorf("expected removed-key error, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "same-host") {
+				t.Errorf("expected error to mention fixed same-host behavior, got: %v", err)
+			}
+		})
 	}
 }
 
-func TestLoad_SSRF_InvalidDNSResolution_Fails(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
+func TestLoad_SSRF_RemovedDNSResolution_FailsClearly(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{"formerly valid value", "all-records"},
+		{"invalid value", "first-record"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
+			tomlContent := `
 [outbound_http.ssrf]
 mode = "strict"
-dns_resolution = "first-record"
+dns_resolution = "` + tt.value + `"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for invalid dns_resolution")
-	}
-	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf.dns_resolution") {
-		t.Errorf("expected dns_resolution error, got: %v", err)
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected error: outbound_http.ssrf.dns_resolution was removed")
+			}
+			if !strings.Contains(err.Error(), "outbound_http.ssrf.dns_resolution") ||
+				!strings.Contains(err.Error(), "removed") {
+				t.Errorf("expected removed-key error, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "all-records") {
+				t.Errorf("expected error to mention fixed all-records behavior, got: %v", err)
+			}
+		})
 	}
 }
 

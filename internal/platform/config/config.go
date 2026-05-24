@@ -325,14 +325,6 @@ type SSRFConfig struct {
 	// When set the named policy must exist in RoutePolicies.
 	RoutePolicy string `toml:"route_policy"`
 
-	// RedirectMode controls how redirects are handled.
-	// Allowed value in v1: "same-host".
-	RedirectMode string `toml:"redirect_mode"`
-
-	// DNSResolution controls DNS resolution behavior.
-	// Allowed value in v1: "all-records".
-	DNSResolution string `toml:"dns_resolution"`
-
 	// RoutePolicies maps policy names to their definitions.
 	RoutePolicies map[string]SSRFRoutePolicyConfig `toml:"route_policies"`
 }
@@ -451,12 +443,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("      Mode: %q,\n", c.OutboundHTTP.SSRF.Mode))
 	if c.OutboundHTTP.SSRF.RoutePolicy != "" {
 		sb.WriteString(fmt.Sprintf("      RoutePolicy: %q,\n", c.OutboundHTTP.SSRF.RoutePolicy))
-	}
-	if c.OutboundHTTP.SSRF.RedirectMode != "" {
-		sb.WriteString(fmt.Sprintf("      RedirectMode: %q,\n", c.OutboundHTTP.SSRF.RedirectMode))
-	}
-	if c.OutboundHTTP.SSRF.DNSResolution != "" {
-		sb.WriteString(fmt.Sprintf("      DNSResolution: %q,\n", c.OutboundHTTP.SSRF.DNSResolution))
 	}
 	sb.WriteString(fmt.Sprintf("      RoutePoliciesCount: %d,\n", len(c.OutboundHTTP.SSRF.RoutePolicies)))
 	sb.WriteString("    },\n")
