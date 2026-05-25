@@ -160,8 +160,8 @@ advertise_http_request_signatures = true
 
 	outputText := string(output)
 	if !strings.Contains(outputText, "signature.advertise_http_request_signatures") ||
-		!strings.Contains(outputText, "was removed") {
-		t.Fatalf("expected removed-root-key error in output, got: %s", outputText)
+		!strings.Contains(outputText, "unsupported keys") {
+		t.Fatalf("expected unsupported-key error in output, got: %s", outputText)
 	}
 }
 

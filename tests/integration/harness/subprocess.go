@@ -30,12 +30,14 @@ type SubprocessServer struct {
 
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
-	Name                  string
-	Mode                  string // dev, compat, strict; legacy alias interop also works
-	CompatibilityScope    string
-	KeepSignatureDefaults bool              // when true, skip the [signature] override block so mode presets apply
-	ExtraConfig           string            // Additional TOML config to append
-	ExtraFiles            map[string]string // Extra files to write to tempDir: {relativePath: contents}
+	Name                    string
+	Mode                    string 				// dev, compat, strict; legacy alias interop also works
+	CompatibilityScope      string
+	KeepSignatureDefaults   bool              	// when true, skip the [signature] override block so mode presets apply
+	SSRFMode                string            	// when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
+	DisableProxyEnvFallback bool              	// when true, emits proxy_env_fallback = false in [outbound_http]
+	ExtraConfig             string            	// Additional TOML config to append
+	ExtraFiles              map[string]string 	// Extra files to write to tempDir: {relativePath: contents}
 }
 
 // BuildBinary builds the opencloudmesh-go binary for testing.
@@ -136,6 +138,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		cfg.Mode,
 		cfg.CompatibilityScope,
 		cfg.KeepSignatureDefaults,
+		cfg.DisableProxyEnvFallback,
 		cfg.ExtraConfig,
 	)
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -278,7 +281,7 @@ func needsSecureTransport(mode, compatibilityScope string) bool {
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, extra string) string {
+func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, disableProxyEnvFallback bool, extra string) string {
 	secure := needsSecureTransport(mode, compatibilityScope)
 
 	var publicOrigin string
@@ -337,6 +340,10 @@ max_redirects = 1
 max_response_bytes = 1048576
 insecure_skip_verify = true
 `
+	}
+
+	if disableProxyEnvFallback {
+		config += "proxy_env_fallback = false\n"
 	}
 
 	if !keepSigDefaults {

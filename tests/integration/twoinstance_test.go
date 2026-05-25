@@ -5,8 +5,10 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
@@ -122,7 +124,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 		Name:                  "ssrf-test",
 		Mode:                  "compat",
 		KeepSignatureDefaults: true,
-		// ExtraConfig is intentionally empty - compat mode already sets ssrf_mode=strict.
+		// ExtraConfig is intentionally empty - compat mode enables SSRF blocking by default.
 	})
 	defer srv.Stop(t)
 
@@ -170,6 +172,163 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 			t.Logf("SSRF blocked %s: %s", privateIP, discoverResp.Error)
 		})
 	}
+}
+
+// TestSSRFRoutePolicyAllowsExplicitCIDRDiscover proves the positive path: an
+// active SSRF route policy with explicit CIDR and port allowance permits a
+// private destination that strict mode would otherwise block. The source runs
+// in compat mode (SSRF strict by preset), the target in dev mode. The route
+// policy uses allow_ip_literals=true with 127.0.0.0/8 and the target's dynamic
+// port so that 127.0.0.1:<port> passes all three SSRF checks (ip_literals
+// allowed, IP in CIDR, port in allowed list). "localhost" is hard-blocked by
+// the SSRF engine regardless of policy, so 127.0.0.1 is used directly.
+// allow_ip_literals=true is permitted under compat's unbounded compatibility_scope.
+func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+
+	// Start the target first so its dynamic port is known before writing source config.
+	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                  "ssrf-cidr-target",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
+	})
+	defer target.Stop(t)
+
+	// Source: compat mode inherits SSRF strict by default (same baseline as
+	// TestSSRFBlockingWithIPLiterals). The route policy explicitly allows
+	// 127.0.0.0/8 and the target's port with IP literals enabled.
+	// proxy_env_fallback is disabled so ambient HTTP_PROXY/HTTPS_PROXY env vars
+	// cannot interfere with the loopback discovery request.
+	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                    "ssrf-cidr-source",
+		Mode:                    "compat",
+		KeepSignatureDefaults:   true,
+		DisableProxyEnvFallback: true,
+		ExtraConfig: fmt.Sprintf(`
+[outbound_http.ssrf]
+mode = "strict"
+route_policy = "loopback"
+
+[outbound_http.ssrf.route_policies.loopback]
+allow_private_cidrs = ["127.0.0.0/8"]
+allowed_ports = [%d]
+allow_ip_literals = true
+`, target.Port),
+	})
+	defer source.Stop(t)
+
+	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://127.0.0.1:%d", source.BaseURL, target.Port)
+	resp, err := noProxyLocalhostClient(30 * time.Second).Get(discoverURL)
+	if err != nil {
+		source.DumpLogs(t)
+		target.DumpLogs(t)
+		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		source.DumpLogs(t)
+		target.DumpLogs(t)
+		t.Fatalf("expected 200 OK from route-policy-allowed private destination, got %d", resp.StatusCode)
+	}
+
+	var discoverResp struct {
+		Success   bool `json:"success"`
+		Discovery *struct {
+			Enabled  bool   `json:"enabled"`
+			Provider string `json:"provider"`
+		} `json:"discovery"`
+		Error string `json:"error,omitempty"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&discoverResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !discoverResp.Success {
+		t.Errorf("expected success=true from route-policy-permitted destination, got error: %s", discoverResp.Error)
+	}
+	if discoverResp.Discovery == nil {
+		t.Fatal("expected discovery object in response")
+	}
+	if !discoverResp.Discovery.Enabled {
+		t.Error("expected discovery.enabled=true")
+	}
+	t.Logf("SSRF route policy allowed private destination 127.0.0.1:%d; provider=%s", target.Port, discoverResp.Discovery.Provider)
+}
+
+// noProxyLocalhostClient returns an HTTP client with the ambient proxy disabled.
+// Without this, HTTP_PROXY/HTTPS_PROXY env vars in the test environment could
+// intercept calls to 127.0.0.1 and break the hermetic proof.
+func noProxyLocalhostClient(timeout time.Duration) *http.Client {
+	var t *http.Transport
+	if base, ok := http.DefaultTransport.(*http.Transport); ok {
+		t = base.Clone()
+	} else {
+		t = &http.Transport{}
+	}
+	t.Proxy = nil
+	return &http.Client{Timeout: timeout, Transport: t}
+}
+
+// TestSSRFRoutePolicyBlocksWithoutAllowance is the control proof for
+// TestSSRFRoutePolicyAllowsExplicitCIDRDiscover. It verifies that the same
+// private-destination discover request is blocked (403) when no explicit
+// route policy allowance is present, so the positive test is not vacuously green.
+func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping subprocess test in short mode")
+	}
+
+	binaryPath := harness.BuildBinary(t)
+
+	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                  "ssrf-control-target",
+		Mode:                  "dev",
+		KeepSignatureDefaults: true,
+	})
+	defer target.Stop(t)
+
+	// Source: compat mode, no route policy override. 127.0.0.1 stays blocked by
+	// strict SSRF defaults. proxy_env_fallback disabled for a hermetic client call.
+	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:                    "ssrf-control-source",
+		Mode:                    "compat",
+		KeepSignatureDefaults:   true,
+		DisableProxyEnvFallback: true,
+	})
+	defer source.Stop(t)
+
+	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://127.0.0.1:%d", source.BaseURL, target.Port)
+	resp, err := noProxyLocalhostClient(30 * time.Second).Get(discoverURL)
+	if err != nil {
+		source.DumpLogs(t)
+		target.DumpLogs(t)
+		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		source.DumpLogs(t)
+		target.DumpLogs(t)
+		t.Fatalf("expected 403 Forbidden without route policy allowance, got %d", resp.StatusCode)
+	}
+
+	var discoverResp struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error,omitempty"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&discoverResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if discoverResp.Success {
+		t.Error("expected success=false without route policy allowance")
+	}
+	t.Logf("SSRF blocked 127.0.0.1:%d without route policy: %s", target.Port, discoverResp.Error)
 }
 
 // TestHealthEndpointSubprocess verifies health endpoint works via subprocess.

@@ -104,8 +104,8 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 		AllowMismatch:                 cfg.Signature.AllowMismatch,
 	}
 	// Mirror the client's own fallback: when the nested SSRF.Mode is empty,
-	// consult the legacy SSRFMode shim so programmatic configs that have not
-	// yet migrated to the nested field are classified consistently.
+	// consult the SSRFMode shim so programmatic configs that set the top-level
+	// field directly are classified consistently.
 	ssrfMode := cfg.OutboundHTTP.SSRF.Mode
 	if ssrfMode == "" {
 		ssrfMode = cfg.OutboundHTTP.SSRFMode

@@ -361,8 +361,7 @@ func TestConfig_Redacted(t *testing.T) {
 	}
 }
 
-func TestLoad_UndecodedKeys_WarnsButSucceeds(t *testing.T) {
-	// Create a TOML config with undecoded keys
+func TestLoad_UnknownKeys_Fail(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -382,15 +381,12 @@ random_key = "value"
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	// Load should succeed despite undecoded keys
-	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err != nil {
-		t.Fatalf("Load() should succeed with undecoded keys, got error: %v", err)
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("Load() should fail with unsupported keys")
 	}
-
-	// Verify the decoded mode was applied
-	if cfg.Mode != "dev" {
-		t.Errorf("expected mode dev, got %s", cfg.Mode)
+	if !strings.Contains(err.Error(), "unsupported keys") {
+		t.Errorf("expected unsupported-keys error, got: %v", err)
 	}
 }
 
@@ -415,7 +411,7 @@ mode = "letsencrypt"
 	}
 }
 
-func TestLoad_OldFlatSSRFKey_FailsClearly(t *testing.T) {
+func TestLoad_OldFlatSSRFKey_Fails(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -429,13 +425,10 @@ ssrf_mode = "strict"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for removed outbound_http.ssrf_mode key")
+		t.Fatal("expected error for unsupported outbound_http.ssrf_mode key")
 	}
 	if !strings.Contains(err.Error(), "outbound_http.ssrf_mode") {
 		t.Errorf("expected error mentioning outbound_http.ssrf_mode, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "[outbound_http.ssrf]") {
-		t.Errorf("expected error mentioning [outbound_http.ssrf], got: %v", err)
 	}
 }
 
@@ -469,8 +462,6 @@ mode = "interop"
 
 [outbound_http.ssrf]
 mode = "strict"
-redirect_mode = "same-host"
-dns_resolution = "all-records"
 
 [outbound_http.ssrf.route_policies.internal]
 allow_private_host_suffixes = ["svc.cluster.local"]
@@ -489,12 +480,6 @@ allow_ip_literals = false
 
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected ssrf.mode strict, got %q", cfg.OutboundHTTP.SSRF.Mode)
-	}
-	if cfg.OutboundHTTP.SSRF.RedirectMode != "same-host" {
-		t.Errorf("expected ssrf.redirect_mode same-host, got %q", cfg.OutboundHTTP.SSRF.RedirectMode)
-	}
-	if cfg.OutboundHTTP.SSRF.DNSResolution != "all-records" {
-		t.Errorf("expected ssrf.dns_resolution all-records, got %q", cfg.OutboundHTTP.SSRF.DNSResolution)
 	}
 	policy, ok := cfg.OutboundHTTP.SSRF.RoutePolicies["internal"]
 	if !ok {
@@ -530,47 +515,75 @@ route_policy = "nonexistent"
 	}
 }
 
-func TestLoad_SSRF_InvalidRedirectMode_Fails(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
+func TestLoad_SSRF_UnsupportedRedirectMode_Fails(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{"formerly valid value", "same-host"},
+		{"invalid value", "follow-all"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
+			tomlContent := `
 [outbound_http.ssrf]
 mode = "strict"
-redirect_mode = "follow-all"
+redirect_mode = "` + tt.value + `"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for invalid redirect_mode")
-	}
-	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf.redirect_mode") {
-		t.Errorf("expected redirect_mode error, got: %v", err)
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected error: outbound_http.ssrf.redirect_mode is unsupported")
+			}
+			if !strings.Contains(err.Error(), "unsupported keys") {
+				t.Errorf("expected generic unsupported-keys error, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "outbound_http.ssrf.redirect_mode") {
+				t.Errorf("expected error mentioning outbound_http.ssrf.redirect_mode, got: %v", err)
+			}
+		})
 	}
 }
 
-func TestLoad_SSRF_InvalidDNSResolution_Fails(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
+func TestLoad_SSRF_UnsupportedDNSResolution_Fails(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{"formerly valid value", "all-records"},
+		{"invalid value", "first-record"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
+			tomlContent := `
 [outbound_http.ssrf]
 mode = "strict"
-dns_resolution = "first-record"
+dns_resolution = "` + tt.value + `"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for invalid dns_resolution")
-	}
-	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf.dns_resolution") {
-		t.Errorf("expected dns_resolution error, got: %v", err)
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected error: outbound_http.ssrf.dns_resolution is unsupported")
+			}
+			if !strings.Contains(err.Error(), "unsupported keys") {
+				t.Errorf("expected generic unsupported-keys error, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), "outbound_http.ssrf.dns_resolution") {
+				t.Errorf("expected error mentioning outbound_http.ssrf.dns_resolution, got: %v", err)
+			}
+		})
 	}
 }
 
@@ -851,7 +864,7 @@ outbound_mode = "relaxed"
 	}
 }
 
-func TestLoad_RemovedAdvertiseHTTPSignaturesKey_FailsFast(t *testing.T) {
+func TestLoad_UnsupportedAdvertiseHTTPSignaturesKey_Fails(t *testing.T) {
 	tests := []struct {
 		name   string
 		config string
@@ -884,11 +897,10 @@ signature.advertise_http_request_signatures = true
 
 			_, err := Load(LoaderOptions{ConfigPath: configPath})
 			if err == nil {
-				t.Fatal("expected removed key error")
+				t.Fatal("expected error for unsupported key")
 			}
-			if !strings.Contains(err.Error(), "signature.advertise_http_request_signatures") ||
-				!strings.Contains(err.Error(), "removed") {
-				t.Errorf("expected removed-key migration error, got: %v", err)
+			if !strings.Contains(err.Error(), "advertise_http_request_signatures") {
+				t.Errorf("expected error mentioning advertise_http_request_signatures, got: %v", err)
 			}
 		})
 	}
@@ -1189,8 +1201,7 @@ enabled = false
 	}
 }
 
-func TestLoad_FederationTOMLStrictBreak(t *testing.T) {
-	// The old [federation] TOML section must be rejected with a clear migration message.
+func TestLoad_FederationTOMLUnsupported_Fails(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "config-fed-strict-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -1211,15 +1222,14 @@ config_paths = ["/some/path.json"]
 
 	_, err = Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for deprecated [federation] TOML section")
+		t.Fatal("expected error for unsupported [federation] TOML section")
 	}
-	if !strings.Contains(err.Error(), "has been renamed to '[peer_trust]'") {
-		t.Errorf("expected strict-break migration message, got: %v", err)
+	if !strings.Contains(err.Error(), "federation") {
+		t.Errorf("expected error mentioning federation, got: %v", err)
 	}
 }
 
-func TestLoad_FederationDottedKeyStrictBreak(t *testing.T) {
-	// Even individual federation.* keys (not a full table) must be rejected.
+func TestLoad_FederationDottedKeyUnsupported_Fails(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "config-fed-strict-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -1237,10 +1247,10 @@ federation.enabled = true
 
 	_, err = Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for deprecated federation.enabled dotted key")
+		t.Fatal("expected error for unsupported federation.enabled dotted key")
 	}
-	if !strings.Contains(err.Error(), "has been renamed to '[peer_trust]'") {
-		t.Errorf("expected strict-break migration message, got: %v", err)
+	if !strings.Contains(err.Error(), "federation") {
+		t.Errorf("expected error mentioning federation, got: %v", err)
 	}
 }
 
@@ -1579,13 +1589,13 @@ require_token_exchange = true
 	}
 }
 
-func TestLoad_WebDAVTokenExchangeSurface_RemovedFailsFast(t *testing.T) {
+func TestLoad_WebDAVTokenExchangeSurface_UnsupportedFails(t *testing.T) {
 	tests := []struct {
 		name   string
 		config string
 	}{
 		{
-			name: "removed table",
+			name: "unsupported table",
 			config: `
 mode = "strict"
 [webdav_token_exchange]
@@ -1593,7 +1603,7 @@ mode = "strict"
 `,
 		},
 		{
-			name: "removed dotted key",
+			name: "unsupported dotted key",
 			config: `
 mode = "strict"
 webdav_token_exchange.mode = "strict"
@@ -1611,10 +1621,10 @@ webdav_token_exchange.mode = "strict"
 
 			_, err := Load(LoaderOptions{ConfigPath: configPath})
 			if err == nil {
-				t.Fatal("expected removed webdav_token_exchange surface to fail")
+				t.Fatal("expected unsupported webdav_token_exchange surface to fail")
 			}
-			if !strings.Contains(err.Error(), "webdav_token_exchange") || !strings.Contains(err.Error(), "require_token_exchange") {
-				t.Fatalf("expected migration error to mention removed and replacement keys, got %v", err)
+			if !strings.Contains(err.Error(), "webdav_token_exchange") {
+				t.Fatalf("expected error to mention webdav_token_exchange, got %v", err)
 			}
 		})
 	}
@@ -1866,7 +1876,7 @@ public_origin = "https://example.com/app"
 	}
 }
 
-func TestLoad_ExternalOrigin_StrictBreak_FailsFast(t *testing.T) {
+func TestLoad_ExternalOrigin_UnsupportedFails(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -1880,10 +1890,10 @@ external_origin = "https://example.com"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for old external_origin key")
+		t.Fatal("expected error for unsupported external_origin key")
 	}
-	if !strings.Contains(err.Error(), "external_origin") || !strings.Contains(err.Error(), "public_origin") {
-		t.Errorf("expected error to mention both external_origin and public_origin, got: %v", err)
+	if !strings.Contains(err.Error(), "external_origin") {
+		t.Errorf("expected error to mention external_origin, got: %v", err)
 	}
 }
 
@@ -2035,7 +2045,7 @@ peer_policy = "unknown"
 	}
 }
 
-func TestLoad_NonStrictPeerOutboundPolicy_StrictBreak_FailsFast(t *testing.T) {
+func TestLoad_NonStrictPeerOutboundPolicy_UnsupportedFails(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -2049,14 +2059,14 @@ non_strict_peer_outbound_policy = "prefer-strict"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for deprecated non_strict_peer_outbound_policy key")
+		t.Fatal("expected error for unsupported non_strict_peer_outbound_policy key")
 	}
-	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy") || !strings.Contains(err.Error(), "peer_policy") {
-		t.Errorf("expected rename error, got: %v", err)
+	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy") {
+		t.Errorf("expected error mentioning non_strict_peer_outbound_policy, got: %v", err)
 	}
 }
 
-func TestLoad_LegacyPeerPolicy_StrictBreak_FailsFast(t *testing.T) {
+func TestLoad_LegacyPeerPolicy_UnsupportedFails(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -2070,10 +2080,10 @@ legacy_peer_policy = "prefer-strict"
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
-		t.Fatal("expected error for deprecated legacy_peer_policy key")
+		t.Fatal("expected error for unsupported legacy_peer_policy key")
 	}
-	if !strings.Contains(err.Error(), "legacy_peer_policy") || !strings.Contains(err.Error(), "peer_policy") {
-		t.Errorf("expected rename error, got: %v", err)
+	if !strings.Contains(err.Error(), "legacy_peer_policy") {
+		t.Errorf("expected error mentioning legacy_peer_policy, got: %v", err)
 	}
 }
 

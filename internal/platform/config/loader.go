@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -49,8 +50,7 @@ type LoaderOptions struct {
 	// FlagOverrides are CLI flag values that override config file values.
 	FlagOverrides FlagOverrides
 
-	// Logger is used for warning messages (e.g., undecoded keys).
-	// If nil, slog.Default() is used.
+	// Logger is reserved for future use.
 	Logger *slog.Logger
 }
 
@@ -77,8 +77,6 @@ type FlagOverrides struct {
 type ssrfFileConfig struct {
 	Mode          string                           `toml:"mode"`
 	RoutePolicy   string                           `toml:"route_policy"`
-	RedirectMode  string                           `toml:"redirect_mode"`
-	DNSResolution string                           `toml:"dns_resolution"`
 	RoutePolicies map[string]SSRFRoutePolicyConfig `toml:"route_policies"`
 }
 
@@ -192,14 +190,8 @@ type bootstrapAdmin struct {
 //  5. Validate enum fields
 //
 // If ConfigPath is provided but the file is missing, unreadable, or invalid TOML,
-// Load returns an error (fail fast). Unknown/undecoded TOML keys produce a warning
-// but do not fail the load.
+// Load returns an error (fail fast). Unknown/undecoded TOML keys fail the load.
 func Load(opts LoaderOptions) (*Config, error) {
-	logger := opts.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-
 	var fc fileConfig
 	var md toml.MetaData
 
@@ -213,38 +205,22 @@ func Load(opts LoaderOptions) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
 		}
-		if md.IsDefined("non_strict_peer_outbound_policy") {
-			return nil, fmt.Errorf("config key 'non_strict_peer_outbound_policy' has been renamed to 'peer_policy'; please update your configuration")
-		}
-		if md.IsDefined("legacy_peer_policy") {
-			return nil, fmt.Errorf("config key 'legacy_peer_policy' has been renamed to 'peer_policy'; please update your configuration")
-		}
-		if md.IsDefined("webdav_token_exchange") || md.IsDefined("webdav_token_exchange", "mode") {
-			return nil, fmt.Errorf("config section '[webdav_token_exchange]' and key 'webdav_token_exchange.mode' were removed; use top-level 'require_token_exchange' instead")
-		}
-		if md.IsDefined("signature", "advertise_http_request_signatures") {
-			return nil, fmt.Errorf("config key 'signature.advertise_http_request_signatures' was removed; discovery criteria are now derived from signature.inbound_mode")
-		}
-
-		// Strict breaks: reject renamed keys with clear migration messages.
 		if undecoded := md.Undecoded(); len(undecoded) > 0 {
 			keys := make([]string, 0, len(undecoded))
 			for _, k := range undecoded {
 				keyStr := k.String()
-				if keyStr == "external_origin" {
-					return nil, fmt.Errorf("config key 'external_origin' has been renamed to 'public_origin'; please update your configuration")
-				}
-				if keyStr == "federation" || strings.HasPrefix(keyStr, "federation.") {
-					return nil, fmt.Errorf("config section '[federation]' has been renamed to '[peer_trust]'; please update your configuration")
-				}
-				if keyStr == "outbound_http.ssrf_mode" {
-					return nil, fmt.Errorf("config key 'outbound_http.ssrf_mode' has been replaced by nested keys under '[outbound_http.ssrf]'; please update your configuration")
+				// http.services and http.interceptors store nested maps as
+				// map[string]any; the TOML library cannot track leaf keys
+				// within untyped values, so they appear undecoded by design.
+				if strings.HasPrefix(keyStr, "http.services.") ||
+					strings.HasPrefix(keyStr, "http.interceptors.") {
+					continue
 				}
 				keys = append(keys, keyStr)
 			}
-			// Warn about remaining undecoded keys (do not fail)
 			if len(keys) > 0 {
-				logger.Warn("config file contains undecoded keys", "path", opts.ConfigPath, "keys", keys)
+				sort.Strings(keys)
+				return nil, fmt.Errorf("config file %s contains unsupported keys: %s", opts.ConfigPath, strings.Join(keys, ", "))
 			}
 		}
 	}
@@ -274,7 +250,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 	// Step 5: Overlay CLI flags
 	overlayFlags(cfg, opts.FlagOverrides)
 
-	// Step 5b: sync SSRFMode shim from SSRF.Mode for runtime client compatibility
+	// Step 5b: derive SSRFMode shim from SSRF.Mode for programmatic caller compatibility
 	cfg.OutboundHTTP.SSRFMode = cfg.OutboundHTTP.SSRF.Mode
 
 	// Step 5d: tls_dir validation and derivation
@@ -543,12 +519,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			if fc.OutboundHTTP.SSRF.RoutePolicy != "" {
 				cfg.OutboundHTTP.SSRF.RoutePolicy = fc.OutboundHTTP.SSRF.RoutePolicy
 			}
-			if fc.OutboundHTTP.SSRF.RedirectMode != "" {
-				cfg.OutboundHTTP.SSRF.RedirectMode = fc.OutboundHTTP.SSRF.RedirectMode
-			}
-			if fc.OutboundHTTP.SSRF.DNSResolution != "" {
-				cfg.OutboundHTTP.SSRF.DNSResolution = fc.OutboundHTTP.SSRF.DNSResolution
-			}
 			if len(fc.OutboundHTTP.SSRF.RoutePolicies) > 0 {
 				cfg.OutboundHTTP.SSRF.RoutePolicies = fc.OutboundHTTP.SSRF.RoutePolicies
 			}
@@ -768,26 +738,6 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid outbound_http.ssrf.mode %q: must be one of strict, off", cfg.OutboundHTTP.SSRF.Mode)
-	}
-
-	// outbound_http.ssrf.redirect_mode (optional; only "same-host" in v1)
-	if cfg.OutboundHTTP.SSRF.RedirectMode != "" {
-		switch cfg.OutboundHTTP.SSRF.RedirectMode {
-		case "same-host":
-			// valid
-		default:
-			return fmt.Errorf("invalid outbound_http.ssrf.redirect_mode %q: must be same-host", cfg.OutboundHTTP.SSRF.RedirectMode)
-		}
-	}
-
-	// outbound_http.ssrf.dns_resolution (optional; only "all-records" in v1)
-	if cfg.OutboundHTTP.SSRF.DNSResolution != "" {
-		switch cfg.OutboundHTTP.SSRF.DNSResolution {
-		case "all-records":
-			// valid
-		default:
-			return fmt.Errorf("invalid outbound_http.ssrf.dns_resolution %q: must be all-records", cfg.OutboundHTTP.SSRF.DNSResolution)
-		}
 	}
 
 	// outbound_http.ssrf.route_policy must reference a defined policy

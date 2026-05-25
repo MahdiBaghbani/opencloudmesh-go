@@ -29,7 +29,7 @@ func TestLoadTrustGroupConfig_ValidTrustGroupID(t *testing.T) {
 	}
 }
 
-func TestLoadTrustGroupConfig_FederationIDStrictBreak(t *testing.T) {
+func TestLoadTrustGroupConfig_FederationIDUnknownField_Fails(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "tg-config-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -44,14 +44,17 @@ func TestLoadTrustGroupConfig_FederationIDStrictBreak(t *testing.T) {
 
 	_, err = LoadTrustGroupConfig(path)
 	if err == nil {
-		t.Fatal("expected error for deprecated federation_id key")
+		t.Fatal("expected error for unknown federation_id key")
 	}
-	if !strings.Contains(err.Error(), "has been renamed to 'trust_group_id'") {
-		t.Errorf("expected strict-break migration message, got: %v", err)
+	if !strings.Contains(err.Error(), "unknown field") {
+		t.Errorf("expected unknown-field error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "federation_id") {
+		t.Errorf("expected error mentioning federation_id, got: %v", err)
 	}
 }
 
-func TestLoadTrustGroupConfig_BothKeysStrictBreak(t *testing.T) {
+func TestLoadTrustGroupConfig_TrailingJSONRejected(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "tg-config-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -59,17 +62,17 @@ func TestLoadTrustGroupConfig_BothKeysStrictBreak(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	path := filepath.Join(tempDir, "trust-group.json")
-	data := `{"federation_id":"old","trust_group_id":"new","enabled":true,"directory_services":[],"keys":[]}`
+	data := `{"trust_group_id":"test","enabled":true,"directory_services":[],"keys":[]}{"extra":"trailing"}`
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
 	_, err = LoadTrustGroupConfig(path)
 	if err == nil {
-		t.Fatal("expected error when both federation_id and trust_group_id are present")
+		t.Fatal("expected error for trailing JSON content")
 	}
-	if !strings.Contains(err.Error(), "contains both 'federation_id' and 'trust_group_id'") {
-		t.Errorf("expected both-keys error message, got: %v", err)
+	if !strings.Contains(err.Error(), "trailing content") {
+		t.Errorf("expected trailing-content error, got: %v", err)
 	}
 }
 

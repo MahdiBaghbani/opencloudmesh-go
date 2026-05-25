@@ -14,11 +14,19 @@ and operator-managed validation.
   target.
 - The transport axis uses a nested SSRF subsystem. The strict preset is
   deny-by-default there: `ssrf.mode=strict`, no active route policy, and
-  no private-route exceptions unless an operator-declared transport
-  allowlist is configured.
+  no private-route exceptions unless an operator-declared route policy is
+  configured.
 - Private-route exceptions stay narrow. They require an active route
-  policy, and transport allowlisting stays separate from peer
+  policy, and the verified positive path is an operator-declared
+  host-suffix/CIDR/port allowlist for matching private hostname
+  destinations only. IP-literal targets are a separate path that
+  requires `allow_ip_literals=true` plus matching CIDR and port
+  allowlists. Transport allowlisting stays separate from peer
   compatibility.
+- The explicit-CIDR integration proof is intentionally narrow: it covers a
+  matching operator-declared allowlist and the paired blocked case
+  without that allowance. It does not prove arbitrary private-network
+  interoperability.
 - A strict route policy does not by itself demote the runtime to dev
   posture. Under `compatibility_scope=none`, strict SSRF plus a named
   route policy can still resolve to the strict tier. Under broader

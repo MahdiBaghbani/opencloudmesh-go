@@ -1,8 +1,10 @@
 package peertrust
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
@@ -10,38 +12,29 @@ import (
 
 // TrustGroupConfig defines a single trust group (K2 format).
 type TrustGroupConfig struct {
-	TrustGroupID      string                          `json:"trust_group_id"`
+	TrustGroupID      string                             `json:"trust_group_id"`
 	DirectoryServices []directoryservice.EndpointConfig  `json:"directory_services"`
 	Keys              []directoryservice.VerificationKey `json:"keys"`
-	Enabled           bool                            `json:"enabled"`
-	EnforceMembership bool                            `json:"enforce_membership"`
+	Enabled           bool                               `json:"enabled"`
+	EnforceMembership bool                               `json:"enforce_membership"`
 }
 
 // LoadTrustGroupConfig loads a trust group config from a K2 JSON file.
-// Rejects the deprecated federation_id key with a clear migration message.
+// Unknown JSON keys fail the load.
 func LoadTrustGroupConfig(path string) (*TrustGroupConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading trust group config %s: %w", path, err)
 	}
 
-	// Preflight: reject banned keys before real decode.
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parsing trust group config %s: %w", path, err)
-	}
-	_, hasFedID := raw["federation_id"]
-	_, hasTGID := raw["trust_group_id"]
-	if hasFedID && hasTGID {
-		return nil, fmt.Errorf("trust group config %s contains both 'federation_id' and 'trust_group_id'; remove the deprecated 'federation_id' key", path)
-	}
-	if hasFedID {
-		return nil, fmt.Errorf("trust group config %s: JSON key 'federation_id' has been renamed to 'trust_group_id'; please update your trust group configuration", path)
-	}
-
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
 	var cfg TrustGroupConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err := dec.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("decoding trust group config %s: %w", path, err)
+	}
+	if err := dec.Decode(&json.RawMessage{}); err != io.EOF {
+		return nil, fmt.Errorf("trust group config %s: unexpected trailing content after JSON object", path)
 	}
 
 	// Validate directory service verification policies.
