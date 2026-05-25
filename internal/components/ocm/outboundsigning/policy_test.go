@@ -10,6 +10,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	ocmpolicy "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocmtest"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
@@ -155,17 +156,10 @@ func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) 
 }
 
 func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryRejectsByDefault(t *testing.T) {
-	cfg := config.InteropConfig()
-	registry := peercompat.NewProfileRegistry(nil, nil)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtimePolicy, nil),
-		contract,
-	)
+	cfg := config.CompatConfig()
+	contract := ocmtest.MustCompileContract(t, nil, nil)
+	runtimePolicy := ocmtest.RuntimePolicy(t, cfg, contract)
+	policy := ocmtest.OutboundPolicy(t, runtimePolicy, nil, contract)
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
 	if !decision.ShouldSign {
@@ -179,16 +173,9 @@ func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryRejectsByDefault(t *testing
 func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryCanAllow(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.Signature.OutboundMode = "criteria-only"
-	registry := peercompat.NewProfileRegistry(nil, nil)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtimePolicy, nil),
-		contract,
-	)
+	contract := ocmtest.MustCompileContract(t, nil, nil)
+	runtimePolicy := ocmtest.RuntimePolicy(t, cfg, contract)
+	policy := ocmtest.OutboundPolicy(t, runtimePolicy, nil, contract)
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
 	if decision.ShouldSign {
@@ -200,10 +187,10 @@ func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryCanAllow(t *testing.T) {
 }
 
 func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryAllowsMatchedPeerOverride(t *testing.T) {
-	cfg := config.InteropConfig()
+	cfg := config.CompatConfig()
 	cfg.Signature.OutboundMode = "criteria-only"
 	cfg.Signature.OnDiscoveryError = "reject"
-	registry := peercompat.NewProfileRegistry(
+	contract := ocmtest.MustCompileContract(t,
 		map[string]*peercompat.Profile{
 			"compat": {
 				Name:                   "compat",
@@ -214,15 +201,8 @@ func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryAllowsMatchedPeerOverride(t
 			{Pattern: "peer.example.com", ProfileName: "compat"},
 		},
 	)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtimePolicy, nil),
-		contract,
-	)
+	runtimePolicy := ocmtest.RuntimePolicy(t, cfg, contract)
+	policy := ocmtest.OutboundPolicy(t, runtimePolicy, nil, contract)
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "peer.example.com", nil, true)
 	if decision.ShouldSign {
@@ -243,11 +223,7 @@ func TestOutboundPolicy_TokenExchange_PeerProfileQuirk(t *testing.T) {
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "*.nextcloud.com", ProfileName: "nextcloud"},
 	}
-	registry := peercompat.NewProfileRegistry(profiles, mappings)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
+	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
 	// With non-strict override, quirk should apply
 	policy := &outboundsigning.OutboundPolicy{
@@ -284,11 +260,7 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "legacy.example.com", ProfileName: "compat"},
 	}
-	registry := peercompat.NewProfileRegistry(profiles, mappings)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
+	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
 	// Discovery doc without criteria requirement
 	discNoCriteria := &discovery.Discovery{
@@ -327,11 +299,7 @@ func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "strict-peer.example.com", ProfileName: "compat"},
 	}
-	registry := peercompat.NewProfileRegistry(profiles, mappings)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
+	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
 	// Peer requires signatures via criteria
 	discRequiresSigs := &discovery.Discovery{
@@ -376,11 +344,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryDoesNotImplyUnsigned(t *testing.T
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "legacy.example.com", ProfileName: "compat"},
 	}
-	registry := peercompat.NewProfileRegistry(profiles, mappings)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
+	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "strict",
@@ -409,11 +373,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryAllowsExplicitFailOpen(t *testing
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "legacy.example.com", ProfileName: "compat"},
 	}
-	registry := peercompat.NewProfileRegistry(profiles, mappings)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
+	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "strict",
@@ -442,16 +402,9 @@ func TestNewOutboundPolicy(t *testing.T) {
 		},
 	}
 
-	registry := peercompat.NewProfileRegistry(nil, nil)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtimePolicy, nil),
-		contract,
-	)
+	contract := ocmtest.MustCompileContract(t, nil, nil)
+	runtimePolicy := ocmtest.RuntimePolicy(t, cfg, contract)
+	policy := ocmtest.OutboundPolicy(t, runtimePolicy, nil, contract)
 
 	if policy.OutboundMode != "criteria-only" {
 		t.Errorf("expected outbound_mode=criteria-only, got %s", policy.OutboundMode)
@@ -474,17 +427,10 @@ func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testin
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "cloud.nextcloud.com", ProfileName: "nextcloud"},
 	}
-	registry := peercompat.NewProfileRegistry(profiles, mappings)
 	cfg := config.DevConfig()
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtimePolicy, ocmpolicy.NewOpenCloudMeshPolicy(cfg)),
-		contract,
-	)
+	contract := ocmtest.MustCompileContract(t, profiles, mappings)
+	runtimePolicy := ocmtest.RuntimePolicy(t, cfg, contract)
+	policy := ocmtest.OutboundPolicy(t, runtimePolicy, ocmpolicy.NewOpenCloudMeshPolicy(cfg), contract)
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},
@@ -563,11 +509,7 @@ func TestOutboundPolicy_StrictNone_TokenExchange_NoUnsignedFallback(t *testing.T
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "cloud.nextcloud.com", ProfileName: "nextcloud"},
 	}
-	registry := peercompat.NewProfileRegistry(profiles, mappings)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
+	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode:        "strict",
@@ -599,16 +541,9 @@ func TestOutboundPolicy_TokenExchange_StrictPolicyRequiresSigning(t *testing.T) 
 	cfg.PeerPolicy = "strict"
 	enabled := true
 	cfg.TokenExchange.Enabled = &enabled
-	registry := peercompat.NewProfileRegistry(nil, nil)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-	runtimePolicy := ocmpolicy.NewRuntimePolicy(cfg, contract)
-	policy := outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtimePolicy, ocmpolicy.NewOpenCloudMeshPolicy(cfg)),
-		contract,
-	)
+	contract := ocmtest.MustCompileContract(t, nil, nil)
+	runtimePolicy := ocmtest.RuntimePolicy(t, cfg, contract)
+	policy := ocmtest.OutboundPolicy(t, runtimePolicy, ocmpolicy.NewOpenCloudMeshPolicy(cfg), contract)
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},
