@@ -21,13 +21,18 @@ the effective posture is resolved from canonical OCM policy,
 axes.
 
 The transport axis includes a nested SSRF subsystem under
-`outbound_http.ssrf`. The strict preset starts deny-by-default there:
-`ssrf.mode=strict`, no active route policy, and no private-route exceptions
-until an operator-declared transport allowlist is configured. A named
-route policy stays on the transport axis. It does not broaden peer
-compatibility, and by itself it does not demote the runtime to dev
-posture. Turning `ssrf.mode=off` is a real transport relaxation and is
-never part of the strict posture.
+`outbound_http.ssrf`. The strict preset is deny-by-default there:
+`ssrf.mode=strict`, no active route policy, and no private-route
+exceptions unless an operator-declared route policy is configured. The
+verified positive path is narrow: a route policy can admit only the
+private hostname destinations that match its explicit host suffix,
+CIDR, and port allowlists. IP-literal targets are a separate path that
+requires `allow_ip_literals=true` plus matching CIDR and port
+allowlists. A named route policy stays on the transport axis. It does
+not broaden peer compatibility or claim broad interoperability, and by
+itself it does not demote the runtime to dev posture. Turning
+`ssrf.mode=off` is a real transport relaxation and is never part of the
+strict posture.
 
 `compatibility_scope` is the supervising exception-governance axis:
 `none` means no compatibility relaxations, `scoped` allows explicit peer-scoped
