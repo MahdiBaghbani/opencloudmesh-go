@@ -337,7 +337,7 @@ type OutboundHTTPConfig struct {
 
 	// SSRFMode is a derived shim populated from SSRF.Mode by the config loader.
 	// It is not decoded from TOML; use [outbound_http.ssrf] instead.
-	// Retained for runtime client compatibility until T2 migrates the client.
+	// Retained for programmatic callers that set this field directly.
 	SSRFMode string `toml:"-"`
 
 	// TimeoutMS is the overall request timeout in milliseconds
