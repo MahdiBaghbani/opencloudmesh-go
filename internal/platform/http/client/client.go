@@ -185,9 +185,9 @@ func (c *Client) getResolver() Resolver {
 }
 
 // isStrictMode reports whether SSRF enforcement is active.
-// cfg.SSRF.Mode is the authoritative source. When it is empty, the legacy
+// cfg.SSRF.Mode is the authoritative source. When it is empty, the derived
 // shim cfg.SSRFMode is consulted as a fallback for programmatic callers that
-// set only the top-level field during the SSRF.Mode transition period.
+// set only the top-level field directly.
 func (c *Client) isStrictMode() bool {
 	if c.cfg.SSRF.Mode != "" {
 		return c.cfg.SSRF.Mode == "strict"
