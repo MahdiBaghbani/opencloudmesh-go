@@ -1265,7 +1265,7 @@ func TestLoggingConfig_DefaultsPerMode(t *testing.T) {
 	}
 
 	// Interop mode defaults to info level
-	interopCfg := InteropConfig()
+	interopCfg := CompatConfig()
 	if interopCfg.Logging.Level != "info" {
 		t.Errorf("expected interop mode logging.level 'info', got %q", interopCfg.Logging.Level)
 	}
@@ -1414,7 +1414,7 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	}
 
 	// Interop mode: enabled=true, path=token, require_token_exchange=false
-	interopCfg := InteropConfig()
+	interopCfg := CompatConfig()
 	if interopCfg.TokenExchange.Enabled == nil || !*interopCfg.TokenExchange.Enabled {
 		t.Error("expected interop mode token_exchange.enabled true")
 	}

@@ -138,7 +138,7 @@ func TestRuntimePolicyEvaluate_DefaultStrictPresetClaimsStrict(t *testing.T) {
 }
 
 func TestRuntimePolicyEvaluate_DerivesCompatTier(t *testing.T) {
-	cfg := config.InteropConfig()
+	cfg := config.CompatConfig()
 
 	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
 

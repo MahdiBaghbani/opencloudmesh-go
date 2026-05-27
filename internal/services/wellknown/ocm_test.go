@@ -384,7 +384,7 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 
 func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 	t.Run("unbounded compatibility adds crawler override", func(t *testing.T) {
-		cfg := config.InteropConfig()
+		cfg := config.CompatConfig()
 		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",

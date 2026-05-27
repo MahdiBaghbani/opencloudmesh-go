@@ -381,11 +381,6 @@ func CompatConfig() *Config {
 	return cfg
 }
 
-// InteropConfig returns the compatibility defaults under the legacy name.
-func InteropConfig() *Config {
-	return CompatConfig()
-}
-
 // DevConfig returns development mode defaults.
 func DevConfig() *Config {
 	tokenExchangeEnabled := true
