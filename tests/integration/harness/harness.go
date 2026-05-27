@@ -76,6 +76,30 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		patch(cfg)
 	}
 
+	// Validate [http.services.*] keys before any side-effecting bootstrap
+	// (mirrors main.go fail-fast: a typo must never cause partial startup).
+	if cfg.HTTP.Services != nil {
+		allowed := service.RegisteredServices()
+		allowedSet := make(map[string]struct{}, len(allowed))
+		for _, name := range allowed {
+			allowedSet[name] = struct{}{}
+		}
+
+		var unknown []string
+		for name := range cfg.HTTP.Services {
+			if _, ok := allowedSet[name]; !ok {
+				unknown = append(unknown, name)
+			}
+		}
+		if len(unknown) > 0 {
+			sort.Strings(unknown)
+			sort.Strings(allowed)
+			os.RemoveAll(tempDir)
+			t.Fatalf("unknown service names in [http.services]: %s (allowed: %s)",
+				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
+		}
+	}
+
 	// Logger writes warnings and errors to stdout for test diagnostics.
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelWarn,
@@ -113,6 +137,10 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 
 	// Bootstrap test admin user
 	d := deps.GetDeps()
+	if d == nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("BootstrapDeps succeeded but deps are nil; this is a bug in BootstrapDeps")
+	}
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
 	adminUser := identity.SeededUser{
 		Username:    "admin",
@@ -123,29 +151,6 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	if _, err := bootstrap.Run(context.Background(), adminUser, nil); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap users: %v", err)
-	}
-
-	// Validate [http.services.*] keys (mirrors main.go fail-fast)
-	if cfg.HTTP.Services != nil {
-		allowed := service.RegisteredServices()
-		allowedSet := make(map[string]struct{}, len(allowed))
-		for _, name := range allowed {
-			allowedSet[name] = struct{}{}
-		}
-
-		var unknown []string
-		for name := range cfg.HTTP.Services {
-			if _, ok := allowedSet[name]; !ok {
-				unknown = append(unknown, name)
-			}
-		}
-		if len(unknown) > 0 {
-			sort.Strings(unknown)
-			sort.Strings(allowed)
-			os.RemoveAll(tempDir)
-			t.Fatalf("unknown service names in [http.services]: %s (allowed: %s)",
-				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
-		}
 	}
 
 	// Construct all core services via registry loop (mirrors main.go).

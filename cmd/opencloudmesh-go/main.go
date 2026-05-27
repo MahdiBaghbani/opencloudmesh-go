@@ -167,6 +167,10 @@ func main() {
 	}
 
 	d := deps.GetDeps()
+	if d == nil {
+		logger.Error("BootstrapDeps succeeded but deps are nil; this is a bug in BootstrapDeps")
+		os.Exit(1)
+	}
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
 	bootstrapUsername := cfg.Server.BootstrapAdmin.Username
 	if bootstrapUsername == "" {
