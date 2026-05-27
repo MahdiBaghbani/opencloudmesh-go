@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocmtest/configfixture"
 )
 
 func TestParseMode(t *testing.T) {
@@ -591,13 +593,7 @@ func TestLoad_SSRF_NoneScope_RejectsOff(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
-mode = "strict"
-compatibility_scope = "none"
-
-[outbound_http.ssrf]
-mode = "off"
-`
+	tomlContent := configfixture.NoneScopeBase() + configfixture.SSRFOff()
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
@@ -617,20 +613,9 @@ func TestLoad_SSRF_NoneScope_StrictWithValidRoutePolicy_Loads(t *testing.T) {
 
 	// strict preset satisfies all compatibility_scope=none guardrails, so
 	// a valid route policy under mode=strict must load without error.
-	tomlContent := `
-mode = "strict"
-compatibility_scope = "none"
-
-[outbound_http.ssrf]
-mode = "strict"
-route_policy = "internal"
-
-[outbound_http.ssrf.route_policies.internal]
-allow_private_host_suffixes = ["svc.cluster.local"]
-allow_private_cidrs = ["10.0.0.0/8"]
-allowed_ports = [8080]
-allow_ip_literals = false
-`
+	tomlContent := configfixture.NoneScopeBase() +
+		configfixture.SSRFStrictWithPolicy("internal") +
+		configfixture.RoutePolicyInternal("internal")
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
@@ -651,20 +636,9 @@ func TestLoad_SSRF_NoneScope_RoutePolicyWithIPLiterals_Fails(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
-mode = "strict"
-compatibility_scope = "none"
-
-[outbound_http.ssrf]
-mode = "strict"
-route_policy = "internal"
-
-[outbound_http.ssrf.route_policies.internal]
-allow_private_host_suffixes = ["svc.cluster.local"]
-allow_private_cidrs = ["10.0.0.0/8"]
-allowed_ports = [8080]
-allow_ip_literals = true
-`
+	tomlContent := configfixture.NoneScopeBase() +
+		configfixture.SSRFStrictWithPolicy("internal") +
+		configfixture.RoutePolicyInternalIPLiteralsTrue("internal")
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
@@ -682,20 +656,9 @@ func TestLoad_SSRF_NoneScope_RoutePolicyWithCatchAllCIDR_Fails(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
-mode = "strict"
-compatibility_scope = "none"
-
-[outbound_http.ssrf]
-mode = "strict"
-route_policy = "catchall"
-
-[outbound_http.ssrf.route_policies.catchall]
-allow_private_host_suffixes = ["svc.cluster.local"]
-allow_private_cidrs = ["0.0.0.0/0"]
-allowed_ports = [8080]
-allow_ip_literals = false
-`
+	tomlContent := configfixture.NoneScopeBase() +
+		configfixture.SSRFStrictWithPolicy("catchall") +
+		configfixture.RoutePolicyCatchAll("catchall")
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
@@ -713,20 +676,9 @@ func TestLoad_SSRF_NoneScope_RoutePolicyMissingHostSuffixes_Fails(t *testing.T) 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
-mode = "strict"
-compatibility_scope = "none"
-
-[outbound_http.ssrf]
-mode = "strict"
-route_policy = "minimal"
-
-[outbound_http.ssrf.route_policies.minimal]
-allow_private_host_suffixes = []
-allow_private_cidrs = ["10.0.0.0/8"]
-allowed_ports = [8080]
-allow_ip_literals = false
-`
+	tomlContent := configfixture.NoneScopeBase() +
+		configfixture.SSRFStrictWithPolicy("minimal") +
+		configfixture.RoutePolicyMinimalNoSuffixes("minimal")
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
@@ -744,20 +696,9 @@ func TestLoad_SSRF_NoneScope_RoutePolicyWithInvalidCIDR_Fails(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `
-mode = "strict"
-compatibility_scope = "none"
-
-[outbound_http.ssrf]
-mode = "strict"
-route_policy = "internal"
-
-[outbound_http.ssrf.route_policies.internal]
-allow_private_host_suffixes = ["svc.cluster.local"]
-allow_private_cidrs = ["not-a-cidr"]
-allowed_ports = [8080]
-allow_ip_literals = false
-`
+	tomlContent := configfixture.NoneScopeBase() +
+		configfixture.SSRFStrictWithPolicy("internal") +
+		configfixture.RoutePolicyInternalInvalidCIDR("internal")
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
@@ -793,20 +734,9 @@ func TestLoad_SSRF_NoneScope_RoutePolicyWithInvalidPort_Fails(t *testing.T) {
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
 
-			tomlContent := `
-mode = "strict"
-compatibility_scope = "none"
-
-[outbound_http.ssrf]
-mode = "strict"
-route_policy = "internal"
-
-[outbound_http.ssrf.route_policies.internal]
-allow_private_host_suffixes = ["svc.cluster.local"]
-allow_private_cidrs = ["10.0.0.0/8"]
-allowed_ports = [` + tc.port + `]
-allow_ip_literals = false
-`
+			tomlContent := configfixture.NoneScopeBase() +
+				configfixture.SSRFStrictWithPolicy("internal") +
+				configfixture.RoutePolicyInternalWithPort("internal", tc.port)
 			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
 			}
@@ -2485,10 +2415,7 @@ global_enforce = false
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
-			tomlContent := `
-mode = "strict"
-compatibility_scope = "scoped"
-` + tt.extra
+			tomlContent := configfixture.ScopedScopeBase() + tt.extra
 			if strings.Contains(tt.extra, "[peer_trust]") {
 				trustGroupPath := filepath.Join(dir, "trust-group.json")
 				if err := os.WriteFile(trustGroupPath, []byte(`{}`), 0644); err != nil {
@@ -3086,18 +3013,9 @@ func TestSSRFRoutePolicyGuardrails_BlankHostSuffix_ScopedScope(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
-			tomlContent := `mode = "strict"
-compatibility_scope = "scoped"
-
-[outbound_http.ssrf]
-route_policy = "myp"
-
-[outbound_http.ssrf.route_policies.myp]
-allow_private_host_suffixes = ` + tt.suffixes + `
-allow_private_cidrs = ["10.0.0.0/8"]
-allowed_ports = [8080]
-allow_ip_literals = false
-`
+			tomlContent := configfixture.ScopedScopeBase() +
+				configfixture.SSRFRoutePolicyRef("myp") +
+				configfixture.RoutePolicyWithBlankSuffix("myp", tt.suffixes)
 			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
 			}
