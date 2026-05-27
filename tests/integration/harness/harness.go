@@ -3,34 +3,25 @@ package harness
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -48,7 +39,7 @@ type TestServer struct {
 	Config  *config.Config
 	BaseURL string
 	TempDir string
-	cancel  context.CancelFunc
+	once    sync.Once
 }
 
 // StartTestServer creates and starts a test server with dynamic port allocation.
@@ -85,18 +76,44 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		patch(cfg)
 	}
 
-	// Create logger that discards output (or use t.Log if you want to see logs)
+	// Logger writes warnings and errors to stdout for test diagnostics.
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelWarn, // Only log warnings and errors during tests
+		Level: slog.LevelWarn,
 	}))
 
-	// Create identity components
-	partyRepo := identity.NewMemoryPartyRepo()
-	sessionRepo := identity.NewMemorySessionRepo()
-	userAuth := identity.NewUserAuthFast() // Fast Argon2id params for tests
+	// Reset shared deps for test isolation, then wire via BootstrapDeps.
+	// WireOptions reflects the intended harness defaults:
+	//   - FastAuth: low-cost argon2id for test speed
+	//   - SkipCrypto: no signing keys; avoids leaking production crypto into tests
+	//   - SkipPeerTrust: peer trust stack is not exercised in in-process tests
+	//   - SkipSignatureMiddleware: inbound signature verification skipped
+	//   - OutboundOverride: permissive localhost-friendly outbound config
+	//   - SkipDiscoveryCache: no-op cache avoids stale cross-test discovery entries
+	deps.ResetDeps()
+	bootstrapResult, err := app.BootstrapDeps(cfg, logger, app.WireOptions{
+		FastAuth:                true,
+		SkipCrypto:              true,
+		SkipPeerTrust:           true,
+		SkipSignatureMiddleware: true,
+		OutboundOverride: &config.OutboundHTTPConfig{
+			SSRF:               config.SSRFConfig{Mode: "off"}, // Allow localhost connections in tests
+			SSRFMode:           "off",
+			TimeoutMS:          5000,
+			ConnectTimeoutMS:   2000,
+			MaxRedirects:       1,
+			MaxResponseBytes:   1048576,
+			InsecureSkipVerify: true, // For self-signed certs in tests
+		},
+		SkipDiscoveryCache: true,
+	})
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to bootstrap dependencies: %v", err)
+	}
 
 	// Bootstrap test admin user
-	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)
+	d := deps.GetDeps()
+	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
 	adminUser := identity.SeededUser{
 		Username:    "admin",
 		Password:    "admin",
@@ -107,87 +124,6 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap users: %v", err)
 	}
-
-	// Create HTTP client for outbound requests (SSRF off for tests to allow localhost)
-	rawHTTPClient := httpclient.New(&config.OutboundHTTPConfig{
-		SSRF:               config.SSRFConfig{Mode: "off"}, // Allow localhost connections in tests
-		SSRFMode:           "off",
-		TimeoutMS:          5000,
-		ConnectTimeoutMS:   2000,
-		MaxRedirects:       1,
-		MaxResponseBytes:   1048576,
-		InsecureSkipVerify: true, // For self-signed certs in tests
-	}, nil)
-	httpClient := httpclient.NewContextClient(rawHTTPClient)
-
-	// Create repos for SharedDeps and server.Deps (dual-use)
-	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
-	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	outgoingInviteRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	incomingInviteRepo := invitesinbox.NewMemoryIncomingInviteRepo()
-	tokenStore := token.NewMemoryTokenStore()
-
-	// Create memory cache for tests (required for rate limiting interceptor)
-	cacheInstance := cache.NewDefault()
-
-	// Create RealIP extractor for trusted-proxy-aware client identity
-	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
-
-	// Derive local provider identity from PublicOrigin
-	localProviderFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to derive provider FQDN: %v", err)
-	}
-	localProviderFQDNForCompare, err := hostport.Normalize(localProviderFQDN, cfg.PublicScheme())
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to normalize provider FQDN: %v", err)
-	}
-
-	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to compile peer compatibility contract: %v", err)
-	}
-
-	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
-	discoveryClient := discovery.NewClient(rawHTTPClient, nil)
-	discoveryClient.SetPeerContract(peerContract)
-
-	// Reset and set SharedDeps for this test (important for test isolation)
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		// Identity
-		PartyRepo:   partyRepo,
-		SessionRepo: sessionRepo,
-		UserAuth:    userAuth,
-		// Repos
-		IncomingShareRepo:  incomingShareRepo,
-		OutgoingShareRepo:  outgoingShareRepo,
-		OutgoingInviteRepo: outgoingInviteRepo,
-		IncomingInviteRepo: incomingInviteRepo,
-		TokenStore:         tokenStore,
-		// Clients
-		HTTPClient:      httpClient,
-		DiscoveryClient: discoveryClient,
-		// Policy
-		OpenCloudMeshPolicy: openCloudMeshPolicy,
-		RuntimePolicy:       runtimePolicy,
-		// Provider identity
-		LocalProviderFQDN:           localProviderFQDN,
-		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
-		// Config
-		Config: cfg,
-		// Cache (for interceptors like rate limiting)
-		Cache: cacheInstance,
-		// RealIP (for trusted-proxy-aware client identity)
-		RealIP: realIPExtractor,
-		// Compatibility contract
-		PeerContract: peerContract,
-		// KeyManager is nil (no signatures in basic tests)
-	})
 
 	// Validate [http.services.*] keys (mirrors main.go fail-fast)
 	if cfg.HTTP.Services != nil {
@@ -238,50 +174,49 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)
 	}
+	srv.SetRootCAPool(bootstrapResult.RootCAPool)
 
 	// Start server in background
-	_, cancel := context.WithCancel(context.Background())
-
 	go func() {
-		if err := srv.Start(); err != nil {
-			// Server error is expected on shutdown
-			_ = err
+		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server startup/runtime error", "error", err)
 		}
 	}()
 
-	// Wait for server to be ready
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
-	if err := waitForServer(baseURL, 5*time.Second); err != nil {
-		cancel()
+	// Derive baseURL from the patched config.PublicOrigin so that any patch
+	// that changes the scheme or host is reflected correctly here and in TestServer.
+	baseURL := strings.TrimSuffix(cfg.PublicOrigin, "/")
+	if err := waitForServerReady(baseURL, 5*time.Second); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("server failed to start: %v", err)
 	}
 
-	return &TestServer{
+	ts := &TestServer{
 		Server:  srv,
 		Config:  cfg,
 		BaseURL: baseURL,
 		TempDir: tempDir,
-		cancel:  cancel,
 	}
+	t.Cleanup(func() { ts.Stop(t) })
+	return ts
 }
 
-// Stop stops the test server and cleans up resources.
+// Stop stops the test server and cleans up resources. Safe to call more than
+// once; the second and subsequent calls are no-ops.
 func (ts *TestServer) Stop(t *testing.T) {
 	t.Helper()
+	ts.once.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	ts.cancel()
+		if err := ts.Server.Shutdown(ctx); err != nil {
+			t.Logf("warning: shutdown error: %v", err)
+		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := ts.Server.Shutdown(ctx); err != nil {
-		t.Logf("warning: shutdown error: %v", err)
-	}
-
-	if err := os.RemoveAll(ts.TempDir); err != nil {
-		t.Logf("warning: failed to remove temp dir: %v", err)
-	}
+		if err := os.RemoveAll(ts.TempDir); err != nil {
+			t.Logf("warning: failed to remove temp dir: %v", err)
+		}
+	})
 }
 
 // LogFile returns the path to a log file in the temp directory.
@@ -297,18 +232,4 @@ func getFreePort() (int, error) {
 	}
 	defer listener.Close()
 	return listener.Addr().(*net.TCPAddr).Port, nil
-}
-
-// waitForServer waits for the server to be ready by polling the health endpoint.
-func waitForServer(baseURL string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		resp, err := net.DialTimeout("tcp", baseURL[7:], 100*time.Millisecond) // strip "http://"
-		if err == nil {
-			resp.Close()
-			return nil
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	return fmt.Errorf("server not ready after %v", timeout)
 }

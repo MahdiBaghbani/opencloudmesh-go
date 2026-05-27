@@ -128,3 +128,20 @@ const (
 	TTLJWKs      = 15 * time.Minute // JWKS cache
 	TTLRateLimit = 1 * time.Minute  // Rate limit window
 )
+
+// NoopCache is a Cache that never stores entries. Get always returns
+// ErrNotFound; Set, Delete, Exists, and Close are silent no-ops. Use this to
+// disable discovery caching in tests to prevent cross-test entry leakage.
+type NoopCache struct{}
+
+// compile-time assertion: *NoopCache must satisfy Cache.
+var _ Cache = (*NoopCache)(nil)
+
+// NewNoopCache returns a Cache whose Get always misses and whose writes are discarded.
+func NewNoopCache() *NoopCache { return &NoopCache{} }
+
+func (n *NoopCache) Get(_ context.Context, _ string) ([]byte, error)                  { return nil, ErrNotFound }
+func (n *NoopCache) Set(_ context.Context, _ string, _ []byte, _ time.Duration) error { return nil }
+func (n *NoopCache) Delete(_ context.Context, _ string) error                         { return nil }
+func (n *NoopCache) Exists(_ context.Context, _ string) (bool, error)                 { return false, nil }
+func (n *NoopCache) Close() error                                                     { return nil }

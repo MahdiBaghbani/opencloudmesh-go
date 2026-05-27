@@ -37,6 +37,17 @@ func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
 	}
 }
 
+// IsNoopCache reports whether the cache wired into this client is a *cache.NoopCache.
+// Use in tests to verify SkipDiscoveryCache wiring without exposing the cache instance.
+// Returns false when the client itself is nil.
+func (c *Client) IsNoopCache() bool {
+	if c == nil {
+		return false
+	}
+	_, ok := c.cache.(*cache.NoopCache)
+	return ok
+}
+
 // SetPeerContract wires the compiled peer contract so discovery normalization can
 // apply explicit peer-scoped compatibility fallbacks.
 func (c *Client) SetPeerContract(peerContract *peercompat.CompiledContract) {

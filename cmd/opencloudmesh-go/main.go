@@ -3,40 +3,23 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
-	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
-	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -120,219 +103,8 @@ func main() {
 	slog.SetDefault(logger)
 	logger.Info("effective configuration", "config", cfg.Redacted())
 
-	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
-	if err != nil {
-		logger.Error("failed to compile peer compatibility contract", "error", err)
-		os.Exit(1)
-	}
-	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
-	runtimeEval := runtimePolicy.Evaluate()
-	if cfg.CompatibilityScope == "none" && !runtimeEval.Strict.IsStrict {
-		logger.Error(
-			"compatibility_scope=none contradicts resolved runtime posture",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"reasons", runtimeEval.Strict.ViolationReasons,
-		)
-		os.Exit(1)
-	}
-
-	partyRepo := identity.NewMemoryPartyRepo()
-	sessionRepo := identity.NewMemorySessionRepo()
-	userAuth := identity.NewUserAuth(3) // argon2id time parameter
-
-	// Key manager required when any signature mode is enabled (inbound or outbound)
-	var keyManager *crypto.KeyManager
-	needsKeys := cfg.Signature.InboundMode != "off" || cfg.Signature.OutboundMode != "off"
-	if needsKeys {
-		keyDir := filepath.Dir(cfg.Signature.KeyPath)
-		if keyDir != "" && keyDir != "." {
-			if err := os.MkdirAll(keyDir, 0700); err != nil {
-				logger.Error("failed to create key directory", "path", keyDir, "error", err)
-				os.Exit(1)
-			}
-		}
-
-		keyManager = crypto.NewKeyManager(cfg.Signature.KeyPath, cfg.PublicOrigin)
-		if err := keyManager.LoadOrGenerate(); err != nil {
-			logger.Error("failed to initialize signing key", "error", err)
-			os.Exit(1)
-		}
-		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
-	}
-
-	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)
-	bootstrapUsername := cfg.Server.BootstrapAdmin.Username
-	if bootstrapUsername == "" {
-		bootstrapUsername = "admin"
-	}
-	explicitPasswordSet := cfg.Server.BootstrapAdmin.Password != ""
-	if err := bootstrap.EnsureSuperAdmin(
-		context.Background(),
-		bootstrapUsername,
-		cfg.Server.BootstrapAdmin.Password,
-		explicitPasswordSet,
-	); err != nil {
-		logger.Error("failed to bootstrap super admin", "error", err)
-		os.Exit(1)
-	}
-
-	// Build root CA pool from optional file/dir; nil means use system defaults
-	rootCAPool, err := tlspkg.BuildRootCAPool(cfg.OutboundHTTP.TLSRootCAFile, cfg.OutboundHTTP.TLSRootCADir)
-	if err != nil {
-		logger.Error("failed to build root CA pool", "error", err)
-		os.Exit(1)
-	}
-
-	rawHTTPClient := httpclient.New(&cfg.OutboundHTTP, rootCAPool)
-	httpClient := httpclient.NewContextClient(rawHTTPClient)
-
-	cacheDriver := cfg.Cache.Driver
-	if cacheDriver == "" {
-		cacheDriver = "memory"
-	}
-	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)
-	if err != nil {
-		logger.Error("failed to create cache", "error", err)
-		os.Exit(1)
-	}
-
-	discoveryClient := discovery.NewClient(rawHTTPClient, cacheInstance)
-
-	var trustGroupMgr *peertrust.TrustGroupManager
-	var policyEngine *peertrust.PolicyEngine
-	if cfg.PeerTrust.Enabled {
-		refreshTimeout := time.Duration(cfg.OutboundHTTP.TimeoutMS) * time.Millisecond
-		cacheConfig := peertrust.CacheConfig{
-			TTL:      time.Duration(cfg.PeerTrust.MembershipCache.TTLSeconds) * time.Second,
-			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
-		}
-
-		defaultVerificationPolicy := runtimePolicy.DirectoryServiceVerificationPolicy()
-		dirServiceClient := directoryservice.NewClient(rawHTTPClient, defaultVerificationPolicy, logger)
-		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, cfg.PublicScheme(), logger, refreshTimeout)
-
-		for _, configPath := range cfg.PeerTrust.ConfigPaths {
-			tgCfg, err := peertrust.LoadTrustGroupConfig(configPath)
-			if err != nil {
-				logger.Warn("failed to load trust group config", "path", configPath, "error", err)
-				continue
-			}
-			trustGroupMgr.AddTrustGroup(tgCfg)
-			logger.Info("loaded trust group", "trust_group_id", tgCfg.TrustGroupID, "enabled", tgCfg.Enabled)
-		}
-
-		policyCfg := &peertrust.PolicyConfig{
-			GlobalEnforce: cfg.PeerTrust.Policy.GlobalEnforce,
-			AllowList:     cfg.PeerTrust.Policy.AllowList,
-			DenyList:      cfg.PeerTrust.Policy.DenyList,
-			ExemptList:    cfg.PeerTrust.Policy.ExemptList,
-		}
-		policyEngine = peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
-		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths), "global_enforce", policyCfg.GlobalEnforce)
-		if runtimeEval.Trust.Status == policy.TrustStatusFailOpen {
-			logger.Warn(
-				"peer trust is enabled without global enforcement",
-				"trust_status", runtimeEval.Trust.Status,
-				"compatibility_scope", runtimeEval.CompatibilityScope,
-			)
-		}
-	}
-
-	discoveryClient.SetPeerContract(peerContract)
-
-	// Create signer for outbound requests (needed for SharedDeps)
-	var signer *crypto.RFC9421Signer
-	if keyManager != nil {
-		signer = crypto.NewRFC9421Signer(keyManager)
-	}
-
-	if runtimeEval.Strict.IsStrict {
-		logger.Info(
-			"resolved runtime posture",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"strict", runtimeEval.Strict.IsStrict,
-			"trust_status", runtimeEval.Trust.Status,
-		)
-	} else {
-		logger.Warn(
-			"resolved runtime posture is non-strict",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"strict", runtimeEval.Strict.IsStrict,
-			"reasons", runtimeEval.Strict.ViolationReasons,
-			"trust_status", runtimeEval.Trust.Status,
-		)
-	}
-
-	outboundPolicy := outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtimePolicy, openCloudMeshPolicy),
-		peerContract,
-	)
-
-	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
-	peerDiscoveryAdapter.SetPeerContract(peerContract)
-	signatureMiddleware := crypto.NewSignatureMiddleware(runtimePolicy, peerContract, peerDiscoveryAdapter, cfg.PublicOrigin, logger)
-
-	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
-	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	outgoingInviteRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	incomingInviteRepo := invitesinbox.NewMemoryIncomingInviteRepo()
-	tokenStore := token.NewMemoryTokenStore()
-
-	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
-
-	localProviderFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
-	if err != nil {
-		logger.Error("failed to derive provider FQDN", "error", err)
-		os.Exit(1)
-	}
-	localProviderFQDNForCompare, err := hostport.Normalize(localProviderFQDN, cfg.PublicScheme())
-	if err != nil {
-		logger.Error("failed to normalize provider FQDN for comparison", "error", err)
-		os.Exit(1)
-	}
-
-	deps.SetDeps(&deps.Deps{
-		// Identity
-		PartyRepo:   partyRepo,
-		SessionRepo: sessionRepo,
-		UserAuth:    userAuth,
-		// Repos
-		IncomingShareRepo:  incomingShareRepo,
-		OutgoingShareRepo:  outgoingShareRepo,
-		OutgoingInviteRepo: outgoingInviteRepo,
-		IncomingInviteRepo: incomingInviteRepo,
-		TokenStore:         tokenStore,
-		// Clients
-		HTTPClient:      httpClient,
-		DiscoveryClient: discoveryClient,
-		// Policy
-		OpenCloudMeshPolicy: openCloudMeshPolicy,
-		RuntimePolicy:       runtimePolicy,
-		// Crypto
-		KeyManager:          keyManager,
-		Signer:              signer,
-		OutboundPolicy:      outboundPolicy,
-		SignatureMiddleware: signatureMiddleware,
-		// Peer trust
-		TrustGroupMgr: trustGroupMgr,
-		PolicyEngine:  policyEngine,
-		PeerContract:  peerContract,
-		// Provider identity
-		LocalProviderFQDN:           localProviderFQDN,
-		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
-		// Config
-		Config: cfg,
-		// Cache (for interceptors like rate limiting)
-		Cache: cacheInstance,
-		// RealIP (for trusted-proxy-aware client identity)
-		RealIP: realIPExtractor,
-	})
-
-	// Unknown [http.services.*] keys fail fast so typos do not silently disable functionality
+	// Unknown [http.services.*] keys fail fast before any side-effecting bootstrap
+	// (directory creation, key generation) so a typo never causes partial startup.
 	if cfg.HTTP.Services != nil {
 		allowed := service.RegisteredServices()
 		allowedSet := make(map[string]struct{}, len(allowed))
@@ -357,6 +129,60 @@ func main() {
 		}
 	}
 
+	result, err := app.BootstrapDeps(cfg, logger, app.WireOptions{})
+	if err != nil {
+		logger.Error("failed to bootstrap dependencies", "error", err)
+		os.Exit(1)
+	}
+
+	// Posture guard: compatibility_scope=none requires a resolved strict posture.
+	runtimeEval := result.RuntimeEval
+	if cfg.CompatibilityScope == "none" && !runtimeEval.Strict.IsStrict {
+		logger.Error(
+			"compatibility_scope=none contradicts resolved runtime posture",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"reasons", runtimeEval.Strict.ViolationReasons,
+		)
+		os.Exit(1)
+	}
+
+	if runtimeEval.Strict.IsStrict {
+		logger.Info(
+			"resolved runtime posture",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"strict", runtimeEval.Strict.IsStrict,
+			"trust_status", runtimeEval.Trust.Status,
+		)
+	} else {
+		logger.Warn(
+			"resolved runtime posture is non-strict",
+			"tier", runtimeEval.DerivedTier,
+			"compatibility_scope", runtimeEval.CompatibilityScope,
+			"strict", runtimeEval.Strict.IsStrict,
+			"reasons", runtimeEval.Strict.ViolationReasons,
+			"trust_status", runtimeEval.Trust.Status,
+		)
+	}
+
+	d := deps.GetDeps()
+	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
+	bootstrapUsername := cfg.Server.BootstrapAdmin.Username
+	if bootstrapUsername == "" {
+		bootstrapUsername = "admin"
+	}
+	explicitPasswordSet := cfg.Server.BootstrapAdmin.Password != ""
+	if err := bootstrap.EnsureSuperAdmin(
+		context.Background(),
+		bootstrapUsername,
+		cfg.Server.BootstrapAdmin.Password,
+		explicitPasswordSet,
+	); err != nil {
+		logger.Error("failed to bootstrap super admin", "error", err)
+		os.Exit(1)
+	}
+
 	services := make(map[string]service.Service)
 	for _, name := range service.CoreServices {
 		svcCfg := cfg.BuildServiceConfig(name)
@@ -370,7 +196,7 @@ func main() {
 		}
 		svc, err := newFn(svcCfg, logger)
 		if err != nil {
-			logger.Error("failed to create service", "service", name, "error", fmt.Errorf("%s: %w", name, err))
+			logger.Error("failed to create service", "service", name, "error", err)
 			os.Exit(1)
 		}
 		services[name] = svc
@@ -381,22 +207,27 @@ func main() {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
 	}
-	srv.SetRootCAPool(rootCAPool)
+	srv.SetRootCAPool(result.RootCAPool)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	srvErr := make(chan error, 1)
 	go func() {
-		if err := srv.Start(); err != nil {
-			logger.Error("server error", "error", err)
-			os.Exit(1)
+		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			srvErr <- err
 		}
 	}()
 
 	logger.Info("server started, press Ctrl+C to stop")
 
-	<-ctx.Done()
-	logger.Info("shutdown signal received")
+	select {
+	case err := <-srvErr:
+		logger.Error("server error", "error", err)
+		os.Exit(1)
+	case <-ctx.Done():
+		logger.Info("shutdown signal received")
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
