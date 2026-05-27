@@ -271,21 +271,6 @@ func extractCredential(r *http.Request) *credentialResult {
 	return nil
 }
 
-// extractBearerToken returns the Bearer token. Deprecated: use extractCredential.
-func extractBearerToken(r *http.Request) string {
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		return ""
-	}
-
-	const prefix = "Bearer "
-	if !strings.HasPrefix(auth, prefix) {
-		return ""
-	}
-
-	return strings.TrimPrefix(auth, prefix)
-}
-
 // singleFileFS implements webdav.FileSystem for a single file.
 type singleFileFS struct {
 	path string

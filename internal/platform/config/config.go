@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
 // Config holds the server configuration.
@@ -521,13 +519,4 @@ func (c *Config) PublicScheme() string {
 		return "https"
 	}
 	return strings.ToLower(u.Scheme)
-}
-
-// PublicAuthority returns the lowercased host[:port] from PublicOrigin.
-func (c *Config) PublicAuthority() string {
-	fqdn, err := instanceid.ProviderFQDN(c.PublicOrigin)
-	if err != nil {
-		return ""
-	}
-	return fqdn
 }
