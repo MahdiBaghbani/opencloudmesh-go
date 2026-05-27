@@ -38,7 +38,8 @@ func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
 }
 
 // IsNoopCache reports whether the cache wired into this client is a *cache.NoopCache.
-// Use in tests to verify SkipDiscoveryCache wiring without exposing the cache field.
+// Use in tests to verify SkipDiscoveryCache wiring without accessing the cache
+// implementation directly.
 // Returns false when the client itself is nil.
 func (c *Client) IsNoopCache() bool {
 	if c == nil {

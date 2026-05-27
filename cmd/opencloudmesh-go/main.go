@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -106,21 +105,11 @@ func main() {
 	// Unknown [http.services.*] keys fail fast before any side-effecting bootstrap
 	// (directory creation, key generation) so a typo never causes partial startup.
 	if cfg.HTTP.Services != nil {
-		allowed := service.RegisteredServices()
-		allowedSet := make(map[string]struct{}, len(allowed))
-		for _, name := range allowed {
-			allowedSet[name] = struct{}{}
-		}
-
-		var unknown []string
+		var names []string
 		for name := range cfg.HTTP.Services {
-			if _, ok := allowedSet[name]; !ok {
-				unknown = append(unknown, name)
-			}
+			names = append(names, name)
 		}
-		if len(unknown) > 0 {
-			sort.Strings(unknown)
-			sort.Strings(allowed)
+		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
 			logger.Error("unknown service names in [http.services]",
 				"unknown", strings.Join(unknown, ", "),
 				"allowed", strings.Join(allowed, ", "),
@@ -168,7 +157,7 @@ func main() {
 
 	d := deps.GetDeps()
 	if d == nil {
-		logger.Error("BootstrapDeps succeeded but deps are nil; this is a bug in BootstrapDeps")
+		logger.Error(app.ErrMsgNilDepsAfterBootstrap)
 		os.Exit(1)
 	}
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)

@@ -34,6 +34,12 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
+// ErrMsgNilDepsAfterBootstrap is the error text logged when deps.GetDeps()
+// returns nil after a successful BootstrapDeps call. Shared between
+// cmd/opencloudmesh-go/main.go and the integration test harness so that
+// the wording stays in sync.
+const ErrMsgNilDepsAfterBootstrap = "BootstrapDeps succeeded but deps are nil; this is a bug in BootstrapDeps"
+
 // WireOptions controls which optional infrastructure BootstrapDeps builds.
 // The zero value matches production wiring (main.go path): full crypto,
 // peer trust from config, real argon2id cost, and discovery cache enabled.

@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -49,6 +50,28 @@ func RegisteredServices() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// CheckServiceNames validates names against the registered service set.
+// It returns sorted unknown and allowed slices when any name is not registered,
+// and nil, nil when all names are valid. Callers own nil-map guarding.
+func CheckServiceNames(names []string) (unknown, allowed []string) {
+	registered := RegisteredServices()
+	allowedSet := make(map[string]struct{}, len(registered))
+	for _, n := range registered {
+		allowedSet[n] = struct{}{}
+	}
+	for _, name := range names {
+		if _, ok := allowedSet[name]; !ok {
+			unknown = append(unknown, name)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil, nil
+	}
+	sort.Strings(unknown)
+	sort.Strings(registered)
+	return unknown, registered
 }
 
 // resetRegistry clears the registry (testing only).

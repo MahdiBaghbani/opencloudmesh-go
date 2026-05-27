@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -79,21 +78,11 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	// Validate [http.services.*] keys before any side-effecting bootstrap
 	// (mirrors main.go fail-fast: a typo must never cause partial startup).
 	if cfg.HTTP.Services != nil {
-		allowed := service.RegisteredServices()
-		allowedSet := make(map[string]struct{}, len(allowed))
-		for _, name := range allowed {
-			allowedSet[name] = struct{}{}
-		}
-
-		var unknown []string
+		var names []string
 		for name := range cfg.HTTP.Services {
-			if _, ok := allowedSet[name]; !ok {
-				unknown = append(unknown, name)
-			}
+			names = append(names, name)
 		}
-		if len(unknown) > 0 {
-			sort.Strings(unknown)
-			sort.Strings(allowed)
+		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
 			os.RemoveAll(tempDir)
 			t.Fatalf("unknown service names in [http.services]: %s (allowed: %s)",
 				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
@@ -139,7 +128,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	d := deps.GetDeps()
 	if d == nil {
 		os.RemoveAll(tempDir)
-		t.Fatalf("BootstrapDeps succeeded but deps are nil; this is a bug in BootstrapDeps")
+		t.Fatal(app.ErrMsgNilDepsAfterBootstrap)
 	}
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
 	adminUser := identity.SeededUser{
