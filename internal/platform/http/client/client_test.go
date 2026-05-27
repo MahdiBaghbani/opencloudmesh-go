@@ -18,17 +18,11 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client/outboundtestutil"
 )
 
 func TestClient_SSRFProtection(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewStrictNone(nil)
 
 	tests := []struct {
 		name      string
@@ -94,13 +88,8 @@ func TestClient_SSRFProtection(t *testing.T) {
 }
 
 func TestClient_SSRFOff(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.SSRF.Mode = "off"
 	client := httpclient.New(cfg, nil)
 
 	ctx := context.Background()
@@ -134,14 +123,8 @@ func TestClient_ProxyEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		ProxyEnvFallback: false, // ignore env proxy
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.PermissiveConfig()
+	cfg.ProxyEnvFallback = false // ignore env proxy
 	c := httpclient.New(cfg, nil)
 
 	// proxy.invalid is unreachable; direct path must succeed.
@@ -179,14 +162,8 @@ func TestClient_ProxyEnvFallbackEnabled_UsesEnv(t *testing.T) {
 	t.Setenv("ALL_PROXY", "")
 	t.Setenv("all_proxy", "")
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		ProxyEnvFallback: true,
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.PermissiveConfig()
+	cfg.ProxyEnvFallback = true
 	c := httpclient.New(cfg, nil)
 
 	resp, err := c.Get(context.Background(), "http://external.example.invalid/api")
@@ -229,15 +206,9 @@ func TestClient_ExplicitProxyOverridesEnv(t *testing.T) {
 	t.Setenv("ALL_PROXY", "")
 	t.Setenv("all_proxy", "")
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		ProxyURL:         explicitProxy.URL, // explicit wins
-		ProxyEnvFallback: true,              // even when env fallback is enabled
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.PermissiveConfig()
+	cfg.ProxyURL = explicitProxy.URL // explicit wins
+	cfg.ProxyEnvFallback = true      // even when env fallback is enabled
 	c := httpclient.New(cfg, nil)
 
 	resp, err := c.Get(context.Background(), "http://external.example.invalid/api")
@@ -279,14 +250,8 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 	t.Setenv("NO_PROXY", "192.168.1.1,10.0.0.1,127.0.0.1")
 	t.Setenv("no_proxy", "192.168.1.1,10.0.0.1,127.0.0.1")
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		ProxyEnvFallback: true,
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.ProxyEnvFallback = true
 	c := httpclient.New(cfg, nil)
 
 	privateTargets := []string{
@@ -400,14 +365,9 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 	t.Setenv("ALL_PROXY", "")
 	t.Setenv("all_proxy", "")
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"}, // destination is a local non-loopback IP; SSRF off for routing test
-		ProxyEnvFallback: true,
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	// SSRF off: destination is a local non-loopback IP used for the routing test.
+	cfg := outboundtestutil.PermissiveConfig()
+	cfg.ProxyEnvFallback = true
 	// Construct after setting env so proxy host snapshotting matches the env
 	// proxy configuration used by the transport.
 	c := httpclient.New(cfg, nil)
@@ -437,14 +397,7 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil)
 
 	// Signed request should fail on redirect
 	req, _ := http.NewRequest("GET", server.URL+"/redirect", nil)
@@ -478,14 +431,7 @@ func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil)
 
 	resp, err := client.Get(context.Background(), server.URL+"/start")
 	if err != nil {
@@ -508,14 +454,7 @@ func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1, // Only allow 1 redirect
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil) // MaxRedirects=1 by default
 
 	_, err := client.Get(context.Background(), server.URL+"/start")
 	if err == nil {
@@ -538,14 +477,7 @@ func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
 	}))
 	defer redirectServer.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil)
 
 	_, err := client.Get(context.Background(), redirectServer.URL+"/start")
 	if err == nil {
@@ -579,14 +511,7 @@ func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 	rootCAs := x509.NewCertPool()
 	rootCAs.AddCert(x509Cert)
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	c := httpclient.New(cfg, rootCAs)
+	c := outboundtestutil.NewPermissive(rootCAs)
 
 	_, err = c.Get(context.Background(), tlsSource.URL)
 	if err == nil {
@@ -601,14 +526,7 @@ func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 }
 
 func TestClient_IPv6BracketHandling(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewStrictNone(nil)
 
 	// Test that IPv6 with brackets is properly parsed and blocked
 	tests := []struct {
@@ -633,14 +551,7 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 }
 
 func TestClient_UnresolvableHostBlocked(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewStrictNone(nil)
 
 	// Use a domain that definitely doesn't exist
 	_, err := client.Get(context.Background(), "http://this-domain-does-not-exist-12345.invalid/test")
@@ -660,13 +571,9 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 // failure, not SSRF), while private/loopback/link-local/multicast IPs are
 // blocked with an SSRF-classified error.
 func TestIsAllowedIP(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		TimeoutMS:        500,
-		ConnectTimeoutMS: 200,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.TimeoutMS = 500
+	cfg.ConnectTimeoutMS = 200
 	c := httpclient.New(cfg, nil)
 	ctx := context.Background()
 
@@ -710,14 +617,7 @@ func TestClient_DoPreservesInterface(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil)
 
 	req, _ := http.NewRequest("GET", server.URL, nil)
 	resp, err := client.Do(req)
@@ -733,14 +633,7 @@ func TestClient_DoPreservesInterface(t *testing.T) {
 
 func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 	// Regression test: localhost:8080 must be blocked as localhost (not unresolvable)
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewStrictNone(nil)
 
 	tests := []struct {
 		name string
@@ -782,14 +675,7 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil)
 
 	tests := []struct {
 		name   string
@@ -834,13 +720,9 @@ func (r *blockingResolver) LookupIPAddr(ctx context.Context, host string) ([]net
 }
 
 func TestContextAwareDNSCancellation(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		TimeoutMS:        10000, // long timeout
-		ConnectTimeoutMS: 5000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.TimeoutMS = 10000 // long timeout so context cancellation fires first
+	cfg.ConnectTimeoutMS = 5000
 	client := httpclient.New(cfg, nil)
 
 	// Install a blocking resolver
@@ -886,14 +768,7 @@ func TestRedirectSameHostSemantics(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil)
 
 	// Test relative redirect (always same-host)
 	resp, err := client.Get(context.Background(), server.URL+"/start")
@@ -922,14 +797,7 @@ func TestRedirectCrossHostBlocked(t *testing.T) {
 	}))
 	defer redirectServer.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil)
 
 	_, err := client.Get(context.Background(), redirectServer.URL+"/start")
 	if err == nil {
@@ -958,14 +826,7 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
-	client := httpclient.New(cfg, nil)
+	client := outboundtestutil.NewPermissive(nil)
 
 	resp, err := client.Get(context.Background(), server.URL+"/start")
 	if err != nil {
@@ -995,14 +856,8 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 	}))
 	defer proxy.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		ProxyURL:         proxy.URL,
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.PermissiveConfig()
+	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, nil)
 
 	const destURL = "http://external.example.invalid/api"
@@ -1041,14 +896,8 @@ func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
 	}))
 	defer proxy.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		ProxyURL:         proxy.URL,
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, nil)
 
 	privateTargets := []string{
@@ -1080,14 +929,8 @@ func TestClient_SignedRedirectRejectedWithProxy(t *testing.T) {
 	}))
 	defer proxy.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		ProxyURL:         proxy.URL,
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.PermissiveConfig()
+	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, nil)
 
 	req, _ := http.NewRequest("GET", "http://external.example.invalid/resource", nil)
@@ -1116,14 +959,8 @@ func TestClient_PrivateProxyAllowedInStrictMode(t *testing.T) {
 	}))
 	defer proxy.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		ProxyURL:         proxy.URL,
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, nil)
 
 	// 203.0.113.10 is TEST-NET-3, not blocked by preflight SSRF (not
@@ -1233,18 +1070,12 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 	rootCAs := x509.NewCertPool()
 	rootCAs.AddCert(x509Cert)
 
-	cfg := &config.OutboundHTTPConfig{
-		// SSRF off: backend is 127.0.0.1; SSRF bypass is intentional here
-		// because we are testing CONNECT tunnel semantics, not SSRF enforcement.
-		// The companion test TestClient_HTTPSPrivateDestinationBlockedWithProxy
-		// covers that preflight blocks private HTTPS targets before CONNECT.
-		SSRF:             config.SSRFConfig{Mode: "off"},
-		ProxyURL:         proxy.URL,
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	// SSRF off: backend is 127.0.0.1; SSRF bypass is intentional here because we
+	// are testing CONNECT tunnel semantics, not SSRF enforcement. The companion
+	// test TestClient_HTTPSPrivateDestinationBlockedWithProxy covers that
+	// preflight blocks private HTTPS targets before CONNECT.
+	cfg := outboundtestutil.PermissiveConfig()
+	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, rootCAs)
 
 	resp, err := c.Get(context.Background(), backend.URL)
@@ -1275,14 +1106,8 @@ func TestClient_HTTPSPrivateDestinationBlockedWithProxy(t *testing.T) {
 	}))
 	defer proxy.Close()
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:             config.SSRFConfig{Mode: "strict"},
-		ProxyURL:         proxy.URL,
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, nil)
 
 	targets := []string{
@@ -1348,22 +1173,16 @@ func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
 	u, _ := url.Parse(server.URL)
 	port, _ := strconv.Atoi(u.Port())
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": {
-					AllowPrivateCIDRs: []string{"127.0.0.0/8"},
-					AllowedPorts:      []int{port},
-					AllowIPLiterals:   true,
-				},
-			},
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.TimeoutMS = 5000
+	cfg.ConnectTimeoutMS = 2000
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": {
+			AllowPrivateCIDRs: []string{"127.0.0.0/8"},
+			AllowedPorts:      []int{port},
+			AllowIPLiterals:   true,
 		},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
 	}
 	c := httpclient.New(cfg, nil)
 
@@ -1388,22 +1207,14 @@ func TestRoutePolicy_LeadingDotSuffixNormalized(t *testing.T) {
 		"service.internal": {{IP: net.ParseIP("10.0.1.50")}},
 	}}
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": corpPolicy(
-					[]string{".internal"}, // leading dot must be stripped before match
-					[]string{"10.0.0.0/8"},
-					[]int{80},
-				),
-			},
-		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+	cfg := outboundtestutil.StrictShortTimeoutConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": corpPolicy(
+			[]string{".internal"}, // leading dot must be stripped before match
+			[]string{"10.0.0.0/8"},
+			[]int{80},
+		),
 	}
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
@@ -1421,22 +1232,14 @@ func TestRoutePolicy_PrivateHostDeniedWhenSuffixFails(t *testing.T) {
 		"other.noncorp.example": {{IP: net.ParseIP("10.0.1.50")}},
 	}}
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": corpPolicy(
-					[]string{"corp.example"}, // "noncorp.example" does not match
-					[]string{"10.0.0.0/8"},
-					[]int{80},
-				),
-			},
-		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+	cfg := outboundtestutil.StrictShortTimeoutConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": corpPolicy(
+			[]string{"corp.example"}, // "noncorp.example" does not match
+			[]string{"10.0.0.0/8"},
+			[]int{80},
+		),
 	}
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
@@ -1454,22 +1257,14 @@ func TestRoutePolicy_PrivateHostDeniedWhenCIDRFails(t *testing.T) {
 		"internal.corp.example": {{IP: net.ParseIP("192.168.1.50")}}, // 192.168 not in 10.0.0.0/8
 	}}
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": corpPolicy(
-					[]string{"corp.example"},
-					[]string{"10.0.0.0/8"}, // 192.168.1.50 not covered
-					[]int{80},
-				),
-			},
-		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+	cfg := outboundtestutil.StrictShortTimeoutConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": corpPolicy(
+			[]string{"corp.example"},
+			[]string{"10.0.0.0/8"}, // 192.168.1.50 not covered
+			[]int{80},
+		),
 	}
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
@@ -1487,22 +1282,14 @@ func TestRoutePolicy_PrivateHostDeniedWhenPortFails(t *testing.T) {
 		"internal.corp.example": {{IP: net.ParseIP("10.0.1.50")}},
 	}}
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": corpPolicy(
-					[]string{"corp.example"},
-					[]string{"10.0.0.0/8"},
-					[]int{443}, // only 443 allowed, but request is http (port 80)
-				),
-			},
-		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+	cfg := outboundtestutil.StrictShortTimeoutConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": corpPolicy(
+			[]string{"corp.example"},
+			[]string{"10.0.0.0/8"},
+			[]int{443}, // only 443 allowed, but request is http (port 80)
+		),
 	}
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
@@ -1521,22 +1308,14 @@ func TestRoutePolicy_PrivateHostDeniedWhenAllowedPortsEmpty(t *testing.T) {
 		"internal.corp.example": {{IP: net.ParseIP("10.0.1.50")}},
 	}}
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": corpPolicy(
-					[]string{"corp.example"},
-					[]string{"10.0.0.0/8"},
-					nil,
-				),
-			},
-		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+	cfg := outboundtestutil.StrictShortTimeoutConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": corpPolicy(
+			[]string{"corp.example"},
+			[]string{"10.0.0.0/8"},
+			nil,
+		),
 	}
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
@@ -1558,22 +1337,14 @@ func TestRoutePolicy_MixedResolvedIPsFailClosed(t *testing.T) {
 		},
 	}}
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": corpPolicy(
-					[]string{"corp.example"},
-					[]string{"10.0.0.0/8"}, // 192.168.1.1 not covered
-					[]int{80, 443},
-				),
-			},
-		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+	cfg := outboundtestutil.StrictShortTimeoutConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": corpPolicy(
+			[]string{"corp.example"},
+			[]string{"10.0.0.0/8"}, // 192.168.1.1 not covered
+			[]int{80, 443},
+		),
 	}
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
@@ -1587,22 +1358,14 @@ func TestRoutePolicy_MixedResolvedIPsFailClosed(t *testing.T) {
 // TestRoutePolicy_PrivateIPLiteralBlockedByDefault verifies that a private IP
 // literal is blocked in strict mode when allow_ip_literals is false (default).
 func TestRoutePolicy_PrivateIPLiteralBlockedByDefault(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": {
-					AllowPrivateCIDRs: []string{"10.0.0.0/8"},
-					AllowedPorts:      []int{80, 443},
-					AllowIPLiterals:   false, // default: IP literals not allowed
-				},
-			},
+	cfg := outboundtestutil.StrictShortTimeoutConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": {
+			AllowPrivateCIDRs: []string{"10.0.0.0/8"},
+			AllowedPorts:      []int{80, 443},
+			AllowIPLiterals:   false, // default: IP literals not allowed
 		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
 	}
 	c := httpclient.New(cfg, nil)
 
@@ -1616,22 +1379,14 @@ func TestRoutePolicy_PrivateIPLiteralBlockedByDefault(t *testing.T) {
 // literal is allowed when allow_ip_literals=true, the IP is in the CIDR, and
 // the port is permitted. The request fails with a connection error, not SSRF.
 func TestRoutePolicy_PrivateIPLiteralAllowedWithPolicy(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": {
-					AllowPrivateCIDRs: []string{"10.0.0.0/8"},
-					AllowedPorts:      []int{80},
-					AllowIPLiterals:   true,
-				},
-			},
+	cfg := outboundtestutil.StrictShortTimeoutConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": {
+			AllowPrivateCIDRs: []string{"10.0.0.0/8"},
+			AllowedPorts:      []int{80},
+			AllowIPLiterals:   true,
 		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
 	}
 	c := httpclient.New(cfg, nil)
 
@@ -1661,22 +1416,16 @@ func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
 	u, _ := url.Parse(server.URL)
 	port, _ := strconv.Atoi(u.Port())
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "local",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"local": {
-					AllowPrivateCIDRs: []string{"127.0.0.0/8"},
-					AllowedPorts:      []int{port},
-					AllowIPLiterals:   true, // server is at 127.0.0.1 (IP literal)
-				},
-			},
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.TimeoutMS = 5000
+	cfg.ConnectTimeoutMS = 2000
+	cfg.SSRF.RoutePolicy = "local"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"local": {
+			AllowPrivateCIDRs: []string{"127.0.0.0/8"},
+			AllowedPorts:      []int{port},
+			AllowIPLiterals:   true, // server is at 127.0.0.1 (IP literal)
 		},
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
 	}
 	c := httpclient.New(cfg, nil)
 
@@ -1710,24 +1459,16 @@ func TestRoutePolicy_ProxyTrustedWhileDestinationPolicyEnforced(t *testing.T) {
 	}}
 
 	// Route policy does NOT include "nopolicy.example" in AllowPrivateHostSuffixes.
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": corpPolicy(
-					[]string{"corp.example"}, // nopolicy.example not listed
-					[]string{"10.0.0.0/8"},
-					[]int{80, 443},
-				),
-			},
-		},
-		ProxyURL:         proxy.URL,
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": corpPolicy(
+			[]string{"corp.example"}, // nopolicy.example not listed
+			[]string{"10.0.0.0/8"},
+			[]int{80, 443},
+		),
 	}
+	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
@@ -1770,16 +1511,7 @@ func TestClient_NoPolicyErrorDistinct(t *testing.T) {
 	}}
 
 	// Strict mode with no RoutePolicy configured.
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode: "strict",
-			// No RoutePolicy or RoutePolicies set.
-		},
-		TimeoutMS:        200,
-		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := outboundtestutil.StrictShortTimeoutConfig() // no RoutePolicy or RoutePolicies set
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
@@ -1820,24 +1552,16 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 		"internal.nopolicy.example": {{IP: net.ParseIP("10.0.2.1")}},
 	}}
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{
-			Mode:        "strict",
-			RoutePolicy: "corp",
-			RoutePolicies: map[string]config.SSRFRoutePolicyConfig{
-				"corp": corpPolicy(
-					[]string{"corp.example"}, // nopolicy.example not listed
-					[]string{"10.0.0.0/8"},
-					[]int{80},
-				),
-			},
-		},
-		ProxyEnvFallback: true,
-		TimeoutMS:        1000,
-		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+	cfg := outboundtestutil.StrictNoneOutboundConfig()
+	cfg.SSRF.RoutePolicy = "corp"
+	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
+		"corp": corpPolicy(
+			[]string{"corp.example"}, // nopolicy.example not listed
+			[]string{"10.0.0.0/8"},
+			[]int{80},
+		),
 	}
+	cfg.ProxyEnvFallback = true
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
