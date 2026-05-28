@@ -180,7 +180,9 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	// Derive baseURL from the patched config.PublicOrigin so that any patch
 	// that changes the scheme or host is reflected correctly here and in TestServer.
 	baseURL := strings.TrimSuffix(cfg.PublicOrigin, "/")
-	if err := waitForServerReady(baseURL, 5*time.Second); err != nil {
+	// App endpoints (including /api/healthz) mount under ExternalBasePath when
+	// set, so the readiness probe must target that path, not bare root.
+	if err := waitForServerReady(healthEndpointURL(baseURL, cfg.ExternalBasePath), 5*time.Second); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("server failed to start: %v", err)
 	}

@@ -183,8 +183,9 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		configFile: configPath,
 	}
 
-	// Wait for server to be ready
-	if err := waitForServerReady(baseURL, 10*time.Second); err != nil {
+	// Wait for server to be ready. Subprocess configs mount app endpoints at
+	// root (external_base_path is empty in generateTOMLConfig).
+	if err := waitForServerReady(healthEndpointURL(baseURL, ""), 10*time.Second); err != nil {
 		srv.DumpLogs(t)
 		srv.Stop(t)
 		t.Fatalf("server %s failed to start: %v", cfg.Name, err)
@@ -382,21 +383,34 @@ func newInsecureHTTPSClient(timeout time.Duration) *http.Client {
 	}
 }
 
-// waitForServerReady waits for a server to respond to HTTP requests.
-// For HTTPS base URLs (self-signed TLS), uses an insecure client for the
+// healthEndpointURL builds the readiness probe URL for a server. App endpoints
+// (including /api/healthz) are mounted under externalBasePath when it is set
+// (see internal/platform/http/server/routes.go), so the probe must include it.
+// An empty externalBasePath yields the root-mounted /api/healthz.
+func healthEndpointURL(baseURL, externalBasePath string) string {
+	base := strings.TrimSuffix(baseURL, "/")
+	bp := strings.Trim(externalBasePath, "/")
+	if bp == "" {
+		return base + "/api/healthz"
+	}
+	return base + "/" + bp + "/api/healthz"
+}
+
+// waitForServerReady waits for a server to respond at healthURL.
+// For HTTPS URLs (self-signed TLS), uses an insecure client for the
 // readiness probe only -- the server config itself still enforces strict TLS.
-func waitForServerReady(baseURL string, timeout time.Duration) error {
+func waitForServerReady(healthURL string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	var client *http.Client
-	if strings.HasPrefix(baseURL, "https://") {
+	if strings.HasPrefix(healthURL, "https://") {
 		client = newInsecureHTTPSClient(1 * time.Second)
 	} else {
 		client = &http.Client{Timeout: 1 * time.Second}
 	}
 
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(baseURL + "/api/healthz")
+		resp, err := client.Get(healthURL)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {

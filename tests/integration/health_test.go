@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -31,6 +32,27 @@ func TestHealthEndpoint(t *testing.T) {
 
 	if health.Status != "ok" {
 		t.Errorf("expected status 'ok', got %q", health.Status)
+	}
+}
+
+// TestHealthEndpointWithExternalBasePath guards against a harness readiness
+// regression: when external_base_path is set, app endpoints (including
+// /api/healthz) mount under that prefix, so in-process startup must not
+// falsely fail by probing the bare root /api/healthz.
+func TestHealthEndpointWithExternalBasePath(t *testing.T) {
+	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+		cfg.ExternalBasePath = "/ocm"
+	})
+	defer ts.Stop(t)
+
+	resp, err := http.Get(ts.BaseURL + "/ocm/api/healthz")
+	if err != nil {
+		t.Fatalf("failed to get health endpoint: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
 	}
 }
 
