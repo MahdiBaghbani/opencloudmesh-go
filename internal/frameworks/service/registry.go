@@ -9,6 +9,26 @@ import (
 // CoreServices lists service names always constructed (all registered today).
 var CoreServices = []string{"wellknown", "ocm", "ocmaux", "api", "ui", "webdav"}
 
+// RootService is the core service mounted at the host root rather than under
+// external_base_path. Every other CoreServices entry is mounted as an app
+// endpoint. This marker keeps route mounting derived from CoreServices instead
+// of a separate hardcoded list.
+const RootService = "wellknown"
+
+// AppServices returns the core service names mounted under external_base_path,
+// in CoreServices order, excluding RootService (mounted at the host root).
+// Order is significant for Chi route matching, so it mirrors CoreServices.
+func AppServices() []string {
+	names := make([]string, 0, len(CoreServices))
+	for _, name := range CoreServices {
+		if name == RootService {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
 var (
 	registryMu sync.RWMutex
 	registry   = make(map[string]NewService)
