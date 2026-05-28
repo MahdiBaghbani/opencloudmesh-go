@@ -13,8 +13,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 // SubprocessServer represents a server running as a subprocess.
@@ -31,13 +34,13 @@ type SubprocessServer struct {
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
 	Name                    string
-	Mode                    string 				// dev, compat, strict; legacy alias interop also works
+	Mode                    string // dev, compat, strict; legacy alias interop also works
 	CompatibilityScope      string
-	KeepSignatureDefaults   bool              	// when true, skip the [signature] override block so mode presets apply
-	SSRFMode                string            	// when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
-	DisableProxyEnvFallback bool              	// when true, emits proxy_env_fallback = false in [outbound_http]
-	ExtraConfig             string            	// Additional TOML config to append
-	ExtraFiles              map[string]string 	// Extra files to write to tempDir: {relativePath: contents}
+	KeepSignatureDefaults   bool              // when true, skip the [signature] override block so mode presets apply
+	SSRFMode                string            // when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
+	DisableProxyEnvFallback bool              // when true, emits proxy_env_fallback = false in [outbound_http]
+	ExtraConfig             string            // Additional TOML config to append
+	ExtraFiles              map[string]string // Extra files to write to tempDir: {relativePath: contents}
 }
 
 // BuildBinary builds the opencloudmesh-go binary for testing.
@@ -146,6 +149,20 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
+	// Derive transport, base URL, and readiness path from the FINAL effective
+	// config, not just the preset inputs. ExtraConfig may override TLS (or other
+	// transport-relevant settings) after the preset-derived base config is
+	// generated, so re-loading the rendered config.toml through the same loader
+	// the binary uses (config.Load) is the only reliable source of truth for the
+	// scheme the subprocess actually listens with and the path endpoints mount
+	// under. See localListenerBaseURL in harness.go for the in-process parallel.
+	finalCfg, err := loadEffectiveSubprocessConfig(configPath, tempDir)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to load effective config for %s: %v", cfg.Name, err)
+	}
+	baseURL := localListenerBaseURL(finalCfg.TLS.Mode, port)
+
 	// Create log file
 	logPath := filepath.Join(tempDir, "server.log")
 	logFile, err := os.Create(logPath)
@@ -166,13 +183,6 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		t.Fatalf("failed to start subprocess: %v", err)
 	}
 
-	var baseURL string
-	if needsSecureTransport(cfg.Mode, cfg.CompatibilityScope) {
-		baseURL = fmt.Sprintf("https://localhost:%d", port)
-	} else {
-		baseURL = fmt.Sprintf("http://localhost:%d", port)
-	}
-
 	srv := &SubprocessServer{
 		Name:       cfg.Name,
 		TempDir:    tempDir,
@@ -183,9 +193,10 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		configFile: configPath,
 	}
 
-	// Wait for server to be ready. Subprocess configs mount app endpoints at
-	// root (external_base_path is empty in generateTOMLConfig).
-	if err := waitForServerReady(healthEndpointURL(baseURL, ""), 10*time.Second); err != nil {
+	// Wait for server to be ready. App endpoints (including /api/healthz) mount
+	// under external_base_path when set, so probe the path the final effective
+	// config actually uses rather than assuming root.
+	if err := waitForServerReady(healthEndpointURL(baseURL, finalCfg.ExternalBasePath), 10*time.Second); err != nil {
 		srv.DumpLogs(t)
 		srv.Stop(t)
 		t.Fatalf("server %s failed to start: %v", cfg.Name, err)
@@ -253,6 +264,35 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 	t.Logf("=== Logs for server %s ===\n%s\n=== End logs ===", s.Name, string(content))
 }
 
+// subprocessChdirMu serializes the working-directory switch used while loading
+// a subprocess config. The integration tests run serially (no t.Parallel), but
+// os.Chdir is process-global, so this guards against concurrent harness callers
+// corrupting each other's view of the working directory.
+var subprocessChdirMu sync.Mutex
+
+// loadEffectiveSubprocessConfig loads the fully rendered config from the written
+// config.toml using the same loader the binary uses (config.Load). The binary
+// runs with its working directory set to dataDir (cmd.Dir == tempDir), so any
+// relative paths in the config (for example peer_trust config_paths or outbound
+// TLS CA paths) resolve against dataDir. We temporarily switch to dataDir while
+// loading so the harness derives the identical effective config -- including the
+// final TLS mode and external base path -- that the running subprocess uses.
+func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, error) {
+	subprocessChdirMu.Lock()
+	defer subprocessChdirMu.Unlock()
+
+	prevDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("get working directory: %w", err)
+	}
+	if err := os.Chdir(dataDir); err != nil {
+		return nil, fmt.Errorf("chdir to data dir %s: %w", dataDir, err)
+	}
+	defer func() { _ = os.Chdir(prevDir) }()
+
+	return config.Load(config.LoaderOptions{ConfigPath: configPath})
+}
+
 // needsSecureTransport reports whether the mode+scope combination requires HTTPS.
 // The config loader rejects tls.mode=off for compatibility_scope "none" and "scoped".
 // An empty scope with strict (or default-empty) mode implies "none" via the preset.
@@ -264,6 +304,18 @@ func needsSecureTransport(mode, compatibilityScope string) bool {
 	case "":
 		m := strings.ToLower(strings.TrimSpace(mode))
 		return m == "strict" || m == ""
+	}
+	return false
+}
+
+// extraDefinesTLSTable reports whether ExtraConfig declares its own [tls] table.
+// When it does, generateTOMLConfig omits the preset-derived [tls] block so the
+// test can override the listener transport without a duplicate-table TOML error.
+func extraDefinesTLSTable(extra string) bool {
+	for _, line := range strings.Split(extra, "\n") {
+		if strings.TrimSpace(line) == "[tls]" {
+			return true
+		}
 	}
 	return false
 }
@@ -304,14 +356,30 @@ external_base_path = ""
 		config += fmt.Sprintf("compatibility_scope = %q\n\n", compatibilityScope)
 	}
 
-	if secure {
-		// selfsigned TLS; self_signed_dir defaults to ".ocm/certs" relative to
-		// the process working directory (tempDir). insecure_skip_verify must be
-		// false for scoped/none scope guardrails to pass.
-		config += `[tls]
+	// Emit the preset-derived [tls] block unless the test supplies its own [tls]
+	// table in ExtraConfig. TOML rejects a duplicate [tls] table, so when the
+	// extra config defines one we omit ours and let the test's TLS settings
+	// drive the final effective transport. The harness derives BaseURL and the
+	// readiness scheme from that final config, so an overriding [tls] is honored.
+	if !extraDefinesTLSTable(extra) {
+		if secure {
+			// selfsigned TLS; self_signed_dir defaults to ".ocm/certs" relative
+			// to the process working directory (tempDir).
+			config += `[tls]
 mode = "selfsigned"
 
-[server]
+`
+		} else {
+			config += `[tls]
+mode = "off"
+
+`
+		}
+	}
+
+	if secure {
+		// insecure_skip_verify must be false for scoped/none scope guardrails to pass.
+		config += `[server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
 [server.bootstrap_admin]
@@ -325,10 +393,7 @@ max_response_bytes = 1048576
 insecure_skip_verify = false
 `
 	} else {
-		config += `[tls]
-mode = "off"
-
-[server]
+		config += `[server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
 [server.bootstrap_admin]
