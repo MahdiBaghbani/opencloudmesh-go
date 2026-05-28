@@ -308,12 +308,58 @@ func needsSecureTransport(mode, compatibilityScope string) bool {
 	return false
 }
 
+// extraTLSMode scans ExtraConfig for a [tls] table and returns the tls.mode it
+// declares. hasTLSTable reports whether ExtraConfig defines a [tls] table at all
+// (even when it omits an explicit mode key); mode is the value of the mode key
+// inside that table, or "" when the table omits it. This is a deliberately
+// small TOML peek: it only tracks table headers and a single mode = "..." line
+// so generateTOMLConfig can keep the preset-derived [tls] block and the
+// generated default public_origin consistent with a test's TLS override.
+func extraTLSMode(extra string) (mode string, hasTLSTable bool) {
+	inTLS := false
+	for _, line := range strings.Split(extra, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			inTLS = trimmed == "[tls]"
+			if inTLS {
+				hasTLSTable = true
+			}
+			continue
+		}
+		if inTLS {
+			if key, value, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(key) == "mode" {
+				mode = strings.Trim(strings.TrimSpace(value), `"'`)
+			}
+		}
+	}
+	return mode, hasTLSTable
+}
+
 // extraDefinesTLSTable reports whether ExtraConfig declares its own [tls] table.
 // When it does, generateTOMLConfig omits the preset-derived [tls] block so the
 // test can override the listener transport without a duplicate-table TOML error.
 func extraDefinesTLSTable(extra string) bool {
+	_, hasTLSTable := extraTLSMode(extra)
+	return hasTLSTable
+}
+
+// extraDefinesPublicOrigin reports whether ExtraConfig sets the top-level
+// public_origin key. When it does, generateTOMLConfig omits its generated
+// default so the test's explicit origin wins (and so the rendered TOML does not
+// carry a duplicate public_origin key). Only root-table assignments count;
+// keys inside a [table] are ignored.
+func extraDefinesPublicOrigin(extra string) bool {
+	inRootTable := true
 	for _, line := range strings.Split(extra, "\n") {
-		if strings.TrimSpace(line) == "[tls]" {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			inRootTable = false
+			continue
+		}
+		if !inRootTable {
+			continue
+		}
+		if key, _, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(key) == "public_origin" {
 			return true
 		}
 	}
@@ -337,20 +383,38 @@ func extraDefinesTLSTable(extra string) bool {
 func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, disableProxyEnvFallback bool, extra string) string {
 	secure := needsSecureTransport(mode, compatibilityScope)
 
+	// Derive the scheme for the generated default public_origin from the FINAL
+	// effective TLS mode, not just the preset heuristic. ExtraConfig may override
+	// the preset transport via its own [tls] table; when it sets an explicit mode
+	// the generated default origin must follow that override, because discovery
+	// (internal/services/wellknown) advertises endpoints from public_origin and
+	// would otherwise advertise the wrong scheme. Any tls.mode other than "off"
+	// implies HTTPS, matching localListenerScheme.
+	publicOriginSecure := secure
+	if overrideMode, _ := extraTLSMode(extra); strings.TrimSpace(overrideMode) != "" {
+		publicOriginSecure = localListenerScheme(overrideMode) == "https"
+	}
+
 	var publicOrigin string
-	if secure {
+	if publicOriginSecure {
 		publicOrigin = fmt.Sprintf("https://localhost:%d", port)
 	} else {
 		publicOrigin = fmt.Sprintf("http://localhost:%d", port)
 	}
 
+	// Omit the generated public_origin when the test sets its own so the explicit
+	// value wins and the rendered TOML stays free of duplicate keys.
+	publicOriginLine := ""
+	if !extraDefinesPublicOrigin(extra) {
+		publicOriginLine = fmt.Sprintf("public_origin = %q\n", publicOrigin)
+	}
+
 	config := fmt.Sprintf(`# Generated config for test server: %s
 mode = "%s"
 listen_addr = ":%d"
-public_origin = "%s"
-external_base_path = ""
+%sexternal_base_path = ""
 
-`, name, mode, port, publicOrigin)
+`, name, mode, port, publicOriginLine)
 
 	if compatibilityScope != "" {
 		config += fmt.Sprintf("compatibility_scope = %q\n\n", compatibilityScope)
