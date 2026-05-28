@@ -76,18 +76,12 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		patch(cfg)
 	}
 
-	// Validate [http.services.*] keys before any side-effecting bootstrap
-	// (mirrors main.go fail-fast: a typo must never cause partial startup).
-	if cfg.HTTP.Services != nil {
-		var names []string
-		for name := range cfg.HTTP.Services {
-			names = append(names, name)
-		}
-		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
-			os.RemoveAll(tempDir)
-			t.Fatalf("unknown service names in [http.services]: %s (allowed: %s)",
-				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
-		}
+	// Fail-fast checks that must run before any side-effecting bootstrap
+	// (mirrors main.go: a typo or impossible compatibility-scope startup state
+	// must never cause partial startup).
+	if err := validatePreBootstrapStartup(cfg); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("pre-bootstrap startup validation rejected: %v", err)
 	}
 
 	// Logger writes warnings and errors to stdout for test diagnostics.
@@ -230,6 +224,30 @@ func (ts *TestServer) Stop(t *testing.T) {
 // LogFile returns the path to a log file in the temp directory.
 func (ts *TestServer) LogFile(name string) string {
 	return filepath.Join(ts.TempDir, name+".log")
+}
+
+// validatePreBootstrapStartup runs the fail-fast checks that the real binary
+// applies before any side-effecting bootstrap. It returns an error (rather than
+// calling t.Fatalf) so it can be unit-tested directly. It covers two surfaces:
+//   - unknown [http.services.*] names (a typo must never start partially), and
+//   - the compatibility-scope startup guardrails that config.Load enforces,
+//     reused here so an in-memory config patched past Load() still rejects the
+//     same broader impossible startup states the binary rejects.
+func validatePreBootstrapStartup(cfg *config.Config) error {
+	if cfg.HTTP.Services != nil {
+		var names []string
+		for name := range cfg.HTTP.Services {
+			names = append(names, name)
+		}
+		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
+			return fmt.Errorf("unknown service names in [http.services]: %s (allowed: %s)",
+				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
+		}
+	}
+	if err := config.ValidateCompatibilityScopeStartupGuardrails(cfg); err != nil {
+		return err
+	}
+	return nil
 }
 
 // checkStartupPosture mirrors the main.go startup guard: when

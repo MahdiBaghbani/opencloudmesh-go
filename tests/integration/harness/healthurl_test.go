@@ -79,6 +79,54 @@ func TestLocalListenerBaseURL(t *testing.T) {
 	}
 }
 
+func TestValidatePreBootstrapStartup(t *testing.T) {
+	cases := []struct {
+		name      string
+		mutate    func(*config.Config)
+		wantError bool
+	}{
+		{
+			name:      "valid none-scope strict config passes",
+			mutate:    func(*config.Config) {},
+			wantError: false,
+		},
+		{
+			name: "scoped config with tls.mode off rejected before startup",
+			mutate: func(cfg *config.Config) {
+				cfg.CompatibilityScope = "scoped"
+				cfg.TLS.Mode = "off"
+			},
+			wantError: true,
+		},
+		{
+			name: "none-scope allow_mismatch contradiction rejected before startup",
+			mutate: func(cfg *config.Config) {
+				// scope=none with signature.allow_mismatch=true is a static
+				// contradiction the posture-only guard does not catch.
+				cfg.CompatibilityScope = "none"
+				cfg.Signature.AllowMismatch = true
+			},
+			wantError: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// StrictConfig is compatibility_scope=none and satisfies the
+			// none-scope guardrails, giving each case a valid starting point.
+			cfg := config.StrictConfig()
+			tc.mutate(cfg)
+			err := validatePreBootstrapStartup(cfg)
+			if tc.wantError && err == nil {
+				t.Fatalf("validatePreBootstrapStartup() = nil, want error")
+			}
+			if !tc.wantError && err != nil {
+				t.Fatalf("validatePreBootstrapStartup() = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestCheckStartupPosture(t *testing.T) {
 	cases := []struct {
 		name      string

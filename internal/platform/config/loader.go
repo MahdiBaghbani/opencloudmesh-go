@@ -857,6 +857,16 @@ func validateEnums(cfg *Config) error {
 	return nil
 }
 
+// ValidateCompatibilityScopeStartupGuardrails applies the same
+// compatibility-scope startup guardrails that Load enforces. It is exported so
+// in-memory config callers that build a Config without going through Load (for
+// example the in-process test harness) reject the same broader impossible
+// startup states the real binary rejects. Load reaches this logic via
+// validateEnums; both paths share validateCompatibilityScopeGuardrails.
+func ValidateCompatibilityScopeStartupGuardrails(cfg *Config) error {
+	return validateCompatibilityScopeGuardrails(cfg)
+}
+
 func validateCompatibilityScopeGuardrails(cfg *Config) error {
 	if cfg == nil {
 		return nil
