@@ -3,13 +3,13 @@
 
 // G0.1: regression guard for loader error message inventory.
 //
-// Before splitting or refactoring loader.go, these 32 substrings must appear
+// Before splitting or refactoring loader.go, these 34 substrings must appear
 // in at least one of: loader_test.go assertion strings OR loader.go error
 // message literals. If a substring vanishes from both files, the guard fails
 // with a clear message identifying which strings were lost.
 //
 // Categories:
-//   - compatibility_scope=none  (14 strings)
+//   - compatibility_scope=none  (16 strings)
 //   - ssrf                      (9 strings)
 //   - proxy                     (3 strings)
 //   - route_policy / scoped     (6 strings)
@@ -35,6 +35,8 @@ var loaderErrorSubstrings = []struct {
 	{"compatibility_scope=none", "compatibility_scope=none requires signature.on_discovery_error=reject"},
 	{"compatibility_scope=none", "compatibility_scope=none requires signature.allow_mismatch=false"},
 	{"compatibility_scope=none", "compatibility_scope=none requires require_token_exchange=true"},
+	{"compatibility_scope=none", "compatibility_scope=none requires peer_policy=strict"},
+	{"compatibility_scope=none", "compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled"},
 	{"compatibility_scope=none", "compatibility_scope=none requires outbound_http.ssrf.mode=strict"},
 	{"compatibility_scope=none", "compatibility_scope=none requires tls.mode!=off"},
 	{"compatibility_scope=none", "compatibility_scope=none requires outbound_http.insecure_skip_verify=false"},

@@ -4,6 +4,7 @@
 package harness
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -84,6 +85,9 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 		name      string
 		mutate    func(*config.Config)
 		wantError bool
+		// wantSubstr, when set, requires the returned error to contain this
+		// exact loader substring. Used to fence specific regression strings.
+		wantSubstr string
 	}{
 		{
 			name:      "valid none-scope strict config passes",
@@ -108,6 +112,23 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 			},
 			wantError: true,
 		},
+		{
+			name: "none-scope non-strict peer_policy rejected before startup",
+			mutate: func(cfg *config.Config) {
+				cfg.PeerPolicy = "prefer-strict"
+			},
+			wantError:  true,
+			wantSubstr: "compatibility_scope=none requires peer_policy=strict",
+		},
+		{
+			name: "none-scope peer trust without global_enforce rejected before startup",
+			mutate: func(cfg *config.Config) {
+				cfg.PeerTrust.Enabled = true
+				cfg.PeerTrust.Policy.GlobalEnforce = false
+			},
+			wantError:  true,
+			wantSubstr: "compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled",
+		},
 	}
 
 	for _, tc := range cases {
@@ -122,6 +143,9 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 			}
 			if !tc.wantError && err != nil {
 				t.Fatalf("validatePreBootstrapStartup() = %v, want nil", err)
+			}
+			if tc.wantSubstr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantSubstr)) {
+				t.Fatalf("validatePreBootstrapStartup() = %v, want error containing %q", err, tc.wantSubstr)
 			}
 		})
 	}
