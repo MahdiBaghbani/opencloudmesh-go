@@ -3,6 +3,7 @@ package integration
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -53,6 +54,34 @@ func TestHealthEndpointWithExternalBasePath(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+}
+
+// TestBaseURLTracksListenerNotPublicOrigin guards against a harness regression:
+// when a test patches cfg.PublicOrigin to an advertised origin, the server still
+// listens on the ephemeral local port. TestServer.BaseURL must remain the real
+// local request target (localhost:<allocated port>) so local test traffic and
+// readiness probing keep working regardless of the advertised origin.
+func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
+	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+		cfg.PublicOrigin = "https://advertised.example.com"
+	})
+	defer ts.Stop(t)
+
+	if !strings.HasPrefix(ts.BaseURL, "http://localhost:") {
+		t.Fatalf("BaseURL should target the local listener, got %q", ts.BaseURL)
+	}
+	if strings.Contains(ts.BaseURL, "advertised.example.com") {
+		t.Fatalf("BaseURL must not use the advertised PublicOrigin, got %q", ts.BaseURL)
+	}
+
+	resp, err := http.Get(ts.BaseURL + "/api/healthz")
+	if err != nil {
+		t.Fatalf("health check against local listener failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected healthz 200 from local listener, got %d", resp.StatusCode)
 	}
 }
 

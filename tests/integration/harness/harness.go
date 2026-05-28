@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -124,6 +125,14 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to bootstrap dependencies: %v", err)
 	}
 
+	// Posture guard parity with main.go: a compatibility_scope=none config that
+	// resolves to a non-strict runtime posture is an impossible production state
+	// and must not silently start in-process.
+	if err := checkStartupPosture(cfg, bootstrapResult.RuntimeEval); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("startup posture rejected: %v", err)
+	}
+
 	// Bootstrap test admin user
 	d := deps.GetDeps()
 	if d == nil {
@@ -177,9 +186,12 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		}
 	}()
 
-	// Derive baseURL from the patched config.PublicOrigin so that any patch
-	// that changes the scheme or host is reflected correctly here and in TestServer.
-	baseURL := strings.TrimSuffix(cfg.PublicOrigin, "/")
+	// BaseURL is the real local request target: localhost on the allocated
+	// listener port using the actual listener scheme. It is deliberately derived
+	// from the listener, not cfg.PublicOrigin, because tests may patch
+	// PublicOrigin to exercise advertised-origin behavior while the server still
+	// listens on the ephemeral ListenAddr port.
+	baseURL := localListenerBaseURL(cfg.TLS.Mode, port)
 	// App endpoints (including /api/healthz) mount under ExternalBasePath when
 	// set, so the readiness probe must target that path, not bare root.
 	if err := waitForServerReady(healthEndpointURL(baseURL, cfg.ExternalBasePath), 5*time.Second); err != nil {
@@ -218,6 +230,41 @@ func (ts *TestServer) Stop(t *testing.T) {
 // LogFile returns the path to a log file in the temp directory.
 func (ts *TestServer) LogFile(name string) string {
 	return filepath.Join(ts.TempDir, name+".log")
+}
+
+// checkStartupPosture mirrors the main.go startup guard: when
+// compatibility_scope is "none", the resolved runtime posture must be strict.
+// Returning an error (rather than relying on cfg alone) keeps the in-process
+// harness from starting a production-impossible state that the real binary
+// would reject. eval comes from BootstrapResult.RuntimeEval.
+func checkStartupPosture(cfg *config.Config, eval policy.RuntimeEvaluation) error {
+	if cfg.CompatibilityScope == "none" && !eval.Strict.IsStrict {
+		return fmt.Errorf(
+			"compatibility_scope=none contradicts resolved runtime posture (tier=%s, scope=%s, reasons=%v)",
+			eval.DerivedTier, eval.CompatibilityScope, eval.Strict.ViolationReasons,
+		)
+	}
+	return nil
+}
+
+// localListenerScheme returns the scheme the in-process test server actually
+// listens with. It mirrors server.Start: TLS mode "off" serves plain HTTP and
+// any other mode serves HTTPS. This is intentionally independent of
+// cfg.PublicOrigin, which is only the advertised origin and may be patched by
+// tests.
+func localListenerScheme(tlsMode string) string {
+	if strings.TrimSpace(tlsMode) == "off" {
+		return "http"
+	}
+	return "https"
+}
+
+// localListenerBaseURL builds the real request target for in-process test
+// traffic: localhost on the allocated listener port using the actual listener
+// scheme. It ignores cfg.PublicOrigin so advertised-origin patches do not break
+// local readiness probing or test requests.
+func localListenerBaseURL(tlsMode string, port int) string {
+	return fmt.Sprintf("%s://localhost:%d", localListenerScheme(tlsMode), port)
 }
 
 // getFreePort finds an available TCP port.
