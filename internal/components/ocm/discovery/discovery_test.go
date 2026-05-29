@@ -86,6 +86,195 @@ func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
 	})
 }
 
+func TestBuildDiscovery_DisabledWhenNoEndpoint(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{Provider: "OpenCloudMesh"}, nil)
+
+	if disc.Enabled {
+		t.Error("expected Enabled=false when endpoint is empty")
+	}
+	if disc.APIVersion != "1.2.2" {
+		t.Errorf("expected APIVersion '1.2.2', got %q", disc.APIVersion)
+	}
+	if disc.Provider != "OpenCloudMesh" {
+		t.Errorf("expected Provider 'OpenCloudMesh', got %q", disc.Provider)
+	}
+	if disc.Criteria == nil {
+		t.Error("expected Criteria to be non-nil (empty slice)")
+	}
+}
+
+func TestBuildDiscovery_DisabledWhenInvalidEndpoint(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{Endpoint: "://invalid-url"}, nil)
+
+	if disc.Enabled {
+		t.Error("expected Enabled=false for invalid URL")
+	}
+}
+
+func TestBuildDiscovery_EnabledWithEndpoint(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		Endpoint:   "https://example.com/myapp",
+		OCMPrefix:  "ocm",
+		WebDAVRoot: "/webdav/ocm/",
+	}, nil)
+
+	if !disc.Enabled {
+		t.Error("expected Enabled=true when endpoint is set")
+	}
+	if disc.EndPoint != "https://example.com/myapp/ocm" {
+		t.Errorf("expected EndPoint 'https://example.com/myapp/ocm', got %q", disc.EndPoint)
+	}
+	if len(disc.ResourceTypes) != 1 {
+		t.Fatalf("expected 1 resource type, got %d", len(disc.ResourceTypes))
+	}
+	if disc.ResourceTypes[0].Protocols["webdav"] != "/webdav/ocm/" {
+		t.Errorf("expected webdav protocol '/webdav/ocm/', got %q", disc.ResourceTypes[0].Protocols["webdav"])
+	}
+}
+
+func TestBuildDiscovery_TokenExchange(t *testing.T) {
+	t.Run("capable sets endpoint and capability", func(t *testing.T) {
+		disc := discovery.BuildDiscovery(discovery.BuildParams{
+			Endpoint:             "https://example.com/app",
+			OCMPrefix:            "ocm",
+			TokenExchangePath:    "exchange",
+			TokenExchangeCapable: true,
+		}, nil)
+
+		if !disc.HasCapability("exchange-token") {
+			t.Error("expected 'exchange-token' capability")
+		}
+		if disc.TokenEndPoint != "https://example.com/app/ocm/exchange" {
+			t.Errorf("unexpected tokenEndPoint %q", disc.TokenEndPoint)
+		}
+	})
+
+	t.Run("capable with empty path defaults to token", func(t *testing.T) {
+		disc := discovery.BuildDiscovery(discovery.BuildParams{
+			Endpoint:             "https://example.com",
+			OCMPrefix:            "ocm",
+			TokenExchangeCapable: true,
+		}, nil)
+
+		if disc.TokenEndPoint != "https://example.com/ocm/token" {
+			t.Errorf("unexpected tokenEndPoint %q", disc.TokenEndPoint)
+		}
+	})
+
+	t.Run("not capable omits endpoint and capability", func(t *testing.T) {
+		disc := discovery.BuildDiscovery(discovery.BuildParams{
+			Endpoint:  "https://example.com",
+			OCMPrefix: "ocm",
+		}, nil)
+
+		if disc.HasCapability("exchange-token") {
+			t.Error("did not expect 'exchange-token' capability")
+		}
+		if disc.TokenEndPoint != "" {
+			t.Errorf("expected empty tokenEndPoint, got %q", disc.TokenEndPoint)
+		}
+	})
+}
+
+func TestBuildDiscovery_PublicKeysAddHTTPSig(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		Endpoint:  "https://example.com",
+		OCMPrefix: "ocm",
+		PublicKeys: []discovery.PublicKey{
+			{KeyID: "key1", PublicKeyPem: "pem", Algorithm: "ed25519"},
+		},
+	}, nil)
+
+	if len(disc.PublicKeys) != 1 {
+		t.Fatalf("expected 1 public key, got %d", len(disc.PublicKeys))
+	}
+	if !disc.HasCapability("http-sig") {
+		t.Error("expected 'http-sig' capability when public keys are present")
+	}
+}
+
+func TestBuildDiscovery_UnconditionalCapabilities(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		Endpoint:  "https://example.com",
+		OCMPrefix: "ocm",
+	}, nil)
+
+	for _, cap := range []string{"invites", "webdav-uri", "protocol-object", "notifications"} {
+		if !disc.HasCapability(cap) {
+			t.Errorf("expected unconditional capability %q", cap)
+		}
+	}
+}
+
+func TestBuildDiscovery_InviteWAYF(t *testing.T) {
+	t.Run("dialog with advertise adds invite-wayf", func(t *testing.T) {
+		disc := discovery.BuildDiscovery(discovery.BuildParams{
+			Endpoint:            "https://example.com",
+			OCMPrefix:           "ocm",
+			InviteAcceptDialog:  "https://example.com/ui/accept-invite",
+			AdvertiseInviteWAYF: true,
+		}, nil)
+
+		if disc.InviteAcceptDialog != "https://example.com/ui/accept-invite" {
+			t.Errorf("unexpected inviteAcceptDialog %q", disc.InviteAcceptDialog)
+		}
+		if !disc.HasCapability("invite-wayf") {
+			t.Error("expected 'invite-wayf' capability")
+		}
+	})
+
+	t.Run("dialog without advertise omits invite-wayf", func(t *testing.T) {
+		disc := discovery.BuildDiscovery(discovery.BuildParams{
+			Endpoint:           "https://example.com",
+			OCMPrefix:          "ocm",
+			InviteAcceptDialog: "https://example.com/ui/accept-invite",
+		}, nil)
+
+		if disc.HasCapability("invite-wayf") {
+			t.Error("did not expect 'invite-wayf' capability without advertise flag")
+		}
+	})
+}
+
+func TestBuildDiscovery_Criteria(t *testing.T) {
+	t.Run("http signatures requirement emits criterion", func(t *testing.T) {
+		disc := discovery.BuildDiscovery(discovery.BuildParams{
+			Endpoint:               "https://example.com",
+			OCMPrefix:              "ocm",
+			RequiresHTTPSignatures: true,
+		}, nil)
+
+		if !disc.HasCriteria("http-request-signatures") {
+			t.Error("expected 'http-request-signatures' criterion")
+		}
+	})
+
+	t.Run("token exchange requirement with capability emits criterion", func(t *testing.T) {
+		disc := discovery.BuildDiscovery(discovery.BuildParams{
+			Endpoint:              "https://example.com",
+			OCMPrefix:             "ocm",
+			TokenExchangeCapable:  true,
+			RequiresTokenExchange: true,
+		}, nil)
+
+		if !disc.HasCriteria("token-exchange") {
+			t.Error("expected 'token-exchange' criterion")
+		}
+	})
+
+	t.Run("token exchange requirement without capability omits criterion", func(t *testing.T) {
+		disc := discovery.BuildDiscovery(discovery.BuildParams{
+			Endpoint:              "https://example.com",
+			OCMPrefix:             "ocm",
+			RequiresTokenExchange: true,
+		}, nil)
+
+		if disc.HasCriteria("token-exchange") {
+			t.Error("did not expect 'token-exchange' criterion without capability")
+		}
+	})
+}
+
 func TestDiscovery_Helpers(t *testing.T) {
 	disc := &discovery.Discovery{
 		Enabled:    true,

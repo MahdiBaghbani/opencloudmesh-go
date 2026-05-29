@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -138,45 +138,14 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		}
 	}
 
-	// Build static discovery data (Reva pattern: computed once, not at runtime)
-	disc := &spec.Discovery{
-		Enabled:    false,
-		APIVersion: "1.2.2",
-		Provider:   c.Provider,
-		Criteria:   []string{}, // Always present, serializes as [] when empty
-	}
-
-	if c.Endpoint == "" {
-		return &ocmHandler{data: disc, overrides: c.APIVersionOverrides, log: log}, nil
-	}
-
-	endpointURL, err := url.Parse(c.Endpoint)
-	if err != nil {
-		return &ocmHandler{data: disc, overrides: c.APIVersionOverrides, log: log}, nil
-	}
-
-	// Build enabled discovery
-	disc.Enabled = true
-	disc.EndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix)
-
-	// Resource types with WebDAV protocol
-	disc.ResourceTypes = []spec.ResourceType{{
-		Name:       "file",
-		ShareTypes: []string{"user"},
-		Protocols:  map[string]string{"webdav": c.WebDAVRoot},
-	}}
-
-	// Capabilities (static, config-driven)
-	capabilities := []string{}
-
-	// Add public keys when available from SharedDeps
+	// Resolve public keys from SharedDeps when available.
+	var publicKeys []spec.PublicKey
 	if d != nil && d.KeyManager != nil {
-		disc.PublicKeys = []spec.PublicKey{{
+		publicKeys = []spec.PublicKey{{
 			KeyID:        d.KeyManager.GetKeyID(),
 			PublicKeyPem: d.KeyManager.GetPublicKeyPEM(),
 			Algorithm:    "ed25519",
 		}}
-		capabilities = append(capabilities, "http-sig")
 	}
 
 	// Token exchange capability is owned by OpenCloudMeshPolicy when available.
@@ -193,39 +162,21 @@ func newOCMHandler(c *OCMProviderConfig, rawOCMProvider map[string]any, d *deps.
 		localEval.requiresHTTPSignatures = d.RuntimePolicy.Evaluate().Signature.RequiresHTTPRequestSignatures
 	}
 
-	if localEval.codeFlow {
-		capabilities = append(capabilities, "exchange-token")
-		tokenPath := c.TokenExchange.Path
-		if tokenPath == "" {
-			tokenPath = "token"
-		}
-		disc.TokenEndPoint, _ = url.JoinPath(c.Endpoint, c.OCMPrefix, tokenPath)
-	}
+	// Build the static discovery document via the discovery component.
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		Provider:               c.Provider,
+		Endpoint:               c.Endpoint,
+		OCMPrefix:              c.OCMPrefix,
+		WebDAVRoot:             c.WebDAVRoot,
+		TokenExchangePath:      c.TokenExchange.Path,
+		InviteAcceptDialog:     c.InviteAcceptDialog,
+		AdvertiseInviteWAYF:    c.AdvertiseInviteWAYF,
+		PublicKeys:             publicKeys,
+		TokenExchangeCapable:   localEval.codeFlow,
+		RequiresTokenExchange:  localEval.strict,
+		RequiresHTTPSignatures: localEval.requiresHTTPSignatures,
+	}, log)
 
-	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery
-	capabilities = append(capabilities, "invites", "webdav-uri", "protocol-object", "notifications")
-
-	// Invite accept dialog (WAYF)
-	if c.InviteAcceptDialog != "" {
-		disc.InviteAcceptDialog = c.InviteAcceptDialog
-		if c.AdvertiseInviteWAYF {
-			capabilities = append(capabilities, "invite-wayf")
-		}
-	}
-
-	disc.Capabilities = capabilities
-
-	// Criteria (always present, serializes as [] when empty)
-	if localEval.requiresHTTPSignatures {
-		disc.Criteria = append(disc.Criteria, "http-request-signatures")
-	}
-	if localEval.strict && localEval.codeFlow {
-		disc.Criteria = append(disc.Criteria, "token-exchange")
-	} else if localEval.strict && !localEval.codeFlow {
-		log.Warn("local evaluator requires token exchange but code flow is disabled; omitting token-exchange criteria")
-	}
-
-	_ = endpointURL // parsed for validation only (keep for future use)
 	return &ocmHandler{data: disc, overrides: c.APIVersionOverrides, log: log}, nil
 }
 
