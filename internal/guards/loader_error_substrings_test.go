@@ -4,9 +4,12 @@
 // G0.1: regression guard for loader error message inventory.
 //
 // Before splitting or refactoring loader.go, these 34 substrings must appear
-// in at least one of: loader_test.go assertion strings OR loader.go error
-// message literals. If a substring vanishes from both files, the guard fails
-// with a clear message identifying which strings were lost.
+// somewhere in the loader area: either a loader*.go test assertion string or a
+// loader.go error message literal. The Q2 split spread these assertions across
+// dedicated files (for example loader_compatibility_scope_test.go and
+// loader_ssrf_test.go), so the guard scans every loader*.go file in
+// internal/platform/config/. If a substring vanishes from all of them, the
+// guard fails with a clear message identifying which strings were lost.
 //
 // Categories:
 //   - compatibility_scope=none  (16 strings)
@@ -23,7 +26,8 @@ import (
 )
 
 // loaderErrorSubstrings is the read-only inventory of error substrings that
-// must remain present in loader.go error messages or loader_test.go assertions.
+// must remain present somewhere across the loader*.go files in
+// internal/platform/config/ (source error literals or test assertions).
 var loaderErrorSubstrings = []struct {
 	category string
 	substr   string
@@ -58,9 +62,13 @@ var loaderErrorSubstrings = []struct {
 	{"ssrf", "invalid port"},
 
 	// proxy
+	// These must stay uniquely proxy-scoped. The trailing text "must be an
+	// absolute URL with http or https scheme" and "must not include userinfo"
+	// is shared with public_origin validation, so the entries pin the full
+	// "invalid outbound_http.proxy_url" prefix to keep proxy coverage honest.
 	{"proxy", "proxy_url"},
-	{"proxy", "must be an absolute URL with http or https scheme"},
-	{"proxy", "must not include userinfo"},
+	{"proxy", "invalid outbound_http.proxy_url %q: must be an absolute URL with http or https scheme"},
+	{"proxy", "invalid outbound_http.proxy_url %q: must not include userinfo"},
 
 	// route_policy (scoped compatibility enforcement)
 	{"route_policy", "compatibility_scope=scoped requires signature.inbound_mode=strict"},
@@ -74,26 +82,29 @@ var loaderErrorSubstrings = []struct {
 func TestLoaderErrorSubstrings_InventoryPresent(t *testing.T) {
 	repoRoot := findRepoRoot(t)
 
-	loaderPath := filepath.Join(repoRoot, "internal", "platform", "config", "loader.go")
-	loaderTestPath := filepath.Join(repoRoot, "internal", "platform", "config", "loader_test.go")
-
-	loaderBytes, err := os.ReadFile(loaderPath)
+	configDir := filepath.Join(repoRoot, "internal", "platform", "config")
+	loaderFiles, err := filepath.Glob(filepath.Join(configDir, "loader*.go"))
 	if err != nil {
-		t.Fatalf("read loader.go: %v", err)
+		t.Fatalf("glob loader*.go: %v", err)
 	}
-	loaderTestBytes, err := os.ReadFile(loaderTestPath)
-	if err != nil {
-		t.Fatalf("read loader_test.go: %v", err)
+	if len(loaderFiles) == 0 {
+		t.Fatalf("G0.1: no loader*.go files found in %s", configDir)
 	}
 
-	loaderSrc := string(loaderBytes)
-	loaderTestSrc := string(loaderTestBytes)
+	var combined strings.Builder
+	for _, path := range loaderFiles {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		combined.Write(data)
+		combined.WriteByte('\n')
+	}
+	loaderArea := combined.String()
 
 	var missing []string
 	for _, entry := range loaderErrorSubstrings {
-		inLoader := strings.Contains(loaderSrc, entry.substr)
-		inLoaderTest := strings.Contains(loaderTestSrc, entry.substr)
-		if !inLoader && !inLoaderTest {
+		if !strings.Contains(loaderArea, entry.substr) {
 			missing = append(
 				missing,
 				"["+entry.category+"] "+entry.substr,
@@ -103,10 +114,12 @@ func TestLoaderErrorSubstrings_InventoryPresent(t *testing.T) {
 
 	if len(missing) > 0 {
 		t.Fatalf(
-			"G0.1: %d error substring(s) missing from both loader.go and loader_test.go.\n"+
+			"G0.1: %d error substring(s) missing from all loader*.go files in\n"+
+				"internal/platform/config/ (%d file(s) scanned).\n"+
 				"Update the inventory in loader_error_substrings_test.go to reflect the new\n"+
 				"error message wording before proceeding with the loader refactor.\n\nMissing:\n  %s",
 			len(missing),
+			len(loaderFiles),
 			strings.Join(missing, "\n  "),
 		)
 	}
