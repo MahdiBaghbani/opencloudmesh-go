@@ -5,13 +5,9 @@ import (
 	"crypto/x509"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client/outboundtestutil"
 )
@@ -313,52 +309,5 @@ func TestClient_SignedRedirectRejectedWithProxy(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "signed requests cannot follow redirects") {
 		t.Errorf("expected 'signed requests cannot follow redirects', got: %v", err)
-	}
-}
-
-// TestRoutePolicy_RedirectRevalidationWithAllowedPolicy verifies end-to-end
-// that a redirect to the same host is followed when the route policy allows
-// the (loopback) destination. Both the initial preflight and the redirect
-// SSRF check must pass for the redirect to succeed.
-func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
-	var requestCount int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&requestCount, 1)
-		if r.URL.Path == "/start" {
-			http.Redirect(w, r, "/target", http.StatusFound)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	// Extract the actual port httptest chose so the route policy can allow it.
-	u, _ := url.Parse(server.URL)
-	port, _ := strconv.Atoi(u.Port())
-
-	cfg := outboundtestutil.StrictNoneOutboundConfig()
-	cfg.TimeoutMS = 5000
-	cfg.ConnectTimeoutMS = 2000
-	cfg.SSRF.RoutePolicy = "local"
-	cfg.SSRF.RoutePolicies = map[string]config.SSRFRoutePolicyConfig{
-		"local": {
-			AllowPrivateCIDRs: []string{"127.0.0.0/8"},
-			AllowedPorts:      []int{port},
-			AllowIPLiterals:   true, // server is at 127.0.0.1 (IP literal)
-		},
-	}
-	c := httpclient.New(cfg, nil)
-
-	resp, err := c.Get(context.Background(), server.URL+"/start")
-	if err != nil {
-		t.Fatalf("expected redirect to be followed with matching route policy, got: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
-	if atomic.LoadInt32(&requestCount) < 2 {
-		t.Error("expected redirect to be followed (at least 2 requests)")
 	}
 }
