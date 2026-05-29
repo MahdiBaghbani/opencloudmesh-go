@@ -322,6 +322,98 @@ func TestCompatConfig(t *testing.T) {
 	}
 }
 
+// TestDevConfig_DerivesFromStrict pins the behavior-preserving contract for
+// DevConfig now that it overlays StrictConfig. It checks every dev-specific
+// delta, confirms shared defaults stay inherited from strict, and guards
+// against token-exchange pointer aliasing across separate preset calls.
+func TestDevConfig_DerivesFromStrict(t *testing.T) {
+	dev := DevConfig()
+	strict := StrictConfig()
+
+	// Dev-specific deltas relative to strict.
+	deltas := []struct {
+		name string
+		got  any
+		want any
+	}{
+		{"Mode", dev.Mode, "dev"},
+		{"CompatibilityScope", dev.CompatibilityScope, "unbounded"},
+		{"TLS.Mode", dev.TLS.Mode, "off"},
+		{"TLS.ACME.Directory", dev.TLS.ACME.Directory, "https://acme-staging-v02.api.letsencrypt.org/directory"},
+		{"TLS.ACME.UseStaging", dev.TLS.ACME.UseStaging, true},
+		{"OutboundHTTP.SSRF.Mode", dev.OutboundHTTP.SSRF.Mode, "off"},
+		{"OutboundHTTP.SSRFMode", dev.OutboundHTTP.SSRFMode, "off"},
+		{"OutboundHTTP.MaxRedirects", dev.OutboundHTTP.MaxRedirects, 3},
+		{"OutboundHTTP.InsecureSkipVerify", dev.OutboundHTTP.InsecureSkipVerify, true},
+		{"OutboundHTTP.ProxyEnvFallback", dev.OutboundHTTP.ProxyEnvFallback, false},
+		{"Signature.InboundMode", dev.Signature.InboundMode, "lenient"},
+		{"Signature.OutboundMode", dev.Signature.OutboundMode, "criteria-only"},
+		{"Signature.PeerProfileLevelOverride", dev.Signature.PeerProfileLevelOverride, "non-strict"},
+		{"Signature.OnDiscoveryError", dev.Signature.OnDiscoveryError, "allow"},
+		{"Signature.AllowMismatch", dev.Signature.AllowMismatch, true},
+		{"Logging.Level", dev.Logging.Level, "debug"},
+		{"RequireTokenExchange", dev.RequireTokenExchange, false},
+		{"PeerPolicy", dev.PeerPolicy, "prefer-strict"},
+	}
+	for _, d := range deltas {
+		if d.got != d.want {
+			t.Errorf("dev delta %s = %v, want %v", d.name, d.got, d.want)
+		}
+	}
+
+	// Shared defaults must remain inherited from strict.
+	inherited := []struct {
+		name string
+		got  any
+		want any
+	}{
+		{"PublicOrigin", dev.PublicOrigin, strict.PublicOrigin},
+		{"ExternalBasePath", dev.ExternalBasePath, strict.ExternalBasePath},
+		{"ListenAddr", dev.ListenAddr, strict.ListenAddr},
+		{"TLS.HTTPPort", dev.TLS.HTTPPort, strict.TLS.HTTPPort},
+		{"TLS.HTTPSPort", dev.TLS.HTTPSPort, strict.TLS.HTTPSPort},
+		{"TLS.SelfSignedDir", dev.TLS.SelfSignedDir, strict.TLS.SelfSignedDir},
+		{"TLS.ACME.StorageDir", dev.TLS.ACME.StorageDir, strict.TLS.ACME.StorageDir},
+		{"OutboundHTTP.TimeoutMS", dev.OutboundHTTP.TimeoutMS, strict.OutboundHTTP.TimeoutMS},
+		{"OutboundHTTP.ConnectTimeoutMS", dev.OutboundHTTP.ConnectTimeoutMS, strict.OutboundHTTP.ConnectTimeoutMS},
+		{"OutboundHTTP.MaxResponseBytes", dev.OutboundHTTP.MaxResponseBytes, strict.OutboundHTTP.MaxResponseBytes},
+		{"Signature.KeyPath", dev.Signature.KeyPath, strict.Signature.KeyPath},
+		{"PeerTrust.Enabled", dev.PeerTrust.Enabled, strict.PeerTrust.Enabled},
+		{"PeerTrust.MembershipCache.TTLSeconds", dev.PeerTrust.MembershipCache.TTLSeconds, strict.PeerTrust.MembershipCache.TTLSeconds},
+		{"PeerTrust.MembershipCache.MaxStaleSeconds", dev.PeerTrust.MembershipCache.MaxStaleSeconds, strict.PeerTrust.MembershipCache.MaxStaleSeconds},
+		{"Logging.AllowSensitive", dev.Logging.AllowSensitive, strict.Logging.AllowSensitive},
+		{"TokenExchange.Path", dev.TokenExchange.Path, strict.TokenExchange.Path},
+	}
+	for _, i := range inherited {
+		if i.got != i.want {
+			t.Errorf("dev inherited %s = %v, want strict value %v", i.name, i.got, i.want)
+		}
+	}
+
+	if got := strings.Join(dev.Server.TrustedProxies, ","); got != strings.Join(strict.Server.TrustedProxies, ",") {
+		t.Errorf("dev TrustedProxies = %v, want strict value %v", dev.Server.TrustedProxies, strict.Server.TrustedProxies)
+	}
+
+	// Token-exchange enabled pointer value is preserved (true).
+	if dev.TokenExchange.Enabled == nil || !*dev.TokenExchange.Enabled {
+		t.Fatal("expected dev token_exchange.enabled pointer to be non-nil true")
+	}
+
+	// Guard against pointer aliasing: separate preset calls must own distinct
+	// pointers so mutating one config never leaks into another.
+	if dev.TokenExchange.Enabled == strict.TokenExchange.Enabled {
+		t.Error("dev and strict share the same token_exchange.enabled pointer")
+	}
+	dev2 := DevConfig()
+	if dev.TokenExchange.Enabled == dev2.TokenExchange.Enabled {
+		t.Error("two DevConfig calls share the same token_exchange.enabled pointer")
+	}
+	*dev.TokenExchange.Enabled = false
+	if dev2.TokenExchange.Enabled == nil || !*dev2.TokenExchange.Enabled {
+		t.Error("mutating one DevConfig token_exchange.enabled affected another")
+	}
+}
+
 func TestConfig_Redacted(t *testing.T) {
 	cfg := &Config{
 		Mode:         "strict",

@@ -117,64 +117,29 @@ func CompatConfig() *Config {
 	return cfg
 }
 
-// DevConfig returns development mode defaults.
+// DevConfig returns development mode defaults as an overlay on StrictConfig,
+// so the strict preset stays the single source of shared defaults. Each call
+// builds a fresh StrictConfig, so the token-exchange enabled pointer is unique
+// per DevConfig call and is not aliased across separate preset calls.
 func DevConfig() *Config {
-	tokenExchangeEnabled := true
-	return &Config{
-		Mode:               string(ModeDev),
-		CompatibilityScope: "unbounded",
-		PublicOrigin:       "https://localhost:9200",
-		ExternalBasePath:   "",
-		ListenAddr:         ":9200",
-		Server: ServerConfig{
-			TrustedProxies: []string{"127.0.0.0/8", "::1/128"},
-		},
-		TLS: TLSConfig{
-			Mode:          "off",
-			HTTPPort:      9280,
-			HTTPSPort:     9200,
-			SelfSignedDir: ".ocm/certs",
-			ACME: ACMEConfig{
-				Directory:  "https://acme-staging-v02.api.letsencrypt.org/directory",
-				StorageDir: ".ocm/acme",
-				UseStaging: true,
-			},
-		},
-		OutboundHTTP: OutboundHTTPConfig{
-			SSRF:               SSRFConfig{Mode: "off"},
-			SSRFMode:           "off",
-			TimeoutMS:          10000,
-			ConnectTimeoutMS:   2000,
-			MaxRedirects:       3,
-			MaxResponseBytes:   1048576,
-			InsecureSkipVerify: true,
-			ProxyEnvFallback:   false,
-		},
-		Signature: SignatureConfig{
-			InboundMode:              "lenient",
-			OutboundMode:             "criteria-only",
-			PeerProfileLevelOverride: "non-strict",
-			KeyPath:                  ".ocm/keys/signing.pem",
-			OnDiscoveryError:         "allow",
-			AllowMismatch:            true,
-		},
-		PeerTrust: PeerTrustConfig{
-			Enabled:     false,
-			ConfigPaths: nil,
-			MembershipCache: PeerTrustMembershipCacheConfig{
-				TTLSeconds:      21600,  // 6 hours
-				MaxStaleSeconds: 604800, // 7 days
-			},
-		},
-		Logging: LoggingConfig{
-			Level:          "debug",
-			AllowSensitive: false,
-		},
-		TokenExchange: TokenExchangeConfig{
-			Enabled: &tokenExchangeEnabled,
-			Path:    "token",
-		},
-		RequireTokenExchange: false,
-		PeerPolicy:           "prefer-strict",
-	}
+	cfg := StrictConfig()
+	cfg.Mode = string(ModeDev)
+	cfg.CompatibilityScope = "unbounded"
+	cfg.TLS.Mode = "off"
+	cfg.TLS.ACME.Directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
+	cfg.TLS.ACME.UseStaging = true
+	cfg.OutboundHTTP.SSRF.Mode = "off"
+	cfg.OutboundHTTP.SSRFMode = "off"
+	cfg.OutboundHTTP.MaxRedirects = 3
+	cfg.OutboundHTTP.InsecureSkipVerify = true
+	cfg.OutboundHTTP.ProxyEnvFallback = false
+	cfg.Signature.InboundMode = "lenient"
+	cfg.Signature.OutboundMode = "criteria-only"
+	cfg.Signature.PeerProfileLevelOverride = "non-strict"
+	cfg.Signature.OnDiscoveryError = "allow"
+	cfg.Signature.AllowMismatch = true
+	cfg.Logging.Level = "debug"
+	cfg.RequireTokenExchange = false
+	cfg.PeerPolicy = "prefer-strict"
+	return cfg
 }
