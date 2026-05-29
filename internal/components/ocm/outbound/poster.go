@@ -115,28 +115,23 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 	return resp, nil
 }
 
-// applySigning applies the outbound signing decision when a policy is present,
-// or the legacy capability-based fallback when no policy is configured.
+// applySigning applies the outbound signing decision from the configured
+// policy. When no outbound policy is configured the request is sent unsigned.
 func (p *Poster) applySigning(
 	httpReq *http.Request,
 	req Request,
 	peerDomain string,
 	disc *discovery.Discovery,
 ) error {
-	if p.outboundPolicy != nil {
-		decision := p.outboundPolicy.ShouldSign(req.Kind, peerDomain, disc, p.signer != nil)
-		if decision.Error != nil {
-			return fmt.Errorf("outbound signing policy error: %w", decision.Error)
-		}
-		if decision.ShouldSign && p.signer != nil {
-			if err := p.signer.SignRequest(httpReq, req.Body); err != nil {
-				return fmt.Errorf("failed to sign request: %w", err)
-			}
-		}
+	if p.outboundPolicy == nil {
 		return nil
 	}
 
-	if p.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
+	decision := p.outboundPolicy.ShouldSign(req.Kind, peerDomain, disc, p.signer != nil)
+	if decision.Error != nil {
+		return fmt.Errorf("outbound signing policy error: %w", decision.Error)
+	}
+	if decision.ShouldSign && p.signer != nil {
 		if err := p.signer.SignRequest(httpReq, req.Body); err != nil {
 			return fmt.Errorf("failed to sign request: %w", err)
 		}
