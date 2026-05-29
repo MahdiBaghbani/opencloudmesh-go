@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -24,10 +24,7 @@ type Handler struct {
 func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, publicOrigin string, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 
-	var localScheme string
-	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
-		localScheme = u.Scheme
-	}
+	localScheme := config.SchemeFromOrigin(publicOrigin)
 
 	return &Handler{
 		outgoingRepo: outgoingRepo,

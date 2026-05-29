@@ -447,6 +447,50 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 	}
 }
 
+// TestSignatureMiddleware_EmptyPublicOrigin_NoHTTPSDefault proves that an empty
+// publicOrigin leaves localScheme empty (not forced to "https"). With an empty
+// scheme, declared-peer normalization preserves the explicit :443 port, so a
+// declared peer of "sender.example.com:443" is not collapsed to the bare
+// "sender.example.com" authority. If the scheme were forced to "https", :443
+// would be stripped, changing the unverified peer's AuthorityForCompare.
+func TestSignatureMiddleware_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
+	cfg := &config.SignatureConfig{InboundMode: "lenient"}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	// Non-capable peer so the unsigned request takes the unverified-peer path.
+	pd := &mockPeerDiscovery{
+		signingCapable: map[string]bool{"sender.example.com:443": false},
+	}
+
+	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "", logger)
+
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com:443", nil
+	}
+
+	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pi := crypto.GetPeerIdentity(r.Context())
+		if pi == nil {
+			t.Fatal("expected peer identity")
+		}
+		// Empty scheme must preserve :443 (not strip it as https would).
+		if pi.AuthorityForCompare != "sender.example.com:443" {
+			t.Errorf("expected AuthorityForCompare 'sender.example.com:443' (empty scheme keeps :443), got %q", pi.AuthorityForCompare)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	body := []byte(`{"sender":"user@sender.example.com"}`)
+	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestSignatureMiddleware_LenientMode_AllowsCapablePeerByProfile(t *testing.T) {
 	cfg := &config.SignatureConfig{InboundMode: "lenient"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
