@@ -19,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -99,6 +100,42 @@ func makeMalformedCapableReceiverTLSServer(criteria []string) (*httptest.Server,
 	return srv, postCount
 }
 
+// makeCountingReceiverTLSServer counts discovery and shares-POST hits so tests
+// can assert the send path does not trigger a second discovery round trip.
+func makeCountingReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *atomic.Int32, *atomic.Int32) {
+	discoverCount := &atomic.Int32{}
+	postCount := &atomic.Int32{}
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			discoverCount.Add(1)
+			tokenEndPoint := ""
+			if hasCapability(capabilities, "exchange-token") {
+				tokenEndPoint = srv.URL + "/ocm/token"
+			}
+			disc := spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.2.2",
+				EndPoint:      srv.URL + "/ocm",
+				Capabilities:  capabilities,
+				Criteria:      criteria,
+				TokenEndPoint: tokenEndPoint,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(disc)
+			return
+		}
+		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
+			postCount.Add(1)
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"ok":true}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	return srv, discoverCount, postCount
+}
+
 func hasCapability(capabilities []string, capability string) bool {
 	for _, c := range capabilities {
 		if c == capability {
@@ -117,6 +154,19 @@ func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 		InsecureSkipVerify: true,
 	}, nil)
 	return discovery.NewClient(raw, nil), httpclient.NewContextClient(raw)
+}
+
+// makeNoCacheTLSClients wires a discovery client with caching disabled so that
+// any discovery call reaches the network, letting tests count discovery hits.
+func makeNoCacheTLSClients() (*discovery.Client, *httpclient.ContextClient) {
+	raw := httpclient.New(&config.OutboundHTTPConfig{
+		SSRFMode:           "off",
+		TimeoutMS:          5000,
+		ConnectTimeoutMS:   2000,
+		MaxResponseBytes:   1048576,
+		InsecureSkipVerify: true,
+	}, nil)
+	return discovery.NewClient(raw, cache.NewNoopCache()), httpclient.NewContextClient(raw)
 }
 
 func createTempShareFile(t *testing.T, pattern string) string {
@@ -563,6 +613,51 @@ func TestHandleCreate_SuccessStoresSentRowAndFederatedIDs(t *testing.T) {
 	}
 	if share.Sender != expected {
 		t.Fatalf("expected Sender %q, got %q", expected, share.Sender)
+	}
+}
+
+// TestHandleCreate_SendReusesPreflightDiscovery proves the send path reuses the
+// discovery already fetched during the compatibility preflight instead of
+// discovering again. Caching is disabled so a second discovery would hit the
+// server; with reuse the receiver sees exactly one discovery and one POST.
+func TestHandleCreate_SendReusesPreflightDiscovery(t *testing.T) {
+	srv, discoverCount, postCount := makeCountingReceiverTLSServer([]string{"exchange-token"}, []string{})
+	defer srv.Close()
+
+	user := &identity.User{ID: "user-uuid", Username: "alice"}
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	cfg := config.DevConfig()
+	cfg.PeerPolicy = "legacy"
+	enabled := true
+	cfg.TokenExchange.Enabled = &enabled
+	discClient, ctxClient := makeNoCacheTLSClients()
+	handler := outgoingshares.NewHandler(
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		testProvider, testCurrentUser(user), testLogger,
+	)
+	handler.SetAllowedPaths([]string{"/tmp"})
+
+	filePath := createTempShareFile(t, "outgoing-reuse-discovery-*")
+	receiverHost := srv.Listener.Addr().String()
+	body := `{
+		"receiverDomain": "` + receiverHost + `",
+		"shareWith": "bob@` + receiverHost + `",
+		"localPath": "` + filePath + `",
+		"permissions": ["read"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.HandleCreate(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := discoverCount.Load(); got != 1 {
+		t.Fatalf("expected exactly one discovery (preflight only), got %d", got)
+	}
+	if got := postCount.Load(); got != 1 {
+		t.Fatalf("expected exactly one shares POST, got %d", got)
 	}
 }
 

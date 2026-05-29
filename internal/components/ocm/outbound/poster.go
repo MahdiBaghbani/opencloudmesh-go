@@ -61,6 +61,16 @@ type Request struct {
 	Body []byte
 }
 
+// ResolvedPeer carries peer origin and discovery that a caller has already
+// fetched. Callers that discover the peer up front (for compatibility or
+// policy checks) pass this to SendResolved to avoid a second discovery hop.
+type ResolvedPeer struct {
+	// PeerDomain is the resolved peer domain used for the signing decision.
+	PeerDomain string
+	// Discovery is the already-fetched peer discovery document.
+	Discovery *discovery.Discovery
+}
+
 // Send resolves the peer origin, discovers the endpoint, builds and optionally
 // signs the POST, and sends it. On success the caller owns the returned
 // response and must close its body.
@@ -72,7 +82,18 @@ func (p *Poster) Send(ctx context.Context, req Request) (*http.Response, error) 
 		return nil, fmt.Errorf("discovery failed for %s: %w", req.TargetHost, err)
 	}
 
-	endpointURL, err := url.JoinPath(disc.EndPoint, req.EndpointPath)
+	return p.SendResolved(ctx, req, ResolvedPeer{
+		PeerDomain: origin.PeerDomain,
+		Discovery:  disc,
+	})
+}
+
+// SendResolved builds and optionally signs the POST against an already-resolved
+// peer origin and discovery, then sends it. It performs no origin resolution or
+// discovery of its own. On success the caller owns the returned response and
+// must close its body.
+func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPeer) (*http.Response, error) {
+	endpointURL, err := url.JoinPath(peer.Discovery.EndPoint, req.EndpointPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build %s URL: %w", req.EndpointPath, err)
 	}
@@ -83,7 +104,7 @@ func (p *Poster) Send(ctx context.Context, req Request) (*http.Response, error) 
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	if err := p.applySigning(httpReq, req, origin.PeerDomain, disc); err != nil {
+	if err := p.applySigning(httpReq, req, peer.PeerDomain, peer.Discovery); err != nil {
 		return nil, err
 	}
 
