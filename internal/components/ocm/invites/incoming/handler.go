@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -26,7 +26,7 @@ import (
 
 type Handler struct {
 	outgoingRepo invitesoutgoing.OutgoingInviteRepo
-	partyRepo    identity.PartyRepo     // for invite-accepted (look up local inviting user)
+	partyRepo    identity.PartyRepo      // for invite-accepted (look up local inviting user)
 	policyEngine *peertrust.PolicyEngine // may be nil when peer trust is disabled
 	providerFQDN string
 	logger       *slog.Logger
@@ -44,10 +44,7 @@ func NewHandler(
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
 
-	var localScheme string
-	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
-		localScheme = u.Scheme
-	}
+	localScheme := config.SchemeFromOrigin(publicOrigin)
 
 	return &Handler{
 		outgoingRepo: outgoingRepo,

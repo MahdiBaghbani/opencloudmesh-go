@@ -45,7 +45,7 @@ func (c *CompiledContract) BasicAuthDecisionForPeer(peerDomain string) BasicAuth
 		if !matchPattern(mapping.Pattern, domain) {
 			continue
 		}
-		profile, ok := c.profiles[mapping.ProfileName]
+		profile, ok := c.profiles[mapping.Profile]
 		if !ok {
 			return decision
 		}

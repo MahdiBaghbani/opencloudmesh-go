@@ -5,7 +5,10 @@ package peercompat
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
+
+	platformconfig "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 // Profile represents a peer interop profile that controls how we communicate
@@ -54,14 +57,29 @@ type Profile struct {
 	AllowedBasicAuthPatterns []string `json:"allowed_basic_auth_patterns" toml:"allowed_basic_auth_patterns"`
 }
 
-// ProfileMapping maps a domain pattern to a profile name.
-type ProfileMapping struct {
-	// Pattern is a domain pattern (exact match or glob like "*.example.com")
-	Pattern string `json:"pattern" toml:"pattern"`
-
-	// ProfileName is the name of the profile to use
-	ProfileName string `json:"profile" toml:"profile"`
+// profileFromConfig converts a config.PeerProfile into a peercompat Profile.
+// It is the single bridge between the config-layer profile shape and the
+// peercompat profile shape, so the compatibility fields are mapped in one
+// place. Slice fields are cloned so the compiled profile never aliases config.
+func profileFromConfig(name string, cfg platformconfig.PeerProfile) *Profile {
+	return &Profile{
+		Name:                           name,
+		AllowUnsignedInbound:           cfg.AllowUnsignedInbound,
+		AllowUnsignedOutbound:          cfg.AllowUnsignedOutbound,
+		AllowMismatchedHost:            cfg.AllowMismatchedHost,
+		AllowHTTP:                      cfg.AllowHTTP,
+		AllowUnsignedDiscovery:         cfg.AllowUnsignedDiscovery,
+		AcceptLegacyDiscoveryPublicKey: cfg.AcceptLegacyDiscoveryPublicKey,
+		TokenExchangeQuirks:            slices.Clone(cfg.TokenExchangeQuirks),
+		TokenExchangeGrantType:         cfg.TokenExchangeGrantType,
+		AllowedBasicAuthPatterns:       slices.Clone(cfg.AllowedBasicAuthPatterns),
+	}
 }
+
+// ProfileMapping maps a domain pattern to a profile name. It is an alias for
+// config.PeerProfileMapping so the mapping shape has a single definition; the
+// matched profile name is read from the Profile field.
+type ProfileMapping = platformconfig.PeerProfileMapping
 
 // ProfileRegistry manages peer interop profiles and matching.
 type ProfileRegistry struct {
@@ -98,7 +116,7 @@ func (r *ProfileRegistry) GetProfile(peerDomain string) *Profile {
 	// Check mappings in order
 	for _, mapping := range r.mappings {
 		if matchPattern(mapping.Pattern, domain) {
-			if profile, ok := r.profiles[mapping.ProfileName]; ok {
+			if profile, ok := r.profiles[mapping.Profile]; ok {
 				return profile
 			}
 		}

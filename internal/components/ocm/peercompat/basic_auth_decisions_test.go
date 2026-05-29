@@ -13,7 +13,7 @@ func TestBasicAuthDecisionForPeer_MatchedProfileUsesAllowlist(t *testing.T) {
 		},
 	}
 	mappings := []ProfileMapping{
-		{Pattern: "peer.example.com", ProfileName: "restricted"},
+		{Pattern: "peer.example.com", Profile: "restricted"},
 	}
 
 	contract, err := NewCompiledContract(custom, mappings)
@@ -68,7 +68,7 @@ func TestBasicAuthDecisionForPeer_URLInputDoesNotMatchMapping(t *testing.T) {
 		},
 	}
 	mappings := []ProfileMapping{
-		{Pattern: "peer.example.com", ProfileName: "restricted"},
+		{Pattern: "peer.example.com", Profile: "restricted"},
 	}
 
 	contract, err := NewCompiledContract(custom, mappings)

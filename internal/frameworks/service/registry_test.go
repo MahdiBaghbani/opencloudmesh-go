@@ -78,6 +78,42 @@ func TestGet_NotRegistered(t *testing.T) {
 	}
 }
 
+// TestAppServicesParity guards the core-service parity contract: the root
+// service plus the app services must exactly reconstruct CoreServices, in
+// order. This prevents silent drift between service construction and route
+// mounting when a core service is added, removed, or renamed.
+func TestAppServicesParity(t *testing.T) {
+	// RootService must be a member of CoreServices.
+	if !slices.Contains(CoreServices, RootService) {
+		t.Fatalf("RootService %q is not present in CoreServices %v", RootService, CoreServices)
+	}
+
+	app := AppServices()
+
+	// AppServices must never include the root service.
+	if slices.Contains(app, RootService) {
+		t.Errorf("AppServices() must not include RootService %q, got %v", RootService, app)
+	}
+
+	// Reconstructing CoreServices from RootService + AppServices, preserving
+	// CoreServices order, must match exactly (no dropped or extra services).
+	want := make([]string, 0, len(CoreServices))
+	for _, name := range CoreServices {
+		if name == RootService {
+			continue
+		}
+		want = append(want, name)
+	}
+	if !slices.Equal(app, want) {
+		t.Errorf("AppServices() = %v, want %v (CoreServices order minus RootService)", app, want)
+	}
+
+	// Every core service must be accounted for: root or app, no overlap.
+	if len(app)+1 != len(CoreServices) {
+		t.Errorf("AppServices() length %d + 1 root != CoreServices length %d", len(app), len(CoreServices))
+	}
+}
+
 func TestRegisteredServices(t *testing.T) {
 	resetRegistry()
 	defer resetRegistry()

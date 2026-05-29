@@ -23,7 +23,7 @@ func TestNewCompiledContract_CompilesExplicitUnsignedDiscovery(t *testing.T) {
 			TokenExchangeGrantType: "ocm_share",
 		},
 	}
-	mappings := []ProfileMapping{{Pattern: "peer-a.example.com", ProfileName: "peer-a"}}
+	mappings := []ProfileMapping{{Pattern: "peer-a.example.com", Profile: "peer-a"}}
 
 	contract, err := NewCompiledContract(custom, mappings)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestNewCompiledContract_RejectsInvalidGrantType(t *testing.T) {
 }
 
 func TestNewCompiledContractFromConfig_CopiesRetainedFields(t *testing.T) {
-	cfg := config.InteropConfig()
+	cfg := config.CompatConfig()
 	cfg.PeerProfiles.Mappings = []config.PeerProfileMapping{
 		{Pattern: "peer.example.com", Profile: "compat-peer"},
 	}

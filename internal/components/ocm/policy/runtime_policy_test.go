@@ -138,7 +138,7 @@ func TestRuntimePolicyEvaluate_DefaultStrictPresetClaimsStrict(t *testing.T) {
 }
 
 func TestRuntimePolicyEvaluate_DerivesCompatTier(t *testing.T) {
-	cfg := config.InteropConfig()
+	cfg := config.CompatConfig()
 
 	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
 
@@ -266,7 +266,7 @@ func TestRuntimePolicyEvaluate_DetectsMappedProfileRelaxations(t *testing.T) {
 		{Pattern: "*.nextcloud.example", Profile: "nextcloud"},
 	}
 	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
-		{Pattern: "*.nextcloud.example", ProfileName: "nextcloud"},
+		{Pattern: "*.nextcloud.example", Profile: "nextcloud"},
 	})
 	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
 	if err != nil {
@@ -301,7 +301,7 @@ func TestRuntimePolicyEvaluate_DetectsBasicAuthAllowlistRelaxation(t *testing.T)
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "*.peer.example", ProfileName: "basicauth-compat"},
+			{Pattern: "*.peer.example", Profile: "basicauth-compat"},
 		},
 	)
 	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
@@ -337,7 +337,7 @@ func TestRuntimePolicyEvaluate_DetectsGrantTypeRelaxation(t *testing.T) {
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "*.peer.example", ProfileName: "grant-compat"},
+			{Pattern: "*.peer.example", Profile: "grant-compat"},
 		},
 	)
 	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)

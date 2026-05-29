@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
 // Config holds the server configuration.
@@ -513,21 +511,33 @@ func (c *Config) Redacted() string {
 // PublicScheme returns "http" or "https" from PublicOrigin.
 // Returns "https" if PublicOrigin is empty or unparseable.
 func (c *Config) PublicScheme() string {
-	if c.PublicOrigin == "" {
-		return "https"
-	}
-	u, err := url.Parse(c.PublicOrigin)
-	if err != nil || u.Scheme == "" {
-		return "https"
-	}
-	return strings.ToLower(u.Scheme)
+	return PublicSchemeFromOrigin(c.PublicOrigin)
 }
 
-// PublicAuthority returns the lowercased host[:port] from PublicOrigin.
-func (c *Config) PublicAuthority() string {
-	fqdn, err := instanceid.ProviderFQDN(c.PublicOrigin)
-	if err != nil {
+// PublicSchemeFromOrigin returns "http" or "https" derived from a public
+// origin string. Returns "https" if the origin is empty or unparseable.
+// Use this for callers that want a usable default scheme (config-aware
+// callers and the token handler). Callers that must leave the scheme empty
+// when the origin is empty or unparseable should use SchemeFromOrigin.
+func PublicSchemeFromOrigin(publicOrigin string) string {
+	if scheme := SchemeFromOrigin(publicOrigin); scheme != "" {
+		return scheme
+	}
+	return "https"
+}
+
+// SchemeFromOrigin returns the lowercased scheme ("http" or "https") derived
+// from a public origin string, or an empty string when the origin is empty or
+// unparseable. Unlike PublicSchemeFromOrigin it never substitutes a default
+// scheme, preserving callers that intentionally treat an empty or unparseable
+// origin as an empty scheme during hostport normalization.
+func SchemeFromOrigin(publicOrigin string) string {
+	if publicOrigin == "" {
 		return ""
 	}
-	return fqdn
+	u, err := url.Parse(publicOrigin)
+	if err != nil || u.Scheme == "" {
+		return ""
+	}
+	return strings.ToLower(u.Scheme)
 }

@@ -159,6 +159,47 @@ func TestHandler_SenderMismatchReasonCode(t *testing.T) {
 	}
 }
 
+// TestHandler_EmptyPublicOrigin_NoHTTPSDefault proves that an empty
+// publicOrigin leaves localScheme empty (not forced to "https"). With an empty
+// scheme, hostport.Normalize preserves the explicit :443 port, so a share
+// receiver of "receiver.example.com:443" does not collapse to the bare
+// "receiver.example.com" sender authority and the request is rejected as a
+// mismatch. If the scheme were forced to "https", :443 would be stripped and
+// the request would incorrectly succeed.
+func TestHandler_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-empty-origin",
+		WebDAVID:     "webdav-empty-origin",
+		ReceiverHost: "receiver.example.com:443",
+		LocalPath:    "/tmp/test.txt",
+		Status:       "sent",
+	}
+	repo.Create(context.Background(), share)
+	handler := incoming.NewHandler(repo, "", logger)
+
+	body := `{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-empty-origin"}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/notifications", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+		Authenticated:       true,
+		AuthorityForCompare: "receiver.example.com",
+	}))
+	w := httptest.NewRecorder()
+
+	handler.HandleNotification(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 (empty scheme keeps :443, so no match), got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["error"] != "sender_mismatch" {
+		t.Fatalf("expected sender_mismatch, got %q", resp["error"])
+	}
+}
+
 func TestIsValidNotificationType(t *testing.T) {
 	tests := []struct {
 		notificationType notifications.NotificationType

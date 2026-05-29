@@ -461,6 +461,43 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 	}
 }
 
+// TestHandler_EmptyPublicOrigin_HTTPSDefault proves the token handler keeps the
+// https-default scheme semantics even after centralizing parsing. With an empty
+// publicOrigin, localScheme defaults to "https", so client_id
+// "receiver.example.com:443" collapses to the bare "receiver.example.com"
+// receiver host and the exchange succeeds. An empty scheme would preserve :443
+// and cause an invalid_client mismatch.
+func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "", logger)
+
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-empty-origin",
+		WebDAVID:     "webdav-empty-origin",
+		SharedSecret: "empty-origin-secret",
+		ReceiverHost: "receiver.example.com",
+		LocalPath:    "/tmp/test.txt",
+	}
+	shareRepo.Create(context.Background(), share)
+
+	form := url.Values{}
+	form.Set("grant_type", "ocm_share")
+	form.Set("client_id", "receiver.example.com:443")
+	form.Set("code", "empty-origin-secret")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (https default strips :443, so match), got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestHandler_DisabledReturns501(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()

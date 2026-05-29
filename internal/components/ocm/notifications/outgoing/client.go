@@ -1,16 +1,15 @@
 package outgoing
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -52,41 +51,19 @@ func (c *Client) SendNotification(ctx context.Context, targetHost string, notifi
 	if c.outboundPolicy == nil {
 		return fmt.Errorf("outbound signing policy not configured for notifications")
 	}
-	origin := c.resolvePeerOrigin(targetHost)
-	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
-	if err != nil {
-		return fmt.Errorf("discovery failed for %s: %w", targetHost, err)
-	}
-	notificationsURL, err := url.JoinPath(disc.EndPoint, "notifications")
-	if err != nil {
-		return fmt.Errorf("failed to build notifications URL: %w", err)
-	}
 	body, err := json.Marshal(notification)
 	if err != nil {
 		return fmt.Errorf("failed to encode notification: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, notificationsURL, bytes.NewReader(body))
+	poster := outbound.NewPoster(c.httpClient, c.discoveryClient, c.signer, c.outboundPolicy, c.peerContract)
+	resp, err := poster.Send(ctx, outbound.Request{
+		TargetHost:   targetHost,
+		EndpointPath: "notifications",
+		Kind:         outboundsigning.EndpointNotifications,
+		Body:         body,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	decision := c.outboundPolicy.ShouldSign(
-		outboundsigning.EndpointNotifications,
-		origin.peerDomain,
-		disc,
-		c.signer != nil,
-	)
-	if decision.Error != nil {
-		return fmt.Errorf("outbound signing policy error: %w", decision.Error)
-	}
-	if decision.ShouldSign && c.signer != nil {
-		if err := c.signer.SignRequest(req, body); err != nil {
-			return fmt.Errorf("failed to sign request: %w", err)
-		}
-	}
-	resp, err := c.httpClient.Do(ctx, req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 
@@ -112,17 +89,4 @@ func (c *Client) SendShareDeclined(ctx context.Context, targetHost, providerID, 
 		ResourceType:     resourceType,
 		ProviderID:       providerID,
 	})
-}
-
-type resolvedPeerOrigin struct {
-	baseURL    string
-	peerDomain string
-}
-
-func (c *Client) resolvePeerOrigin(targetHost string) resolvedPeerOrigin {
-	decision := c.peerContract.ResolvePeerOrigin(targetHost)
-	return resolvedPeerOrigin{
-		baseURL:    decision.BaseURL,
-		peerDomain: decision.PeerDomain,
-	}
 }

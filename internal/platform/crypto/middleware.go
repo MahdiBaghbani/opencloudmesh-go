@@ -5,10 +5,10 @@ import (
 	"crypto/ed25519"
 	"log/slog"
 	"net/http"
-	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -77,10 +77,7 @@ func NewSignatureMiddleware(
 ) *SignatureMiddleware {
 	logger = logutil.NoopIfNil(logger)
 
-	var localScheme string
-	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
-		localScheme = u.Scheme
-	}
+	localScheme := config.SchemeFromOrigin(publicOrigin)
 	inboundMode := "off"
 	onDiscoveryErr := "reject"
 	allowMismatch := false

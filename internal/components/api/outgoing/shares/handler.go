@@ -2,7 +2,6 @@
 package shares
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -11,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,6 +21,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -249,13 +248,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if err := h.sendShareToReceiver(
-		r.Context(),
-		disc.EndPoint,
-		receiverOrigin.peerDomain,
-		payload,
-		disc,
-	); err != nil {
+	if err := h.sendShareToReceiver(r.Context(), receiverOrigin, disc, payload); err != nil {
 		h.logger.Warn("failed to send share to receiver", "receiver", req.ReceiverDomain, "error", err)
 		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, err.Error())
 		return
@@ -329,61 +322,31 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	return cleanPath, nil
 }
 
+// sendShareToReceiver reuses the discovery and origin already fetched during
+// the compatibility/policy preflight so the send path does not discover again.
 func (h *Handler) sendShareToReceiver(
 	ctx context.Context,
-	endPoint string,
-	peerDomain string,
-	payload spec.NewShareRequest,
+	origin resolvedPeerOrigin,
 	disc *discovery.Discovery,
+	payload spec.NewShareRequest,
 ) error {
-	sharesURL, err := url.JoinPath(endPoint, "shares")
-	if err != nil {
-		return fmt.Errorf("failed to build shares URL: %w", err)
-	}
-
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to encode payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sharesURL, bytes.NewReader(body))
+	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.outboundPolicy, h.peerContract)
+	resp, err := poster.SendResolved(ctx, outbound.Request{
+		TargetHost:   origin.peerDomain,
+		EndpointPath: "shares",
+		Kind:         outboundsigning.EndpointShares,
+		Body:         body,
+	}, outbound.ResolvedPeer{
+		PeerDomain: origin.peerDomain,
+		Discovery:  disc,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	if h.outboundPolicy != nil {
-		if peerDomain == "" {
-			peerURL, parseErr := url.Parse(endPoint)
-			if parseErr != nil || peerURL.Host == "" {
-				peerDomain = endPoint
-			} else {
-				peerDomain = peerURL.Host
-			}
-		}
-		decision := h.outboundPolicy.ShouldSign(
-			outboundsigning.EndpointShares,
-			peerDomain,
-			disc,
-			h.signer != nil,
-		)
-		if decision.Error != nil {
-			return fmt.Errorf("outbound signing policy error: %w", decision.Error)
-		}
-		if decision.ShouldSign && h.signer != nil {
-			if err := h.signer.SignRequest(req, body); err != nil {
-				return fmt.Errorf("failed to sign request: %w", err)
-			}
-		}
-	} else if h.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
-		if err := h.signer.SignRequest(req, body); err != nil {
-			return fmt.Errorf("failed to sign request: %w", err)
-		}
-	}
-
-	resp, err := h.httpClient.Do(ctx, req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 

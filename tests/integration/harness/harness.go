@@ -3,34 +3,25 @@ package harness
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -48,7 +39,7 @@ type TestServer struct {
 	Config  *config.Config
 	BaseURL string
 	TempDir string
-	cancel  context.CancelFunc
+	once    sync.Once
 }
 
 // StartTestServer creates and starts a test server with dynamic port allocation.
@@ -85,18 +76,64 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		patch(cfg)
 	}
 
-	// Create logger that discards output (or use t.Log if you want to see logs)
+	// Fail-fast checks that must run before any side-effecting bootstrap
+	// (mirrors main.go: a typo or impossible compatibility-scope startup state
+	// must never cause partial startup).
+	if err := validatePreBootstrapStartup(cfg); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("pre-bootstrap startup validation rejected: %v", err)
+	}
+
+	// Logger writes warnings and errors to stdout for test diagnostics.
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelWarn, // Only log warnings and errors during tests
+		Level: slog.LevelWarn,
 	}))
 
-	// Create identity components
-	partyRepo := identity.NewMemoryPartyRepo()
-	sessionRepo := identity.NewMemorySessionRepo()
-	userAuth := identity.NewUserAuthFast() // Fast Argon2id params for tests
+	// Reset shared deps for test isolation, then wire via BootstrapDeps.
+	// WireOptions reflects the intended harness defaults:
+	//   - FastAuth: low-cost argon2id for test speed
+	//   - SkipCrypto: no signing keys; avoids leaking production crypto into tests
+	//   - SkipPeerTrust: peer trust stack is not exercised in in-process tests
+	//   - SkipSignatureMiddleware: inbound signature verification skipped
+	//   - OutboundOverride: permissive localhost-friendly outbound config
+	//   - SkipDiscoveryCache: no-op cache avoids stale cross-test discovery entries
+	deps.ResetDeps()
+	bootstrapResult, err := app.BootstrapDeps(cfg, logger, app.WireOptions{
+		FastAuth:                true,
+		SkipCrypto:              true,
+		SkipPeerTrust:           true,
+		SkipSignatureMiddleware: true,
+		OutboundOverride: &config.OutboundHTTPConfig{
+			SSRF:               config.SSRFConfig{Mode: "off"}, // Allow localhost connections in tests
+			SSRFMode:           "off",
+			TimeoutMS:          5000,
+			ConnectTimeoutMS:   2000,
+			MaxRedirects:       1,
+			MaxResponseBytes:   1048576,
+			InsecureSkipVerify: true, // For self-signed certs in tests
+		},
+		SkipDiscoveryCache: true,
+	})
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to bootstrap dependencies: %v", err)
+	}
+
+	// Posture guard parity with main.go: a compatibility_scope=none config that
+	// resolves to a non-strict runtime posture is an impossible production state
+	// and must not silently start in-process.
+	if err := checkStartupPosture(cfg, bootstrapResult.RuntimeEval); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("startup posture rejected: %v", err)
+	}
 
 	// Bootstrap test admin user
-	bootstrap := identity.NewBootstrap(partyRepo, userAuth, logger)
+	d := deps.GetDeps()
+	if d == nil {
+		os.RemoveAll(tempDir)
+		t.Fatal(app.ErrMsgNilDepsAfterBootstrap)
+	}
+	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
 	adminUser := identity.SeededUser{
 		Username:    "admin",
 		Password:    "admin",
@@ -106,110 +143,6 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	if _, err := bootstrap.Run(context.Background(), adminUser, nil); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap users: %v", err)
-	}
-
-	// Create HTTP client for outbound requests (SSRF off for tests to allow localhost)
-	rawHTTPClient := httpclient.New(&config.OutboundHTTPConfig{
-		SSRF:               config.SSRFConfig{Mode: "off"}, // Allow localhost connections in tests
-		SSRFMode:           "off",
-		TimeoutMS:          5000,
-		ConnectTimeoutMS:   2000,
-		MaxRedirects:       1,
-		MaxResponseBytes:   1048576,
-		InsecureSkipVerify: true, // For self-signed certs in tests
-	}, nil)
-	httpClient := httpclient.NewContextClient(rawHTTPClient)
-
-	// Create repos for SharedDeps and server.Deps (dual-use)
-	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
-	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	outgoingInviteRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	incomingInviteRepo := invitesinbox.NewMemoryIncomingInviteRepo()
-	tokenStore := token.NewMemoryTokenStore()
-
-	// Create memory cache for tests (required for rate limiting interceptor)
-	cacheInstance := cache.NewDefault()
-
-	// Create RealIP extractor for trusted-proxy-aware client identity
-	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
-
-	// Derive local provider identity from PublicOrigin
-	localProviderFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to derive provider FQDN: %v", err)
-	}
-	localProviderFQDNForCompare, err := hostport.Normalize(localProviderFQDN, cfg.PublicScheme())
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to normalize provider FQDN: %v", err)
-	}
-
-	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to compile peer compatibility contract: %v", err)
-	}
-
-	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
-	discoveryClient := discovery.NewClient(rawHTTPClient, nil)
-	discoveryClient.SetPeerContract(peerContract)
-
-	// Reset and set SharedDeps for this test (important for test isolation)
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		// Identity
-		PartyRepo:   partyRepo,
-		SessionRepo: sessionRepo,
-		UserAuth:    userAuth,
-		// Repos
-		IncomingShareRepo:  incomingShareRepo,
-		OutgoingShareRepo:  outgoingShareRepo,
-		OutgoingInviteRepo: outgoingInviteRepo,
-		IncomingInviteRepo: incomingInviteRepo,
-		TokenStore:         tokenStore,
-		// Clients
-		HTTPClient:      httpClient,
-		DiscoveryClient: discoveryClient,
-		// Policy
-		OpenCloudMeshPolicy: openCloudMeshPolicy,
-		RuntimePolicy:       runtimePolicy,
-		// Provider identity
-		LocalProviderFQDN:           localProviderFQDN,
-		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
-		// Config
-		Config: cfg,
-		// Cache (for interceptors like rate limiting)
-		Cache: cacheInstance,
-		// RealIP (for trusted-proxy-aware client identity)
-		RealIP: realIPExtractor,
-		// Compatibility contract
-		PeerContract: peerContract,
-		// KeyManager is nil (no signatures in basic tests)
-	})
-
-	// Validate [http.services.*] keys (mirrors main.go fail-fast)
-	if cfg.HTTP.Services != nil {
-		allowed := service.RegisteredServices()
-		allowedSet := make(map[string]struct{}, len(allowed))
-		for _, name := range allowed {
-			allowedSet[name] = struct{}{}
-		}
-
-		var unknown []string
-		for name := range cfg.HTTP.Services {
-			if _, ok := allowedSet[name]; !ok {
-				unknown = append(unknown, name)
-			}
-		}
-		if len(unknown) > 0 {
-			sort.Strings(unknown)
-			sort.Strings(allowed)
-			os.RemoveAll(tempDir)
-			t.Fatalf("unknown service names in [http.services]: %s (allowed: %s)",
-				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
-		}
 	}
 
 	// Construct all core services via registry loop (mirrors main.go).
@@ -238,55 +171,118 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)
 	}
+	srv.SetRootCAPool(bootstrapResult.RootCAPool)
 
 	// Start server in background
-	_, cancel := context.WithCancel(context.Background())
-
 	go func() {
-		if err := srv.Start(); err != nil {
-			// Server error is expected on shutdown
-			_ = err
+		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server startup/runtime error", "error", err)
 		}
 	}()
 
-	// Wait for server to be ready
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
-	if err := waitForServer(baseURL, 5*time.Second); err != nil {
-		cancel()
+	// BaseURL is the real local request target: localhost on the allocated
+	// listener port using the actual listener scheme. It is deliberately derived
+	// from the listener, not cfg.PublicOrigin, because tests may patch
+	// PublicOrigin to exercise advertised-origin behavior while the server still
+	// listens on the ephemeral ListenAddr port.
+	baseURL := localListenerBaseURL(cfg.TLS.Mode, port)
+	// App endpoints (including /api/healthz) mount under ExternalBasePath when
+	// set, so the readiness probe must target that path, not bare root.
+	if err := waitForServerReady(healthEndpointURL(baseURL, cfg.ExternalBasePath), 5*time.Second); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("server failed to start: %v", err)
 	}
 
-	return &TestServer{
+	ts := &TestServer{
 		Server:  srv,
 		Config:  cfg,
 		BaseURL: baseURL,
 		TempDir: tempDir,
-		cancel:  cancel,
 	}
+	t.Cleanup(func() { ts.Stop(t) })
+	return ts
 }
 
-// Stop stops the test server and cleans up resources.
+// Stop stops the test server and cleans up resources. Safe to call more than
+// once; the second and subsequent calls are no-ops.
 func (ts *TestServer) Stop(t *testing.T) {
 	t.Helper()
+	ts.once.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	ts.cancel()
+		if err := ts.Server.Shutdown(ctx); err != nil {
+			t.Logf("warning: shutdown error: %v", err)
+		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := ts.Server.Shutdown(ctx); err != nil {
-		t.Logf("warning: shutdown error: %v", err)
-	}
-
-	if err := os.RemoveAll(ts.TempDir); err != nil {
-		t.Logf("warning: failed to remove temp dir: %v", err)
-	}
+		if err := os.RemoveAll(ts.TempDir); err != nil {
+			t.Logf("warning: failed to remove temp dir: %v", err)
+		}
+	})
 }
 
 // LogFile returns the path to a log file in the temp directory.
 func (ts *TestServer) LogFile(name string) string {
 	return filepath.Join(ts.TempDir, name+".log")
+}
+
+// validatePreBootstrapStartup runs the fail-fast checks that the real binary
+// applies before any side-effecting bootstrap. It returns an error (rather than
+// calling t.Fatalf) so it can be unit-tested directly. It covers two surfaces:
+//   - unknown [http.services.*] names (a typo must never start partially), and
+//   - the compatibility-scope startup guardrails that config.Load enforces,
+//     reused here so an in-memory config patched past Load() still rejects the
+//     same broader impossible startup states the binary rejects.
+func validatePreBootstrapStartup(cfg *config.Config) error {
+	if cfg.HTTP.Services != nil {
+		var names []string
+		for name := range cfg.HTTP.Services {
+			names = append(names, name)
+		}
+		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
+			return fmt.Errorf("unknown service names in [http.services]: %s (allowed: %s)",
+				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
+		}
+	}
+	if err := config.ValidateCompatibilityScopeStartupGuardrails(cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+// checkStartupPosture mirrors the main.go startup guard: when
+// compatibility_scope is "none", the resolved runtime posture must be strict.
+// Returning an error (rather than relying on cfg alone) keeps the in-process
+// harness from starting a production-impossible state that the real binary
+// would reject. eval comes from BootstrapResult.RuntimeEval.
+func checkStartupPosture(cfg *config.Config, eval policy.RuntimeEvaluation) error {
+	if cfg.CompatibilityScope == "none" && !eval.Strict.IsStrict {
+		return fmt.Errorf(
+			"compatibility_scope=none contradicts resolved runtime posture (tier=%s, scope=%s, reasons=%v)",
+			eval.DerivedTier, eval.CompatibilityScope, eval.Strict.ViolationReasons,
+		)
+	}
+	return nil
+}
+
+// localListenerScheme returns the scheme the in-process test server actually
+// listens with. It mirrors server.Start: TLS mode "off" serves plain HTTP and
+// any other mode serves HTTPS. This is intentionally independent of
+// cfg.PublicOrigin, which is only the advertised origin and may be patched by
+// tests.
+func localListenerScheme(tlsMode string) string {
+	if strings.TrimSpace(tlsMode) == "off" {
+		return "http"
+	}
+	return "https"
+}
+
+// localListenerBaseURL builds the real request target for in-process test
+// traffic: localhost on the allocated listener port using the actual listener
+// scheme. It ignores cfg.PublicOrigin so advertised-origin patches do not break
+// local readiness probing or test requests.
+func localListenerBaseURL(tlsMode string, port int) string {
+	return fmt.Sprintf("%s://localhost:%d", localListenerScheme(tlsMode), port)
 }
 
 // getFreePort finds an available TCP port.
@@ -297,18 +293,4 @@ func getFreePort() (int, error) {
 	}
 	defer listener.Close()
 	return listener.Addr().(*net.TCPAddr).Port, nil
-}
-
-// waitForServer waits for the server to be ready by polling the health endpoint.
-func waitForServer(baseURL string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		resp, err := net.DialTimeout("tcp", baseURL[7:], 100*time.Millisecond) // strip "http://"
-		if err == nil {
-			resp.Close()
-			return nil
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	return fmt.Errorf("server not ready after %v", timeout)
 }

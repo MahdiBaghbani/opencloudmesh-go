@@ -390,6 +390,46 @@ func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
 	}
 }
 
+// TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault proves that an
+// empty publicOrigin leaves localScheme empty (not forced to "https"). With an
+// empty scheme, hostport.Normalize preserves the explicit :443 port, so the
+// recipientProvider "other.com:443" does not collapse to the bare "other.com"
+// signature authority and the request is rejected as untrusted. If the scheme
+// were forced to "https", :443 would be stripped and the authorities would
+// incorrectly match.
+func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	handler := incoming.NewHandler(repo, nil, nil, testProvider, "", testLogger)
+
+	invite := &invitesoutgoing.OutgoingInvite{
+		Token:        "empty-origin-token",
+		ProviderFQDN: testProvider,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+		Status:       invites.InviteStatusPending,
+	}
+	repo.Create(context.Background(), invite)
+
+	body := `{"recipientProvider":"other.com:443","token":"empty-origin-token","userID":"u@host","email":"e","name":"n"}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	peerCtx := context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+		Authority:           "other.com",
+		AuthorityForCompare: "other.com",
+		Authenticated:       true,
+	})
+	req = req.WithContext(peerCtx)
+	w := httptest.NewRecorder()
+
+	handler.HandleInviteAccepted(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 (empty scheme keeps :443, so no match), got %d: %s", w.Code, w.Body.String())
+	}
+	if msg := decodeOCMError(t, w); msg != "UNTRUSTED_PROVIDER" {
+		t.Errorf("expected UNTRUSTED_PROVIDER, got %q", msg)
+	}
+}
+
 func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)

@@ -2,11 +2,32 @@ package service
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 )
 
 // CoreServices lists service names always constructed (all registered today).
 var CoreServices = []string{"wellknown", "ocm", "ocmaux", "api", "ui", "webdav"}
+
+// RootService is the core service mounted at the host root rather than under
+// external_base_path. Every other CoreServices entry is mounted as an app
+// endpoint. This marker keeps route mounting derived from CoreServices instead
+// of a separate hardcoded list.
+const RootService = "wellknown"
+
+// AppServices returns the core service names mounted under external_base_path,
+// in CoreServices order, excluding RootService (mounted at the host root).
+// Order is significant for Chi route matching, so it mirrors CoreServices.
+func AppServices() []string {
+	names := make([]string, 0, len(CoreServices))
+	for _, name := range CoreServices {
+		if name == RootService {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
 
 var (
 	registryMu sync.RWMutex
@@ -49,6 +70,28 @@ func RegisteredServices() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// CheckServiceNames validates names against the registered service set.
+// It returns sorted unknown and allowed slices when any name is not registered,
+// and nil, nil when all names are valid. Callers own nil-map guarding.
+func CheckServiceNames(names []string) (unknown, allowed []string) {
+	registered := RegisteredServices()
+	allowedSet := make(map[string]struct{}, len(registered))
+	for _, n := range registered {
+		allowedSet[n] = struct{}{}
+	}
+	for _, name := range names {
+		if _, ok := allowedSet[name]; !ok {
+			unknown = append(unknown, name)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil, nil
+	}
+	sort.Strings(unknown)
+	sort.Strings(registered)
+	return unknown, registered
 }
 
 // resetRegistry clears the registry (testing only).

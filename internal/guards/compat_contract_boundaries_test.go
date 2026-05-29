@@ -34,6 +34,12 @@ func TestNoProfileRegistryOutsidePeercompat(t *testing.T) {
 			strings.HasPrefix(relPath, "internal/guards/") {
 			return nil
 		}
+		// ocmtest is a thin wrapper over peercompat types; it may reference
+		// ProfileRegistry as a parameter type.
+		if strings.Contains(relPath, "/internal/ocmtest/") ||
+			strings.HasPrefix(relPath, "internal/ocmtest/") {
+			return nil
+		}
 
 		data, err := os.ReadFile(path)
 		if err != nil {

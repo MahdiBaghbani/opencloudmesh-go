@@ -3,7 +3,6 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -11,12 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"strconv"
-	"strings"
 	"time"
-
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
@@ -77,91 +71,14 @@ func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 
 	c := &Client{cfg: cfg}
 
-	// Build the trusted proxy host set and the request-aware proxy function.
-	// Precedence: explicit ProxyURL > env fallback > direct (nil proxy).
-	//
-	// trustedProxyHosts is used at dial time to skip the SSRF check only for
-	// dials that go to an operator-trusted proxy host. All other dials -
-	// including direct connections when NO_PROXY routes around an env proxy -
-	// are still checked. Destination SSRF is also enforced unconditionally by
-	// the preflight check in DoWithOptions and the redirect check in
-	// followRedirect; the dial check is defense-in-depth for the direct-dial
-	// case.
-	trustedHosts := map[string]struct{}{}
-	var proxyFunc func(*http.Request) (*url.URL, error)
-
-	switch {
-	case cfg.ProxyURL != "":
-		// Explicit proxy wins; env vars are ignored even if ProxyEnvFallback is set.
-		if p, err := url.Parse(cfg.ProxyURL); err == nil {
-			proxyFunc = http.ProxyURL(p)
-			trustedHosts[strings.ToLower(p.Hostname())] = struct{}{}
-		}
-	case cfg.ProxyEnvFallback:
-		// Snapshot the proxy configuration from the environment at New() time.
-		// Both routing and trusted-host extraction use the same snapshot so
-		// their behavior is consistent for the lifetime of this client.
-		// To pick up env changes (proxy or NO_PROXY), recreate the client.
-		envCfg := httpproxy.FromEnvironment()
-		envProxyFn := envCfg.ProxyFunc()
-		proxyFunc = func(req *http.Request) (*url.URL, error) {
-			return envProxyFn(req.URL)
-		}
-		for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"} {
-			if raw := os.Getenv(key); raw != "" {
-				p, err := url.Parse(raw)
-				if err != nil || p.Hostname() == "" {
-					// Scheme-less values like "proxy:3128" parse with the
-					// hostname in the scheme field; add http:// to match
-					// the fallback in httpproxy's own parseProxy.
-					p, err = url.Parse("http://" + raw)
-				}
-				if err == nil && p.Hostname() != "" {
-					trustedHosts[strings.ToLower(p.Hostname())] = struct{}{}
-				}
-			}
-		}
-	}
-	// default (neither branch): nil proxyFunc blocks all env proxies.
-
+	// Proxy selection and trusted-host extraction (precedence: explicit
+	// ProxyURL > env fallback > direct). See transport.go for details.
+	proxyFunc, trustedHosts := buildProxyFunc(cfg)
 	c.trustedProxyHosts = trustedHosts
-
-	dialer := &net.Dialer{
-		Timeout: time.Duration(cfg.ConnectTimeoutMS) * time.Millisecond,
-	}
-
-	transport := &http.Transport{
-		Proxy: proxyFunc,
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// In strict mode: skip the SSRF check only when dialing a trusted
-			// proxy host (operator-controlled). All other dials - direct
-			// connections including those caused by NO_PROXY - are checked.
-			if c.isStrictMode() {
-				host, _, _ := net.SplitHostPort(addr)
-				if host == "" {
-					host = addr
-				}
-				if _, trusted := c.trustedProxyHosts[strings.ToLower(host)]; !trusted {
-					if err := c.checkSSRF(ctx, addr); err != nil {
-						return nil, err
-					}
-				}
-			}
-			return dialer.DialContext(ctx, network, addr)
-		},
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.InsecureSkipVerify,
-			RootCAs:            rootCAs,
-		},
-		MaxIdleConns:       10,
-		IdleConnTimeout:    30 * time.Second,
-		DisableCompression: false,
-		DisableKeepAlives:  false,
-	}
 
 	// No automatic redirect following - handled manually in DoWithOptions.
 	c.httpClient = &http.Client{
-		Transport: transport,
+		Transport: c.newTransport(rootCAs, proxyFunc),
 		Timeout:   time.Duration(cfg.TimeoutMS) * time.Millisecond,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -193,191 +110,6 @@ func (c *Client) isStrictMode() bool {
 		return c.cfg.SSRF.Mode == "strict"
 	}
 	return c.cfg.SSRFMode == "strict"
-}
-
-// activeRoutePolicy returns the named active route policy, or nil if none is
-// configured. Returns nil when RoutePolicy is empty or the name is not found.
-func (c *Client) activeRoutePolicy() *config.SSRFRoutePolicyConfig {
-	name := c.cfg.SSRF.RoutePolicy
-	if name == "" || c.cfg.SSRF.RoutePolicies == nil {
-		return nil
-	}
-	p, ok := c.cfg.SSRF.RoutePolicies[name]
-	if !ok {
-		return nil
-	}
-	return &p
-}
-
-// checkSSRFURL runs a preflight SSRF check for a URL target.
-// Derives the effective port from scheme defaults when the URL omits a port.
-// Fails closed when the effective port cannot be derived (unknown scheme).
-func (c *Client) checkSSRFURL(ctx context.Context, u *url.URL) error {
-	port := effectivePort(u)
-	if port == "" {
-		return fmt.Errorf("%w: cannot derive effective port for scheme %q", ErrSSRFBlocked, u.Scheme)
-	}
-	return c.checkSSRFHostPort(ctx, u.Hostname(), port)
-}
-
-// checkSSRF validates that the address is not a blocked destination.
-// The addr is in host:port format from the dialer.
-func (c *Client) checkSSRF(ctx context.Context, addr string) error {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		host = addr
-		port = ""
-	}
-	return c.checkSSRFHostPort(ctx, host, port)
-}
-
-// checkSSRFHostPort is the core SSRF enforcement function.
-//
-// Public destinations pass unconditionally. Private destinations require an
-// active route policy where all three checks pass together: hostname suffix,
-// resolved IP/CIDR, and destination port (all-records semantics: fail closed
-// if any resolved address fails policy).
-func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error {
-	// Strip IPv6 brackets if present.
-	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
-		host = host[1 : len(host)-1]
-	}
-
-	lowerHost := strings.ToLower(host)
-	if lowerHost == "localhost" || lowerHost == "localhost.localdomain" {
-		return fmt.Errorf("%w: localhost is blocked", ErrSSRFBlocked)
-	}
-
-	policy := c.activeRoutePolicy()
-
-	// IP literal: check allow_ip_literals then CIDR and port rules.
-	if ip := net.ParseIP(host); ip != nil {
-		return c.checkIPWithPolicy(ip, port, policy)
-	}
-
-	// Hostname: resolve all A and AAAA records (all-records semantics).
-	// Fail closed if any private IP fails policy.
-	ipAddrs, err := c.getResolver().LookupIPAddr(ctx, host)
-	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrHostUnresolvable, host, err)
-	}
-
-	// Evaluate host suffix match once; it applies to every private IP result.
-	hostAllowed := hostMatchesSuffix(lowerHost, policy)
-
-	for _, ipAddr := range ipAddrs {
-		ip := ipAddr.IP
-		if c.isAllowedIP(ip) {
-			continue // public IP: always allowed
-		}
-		// Private IP: all three checks must pass together.
-		if policy == nil {
-			return fmt.Errorf("%w: %s resolves to private IP %s and no active route policy is configured",
-				ErrSSRFBlocked, host, ip)
-		}
-		if !hostAllowed {
-			return fmt.Errorf("%w: %s resolves to private IP %s and host suffix is not in allowed list",
-				ErrSSRFBlocked, host, ip)
-		}
-		if !ipMatchesCIDRs(ip, policy) {
-			return fmt.Errorf("%w: %s resolves to IP %s not in allowed private CIDRs",
-				ErrSSRFBlocked, host, ip)
-		}
-		if !portAllowed(port, policy) {
-			return fmt.Errorf("%w: destination port %s is not in allowed ports",
-				ErrSSRFBlocked, port)
-		}
-	}
-
-	return nil
-}
-
-// checkIPWithPolicy validates a private IP literal against the active route policy.
-// Public IPs are always allowed. Private IPs require allow_ip_literals=true
-// plus matching CIDR and port rules.
-func (c *Client) checkIPWithPolicy(ip net.IP, port string, policy *config.SSRFRoutePolicyConfig) error {
-	if c.isAllowedIP(ip) {
-		return nil
-	}
-	if policy == nil || !policy.AllowIPLiterals {
-		return fmt.Errorf("%w: IP %s is blocked (allow_ip_literals=false)", ErrSSRFBlocked, ip)
-	}
-	if !ipMatchesCIDRs(ip, policy) {
-		return fmt.Errorf("%w: IP %s not in allowed private CIDRs", ErrSSRFBlocked, ip)
-	}
-	if !portAllowed(port, policy) {
-		return fmt.Errorf("%w: destination port %s is not in allowed ports", ErrSSRFBlocked, port)
-	}
-	return nil
-}
-
-// isAllowedIP reports whether the IP is a public address.
-// Returns false for loopback, private, link-local, unspecified, and multicast.
-func (c *Client) isAllowedIP(ip net.IP) bool {
-	return !ip.IsLoopback() &&
-		!ip.IsPrivate() &&
-		!ip.IsLinkLocalUnicast() &&
-		!ip.IsLinkLocalMulticast() &&
-		!ip.IsUnspecified() &&
-		!ip.IsMulticast()
-}
-
-// hostMatchesSuffix reports whether host matches any allowed private host suffix
-// in the route policy. Empty entries are skipped. A single leading dot in a
-// suffix entry (e.g. ".internal") is stripped before comparison so that
-// operators using the common "dot-TLD" notation get the expected behavior.
-func hostMatchesSuffix(host string, policy *config.SSRFRoutePolicyConfig) bool {
-	if policy == nil {
-		return false
-	}
-	for _, suffix := range policy.AllowPrivateHostSuffixes {
-		sfx := strings.ToLower(strings.TrimSpace(suffix))
-		sfx = strings.TrimPrefix(sfx, ".") // normalize exactly one leading dot
-		if sfx == "" {
-			continue
-		}
-		if host == sfx || strings.HasSuffix(host, "."+sfx) {
-			return true
-		}
-	}
-	return false
-}
-
-// ipMatchesCIDRs reports whether ip falls within any allowed private CIDR in
-// the route policy. Malformed CIDR entries are silently skipped.
-func ipMatchesCIDRs(ip net.IP, policy *config.SSRFRoutePolicyConfig) bool {
-	if policy == nil {
-		return false
-	}
-	for _, cidr := range policy.AllowPrivateCIDRs {
-		_, network, err := net.ParseCIDR(cidr)
-		if err != nil {
-			continue
-		}
-		if network.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
-
-// portAllowed reports whether the destination port is explicitly permitted by
-// the route policy. Private-route evaluation fails closed when the policy is
-// nil, the AllowedPorts list is empty, or the port string cannot be parsed.
-func portAllowed(port string, policy *config.SSRFRoutePolicyConfig) bool {
-	if policy == nil || len(policy.AllowedPorts) == 0 {
-		return false
-	}
-	n, err := strconv.Atoi(port)
-	if err != nil {
-		return false
-	}
-	for _, p := range policy.AllowedPorts {
-		if p == n {
-			return true
-		}
-	}
-	return false
 }
 
 // Get performs a GET request with safety protections.
@@ -496,64 +228,6 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	}
 
 	return newResp, nil
-}
-
-// isSameHost checks if two URLs have the same host (hostname + effective port).
-// Uses url.URL.Hostname() and url.URL.Port() for IPv6-safe comparisons.
-// Effective port: missing port = scheme default (http=80, https=443).
-// Explicit default port is equivalent to missing (https://example.com:443 == https://example.com).
-func isSameHost(a, b *url.URL) bool {
-	if !strings.EqualFold(a.Hostname(), b.Hostname()) {
-		return false
-	}
-	return effectivePort(a) == effectivePort(b)
-}
-
-// effectivePort returns the effective port for a URL.
-// Missing port = scheme default. Explicit default port = same as missing.
-// Returns "" for unknown schemes.
-func effectivePort(u *url.URL) string {
-	port := u.Port()
-	if port == "" {
-		return defaultPort(u.Scheme)
-	}
-	// Normalize explicit default port to the canonical form.
-	if port == defaultPort(u.Scheme) {
-		return defaultPort(u.Scheme)
-	}
-	return port
-}
-
-// defaultPort returns the well-known default port for a scheme.
-func defaultPort(scheme string) string {
-	switch strings.ToLower(scheme) {
-	case "http":
-		return "80"
-	case "https":
-		return "443"
-	default:
-		return ""
-	}
-}
-
-// copyRedirectHeaders copies safe headers to the redirect request.
-// Authorization and signature headers are intentionally omitted.
-func copyRedirectHeaders(src, dst *http.Request) {
-	if ua := src.Header.Get("User-Agent"); ua != "" {
-		dst.Header.Set("User-Agent", ua)
-	}
-	if accept := src.Header.Get("Accept"); accept != "" {
-		dst.Header.Set("Accept", accept)
-	}
-}
-
-// isRedirect returns true if the status code is a redirect.
-func isRedirect(code int) bool {
-	return code == http.StatusMovedPermanently ||
-		code == http.StatusFound ||
-		code == http.StatusSeeOther ||
-		code == http.StatusTemporaryRedirect ||
-		code == http.StatusPermanentRedirect
 }
 
 // GetJSON performs a GET request and reads the response body with size limit.

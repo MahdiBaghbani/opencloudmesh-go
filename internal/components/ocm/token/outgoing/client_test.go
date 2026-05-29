@@ -517,7 +517,7 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 	}, nil))
 
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+		{Pattern: "nextcloud.example.com", Profile: "nextcloud"},
 	}
 	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
 
@@ -654,7 +654,7 @@ func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 	}, nil))
 
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+		{Pattern: "nextcloud.example.com", Profile: "nextcloud"},
 	}
 	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
 

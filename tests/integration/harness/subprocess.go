@@ -13,8 +13,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 // SubprocessServer represents a server running as a subprocess.
@@ -31,13 +34,13 @@ type SubprocessServer struct {
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
 	Name                    string
-	Mode                    string 				// dev, compat, strict; legacy alias interop also works
+	Mode                    string // dev, compat, strict; legacy alias interop also works
 	CompatibilityScope      string
-	KeepSignatureDefaults   bool              	// when true, skip the [signature] override block so mode presets apply
-	SSRFMode                string            	// when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
-	DisableProxyEnvFallback bool              	// when true, emits proxy_env_fallback = false in [outbound_http]
-	ExtraConfig             string            	// Additional TOML config to append
-	ExtraFiles              map[string]string 	// Extra files to write to tempDir: {relativePath: contents}
+	KeepSignatureDefaults   bool              // when true, skip the [signature] override block so mode presets apply
+	SSRFMode                string            // when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
+	DisableProxyEnvFallback bool              // when true, emits proxy_env_fallback = false in [outbound_http]
+	ExtraConfig             string            // Additional TOML config to append
+	ExtraFiles              map[string]string // Extra files to write to tempDir: {relativePath: contents}
 }
 
 // BuildBinary builds the opencloudmesh-go binary for testing.
@@ -146,6 +149,20 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
+	// Derive transport, base URL, and readiness path from the FINAL effective
+	// config, not just the preset inputs. ExtraConfig may override TLS (or other
+	// transport-relevant settings) after the preset-derived base config is
+	// generated, so re-loading the rendered config.toml through the same loader
+	// the binary uses (config.Load) is the only reliable source of truth for the
+	// scheme the subprocess actually listens with and the path endpoints mount
+	// under. See localListenerBaseURL in harness.go for the in-process parallel.
+	finalCfg, err := loadEffectiveSubprocessConfig(configPath, tempDir)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to load effective config for %s: %v", cfg.Name, err)
+	}
+	baseURL := localListenerBaseURL(finalCfg.TLS.Mode, port)
+
 	// Create log file
 	logPath := filepath.Join(tempDir, "server.log")
 	logFile, err := os.Create(logPath)
@@ -166,13 +183,6 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		t.Fatalf("failed to start subprocess: %v", err)
 	}
 
-	var baseURL string
-	if needsSecureTransport(cfg.Mode, cfg.CompatibilityScope) {
-		baseURL = fmt.Sprintf("https://localhost:%d", port)
-	} else {
-		baseURL = fmt.Sprintf("http://localhost:%d", port)
-	}
-
 	srv := &SubprocessServer{
 		Name:       cfg.Name,
 		TempDir:    tempDir,
@@ -183,8 +193,10 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		configFile: configPath,
 	}
 
-	// Wait for server to be ready
-	if err := waitForServerReady(baseURL, 10*time.Second); err != nil {
+	// Wait for server to be ready. App endpoints (including /api/healthz) mount
+	// under external_base_path when set, so probe the path the final effective
+	// config actually uses rather than assuming root.
+	if err := waitForServerReady(healthEndpointURL(baseURL, finalCfg.ExternalBasePath), 10*time.Second); err != nil {
 		srv.DumpLogs(t)
 		srv.Stop(t)
 		t.Fatalf("server %s failed to start: %v", cfg.Name, err)
@@ -252,6 +264,35 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 	t.Logf("=== Logs for server %s ===\n%s\n=== End logs ===", s.Name, string(content))
 }
 
+// subprocessChdirMu serializes the working-directory switch used while loading
+// a subprocess config. The integration tests run serially (no t.Parallel), but
+// os.Chdir is process-global, so this guards against concurrent harness callers
+// corrupting each other's view of the working directory.
+var subprocessChdirMu sync.Mutex
+
+// loadEffectiveSubprocessConfig loads the fully rendered config from the written
+// config.toml using the same loader the binary uses (config.Load). The binary
+// runs with its working directory set to dataDir (cmd.Dir == tempDir), so any
+// relative paths in the config (for example peer_trust config_paths or outbound
+// TLS CA paths) resolve against dataDir. We temporarily switch to dataDir while
+// loading so the harness derives the identical effective config -- including the
+// final TLS mode and external base path -- that the running subprocess uses.
+func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, error) {
+	subprocessChdirMu.Lock()
+	defer subprocessChdirMu.Unlock()
+
+	prevDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("get working directory: %w", err)
+	}
+	if err := os.Chdir(dataDir); err != nil {
+		return nil, fmt.Errorf("chdir to data dir %s: %w", dataDir, err)
+	}
+	defer func() { _ = os.Chdir(prevDir) }()
+
+	return config.Load(config.LoaderOptions{ConfigPath: configPath})
+}
+
 // needsSecureTransport reports whether the mode+scope combination requires HTTPS.
 // The config loader rejects tls.mode=off for compatibility_scope "none" and "scoped".
 // An empty scope with strict (or default-empty) mode implies "none" via the preset.
@@ -263,6 +304,64 @@ func needsSecureTransport(mode, compatibilityScope string) bool {
 	case "":
 		m := strings.ToLower(strings.TrimSpace(mode))
 		return m == "strict" || m == ""
+	}
+	return false
+}
+
+// extraTLSMode scans ExtraConfig for a [tls] table and returns the tls.mode it
+// declares. hasTLSTable reports whether ExtraConfig defines a [tls] table at all
+// (even when it omits an explicit mode key); mode is the value of the mode key
+// inside that table, or "" when the table omits it. This is a deliberately
+// small TOML peek: it only tracks table headers and a single mode = "..." line
+// so generateTOMLConfig can keep the preset-derived [tls] block and the
+// generated default public_origin consistent with a test's TLS override.
+func extraTLSMode(extra string) (mode string, hasTLSTable bool) {
+	inTLS := false
+	for _, line := range strings.Split(extra, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			inTLS = trimmed == "[tls]"
+			if inTLS {
+				hasTLSTable = true
+			}
+			continue
+		}
+		if inTLS {
+			if key, value, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(key) == "mode" {
+				mode = strings.Trim(strings.TrimSpace(value), `"'`)
+			}
+		}
+	}
+	return mode, hasTLSTable
+}
+
+// extraDefinesTLSTable reports whether ExtraConfig declares its own [tls] table.
+// When it does, generateTOMLConfig omits the preset-derived [tls] block so the
+// test can override the listener transport without a duplicate-table TOML error.
+func extraDefinesTLSTable(extra string) bool {
+	_, hasTLSTable := extraTLSMode(extra)
+	return hasTLSTable
+}
+
+// extraDefinesPublicOrigin reports whether ExtraConfig sets the top-level
+// public_origin key. When it does, generateTOMLConfig omits its generated
+// default so the test's explicit origin wins (and so the rendered TOML does not
+// carry a duplicate public_origin key). Only root-table assignments count;
+// keys inside a [table] are ignored.
+func extraDefinesPublicOrigin(extra string) bool {
+	inRootTable := true
+	for _, line := range strings.Split(extra, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			inRootTable = false
+			continue
+		}
+		if !inRootTable {
+			continue
+		}
+		if key, _, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(key) == "public_origin" {
+			return true
+		}
 	}
 	return false
 }
@@ -284,33 +383,67 @@ func needsSecureTransport(mode, compatibilityScope string) bool {
 func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, disableProxyEnvFallback bool, extra string) string {
 	secure := needsSecureTransport(mode, compatibilityScope)
 
+	// Derive the scheme for the generated default public_origin from the FINAL
+	// effective TLS mode, not just the preset heuristic. ExtraConfig may override
+	// the preset transport via its own [tls] table; when it sets an explicit mode
+	// the generated default origin must follow that override, because discovery
+	// (internal/services/wellknown) advertises endpoints from public_origin and
+	// would otherwise advertise the wrong scheme. Any tls.mode other than "off"
+	// implies HTTPS, matching localListenerScheme.
+	publicOriginSecure := secure
+	if overrideMode, _ := extraTLSMode(extra); strings.TrimSpace(overrideMode) != "" {
+		publicOriginSecure = localListenerScheme(overrideMode) == "https"
+	}
+
 	var publicOrigin string
-	if secure {
+	if publicOriginSecure {
 		publicOrigin = fmt.Sprintf("https://localhost:%d", port)
 	} else {
 		publicOrigin = fmt.Sprintf("http://localhost:%d", port)
 	}
 
+	// Omit the generated public_origin when the test sets its own so the explicit
+	// value wins and the rendered TOML stays free of duplicate keys.
+	publicOriginLine := ""
+	if !extraDefinesPublicOrigin(extra) {
+		publicOriginLine = fmt.Sprintf("public_origin = %q\n", publicOrigin)
+	}
+
 	config := fmt.Sprintf(`# Generated config for test server: %s
 mode = "%s"
 listen_addr = ":%d"
-public_origin = "%s"
-external_base_path = ""
+%sexternal_base_path = ""
 
-`, name, mode, port, publicOrigin)
+`, name, mode, port, publicOriginLine)
 
 	if compatibilityScope != "" {
 		config += fmt.Sprintf("compatibility_scope = %q\n\n", compatibilityScope)
 	}
 
-	if secure {
-		// selfsigned TLS; self_signed_dir defaults to ".ocm/certs" relative to
-		// the process working directory (tempDir). insecure_skip_verify must be
-		// false for scoped/none scope guardrails to pass.
-		config += `[tls]
+	// Emit the preset-derived [tls] block unless the test supplies its own [tls]
+	// table in ExtraConfig. TOML rejects a duplicate [tls] table, so when the
+	// extra config defines one we omit ours and let the test's TLS settings
+	// drive the final effective transport. The harness derives BaseURL and the
+	// readiness scheme from that final config, so an overriding [tls] is honored.
+	if !extraDefinesTLSTable(extra) {
+		if secure {
+			// selfsigned TLS; self_signed_dir defaults to ".ocm/certs" relative
+			// to the process working directory (tempDir).
+			config += `[tls]
 mode = "selfsigned"
 
-[server]
+`
+		} else {
+			config += `[tls]
+mode = "off"
+
+`
+		}
+	}
+
+	if secure {
+		// insecure_skip_verify must be false for scoped/none scope guardrails to pass.
+		config += `[server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
 [server.bootstrap_admin]
@@ -324,10 +457,7 @@ max_response_bytes = 1048576
 insecure_skip_verify = false
 `
 	} else {
-		config += `[tls]
-mode = "off"
-
-[server]
+		config += `[server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
 [server.bootstrap_admin]
@@ -382,21 +512,34 @@ func newInsecureHTTPSClient(timeout time.Duration) *http.Client {
 	}
 }
 
-// waitForServerReady waits for a server to respond to HTTP requests.
-// For HTTPS base URLs (self-signed TLS), uses an insecure client for the
+// healthEndpointURL builds the readiness probe URL for a server. App endpoints
+// (including /api/healthz) are mounted under externalBasePath when it is set
+// (see internal/platform/http/server/routes.go), so the probe must include it.
+// An empty externalBasePath yields the root-mounted /api/healthz.
+func healthEndpointURL(baseURL, externalBasePath string) string {
+	base := strings.TrimSuffix(baseURL, "/")
+	bp := strings.Trim(externalBasePath, "/")
+	if bp == "" {
+		return base + "/api/healthz"
+	}
+	return base + "/" + bp + "/api/healthz"
+}
+
+// waitForServerReady waits for a server to respond at healthURL.
+// For HTTPS URLs (self-signed TLS), uses an insecure client for the
 // readiness probe only -- the server config itself still enforces strict TLS.
-func waitForServerReady(baseURL string, timeout time.Duration) error {
+func waitForServerReady(healthURL string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	var client *http.Client
-	if strings.HasPrefix(baseURL, "https://") {
+	if strings.HasPrefix(healthURL, "https://") {
 		client = newInsecureHTTPSClient(1 * time.Second)
 	} else {
 		client = &http.Client{Timeout: 1 * time.Second}
 	}
 
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(baseURL + "/api/healthz")
+		resp, err := client.Get(healthURL)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {

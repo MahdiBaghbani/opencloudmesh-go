@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -30,11 +30,7 @@ type Handler struct {
 func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 
-	// Parse localScheme from PublicOrigin (validated at config load time, cannot fail)
-	localScheme := "https"
-	if u, err := url.Parse(publicOrigin); err == nil && u.Scheme != "" {
-		localScheme = strings.ToLower(u.Scheme)
-	}
+	localScheme := config.PublicSchemeFromOrigin(publicOrigin)
 
 	return &Handler{
 		outgoingRepo: outgoingRepo,

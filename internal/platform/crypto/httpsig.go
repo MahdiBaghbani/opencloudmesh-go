@@ -395,34 +395,3 @@ func ReadAndRestoreBody(req *http.Request) ([]byte, error) {
 
 	return body, nil
 }
-
-// SignedHTTPClient wraps an http.Client to sign outgoing requests.
-type SignedHTTPClient struct {
-	client     *http.Client
-	signer     *RFC9421Signer
-	peerCheck  func(host string) bool // returns true if peer is signing-capable
-}
-
-// NewSignedHTTPClient creates a new signing HTTP client.
-func NewSignedHTTPClient(client *http.Client, signer *RFC9421Signer, peerCheck func(host string) bool) *SignedHTTPClient {
-	return &SignedHTTPClient{
-		client:    client,
-		signer:    signer,
-		peerCheck: peerCheck,
-	}
-}
-
-// Do executes an HTTP request, signing it if the peer is signing-capable.
-func (c *SignedHTTPClient) Do(req *http.Request, body []byte) (*http.Response, error) {
-	// Check if peer is signing-capable
-	host := req.URL.Host
-	if c.peerCheck != nil && c.peerCheck(host) {
-		// Sign the request
-		if err := c.signer.SignRequest(req, body); err != nil {
-			// If we intended to sign but failed, the request must fail
-			return nil, fmt.Errorf("signing failed for signing-capable peer: %w", err)
-		}
-	}
-
-	return c.client.Do(req)
-}

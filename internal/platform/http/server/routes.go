@@ -145,8 +145,8 @@ func (s *Server) setupRoutes() chi.Router {
 		BasePath:    s.cfg.ExternalBasePath,
 	}))
 
-	// Mount wellknown service at root (Reva-aligned)
-	s.mountService(r, s.services["wellknown"], true)
+	// Mount root service at host root (Reva-aligned)
+	s.mountService(r, s.services[service.RootService], true)
 
 	// Mount app endpoints under external_base_path
 	if s.cfg.ExternalBasePath != "" {
@@ -161,9 +161,11 @@ func (s *Server) setupRoutes() chi.Router {
 }
 
 // mountAppEndpoints mounts app endpoints (may be under base path).
-// Mount order matters for Chi route matching; keep it stable.
+// The list is derived from service.CoreServices (minus the root service) so it
+// stays in parity with service construction. Mount order matters for Chi route
+// matching; service.AppServices preserves CoreServices order.
 func (s *Server) mountAppEndpoints(r chi.Router) {
-	for _, name := range []string{"ocm", "ocmaux", "api", "ui", "webdav"} {
+	for _, name := range service.AppServices() {
 		s.mountService(r, s.services[name], false)
 	}
 }

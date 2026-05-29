@@ -9,8 +9,8 @@ import (
 
 func TestProfileRegistry_GetProfile_ExactMatch(t *testing.T) {
 	mappings := []ProfileMapping{
-		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
-		{Pattern: "owncloud.example.com", ProfileName: "owncloud"},
+		{Pattern: "nextcloud.example.com", Profile: "nextcloud"},
+		{Pattern: "owncloud.example.com", Profile: "owncloud"},
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -27,7 +27,7 @@ func TestProfileRegistry_GetProfile_ExactMatch(t *testing.T) {
 
 func TestProfileRegistry_GetProfile_WildcardSuffix(t *testing.T) {
 	mappings := []ProfileMapping{
-		{Pattern: "*.nextcloud.com", ProfileName: "nextcloud"},
+		{Pattern: "*.nextcloud.com", Profile: "nextcloud"},
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -54,7 +54,7 @@ func TestProfileRegistry_GetProfile_WildcardSuffix(t *testing.T) {
 
 func TestProfileRegistry_GetProfile_NoMatch_DefaultsToStrict(t *testing.T) {
 	mappings := []ProfileMapping{
-		{Pattern: "known.example.com", ProfileName: "nextcloud"},
+		{Pattern: "known.example.com", Profile: "nextcloud"},
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -67,7 +67,7 @@ func TestProfileRegistry_GetProfile_NoMatch_DefaultsToStrict(t *testing.T) {
 
 func TestProfileRegistry_GetProfile_CaseInsensitive(t *testing.T) {
 	mappings := []ProfileMapping{
-		{Pattern: "Nextcloud.Example.COM", ProfileName: "nextcloud"},
+		{Pattern: "Nextcloud.Example.COM", Profile: "nextcloud"},
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -84,7 +84,7 @@ func TestProfileRegistry_GetProfile_CaseInsensitive(t *testing.T) {
 
 func TestProfileRegistry_GetProfile_StripsPort(t *testing.T) {
 	mappings := []ProfileMapping{
-		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+		{Pattern: "nextcloud.example.com", Profile: "nextcloud"},
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -97,8 +97,8 @@ func TestProfileRegistry_GetProfile_StripsPort(t *testing.T) {
 
 func TestProfileRegistry_GetProfile_FirstMatchWins(t *testing.T) {
 	mappings := []ProfileMapping{
-		{Pattern: "cloud.example.com", ProfileName: "owncloud"}, // First match
-		{Pattern: "*.example.com", ProfileName: "nextcloud"},    // Would also match
+		{Pattern: "cloud.example.com", Profile: "owncloud"}, // First match
+		{Pattern: "*.example.com", Profile: "nextcloud"},    // Would also match
 	}
 	reg := NewProfileRegistry(nil, mappings)
 
@@ -118,7 +118,7 @@ func TestProfileRegistry_CustomProfiles(t *testing.T) {
 		},
 	}
 	mappings := []ProfileMapping{
-		{Pattern: "custom.example.com", ProfileName: "custom"},
+		{Pattern: "custom.example.com", Profile: "custom"},
 	}
 	reg := NewProfileRegistry(customProfiles, mappings)
 
