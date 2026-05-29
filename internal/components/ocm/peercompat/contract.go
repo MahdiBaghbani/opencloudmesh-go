@@ -107,18 +107,7 @@ func NewCompiledContractFromConfig(
 
 	customProfiles := make(map[string]*Profile, len(cfg.PeerProfiles.CustomProfiles))
 	for name, profileCfg := range cfg.PeerProfiles.CustomProfiles {
-		customProfiles[name] = &Profile{
-			Name:                           name,
-			AllowUnsignedInbound:           profileCfg.AllowUnsignedInbound,
-			AllowUnsignedOutbound:          profileCfg.AllowUnsignedOutbound,
-			AllowMismatchedHost:            profileCfg.AllowMismatchedHost,
-			AllowHTTP:                      profileCfg.AllowHTTP,
-			AllowUnsignedDiscovery:         profileCfg.AllowUnsignedDiscovery,
-			AcceptLegacyDiscoveryPublicKey: profileCfg.AcceptLegacyDiscoveryPublicKey,
-			TokenExchangeQuirks:            slices.Clone(profileCfg.TokenExchangeQuirks),
-			TokenExchangeGrantType:         profileCfg.TokenExchangeGrantType,
-			AllowedBasicAuthPatterns:       slices.Clone(profileCfg.AllowedBasicAuthPatterns),
-		}
+		customProfiles[name] = profileFromConfig(name, profileCfg)
 	}
 
 	mappings := slices.Clone(cfg.PeerProfiles.Mappings)

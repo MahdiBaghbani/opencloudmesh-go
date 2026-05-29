@@ -5,6 +5,7 @@ package peercompat
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 
 	platformconfig "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -54,6 +55,25 @@ type Profile struct {
 	//   - ":token"      (from source "basic::token")     - interop: empty username
 	//   - "id:token"    (from source "basic:id:token")   - Reva/OCM-rs: provider_id:sharedSecret
 	AllowedBasicAuthPatterns []string `json:"allowed_basic_auth_patterns" toml:"allowed_basic_auth_patterns"`
+}
+
+// profileFromConfig converts a config.PeerProfile into a peercompat Profile.
+// It is the single bridge between the config-layer profile shape and the
+// peercompat profile shape, so the compatibility fields are mapped in one
+// place. Slice fields are cloned so the compiled profile never aliases config.
+func profileFromConfig(name string, cfg platformconfig.PeerProfile) *Profile {
+	return &Profile{
+		Name:                           name,
+		AllowUnsignedInbound:           cfg.AllowUnsignedInbound,
+		AllowUnsignedOutbound:          cfg.AllowUnsignedOutbound,
+		AllowMismatchedHost:            cfg.AllowMismatchedHost,
+		AllowHTTP:                      cfg.AllowHTTP,
+		AllowUnsignedDiscovery:         cfg.AllowUnsignedDiscovery,
+		AcceptLegacyDiscoveryPublicKey: cfg.AcceptLegacyDiscoveryPublicKey,
+		TokenExchangeQuirks:            slices.Clone(cfg.TokenExchangeQuirks),
+		TokenExchangeGrantType:         cfg.TokenExchangeGrantType,
+		AllowedBasicAuthPatterns:       slices.Clone(cfg.AllowedBasicAuthPatterns),
+	}
 }
 
 // ProfileMapping maps a domain pattern to a profile name. It is an alias for
