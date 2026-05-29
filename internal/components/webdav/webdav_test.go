@@ -115,7 +115,7 @@ func TestValidateCredential_RejectsSharedSecretForStrictShare(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
-		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+		{Pattern: "nextcloud.example.com", Profile: "nextcloud"},
 	})
 	handler := NewHandler(repo, tokenStore, buildContractFromRegistry(t, registry), nil)
 
@@ -146,7 +146,7 @@ func TestValidateCredential_BasicAuthPatternRejection(t *testing.T) {
 	registry := peercompat.NewProfileRegistry(
 		map[string]*peercompat.Profile{"restrictive": restrictiveProfile},
 		[]peercompat.ProfileMapping{
-			{Pattern: "restrictive.example.com", ProfileName: "restrictive"},
+			{Pattern: "restrictive.example.com", Profile: "restrictive"},
 		},
 	)
 
@@ -257,7 +257,7 @@ func TestValidateCredential_UnknownPeerUsesStrictProfile(t *testing.T) {
 	tokenStore := newMockTokenStore()
 
 	registry := peercompat.NewProfileRegistry(nil, []peercompat.ProfileMapping{
-		{Pattern: "nextcloud.example.com", ProfileName: "nextcloud"},
+		{Pattern: "nextcloud.example.com", Profile: "nextcloud"},
 	})
 	handler := NewHandler(repo, tokenStore, buildContractFromRegistry(t, registry), nil)
 

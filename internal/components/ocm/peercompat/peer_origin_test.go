@@ -13,7 +13,7 @@ func TestResolvePeerOrigin_AllowHTTPOnlyForMappedPeers(t *testing.T) {
 		},
 	}
 	mappings := []ProfileMapping{
-		{Pattern: "mapped.example.com", ProfileName: "dev-http"},
+		{Pattern: "mapped.example.com", Profile: "dev-http"},
 	}
 
 	contract, err := NewCompiledContract(custom, mappings)
@@ -52,7 +52,7 @@ func TestIsPeerAbsoluteURIAllowed_EnforcesHTTPGate(t *testing.T) {
 		},
 	}
 	mappings := []ProfileMapping{
-		{Pattern: "mapped.example.com", ProfileName: "dev-http"},
+		{Pattern: "mapped.example.com", Profile: "dev-http"},
 	}
 
 	contract, err := NewCompiledContract(custom, mappings)

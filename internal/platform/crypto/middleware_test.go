@@ -506,7 +506,7 @@ func TestSignatureMiddleware_LenientMode_AllowsCapablePeerByProfile(t *testing.T
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "sender.example.com", ProfileName: "compat"},
+			{Pattern: "sender.example.com", Profile: "compat"},
 		},
 	)
 
@@ -546,7 +546,7 @@ func TestSignatureMiddleware_LenientMode_AllowsDiscoveryFailureByProfile(t *test
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "sender.example.com", ProfileName: "compat"},
+			{Pattern: "sender.example.com", Profile: "compat"},
 		},
 	)
 
@@ -586,7 +586,7 @@ func TestSignatureMiddleware_LenientMode_RejectsDiscoveryFailureWhenUnmatched(t 
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "other.example.com", ProfileName: "compat"},
+			{Pattern: "other.example.com", Profile: "compat"},
 		},
 	)
 
@@ -631,7 +631,7 @@ func TestSignatureMiddleware_StrictMode_MatchedProfileAllowsMismatch(t *testing.
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "declared.example.com", ProfileName: "compat"},
+			{Pattern: "declared.example.com", Profile: "compat"},
 		},
 	)
 
@@ -679,7 +679,7 @@ func TestSignatureMiddleware_LogsCompatibilityDecisionFields(t *testing.T) {
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "sender.example.com", ProfileName: "compat"},
+			{Pattern: "sender.example.com", Profile: "compat"},
 		},
 	)
 

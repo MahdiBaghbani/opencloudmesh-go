@@ -277,7 +277,7 @@ func TestClientDiscover_CacheContractDrift(t *testing.T) {
 				},
 			},
 			[]peercompat.ProfileMapping{
-				{Pattern: parsed.Hostname(), ProfileName: "compat"},
+				{Pattern: parsed.Hostname(), Profile: "compat"},
 			},
 		)
 		contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
@@ -374,7 +374,7 @@ func TestClientDiscover_AllowsLegacyPublicKeyWithPeerCompat(t *testing.T) {
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: parsed.Hostname(), ProfileName: "compat"},
+			{Pattern: parsed.Hostname(), Profile: "compat"},
 		},
 	)
 	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)

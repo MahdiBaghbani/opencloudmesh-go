@@ -42,7 +42,7 @@ func (c *CompiledContract) TokenExchangeDecisionForPeer(peerDomain string) Token
 		if !matchPattern(mapping.Pattern, domain) {
 			continue
 		}
-		profile, ok := c.profiles[mapping.ProfileName]
+		profile, ok := c.profiles[mapping.Profile]
 		if !ok {
 			return decision
 		}

@@ -15,7 +15,7 @@ func TestTokenExchangeDecisionForPeer_MatchedProfile(t *testing.T) {
 			},
 		},
 		[]ProfileMapping{
-			{Pattern: "peer.example", ProfileName: "nextcloud-like"},
+			{Pattern: "peer.example", Profile: "nextcloud-like"},
 		},
 	)
 	if err != nil {
@@ -64,7 +64,7 @@ func TestTokenExchangeDecisionForPeer_URLShapedInputDoesNotMatch(t *testing.T) {
 			},
 		},
 		[]ProfileMapping{
-			{Pattern: "peer.example", ProfileName: "compat"},
+			{Pattern: "peer.example", Profile: "compat"},
 		},
 	)
 	if err != nil {
@@ -86,7 +86,7 @@ func TestTokenExchangeFallbackForReason_AcceptPlainToken(t *testing.T) {
 			},
 		},
 		[]ProfileMapping{
-			{Pattern: "peer.example", ProfileName: "compat"},
+			{Pattern: "peer.example", Profile: "compat"},
 		},
 	)
 	if err != nil {
@@ -111,7 +111,7 @@ func TestTokenExchangeFallbackForReason_SendTokenInBody(t *testing.T) {
 			},
 		},
 		[]ProfileMapping{
-			{Pattern: "peer.example", ProfileName: "compat"},
+			{Pattern: "peer.example", Profile: "compat"},
 		},
 	)
 	if err != nil {

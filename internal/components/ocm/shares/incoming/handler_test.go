@@ -606,7 +606,7 @@ func newAllowHTTPPeerContract(t *testing.T) *peercompat.CompiledContract {
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "*", ProfileName: "allow-http-test"},
+			{Pattern: "*", Profile: "allow-http-test"},
 		},
 	)
 	if err != nil {

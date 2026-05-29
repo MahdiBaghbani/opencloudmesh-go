@@ -77,7 +77,7 @@ func newHTTPTestContract(t *testing.T) *peercompat.CompiledContract {
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "*", ProfileName: "http-test"},
+			{Pattern: "*", Profile: "http-test"},
 		},
 	)
 	if err != nil {
@@ -342,7 +342,7 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "*", ProfileName: "restricted"},
+		{Pattern: "*", Profile: "restricted"},
 	}
 	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
 
@@ -516,7 +516,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: ownerDomain, ProfileName: "owner-grant"},
+		{Pattern: ownerDomain, Profile: "owner-grant"},
 	}
 	registry := peercompat.NewProfileRegistry(profiles, mappings)
 	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
@@ -594,8 +594,8 @@ func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: ownerDomain, ProfileName: "owner-only-id-token"},
-		{Pattern: "sender.example.com", ProfileName: "sender-only-token-colon"},
+		{Pattern: ownerDomain, Profile: "owner-only-id-token"},
+		{Pattern: "sender.example.com", Profile: "sender-only-token-colon"},
 	}
 	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
 

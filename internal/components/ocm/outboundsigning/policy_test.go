@@ -198,7 +198,7 @@ func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryAllowsMatchedPeerOverride(t
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "peer.example.com", ProfileName: "compat"},
+			{Pattern: "peer.example.com", Profile: "compat"},
 		},
 	)
 	runtimePolicy := ocmtest.RuntimePolicy(t, cfg, contract)
@@ -221,7 +221,7 @@ func TestOutboundPolicy_TokenExchange_PeerProfileQuirk(t *testing.T) {
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "*.nextcloud.com", ProfileName: "nextcloud"},
+		{Pattern: "*.nextcloud.com", Profile: "nextcloud"},
 	}
 	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
@@ -258,7 +258,7 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "legacy.example.com", ProfileName: "compat"},
+		{Pattern: "legacy.example.com", Profile: "compat"},
 	}
 	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
@@ -297,7 +297,7 @@ func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "strict-peer.example.com", ProfileName: "compat"},
+		{Pattern: "strict-peer.example.com", Profile: "compat"},
 	}
 	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
@@ -342,7 +342,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryDoesNotImplyUnsigned(t *testing.T
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "legacy.example.com", ProfileName: "compat"},
+		{Pattern: "legacy.example.com", Profile: "compat"},
 	}
 	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
@@ -371,7 +371,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryAllowsExplicitFailOpen(t *testing
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "legacy.example.com", ProfileName: "compat"},
+		{Pattern: "legacy.example.com", Profile: "compat"},
 	}
 	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 
@@ -425,7 +425,7 @@ func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testin
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "cloud.nextcloud.com", ProfileName: "nextcloud"},
+		{Pattern: "cloud.nextcloud.com", Profile: "nextcloud"},
 	}
 	cfg := config.DevConfig()
 	contract := ocmtest.MustCompileContract(t, profiles, mappings)
@@ -507,7 +507,7 @@ func TestOutboundPolicy_StrictNone_TokenExchange_NoUnsignedFallback(t *testing.T
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "cloud.nextcloud.com", ProfileName: "nextcloud"},
+		{Pattern: "cloud.nextcloud.com", Profile: "nextcloud"},
 	}
 	contract := ocmtest.MustCompileContract(t, profiles, mappings)
 

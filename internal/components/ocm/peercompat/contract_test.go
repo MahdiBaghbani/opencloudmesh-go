@@ -23,7 +23,7 @@ func TestNewCompiledContract_CompilesExplicitUnsignedDiscovery(t *testing.T) {
 			TokenExchangeGrantType: "ocm_share",
 		},
 	}
-	mappings := []ProfileMapping{{Pattern: "peer-a.example.com", ProfileName: "peer-a"}}
+	mappings := []ProfileMapping{{Pattern: "peer-a.example.com", Profile: "peer-a"}}
 
 	contract, err := NewCompiledContract(custom, mappings)
 	if err != nil {

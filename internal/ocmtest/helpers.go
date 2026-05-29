@@ -35,7 +35,7 @@ func MustAllowHTTPContract(t *testing.T) *peercompat.CompiledContract {
 			},
 		},
 		[]peercompat.ProfileMapping{
-			{Pattern: "*", ProfileName: "allow-http-test"},
+			{Pattern: "*", Profile: "allow-http-test"},
 		},
 	)
 }

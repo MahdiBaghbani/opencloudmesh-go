@@ -121,13 +121,7 @@ func NewCompiledContractFromConfig(
 		}
 	}
 
-	mappings := make([]ProfileMapping, len(cfg.PeerProfiles.Mappings))
-	for idx, mapping := range cfg.PeerProfiles.Mappings {
-		mappings[idx] = ProfileMapping{
-			Pattern:     mapping.Pattern,
-			ProfileName: mapping.Profile,
-		}
-	}
+	mappings := slices.Clone(cfg.PeerProfiles.Mappings)
 
 	return NewCompiledContract(customProfiles, mappings)
 }

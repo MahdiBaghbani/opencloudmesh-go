@@ -17,7 +17,7 @@ func TestSignatureDecisionForPeer_MatchedProfile(t *testing.T) {
 				AcceptLegacyDiscoveryPublicKey: true,
 			},
 		},
-		[]ProfileMapping{{Pattern: "*.compat.example", ProfileName: "compat"}},
+		[]ProfileMapping{{Pattern: "*.compat.example", Profile: "compat"}},
 	)
 	if err != nil {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
@@ -65,7 +65,7 @@ func TestSignatureDecisionForPeer_URLShapedInputDoesNotMatch(t *testing.T) {
 				AllowUnsignedInbound: true,
 			},
 		},
-		[]ProfileMapping{{Pattern: "peer.example", ProfileName: "compat"}},
+		[]ProfileMapping{{Pattern: "peer.example", Profile: "compat"}},
 	)
 	if err != nil {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
@@ -106,7 +106,7 @@ func TestResolveDiscoveryFailure_MatchedPeerCanFailOpen(t *testing.T) {
 				AllowUnsignedDiscovery: true,
 			},
 		},
-		[]ProfileMapping{{Pattern: "peer.example", ProfileName: "compat"}},
+		[]ProfileMapping{{Pattern: "peer.example", Profile: "compat"}},
 	)
 	if err != nil {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
@@ -129,7 +129,7 @@ func TestResolveDiscoveryFailure_UnmatchedPeerRejects(t *testing.T) {
 				AllowUnsignedDiscovery: true,
 			},
 		},
-		[]ProfileMapping{{Pattern: "peer.example", ProfileName: "compat"}},
+		[]ProfileMapping{{Pattern: "peer.example", Profile: "compat"}},
 	)
 	if err != nil {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
@@ -152,7 +152,7 @@ func TestLegacyDiscoveryPublicKeyDecisionForPeer_MatchedPeerAllows(t *testing.T)
 				AcceptLegacyDiscoveryPublicKey: true,
 			},
 		},
-		[]ProfileMapping{{Pattern: "peer.example", ProfileName: "compat"}},
+		[]ProfileMapping{{Pattern: "peer.example", Profile: "compat"}},
 	)
 	if err != nil {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
@@ -175,7 +175,7 @@ func TestLegacyDiscoveryPublicKeyDecisionForPeer_UnmatchedRejects(t *testing.T) 
 				AcceptLegacyDiscoveryPublicKey: true,
 			},
 		},
-		[]ProfileMapping{{Pattern: "peer.example", ProfileName: "compat"}},
+		[]ProfileMapping{{Pattern: "peer.example", Profile: "compat"}},
 	)
 	if err != nil {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
