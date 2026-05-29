@@ -2,7 +2,6 @@
 package invites
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -305,17 +304,6 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 // sendInviteAccepted sends POST /ocm/invite-accepted to the sender with all spec-required fields.
 func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.IncomingInvite, user *identity.User) error {
-	origin := h.resolvePeerOrigin(invite.SenderFQDN)
-	disc, err := h.discoveryClient.Discover(ctx, origin.baseURL)
-	if err != nil {
-		return fmt.Errorf("discovery failed for %s: %w", invite.SenderFQDN, err)
-	}
-
-	inviteAcceptedURL, err := url.JoinPath(disc.EndPoint, "invite-accepted")
-	if err != nil {
-		return fmt.Errorf("failed to build invite-accepted URL: %w", err)
-	}
-
 	reqBody := spec.InviteAcceptedRequest{
 		RecipientProvider: h.localProvider,
 		Token:             invite.Token,
@@ -329,36 +317,15 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 		return fmt.Errorf("failed to encode request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, inviteAcceptedURL, bytes.NewReader(body))
+	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.outboundPolicy, h.peerContract)
+	resp, err := poster.Send(ctx, outbound.Request{
+		TargetHost:   invite.SenderFQDN,
+		EndpointPath: "invite-accepted",
+		Kind:         outboundsigning.EndpointInvites,
+		Body:         body,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	if h.outboundPolicy != nil {
-		decision := h.outboundPolicy.ShouldSign(
-			outboundsigning.EndpointInvites,
-			origin.peerDomain,
-			disc,
-			h.signer != nil,
-		)
-		if decision.Error != nil {
-			return fmt.Errorf("outbound signing policy error: %w", decision.Error)
-		}
-		if decision.ShouldSign && h.signer != nil {
-			if err := h.signer.SignRequest(req, body); err != nil {
-				return fmt.Errorf("failed to sign request: %w", err)
-			}
-		}
-	} else if h.signer != nil && disc.HasCapability("http-sig") && len(disc.PublicKeys) > 0 {
-		if err := h.signer.SignRequest(req, body); err != nil {
-			return fmt.Errorf("failed to sign request: %w", err)
-		}
-	}
-
-	resp, err := h.httpClient.Do(ctx, req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 
@@ -368,17 +335,4 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 	}
 
 	return nil
-}
-
-type resolvedPeerOrigin struct {
-	baseURL    string
-	peerDomain string
-}
-
-func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
-	decision := h.peerContract.ResolvePeerOrigin(peerDomain)
-	return resolvedPeerOrigin{
-		baseURL:    decision.BaseURL,
-		peerDomain: decision.PeerDomain,
-	}
 }
