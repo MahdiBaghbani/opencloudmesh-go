@@ -20,16 +20,16 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 		t.Error("expected strict mode require_token_exchange true")
 	}
 
-	// Interop mode: enabled=true, path=token, require_token_exchange=false
-	interopCfg := CompatConfig()
-	if interopCfg.TokenExchange.Enabled == nil || !*interopCfg.TokenExchange.Enabled {
-		t.Error("expected interop mode token_exchange.enabled true")
+	// Compat mode: enabled=true, path=token, require_token_exchange=false
+	compatCfg := CompatConfig()
+	if compatCfg.TokenExchange.Enabled == nil || !*compatCfg.TokenExchange.Enabled {
+		t.Error("expected compat mode token_exchange.enabled true")
 	}
-	if interopCfg.TokenExchange.Path != "token" {
-		t.Errorf("expected interop mode token_exchange.path 'token', got %q", interopCfg.TokenExchange.Path)
+	if compatCfg.TokenExchange.Path != "token" {
+		t.Errorf("expected compat mode token_exchange.path 'token', got %q", compatCfg.TokenExchange.Path)
 	}
-	if interopCfg.RequireTokenExchange {
-		t.Error("expected interop mode require_token_exchange false")
+	if compatCfg.RequireTokenExchange {
+		t.Error("expected compat mode require_token_exchange false")
 	}
 
 	// Dev mode: enabled=true, path=token, require_token_exchange=false

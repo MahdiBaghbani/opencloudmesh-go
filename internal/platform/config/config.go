@@ -10,7 +10,6 @@ import (
 // Config holds the server configuration.
 type Config struct {
 	// Mode selects a preset bundle: strict, compat, or dev.
-	// The legacy alias "interop" is normalized to "compat" at load time.
 	Mode string `toml:"mode"`
 
 	// CompatibilityScope is the supervising exception-governance axis.

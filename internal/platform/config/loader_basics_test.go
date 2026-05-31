@@ -13,13 +13,14 @@ func TestParseMode(t *testing.T) {
 		wantErr bool
 	}{
 		{"strict", "strict", ModeStrict, false},
-		{"interop", "interop", ModeInterop, false},
+		{"compat", "compat", ModeCompat, false},
 		{"dev", "dev", ModeDev, false},
 		{"empty defaults to strict", "", ModeStrict, false},
 		{"uppercase", "STRICT", ModeStrict, false},
-		{"mixed case", "Interop", ModeInterop, false},
+		{"mixed case compat", "Compat", ModeCompat, false},
 		{"whitespace", "  dev  ", ModeDev, false},
 		{"invalid", "invalid", "", true},
+		{"interop rejected", "interop", "", true},
 	}
 
 	for _, tt := range tests {
@@ -78,7 +79,7 @@ func TestLoad_ModeFlag(t *testing.T) {
 func TestLoad_ConfigFile(t *testing.T) {
 	// Create a temp TOML config file
 	tomlContent := `
-mode = "interop"
+mode = "compat"
 public_origin = "https://example.com:8443"
 listen_addr = ":8443"
 
@@ -132,7 +133,7 @@ mode = "strict"
 func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
 	// Create a TOML config file
 	tomlContent := `
-mode = "interop"
+mode = "compat"
 public_origin = "https://from-toml.com"
 listen_addr = ":9000"
 
@@ -170,7 +171,7 @@ outbound_mode = "criteria-only"
 func TestLoad_ModeFlag_OverridesConfigFileMode(t *testing.T) {
 	// Create a TOML config file with mode
 	tomlContent := `
-mode = "interop"
+mode = "compat"
 `
 	configPath := writeTempConfig(t, tomlContent)
 
@@ -216,12 +217,16 @@ func TestLoad_InvalidTOML_FailsFast(t *testing.T) {
 }
 
 func TestLoad_InvalidMode_FailsFast(t *testing.T) {
-	_, err := Load(LoaderOptions{ModeFlag: "invalid"})
-	if err == nil {
-		t.Fatal("expected error for invalid mode")
-	}
-	if !strings.Contains(err.Error(), "invalid mode") {
-		t.Errorf("expected mode error, got: %v", err)
+	invalidModes := []string{"invalid", "interop"}
+	for _, mode := range invalidModes {
+		_, err := Load(LoaderOptions{ModeFlag: mode})
+		if err == nil {
+			t.Errorf("Load(ModeFlag=%q): expected error for invalid mode", mode)
+			continue
+		}
+		if !strings.Contains(err.Error(), "invalid mode") {
+			t.Errorf("Load(ModeFlag=%q): expected mode error, got: %v", mode, err)
+		}
 	}
 }
 

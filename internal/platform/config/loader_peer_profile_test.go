@@ -13,7 +13,7 @@ func TestLoad_PeerProfileCustomFields(t *testing.T) {
 
 	tomlContent := `
 public_origin = "https://localhost:9200"
-mode = "interop"
+mode = "compat"
 
 [peer_profiles.custom_profiles.test_peer]
 allow_unsigned_inbound = true
