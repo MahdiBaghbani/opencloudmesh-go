@@ -107,7 +107,7 @@ func TestLoad_UnsupportedAdvertiseHTTPSignaturesKey_Fails(t *testing.T) {
 		{
 			name: "nested in signature table",
 			config: `
-mode = "interop"
+mode = "compat"
 [signature]
 advertise_http_request_signatures = true
 `,
@@ -115,7 +115,7 @@ advertise_http_request_signatures = true
 		{
 			name: "dotted root key",
 			config: `
-mode = "interop"
+mode = "compat"
 signature.advertise_http_request_signatures = true
 `,
 		},
@@ -168,7 +168,7 @@ func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
 
 	// Test valid enum combinations.
 	tomlContent := `
-mode = "interop"
+mode = "compat"
 
 [tls]
 mode = "acme"

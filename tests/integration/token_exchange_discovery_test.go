@@ -14,17 +14,17 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-// TestInteropModeCanonicalPolicy exercises canonical policy under interop mode,
+// TestCompatModeCanonicalPolicy exercises canonical policy under compat mode,
 // which is the repo's compatibility preset with lenient inbound verification.
-func TestInteropModeCanonicalPolicy(t *testing.T) {
+func TestCompatModeCanonicalPolicy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "interop-policy",
-		Mode:                  "interop",
+		Name:                  "compat-policy",
+		Mode:                  "compat",
 		KeepSignatureDefaults: true,
 		ExtraConfig: `
 [outbound_http.ssrf]
@@ -56,7 +56,7 @@ mode = "off"
 		}
 
 		if !disc.Enabled {
-			t.Fatal("discovery should be enabled in interop mode")
+			t.Fatal("discovery should be enabled in compat mode")
 		}
 
 		hasExchangeToken := false
@@ -66,14 +66,14 @@ mode = "off"
 			}
 		}
 		if !hasExchangeToken {
-			t.Error("interop mode should advertise exchange-token capability")
+			t.Error("compat mode should advertise exchange-token capability")
 		}
 		if disc.TokenEndPoint == "" {
-			t.Error("interop mode should advertise tokenEndPoint")
+			t.Error("compat mode should advertise tokenEndPoint")
 		}
 		for _, criterion := range disc.Criteria {
 			if criterion == "http-request-signatures" {
-				t.Error("interop mode should not advertise http-request-signatures criterion")
+				t.Error("compat mode should not advertise http-request-signatures criterion")
 			}
 		}
 	})

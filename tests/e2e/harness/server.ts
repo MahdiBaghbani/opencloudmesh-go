@@ -13,7 +13,7 @@ import * as https from 'https';
 
 export interface ServerConfig {
   name: string;
-  mode?: 'dev' | 'compat' | 'interop' | 'strict';
+  mode?: 'dev' | 'compat' | 'strict';
   extraConfig?: string;
 }
 
@@ -109,7 +109,6 @@ export function buildBinary(): string {
 
 /**
  * Generates TOML config for a test server.
- * The legacy alias "interop" still maps to the compat preset.
  * Strict mode enables full HTTP request signatures with auto-generated keys.
  * Strict mode also requires compatibility_scope = "unbounded" to allow
  * outbound_http.ssrf.mode = "off"; the strict preset defaults to "none" which
@@ -269,7 +268,7 @@ export async function startTwoServers(
   config?: {
     nameA?: string;
     nameB?: string;
-    mode?: 'dev' | 'compat' | 'interop' | 'strict';
+    mode?: 'dev' | 'compat' | 'strict';
     extraConfigA?: string;
     extraConfigB?: string;
   }

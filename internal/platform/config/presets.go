@@ -9,10 +9,9 @@ import (
 type Mode string
 
 const (
-	ModeStrict  Mode = "strict"
-	ModeCompat  Mode = "compat"
-	ModeDev     Mode = "dev"
-	ModeInterop      = ModeCompat
+	ModeStrict Mode = "strict"
+	ModeCompat Mode = "compat"
+	ModeDev    Mode = "dev"
 )
 
 // ParseMode parses a mode string, returning an error for invalid values.
@@ -20,7 +19,7 @@ func ParseMode(s string) (Mode, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "strict", "":
 		return ModeStrict, nil
-	case "compat", "interop":
+	case "compat":
 		return ModeCompat, nil
 	case "dev":
 		return ModeDev, nil

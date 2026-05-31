@@ -12,8 +12,7 @@ OCM-API surface: latest-shape discovery, `shareType=user`, the current
 notification subset, and strict token-exchange and HTTP-signature behavior on
 that reduced path.
 
-The runtime exposes preset bundles `strict`, `compat`, and `dev`. The legacy
-alias `interop` is still accepted for `compat`.
+The runtime exposes preset bundles `strict`, `compat`, and `dev`.
 
 Those presets are convenience entry points, not the architecture authority:
 the effective posture is resolved from canonical OCM policy,
@@ -110,7 +109,7 @@ docker run -d -p 8080:8080 -v /path/to/config.toml:/config/config.toml:ro \
 
 | Variable    | Default | Description                                   |
 | ----------- | ------- | --------------------------------------------- |
-| OCM_GO_MODE | (none)  | Override preset bundle: `strict`, `compat`, or `dev`. The legacy alias `interop` is also accepted. |
+| OCM_GO_MODE | (none)  | Override preset bundle: `strict`, `compat`, or `dev`. |
 
 **Config:**
 

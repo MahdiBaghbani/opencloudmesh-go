@@ -34,7 +34,7 @@ type SubprocessServer struct {
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
 	Name                    string
-	Mode                    string // dev, compat, strict; legacy alias interop also works
+	Mode                    string // dev, compat, or strict
 	CompatibilityScope      string
 	KeepSignatureDefaults   bool              // when true, skip the [signature] override block so mode presets apply
 	SSRFMode                string            // when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
