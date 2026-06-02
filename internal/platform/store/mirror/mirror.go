@@ -1,21 +1,25 @@
 // Package mirror implements a SQLite + JSON mirror persistence driver.
 // SQLite is the source of truth; JSON is a one-way export for supervisor visibility.
 // The program MUST NOT read JSON as input.
+//
+// Internal layout: driver struct and lifecycle followed by four CRUD surfaces
+// (OutgoingShare, IncomingShare, OutgoingInvite, IncomingInvite) - all delegated
+// to sqlitecore - then the JSON projection/export subsystem at the bottom of
+// the file.
 package mirror
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlitecore"
 )
 
 func init() {
@@ -23,9 +27,12 @@ func init() {
 }
 
 // Driver implements the store.Driver interface with SQLite + JSON mirror.
+// SQLite is the source of truth; JSON is a one-way export for supervisor visibility.
+// It implements all four persistence surfaces: OutgoingShareStore,
+// IncomingShareStore, OutgoingInviteStore, and IncomingInviteStore.
 type Driver struct {
 	dataDir       string
-	db            *gorm.DB
+	core          *sqlitecore.Core
 	mirrorCfg     store.MirrorConfig
 	secretsLookup map[string]bool // quick lookup for allowed secret scopes
 	mu            sync.Mutex      // protects JSON export operations
@@ -37,7 +44,6 @@ func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 		return nil, fmt.Errorf("data_dir is required for mirror driver")
 	}
 
-	// Build secrets scope lookup
 	lookup := make(map[string]bool)
 	for _, scope := range cfg.Mirror.SecretsScope {
 		lookup[scope] = true
@@ -55,37 +61,28 @@ func (d *Driver) Name() string {
 	return "mirror"
 }
 
-// Init initializes the SQLite database and exports initial state to JSON.
+// Init creates the mirror directory, opens the shared SQLite core, and exports
+// the initial state to JSON.
 func (d *Driver) Init(ctx context.Context) error {
-	dbPath := filepath.Join(d.dataDir, "ocm.db")
 	mirrorDir := filepath.Join(d.dataDir, "mirror")
-
-	// Create mirror directory
 	if err := os.MkdirAll(mirrorDir, 0700); err != nil {
 		return fmt.Errorf("failed to create mirror dir: %w", err)
 	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	core, err := sqlitecore.Open(d.dataDir)
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return err
 	}
+	d.core = core
 
-	d.db = db
-
-	// AutoMigrate
-	if err := db.AutoMigrate(
-		&store.OutgoingShare{},
-		&store.IncomingShare{},
-		&store.Invite{},
-	); err != nil {
-		return fmt.Errorf("failed to migrate database: %w", err)
-	}
-
-	// Initial mirror export
-	if err := d.exportAll(ctx); err != nil {
-		return fmt.Errorf("failed to export mirror: %w", err)
+	if exportErr := d.exportAll(ctx); exportErr != nil {
+		exportErr = fmt.Errorf("failed to export mirror: %w", exportErr)
+		closeErr := d.core.Close()
+		d.core = nil
+		if closeErr != nil {
+			return errors.Join(exportErr, closeErr)
+		}
+		return exportErr
 	}
 
 	return nil
@@ -93,17 +90,219 @@ func (d *Driver) Init(ctx context.Context) error {
 
 // Close closes the database connection.
 func (d *Driver) Close() error {
-	if d.db == nil {
-		return nil
-	}
-	sqlDB, err := d.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlDB.Close()
+	return d.core.Close()
 }
 
-// exportAll exports all data to JSON files with appropriate redaction.
+// ----------------------------------------------------------------------------
+// CRUD surfaces - delegates to sqlitecore and triggers a JSON export after
+// successful writes.
+// ----------------------------------------------------------------------------
+
+// OutgoingShareStore implementation
+
+// CreateOutgoingShare creates a new outgoing share.
+func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
+	if err := d.core.CreateOutgoingShare(ctx, share); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "CreateOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
+	return nil
+}
+
+// GetOutgoingShareByID retrieves an outgoing share by its local share id.
+func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareId string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareByID(ctx, shareId)
+}
+
+// GetOutgoingShare retrieves an outgoing share by providerId.
+func (d *Driver) GetOutgoingShare(ctx context.Context, providerId string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShare(ctx, providerId)
+}
+
+// GetOutgoingShareByWebDAVId retrieves an outgoing share by webdavId.
+func (d *Driver) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareByWebDAVId(ctx, webdavId)
+}
+
+// GetOutgoingShareBySharedSecret retrieves an outgoing share by shared secret.
+func (d *Driver) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareBySharedSecret(ctx, sharedSecret)
+}
+
+// UpdateOutgoingShare updates an existing outgoing share.
+func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
+	if err := d.core.UpdateOutgoingShare(ctx, share); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "UpdateOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
+	return nil
+}
+
+// DeleteOutgoingShare deletes an outgoing share.
+func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerId string) error {
+	if err := d.core.DeleteOutgoingShare(ctx, providerId); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "DeleteOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
+	return nil
+}
+
+// ListOutgoingShares returns all outgoing shares.
+func (d *Driver) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare, error) {
+	return d.core.ListOutgoingShares(ctx)
+}
+
+// IncomingShareStore implementation
+
+// CreateIncomingShare creates a new incoming share.
+func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingShare) error {
+	if err := d.core.CreateIncomingShare(ctx, share); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "CreateIncomingShare", d.lockedExport(ctx, d.exportIncomingShares))
+	return nil
+}
+
+// GetIncomingShareByIDForRecipient retrieves an incoming share by shareId scoped to a recipient.
+func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*store.IncomingShare, error) {
+	return d.core.GetIncomingShareByIDForRecipient(ctx, shareId, recipientUserId)
+}
+
+// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerId.
+func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*store.IncomingShare, error) {
+	return d.core.GetIncomingShareByProviderKey(ctx, sendingServer, providerId)
+}
+
+// ListIncomingSharesByRecipient returns incoming shares for the given recipient user.
+func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUserId string) ([]*store.IncomingShare, error) {
+	return d.core.ListIncomingSharesByRecipient(ctx, recipientUserId)
+}
+
+// UpdateIncomingShareStatusForRecipient updates the state of an incoming share, scoped to a recipient.
+func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareId string, recipientUserId string, state string) error {
+	if err := d.core.UpdateIncomingShareStatusForRecipient(ctx, shareId, recipientUserId, state); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "UpdateIncomingShareStatusForRecipient", d.lockedExport(ctx, d.exportIncomingShares))
+	return nil
+}
+
+// DeleteIncomingShareForRecipient deletes an incoming share, scoped to a recipient.
+func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareId string, recipientUserId string) error {
+	if err := d.core.DeleteIncomingShareForRecipient(ctx, shareId, recipientUserId); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "DeleteIncomingShareForRecipient", d.lockedExport(ctx, d.exportIncomingShares))
+	return nil
+}
+
+// OutgoingInviteStore implementation
+
+// CreateOutgoingInvite creates a new outgoing invite.
+func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
+	if err := d.core.CreateOutgoingInvite(ctx, invite); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "CreateOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
+	return nil
+}
+
+// GetOutgoingInvite retrieves an outgoing invite by id.
+func (d *Driver) GetOutgoingInvite(ctx context.Context, id string) (*store.OutgoingInvite, error) {
+	return d.core.GetOutgoingInvite(ctx, id)
+}
+
+// GetOutgoingInviteByToken retrieves an outgoing invite by token.
+func (d *Driver) GetOutgoingInviteByToken(ctx context.Context, token string) (*store.OutgoingInvite, error) {
+	return d.core.GetOutgoingInviteByToken(ctx, token)
+}
+
+// UpdateOutgoingInvite updates an existing outgoing invite.
+func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
+	if err := d.core.UpdateOutgoingInvite(ctx, invite); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "UpdateOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
+	return nil
+}
+
+// DeleteOutgoingInvite deletes an outgoing invite by id.
+func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
+	if err := d.core.DeleteOutgoingInvite(ctx, id); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "DeleteOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
+	return nil
+}
+
+// ListOutgoingInvites returns outgoing invites for a user.
+func (d *Driver) ListOutgoingInvites(ctx context.Context, userId string) ([]*store.OutgoingInvite, error) {
+	return d.core.ListOutgoingInvites(ctx, userId)
+}
+
+// IncomingInviteStore implementation
+
+// CreateIncomingInvite creates a new incoming invite.
+func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
+	if err := d.core.CreateIncomingInvite(ctx, invite); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "CreateIncomingInvite", d.lockedExport(ctx, d.exportIncomingInvites))
+	return nil
+}
+
+// GetIncomingInviteForRecipient retrieves an incoming invite by id scoped to a recipient.
+func (d *Driver) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) (*store.IncomingInvite, error) {
+	return d.core.GetIncomingInviteForRecipient(ctx, id, recipientUserId)
+}
+
+// GetIncomingInviteByToken retrieves an incoming invite by token scoped to a recipient.
+func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*store.IncomingInvite, error) {
+	return d.core.GetIncomingInviteByToken(ctx, token, recipientUserId)
+}
+
+// UpdateIncomingInviteStatusForRecipient updates only the status of an incoming
+// invite scoped to a recipient.
+func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserId string, status string) error {
+	if err := d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserId, status); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "UpdateIncomingInviteStatusForRecipient", d.lockedExport(ctx, d.exportIncomingInvites))
+	return nil
+}
+
+// DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.
+func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) error {
+	if err := d.core.DeleteIncomingInviteForRecipient(ctx, id, recipientUserId); err != nil {
+		return err
+	}
+	d.logExportError(ctx, "DeleteIncomingInviteForRecipient", d.lockedExport(ctx, d.exportIncomingInvites))
+	return nil
+}
+
+// ListIncomingInvites returns incoming invites for a recipient user.
+func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*store.IncomingInvite, error) {
+	return d.core.ListIncomingInvites(ctx, recipientUserId)
+}
+
+// Compile-time interface checks
+var _ store.Driver = (*Driver)(nil)
+var _ store.OutgoingShareStore = (*Driver)(nil)
+var _ store.IncomingShareStore = (*Driver)(nil)
+var _ store.OutgoingInviteStore = (*Driver)(nil)
+var _ store.IncomingInviteStore = (*Driver)(nil)
+
+// ----------------------------------------------------------------------------
+// JSON projection/export subsystem
+//
+// Invariants:
+//   - Nothing below reads JSON back in.
+//   - Export failures are logged but never propagated after a successful SQLite write.
+//   - Redaction is applied to in-memory copies only; stored rows are unchanged.
+// ----------------------------------------------------------------------------
+
+// exportAll exports all four persistence surfaces to JSON files.
+// It holds mu for the duration so concurrent writes do not interleave exports.
 func (d *Driver) exportAll(ctx context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -114,13 +313,25 @@ func (d *Driver) exportAll(ctx context.Context) error {
 	if err := d.exportIncomingShares(ctx); err != nil {
 		return err
 	}
-	if err := d.exportInvites(ctx); err != nil {
+	if err := d.exportOutgoingInvites(ctx); err != nil {
+		return err
+	}
+	if err := d.exportIncomingInvites(ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// shouldIncludeSecret checks if a secret type should be included in export.
+// lockedExport serializes a single-surface JSON export under mu, preventing
+// concurrent writes from racing on the shared *.tmp path used by writeJSON.
+func (d *Driver) lockedExport(ctx context.Context, fn func(context.Context) error) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return fn(ctx)
+}
+
+// shouldIncludeSecret reports whether the given secret scope passes the
+// redaction policy defined in the driver configuration.
 func (d *Driver) shouldIncludeSecret(scope string) bool {
 	if !d.mirrorCfg.IncludeSecrets {
 		return false
@@ -128,14 +339,14 @@ func (d *Driver) shouldIncludeSecret(scope string) bool {
 	return d.secretsLookup[scope]
 }
 
-// exportOutgoingShares exports outgoing shares to JSON with optional redaction.
+// exportOutgoingShares projects outgoing shares to JSON, redacting shared
+// secrets unless the webdav_shared_secrets scope is allowed.
 func (d *Driver) exportOutgoingShares(ctx context.Context) error {
-	var shares []*store.OutgoingShare
-	if err := d.db.WithContext(ctx).Find(&shares).Error; err != nil {
+	shares, err := d.core.ListOutgoingShares(ctx)
+	if err != nil {
 		return err
 	}
 
-	// Redact secrets if not allowed
 	if !d.shouldIncludeSecret("webdav_shared_secrets") {
 		for _, share := range shares {
 			share.SharedSecret = ""
@@ -145,14 +356,14 @@ func (d *Driver) exportOutgoingShares(ctx context.Context) error {
 	return d.writeJSON("outgoing_shares.json", shares)
 }
 
-// exportIncomingShares exports incoming shares to JSON with optional redaction.
+// exportIncomingShares projects all incoming shares to JSON, redacting shared
+// secrets unless the webdav_shared_secrets scope is allowed.
 func (d *Driver) exportIncomingShares(ctx context.Context) error {
-	var shares []*store.IncomingShare
-	if err := d.db.WithContext(ctx).Find(&shares).Error; err != nil {
+	shares, err := d.core.ListAllIncomingShares(ctx)
+	if err != nil {
 		return err
 	}
 
-	// Redact secrets if not allowed
 	if !d.shouldIncludeSecret("webdav_shared_secrets") {
 		for _, share := range shares {
 			share.SharedSecret = ""
@@ -162,16 +373,27 @@ func (d *Driver) exportIncomingShares(ctx context.Context) error {
 	return d.writeJSON("incoming_shares.json", shares)
 }
 
-// exportInvites exports invites to JSON.
-func (d *Driver) exportInvites(ctx context.Context) error {
-	var invites []*store.Invite
-	if err := d.db.WithContext(ctx).Find(&invites).Error; err != nil {
+// exportOutgoingInvites projects all outgoing invites to JSON (no redaction needed).
+func (d *Driver) exportOutgoingInvites(ctx context.Context) error {
+	// Empty userId means all invites; see sqlitecore.ListOutgoingInvites.
+	invites, err := d.core.ListOutgoingInvites(ctx, "")
+	if err != nil {
 		return err
 	}
-	return d.writeJSON("invites.json", invites)
+	return d.writeJSON("outgoing_invites.json", invites)
+}
+
+// exportIncomingInvites projects all incoming invites to JSON (no redaction needed).
+func (d *Driver) exportIncomingInvites(ctx context.Context) error {
+	invites, err := d.core.ListAllIncomingInvites(ctx)
+	if err != nil {
+		return err
+	}
+	return d.writeJSON("incoming_invites.json", invites)
 }
 
 // writeJSON atomically writes data to a JSON file in the mirror directory.
+// It writes to a temp file, syncs, then renames to avoid partial reads.
 func (d *Driver) writeJSON(filename string, data interface{}) error {
 	mirrorDir := filepath.Join(d.dataDir, "mirror")
 	path := filepath.Join(mirrorDir, filename)
@@ -212,138 +434,17 @@ func (d *Driver) writeJSON(filename string, data interface{}) error {
 	return nil
 }
 
-// ShareStore implementation - delegates to SQLite and exports after writes
-
-// CreateOutgoingShare creates a new outgoing share.
-func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
-	if err := d.db.WithContext(ctx).Create(share).Error; err != nil {
-		return err
+// logExportError logs a JSON export failure without returning it to the caller.
+// SQLite is the source of truth; a failed JSON export does not mean the write
+// failed - the caller's data is safe in SQLite. The mirror may be temporarily
+// stale until the next successful write triggers a fresh export.
+func (d *Driver) logExportError(ctx context.Context, op string, err error) {
+	if err != nil {
+		slog.WarnContext(
+			ctx,
+			"JSON mirror export failed after SQLite commit; mirror may be stale until next write",
+			"op", op,
+			"err", err,
+		)
 	}
-	return d.exportOutgoingShares(ctx)
 }
-
-// GetOutgoingShare retrieves an outgoing share by providerId.
-func (d *Driver) GetOutgoingShare(ctx context.Context, providerId string) (*store.OutgoingShare, error) {
-	var share store.OutgoingShare
-	result := d.db.WithContext(ctx).First(&share, "provider_id = ?", providerId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, store.ErrNotFound
-		}
-		return nil, result.Error
-	}
-	return &share, nil
-}
-
-// GetOutgoingShareByWebDAVId retrieves an outgoing share by webdavId.
-func (d *Driver) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*store.OutgoingShare, error) {
-	var share store.OutgoingShare
-	result := d.db.WithContext(ctx).First(&share, "web_dav_id = ?", webdavId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, store.ErrNotFound
-		}
-		return nil, result.Error
-	}
-	return &share, nil
-}
-
-// UpdateOutgoingShare updates an existing outgoing share.
-func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
-	if err := d.db.WithContext(ctx).Save(share).Error; err != nil {
-		return err
-	}
-	return d.exportOutgoingShares(ctx)
-}
-
-// DeleteOutgoingShare deletes an outgoing share.
-func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerId string) error {
-	result := d.db.WithContext(ctx).Delete(&store.OutgoingShare{}, "provider_id = ?", providerId)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return store.ErrNotFound
-	}
-	return d.exportOutgoingShares(ctx)
-}
-
-// ListOutgoingShares returns all outgoing shares.
-func (d *Driver) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare, error) {
-	var shares []*store.OutgoingShare
-	if err := d.db.WithContext(ctx).Find(&shares).Error; err != nil {
-		return nil, err
-	}
-	return shares, nil
-}
-
-// CreateIncomingShare creates a new incoming share.
-func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingShare) error {
-	if err := d.db.WithContext(ctx).Create(share).Error; err != nil {
-		return err
-	}
-	return d.exportIncomingShares(ctx)
-}
-
-// GetIncomingShare retrieves an incoming share by shareId.
-func (d *Driver) GetIncomingShare(ctx context.Context, shareId string) (*store.IncomingShare, error) {
-	var share store.IncomingShare
-	result := d.db.WithContext(ctx).First(&share, "share_id = ?", shareId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, store.ErrNotFound
-		}
-		return nil, result.Error
-	}
-	return &share, nil
-}
-
-// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerId.
-func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*store.IncomingShare, error) {
-	var share store.IncomingShare
-	result := d.db.WithContext(ctx).First(&share, "sending_server = ? AND provider_id = ?", sendingServer, providerId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, store.ErrNotFound
-		}
-		return nil, result.Error
-	}
-	return &share, nil
-}
-
-// UpdateIncomingShare updates an existing incoming share.
-func (d *Driver) UpdateIncomingShare(ctx context.Context, share *store.IncomingShare) error {
-	if err := d.db.WithContext(ctx).Save(share).Error; err != nil {
-		return err
-	}
-	return d.exportIncomingShares(ctx)
-}
-
-// DeleteIncomingShare deletes an incoming share.
-func (d *Driver) DeleteIncomingShare(ctx context.Context, shareId string) error {
-	result := d.db.WithContext(ctx).Delete(&store.IncomingShare{}, "share_id = ?", shareId)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return store.ErrNotFound
-	}
-	return d.exportIncomingShares(ctx)
-}
-
-// ListIncomingShares returns incoming shares for a user.
-func (d *Driver) ListIncomingShares(ctx context.Context, userId string) ([]*store.IncomingShare, error) {
-	var shares []*store.IncomingShare
-	query := d.db.WithContext(ctx)
-	if userId != "" {
-		query = query.Where("user_id = ?", userId)
-	}
-	if err := query.Find(&shares).Error; err != nil {
-		return nil, err
-	}
-	return shares, nil
-}
-
-// Compile-time interface checks
-var _ store.Driver = (*Driver)(nil)
-var _ store.ShareStore = (*Driver)(nil)
