@@ -99,6 +99,9 @@ func StrictConfig() *Config {
 		},
 		RequireTokenExchange: true,
 		PeerPolicy:           "strict",
+		Persistence: PersistenceConfig{
+			Backend: BackendMemory,
+		},
 	}
 }
 

@@ -66,6 +66,35 @@ type Config struct {
 
 	// HTTP holds per-service HTTP configuration (Reva-style).
 	HTTP HTTPConfig `toml:"http"`
+
+	// Persistence holds persistence backend settings.
+	Persistence PersistenceConfig `toml:"persistence"`
+}
+
+// PersistenceConfig holds persistence backend settings.
+type PersistenceConfig struct {
+	// Backend selects the persistence backend: memory, json, sqlite, mirror.
+	// Default: memory.
+	Backend string `toml:"backend"`
+
+	// DataDir is the data directory for durable backends (json, sqlite, mirror).
+	// Required when backend is json, sqlite, or mirror.
+	DataDir string `toml:"data_dir"`
+
+	// Mirror holds mirror-specific options.
+	// Only used when backend is mirror.
+	Mirror MirrorPersistenceConfig `toml:"mirror"`
+}
+
+// MirrorPersistenceConfig holds mirror-specific persistence options.
+type MirrorPersistenceConfig struct {
+	// IncludeSecrets controls whether secrets are exported to JSON.
+	// Default: false.
+	IncludeSecrets bool `toml:"include_secrets"`
+
+	// SecretsScope is the allowlist of secret types to export.
+	// Supported values: webdav_shared_secrets, session_tokens.
+	SecretsScope []string `toml:"secrets_scope"`
 }
 
 // HTTPConfig holds per-service HTTP configuration.
@@ -502,6 +531,10 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    Policy.ExemptListCount: %d,\n", len(c.PeerTrust.Policy.ExemptList)))
 	sb.WriteString(fmt.Sprintf("    MembershipCache.TTLSeconds: %d,\n", c.PeerTrust.MembershipCache.TTLSeconds))
 	sb.WriteString(fmt.Sprintf("    MembershipCache.MaxStaleSeconds: %d,\n", c.PeerTrust.MembershipCache.MaxStaleSeconds))
+	sb.WriteString("  },\n")
+	sb.WriteString("  Persistence: {\n")
+	sb.WriteString(fmt.Sprintf("    Backend: %q,\n", c.Persistence.Backend))
+	sb.WriteString(fmt.Sprintf("    DataDir: %q,\n", c.Persistence.DataDir))
 	sb.WriteString("  },\n")
 	sb.WriteString("}")
 	return sb.String()

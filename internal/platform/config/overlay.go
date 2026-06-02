@@ -24,6 +24,19 @@ type outboundHTTPFileConfig struct {
 	ProxyEnvFallback   *bool           `toml:"proxy_env_fallback"`
 }
 
+// persistenceFileConfig holds persistence settings from TOML.
+type persistenceFileConfig struct {
+	Backend string                       `toml:"backend"`
+	DataDir string                       `toml:"data_dir"`
+	Mirror  *mirrorPersistenceFileConfig `toml:"mirror"`
+}
+
+// mirrorPersistenceFileConfig holds mirror persistence settings from TOML.
+type mirrorPersistenceFileConfig struct {
+	IncludeSecrets bool     `toml:"include_secrets"`
+	SecretsScope   []string `toml:"secrets_scope"`
+}
+
 // fileConfig mirrors Config but with pointer fields to detect presence.
 type fileConfig struct {
 	Mode   string        `toml:"mode"`
@@ -45,6 +58,7 @@ type fileConfig struct {
 	RequireTokenExchange *bool                   `toml:"require_token_exchange"`
 	PeerPolicy           string                  `toml:"peer_policy"`
 	HTTP                 *httpFileConfig         `toml:"http"`
+	Persistence          *persistenceFileConfig  `toml:"persistence"`
 }
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
@@ -317,6 +331,21 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			}
 			for name, intCfg := range fc.HTTP.Interceptors {
 				cfg.HTTP.Interceptors[name] = intCfg
+			}
+		}
+	}
+
+	if fc.Persistence != nil {
+		if fc.Persistence.Backend != "" {
+			cfg.Persistence.Backend = fc.Persistence.Backend
+		}
+		if fc.Persistence.DataDir != "" {
+			cfg.Persistence.DataDir = fc.Persistence.DataDir
+		}
+		if fc.Persistence.Mirror != nil {
+			cfg.Persistence.Mirror.IncludeSecrets = fc.Persistence.Mirror.IncludeSecrets
+			if len(fc.Persistence.Mirror.SecretsScope) > 0 {
+				cfg.Persistence.Mirror.SecretsScope = fc.Persistence.Mirror.SecretsScope
 			}
 		}
 	}

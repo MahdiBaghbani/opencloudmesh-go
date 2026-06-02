@@ -124,6 +124,13 @@ func Load(opts LoaderOptions) (*Config, error) {
 	if md.IsDefined("tls", "tls_dir") && strings.TrimSpace(cfg.TLS.TLSDir) == "" {
 		return nil, fmt.Errorf("tls.tls_dir is set but empty; provide a path or remove the key")
 	}
+
+	// Step 5e: explicit empty persistence.backend fails fast.
+	// An absent key leaves the preset intact; an explicit empty string is an error.
+	if md.IsDefined("persistence", "backend") && fc.Persistence != nil && fc.Persistence.Backend == "" {
+		return nil, fmt.Errorf("persistence.backend is set but empty; provide a valid backend or remove the key")
+	}
+
 	if md.IsDefined("tls", "tls_dir") {
 		tlsDir := strings.TrimSpace(cfg.TLS.TLSDir)
 		if !md.IsDefined("tls", "self_signed_dir") {
@@ -283,6 +290,35 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid peer_policy %q: must be one of legacy, prefer-strict, strict", cfg.PeerPolicy)
+	}
+
+	// persistence.backend validation - unknown values are a hard error; no silent fallback.
+	switch cfg.Persistence.Backend {
+	case BackendMemory, BackendJSON, BackendSQLite, BackendMirror:
+		// valid
+	default:
+		return fmt.Errorf(
+			"invalid persistence.backend %q: must be one of memory, json, sqlite, mirror",
+			cfg.Persistence.Backend,
+		)
+	}
+	if cfg.Persistence.Backend != BackendMemory && cfg.Persistence.DataDir == "" {
+		return fmt.Errorf(
+			"persistence.data_dir is required for backend %q",
+			cfg.Persistence.Backend,
+		)
+	}
+	// persistence.mirror.secrets_scope must only contain known values.
+	for _, scope := range cfg.Persistence.Mirror.SecretsScope {
+		switch scope {
+		case "webdav_shared_secrets", "session_tokens":
+			// valid
+		default:
+			return fmt.Errorf(
+				"invalid persistence.mirror.secrets_scope value %q: must be one of webdav_shared_secrets, session_tokens",
+				scope,
+			)
+		}
 	}
 
 	// Cross-field: canonical receive strictness requires token exchange capability
