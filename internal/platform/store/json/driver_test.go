@@ -3,13 +3,30 @@ package json_test
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/json"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
 )
+
+func newJSONDriver(t *testing.T) (store.Driver, string) {
+	t.Helper()
+	tempDir, err := os.MkdirTemp("", "ocm-test-json-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	cfg := &store.DriverConfig{Driver: "json", DataDir: tempDir}
+	d, err := store.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return d, tempDir
+}
 
 func TestJSONDriver(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "ocm-test-json-*")
@@ -24,11 +41,6 @@ func TestJSONDriver(t *testing.T) {
 	}
 
 	testutil.RunDriverTests(t, "json", cfg)
-
-	// Verify JSON files were created
-	if _, err := os.Stat(filepath.Join(tempDir, "outgoing_shares.json")); os.IsNotExist(err) {
-		t.Log("outgoing_shares.json not created (expected if no shares remain)")
-	}
 }
 
 func TestJSONDriverAtomicWrite(t *testing.T) {
@@ -52,11 +64,11 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	shareStore := driver.(store.ShareStore)
+	outStore := driver.(store.OutgoingShareStore)
 
 	// Create a share
-	share := testutil.TestOutgoingShare()
-	if err := shareStore.CreateOutgoingShare(ctx, share); err != nil {
+	share := testutil.NewOutgoingShareFixture()
+	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatal(err)
 	}
 	driver.Close()
@@ -71,8 +83,8 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 	}
 	defer driver2.Close()
 
-	shareStore2 := driver2.(store.ShareStore)
-	got, err := shareStore2.GetOutgoingShare(ctx, share.ProviderId)
+	outStore2 := driver2.(store.OutgoingShareStore)
+	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderId)
 	if err != nil {
 		t.Fatalf("share not found after restart: %v", err)
 	}
