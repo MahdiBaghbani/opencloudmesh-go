@@ -106,4 +106,31 @@ func TestSQLiteInviteReopenDurability(t *testing.T) {
 		t.Errorf("incoming invite recipient mismatch after reopen: expected %q, got %q",
 			inInvite.RecipientUserId, gotIn.RecipientUserId)
 	}
+
+	// Token-based lookup must also survive the restart.
+	gotByTok, err := outInvStore2.GetOutgoingInviteByToken(ctx, outInvite.Token)
+	if err != nil {
+		t.Fatalf("outgoing invite token index not rebuilt after restart: %v", err)
+	}
+	if gotByTok.ID != outInvite.ID {
+		t.Errorf(
+			"outgoing invite token index mismatch: expected %q, got %q",
+			outInvite.ID,
+			gotByTok.ID,
+		)
+	}
+
+	gotInByTok, err := inInvStore2.GetIncomingInviteByToken(
+		ctx, inInvite.Token, inInvite.RecipientUserId,
+	)
+	if err != nil {
+		t.Fatalf("incoming invite token-user index not rebuilt after restart: %v", err)
+	}
+	if gotInByTok.ID != inInvite.ID {
+		t.Errorf(
+			"incoming invite token-user index mismatch: expected %q, got %q",
+			inInvite.ID,
+			gotInByTok.ID,
+		)
+	}
 }
