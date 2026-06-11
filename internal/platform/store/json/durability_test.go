@@ -12,23 +12,13 @@ import (
 // TestJSONInviteReopenDurability verifies that both invite surfaces persist
 // and reload correctly after the JSON driver is closed and reopened.
 func TestJSONInviteReopenDurability(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-json-invite-reopen-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := testutil.TempDataDir(t, "ocm-test-json-invite-reopen-*")
 
 	ctx := context.Background()
 	cfg := &store.DriverConfig{Driver: "json", DataDir: tempDir}
 
 	// Phase 1: create both invite surfaces.
-	driver, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
+	driver := testutil.OpenDriver(t, cfg)
 
 	outInvite := testutil.NewOutgoingInviteFixture()
 	if err := driver.(store.OutgoingInviteStore).CreateOutgoingInvite(ctx, outInvite); err != nil {
@@ -42,13 +32,7 @@ func TestJSONInviteReopenDurability(t *testing.T) {
 	driver.Close()
 
 	// Phase 2: reopen and verify both invites survived.
-	driver2, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver2.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
+	driver2 := testutil.OpenDriver(t, cfg)
 	defer driver2.Close()
 
 	gotOut, err := driver2.(store.OutgoingInviteStore).GetOutgoingInvite(ctx, outInvite.ID)
@@ -118,14 +102,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 	makeDriver := func(t *testing.T, dir string) store.Driver {
 		t.Helper()
 		cfg := &store.DriverConfig{Driver: "json", DataDir: dir}
-		d, err := store.New(cfg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := d.Init(ctx); err != nil {
-			t.Fatal(err)
-		}
-		return d
+		return testutil.OpenDriver(t, cfg)
 	}
 
 	lockDir := func(t *testing.T, dir string) {
@@ -137,11 +114,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 	}
 
 	t.Run("CreateOutgoingInvite", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-create-out-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -164,11 +137,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("UpdateOutgoingInvite", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-update-out-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -209,11 +178,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("DeleteOutgoingInvite", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-delete-out-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -240,11 +205,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("CreateIncomingInvite", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-create-in-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -270,11 +231,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("UpdateIncomingInviteStatusForRecipient", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-update-in-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -310,11 +267,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("DeleteIncomingInviteForRecipient", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-delete-in-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -360,14 +313,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 	makeDriver := func(t *testing.T, dir string) store.Driver {
 		t.Helper()
 		cfg := &store.DriverConfig{Driver: "json", DataDir: dir}
-		d, err := store.New(cfg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := d.Init(ctx); err != nil {
-			t.Fatal(err)
-		}
-		return d
+		return testutil.OpenDriver(t, cfg)
 	}
 
 	lockDir := func(t *testing.T, dir string) {
@@ -379,11 +325,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 	}
 
 	t.Run("CreateOutgoingShare", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-create-out-share-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-share-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -413,11 +355,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("UpdateOutgoingShare", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-update-out-share-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-share-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -484,11 +422,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("DeleteOutgoingShare", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-delete-out-share-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-share-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -521,11 +455,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("CreateIncomingShare", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-create-in-share-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-share-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -551,11 +481,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("UpdateIncomingShareStatusForRecipient", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-update-in-share-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-share-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()
@@ -600,11 +526,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 	})
 
 	t.Run("DeleteIncomingShareForRecipient", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "ocm-test-json-rollback-delete-in-share-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
+		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-share-*")
 
 		d := makeDriver(t, dir)
 		defer d.Close()

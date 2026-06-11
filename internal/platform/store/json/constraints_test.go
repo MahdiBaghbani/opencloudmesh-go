@@ -2,7 +2,6 @@ package json_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -11,11 +10,7 @@ import (
 )
 
 func TestJSONIncomingInviteRecipientScope(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-json-incoming-invite-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := testutil.TempDataDir(t, "ocm-test-json-incoming-invite-*")
 
 	ctx := context.Background()
 	cfg := &store.DriverConfig{
@@ -23,15 +18,8 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 		DataDir: tempDir,
 	}
 
-	driver, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	driver := testutil.OpenDriver(t, cfg)
 	defer driver.Close()
-
-	if err := driver.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
 
 	inStore, ok := driver.(store.IncomingInviteStore)
 	if !ok {

@@ -2,7 +2,6 @@ package json_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
@@ -12,28 +11,14 @@ import (
 
 func newJSONDriver(t *testing.T) (store.Driver, string) {
 	t.Helper()
-	tempDir, err := os.MkdirTemp("", "ocm-test-json-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	tempDir := testutil.TempDataDir(t, "ocm-test-json-*")
 	cfg := &store.DriverConfig{Driver: "json", DataDir: tempDir}
-	d, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := d.Init(context.Background()); err != nil {
-		t.Fatal(err)
-	}
+	d := testutil.OpenDriver(t, cfg)
 	return d, tempDir
 }
 
 func TestJSONDriver(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-json-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := testutil.TempDataDir(t, "ocm-test-json-*")
 
 	cfg := &store.DriverConfig{
 		Driver:  "json",
@@ -44,11 +29,7 @@ func TestJSONDriver(t *testing.T) {
 }
 
 func TestJSONDriverAtomicWrite(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-json-atomic-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := testutil.TempDataDir(t, "ocm-test-json-atomic-*")
 
 	ctx := context.Background()
 	cfg := &store.DriverConfig{
@@ -56,13 +37,7 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 		DataDir: tempDir,
 	}
 
-	driver, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
+	driver := testutil.OpenDriver(t, cfg)
 
 	outStore := driver.(store.OutgoingShareStore)
 
@@ -74,13 +49,7 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 	driver.Close()
 
 	// Reload driver - data should survive
-	driver2, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver2.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
+	driver2 := testutil.OpenDriver(t, cfg)
 	defer driver2.Close()
 
 	outStore2 := driver2.(store.OutgoingShareStore)

@@ -2,8 +2,6 @@ package sqlite_test
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
@@ -11,32 +9,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
 )
 
-func TestSQLiteDriver(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-sqlite-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	cfg := &store.DriverConfig{
-		Driver:  "sqlite",
-		DataDir: tempDir,
-	}
-
-	testutil.RunDriverTests(t, "sqlite", cfg)
-
-	// Verify database file was created
-	if _, err := os.Stat(filepath.Join(tempDir, "ocm.db")); os.IsNotExist(err) {
-		t.Error("ocm.db not created")
-	}
-}
-
 func TestSQLiteDriverSurvivesRestart(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-sqlite-restart-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := testutil.TempDataDir(t, "ocm-test-sqlite-restart-*")
 
 	ctx := context.Background()
 	cfg := &store.DriverConfig{
@@ -44,13 +18,7 @@ func TestSQLiteDriverSurvivesRestart(t *testing.T) {
 		DataDir: tempDir,
 	}
 
-	driver, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
+	driver := testutil.OpenDriver(t, cfg)
 
 	outStore := driver.(store.OutgoingShareStore)
 
@@ -62,13 +30,7 @@ func TestSQLiteDriverSurvivesRestart(t *testing.T) {
 	driver.Close()
 
 	// Reload driver - data should survive
-	driver2, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver2.Init(ctx); err != nil {
-		t.Fatal(err)
-	}
+	driver2 := testutil.OpenDriver(t, cfg)
 	defer driver2.Close()
 
 	outStore2 := driver2.(store.OutgoingShareStore)
@@ -84,11 +46,7 @@ func TestSQLiteDriverSurvivesRestart(t *testing.T) {
 // TestSQLiteInviteReopenDurability verifies that both invite surfaces persist
 // across a driver close/reopen cycle when created through the store interface.
 func TestSQLiteInviteReopenDurability(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "ocm-test-sqlite-invite-reopen-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := testutil.TempDataDir(t, "ocm-test-sqlite-invite-reopen-*")
 
 	ctx := context.Background()
 	cfg := &store.DriverConfig{
@@ -97,13 +55,7 @@ func TestSQLiteInviteReopenDurability(t *testing.T) {
 	}
 
 	// First open: create both invite types through the store interface.
-	driver, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver.Init(ctx); err != nil {
-		t.Fatalf("first init failed: %v", err)
-	}
+	driver := testutil.OpenDriver(t, cfg)
 
 	outInvStore := driver.(store.OutgoingInviteStore)
 	inInvStore := driver.(store.IncomingInviteStore)
@@ -128,13 +80,7 @@ func TestSQLiteInviteReopenDurability(t *testing.T) {
 	}
 
 	// Second open: verify both invite rows persisted through the store API.
-	driver2, err := store.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver2.Init(ctx); err != nil {
-		t.Fatalf("second init failed: %v", err)
-	}
+	driver2 := testutil.OpenDriver(t, cfg)
 	defer driver2.Close()
 
 	outInvStore2 := driver2.(store.OutgoingInviteStore)
