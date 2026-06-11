@@ -232,6 +232,8 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions) (B
 		)
 	}
 
+	// Exchanged bearer tokens stay in-memory even when share/invite repos use a
+	// durable backend. TokenStore is intentionally outside repos.New.
 	tokenStore := token.NewMemoryTokenStore()
 
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)

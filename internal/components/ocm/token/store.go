@@ -19,6 +19,9 @@ type TokenStore interface {
 	CleanExpired(ctx context.Context) error
 }
 
+// MemoryTokenStore holds exchanged bearer tokens in process memory only.
+// Tokens are intentionally ephemeral: they are not wired through repos.New and
+// do not survive restart.
 type MemoryTokenStore struct {
 	mu     sync.RWMutex
 	tokens map[string]*IssuedToken

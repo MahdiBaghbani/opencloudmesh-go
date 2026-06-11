@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
@@ -449,6 +450,16 @@ func TestBootstrapBaseConfigTLSRootsAppliedWithoutOverride(t *testing.T) {
 	}
 }
 
+func assertMemoryBackedTokenStore(t *testing.T, d *deps.Deps) {
+	t.Helper()
+	if d.TokenStore == nil {
+		t.Fatal("TokenStore must be non-nil")
+	}
+	if _, ok := d.TokenStore.(*token.MemoryTokenStore); !ok {
+		t.Errorf("TokenStore must stay memory-backed, got %T", d.TokenStore)
+	}
+}
+
 func harnessWireOptions() app.WireOptions {
 	return app.WireOptions{
 		FastAuth:                true,
@@ -488,8 +499,45 @@ func TestBootstrapPersistenceSeamMemory(t *testing.T) {
 	if result.Persistence == nil {
 		t.Fatal("Persistence must be non-nil")
 	}
+	assertMemoryBackedTokenStore(t, d)
 	if err := result.Persistence.Close(); err != nil {
 		t.Errorf("Persistence.Close() for memory backend: %v", err)
+	}
+}
+
+// TestBootstrapPersistenceSeamJSON verifies that BootstrapDeps wires durable
+// share/invite repos through repos.New while TokenStore remains memory-backed.
+func TestBootstrapPersistenceSeamJSON(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.PublicOrigin = devOrigin(18096)
+	cfg.Persistence.Backend = config.BackendJSON
+	cfg.Persistence.DataDir = t.TempDir()
+
+	deps.ResetDeps()
+	result, err := app.BootstrapDeps(cfg, discardLogger(), harnessWireOptions())
+	if err != nil {
+		t.Fatalf("BootstrapDeps failed: %v", err)
+	}
+
+	d := deps.GetDeps()
+	if d.IncomingShareRepo == nil {
+		t.Error("IncomingShareRepo must be non-nil")
+	}
+	if d.OutgoingShareRepo == nil {
+		t.Error("OutgoingShareRepo must be non-nil")
+	}
+	if d.OutgoingInviteRepo == nil {
+		t.Error("OutgoingInviteRepo must be non-nil")
+	}
+	if d.IncomingInviteRepo == nil {
+		t.Error("IncomingInviteRepo must be non-nil")
+	}
+	if result.Persistence == nil {
+		t.Fatal("Persistence must be non-nil")
+	}
+	assertMemoryBackedTokenStore(t, d)
+	if err := result.Persistence.Close(); err != nil {
+		t.Errorf("Persistence.Close() for json backend: %v", err)
 	}
 }
 
