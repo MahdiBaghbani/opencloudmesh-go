@@ -230,5 +230,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if result.Persistence != nil {
+		if err := result.Persistence.Close(); err != nil {
+			logger.Warn("error closing persistence", "error", err)
+		}
+	}
+
 	logger.Info("server stopped")
 }

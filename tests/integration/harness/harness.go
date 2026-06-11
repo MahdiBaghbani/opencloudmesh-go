@@ -22,6 +22,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -35,11 +36,12 @@ import (
 
 // TestServer wraps a server instance for testing.
 type TestServer struct {
-	Server  *server.Server
-	Config  *config.Config
-	BaseURL string
-	TempDir string
-	once    sync.Once
+	Server      *server.Server
+	Config      *config.Config
+	BaseURL     string
+	TempDir     string
+	persistence *repos.Repos
+	once        sync.Once
 }
 
 // StartTestServer creates and starts a test server with dynamic port allocation.
@@ -194,10 +196,11 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	}
 
 	ts := &TestServer{
-		Server:  srv,
-		Config:  cfg,
-		BaseURL: baseURL,
-		TempDir: tempDir,
+		Server:      srv,
+		Config:      cfg,
+		BaseURL:     baseURL,
+		TempDir:     tempDir,
+		persistence: bootstrapResult.Persistence,
 	}
 	t.Cleanup(func() { ts.Stop(t) })
 	return ts
@@ -213,6 +216,12 @@ func (ts *TestServer) Stop(t *testing.T) {
 
 		if err := ts.Server.Shutdown(ctx); err != nil {
 			t.Logf("warning: shutdown error: %v", err)
+		}
+
+		if ts.persistence != nil {
+			if err := ts.persistence.Close(); err != nil {
+				t.Logf("warning: persistence close error: %v", err)
+			}
 		}
 
 		if err := os.RemoveAll(ts.TempDir); err != nil {

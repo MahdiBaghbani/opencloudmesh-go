@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
 	"log/slog"
@@ -14,14 +15,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -32,6 +29,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 )
 
 // ErrMsgNilDepsAfterBootstrap is the error text logged when deps.GetDeps()
@@ -78,6 +76,10 @@ type BootstrapResult struct {
 	// RuntimeEval is the pre-computed runtime posture snapshot.
 	// main.go uses this for the posture guard and startup logging.
 	RuntimeEval policy.RuntimeEvaluation
+
+	// Persistence holds the wired persistence repos. Callers must call
+	// Persistence.Close() on shutdown; Close is a no-op for the memory backend.
+	Persistence *repos.Repos
 }
 
 // BootstrapDeps wires shared infrastructure and calls deps.SetDeps.
@@ -230,10 +232,6 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions) (B
 		)
 	}
 
-	incomingShareRepo := sharesinbox.NewMemoryIncomingShareRepo()
-	outgoingShareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	outgoingInviteRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	incomingInviteRepo := invitesinbox.NewMemoryIncomingInviteRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
@@ -247,16 +245,21 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions) (B
 		return BootstrapResult{}, fmt.Errorf("normalize provider FQDN for comparison: %w", err)
 	}
 
+	persistenceRepos, err := repos.New(context.Background(), cfg.Persistence)
+	if err != nil {
+		return BootstrapResult{}, fmt.Errorf("wire persistence repos: %w", err)
+	}
+
 	deps.SetDeps(&deps.Deps{
 		// Identity
 		PartyRepo:   partyRepo,
 		SessionRepo: sessionRepo,
 		UserAuth:    userAuth,
 		// Repos
-		IncomingShareRepo:  incomingShareRepo,
-		OutgoingShareRepo:  outgoingShareRepo,
-		OutgoingInviteRepo: outgoingInviteRepo,
-		IncomingInviteRepo: incomingInviteRepo,
+		IncomingShareRepo:  persistenceRepos.IncomingShares,
+		OutgoingShareRepo:  persistenceRepos.OutgoingShares,
+		OutgoingInviteRepo: persistenceRepos.OutgoingInvites,
+		IncomingInviteRepo: persistenceRepos.IncomingInvites,
 		TokenStore:         tokenStore,
 		// Clients
 		HTTPClient:      httpClient,
@@ -287,5 +290,6 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions) (B
 	return BootstrapResult{
 		RootCAPool:  rootCAPool,
 		RuntimeEval: runtimeEval,
+		Persistence: persistenceRepos,
 	}, nil
 }
