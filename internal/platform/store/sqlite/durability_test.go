@@ -6,7 +6,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlite"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
+	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
 func TestSQLiteDriverSurvivesRestart(t *testing.T) {

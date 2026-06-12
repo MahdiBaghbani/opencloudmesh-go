@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
+	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
 // TestJSONInviteReopenDurability verifies that both invite surfaces persist

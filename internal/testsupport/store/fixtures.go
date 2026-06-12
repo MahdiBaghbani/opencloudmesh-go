@@ -1,5 +1,5 @@
-// Package testutil provides shared test helpers for store driver tests.
-package testutil
+// Package store provides shared test helpers for store driver tests.
+package store
 
 import (
 	"time"

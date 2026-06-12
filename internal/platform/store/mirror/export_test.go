@@ -9,7 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
+	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
 func TestMirrorDriverSecretRedaction(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
+	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
 func TestJSONIncomingInviteRecipientScope(t *testing.T) {

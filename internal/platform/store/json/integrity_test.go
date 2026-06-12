@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/testutil"
+	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
 // writePersistedJSON writes data directly to a named JSON file in dir,
