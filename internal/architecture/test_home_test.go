@@ -11,19 +11,7 @@ import (
 
 // testHomeExemptions lists production files allowed to lack a co-located
 // source-mapped test file ({stem}_test.go) until the listed follow-up lands.
-var testHomeExemptions = map[string]string{
-	"internal/components/api/auth.go": "auth behavior tested indirectly today; internal/components/api/auth_test.go missing until T8",
-}
-
-func TestTestHomeExemptionsIncludeAuth(t *testing.T) {
-	reason, ok := testHomeExemptions["internal/components/api/auth.go"]
-	if !ok {
-		t.Fatal("internal/components/api/auth.go must remain in testHomeExemptions until T8 creates auth_test.go")
-	}
-	if reason == "" {
-		t.Fatal("exemption reason must be documented")
-	}
-}
+var testHomeExemptions = map[string]string{}
 
 func TestExemptedProductionFilesExist(t *testing.T) {
 	root := modroot.ModuleRoot(t)
