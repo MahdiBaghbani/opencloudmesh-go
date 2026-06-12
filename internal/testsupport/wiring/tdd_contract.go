@@ -8,18 +8,18 @@ import (
 // restore a monolithic bootstrap parity test outside internal/wiring.
 const MonolithParityTestRelPath = "internal/wiring/bootstrap_parity_test.go"
 
-// ParityConcernTestFiles lists concern-split parity test basenames under
+// ParityConcernTestFiles lists build concern test basenames under
 // internal/wiring. Intentionally excludes skeleton_test.go (scaffold only, not
 // bootstrap parity behavior).
 var ParityConcernTestFiles = []string{
-	"fixtures_parity_test.go",
-	"options_parity_test.go",
-	"crypto_parity_test.go",
-	"peertrust_parity_test.go",
-	"signature_middleware_parity_test.go",
-	"discovery_cache_parity_test.go",
-	"outbound_parity_test.go",
-	"persistence_parity_test.go",
+	"build_fixtures_test.go",
+	"build_options_test.go",
+	"build_crypto_test.go",
+	"build_peertrust_test.go",
+	"build_signature_middleware_test.go",
+	"build_discovery_cache_test.go",
+	"build_outbound_test.go",
+	"build_persistence_test.go",
 }
 
 // FixtureRegistryIDs names exported wiring fixtures in testsupport/wiring.
