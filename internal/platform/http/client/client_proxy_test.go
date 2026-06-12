@@ -15,7 +15,7 @@ import (
 	"time"
 
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client/outboundtestutil"
+	outboundtestutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // TestClient_ProxyEnvFallbackDisabled_IgnoresEnv verifies that when

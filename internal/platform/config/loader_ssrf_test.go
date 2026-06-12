@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocmtest/configfixture"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm/configfixture"
 )
 
 func TestLoad_OldFlatSSRFKey_Fails(t *testing.T) {

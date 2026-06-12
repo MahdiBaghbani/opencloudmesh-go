@@ -4,8 +4,8 @@
 // Package configfixture provides reusable TOML string fragments for config
 // loader tests. It deliberately does not import internal/platform/config to
 // avoid import cycles: loader_test.go is package config, and
-// internal/ocmtest/helpers.go already imports config, so loader_test.go
-// cannot import ocmtest directly. This subpackage has no such constraint.
+// internal/testsupport/ocm/helpers.go already imports config, so loader_test.go
+// cannot import testsupport/ocm directly. This subpackage has no such constraint.
 //
 // Usage pattern: compose fragments with string concatenation.
 //

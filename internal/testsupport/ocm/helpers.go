@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 OpenCloudMesh Authors
 
-// Package ocmtest provides test helpers for OCM component tests.
+// Package ocm provides test helpers for OCM component tests.
 // All functions are intended for use from _test.go files only.
-package ocmtest
+package ocm
 
 import (
-	"io"
-	"log/slog"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
@@ -15,12 +13,6 @@ import (
 	ocmpolicy "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
-
-// SilentLogger returns a logger that discards all output.
-// Use in tests that require a non-nil logger but don't need log output.
-func SilentLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
 
 // MustAllowHTTPContract builds a CompiledContract that permits plain HTTP for
 // all peers via a wildcard mapping. Use in handler tests that talk to local

@@ -1,7 +1,7 @@
-// Package outboundtestutil provides test helper factories for outbound HTTP
-// client configs and clients. Helpers return fresh values so callers can
-// safely override individual fields without affecting other tests.
-package outboundtestutil
+// Package http provides test helper factories for outbound HTTP client configs
+// and clients. Helpers return fresh values so callers can safely override
+// individual fields without affecting other tests.
+package http
 
 import (
 	"crypto/x509"
