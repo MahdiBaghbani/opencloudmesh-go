@@ -1,12 +1,13 @@
 package wiring_test
 
 import (
+	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
@@ -22,9 +23,9 @@ func assertMemoryBackedTokenStore(t *testing.T, d *wiring.Deps) {
 }
 
 func TestPersistenceParity_MemoryBackend(t *testing.T) {
-	cfg := wiringtest.DevConfigHarness(18094)
+	cfg := tscfg.DevConfigHarness(18094)
 
-	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
@@ -52,11 +53,11 @@ func TestPersistenceParity_MemoryBackend(t *testing.T) {
 }
 
 func TestPersistenceParity_JSONBackend(t *testing.T) {
-	cfg := wiringtest.DevConfigHarness(18096)
+	cfg := tscfg.DevConfigHarness(18096)
 	cfg.Persistence.Backend = config.BackendJSON
 	cfg.Persistence.DataDir = t.TempDir()
 
-	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
@@ -84,10 +85,10 @@ func TestPersistenceParity_JSONBackend(t *testing.T) {
 }
 
 func TestPersistenceParity_RejectsUnknownBackend(t *testing.T) {
-	cfg := wiringtest.DevConfigHarness(18095)
+	cfg := tscfg.DevConfigHarness(18095)
 	cfg.Persistence.Backend = "bogus-not-a-backend"
 
-	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
+	_, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err == nil {
 		t.Fatal("Build must fail for unknown persistence backend")
 	}

@@ -1,14 +1,13 @@
 package wiring_test
 
 import (
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
 	"strings"
 	"testing"
-
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 )
 
 func TestTDD_NoProductionDynamicServiceConstruction(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
 	violations := findProductionCallSites(t, root, productionRoots, "", productionCallSpec{
 		importSuffix: "/service",
@@ -21,7 +20,7 @@ func TestTDD_NoProductionDynamicServiceConstruction(t *testing.T) {
 }
 
 func TestTDD_NoProductionDynamicInterceptorConstruction(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
 	violations := findProductionCallSites(t, root, productionRoots, "", productionCallSpec{
 		importSuffix: "/interceptors",
@@ -34,7 +33,7 @@ func TestTDD_NoProductionDynamicInterceptorConstruction(t *testing.T) {
 }
 
 func TestTDD_NoProductionServiceLoaderImports(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
 	violations := findProductionImportSuffix(t, root, productionRoots, "/services/loader")
 	if len(violations) > 0 {
@@ -44,7 +43,7 @@ func TestTDD_NoProductionServiceLoaderImports(t *testing.T) {
 }
 
 func TestTDD_NoProductionInterceptorLoaderImports(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
 	violations := findProductionImportSuffix(t, root, productionRoots, "/interceptors/loader")
 	if len(violations) > 0 {

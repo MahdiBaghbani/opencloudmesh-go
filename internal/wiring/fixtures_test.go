@@ -1,12 +1,12 @@
 package wiring_test
 
 import (
+	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 )
 
 func harnessBuildOpts() wiring.BuildOpts {
-	return toBuildOpts(wiringtest.SnapshotHarnessWireOptions)
+	return toBuildOpts(wiringtest.HarnessWireOptions)
 }
 
 func toBuildOpts(f wiringtest.FixtureBuildOpts) wiring.BuildOpts {

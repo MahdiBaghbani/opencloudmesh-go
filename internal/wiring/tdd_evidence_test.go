@@ -1,34 +1,37 @@
 package wiring_test
 
 import (
+	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 const (
-	tddExpectedParityConcernCount = 8
-	tddExpectedT0FixtureCount     = 6
+	expectedParityConcernCount   = 8
+	expectedFixtureRegistryCount = 6
 )
 
-func TestTDD_ParitySplitReplacesBootstrapMonolith(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+func TestEvidence_ParitySplitReplacesBootstrapMonolith(t *testing.T) {
+	root := modroot.ModuleRoot(t)
 	monolith := filepath.Join(root, wiringtest.MonolithParityTestRelPath)
 	if _, err := os.Stat(monolith); err == nil {
-		t.Fatalf("bootstrap parity monolith still present at %s; T1 must split concerns under internal/wiring", wiringtest.MonolithParityTestRelPath)
+		t.Fatalf("bootstrap parity monolith still present at %s; concerns must stay split under internal/wiring", wiringtest.MonolithParityTestRelPath)
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("stat monolith path: %v", err)
 	}
 
-	if got := len(wiringtest.ParityConcernTestFiles); got != tddExpectedParityConcernCount {
-		t.Fatalf("ParityConcernTestFiles count = %d, want %d (concern-split registry incomplete)", got, tddExpectedParityConcernCount)
+	if got := len(wiringtest.ParityConcernTestFiles); got != expectedParityConcernCount {
+		t.Fatalf("ParityConcernTestFiles count = %d, want %d (concern-split registry incomplete)", got, expectedParityConcernCount)
 	}
 
 	wiringDir := wiringtest.WiringDir(root)
@@ -40,42 +43,42 @@ func TestTDD_ParitySplitReplacesBootstrapMonolith(t *testing.T) {
 	}
 }
 
-func TestTDD_T0SnapshotFixturesCentralizedInWiringtest(t *testing.T) {
-	if got := len(wiringtest.T0SnapshotFixtureIDs); got != tddExpectedT0FixtureCount {
-		t.Fatalf("T0SnapshotFixtureIDs count = %d, want %d (T0 fixture registry incomplete)", got, tddExpectedT0FixtureCount)
+func TestEvidence_FixturesCentralizedInTestsupport(t *testing.T) {
+	if got := len(wiringtest.FixtureRegistryIDs); got != expectedFixtureRegistryCount {
+		t.Fatalf("FixtureRegistryIDs count = %d, want %d (fixture registry incomplete)", got, expectedFixtureRegistryCount)
 	}
 
-	for _, id := range wiringtest.T0SnapshotFixtureIDs {
+	for _, id := range wiringtest.FixtureRegistryIDs {
 		switch id {
-		case "SnapshotHarnessWireOptions":
-			if reflect.ValueOf(wiringtest.SnapshotHarnessWireOptions).IsZero() {
-				t.Fatal("SnapshotHarnessWireOptions must not be zero")
+		case "HarnessWireOptions":
+			if reflect.ValueOf(wiringtest.HarnessWireOptions).IsZero() {
+				t.Fatal("HarnessWireOptions must not be zero")
 			}
-		case "SnapshotProductionWireOptions":
+		case "ProductionWireOptions":
 			// zero value is intentional for production path
-		case "SnapshotCoreServicesOrder":
-			if len(wiringtest.SnapshotCoreServicesOrder) == 0 {
-				t.Fatal("SnapshotCoreServicesOrder must not be empty")
+		case "ExpectedCoreServicesOrder":
+			if len(wiringtest.ExpectedCoreServicesOrder) == 0 {
+				t.Fatal("ExpectedCoreServicesOrder must not be empty")
 			}
-		case "SnapshotAppServicesOrder":
-			if len(wiringtest.SnapshotAppServicesOrder) == 0 {
-				t.Fatal("SnapshotAppServicesOrder must not be empty")
+		case "ExpectedAppServicesOrder":
+			if len(wiringtest.ExpectedAppServicesOrder) == 0 {
+				t.Fatal("ExpectedAppServicesOrder must not be empty")
 			}
-		case "SnapshotRootService":
-			if wiringtest.SnapshotRootService == "" {
-				t.Fatal("SnapshotRootService must not be empty")
+		case "ExpectedRootService":
+			if wiringtest.ExpectedRootService == "" {
+				t.Fatal("ExpectedRootService must not be empty")
 			}
-		case "SnapshotUnprotectedSets":
-			if len(wiringtest.SnapshotUnprotectedSets) == 0 {
-				t.Fatal("SnapshotUnprotectedSets must not be empty")
+		case "ExpectedUnprotectedSets":
+			if len(wiringtest.ExpectedUnprotectedSets) == 0 {
+				t.Fatal("ExpectedUnprotectedSets must not be empty")
 			}
 		default:
-			t.Fatalf("unknown T0 snapshot fixture id %q", id)
+			t.Fatalf("unknown fixture registry id %q", id)
 		}
 	}
 }
 
-func TestTDD_WiringSkeletonScaffoldTypesPresent(t *testing.T) {
+func TestEvidence_WiringSkeletonScaffoldTypesPresent(t *testing.T) {
 	var opts wiring.BuildOpts
 	var result wiring.BuildResult
 	if reflect.TypeOf(opts).Kind() != reflect.Struct {
@@ -85,7 +88,7 @@ func TestTDD_WiringSkeletonScaffoldTypesPresent(t *testing.T) {
 		t.Fatalf("BuildResult must be a struct type, got %v", reflect.TypeOf(result))
 	}
 
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	buildGo := filepath.Join(wiringtest.WiringDir(root), "build.go")
 	body, err := os.ReadFile(buildGo)
 	if err != nil {
@@ -98,7 +101,7 @@ func TestTDD_WiringSkeletonScaffoldTypesPresent(t *testing.T) {
 		"func Build(",
 	} {
 		if !strings.Contains(text, needle) {
-			// BuildOpts/BuildResult live in bootstrap.go after T6; accept either file.
+			// BuildOpts/BuildResult live in bootstrap.go when split from build.go.
 			bootstrapGo, readErr := os.ReadFile(filepath.Join(wiringtest.WiringDir(root), "bootstrap.go"))
 			if readErr != nil {
 				t.Fatalf("read bootstrap.go: %v", readErr)
@@ -110,10 +113,10 @@ func TestTDD_WiringSkeletonScaffoldTypesPresent(t *testing.T) {
 	}
 }
 
-func TestTDD_BuildEntrypointReturnsExplicitDeps(t *testing.T) {
-	cfg := wiringtest.DevConfigHarness(18110)
+func TestEvidence_BuildEntrypointReturnsExplicitDeps(t *testing.T) {
+	cfg := tscfg.DevConfigHarness(18110)
 
-	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
@@ -129,10 +132,10 @@ func TestTDD_BuildEntrypointReturnsExplicitDeps(t *testing.T) {
 	}
 }
 
-func TestTDD_BuildProductionZeroValueOpts(t *testing.T) {
-	cfg := wiringtest.DevConfigNoSignatures(18111)
+func TestEvidence_BuildProductionZeroValueOpts(t *testing.T) {
+	cfg := tscfg.DevConfigNoSignatures(18111)
 
-	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiring.BuildOpts{})
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), wiring.BuildOpts{})
 	if err != nil {
 		t.Fatalf("Build with zero opts failed: %v", err)
 	}
@@ -147,8 +150,8 @@ func TestTDD_BuildProductionZeroValueOpts(t *testing.T) {
 	}
 }
 
-func TestTDD_BuildSoleProductionImporterOfReposNew(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+func TestEvidence_BuildSoleProductionImporterOfReposNew(t *testing.T) {
+	root := modroot.ModuleRoot(t)
 	const allowlistRel = "internal/wiring/build.go"
 	assertAllowlistCallsFunction(t, root, allowlistRel, productionCallSpec{
 		importSuffix: "/repos",
@@ -166,8 +169,8 @@ func TestTDD_BuildSoleProductionImporterOfReposNew(t *testing.T) {
 	}
 }
 
-func TestTDD_BuildUsesWireSharedDepsHook(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+func TestEvidence_BuildUsesWireSharedDepsHook(t *testing.T) {
+	root := modroot.ModuleRoot(t)
 	buildGo, err := os.ReadFile(filepath.Join(wiringtest.WiringDir(root), "build.go"))
 	if err != nil {
 		t.Fatalf("read build.go: %v", err)

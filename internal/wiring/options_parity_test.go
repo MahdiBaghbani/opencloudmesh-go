@@ -1,18 +1,19 @@
 package wiring_test
 
 import (
+	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func TestOptionsParity_HarnessOptionsBootstrapSucceeds(t *testing.T) {
-	cfg := wiringtest.DevConfigHarness(18080)
+	cfg := tscfg.DevConfigHarness(18080)
 
-	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
 		t.Fatalf("Build with harness options failed: %v", err)
 	}
@@ -22,9 +23,9 @@ func TestOptionsParity_HarnessOptionsBootstrapSucceeds(t *testing.T) {
 }
 
 func TestOptionsParity_ProductionOptionsBootstrapSucceeds(t *testing.T) {
-	cfg := wiringtest.DevConfigNoSignatures(18081)
+	cfg := tscfg.DevConfigNoSignatures(18081)
 
-	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiring.BuildOpts{})
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), wiring.BuildOpts{})
 	if err != nil {
 		t.Fatalf("Build with production (zero) options failed: %v", err)
 	}

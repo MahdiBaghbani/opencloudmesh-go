@@ -1,19 +1,20 @@
 package wiring_test
 
 import (
+	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 	t.Run("SkipCrypto=true produces nil crypto deps", func(t *testing.T) {
-		cfg := wiringtest.DevConfigHarness(18082)
+		cfg := tscfg.DevConfigHarness(18082)
 
-		result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
+		result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -30,11 +31,11 @@ func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 	})
 
 	t.Run("SkipCrypto=false with signature modes off produces non-nil OutboundPolicy", func(t *testing.T) {
-		cfg := wiringtest.DevConfigNoSignatures(18083)
+		cfg := tscfg.DevConfigNoSignatures(18083)
 
 		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
-		result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
+		result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -51,11 +52,11 @@ func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 	})
 
 	t.Run("SkipCrypto=false with signature modes on produces non-nil Signer", func(t *testing.T) {
-		cfg := wiringtest.DevConfigHarness(18084)
+		cfg := tscfg.DevConfigHarness(18084)
 
 		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
-		result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
+		result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}

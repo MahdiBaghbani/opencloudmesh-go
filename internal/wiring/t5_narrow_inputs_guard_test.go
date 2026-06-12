@@ -1,16 +1,15 @@
 package wiring_test
 
 import (
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 )
 
 func TestT5_NoServiceImportsDepsPackage(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	violations := findProductionImportSuffix(t, root, []string{"internal/services"}, "/platform/deps")
 	if len(violations) > 0 {
 		t.Fatalf("services must not import platform/deps; violations: %s", strings.Join(violations, ", "))
@@ -18,7 +17,7 @@ func TestT5_NoServiceImportsDepsPackage(t *testing.T) {
 }
 
 func TestT5_NoInterceptorImportsDepsPackage(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	violations := findProductionImportSuffix(t, root, []string{"internal/interceptors"}, "/platform/deps")
 	if len(violations) > 0 {
 		t.Fatalf("interceptors must not import platform/deps; violations: %s", strings.Join(violations, ", "))
@@ -26,7 +25,7 @@ func TestT5_NoInterceptorImportsDepsPackage(t *testing.T) {
 }
 
 func TestT5_NoServiceImportsWiringPackage(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	violations := findProductionImportSuffix(t, root, []string{"internal/services"}, "/internal/wiring")
 	if len(violations) > 0 {
 		t.Fatalf("services must not import internal/wiring; violations: %s", strings.Join(violations, ", "))
@@ -34,7 +33,7 @@ func TestT5_NoServiceImportsWiringPackage(t *testing.T) {
 }
 
 func TestT5_NoInterceptorImportsWiringPackage(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	violations := findProductionImportSuffix(t, root, []string{"internal/interceptors"}, "/internal/wiring")
 	if len(violations) > 0 {
 		t.Fatalf("interceptors must not import internal/wiring; violations: %s", strings.Join(violations, ", "))
@@ -42,7 +41,7 @@ func TestT5_NoInterceptorImportsWiringPackage(t *testing.T) {
 }
 
 func TestT5_ServerDoesNotUseDepsSingleton(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	serverDir := filepath.Join(root, "internal/platform/http/server")
 	for _, name := range []string{"server.go", "routes.go"} {
 		body, err := os.ReadFile(filepath.Join(serverDir, name))
@@ -57,7 +56,7 @@ func TestT5_ServerDoesNotUseDepsSingleton(t *testing.T) {
 }
 
 func TestT5_ServerDoesNotRebuildSigner(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	body, err := os.ReadFile(filepath.Join(root, "internal/platform/http/server/server.go"))
 	if err != nil {
 		t.Fatalf("read server.go: %v", err)
@@ -69,7 +68,7 @@ func TestT5_ServerDoesNotRebuildSigner(t *testing.T) {
 }
 
 func TestT5_ResolvePackageUsesResolveInputs(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	resolveDir := filepath.Join(root, "internal/components/ocm/discovery/resolve")
 	resolveGo, err := os.ReadFile(filepath.Join(resolveDir, "resolve.go"))
 	if err != nil {
@@ -91,7 +90,7 @@ func TestT5_ResolvePackageUsesResolveInputs(t *testing.T) {
 }
 
 func TestT5_SessionAuthGateRelocatedFromPlatformHTTPAuth(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	authPath := filepath.Join(root, "internal/platform/http/auth/auth.go")
 	if _, err := os.Stat(authPath); err == nil {
 		body, readErr := os.ReadFile(authPath)
@@ -109,7 +108,7 @@ func TestT5_SessionAuthGateRelocatedFromPlatformHTTPAuth(t *testing.T) {
 }
 
 func TestT5_InboundSignatureOwnedByOCM(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	sigDir := filepath.Join(root, "internal/components/ocm/inbound/signature")
 	if _, err := os.Stat(sigDir); err != nil {
 		t.Fatalf("inbound signature package missing: %v", err)
@@ -127,7 +126,7 @@ func TestT5_InboundSignatureOwnedByOCM(t *testing.T) {
 }
 
 func TestT5_ServerDepsDefinedInServerPackage(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	depsGo := filepath.Join(root, "internal/platform/http/server/deps.go")
 	body, err := os.ReadFile(depsGo)
 	if err != nil {
@@ -146,7 +145,7 @@ func TestT5_ServerDepsDefinedInServerPackage(t *testing.T) {
 }
 
 func TestT5_WiringBuildsServerDeps(t *testing.T) {
-	root := wiringtest.ModuleRoot(t)
+	root := modroot.ModuleRoot(t)
 	body, err := os.ReadFile(filepath.Join(root, "internal/wiring/server_deps.go"))
 	if err != nil {
 		t.Fatalf("read wiring/server_deps.go: %v", err)
