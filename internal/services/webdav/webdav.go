@@ -16,10 +16,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-func init() {
-	service.MustRegister("webdav", New)
-}
-
 // Config holds webdav service configuration (service-local knobs only).
 type Config struct{}
 

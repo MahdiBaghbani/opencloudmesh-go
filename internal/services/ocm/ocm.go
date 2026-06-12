@@ -22,10 +22,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-func init() {
-	service.MustRegister("ocm", New)
-}
-
 // Config holds OCM service configuration.
 type Config struct {
 	TokenExchange tokenincoming.TokenExchangeSettings `mapstructure:"token_exchange"`

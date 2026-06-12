@@ -15,10 +15,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-func init() {
-	service.MustRegister("wellknown", New)
-}
-
 // Config holds wellknown service configuration.
 type Config struct {
 	OCMProvider OCMProviderConfig `mapstructure:"ocmprovider"`

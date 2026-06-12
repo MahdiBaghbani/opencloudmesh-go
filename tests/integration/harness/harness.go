@@ -27,12 +27,6 @@ import (
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-
-	// Register interceptors (triggers init() registration)
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/loader"
-
-	// Register services (triggers init() registration)
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
 )
 
 // TestServer wraps a server instance for testing.
@@ -148,25 +142,10 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to bootstrap users: %v", err)
 	}
 
-	// Construct all core services via registry loop (mirrors main.go).
-	// Each service derives cross-cutting values from SharedDeps internally.
-	services := make(map[string]service.Service)
-	for _, name := range service.CoreServices {
-		svcCfg := cfg.BuildServiceConfig(name)
-		if svcCfg == nil {
-			svcCfg = make(map[string]any)
-		}
-		newFn := service.Get(name)
-		if newFn == nil {
-			os.RemoveAll(tempDir)
-			t.Fatalf("core service %q not registered", name)
-		}
-		svc, err := newFn(svcCfg, logger)
-		if err != nil {
-			os.RemoveAll(tempDir)
-			t.Fatalf("failed to create %s service: %v", name, err)
-		}
-		services[name] = svc
+	services, err := wiring.BuildCoreServices(cfg, logger)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create core services: %v", err)
 	}
 
 	srv, err := server.New(cfg, logger, services)

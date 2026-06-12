@@ -23,14 +23,11 @@ import (
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/auth"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
-
-func init() {
-	service.MustRegister("api", New)
-}
 
 // Config holds api service configuration.
 type Config struct {
@@ -166,11 +163,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("api: %w", err)
 		}
-		newInterceptor, ok := interceptors.Get("ratelimit")
-		if !ok {
-			return nil, errors.New("api: ratelimit interceptor not registered")
-		}
-		loginMiddleware, err = newInterceptor(profileConfig, log)
+		loginMiddleware, err = ratelimit.New(profileConfig, log)
 		if err != nil {
 			return nil, fmt.Errorf("api: failed to create ratelimit interceptor: %w", err)
 		}

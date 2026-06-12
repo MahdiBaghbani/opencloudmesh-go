@@ -72,14 +72,14 @@ var legacyCutoverInventory = []legacyCutoverAnchor{
 		contains: []string{"SignatureMiddleware", "crypto.NewSignatureMiddleware"},
 	},
 	{
-		seam:     "main.go production bootstrap and service loop",
+		seam:     "main.go production bootstrap and service construction",
 		path:     "cmd/opencloudmesh-go/main.go",
-		contains: []string{"wiring.Build", "service.CoreServices", "deps.GetDeps"},
+		contains: []string{"wiring.Build", "wiring.BuildCoreServices", "deps.GetDeps"},
 	},
 	{
 		seam:     "harness bootstrap parity",
 		path:     "tests/integration/harness/harness.go",
-		contains: []string{"wiring.Build", "service.CoreServices", "healthEndpointURL"},
+		contains: []string{"wiring.Build", "wiring.BuildCoreServices", "healthEndpointURL"},
 	},
 	{
 		seam:     "subprocess binary startup",

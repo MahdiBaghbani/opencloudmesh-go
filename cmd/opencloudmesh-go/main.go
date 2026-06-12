@@ -23,12 +23,6 @@ import (
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-
-	// Register interceptors (triggers init() registration)
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/loader"
-
-	// Register services (triggers init() registration)
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
 )
 
 func main() {
@@ -177,23 +171,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	services := make(map[string]service.Service)
-	for _, name := range service.CoreServices {
-		svcCfg := cfg.BuildServiceConfig(name)
-		if svcCfg == nil {
-			svcCfg = make(map[string]any)
-		}
-		newFn := service.Get(name)
-		if newFn == nil {
-			logger.Error("core service not registered", "service", name)
-			os.Exit(1)
-		}
-		svc, err := newFn(svcCfg, logger)
-		if err != nil {
-			logger.Error("failed to create service", "service", name, "error", err)
-			os.Exit(1)
-		}
-		services[name] = svc
+	services, err := wiring.BuildCoreServices(cfg, logger)
+	if err != nil {
+		logger.Error("failed to create services", "error", err)
+		os.Exit(1)
 	}
 
 	srv, err := server.New(cfg, logger, services)

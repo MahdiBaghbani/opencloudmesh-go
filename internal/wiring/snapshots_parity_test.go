@@ -14,7 +14,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
 )
 
 func TestSnapshots_HarnessWireOptionsSourceAnchorParityWithHarnessTest(t *testing.T) {
@@ -113,18 +112,6 @@ func TestSnapshots_AppServicesOrder(t *testing.T) {
 	}
 }
 
-func TestSnapshots_RegisteredServicesCoverCoreServices(t *testing.T) {
-	registered := service.RegisteredServices()
-	for _, name := range service.CoreServices {
-		if service.Get(name) == nil {
-			t.Errorf("core service %q is not registered", name)
-		}
-		if !slices.Contains(registered, name) {
-			t.Errorf("RegisteredServices() missing core service %q", name)
-		}
-	}
-}
-
 func TestSnapshots_UnprotectedSets(t *testing.T) {
 	cfg := wiringtest.DevConfigNoSignatures(18100)
 	deps.ResetDeps()
@@ -135,20 +122,16 @@ func TestSnapshots_UnprotectedSets(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	log := wiringtest.DiscardLogger()
+	services, err := wiring.BuildCoreServices(cfg, wiringtest.DiscardLogger())
+	if err != nil {
+		t.Fatalf("BuildCoreServices failed: %v", err)
+	}
+
 	for _, want := range wiringtest.SnapshotUnprotectedSets {
 		t.Run(want.Service, func(t *testing.T) {
-			newFn := service.Get(want.Service)
-			if newFn == nil {
-				t.Fatalf("service %q not registered", want.Service)
-			}
-			svcCfg := cfg.BuildServiceConfig(want.Service)
-			if svcCfg == nil {
-				svcCfg = map[string]any{}
-			}
-			svc, err := newFn(svcCfg, log)
-			if err != nil {
-				t.Fatalf("construct %q: %v", want.Service, err)
+			svc, ok := services[want.Service]
+			if !ok {
+				t.Fatalf("service %q missing from static table", want.Service)
 			}
 			t.Cleanup(func() { _ = svc.Close() })
 

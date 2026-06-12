@@ -14,13 +14,10 @@ import (
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
-
-func init() {
-	service.MustRegister("ocmaux", New)
-}
 
 // Config holds ocmaux service configuration.
 type Config struct {
@@ -73,11 +70,7 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("ocmaux: %w", err)
 		}
-		newInterceptor, ok := interceptors.Get("ratelimit")
-		if !ok {
-			return nil, errors.New("ocmaux: ratelimit interceptor not registered")
-		}
-		discoverMiddleware, err = newInterceptor(profileConfig, log)
+		discoverMiddleware, err = ratelimit.New(profileConfig, log)
 		if err != nil {
 			return nil, fmt.Errorf("ocmaux: failed to create ratelimit interceptor: %w", err)
 		}

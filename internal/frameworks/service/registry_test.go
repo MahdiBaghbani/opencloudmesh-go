@@ -10,10 +10,10 @@ import (
 // mockService is a minimal Service implementation for testing.
 type mockService struct{}
 
-func (m *mockService) Handler() http.Handler  { return nil }
-func (m *mockService) Prefix() string         { return "mock" }
-func (m *mockService) Close() error           { return nil }
-func (m *mockService) Unprotected() []string  { return nil }
+func (m *mockService) Handler() http.Handler { return nil }
+func (m *mockService) Prefix() string        { return "mock" }
+func (m *mockService) Close() error          { return nil }
+func (m *mockService) Unprotected() []string { return nil }
 
 // mockNewService is a constructor that creates a mockService.
 func mockNewService(conf map[string]any, log *slog.Logger) (Service, error) {
@@ -112,6 +112,29 @@ func TestAppServicesParity(t *testing.T) {
 	if len(app)+1 != len(CoreServices) {
 		t.Errorf("AppServices() length %d + 1 root != CoreServices length %d", len(app), len(CoreServices))
 	}
+}
+
+func TestCheckServiceNames(t *testing.T) {
+	t.Run("all valid", func(t *testing.T) {
+		unknown, allowed := CheckServiceNames(CoreServices)
+		if unknown != nil {
+			t.Fatalf("unknown = %v, want nil", unknown)
+		}
+		if allowed != nil {
+			t.Fatalf("allowed = %v, want nil", allowed)
+		}
+	})
+
+	t.Run("unknown names rejected", func(t *testing.T) {
+		names := []string{"ocm", "bogus", "api", "also-bad"}
+		unknown, allowed := CheckServiceNames(names)
+		if !slices.Equal(unknown, []string{"also-bad", "bogus"}) {
+			t.Fatalf("unknown = %v, want sorted [also-bad bogus]", unknown)
+		}
+		if !slices.Equal(allowed, CoreServices) {
+			t.Fatalf("allowed = %v, want CoreServices %v", allowed, CoreServices)
+		}
+	})
 }
 
 func TestRegisteredServices(t *testing.T) {

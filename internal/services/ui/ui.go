@@ -16,10 +16,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-func init() {
-	service.MustRegister("ui", New)
-}
-
 // Config holds ui service configuration (service-local knobs only).
 type Config struct {
 	Wayf WayfConfig `mapstructure:"wayf"`

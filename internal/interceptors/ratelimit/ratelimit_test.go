@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
@@ -85,14 +84,22 @@ func (m *mockCache) Reset(ctx context.Context, key string) error {
 	return m.counter.Reset(ctx, key)
 }
 
-func TestInit_RegistersInterceptor(t *testing.T) {
-	// The init() function should have registered the ratelimit interceptor
-	fn, ok := interceptors.Get("ratelimit")
-	if !ok {
-		t.Fatal("expected ratelimit interceptor to be registered")
+func TestNew_CreatesMiddleware(t *testing.T) {
+	deps.SetDeps(&deps.Deps{
+		Cache:  &mockCache{counter: newMockCounter()},
+		RealIP: &realip.TrustedProxies{},
+	})
+	t.Cleanup(deps.ResetDeps)
+
+	middleware, err := New(map[string]any{
+		"requests_per_window": int64(10),
+		"window_seconds":      60,
+	}, slog.Default())
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
 	}
-	if fn == nil {
-		t.Fatal("expected non-nil interceptor constructor")
+	if middleware == nil {
+		t.Fatal("expected non-nil middleware")
 	}
 }
 

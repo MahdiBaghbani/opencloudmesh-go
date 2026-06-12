@@ -15,10 +15,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-func init() {
-	interceptors.Register("ratelimit", New)
-}
-
 // Config defines rate limiting parameters decoded from interceptor config.
 type Config struct {
 	RequestsPerWindow int64 `mapstructure:"requests_per_window"`

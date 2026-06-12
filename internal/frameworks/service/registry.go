@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// CoreServices lists service names always constructed (all registered today).
+// CoreServices lists service names always constructed via the static wiring table.
 var CoreServices = []string{"wellknown", "ocm", "ocmaux", "api", "ui", "webdav"}
 
 // RootService is the core service mounted at the host root rather than under
@@ -34,7 +34,9 @@ var (
 	registry   = make(map[string]NewService)
 )
 
-// Register registers an HTTP service constructor by name. Typically called from init().
+// Register registers an HTTP service constructor by name. Production wiring
+// uses the static table in internal/wiring/services.go; this registry is a
+// retained facility for tests, not used in production construction.
 func Register(name string, newFunc NewService) error {
 	registryMu.Lock()
 	defer registryMu.Unlock()
@@ -72,13 +74,12 @@ func RegisteredServices() []string {
 	return names
 }
 
-// CheckServiceNames validates names against the registered service set.
-// It returns sorted unknown and allowed slices when any name is not registered,
-// and nil, nil when all names are valid. Callers own nil-map guarding.
+// CheckServiceNames validates names against service.CoreServices.
+// When any name is not a core service, it returns unknown sorted and allowed in CoreServices mount order;
+// when all names are valid, it returns nil, nil. Callers own nil-map guarding.
 func CheckServiceNames(names []string) (unknown, allowed []string) {
-	registered := RegisteredServices()
-	allowedSet := make(map[string]struct{}, len(registered))
-	for _, n := range registered {
+	allowedSet := make(map[string]struct{}, len(CoreServices))
+	for _, n := range CoreServices {
 		allowedSet[n] = struct{}{}
 	}
 	for _, name := range names {
@@ -90,8 +91,8 @@ func CheckServiceNames(names []string) (unknown, allowed []string) {
 		return nil, nil
 	}
 	sort.Strings(unknown)
-	sort.Strings(registered)
-	return unknown, registered
+	allowed = append([]string(nil), CoreServices...)
+	return unknown, allowed
 }
 
 // resetRegistry clears the registry (testing only).
