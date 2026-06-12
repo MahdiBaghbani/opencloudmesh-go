@@ -9,51 +9,86 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm/configfixture"
 )
 
-func TestLoad_StrictModeSignatureContradictions_FailFast(t *testing.T) {
+func TestLoad_NoneScopeCompatibilityContradictions_FailFast(t *testing.T) {
 	tests := []struct {
 		name      string
-		signature string
+		extra     string
 		wantError string
 	}{
 		{
-			name: "strict mode requires inbound strict",
-			signature: `
+			name: "none scope requires inbound strict",
+			extra: `
 [signature]
 inbound_mode = "lenient"
 `,
 			wantError: "compatibility_scope=none requires signature.inbound_mode=strict",
 		},
 		{
-			name: "strict mode requires outbound strict",
-			signature: `
+			name: "none scope requires outbound strict",
+			extra: `
 [signature]
 outbound_mode = "criteria-only"
 `,
 			wantError: "compatibility_scope=none requires signature.outbound_mode=strict",
 		},
 		{
-			name: "strict mode requires peer override off",
-			signature: `
+			name: "none scope requires peer override off",
+			extra: `
 [signature]
 peer_profile_level_override = "non-strict"
 `,
 			wantError: "compatibility_scope=none requires signature.peer_profile_level_override=off",
 		},
 		{
-			name: "strict mode requires discovery errors rejected",
-			signature: `
+			name: "none scope requires discovery errors rejected",
+			extra: `
 [signature]
 on_discovery_error = "allow"
 `,
 			wantError: "compatibility_scope=none requires signature.on_discovery_error=reject",
 		},
 		{
-			name: "strict mode disallows mismatch",
-			signature: `
+			name: "none scope disallows mismatch",
+			extra: `
 [signature]
 allow_mismatch = true
 `,
 			wantError: "compatibility_scope=none requires signature.allow_mismatch=false",
+		},
+		{
+			name: "none scope requires peer policy strict",
+			extra: `
+peer_policy = "prefer-strict"
+`,
+			wantError: "compatibility_scope=none requires peer_policy=strict",
+		},
+		{
+			name: "none scope requires tls not off",
+			extra: `
+[tls]
+mode = "off"
+`,
+			wantError: "compatibility_scope=none requires tls.mode!=off",
+		},
+		{
+			name: "none scope requires outbound http verify",
+			extra: `
+[outbound_http]
+insecure_skip_verify = true
+`,
+			wantError: "compatibility_scope=none requires outbound_http.insecure_skip_verify=false",
+		},
+		{
+			name: "none scope requires global enforce when peer trust enabled",
+			extra: `
+[peer_trust]
+enabled = true
+config_paths = ["trust-group.json"]
+
+[peer_trust.policy]
+global_enforce = false
+`,
+			wantError: "compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled",
 		},
 	}
 
@@ -63,14 +98,21 @@ allow_mismatch = true
 			configPath := filepath.Join(dir, "config.toml")
 			tomlContent := `
 mode = "strict"
-` + tt.signature
+` + tt.extra
+			if strings.Contains(tt.extra, "[peer_trust]") {
+				trustGroupPath := filepath.Join(dir, "trust-group.json")
+				if err := os.WriteFile(trustGroupPath, []byte(`{}`), 0644); err != nil {
+					t.Fatalf("failed to write trust group fixture: %v", err)
+				}
+				tomlContent = strings.ReplaceAll(tomlContent, "trust-group.json", trustGroupPath)
+			}
 			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
 			}
 
 			_, err := Load(LoaderOptions{ConfigPath: configPath})
 			if err == nil {
-				t.Fatalf("expected strict-mode contradiction error: %s", tt.wantError)
+				t.Fatalf("expected none-scope contradiction error: %s", tt.wantError)
 			}
 			if !strings.Contains(err.Error(), tt.wantError) {
 				t.Fatalf("expected %q, got %v", tt.wantError, err)
