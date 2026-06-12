@@ -1,17 +1,15 @@
-// Package wellknown provides the OCM discovery service.
 package wellknown
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -30,8 +28,8 @@ type svc struct {
 	conf   *Config
 }
 
-// New creates a new wellknown service. Implements service.NewService.
-func New(m map[string]any, log *slog.Logger) (service.Service, error) {
+// New creates a new wellknown service from narrow injected inputs.
+func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
 	log = logutil.NoopIfNil(log)
 
 	var c Config
@@ -43,13 +41,6 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "wellknown", "unused_keys", unused)
 	}
 
-	// Hard requirement: SharedDeps must be initialized before any service is constructed.
-	d := deps.GetDeps()
-	if d == nil {
-		return nil, errors.New("shared deps not initialized: call deps.SetDeps() before New()")
-	}
-
-	// Extract raw ocmprovider map for key-presence detection in derivation.
 	var rawOCMProvider map[string]any
 	if om, ok := m["ocmprovider"].(map[string]any); ok {
 		rawOCMProvider = om
@@ -61,22 +52,20 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		conf:   &c,
 	}
 
-	if err := s.routerInit(d, rawOCMProvider, log); err != nil {
+	if err := s.routerInit(inputs.Resolve, rawOCMProvider, log); err != nil {
 		return nil, err
 	}
 
 	return s, nil
 }
 
-func (s *svc) routerInit(d *deps.Deps, rawOCMProvider map[string]any, log *slog.Logger) error {
-	handler, err := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, d, log)
+func (s *svc) routerInit(in resolve.ResolveInputs, rawOCMProvider map[string]any, log *slog.Logger) error {
+	handler, err := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, in, log)
 	if err != nil {
 		return err
 	}
-	// Primary routes
 	s.router.Get("/.well-known/ocm", handler.ServeHTTP)
 	s.router.Get("/ocm-provider", handler.ServeHTTP)
-	// Trailing-slash aliases (no redirect, avoid changing signature inputs)
 	s.router.Get("/.well-known/ocm/", handler.ServeHTTP)
 	s.router.Get("/ocm-provider/", handler.ServeHTTP)
 	return nil
@@ -86,7 +75,6 @@ func (s *svc) routerInit(d *deps.Deps, rawOCMProvider map[string]any, log *slog.
 func (s *svc) Close() error { return nil }
 
 // Prefix implements service.Service.
-// Wellknown mounts at root (empty prefix).
 func (s *svc) Prefix() string { return "" }
 
 // Unprotected implements service.Service.
@@ -95,5 +83,4 @@ func (s *svc) Unprotected() []string {
 }
 
 // Handler implements service.Service.
-// Wraps router with RawPath clearing to avoid chi routing mismatches on percent-encoded paths.
 func (s *svc) Handler() http.Handler { return httpwrap.ClearRawPath(s.router) }

@@ -35,7 +35,8 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 		"internal/components/identity",
 		"internal/platform/http/server",
 		"internal/platform/http/middleware",
-		"internal/platform/http/auth",
+		"internal/components/identity/sessiongate",
+		"internal/components/ocm/inbound/signature",
 		"internal/platform/http/tls",
 		"internal/platform/http/client",
 	}

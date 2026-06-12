@@ -2,22 +2,16 @@ package wellknown
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
-
-func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-}
 
 func TestOCMProviderConfig_ApplyDefaults(t *testing.T) {
 	c := &OCMProviderConfig{}
@@ -50,9 +44,7 @@ func TestOCMProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
 
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 	c := &OCMProviderConfig{}
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -73,9 +65,7 @@ func TestNewOCMHandler_EnabledWithEndpoint(t *testing.T) {
 		Endpoint:   "https://example.com/myapp",
 		WebDAVRoot: "/webdav/ocm/",
 	}
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,11 +101,7 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 		t.Fatalf("failed to generate key: %v", err)
 	}
 
-	d := &deps.Deps{
-		KeyManager: km,
-	}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{KeyManager: km}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -154,9 +140,7 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		d := &deps.Deps{}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -176,12 +160,7 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		d := &deps.Deps{
-			Config:        cfg,
-			RuntimePolicy: runtimePolicy,
-		}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -207,12 +186,7 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		d := &deps.Deps{
-			Config:        cfg,
-			RuntimePolicy: runtimePolicy,
-		}
-
-		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -236,12 +210,7 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		d := &deps.Deps{
-			Config:        cfg,
-			RuntimePolicy: runtimePolicy,
-		}
-
-		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -260,12 +229,7 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		d := &deps.Deps{
-			Config:        cfg,
-			RuntimePolicy: runtimePolicy,
-		}
-
-		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -284,15 +248,11 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		d := &deps.Deps{
-			Config:        cfg,
-			RuntimePolicy: runtimePolicy,
-		}
 		raw := map[string]any{
 			"advertise_http_request_signatures": false,
 		}
 
-		h, err := newOCMHandler(c, raw, d, testLogger())
+		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -313,12 +273,7 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		d := &deps.Deps{
-			Config:        cfg,
-			RuntimePolicy: runtimePolicy,
-		}
-
-		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -357,12 +312,7 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		d := &deps.Deps{
-			Config:        cfg,
-			RuntimePolicy: runtimePolicy,
-		}
-
-		h, err := newOCMHandler(c, map[string]any{}, d, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -389,9 +339,7 @@ func TestNewOCMHandler_InvalidEndpointURL(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "://invalid-url",
 	}
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -408,9 +356,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 		Provider: "TestProvider",
 	}
 	c.TokenExchange.Enabled = true
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -450,16 +396,10 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://cloud.example.com/ocm",
 		}
-		d := &deps.Deps{
-			Config: &config.Config{
-				PublicOrigin:     "https://cloud.example.com",
-				ExternalBasePath: "/ocm",
-				HTTP: config.HTTPConfig{
-					Services: map[string]map[string]any{
-						"ui": {"wayf": map[string]any{"enabled": true}},
-					},
-				},
-			},
+		resolveIn := resolve.ResolveInputs{
+			PublicOrigin:     "https://cloud.example.com",
+			ExternalBasePath: "/ocm",
+			UIWayfEnabled:    true,
 		}
 
 		// rawOCMProvider does NOT contain invite_accept_dialog
@@ -467,7 +407,7 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 			"endpoint": "https://cloud.example.com/ocm",
 		}
 
-		h, err := newOCMHandler(c, raw, d, testLogger())
+		h, err := newOCMHandler(c, raw, resolveIn, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -482,16 +422,10 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 			Endpoint:           "https://cloud.example.com/ocm",
 			InviteAcceptDialog: "https://custom.example.com/accept",
 		}
-		d := &deps.Deps{
-			Config: &config.Config{
-				PublicOrigin:     "https://cloud.example.com",
-				ExternalBasePath: "/ocm",
-				HTTP: config.HTTPConfig{
-					Services: map[string]map[string]any{
-						"ui": {"wayf": map[string]any{"enabled": true}},
-					},
-				},
-			},
+		resolveIn := resolve.ResolveInputs{
+			PublicOrigin:     "https://cloud.example.com",
+			ExternalBasePath: "/ocm",
+			UIWayfEnabled:    true,
 		}
 
 		// rawOCMProvider DOES contain invite_accept_dialog
@@ -500,7 +434,7 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 			"invite_accept_dialog": "https://custom.example.com/accept",
 		}
 
-		h, err := newOCMHandler(c, raw, d, testLogger())
+		h, err := newOCMHandler(c, raw, resolveIn, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -514,23 +448,17 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://cloud.example.com/ocm",
 		}
-		d := &deps.Deps{
-			Config: &config.Config{
-				PublicOrigin:     "https://cloud.example.com",
-				ExternalBasePath: "/ocm",
-				HTTP: config.HTTPConfig{
-					Services: map[string]map[string]any{
-						"ui": {},
-					},
-				},
-			},
+		resolveIn := resolve.ResolveInputs{
+			PublicOrigin:     "https://cloud.example.com",
+			ExternalBasePath: "/ocm",
+			UIWayfEnabled:    false,
 		}
 
 		raw := map[string]any{
 			"endpoint": "https://cloud.example.com/ocm",
 		}
 
-		h, err := newOCMHandler(c, raw, d, testLogger())
+		h, err := newOCMHandler(c, raw, resolveIn, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -547,9 +475,7 @@ func TestNewOCMHandler_InviteWAYFCapability(t *testing.T) {
 		InviteAcceptDialog:  "https://cloud.example.com/ocm/ui/accept-invite",
 		AdvertiseInviteWAYF: true,
 	}
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -570,9 +496,7 @@ func TestNewOCMHandler_UnconditionalCapabilities(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "https://example.com",
 	}
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -591,9 +515,7 @@ func TestNewOCMHandler_UnconditionalCapabilities(t *testing.T) {
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 	c := &OCMProviderConfig{} // no endpoint
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

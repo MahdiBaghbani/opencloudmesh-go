@@ -1,4 +1,4 @@
-package crypto_test
+package signature_test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
@@ -20,7 +21,7 @@ func TestSignatureMiddleware_OffMode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -41,7 +42,7 @@ func TestSignatureMiddleware_OffMode_RequireSignaturePasses(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequestRequireSignature(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -62,7 +63,7 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -83,7 +84,7 @@ func TestSignatureMiddleware_LenientMode_RequireSignatureRejectsUnsigned(t *test
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequestRequireSignature(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -113,11 +114,11 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check peer identity was set
-		pi := crypto.GetPeerIdentity(r.Context())
+		pi := sig.GetPeerIdentity(r.Context())
 		if pi == nil || !pi.Authenticated {
 			t.Error("expected authenticated peer identity")
 		}
@@ -157,7 +158,7 @@ func TestSignatureMiddleware_LenientMode_AcceptsUnsignedFromNonCapable(t *testin
 		signingCapable: map[string]bool{"sender.example.com": false},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns the sender host from request body
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
@@ -188,7 +189,7 @@ func TestSignatureMiddleware_LenientMode_RejectsUnsignedFromCapable(t *testing.T
 		signingCapable: map[string]bool{"sender.example.com": true},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns the sender host
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
@@ -230,7 +231,7 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -266,7 +267,7 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 		},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "https://receiver.example.com", logger)
 
 	// Peer resolver returns "sender.example.com" (without :443).
 	// The keyId will contain :443 explicitly.
@@ -276,7 +277,7 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 	}
 
 	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pi := crypto.GetPeerIdentity(r.Context())
+		pi := sig.GetPeerIdentity(r.Context())
 		if pi == nil || !pi.Authenticated {
 			t.Error("expected authenticated peer identity")
 		}
@@ -319,14 +320,14 @@ func TestSignatureMiddleware_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 		signingCapable: map[string]bool{"sender.example.com:443": false},
 	}
 
-	mw := crypto.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "", logger)
+	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), nil, pd, "", logger)
 
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
 		return "sender.example.com:443", nil
 	}
 
 	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pi := crypto.GetPeerIdentity(r.Context())
+		pi := sig.GetPeerIdentity(r.Context())
 		if pi == nil {
 			t.Fatal("expected peer identity")
 		}
@@ -351,19 +352,19 @@ func TestSignatureMiddleware_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 func TestGetPeerIdentity(t *testing.T) {
 	// Without peer identity
 	ctx := context.Background()
-	pi := crypto.GetPeerIdentity(ctx)
+	pi := sig.GetPeerIdentity(ctx)
 	if pi != nil {
 		t.Error("expected nil peer identity for empty context")
 	}
 
 	// With peer identity
-	ctx = context.WithValue(ctx, crypto.PeerIdentityKey, &crypto.PeerIdentity{
+	ctx = context.WithValue(ctx, sig.PeerIdentityKey, &sig.PeerIdentity{
 		Authority:           "example.com",
 		AuthorityForCompare: "example.com",
 		Authenticated:       true,
 		KeyID:               "https://example.com#key1",
 	})
-	pi = crypto.GetPeerIdentity(ctx)
+	pi = sig.GetPeerIdentity(ctx)
 	if pi == nil {
 		t.Fatal("expected peer identity")
 	}
@@ -388,7 +389,7 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 		publicKeysPEM: map[string]string{},
 	}
 
-	mw := crypto.NewSignatureMiddleware(
+	mw := sig.NewSignatureMiddleware(
 		runtimePolicyFromSignature(cfg),
 		nil,
 		pd,

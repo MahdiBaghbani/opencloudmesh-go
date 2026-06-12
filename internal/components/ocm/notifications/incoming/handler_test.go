@@ -10,11 +10,11 @@ import (
 	"os"
 	"testing"
 
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
 func TestHandler_MissingFields(t *testing.T) {
@@ -139,7 +139,7 @@ func TestHandler_SenderMismatchReasonCode(t *testing.T) {
 	body := `{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-mismatch"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/notifications", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+	req = req.WithContext(context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authenticated:       true,
 		AuthorityForCompare: "wrong.example.com",
 	}))
@@ -182,7 +182,7 @@ func TestHandler_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 	body := `{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-empty-origin"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/notifications", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+	req = req.WithContext(context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authenticated:       true,
 		AuthorityForCompare: "receiver.example.com",
 	}))

@@ -52,4 +52,23 @@ func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 			t.Error("OutboundPolicy must be non-nil when SkipCrypto=false")
 		}
 	})
+
+	t.Run("SkipCrypto=false with signature modes on produces non-nil Signer", func(t *testing.T) {
+		cfg := wiringtest.DevConfigHarness(18084)
+
+		deps.ResetDeps()
+		opts := wiringtest.HarnessWireOptions()
+		opts.SkipCrypto = false
+		_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
+		if err != nil {
+			t.Fatalf("bootstrap failed: %v", err)
+		}
+		d := deps.GetDeps()
+		if d.KeyManager == nil {
+			t.Error("KeyManager must be non-nil when signature modes are on and SkipCrypto=false")
+		}
+		if d.Signer == nil {
+			t.Error("Signer must be non-nil when KeyManager is present")
+		}
+	})
 }

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	uisvc "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ui"
 )
 
@@ -241,14 +240,10 @@ func sortedCopy(in []string) []string {
 // removed /static route) makes this test fail and forces the mock to be
 // corrected alongside the real service.
 func TestUIUnprotectedParity(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-	t.Cleanup(deps.ResetDeps)
-
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	uiInputs := uisvc.Inputs{}
 
-	// WAYF disabled: this is the configuration the testServices() mock mirrors.
-	svc, err := uisvc.New(map[string]any{}, log)
+	svc, err := uisvc.New(uiInputs, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("failed to construct real ui service: %v", err)
 	}
@@ -269,7 +264,7 @@ func TestUIUnprotectedParity(t *testing.T) {
 
 	// Sanity check: WAYF enabled adds /wayf, confirming the real declaration is
 	// the authority for what counts as an unprotected UI path.
-	wayfSvc, err := uisvc.New(map[string]any{"wayf": map[string]any{"enabled": true}}, log)
+	wayfSvc, err := uisvc.New(uiInputs, map[string]any{"wayf": map[string]any{"enabled": true}}, log)
 	if err != nil {
 		t.Fatalf("failed to construct real ui service with WAYF: %v", err)
 	}

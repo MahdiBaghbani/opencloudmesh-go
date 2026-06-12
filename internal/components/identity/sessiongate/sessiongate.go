@@ -1,5 +1,5 @@
-// Package auth provides session authentication middleware for HTTP servers.
-package auth
+// Package sessiongate provides session authentication middleware for HTTP servers.
+package sessiongate
 
 import (
 	"context"

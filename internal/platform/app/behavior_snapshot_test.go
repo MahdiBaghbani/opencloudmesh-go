@@ -57,19 +57,19 @@ var legacyCutoverInventory = []legacyCutoverAnchor{
 		},
 	},
 	{
-		seam:     "signer rebuild in server.New",
+		seam:     "ServerDeps auth gate required at construction",
 		path:     "internal/platform/http/server/server.go",
-		contains: []string{"crypto.NewRFC9421Signer", "d.KeyManager"},
+		contains: []string{"ServerDeps", "sd.AuthGate"},
 	},
 	{
-		seam:     "auth gate in setupRoutes",
+		seam:     "injected auth gate via ServerDeps",
 		path:     "internal/platform/http/server/routes.go",
-		contains: []string{"auth.NewAuthGate", "IsAuthRequired"},
+		contains: []string{"s.deps.AuthGate", "IsAuthRequired"},
 	},
 	{
 		seam:     "inbound signature middleware wiring",
 		path:     "internal/platform/app/bootstrap.go",
-		contains: []string{"SignatureMiddleware", "crypto.NewSignatureMiddleware"},
+		contains: []string{"SignatureMiddleware", "signature.NewSignatureMiddleware"},
 	},
 	{
 		seam:     "main.go production bootstrap and service construction",

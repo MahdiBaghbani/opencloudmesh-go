@@ -1,4 +1,5 @@
-package crypto
+// Package signature verifies inbound OCM HTTP request signatures.
+package signature
 
 import (
 	"context"
@@ -9,6 +10,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -60,7 +62,7 @@ type SignatureMiddleware struct {
 	onDiscoveryErr     string
 	peerContract       *peercompat.CompiledContract
 	compatibilityScope string
-	verifier           *RFC9421Verifier
+	verifier           *crypto.RFC9421Verifier
 	peerDiscovery      PeerDiscovery
 	logger             *slog.Logger
 	localScheme        string // scheme from PublicOrigin for unverified peer normalization
@@ -103,7 +105,7 @@ func NewSignatureMiddleware(
 		onDiscoveryErr:     onDiscoveryErr,
 		peerContract:       peerContract,
 		compatibilityScope: compatibilityScope,
-		verifier:           NewRFC9421Verifier(),
+		verifier:           crypto.NewRFC9421Verifier(),
 		peerDiscovery:      pd,
 		logger:             logger,
 		localScheme:        localScheme,
@@ -164,7 +166,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			}
 
 			// Read body for signature verification and peer resolution
-			body, err := ReadAndRestoreBody(r)
+			body, err := crypto.ReadAndRestoreBody(r)
 			if err != nil {
 				m.logger.Error("failed to read request body", "error", err)
 				http.Error(w, "failed to read body", http.StatusBadRequest)
@@ -194,7 +196,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 					if err != nil {
 						return nil, err
 					}
-					return ParsePublicKeyPEM(pemData)
+					return crypto.ParsePublicKeyPEM(pemData)
 				})
 
 				if result.Verified {
@@ -331,7 +333,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			}
 
 			// Verify Content-Digest if present
-			if err := VerifyContentDigest(r, body); err != nil {
+			if err := crypto.VerifyContentDigest(r, body); err != nil {
 				m.logger.Warn("content digest verification failed", "error", err)
 				http.Error(w, "content digest mismatch", http.StatusBadRequest)
 				return

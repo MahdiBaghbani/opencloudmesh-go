@@ -13,13 +13,13 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -132,7 +132,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
 		return
 	}
-	peerIdentity := crypto.GetPeerIdentity(ctx)
+	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
 	normalizedRecipientProvider := req.RecipientProvider
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)

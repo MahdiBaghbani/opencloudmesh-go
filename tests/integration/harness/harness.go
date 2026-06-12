@@ -148,7 +148,13 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to create core services: %v", err)
 	}
 
-	srv, err := server.New(cfg, logger, services)
+	serverDeps, err := wiring.BuildServerDeps(cfg, logger)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to build server deps: %v", err)
+	}
+
+	srv, err := server.New(cfg, logger, services, serverDeps)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)

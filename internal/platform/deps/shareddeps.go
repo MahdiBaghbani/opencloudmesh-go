@@ -7,6 +7,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
@@ -54,7 +55,7 @@ type Deps struct {
 	KeyManager          *crypto.KeyManager
 	Signer              *crypto.RFC9421Signer
 	OutboundPolicy      *outboundsigning.OutboundPolicy
-	SignatureMiddleware *crypto.SignatureMiddleware
+	SignatureMiddleware *signature.SignatureMiddleware
 
 	// Peer trust (optional)
 	TrustGroupMgr *peertrust.TrustGroupManager

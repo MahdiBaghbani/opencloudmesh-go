@@ -10,11 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 type routeGroupSnapshot struct {
@@ -173,15 +170,6 @@ func newSnapshotOrderServer(t *testing.T, mountOrder, closeOrder *[]string) *Ser
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		PartyRepo:   identity.NewMemoryPartyRepo(),
-		SessionRepo: identity.NewMemorySessionRepo(),
-		UserAuth:    identity.NewUserAuth(1),
-		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil, nil)),
-	})
-	t.Cleanup(deps.ResetDeps)
-
 	if mountOrder == nil {
 		empty := []string{}
 		mountOrder = &empty
@@ -202,7 +190,7 @@ func newSnapshotOrderServer(t *testing.T, mountOrder, closeOrder *[]string) *Ser
 		}
 	}
 
-	srv, err := New(cfg, logger, services)
+	srv, err := New(cfg, logger, services, testServerDeps(t, cfg, logger))
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}

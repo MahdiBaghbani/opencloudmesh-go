@@ -13,11 +13,11 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -247,7 +247,7 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 	body := validAcceptedBody("trust-token")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	peerCtx := context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+	peerCtx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           "attacker.com",
 		AuthorityForCompare: "attacker.com",
 		Authenticated:       true,
@@ -412,7 +412,7 @@ func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 	body := `{"recipientProvider":"other.com:443","token":"empty-origin-token","userID":"u@host","email":"e","name":"n"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	peerCtx := context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+	peerCtx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           "other.com",
 		AuthorityForCompare: "other.com",
 		Authenticated:       true,

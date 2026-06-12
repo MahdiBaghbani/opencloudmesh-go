@@ -1,4 +1,4 @@
-package crypto_test
+package signature_test
 
 import (
 	"context"
@@ -7,11 +7,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
-// mockPeerDiscovery implements crypto.PeerDiscovery for testing.
 type mockPeerDiscovery struct {
 	signingCapable map[string]bool
 	signingErrors  map[string]error
-	publicKeysPEM  map[string]string // keyID -> PEM string
+	publicKeysPEM  map[string]string
 }
 
 func (m *mockPeerDiscovery) IsSigningCapable(ctx context.Context, host string) (bool, error) {

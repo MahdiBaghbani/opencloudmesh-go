@@ -9,24 +9,11 @@ import (
 	"os"
 	"testing"
 
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
-
-// setupTestDeps creates minimal SharedDeps for the OCM service.
-// SignatureMiddleware is nil (no-signature path), which is the simplest valid setup.
-func setupTestDeps() {
-	deps.ResetDeps()
-	cfg := config.DevConfig()
-	deps.SetDeps(&deps.Deps{
-		Config:              cfg,
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
-	})
-}
 
 type ocmTestPeerDiscovery struct{}
 
@@ -38,48 +25,55 @@ func (ocmTestPeerDiscovery) GetPublicKey(context.Context, string) (string, error
 	return "", nil
 }
 
-func setupTestDepsWithSignature(t *testing.T) {
+func testInputs(cfg *config.Config) Inputs {
+	return Inputs{
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
+		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
+		PublicScheme:        cfg.PublicScheme(),
+		TokenExchangePath:   "token",
+	}
+}
+
+func setupTestInputs() Inputs {
+	cfg := config.DevConfig()
+	return testInputs(cfg)
+}
+
+func setupTestInputsWithSignature(t *testing.T) Inputs {
 	t.Helper()
 
-	deps.ResetDeps()
 	cfg := config.DevConfig()
 	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	signatureMiddleware := crypto.NewSignatureMiddleware(
+	signatureMiddleware := inboundsignature.NewSignatureMiddleware(
 		runtimePolicy,
 		nil,
 		ocmTestPeerDiscovery{},
 		cfg.PublicOrigin,
 		logger,
 	)
-	deps.SetDeps(&deps.Deps{
-		Config:              cfg,
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		RuntimePolicy:       runtimePolicy,
-		OutgoingShareRepo:   sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		SignatureMiddleware: signatureMiddleware,
-	})
+	in := testInputs(cfg)
+	in.RuntimePolicy = runtimePolicy
+	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
+	in.SignatureMiddleware = signatureMiddleware
+	return in
 }
 
-func TestNew_FailsWithoutSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-
+func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	_, err := New(m, log)
+	_, err := New(Inputs{}, m, log)
 	if err == nil {
-		t.Error("expected error when SharedDeps not initialized")
+		t.Fatal("expected error when required inputs are missing")
 	}
 }
 
-func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	setupTestDeps()
-
+func TestNew_SucceedsWithInputs(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(setupTestInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,12 +84,10 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
-	setupTestDeps()
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(setupTestInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -106,12 +98,10 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Unprotected(t *testing.T) {
-	setupTestDeps()
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(setupTestInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,12 +130,10 @@ func TestService_Unprotected(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
-	setupTestDeps()
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(setupTestInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -156,12 +144,10 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
-	setupTestDeps()
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(setupTestInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,17 +157,11 @@ func TestService_Close(t *testing.T) {
 	}
 }
 
-// TestService_RoutingSmoke proves routes are wired by checking that GET on a
-// POST-only endpoint returns 405 Method Not Allowed (chi behavior when the
-// path exists but the method does not). This avoids triggering the handler
-// with nil repos.
 func TestService_RoutingSmoke(t *testing.T) {
-	setupTestDeps()
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(setupTestInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -210,12 +190,10 @@ func TestService_RoutingSmoke(t *testing.T) {
 }
 
 func TestService_NotificationsFollowInboundSignaturePolicy(t *testing.T) {
-	setupTestDepsWithSignature(t)
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(setupTestInputsWithSignature(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -236,8 +214,6 @@ func TestService_NotificationsFollowInboundSignaturePolicy(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
-	setupTestDeps()
-
 	var logBuf testLogBuffer
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
@@ -245,7 +221,7 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 		"unknown_key": "value",
 	}
 
-	_, err := New(m, log)
+	_, err := New(setupTestInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -256,7 +232,6 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 }
 
 func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
-	deps.ResetDeps()
 	tokenExchangeEnabled := true
 	cfg := &config.Config{
 		TokenExchange: config.TokenExchangeConfig{
@@ -264,20 +239,16 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 			Path:    "token",
 		},
 	}
-	deps.SetDeps(&deps.Deps{
-		Config:              cfg,
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
-	})
+	in := testInputs(cfg)
 
 	m := map[string]any{
 		"token_exchange": map[string]any{
-			"enabled": false, // per-service override must not disable evaluator-owned state
+			"enabled": false,
 		},
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(in, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -291,7 +262,6 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 }
 
 func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
-	deps.ResetDeps()
 	tokenExchangeEnabled := true
 	cfg := &config.Config{
 		PublicOrigin: "https://example.com",
@@ -300,13 +270,14 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 			Path:    "token",
 		},
 	}
-	deps.SetDeps(&deps.Deps{
-		Config:        cfg,
-		RuntimePolicy: policy.NewRuntimePolicy(cfg, nil),
-	})
+	in := Inputs{
+		PublicOrigin:      cfg.PublicOrigin,
+		RuntimePolicy:     policy.NewRuntimePolicy(cfg, nil),
+		TokenExchangePath: "token",
+	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc, err := New(map[string]any{}, log)
+	svc, err := New(in, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -319,7 +290,6 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 	}
 }
 
-// testLogBuffer is a simple buffer for capturing log output.
 type testLogBuffer struct {
 	data []byte
 }

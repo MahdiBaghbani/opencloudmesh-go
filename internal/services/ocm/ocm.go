@@ -1,6 +1,4 @@
 // Package ocm provides the OCM protocol service for OpenCloudMesh.
-// This service handles all /ocm/* endpoints including shares, notifications,
-// invite-accepted, and token exchange.
 package ocm
 
 import (
@@ -18,7 +16,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -33,19 +30,20 @@ func (c *Config) ApplyDefaults() {
 }
 
 // Service is the OCM protocol service.
-// It implements service.Service and provides handlers for /ocm/* endpoints.
-// The service owns signature middleware application internally (Reva-aligned).
 type Service struct {
 	router        chi.Router
 	conf          *Config
 	log           *slog.Logger
-	tokenSettings *tokenincoming.TokenExchangeSettings // kept for Unprotected() computation
+	tokenSettings *tokenincoming.TokenExchangeSettings
 }
 
-// New creates a new OCM protocol service.
-// Implements service.NewService signature.
-func New(m map[string]any, log *slog.Logger) (service.Service, error) {
+// New creates a new OCM protocol service from narrow injected inputs.
+func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
 	log = logutil.NoopIfNil(log)
+
+	if err := validateInputs(inputs); err != nil {
+		return nil, err
+	}
 
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
@@ -56,26 +54,17 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "ocm", "unused_keys", unused)
 	}
 
-	d := deps.GetDeps()
-	if d == nil {
-		return nil, errors.New("shared deps not initialized: call deps.SetDeps() before New()")
+	if inputs.OpenCloudMeshPolicy != nil {
+		c.TokenExchange.Enabled = inputs.OpenCloudMeshPolicy.Evaluate().TokenExchangeCapable
 	}
-
-	// Token exchange enablement is owned by OpenCloudMeshPolicy when available.
-	// Path may still be overridden per-service.
-	if d.OpenCloudMeshPolicy != nil {
-		c.TokenExchange.Enabled = d.OpenCloudMeshPolicy.Evaluate().TokenExchangeCapable
+	var rawTE map[string]any
+	if te, ok := m["token_exchange"].(map[string]any); ok {
+		rawTE = te
 	}
-	if d.Config != nil {
-		var rawTE map[string]any
-		if te, ok := m["token_exchange"].(map[string]any); ok {
-			rawTE = te
-		}
-		if _, set := rawTE["path"]; !set {
-			c.TokenExchange.Path = d.Config.TokenExchange.Path
-			if c.TokenExchange.Path == "" {
-				c.TokenExchange.Path = "token"
-			}
+	if _, set := rawTE["path"]; !set {
+		c.TokenExchange.Path = inputs.TokenExchangePath
+		if c.TokenExchange.Path == "" {
+			c.TokenExchange.Path = "token"
 		}
 	}
 
@@ -83,42 +72,48 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		return nil, err
 	}
 
-	// Construct handlers using SharedDeps (Reva-aligned)
 	sharesHandler := sharesincoming.NewHandler(
-		d.IncomingShareRepo,
-		d.PartyRepo,
-		d.PolicyEngine,
-		d.DiscoveryClient,
-		d.OpenCloudMeshPolicy,
-		d.RuntimePolicy,
-		d.PeerContract,
-		d.LocalProviderFQDNForCompare,
-		d.Config.PublicScheme(),
+		inputs.IncomingShareRepo,
+		inputs.PartyRepo,
+		inputs.PolicyEngine,
+		inputs.DiscoveryClient,
+		inputs.OpenCloudMeshPolicy,
+		inputs.RuntimePolicy,
+		inputs.PeerContract,
+		inputs.LocalProviderFQDNForCompare,
+		inputs.PublicScheme,
 		log,
 	)
-	notifHandler := notifincoming.NewHandler(d.OutgoingShareRepo, d.Config.PublicOrigin, log)
-	invitesHandler := invitesincoming.NewHandler(d.OutgoingInviteRepo, d.PartyRepo, d.PolicyEngine, d.LocalProviderFQDN, d.Config.PublicOrigin, log)
-	tokenHandler := tokenincoming.NewHandler(d.OutgoingShareRepo, d.TokenStore, &c.TokenExchange, d.Config.PublicOrigin, log)
+	notifHandler := notifincoming.NewHandler(inputs.OutgoingShareRepo, inputs.PublicOrigin, log)
+	invitesHandler := invitesincoming.NewHandler(
+		inputs.OutgoingInviteRepo,
+		inputs.PartyRepo,
+		inputs.PolicyEngine,
+		inputs.LocalProviderFQDN,
+		inputs.PublicOrigin,
+		log,
+	)
+	tokenHandler := tokenincoming.NewHandler(
+		inputs.OutgoingShareRepo,
+		inputs.TokenStore,
+		&c.TokenExchange,
+		inputs.PublicOrigin,
+		log,
+	)
 
-	// Create peer resolver for signature verification (service-local, per-endpoint extraction)
 	peerResolver := peer.NewResolver()
-
-	// Build router with handlers
-	// Apply signature middleware internally (Reva-aligned: service owns signature verification)
 	r := chi.NewRouter()
 
-	if d.SignatureMiddleware != nil {
-		// Signed OCM endpoints - apply per-endpoint signature verification
-		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveSharesRequest)).
+	if inputs.SignatureMiddleware != nil {
+		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveSharesRequest)).
 			Post("/shares", sharesHandler.CreateShare)
-		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveNotificationsRequest)).
+		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveNotificationsRequest)).
 			Post("/notifications", notifHandler.HandleNotification)
-		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveInviteAcceptedRequest)).
+		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveInviteAcceptedRequest)).
 			Post("/invite-accepted", invitesHandler.HandleInviteAccepted)
-		r.With(d.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveTokenRequest)).
+		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveTokenRequest)).
 			Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
 	} else {
-		// No signature verification (signature mode off)
 		r.Post("/shares", sharesHandler.CreateShare)
 		r.Post("/notifications", notifHandler.HandleNotification)
 		r.Post("/invite-accepted", invitesHandler.HandleInviteAccepted)
@@ -133,21 +128,21 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	}, nil
 }
 
-// Handler returns the service's HTTP handler.
-// Wraps router with RawPath clearing to match Reva pattern and avoid chi routing
-// mismatches on percent-encoded path segments.
-// Signature middleware is applied internally per endpoint (Reva-aligned).
+func validateInputs(in Inputs) error {
+	if in.RuntimePolicy == nil {
+		return errors.New("ocm: RuntimePolicy is required")
+	}
+	return nil
+}
+
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
 
-// Prefix returns the URL prefix for this service.
 func (s *Service) Prefix() string {
 	return "ocm"
 }
 
-// Unprotected returns paths that don't require session authentication.
-// All OCM protocol endpoints are public (they use signature verification instead).
 func (s *Service) Unprotected() []string {
 	return []string{
 		"/shares",
@@ -157,7 +152,6 @@ func (s *Service) Unprotected() []string {
 	}
 }
 
-// Close releases any resources held by the service.
 func (s *Service) Close() error {
 	return nil
 }

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 func TestNewOCMHandler_TokenExchangeDisabled(t *testing.T) {
@@ -14,9 +14,7 @@ func TestNewOCMHandler_TokenExchangeDisabled(t *testing.T) {
 		Endpoint: "https://example.com",
 	}
 	c.TokenExchange.Enabled = false
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -40,9 +38,7 @@ func TestNewOCMHandler_TokenExchangeEnabled(t *testing.T) {
 	}
 	c.TokenExchange.Enabled = true
 	c.TokenExchange.Path = "exchange"
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,9 +68,7 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 	}
 	c.TokenExchange.Enabled = true
 	// Path is empty; handler code falls back to "token"
-	d := &deps.Deps{}
-
-	h, err := newOCMHandler(c, nil, d, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,12 +91,7 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
-		d := &deps.Deps{
-			Config:              cfg,
-			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -132,12 +121,7 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = false
-		d := &deps.Deps{
-			Config:              cfg,
-			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -165,12 +149,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
-		d := &deps.Deps{
-			Config:              cfg,
-			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -198,12 +177,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
-		d := &deps.Deps{
-			Config:              cfg,
-			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -224,12 +198,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		d := &deps.Deps{
-			Config:              cfg,
-			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -266,17 +235,13 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		d := &deps.Deps{
-			Config:              cfg,
-			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		}
 		raw := map[string]any{
 			"token_exchange": map[string]any{
 				"enabled": true,
 			},
 		}
 
-		h, err := newOCMHandler(c, raw, d, testLogger())
+		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -302,12 +267,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		d := &deps.Deps{
-			Config:              cfg,
-			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -336,17 +296,13 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			PeerPolicy:           "legacy",
 		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		d := &deps.Deps{
-			Config:              cfg,
-			OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		}
 		raw := map[string]any{
 			"token_exchange": map[string]any{
 				"enabled": false,
 			},
 		}
 
-		h, err := newOCMHandler(c, raw, d, testLogger())
+		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -367,19 +323,8 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 	})
 
 	t.Run("raw config alone does not backfill capability", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			RequireTokenExchange: true,
-			PeerPolicy:           "strict",
-		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		d := &deps.Deps{
-			Config: cfg,
-		}
-
-		h, err := newOCMHandler(c, nil, d, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

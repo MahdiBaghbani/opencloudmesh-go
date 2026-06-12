@@ -177,7 +177,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv, err := server.New(cfg, logger, services)
+	serverDeps, err := wiring.BuildServerDeps(cfg, logger)
+	if err != nil {
+		logger.Error("failed to build server deps", "error", err)
+		os.Exit(1)
+	}
+
+	srv, err := server.New(cfg, logger, services, serverDeps)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)

@@ -16,6 +16,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
@@ -225,11 +226,11 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions, pe
 		)
 	}
 
-	var signatureMiddleware *crypto.SignatureMiddleware
+	var signatureMiddleware *signature.SignatureMiddleware
 	if !opts.SkipSignatureMiddleware {
 		peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
 		peerDiscoveryAdapter.SetPeerContract(peerContract)
-		signatureMiddleware = crypto.NewSignatureMiddleware(
+		signatureMiddleware = signature.NewSignatureMiddleware(
 			runtimePolicy,
 			peerContract,
 			peerDiscoveryAdapter,

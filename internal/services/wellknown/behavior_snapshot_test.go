@@ -9,32 +9,33 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
 const snapshotDiscoveryGolden = "testdata/wellknown_discovery_dev.golden.json"
 
-func TestBehaviorSnapshot_WellknownDiscoveryGolden(t *testing.T) {
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
+func snapshotResolveInputs(cfg *config.Config) resolve.ResolveInputs {
+	return resolve.ResolveInputs{
+		PublicOrigin:        cfg.PublicOrigin,
+		ExternalBasePath:    cfg.ExternalBasePath,
+		TokenExchangePath:   cfg.TokenExchange.Path,
+		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
+		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
+	}
+}
 
+func TestBehaviorSnapshot_WellknownDiscoveryGolden(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://snapshot.test"
 	cfg.ExternalBasePath = ""
 	cfg.Signature.InboundMode = "off"
 	cfg.Signature.OutboundMode = "off"
 
-	deps.SetDeps(&deps.Deps{
-		Config:              cfg,
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-	})
-
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc, err := New(map[string]any{}, log)
+	svc, err := New(Inputs{Resolve: snapshotResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
@@ -84,23 +85,14 @@ func TestWriteWellknownDiscoveryGolden(t *testing.T) {
 		t.Skip("set GOLDEN_WRITE=1 to regenerate golden fixture")
 	}
 
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
-
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://snapshot.test"
 	cfg.ExternalBasePath = ""
 	cfg.Signature.InboundMode = "off"
 	cfg.Signature.OutboundMode = "off"
 
-	deps.SetDeps(&deps.Deps{
-		Config:              cfg,
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-	})
-
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc, err := New(map[string]any{}, log)
+	svc, err := New(Inputs{Resolve: snapshotResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
@@ -120,11 +112,8 @@ func TestWriteWellknownDiscoveryGolden(t *testing.T) {
 	}
 	out = append(out, '\n')
 
-	wantPath := filepath.Join("testdata", "wellknown_discovery_dev.golden.json")
-	if err := os.MkdirAll(filepath.Dir(wantPath), 0755); err != nil {
-		t.Fatalf("mkdir testdata: %v", err)
-	}
-	if err := os.WriteFile(wantPath, out, 0644); err != nil {
+	path := filepath.Join("testdata", "wellknown_discovery_dev.golden.json")
+	if err := os.WriteFile(path, out, 0644); err != nil {
 		t.Fatalf("write golden: %v", err)
 	}
 }

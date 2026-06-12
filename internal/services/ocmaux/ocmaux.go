@@ -15,20 +15,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // Config holds ocmaux service configuration.
 type Config struct {
-	// Ratelimit holds rate limiting configuration for this service.
 	Ratelimit RatelimitConfig `mapstructure:"ratelimit"`
 }
 
 // RatelimitConfig holds the per-service rate limiting opt-in.
 type RatelimitConfig struct {
-	// Profile is the name of the ratelimit profile to use from
-	// [http.interceptors.ratelimit.profiles.<name>].
 	Profile string `mapstructure:"profile"`
 }
 
@@ -42,9 +38,13 @@ type Service struct {
 	log    *slog.Logger
 }
 
-// New creates a new ocm-aux service.
-func New(m map[string]any, log *slog.Logger) (service.Service, error) {
+// New creates a new ocm-aux service from narrow injected inputs.
+func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
 	log = logutil.NoopIfNil(log)
+
+	if err := validateInputs(inputs); err != nil {
+		return nil, err
+	}
 
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
@@ -55,22 +55,15 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "ocmaux", "unused_keys", unused)
 	}
 
-	d := deps.GetDeps()
-	if d == nil {
-		return nil, errors.New("shared deps not initialized")
-	}
+	auxHandler := ocmauxcomp.NewAuxHandler(inputs.TrustGroupMgr, inputs.DiscoveryClient, log)
 
-	// Create aux handler using SharedDeps
-	auxHandler := ocmauxcomp.NewAuxHandler(d.TrustGroupMgr, d.DiscoveryClient, log)
-
-	// Build ratelimit middleware for /discover if profile is configured
 	var discoverMiddleware func(http.Handler) http.Handler
 	if c.Ratelimit.Profile != "" {
-		profileConfig, err := interceptors.GetProfileConfig(d.Config.HTTP.Interceptors, "ratelimit", c.Ratelimit.Profile)
+		profileConfig, err := interceptors.GetProfileConfig(inputs.InterceptorProfiles, "ratelimit", c.Ratelimit.Profile)
 		if err != nil {
 			return nil, fmt.Errorf("ocmaux: %w", err)
 		}
-		discoverMiddleware, err = ratelimit.New(profileConfig, log)
+		discoverMiddleware, err = ratelimit.New(inputs.Ratelimit, profileConfig, log)
 		if err != nil {
 			return nil, fmt.Errorf("ocmaux: failed to create ratelimit interceptor: %w", err)
 		}
@@ -79,7 +72,6 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	r := chi.NewRouter()
 	r.Get("/federations", auxHandler.HandleFederations)
 
-	// Apply ratelimit middleware only to /discover
 	if discoverMiddleware != nil {
 		r.With(discoverMiddleware).Get("/discover", auxHandler.HandleDiscover)
 	} else {
@@ -89,23 +81,25 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 	return &Service{router: r, conf: &c, log: log}, nil
 }
 
-// Handler returns the service's HTTP handler with RawPath clearing.
+func validateInputs(in Inputs) error {
+	if in.Ratelimit.KeyFunc == nil {
+		return errors.New("ocmaux: Ratelimit.KeyFunc is required")
+	}
+	return nil
+}
+
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
 
-// Prefix returns the URL prefix for this service.
 func (s *Service) Prefix() string {
 	return "ocm-aux"
 }
 
-// Unprotected returns paths that don't require session authentication.
-// All ocm-aux endpoints are public (rate limiting is applied service-locally).
 func (s *Service) Unprotected() []string {
 	return []string{"/federations", "/discover"}
 }
 
-// Close releases any resources held by the service.
 func (s *Service) Close() error {
 	return nil
 }

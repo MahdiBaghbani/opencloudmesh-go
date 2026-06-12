@@ -2,7 +2,6 @@
 package webdav
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -30,8 +28,8 @@ type Service struct {
 	handler *webdav.Handler
 }
 
-// New creates a new WebDAV service.
-func New(m map[string]any, log *slog.Logger) (service.Service, error) {
+// New creates a new WebDAV service from narrow injected inputs.
+func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
 	log = logutil.NoopIfNil(log)
 
 	var c Config
@@ -43,43 +41,31 @@ func New(m map[string]any, log *slog.Logger) (service.Service, error) {
 		log.Warn("unused config keys", "service", "webdav", "unused_keys", unused)
 	}
 
-	d := deps.GetDeps()
-	if d == nil {
-		return nil, errors.New("shared deps not initialized")
-	}
-
-	// Create WebDAV handler with compiled contract for Basic auth decisions.
 	handler := webdav.NewHandler(
-		d.OutgoingShareRepo,
-		d.TokenStore,
-		d.PeerContract,
+		inputs.OutgoingShareRepo,
+		inputs.TokenStore,
+		inputs.PeerContract,
 		log.With("component", "webdav"),
 	)
 
 	r := chi.NewRouter()
-	// Mount WebDAV handler for all OCM share paths
 	r.HandleFunc("/ocm/*", handler.ServeHTTP)
 
 	return &Service{router: r, conf: &c, log: log, handler: handler}, nil
 }
 
-// Handler returns the service's HTTP handler with RawPath clearing.
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
 
-// Prefix returns the URL prefix for this service.
 func (s *Service) Prefix() string {
 	return "webdav"
 }
 
-// Unprotected returns paths that don't require session authentication.
-// WebDAV OCM endpoints use Bearer/Basic auth, not session auth.
 func (s *Service) Unprotected() []string {
 	return []string{"/ocm"}
 }
 
-// Close releases any resources held by the service.
 func (s *Service) Close() error {
 	return nil
 }

@@ -1,4 +1,3 @@
-// Package server provides HTTP server wiring and lifecycle management.
 package server
 
 import (
@@ -16,60 +15,53 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
 )
 
-var ErrMissingSharedDeps = errors.New("shared deps not initialized: call deps.SetDeps() before server.New()")
+var (
+	ErrMissingServerDeps = errors.New("shared deps not provided")
+	ErrMissingRealIP     = errors.New("real IP extractor not provided")
+	ErrMissingAuthGate   = errors.New("auth gate not provided")
+	ErrMissingAuthRepos  = errors.New("auth repos not provided")
+)
 
 // Server wraps the HTTP server and its dependencies.
 type Server struct {
 	cfg        *config.Config
 	httpServer *http.Server
 	logger     *slog.Logger
-	services   map[string]service.Service // keyed by service name (wellknown, ocm, ...)
-	signer     *crypto.RFC9421Signer
+	services   map[string]service.Service
+	deps       ServerDeps
 
-	// challengeServer is the HTTP listener for ACME HTTP-01 challenges and
-	// HTTPS redirects. Nil except in ACME mode.
 	challengeServer *http.Server
-
-	// RootCAPool is the merged root CA pool for outbound TLS and ACME directory. Set by main.go before Start().
-	RootCAPool *x509.CertPool
-
-	// mountedServices tracks services for lifecycle management (Close on shutdown).
-	// Stored in mount order; closed in reverse order during shutdown.
+	RootCAPool      *x509.CertPool
 	mountedServices []service.Service
 }
 
-// New creates a new Server with the given configuration.
-// Services are passed as a name->service map; nil entries are safe (skipped at mount time).
-// All dependencies are obtained from deps.GetDeps() (SharedDeps).
-// Returns an error if SharedDeps is not initialized.
-func New(cfg *config.Config, logger *slog.Logger, services map[string]service.Service) (*Server, error) {
+// New creates a new Server with injected dependencies and the given services map.
+func New(
+	cfg *config.Config,
+	logger *slog.Logger,
+	services map[string]service.Service,
+	sd ServerDeps,
+) (*Server, error) {
 	logger = logutil.NoopIfNil(logger)
 
-	// Fail fast: SharedDeps must be initialized before server creation
-	d := deps.GetDeps()
-	if d == nil {
-		return nil, ErrMissingSharedDeps
+	if sd.RealIP == nil {
+		return nil, ErrMissingRealIP
 	}
-
-	// Create signer for outgoing requests (from SharedDeps)
-	var signer *crypto.RFC9421Signer
-	if d.KeyManager != nil {
-		signer = crypto.NewRFC9421Signer(d.KeyManager)
+	if sd.AuthGate == nil {
+		return nil, ErrMissingAuthGate
 	}
 
 	s := &Server{
 		cfg:      cfg,
 		logger:   logger,
 		services: services,
-		signer:   signer,
+		deps:     sd,
 	}
 
 	router := s.setupRoutes()
@@ -85,13 +77,10 @@ func New(cfg *config.Config, logger *slog.Logger, services map[string]service.Se
 	return s, nil
 }
 
-// SetRootCAPool sets the root CA pool for ACME directory communication (Phase 3).
-// Call before Start().
 func (s *Server) SetRootCAPool(pool *x509.CertPool) {
 	s.RootCAPool = pool
 }
 
-// Start starts the HTTP server. It blocks until the server is shut down.
 func (s *Server) Start() error {
 	s.logger.Info("starting server",
 		"addr", s.cfg.ListenAddr,
@@ -108,7 +97,6 @@ func (s *Server) Start() error {
 		return s.startACME()
 
 	case "static", "selfsigned":
-		// Get TLS config from TLS manager
 		tlsManager := tlspkg.NewTLSManager(&s.cfg.TLS, s.logger)
 		hostname, err := instanceid.Hostname(s.cfg.PublicOrigin)
 		if err != nil {
@@ -122,12 +110,8 @@ func (s *Server) Start() error {
 			return fmt.Errorf("TLS config is nil for mode %s", s.cfg.TLS.Mode)
 		}
 
-		// Configure server with TLS
 		s.httpServer.TLSConfig = tlsConfig
 		s.logger.Info("starting server with TLS", "mode", s.cfg.TLS.Mode)
-
-		// For static and selfsigned modes, certs are in TLSConfig.Certificates
-		// ListenAndServeTLS with empty strings uses TLSConfig.Certificates
 		return s.httpServer.ListenAndServeTLS("", "")
 
 	default:
@@ -135,14 +119,9 @@ func (s *Server) Start() error {
 	}
 }
 
-// startACME runs the server in ACME mode with two listeners:
-// an HTTP listener for HTTP-01 challenges and HTTPS redirects,
-// and an HTTPS listener for the application router.
 func (s *Server) startACME() error {
-	// Parse bind host from ListenAddr (port part is ignored; we use HTTPPort/HTTPSPort).
 	host, _, err := net.SplitHostPort(s.cfg.ListenAddr)
 	if err != nil {
-		// ListenAddr might be a bare host or IP without a port.
 		host = s.cfg.ListenAddr
 	}
 
@@ -153,7 +132,6 @@ func (s *Server) startACME() error {
 		return errors.New("tls.https_port must be set for ACME mode")
 	}
 
-	// When PublicOrigin includes an explicit port, it must match HTTPSPort.
 	if s.cfg.PublicOrigin != "" {
 		if originURL, parseErr := url.Parse(s.cfg.PublicOrigin); parseErr == nil && originURL.Host != "" {
 			if _, portStr, splitErr := net.SplitHostPort(originURL.Host); splitErr == nil && portStr != "" {
@@ -166,7 +144,6 @@ func (s *Server) startACME() error {
 
 	acmeMgr := tlspkg.NewACMEManager(&s.cfg.TLS.ACME, s.logger, s.RootCAPool)
 
-	// HTTP router: challenges on their well-known path, redirect everything else.
 	challengeMux := http.NewServeMux()
 	challengeMux.Handle("/.well-known/acme-challenge/", acmeMgr.ChallengeHandler())
 	challengeMux.Handle("/", newHTTPSRedirectHandler(s.cfg.TLS.HTTPSPort))
@@ -196,19 +173,16 @@ func (s *Server) startACME() error {
 		}
 	}
 
-	// Start the challenge server in a goroutine.
 	challengeErrCh := make(chan error, 1)
 	go func() {
 		challengeErrCh <- s.challengeServer.Serve(challengeListener)
 	}()
 
-	// Init loads existing certs (fast path) or contacts the ACME server.
 	if initErr := acmeMgr.Init(context.Background()); initErr != nil {
 		closeChallengeServer()
 		return fmt.Errorf("ACME initialization failed: %w", initErr)
 	}
 
-	// Configure the main HTTPS server with the ACME-managed certificate.
 	s.httpServer.Addr = net.JoinHostPort(host, strconv.Itoa(s.cfg.TLS.HTTPSPort))
 	s.httpServer.TLSConfig = acmeMgr.GetTLSConfig()
 
@@ -244,8 +218,6 @@ func (s *Server) startACME() error {
 	}
 }
 
-// newHTTPSRedirectHandler returns a handler that issues HTTP 308 Permanent
-// Redirect to the HTTPS equivalent of the request URL.
 func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hostOnly := r.Host
@@ -267,11 +239,9 @@ func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 	})
 }
 
-// Shutdown gracefully shuts down the server and all mounted services.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down server")
 
-	// In ACME mode, stop accepting challenges before tearing down HTTPS.
 	var challengeErr error
 	if s.challengeServer != nil {
 		challengeErr = s.challengeServer.Shutdown(ctx)
@@ -279,7 +249,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	httpErr := s.httpServer.Shutdown(ctx)
 
-	// Close services in reverse mount order (last mounted = first closed)
 	for i := len(s.mountedServices) - 1; i >= 0; i-- {
 		svc := s.mountedServices[i]
 		prefix := svc.Prefix()
@@ -291,7 +260,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				"service", prefix,
 				"error", err,
 			)
-			// Continue closing other services (best-effort)
 		} else {
 			s.logger.Debug("service closed", "service", prefix)
 		}
