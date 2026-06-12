@@ -62,7 +62,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 	var fc fileConfig
 	var md toml.MetaData
 
-	// Step 1: Load TOML file if provided
+	// Load TOML file when a config path is provided.
 	if opts.ConfigPath != "" {
 		data, err := os.ReadFile(opts.ConfigPath)
 		if err != nil {
@@ -92,7 +92,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 		}
 	}
 
-	// Step 2: Determine effective mode
+	// Determine effective mode.
 	modeStr := "strict" // default
 	if fc.Mode != "" {
 		modeStr = fc.Mode
@@ -106,26 +106,26 @@ func Load(opts LoaderOptions) (*Config, error) {
 		return nil, err
 	}
 
-	// Step 3: Start from mode preset
+	// Start from mode preset defaults.
 	cfg := presetForMode(mode)
 
-	// Step 4: Overlay TOML values
+	// Overlay TOML file values.
 	if opts.ConfigPath != "" {
 		overlayFileConfig(cfg, &fc)
 	}
 
-	// Step 5: Overlay CLI flags
+	// Overlay CLI flag overrides.
 	overlayFlags(cfg, opts.FlagOverrides)
 
-	// Step 5b: derive SSRFMode shim from SSRF.Mode for programmatic caller compatibility
+	// Derive SSRFMode shim from SSRF.Mode for programmatic caller compatibility.
 	cfg.OutboundHTTP.SSRFMode = cfg.OutboundHTTP.SSRF.Mode
 
-	// Step 5d: tls_dir validation and derivation
+	// Validate tls_dir and derive related TLS paths when set.
 	if md.IsDefined("tls", "tls_dir") && strings.TrimSpace(cfg.TLS.TLSDir) == "" {
 		return nil, fmt.Errorf("tls.tls_dir is set but empty; provide a path or remove the key")
 	}
 
-	// Step 5e: explicit empty persistence.backend fails fast.
+	// Explicit empty persistence.backend fails fast.
 	// An absent key leaves the preset intact; an explicit empty string is an error.
 	if md.IsDefined("persistence", "backend") && fc.Persistence != nil && fc.Persistence.Backend == "" {
 		return nil, fmt.Errorf("persistence.backend is set but empty; provide a valid backend or remove the key")
@@ -144,22 +144,22 @@ func Load(opts LoaderOptions) (*Config, error) {
 		}
 	}
 
-	// Step 6: Validate enum fields (fatal on invalid values)
+	// Validate enum fields; invalid values are fatal.
 	if err := validateEnums(cfg); err != nil {
 		return nil, err
 	}
 
-	// Step 7: Validate public_origin format (fail fast on invalid URL)
+	// Validate public_origin format.
 	if err := validatePublicOrigin(cfg); err != nil {
 		return nil, err
 	}
 
-	// Step 8: Validate outbound TLS CA paths (fail fast)
+	// Validate outbound TLS CA paths.
 	if err := validateOutboundTLSPaths(cfg); err != nil {
 		return nil, err
 	}
 
-	// Step 9: Validate outbound proxy URL (fail fast)
+	// Validate outbound proxy URL.
 	if err := validateProxyURL(cfg); err != nil {
 		return nil, err
 	}

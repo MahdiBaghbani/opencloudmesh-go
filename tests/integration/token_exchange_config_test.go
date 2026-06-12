@@ -111,8 +111,8 @@ enabled = false
 	})
 }
 
-// TestTokenExchangeWithPerServiceConfig tests that the new [http.services.*] TOML shape works.
-// This verifies Phase 3.D: the per-service config model is functional end-to-end.
+// TestTokenExchangeWithPerServiceConfig tests that the [http.services.*] TOML shape works.
+// Verifies the per-service config model is functional end-to-end.
 func TestTokenExchangeWithPerServiceConfig(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -120,13 +120,13 @@ func TestTokenExchangeWithPerServiceConfig(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 
-	// Use the new per-service config shape instead of flat [token_exchange]
+	// Use per-service config instead of flat [token_exchange].
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:                  "per-service-config",
 		Mode:                  "dev",
 		KeepSignatureDefaults: true,
 		ExtraConfig: `
-# Per-service configuration (new Reva-aligned shape)
+# Per-service configuration (Reva-aligned shape)
 [http.services.wellknown]
 [http.services.wellknown.ocmprovider]
 provider = "TestProvider"

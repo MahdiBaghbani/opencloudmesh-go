@@ -137,8 +137,8 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 // --- Share creation identity tests ---
 //
 // These tests verify inbound share creation through the full server stack.
-// They exercise the federated opaque ID decode fallback (Phase 4) and
-// Reva-style OCM address acceptance for owner/sender (Phase 3).
+// They exercise the federated opaque ID decode fallback and
+// Reva-style OCM address acceptance for owner/sender.
 //
 // Outbound share identity encoding (owner/sender emission via
 // FormatOutgoingOCMAddressFromUserID) is covered by unit tests in

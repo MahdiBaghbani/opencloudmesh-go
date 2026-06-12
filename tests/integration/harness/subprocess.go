@@ -367,7 +367,7 @@ func extraDefinesPublicOrigin(extra string) bool {
 }
 
 // generateTOMLConfig creates a TOML config for a test server.
-// Uses the new Reva-aligned TOML shape. The mode preset (dev/compat/strict)
+// Uses the Reva-aligned TOML shape. The mode preset (dev/compat/strict)
 // drives defaults via config.Load(), including token exchange settings.
 // When keepSigDefaults is false, signature mode is forced off for test simplicity.
 // When true, the [signature] block is omitted so the mode preset's defaults apply.

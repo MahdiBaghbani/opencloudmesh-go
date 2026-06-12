@@ -485,46 +485,46 @@ func TestClientDiscover_CacheContractDrift(t *testing.T) {
 	}
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
-	// Step 1: no compat contract -> legacy key must NOT be promoted.
+	// Without a compat contract, the legacy key must not be promoted.
 	disc1, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
-		t.Fatalf("step 1 Discover failed: %v", err)
+		t.Fatalf("Discover without compat failed: %v", err)
 	}
 	if len(disc1.PublicKeys) != 0 {
-		t.Fatalf("step 1: expected empty publicKeys without compat, got %+v", disc1.PublicKeys)
+		t.Fatalf("expected empty publicKeys without compat, got %+v", disc1.PublicKeys)
 	}
 	if callCount != 1 {
-		t.Fatalf("step 1: expected exactly 1 HTTP call, got %d", callCount)
+		t.Fatalf("expected exactly 1 HTTP call, got %d", callCount)
 	}
 
-	// Step 2: add compat contract; same client, no new HTTP call (cache hit).
-	// Re-normalization must now promote the legacy key.
+	// With a compat contract added, the same client must hit cache (no new HTTP call).
+	// Re-normalization must promote the legacy key.
 	client.SetPeerContract(buildContract(t))
 	disc2, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
-		t.Fatalf("step 2 Discover failed: %v", err)
+		t.Fatalf("Discover with compat contract failed: %v", err)
 	}
 	if callCount != 1 {
-		t.Fatalf("step 2: unexpected HTTP call (should have used cache), call count %d", callCount)
+		t.Fatalf("unexpected HTTP call after compat contract set (should have used cache), call count %d", callCount)
 	}
 	if len(disc2.PublicKeys) != 1 {
-		t.Fatalf("step 2: expected legacy key promoted to publicKeys, got %+v", disc2.PublicKeys)
+		t.Fatalf("expected legacy key promoted to publicKeys, got %+v", disc2.PublicKeys)
 	}
 	if disc2.PublicKeys[0].KeyID != "https://peer.example.com/ocm#legacy" {
-		t.Fatalf("step 2: unexpected key ID %q", disc2.PublicKeys[0].KeyID)
+		t.Fatalf("unexpected key ID %q", disc2.PublicKeys[0].KeyID)
 	}
 
-	// Step 3: remove compat contract; cache hit must re-normalize without compat.
+	// After removing the compat contract, a cache hit must re-normalize without compat.
 	client.SetPeerContract(nil)
 	disc3, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
-		t.Fatalf("step 3 Discover failed: %v", err)
+		t.Fatalf("Discover after contract removed failed: %v", err)
 	}
 	if callCount != 1 {
-		t.Fatalf("step 3: unexpected HTTP call (should have used cache), call count %d", callCount)
+		t.Fatalf("unexpected HTTP call after contract removed (should have used cache), call count %d", callCount)
 	}
 	if len(disc3.PublicKeys) != 0 {
-		t.Fatalf("step 3: expected empty publicKeys after contract removed, got %+v", disc3.PublicKeys)
+		t.Fatalf("expected empty publicKeys after contract removed, got %+v", disc3.PublicKeys)
 	}
 }
 

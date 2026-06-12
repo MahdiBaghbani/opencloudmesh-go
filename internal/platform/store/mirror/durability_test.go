@@ -21,7 +21,7 @@ func TestMirrorInviteReopenDurability(t *testing.T) {
 		DataDir: tempDir,
 	}
 
-	// Phase 1: create both invite surfaces.
+	// Create both invite surfaces.
 	driver := testutil.OpenDriver(t, cfg)
 
 	outInvite := testutil.NewOutgoingInviteFixture()
@@ -40,7 +40,7 @@ func TestMirrorInviteReopenDurability(t *testing.T) {
 	}
 	driver.Close()
 
-	// Phase 2: reopen and verify both invites survived via store API.
+	// Reopen the driver and verify both invites survived via store API.
 	driver2 := testutil.OpenDriver(t, cfg)
 	defer driver2.Close()
 

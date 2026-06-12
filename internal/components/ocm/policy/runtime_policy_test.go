@@ -450,7 +450,7 @@ func hasReason(reasons []string, want string) bool {
 // TestRuntimePolicyEvaluate_LegacySSRFModeFallback verifies that when
 // OutboundHTTP.SSRF.Mode is empty but the legacy SSRFMode shim is set,
 // the posture derives SSRFMode from the shim so programmatic configs are
-// classified consistently during the migration period.
+// classified consistently.
 func TestRuntimePolicyEvaluate_LegacySSRFModeFallback(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.OutboundHTTP.SSRF.Mode = ""      // nested mode empty

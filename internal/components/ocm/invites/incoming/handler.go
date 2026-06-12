@@ -56,7 +56,7 @@ func NewHandler(
 	}
 }
 
-// HandleInviteAccepted handles POST /ocm/invite-accepted. Error table: F3=A.
+// HandleInviteAccepted handles POST /ocm/invite-accepted.
 func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -173,7 +173,8 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// buildInviteAcceptedResponse returns local inviting user identity. F5=A: empty CreatedByUserID -> placeholder.
+// buildInviteAcceptedResponse returns local inviting user identity.
+// When CreatedByUserID is empty, a placeholder federated opaque ID is returned.
 func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invitesoutgoing.OutgoingInvite, log *slog.Logger) spec.InviteAcceptedResponse {
 	if invite.CreatedByUserID == "" {
 		return spec.InviteAcceptedResponse{

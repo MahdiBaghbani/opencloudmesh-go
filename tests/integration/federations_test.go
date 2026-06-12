@@ -67,7 +67,7 @@ max_stale_seconds = 600
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
 	}
 
-	// Response is now a top-level JSON array (Reva-aligned strict break)
+	// Response is a top-level JSON array (Reva-aligned).
 	var result []json.RawMessage
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("expected JSON array response: %v", err)
