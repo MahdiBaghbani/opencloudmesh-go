@@ -7,7 +7,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocm"
@@ -19,7 +18,7 @@ import (
 
 type coreServiceEntry struct {
 	name  string
-	build func(*config.Config, map[string]any, *slog.Logger, *deps.Deps) (service.Service, error)
+	build func(*config.Config, map[string]any, *slog.Logger, *Deps) (service.Service, error)
 }
 
 var coreServiceTable = []coreServiceEntry{
@@ -39,8 +38,7 @@ func CoreServiceNames() []string {
 	return names
 }
 
-func BuildCoreServices(cfg *config.Config, logger *slog.Logger) (map[string]service.Service, error) {
-	d := deps.GetDeps()
+func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[string]service.Service, error) {
 	if d == nil {
 		return nil, server.ErrMissingServerDeps
 	}
@@ -63,20 +61,20 @@ func BuildCoreServices(cfg *config.Config, logger *slog.Logger) (map[string]serv
 	return services, nil
 }
 
-func ratelimitInputs(d *deps.Deps) ratelimit.Inputs {
+func ratelimitInputs(d *Deps) ratelimit.Inputs {
 	return ratelimit.Inputs{
 		Cache:   d.Cache,
 		KeyFunc: d.RealIP.GetClientIPString,
 	}
 }
 
-func buildWellknownService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *deps.Deps) (service.Service, error) {
+func buildWellknownService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return wellknown.New(wellknown.Inputs{
 		Resolve: resolveInputs(cfg, d),
 	}, svcCfg, log)
 }
 
-func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *deps.Deps) (service.Service, error) {
+func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	tokenPath := cfg.TokenExchange.Path
 	if tokenPath == "" {
 		tokenPath = "token"
@@ -101,7 +99,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	}, svcCfg, log)
 }
 
-func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *deps.Deps) (service.Service, error) {
+func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	var profiles map[string]map[string]any
 	if cfg.HTTP.Interceptors != nil {
 		profiles = cfg.HTTP.Interceptors
@@ -114,7 +112,7 @@ func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Log
 	}, svcCfg, log)
 }
 
-func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *deps.Deps) (service.Service, error) {
+func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	var profiles map[string]map[string]any
 	if cfg.HTTP.Interceptors != nil {
 		profiles = cfg.HTTP.Interceptors
@@ -139,14 +137,14 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	}, svcCfg, log)
 }
 
-func buildUIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *deps.Deps) (service.Service, error) {
+func buildUIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return ui.New(ui.Inputs{
 		ExternalBasePath:  cfg.ExternalBasePath,
 		LocalProviderFQDN: d.LocalProviderFQDN,
 	}, svcCfg, log)
 }
 
-func buildWebDAVService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *deps.Deps) (service.Service, error) {
+func buildWebDAVService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return webdav.New(webdav.Inputs{
 		OutgoingShareRepo: d.OutgoingShareRepo,
 		TokenStore:        d.TokenStore,

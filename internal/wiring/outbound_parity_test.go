@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
@@ -29,8 +28,7 @@ func TestOutboundParity_OverrideAffectsSSRF(t *testing.T) {
 	defer srv.Close()
 
 	t.Run("OutboundOverride SSRF=off allows localhost request", func(t *testing.T) {
-		deps.ResetDeps()
-		_, err := wiring.Build(strictSSRFCfg(18090), wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+		result, err := wiring.Build(strictSSRFCfg(18090), wiringtest.DiscardLogger(), harnessBuildOpts())
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -38,7 +36,7 @@ func TestOutboundParity_OverrideAffectsSSRF(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to build request: %v", err)
 		}
-		resp, reqErr := deps.GetDeps().HTTPClient.Do(context.Background(), req)
+		resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req)
 		if reqErr != nil {
 			t.Fatalf("expected localhost request to succeed with SSRF=off override, got: %v", reqErr)
 		}
@@ -46,10 +44,9 @@ func TestOutboundParity_OverrideAffectsSSRF(t *testing.T) {
 	})
 
 	t.Run("without OutboundOverride SSRF=strict blocks localhost request", func(t *testing.T) {
-		deps.ResetDeps()
-		opts := wiringtest.HarnessWireOptions()
+		opts := harnessBuildOpts()
 		opts.OutboundOverride = nil
-		_, err := wiring.Build(strictSSRFCfg(18091), wiringtest.DiscardLogger(), opts)
+		result, err := wiring.Build(strictSSRFCfg(18091), wiringtest.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -57,7 +54,7 @@ func TestOutboundParity_OverrideAffectsSSRF(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to build request: %v", err)
 		}
-		_, reqErr := deps.GetDeps().HTTPClient.Do(context.Background(), req)
+		_, reqErr := result.Deps.HTTPClient.Do(context.Background(), req)
 		if reqErr == nil {
 			t.Fatal("expected SSRF error blocking localhost, but request succeeded")
 		}
@@ -71,8 +68,7 @@ func TestOutboundParity_OverrideHonorsTLSRoots(t *testing.T) {
 	cfg := wiringtest.DevConfigNoSignatures(18092)
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
-	deps.ResetDeps()
-	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
 		t.Fatalf("bootstrap must succeed when OutboundOverride has empty CA paths: %v", err)
 	}
@@ -82,8 +78,7 @@ func TestOutboundParity_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
 	cfg := wiringtest.DevConfigNoSignatures(18093)
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
-	deps.ResetDeps()
-	opts := wiringtest.HarnessWireOptions()
+	opts := harnessBuildOpts()
 	opts.OutboundOverride = nil
 	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
 	if err == nil {

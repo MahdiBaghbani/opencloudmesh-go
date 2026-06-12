@@ -19,7 +19,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -35,7 +34,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	d := deps.GetDeps()
+	d := ts.Deps
 	localProvider := d.LocalProviderFQDN
 
 	// Seed a local user (the invite creator whose identity appears in the response)
@@ -159,7 +158,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	d := deps.GetDeps()
+	d := ts.Deps
 	localProvider := d.LocalProviderFQDN
 
 	// Seed a local user (the share recipient)
@@ -260,7 +259,7 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	d := deps.GetDeps()
+	d := ts.Deps
 	localProvider := d.LocalProviderFQDN
 
 	// Seed a local user
@@ -336,7 +335,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	d := deps.GetDeps()
+	d := ts.Deps
 	localProvider := d.LocalProviderFQDN
 
 	// Seed a local user (the share recipient)

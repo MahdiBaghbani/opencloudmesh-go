@@ -18,9 +18,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
@@ -35,6 +33,7 @@ type TestServer struct {
 	Config      *config.Config
 	BaseURL     string
 	TempDir     string
+	Deps        *wiring.Deps
 	persistence *repos.Repos
 	once        sync.Once
 }
@@ -86,16 +85,14 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		Level: slog.LevelWarn,
 	}))
 
-	// Reset shared deps for test isolation, then wire via wiring.Build.
-	// BuildOpts reflects the intended harness defaults:
+	// Wire via wiring.Build. BuildOpts reflects the intended harness defaults:
 	//   - FastAuth: low-cost argon2id for test speed
 	//   - SkipCrypto: no signing keys; avoids leaking production crypto into tests
 	//   - SkipPeerTrust: peer trust stack is not exercised in in-process tests
 	//   - SkipSignatureMiddleware: inbound signature verification skipped
 	//   - OutboundOverride: permissive localhost-friendly outbound config
 	//   - SkipDiscoveryCache: no-op cache avoids stale cross-test discovery entries
-	deps.ResetDeps()
-	bootstrapResult, err := wiring.Build(cfg, logger, wiring.BuildOpts{
+	buildResult, err := wiring.Build(cfg, logger, wiring.BuildOpts{
 		FastAuth:                true,
 		SkipCrypto:              true,
 		SkipPeerTrust:           true,
@@ -119,16 +116,15 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	// Posture guard parity with main.go: a compatibility_scope=none config that
 	// resolves to a non-strict runtime posture is an impossible production state
 	// and must not silently start in-process.
-	if err := checkStartupPosture(cfg, bootstrapResult.RuntimeEval); err != nil {
+	if err := checkStartupPosture(cfg, buildResult.RuntimeEval); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("startup posture rejected: %v", err)
 	}
 
-	// Bootstrap test admin user
-	d := deps.GetDeps()
+	d := buildResult.Deps
 	if d == nil {
 		os.RemoveAll(tempDir)
-		t.Fatal(app.ErrMsgNilDepsAfterBootstrap)
+		t.Fatal(wiring.ErrMsgNilDepsAfterBuild)
 	}
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
 	adminUser := identity.SeededUser{
@@ -142,13 +138,13 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to bootstrap users: %v", err)
 	}
 
-	services, err := wiring.BuildCoreServices(cfg, logger)
+	services, err := wiring.BuildCoreServices(cfg, logger, d)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create core services: %v", err)
 	}
 
-	serverDeps, err := wiring.BuildServerDeps(cfg, logger)
+	serverDeps, err := wiring.BuildServerDeps(cfg, logger, d)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to build server deps: %v", err)
@@ -159,7 +155,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)
 	}
-	srv.SetRootCAPool(bootstrapResult.RootCAPool)
+	srv.SetRootCAPool(buildResult.RootCAPool)
 
 	// Start server in background
 	go func() {
@@ -186,7 +182,8 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		Config:      cfg,
 		BaseURL:     baseURL,
 		TempDir:     tempDir,
-		persistence: bootstrapResult.Persistence,
+		Deps:        d,
+		persistence: buildResult.Persistence,
 	}
 	t.Cleanup(func() { ts.Stop(t) })
 	return ts

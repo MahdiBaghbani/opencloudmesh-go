@@ -3,7 +3,6 @@ package wiring_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
@@ -12,29 +11,27 @@ import (
 
 func TestDiscoveryCacheParity_SkipDiscoveryCacheWiresClient(t *testing.T) {
 	t.Run("SkipDiscoveryCache=true wires NoopCache to discovery client", func(t *testing.T) {
-		deps.ResetDeps()
-		_, err := wiring.Build(
+		result, err := wiring.Build(
 			wiringtest.DevConfigNoSignatures(18088),
 			wiringtest.DiscardLogger(),
-			wiringtest.HarnessWireOptions(),
+			harnessBuildOpts(),
 		)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
-		d := deps.GetDeps()
+		d := result.Deps
 		if !d.DiscoveryClient.IsNoopCache() {
 			t.Error("expected NoopCache when SkipDiscoveryCache=true, got a different cache")
 		}
 		if d.Cache == nil {
-			t.Fatal("deps.Cache must be non-nil even when SkipDiscoveryCache=true")
+			t.Fatal("Deps.Cache must be non-nil even when SkipDiscoveryCache=true")
 		}
 	})
 
 	t.Run("SkipDiscoveryCache=false wires shared cache to discovery client", func(t *testing.T) {
-		deps.ResetDeps()
-		opts := wiringtest.HarnessWireOptions()
+		opts := harnessBuildOpts()
 		opts.SkipDiscoveryCache = false
-		_, err := wiring.Build(
+		result, err := wiring.Build(
 			wiringtest.DevConfigNoSignatures(18089),
 			wiringtest.DiscardLogger(),
 			opts,
@@ -42,12 +39,12 @@ func TestDiscoveryCacheParity_SkipDiscoveryCacheWiresClient(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
-		d := deps.GetDeps()
+		d := result.Deps
 		if d.DiscoveryClient.IsNoopCache() {
 			t.Error("discovery client must not use NoopCache when SkipDiscoveryCache=false")
 		}
 		if d.Cache == nil {
-			t.Fatal("deps.Cache must be non-nil when SkipDiscoveryCache=false")
+			t.Fatal("Deps.Cache must be non-nil when SkipDiscoveryCache=false")
 		}
 	})
 }

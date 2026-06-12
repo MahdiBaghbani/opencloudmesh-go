@@ -1,10 +1,6 @@
-// Package deps provides shared dependencies for all services.
-// See internal/frameworks/service and cmd/opencloudmesh-go for service composition.
-package deps
+package wiring
 
 import (
-	"sync"
-
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
@@ -24,12 +20,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
-var (
-	sharedDeps     *Deps
-	sharedDepsOnce sync.Once
-)
-
-// Deps holds shared dependencies for all services.
+// Deps holds shared dependencies built by wiring.Build for service construction.
 type Deps struct {
 	// Identity (for session-gated endpoints)
 	PartyRepo   identity.PartyRepo
@@ -73,24 +64,5 @@ type Deps struct {
 	Cache cache.CacheWithCounter
 
 	// RealIP provides trusted-proxy-aware client IP extraction.
-	// This is the single source of truth for client identity in logging and rate limiting.
 	RealIP *realip.TrustedProxies
-}
-
-// SetDeps sets the shared dependencies. Call once at startup before constructing services.
-func SetDeps(d *Deps) {
-	sharedDepsOnce.Do(func() {
-		sharedDeps = d
-	})
-}
-
-// GetDeps returns the shared dependencies, or nil if SetDeps has not been called.
-func GetDeps() *Deps {
-	return sharedDeps
-}
-
-// ResetDeps clears the singleton (testing only).
-func ResetDeps() {
-	sharedDeps = nil
-	sharedDepsOnce = sync.Once{}
 }

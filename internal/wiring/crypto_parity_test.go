@@ -3,7 +3,6 @@ package wiring_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
@@ -14,12 +13,11 @@ func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 	t.Run("SkipCrypto=true produces nil crypto deps", func(t *testing.T) {
 		cfg := wiringtest.DevConfigHarness(18082)
 
-		deps.ResetDeps()
-		_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+		result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
-		d := deps.GetDeps()
+		d := result.Deps
 		if d.KeyManager != nil {
 			t.Error("KeyManager must be nil when SkipCrypto=true")
 		}
@@ -34,14 +32,13 @@ func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 	t.Run("SkipCrypto=false with signature modes off produces non-nil OutboundPolicy", func(t *testing.T) {
 		cfg := wiringtest.DevConfigNoSignatures(18083)
 
-		deps.ResetDeps()
-		opts := wiringtest.HarnessWireOptions()
+		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
-		_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
+		result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
-		d := deps.GetDeps()
+		d := result.Deps
 		if d.KeyManager != nil {
 			t.Error("KeyManager must be nil when both signature modes are off")
 		}
@@ -56,14 +53,13 @@ func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 	t.Run("SkipCrypto=false with signature modes on produces non-nil Signer", func(t *testing.T) {
 		cfg := wiringtest.DevConfigHarness(18084)
 
-		deps.ResetDeps()
-		opts := wiringtest.HarnessWireOptions()
+		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
-		_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
+		result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
-		d := deps.GetDeps()
+		d := result.Deps
 		if d.KeyManager == nil {
 			t.Error("KeyManager must be non-nil when signature modes are on and SkipCrypto=false")
 		}

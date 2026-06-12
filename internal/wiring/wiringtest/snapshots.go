@@ -3,13 +3,23 @@
 package wiringtest
 
 import (
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
+// FixtureBuildOpts mirrors wiring.BuildOpts for T0 snapshot fixtures without
+// importing wiring (avoids test import cycles).
+type FixtureBuildOpts struct {
+	FastAuth                bool
+	SkipCrypto              bool
+	SkipPeerTrust           bool
+	SkipSignatureMiddleware bool
+	OutboundOverride        *config.OutboundHTTPConfig
+	SkipDiscoveryCache      bool
+}
+
 // SnapshotHarnessWireOptions is the in-process integration harness baseline from
 // tests/integration/harness/harness.go StartTestServerWithConfig.
-var SnapshotHarnessWireOptions = app.WireOptions{
+var SnapshotHarnessWireOptions = FixtureBuildOpts{
 	FastAuth:                true,
 	SkipCrypto:              true,
 	SkipPeerTrust:           true,
@@ -46,7 +56,7 @@ var SnapshotHarnessWireOptionsSourceNeedles = []string{
 }
 
 // SnapshotProductionWireOptions is the main.go zero-value bootstrap path.
-var SnapshotProductionWireOptions = app.WireOptions{}
+var SnapshotProductionWireOptions = FixtureBuildOpts{}
 
 // SnapshotCoreServicesOrder is the Q5 T0 baseline for service construction and
 // route mount order.

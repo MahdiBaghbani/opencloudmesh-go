@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
@@ -56,9 +55,17 @@ func TestSnapshots_HarnessWireOptionsFixture(t *testing.T) {
 	if fixture.OutboundOverride == nil {
 		t.Fatal("harness T0 fixture must include OutboundOverride")
 	}
-	got := wiring.BuildOpts(fixture)
-	if !reflect.DeepEqual(got, fixture) {
-		t.Fatalf("BuildOpts alias must preserve harness fixture, got %+v want %+v", got, fixture)
+	got := toBuildOpts(fixture)
+	want := wiring.BuildOpts{
+		FastAuth:                fixture.FastAuth,
+		SkipCrypto:              fixture.SkipCrypto,
+		SkipPeerTrust:           fixture.SkipPeerTrust,
+		SkipSignatureMiddleware: fixture.SkipSignatureMiddleware,
+		OutboundOverride:        fixture.OutboundOverride,
+		SkipDiscoveryCache:      fixture.SkipDiscoveryCache,
+	}
+	if got != want {
+		t.Fatalf("BuildOpts conversion must preserve harness fixture, got %+v want %+v", got, want)
 	}
 }
 
@@ -83,12 +90,16 @@ func TestSnapshots_ProductionZeroValueMainAnchor(t *testing.T) {
 
 func TestSnapshots_ProductionZeroValueStruct(t *testing.T) {
 	var got wiring.BuildOpts
-	if !reflect.DeepEqual(got, wiringtest.SnapshotProductionWireOptions) {
-		t.Fatalf("zero BuildOpts = %+v, want snapshot %+v", got, wiringtest.SnapshotProductionWireOptions)
+	var want wiring.BuildOpts
+	if got != want {
+		t.Fatalf("zero BuildOpts = %+v, want zero value", got)
 	}
 	if got.FastAuth || got.SkipCrypto || got.SkipPeerTrust ||
 		got.SkipSignatureMiddleware || got.SkipDiscoveryCache || got.OutboundOverride != nil {
 		t.Fatalf("production BuildOpts must remain zero-valued, got %+v", got)
+	}
+	if !reflect.ValueOf(wiringtest.SnapshotProductionWireOptions).IsZero() {
+		t.Fatal("SnapshotProductionWireOptions must remain zero-valued")
 	}
 }
 
@@ -114,15 +125,13 @@ func TestSnapshots_AppServicesOrder(t *testing.T) {
 
 func TestSnapshots_UnprotectedSets(t *testing.T) {
 	cfg := wiringtest.DevConfigNoSignatures(18100)
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
 
-	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	services, err := wiring.BuildCoreServices(cfg, wiringtest.DiscardLogger())
+	services, err := wiring.BuildCoreServices(cfg, wiringtest.DiscardLogger(), result.Deps)
 	if err != nil {
 		t.Fatalf("BuildCoreServices failed: %v", err)
 	}

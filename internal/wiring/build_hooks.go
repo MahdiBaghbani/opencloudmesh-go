@@ -3,12 +3,11 @@ package wiring
 import (
 	"log/slog"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 )
 
-type bootstrapDepsFunc func(
+type wireSharedDepsFunc func(
 	*config.Config,
 	*slog.Logger,
 	BuildOpts,
@@ -18,9 +17,9 @@ type bootstrapDepsFunc func(
 type closePersistenceFunc func(*repos.Repos, *slog.Logger)
 
 // Package-level seams are overwritten by wiring tests; do not use t.Parallel()
-// in tests that mutate bootstrapDeps without restoring these defaults.
+// in tests that mutate wireSharedDepsHook without restoring these defaults.
 var (
-	bootstrapDeps                      bootstrapDepsFunc    = app.BootstrapDeps
+	wireSharedDepsHook                 wireSharedDepsFunc   = wireSharedDeps
 	closePersistenceOnBootstrapFailure closePersistenceFunc = defaultClosePersistenceOnBootstrapFailure
 )
 

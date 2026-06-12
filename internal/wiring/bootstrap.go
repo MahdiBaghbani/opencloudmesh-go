@@ -1,9 +1,4 @@
-// Package app provides shared dependency wiring for server startup.
-// wiring.Build is the composition root: it constructs persistence repos and
-// calls BootstrapDeps. cmd/opencloudmesh-go/main.go and
-// tests/integration/harness/harness.go use wiring.Build rather than calling
-// BootstrapDeps directly.
-package app
+package wiring
 
 import (
 	"crypto/x509"
@@ -25,7 +20,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
@@ -34,21 +28,17 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 )
 
-// ErrMsgNilDepsAfterBootstrap is the error text logged when deps.GetDeps()
-// returns nil after a successful BootstrapDeps call. Shared between
-// cmd/opencloudmesh-go/main.go and the integration test harness so that
-// the wording stays in sync.
-const ErrMsgNilDepsAfterBootstrap = "BootstrapDeps succeeded but deps are nil; this is a bug in BootstrapDeps"
+// ErrMsgNilDepsAfterBuild is logged when Build returns a nil Deps pointer.
+const ErrMsgNilDepsAfterBuild = "Build succeeded but Deps is nil; this is a bug in wiring.Build"
 
-// WireOptions controls which optional infrastructure BootstrapDeps builds.
+// BuildOpts controls which optional infrastructure wiring builds.
 // The zero value matches production wiring (main.go path): full crypto,
 // peer trust from config, real argon2id cost, and discovery cache enabled.
-type WireOptions struct {
+type BuildOpts struct {
 	// FastAuth uses low-cost argon2id parameters. Set true for tests.
 	FastAuth bool
 
 	// SkipCrypto disables KeyManager, Signer, and OutboundPolicy construction.
-	// No signing keys are loaded or generated.
 	SkipCrypto bool
 
 	// SkipPeerTrust disables TrustGroupManager and PolicyEngine construction
@@ -59,24 +49,22 @@ type WireOptions struct {
 	SkipSignatureMiddleware bool
 
 	// OutboundOverride replaces cfg.OutboundHTTP when non-nil.
-	// Use in tests to allow localhost connections (SSRF off, InsecureSkipVerify).
 	OutboundOverride *config.OutboundHTTPConfig
 
 	// SkipDiscoveryCache wires a no-op cache for the discovery client instead
-	// of the shared in-memory cache. In tests this prevents cross-test
-	// discovery entry leakage without triggering the client's nil-fallback path.
+	// of the shared in-memory cache.
 	SkipDiscoveryCache bool
 }
 
-// BootstrapResult holds values built by BootstrapDeps that callers need
-// after the call (posture check and TLS setup in main.go).
-type BootstrapResult struct {
+// BuildResult holds values built by wiring.Build that callers need after the call.
+type BuildResult struct {
+	// Deps is the explicit shared dependency graph for service construction.
+	Deps *Deps
+
 	// RootCAPool is the built root CA pool (nil = use system TLS defaults).
-	// Pass to srv.SetRootCAPool in main.go.
 	RootCAPool *x509.CertPool
 
 	// RuntimeEval is the pre-computed runtime posture snapshot.
-	// main.go uses this for the posture guard and startup logging.
 	RuntimeEval policy.RuntimeEvaluation
 
 	// Persistence holds the wired persistence repos. Callers must call
@@ -84,25 +72,17 @@ type BootstrapResult struct {
 	Persistence *repos.Repos
 }
 
-// BootstrapDeps wires shared infrastructure and calls deps.SetDeps.
-// persistence must be constructed by the composition root (wiring.Build) via
-// repos.New before calling this function.
-// Callers own: config loading, logger setup, admin bootstrapping,
-// posture evaluation checks, and server lifecycle.
-// Test callers must call deps.ResetDeps before this function.
-// Returns an error immediately if deps are already set; use deps.ResetDeps
-// to clear the singleton before a second call (tests only).
-func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions, persistence *repos.Repos) (BootstrapResult, error) {
-	if deps.GetDeps() != nil {
-		return BootstrapResult{}, fmt.Errorf("BootstrapDeps called more than once without deps.ResetDeps")
-	}
+// wireSharedDeps builds shared infrastructure from config and persistence repos.
+// persistence must be constructed by wiring.Build via repos.New before calling
+// this function.
+func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, persistence *repos.Repos) (BuildResult, error) {
 	if persistence == nil {
-		return BootstrapResult{}, fmt.Errorf("BootstrapDeps: persistence repos must be non-nil")
+		return BuildResult{}, fmt.Errorf("wire shared deps: persistence repos must be non-nil")
 	}
 
 	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
 	if err != nil {
-		return BootstrapResult{}, fmt.Errorf("compile peer compatibility contract: %w", err)
+		return BuildResult{}, fmt.Errorf("compile peer compatibility contract: %w", err)
 	}
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
@@ -114,7 +94,7 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions, pe
 	if opts.FastAuth {
 		userAuth = identity.NewUserAuthFast()
 	} else {
-		userAuth = identity.NewUserAuth(3) // argon2id time parameter
+		userAuth = identity.NewUserAuth(3)
 	}
 
 	var keyManager *crypto.KeyManager
@@ -124,12 +104,12 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions, pe
 			keyDir := filepath.Dir(cfg.Signature.KeyPath)
 			if keyDir != "" && keyDir != "." {
 				if err := os.MkdirAll(keyDir, 0700); err != nil {
-					return BootstrapResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
+					return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
 				}
 			}
 			keyManager = crypto.NewKeyManager(cfg.Signature.KeyPath, cfg.PublicOrigin)
 			if err := keyManager.LoadOrGenerate(); err != nil {
-				return BootstrapResult{}, fmt.Errorf("initialize signing key: %w", err)
+				return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
 			}
 			logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
 		}
@@ -142,7 +122,7 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions, pe
 
 	rootCAPool, err := tlspkg.BuildRootCAPool(outboundCfg.TLSRootCAFile, outboundCfg.TLSRootCADir)
 	if err != nil {
-		return BootstrapResult{}, fmt.Errorf("build root CA pool: %w", err)
+		return BuildResult{}, fmt.Errorf("build root CA pool: %w", err)
 	}
 
 	rawHTTPClient := httpclient.New(outboundCfg, rootCAPool)
@@ -154,12 +134,9 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions, pe
 	}
 	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)
 	if err != nil {
-		return BootstrapResult{}, fmt.Errorf("create cache: %w", err)
+		return BuildResult{}, fmt.Errorf("create cache: %w", err)
 	}
 
-	// Pass an explicit no-op cache when SkipDiscoveryCache is set so that
-	// discovery.NewClient never falls back to creating a shared in-memory
-	// cache (its nil-fallback behaviour), preventing cross-test leakage.
 	var discoveryCache cache.Cache
 	if opts.SkipDiscoveryCache {
 		discoveryCache = cache.NewNoopCache()
@@ -239,59 +216,47 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions, pe
 		)
 	}
 
-	// Exchanged bearer tokens stay in-memory even when share/invite repos use a
-	// durable backend. TokenStore is intentionally outside repos.New.
 	tokenStore := token.NewMemoryTokenStore()
-
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
 
 	localProviderFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
 	if err != nil {
-		return BootstrapResult{}, fmt.Errorf("derive provider FQDN: %w", err)
+		return BuildResult{}, fmt.Errorf("derive provider FQDN: %w", err)
 	}
 	localProviderFQDNForCompare, err := hostport.Normalize(localProviderFQDN, cfg.PublicScheme())
 	if err != nil {
-		return BootstrapResult{}, fmt.Errorf("normalize provider FQDN for comparison: %w", err)
+		return BuildResult{}, fmt.Errorf("normalize provider FQDN for comparison: %w", err)
 	}
 
-	deps.SetDeps(&deps.Deps{
-		// Identity
-		PartyRepo:   partyRepo,
-		SessionRepo: sessionRepo,
-		UserAuth:    userAuth,
-		// Repos
-		IncomingShareRepo:  persistence.IncomingShares,
-		OutgoingShareRepo:  persistence.OutgoingShares,
-		OutgoingInviteRepo: persistence.OutgoingInvites,
-		IncomingInviteRepo: persistence.IncomingInvites,
-		TokenStore:         tokenStore,
-		// Clients
-		HTTPClient:      httpClient,
-		DiscoveryClient: discoveryClient,
-		// Policy
-		OpenCloudMeshPolicy: openCloudMeshPolicy,
-		RuntimePolicy:       runtimePolicy,
-		// Crypto
-		KeyManager:          keyManager,
-		Signer:              signer,
-		OutboundPolicy:      outboundPolicy,
-		SignatureMiddleware: signatureMiddleware,
-		// Peer trust
-		TrustGroupMgr: trustGroupMgr,
-		PolicyEngine:  policyEngine,
-		PeerContract:  peerContract,
-		// Provider identity
+	built := &Deps{
+		PartyRepo:                   partyRepo,
+		SessionRepo:                 sessionRepo,
+		UserAuth:                    userAuth,
+		IncomingShareRepo:           persistence.IncomingShares,
+		OutgoingShareRepo:           persistence.OutgoingShares,
+		OutgoingInviteRepo:          persistence.OutgoingInvites,
+		IncomingInviteRepo:          persistence.IncomingInvites,
+		TokenStore:                  tokenStore,
+		HTTPClient:                  httpClient,
+		DiscoveryClient:             discoveryClient,
+		OpenCloudMeshPolicy:         openCloudMeshPolicy,
+		RuntimePolicy:               runtimePolicy,
+		KeyManager:                  keyManager,
+		Signer:                      signer,
+		OutboundPolicy:              outboundPolicy,
+		SignatureMiddleware:         signatureMiddleware,
+		TrustGroupMgr:               trustGroupMgr,
+		PolicyEngine:                policyEngine,
+		PeerContract:                peerContract,
 		LocalProviderFQDN:           localProviderFQDN,
 		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
-		// Config
-		Config: cfg,
-		// Cache (for interceptors like rate limiting)
-		Cache: cacheInstance,
-		// RealIP (for trusted-proxy-aware client identity)
-		RealIP: realIPExtractor,
-	})
+		Config:                      cfg,
+		Cache:                       cacheInstance,
+		RealIP:                      realIPExtractor,
+	}
 
-	return BootstrapResult{
+	return BuildResult{
+		Deps:        built,
 		RootCAPool:  rootCAPool,
 		RuntimeEval: runtimeEval,
 		Persistence: persistence,

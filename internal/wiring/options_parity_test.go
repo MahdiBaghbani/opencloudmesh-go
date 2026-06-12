@@ -3,7 +3,6 @@ package wiring_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
@@ -13,9 +12,7 @@ import (
 func TestOptionsParity_HarnessOptionsBootstrapSucceeds(t *testing.T) {
 	cfg := wiringtest.DevConfigHarness(18080)
 
-	deps.ResetDeps()
-
-	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
 		t.Fatalf("Build with harness options failed: %v", err)
 	}
@@ -26,8 +23,6 @@ func TestOptionsParity_HarnessOptionsBootstrapSucceeds(t *testing.T) {
 
 func TestOptionsParity_ProductionOptionsBootstrapSucceeds(t *testing.T) {
 	cfg := wiringtest.DevConfigNoSignatures(18081)
-
-	deps.ResetDeps()
 
 	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiring.BuildOpts{})
 	if err != nil {

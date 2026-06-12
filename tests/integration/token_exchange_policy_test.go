@@ -18,7 +18,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -123,7 +122,7 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 	defer ts.Stop(t)
 
 	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
-	d := deps.GetDeps()
+	d := ts.Deps
 	if d == nil || d.Config == nil || d.OpenCloudMeshPolicy == nil || d.OutgoingShareRepo == nil {
 		t.Fatal("shared deps are not fully initialized")
 	}

@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
@@ -80,11 +78,11 @@ func TestTDD_T0SnapshotFixturesCentralizedInWiringtest(t *testing.T) {
 func TestTDD_WiringSkeletonScaffoldTypesPresent(t *testing.T) {
 	var opts wiring.BuildOpts
 	var result wiring.BuildResult
-	if reflect.TypeOf(opts).Name() == "" && reflect.TypeOf(opts).Kind() != reflect.Struct {
-		t.Fatalf("BuildOpts must alias a named struct type, got %v", reflect.TypeOf(opts))
+	if reflect.TypeOf(opts).Kind() != reflect.Struct {
+		t.Fatalf("BuildOpts must be a struct type, got %v", reflect.TypeOf(opts))
 	}
-	if reflect.TypeOf(result).Name() == "" && reflect.TypeOf(result).Kind() != reflect.Struct {
-		t.Fatalf("BuildResult must alias a named struct type, got %v", reflect.TypeOf(result))
+	if reflect.TypeOf(result).Kind() != reflect.Struct {
+		t.Fatalf("BuildResult must be a struct type, got %v", reflect.TypeOf(result))
 	}
 
 	root := wiringtest.ModuleRoot(t)
@@ -95,28 +93,33 @@ func TestTDD_WiringSkeletonScaffoldTypesPresent(t *testing.T) {
 	}
 	text := string(body)
 	for _, needle := range []string{
-		"type BuildOpts =",
-		"type BuildResult =",
+		"type BuildOpts struct",
+		"type BuildResult struct",
 		"func Build(",
 	} {
 		if !strings.Contains(text, needle) {
-			t.Fatalf("build.go missing T2 entrypoint marker %q", needle)
+			// BuildOpts/BuildResult live in bootstrap.go after T6; accept either file.
+			bootstrapGo, readErr := os.ReadFile(filepath.Join(wiringtest.WiringDir(root), "bootstrap.go"))
+			if readErr != nil {
+				t.Fatalf("read bootstrap.go: %v", readErr)
+			}
+			if !strings.Contains(string(bootstrapGo), needle) {
+				t.Fatalf("wiring entrypoint missing marker %q", needle)
+			}
 		}
 	}
 }
 
-func TestTDD_BuildEntrypointWiresDeps(t *testing.T) {
+func TestTDD_BuildEntrypointReturnsExplicitDeps(t *testing.T) {
 	cfg := wiringtest.DevConfigHarness(18110)
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
 
-	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	if deps.GetDeps() == nil {
-		t.Fatal("Build must call deps.SetDeps")
+	if result.Deps == nil {
+		t.Fatal("Build must return explicit Deps in BuildResult")
 	}
 	if result.RuntimeEval.DerivedTier == "" {
 		t.Error("BuildResult.RuntimeEval.DerivedTier is empty")
@@ -128,15 +131,13 @@ func TestTDD_BuildEntrypointWiresDeps(t *testing.T) {
 
 func TestTDD_BuildProductionZeroValueOpts(t *testing.T) {
 	cfg := wiringtest.DevConfigNoSignatures(18111)
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
 
 	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiring.BuildOpts{})
 	if err != nil {
 		t.Fatalf("Build with zero opts failed: %v", err)
 	}
-	if deps.GetDeps() == nil {
-		t.Fatal("Build must call deps.SetDeps")
+	if result.Deps == nil {
+		t.Fatal("Build must return explicit Deps in BuildResult")
 	}
 	if result.RuntimeEval.DerivedTier == "" {
 		t.Error("BuildResult.RuntimeEval.DerivedTier is empty for production opts")
@@ -165,35 +166,22 @@ func TestTDD_BuildSoleProductionImporterOfReposNew(t *testing.T) {
 	}
 }
 
-func TestTDD_BootstrapDepsRejectsNilPersistence(t *testing.T) {
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
-
-	cfg := wiringtest.DevConfigHarness(18199)
-	_, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), app.WireOptions{}, nil)
-	if err == nil {
-		t.Fatal("expected error for nil persistence")
-	}
-	if !strings.Contains(err.Error(), "persistence repos must be non-nil") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestTDD_BuildNoProductionCallerUsesBootstrapDeps(t *testing.T) {
+func TestTDD_BuildUsesWireSharedDepsHook(t *testing.T) {
 	root := wiringtest.ModuleRoot(t)
-	const allowlistRel = "internal/wiring/build_hooks.go"
-	assertAllowlistReferencesFunction(t, root, allowlistRel, productionCallSpec{
-		importSuffix: "/app",
-		funcName:     "BootstrapDeps",
-	})
+	buildGo, err := os.ReadFile(filepath.Join(wiringtest.WiringDir(root), "build.go"))
+	if err != nil {
+		t.Fatalf("read build.go: %v", err)
+	}
+	if !strings.Contains(string(buildGo), "wireSharedDepsHook(") {
+		t.Fatal("build.go must call wireSharedDepsHook")
+	}
 
-	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
-	violations := findProductionCallSites(t, root, productionRoots, allowlistRel, productionCallSpec{
-		importSuffix: "/app",
-		funcName:     "BootstrapDeps",
-	}, false)
-	if len(violations) > 0 {
-		t.Fatalf("app.BootstrapDeps must only be forwarded from %s; violations: %s",
-			allowlistRel, strings.Join(violations, ", "))
+	hooksGo, err := os.ReadFile(filepath.Join(wiringtest.WiringDir(root), "build_hooks.go"))
+	if err != nil {
+		t.Fatalf("read build_hooks.go: %v", err)
+	}
+	hooksText := string(hooksGo)
+	if !strings.Contains(hooksText, "wireSharedDepsHook") || !strings.Contains(hooksText, "wireSharedDeps") {
+		t.Fatal("build_hooks.go must wire wireSharedDepsHook to wireSharedDeps")
 	}
 }

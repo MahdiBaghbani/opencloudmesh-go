@@ -6,13 +6,11 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity/sessiongate"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 )
 
-// BuildServerDeps assembles narrow server dependencies from the composition graph.
-func BuildServerDeps(cfg *config.Config, log *slog.Logger) (server.ServerDeps, error) {
-	d := deps.GetDeps()
+// BuildServerDeps assembles narrow server dependencies from explicit wiring deps.
+func BuildServerDeps(cfg *config.Config, log *slog.Logger, d *Deps) (server.ServerDeps, error) {
 	if d == nil {
 		return server.ServerDeps{}, server.ErrMissingServerDeps
 	}

@@ -4,24 +4,22 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 )
 
-func TestWiringSkeleton_BuildOptsAliasesWireOptions(t *testing.T) {
+func TestWiringSkeleton_BuildOptsIsDefinedInWiring(t *testing.T) {
 	var opts wiring.BuildOpts
-	var wireOpts app.WireOptions
-	if reflect.TypeOf(opts) != reflect.TypeOf(wireOpts) {
-		t.Fatalf("BuildOpts type %v, want alias of app.WireOptions %v",
-			reflect.TypeOf(opts), reflect.TypeOf(wireOpts))
+	if reflect.TypeOf(opts).PkgPath() != "github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring" {
+		t.Fatalf("BuildOpts must be defined in wiring, got package %q", reflect.TypeOf(opts).PkgPath())
 	}
 }
 
-func TestWiringSkeleton_BuildResultAliasesBootstrapResult(t *testing.T) {
+func TestWiringSkeleton_BuildResultIsDefinedInWiring(t *testing.T) {
 	var result wiring.BuildResult
-	var bootstrapResult app.BootstrapResult
-	if reflect.TypeOf(result) != reflect.TypeOf(bootstrapResult) {
-		t.Fatalf("BuildResult type %v, want alias of app.BootstrapResult %v",
-			reflect.TypeOf(result), reflect.TypeOf(bootstrapResult))
+	if reflect.TypeOf(result).PkgPath() != "github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring" {
+		t.Fatalf("BuildResult must be defined in wiring, got package %q", reflect.TypeOf(result).PkgPath())
+	}
+	if reflect.TypeOf(result.Deps).Elem().Name() != "Deps" {
+		t.Fatalf("BuildResult.Deps must be *wiring.Deps, got %v", reflect.TypeOf(result.Deps))
 	}
 }

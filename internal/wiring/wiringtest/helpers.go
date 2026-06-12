@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
@@ -17,11 +16,6 @@ func DiscardLogger() *slog.Logger {
 // DevOrigin builds a PublicOrigin for a given test port.
 func DevOrigin(port int) string {
 	return fmt.Sprintf("http://localhost:%d", port)
-}
-
-// HarnessWireOptions returns WireOptions matching the integration test harness.
-func HarnessWireOptions() app.WireOptions {
-	return SnapshotHarnessWireOptions
 }
 
 // DevConfigNoSignatures returns DevConfig with signature modes off and a test origin.

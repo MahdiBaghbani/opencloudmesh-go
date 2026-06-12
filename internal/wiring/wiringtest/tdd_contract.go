@@ -5,8 +5,8 @@ import (
 )
 
 // MonolithParityTestRelPath is the deleted bootstrap parity monolith. T1 must not
-// restore it under internal/platform/app.
-const MonolithParityTestRelPath = "internal/platform/app/bootstrap_parity_test.go"
+// restore a monolithic bootstrap parity test outside internal/wiring.
+const MonolithParityTestRelPath = "internal/wiring/bootstrap_parity_test.go"
 
 // ParityConcernTestFiles lists concern-split parity test basenames under
 // internal/wiring. Intentionally excludes skeleton_test.go (T1 scaffold, not

@@ -15,9 +15,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
@@ -150,9 +148,9 @@ func main() {
 		)
 	}
 
-	d := deps.GetDeps()
+	d := result.Deps
 	if d == nil {
-		logger.Error(app.ErrMsgNilDepsAfterBootstrap)
+		logger.Error(wiring.ErrMsgNilDepsAfterBuild)
 		os.Exit(1)
 	}
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
@@ -171,13 +169,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	services, err := wiring.BuildCoreServices(cfg, logger)
+	services, err := wiring.BuildCoreServices(cfg, logger, d)
 	if err != nil {
 		logger.Error("failed to create services", "error", err)
 		os.Exit(1)
 	}
 
-	serverDeps, err := wiring.BuildServerDeps(cfg, logger)
+	serverDeps, err := wiring.BuildServerDeps(cfg, logger, d)
 	if err != nil {
 		logger.Error("failed to build server deps", "error", err)
 		os.Exit(1)

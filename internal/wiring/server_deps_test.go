@@ -10,19 +10,15 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 )
 
 func TestBuildServerDeps_FailsWithoutSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
-
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	_, err := BuildServerDeps(cfg, logger)
+	_, err := BuildServerDeps(cfg, logger, nil)
 	if err == nil {
 		t.Fatal("expected error when shared deps are nil")
 	}
@@ -32,17 +28,14 @@ func TestBuildServerDeps_FailsWithoutSharedDeps(t *testing.T) {
 }
 
 func TestBuildServerDeps_FailsWithoutRealIP(t *testing.T) {
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
-
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	deps.SetDeps(&deps.Deps{
+	d := &Deps{
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
-	})
+	}
 
-	_, err := BuildServerDeps(cfg, logger)
+	_, err := BuildServerDeps(cfg, logger, d)
 	if err == nil {
 		t.Fatal("expected error when RealIP is nil")
 	}
@@ -52,16 +45,13 @@ func TestBuildServerDeps_FailsWithoutRealIP(t *testing.T) {
 }
 
 func TestBuildServerDeps_FailsWithoutAuthRepos(t *testing.T) {
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
-
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	deps.SetDeps(&deps.Deps{
+	d := &Deps{
 		RealIP: realip.NewTrustedProxies(nil),
-	})
+	}
 
-	_, err := BuildServerDeps(cfg, logger)
+	_, err := BuildServerDeps(cfg, logger, d)
 	if err == nil {
 		t.Fatal("expected error when auth repos are nil")
 	}
@@ -71,18 +61,15 @@ func TestBuildServerDeps_FailsWithoutAuthRepos(t *testing.T) {
 }
 
 func TestBuildServerDeps_SucceedsWithSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
-
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	deps.SetDeps(&deps.Deps{
+	d := &Deps{
 		RealIP:      realip.NewTrustedProxies(nil),
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
-	})
+	}
 
-	sd, err := BuildServerDeps(cfg, logger)
+	sd, err := BuildServerDeps(cfg, logger, d)
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
@@ -95,18 +82,15 @@ func TestBuildServerDeps_SucceedsWithSharedDeps(t *testing.T) {
 }
 
 func TestBuildServerDeps_AuthGateDoesNotPanicOnProtectedRoute(t *testing.T) {
-	deps.ResetDeps()
-	t.Cleanup(deps.ResetDeps)
-
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	deps.SetDeps(&deps.Deps{
+	d := &Deps{
 		RealIP:      realip.NewTrustedProxies(nil),
 		PartyRepo:   identity.NewMemoryPartyRepo(),
 		SessionRepo: identity.NewMemorySessionRepo(),
-	})
+	}
 
-	sd, err := BuildServerDeps(cfg, logger)
+	sd, err := BuildServerDeps(cfg, logger, d)
 	if err != nil {
 		t.Fatalf("BuildServerDeps: %v", err)
 	}
