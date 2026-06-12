@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
@@ -145,46 +146,54 @@ func TestTDD_BuildProductionZeroValueOpts(t *testing.T) {
 	}
 }
 
-func TestTDD_BuildNoProductionCallerUsesBootstrapDeps(t *testing.T) {
+func TestTDD_BuildSoleProductionImporterOfReposNew(t *testing.T) {
 	root := wiringtest.ModuleRoot(t)
 	const allowlistRel = "internal/wiring/build.go"
-	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
+	assertAllowlistCallsFunction(t, root, allowlistRel, productionCallSpec{
+		importSuffix: "/repos",
+		funcName:     "New",
+	})
 
-	for _, relRoot := range productionRoots {
-		absRoot := filepath.Join(root, relRoot)
-		if _, err := os.Stat(absRoot); os.IsNotExist(err) {
-			continue
-		}
-		err := filepath.WalkDir(absRoot, func(path string, d os.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if d.IsDir() {
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			rel, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			rel = filepath.ToSlash(rel)
-			if rel == allowlistRel {
-				return nil
-			}
-			body, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if strings.Contains(string(body), "app.BootstrapDeps") {
-				t.Fatalf("%s must not call app.BootstrapDeps; use wiring.Build (only %s may forward)",
-					rel, allowlistRel)
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("walk %s: %v", relRoot, err)
-		}
+	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
+	violations := findProductionCallSites(t, root, productionRoots, allowlistRel, productionCallSpec{
+		importSuffix: "/repos",
+		funcName:     "New",
+	}, true)
+	if len(violations) > 0 {
+		t.Fatalf("repos.New must only be called from %s; violations: %s",
+			allowlistRel, strings.Join(violations, ", "))
+	}
+}
+
+func TestTDD_BootstrapDepsRejectsNilPersistence(t *testing.T) {
+	deps.ResetDeps()
+	t.Cleanup(deps.ResetDeps)
+
+	cfg := wiringtest.DevConfigHarness(18199)
+	_, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), app.WireOptions{}, nil)
+	if err == nil {
+		t.Fatal("expected error for nil persistence")
+	}
+	if !strings.Contains(err.Error(), "persistence repos must be non-nil") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestTDD_BuildNoProductionCallerUsesBootstrapDeps(t *testing.T) {
+	root := wiringtest.ModuleRoot(t)
+	const allowlistRel = "internal/wiring/build_hooks.go"
+	assertAllowlistReferencesFunction(t, root, allowlistRel, productionCallSpec{
+		importSuffix: "/app",
+		funcName:     "BootstrapDeps",
+	})
+
+	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
+	violations := findProductionCallSites(t, root, productionRoots, allowlistRel, productionCallSpec{
+		importSuffix: "/app",
+		funcName:     "BootstrapDeps",
+	}, false)
+	if len(violations) > 0 {
+		t.Fatalf("app.BootstrapDeps must only be forwarded from %s; violations: %s",
+			allowlistRel, strings.Join(violations, ", "))
 	}
 }

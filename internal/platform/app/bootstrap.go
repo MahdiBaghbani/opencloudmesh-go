@@ -1,10 +1,11 @@
 // Package app provides shared dependency wiring for server startup.
-// This is the single construction seam shared by cmd/opencloudmesh-go/main.go
-// and tests/integration/harness/harness.go.
+// wiring.Build is the composition root: it constructs persistence repos and
+// calls BootstrapDeps. cmd/opencloudmesh-go/main.go and
+// tests/integration/harness/harness.go use wiring.Build rather than calling
+// BootstrapDeps directly.
 package app
 
 import (
-	"context"
 	"crypto/x509"
 	"fmt"
 	"log/slog"
@@ -83,14 +84,19 @@ type BootstrapResult struct {
 }
 
 // BootstrapDeps wires shared infrastructure and calls deps.SetDeps.
+// persistence must be constructed by the composition root (wiring.Build) via
+// repos.New before calling this function.
 // Callers own: config loading, logger setup, admin bootstrapping,
 // posture evaluation checks, and server lifecycle.
 // Test callers must call deps.ResetDeps before this function.
 // Returns an error immediately if deps are already set; use deps.ResetDeps
 // to clear the singleton before a second call (tests only).
-func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions) (BootstrapResult, error) {
+func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions, persistence *repos.Repos) (BootstrapResult, error) {
 	if deps.GetDeps() != nil {
 		return BootstrapResult{}, fmt.Errorf("BootstrapDeps called more than once without deps.ResetDeps")
+	}
+	if persistence == nil {
+		return BootstrapResult{}, fmt.Errorf("BootstrapDeps: persistence repos must be non-nil")
 	}
 
 	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
@@ -247,21 +253,16 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions) (B
 		return BootstrapResult{}, fmt.Errorf("normalize provider FQDN for comparison: %w", err)
 	}
 
-	persistenceRepos, err := repos.New(context.Background(), cfg.Persistence)
-	if err != nil {
-		return BootstrapResult{}, fmt.Errorf("wire persistence repos: %w", err)
-	}
-
 	deps.SetDeps(&deps.Deps{
 		// Identity
 		PartyRepo:   partyRepo,
 		SessionRepo: sessionRepo,
 		UserAuth:    userAuth,
 		// Repos
-		IncomingShareRepo:  persistenceRepos.IncomingShares,
-		OutgoingShareRepo:  persistenceRepos.OutgoingShares,
-		OutgoingInviteRepo: persistenceRepos.OutgoingInvites,
-		IncomingInviteRepo: persistenceRepos.IncomingInvites,
+		IncomingShareRepo:  persistence.IncomingShares,
+		OutgoingShareRepo:  persistence.OutgoingShares,
+		OutgoingInviteRepo: persistence.OutgoingInvites,
+		IncomingInviteRepo: persistence.IncomingInvites,
 		TokenStore:         tokenStore,
 		// Clients
 		HTTPClient:      httpClient,
@@ -292,6 +293,6 @@ func BootstrapDeps(cfg *config.Config, logger *slog.Logger, opts WireOptions) (B
 	return BootstrapResult{
 		RootCAPool:  rootCAPool,
 		RuntimeEval: runtimeEval,
-		Persistence: persistenceRepos,
+		Persistence: persistence,
 	}, nil
 }
