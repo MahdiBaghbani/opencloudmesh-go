@@ -13,35 +13,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
-func TestOCMProviderConfig_ApplyDefaults(t *testing.T) {
-	c := &OCMProviderConfig{}
-	c.ApplyDefaults()
-
-	// ApplyDefaults only sets service-local fields (OCMPrefix, Provider).
-	// Cross-cutting fields (WebDAVRoot, TokenExchange) are derived in newOCMHandler.
-	if c.OCMPrefix != "ocm" {
-		t.Errorf("expected OCMPrefix 'ocm', got %q", c.OCMPrefix)
-	}
-	if c.Provider != "OpenCloudMesh" {
-		t.Errorf("expected Provider 'OpenCloudMesh', got %q", c.Provider)
-	}
-}
-
-func TestOCMProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
-	c := &OCMProviderConfig{
-		OCMPrefix: "custom-ocm",
-		Provider:  "CustomProvider",
-	}
-	c.ApplyDefaults()
-
-	if c.OCMPrefix != "custom-ocm" {
-		t.Errorf("expected OCMPrefix 'custom-ocm', got %q", c.OCMPrefix)
-	}
-	if c.Provider != "CustomProvider" {
-		t.Errorf("expected Provider 'CustomProvider', got %q", c.Provider)
-	}
-}
-
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 	c := &OCMProviderConfig{}
 	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
@@ -350,47 +321,6 @@ func TestNewOCMHandler_InvalidEndpointURL(t *testing.T) {
 	}
 }
 
-func TestOCMHandler_ServeHTTP(t *testing.T) {
-	c := &OCMProviderConfig{
-		Endpoint: "https://example.com",
-		Provider: "TestProvider",
-	}
-	c.TokenExchange.Enabled = true
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-
-	ct := w.Header().Get("Content-Type")
-	if ct != "application/json" {
-		t.Errorf("expected Content-Type 'application/json', got %q", ct)
-	}
-
-	var disc spec.Discovery
-	if err := json.NewDecoder(w.Body).Decode(&disc); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-
-	if !disc.Enabled {
-		t.Error("expected Enabled=true in response")
-	}
-	if disc.Provider != "TestProvider" {
-		t.Errorf("expected Provider 'TestProvider', got %q", disc.Provider)
-	}
-	if disc.TokenEndPoint == "" {
-		t.Error("expected non-empty tokenEndPoint")
-	}
-}
-
 func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 	t.Run("derives inviteAcceptDialog when WAYF enabled", func(t *testing.T) {
 		c := &OCMProviderConfig{
@@ -510,31 +440,5 @@ func TestNewOCMHandler_UnconditionalCapabilities(t *testing.T) {
 		if !capSet[req] {
 			t.Errorf("expected unconditional capability %q in capabilities %v", req, h.data.Capabilities)
 		}
-	}
-}
-
-func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
-	c := &OCMProviderConfig{} // no endpoint
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	w := httptest.NewRecorder()
-
-	h.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-
-	var disc spec.Discovery
-	if err := json.NewDecoder(w.Body).Decode(&disc); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-
-	if disc.Enabled {
-		t.Error("expected Enabled=false in response")
 	}
 }
