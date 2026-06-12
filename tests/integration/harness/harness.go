@@ -85,29 +85,8 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		Level: slog.LevelWarn,
 	}))
 
-	// Wire via wiring.Build. BuildOpts reflects the intended harness defaults:
-	//   - FastAuth: low-cost argon2id for test speed
-	//   - SkipCrypto: no signing keys; avoids leaking production crypto into tests
-	//   - SkipPeerTrust: peer trust stack is not exercised in in-process tests
-	//   - SkipSignatureMiddleware: inbound signature verification skipped
-	//   - OutboundOverride: permissive localhost-friendly outbound config
-	//   - SkipDiscoveryCache: no-op cache avoids stale cross-test discovery entries
-	buildResult, err := wiring.Build(cfg, logger, wiring.BuildOpts{
-		FastAuth:                true,
-		SkipCrypto:              true,
-		SkipPeerTrust:           true,
-		SkipSignatureMiddleware: true,
-		OutboundOverride: &config.OutboundHTTPConfig{
-			SSRF:               config.SSRFConfig{Mode: "off"}, // Allow localhost connections in tests
-			SSRFMode:           "off",
-			TimeoutMS:          5000,
-			ConnectTimeoutMS:   2000,
-			MaxRedirects:       1,
-			MaxResponseBytes:   1048576,
-			InsecureSkipVerify: true, // For self-signed certs in tests
-		},
-		SkipDiscoveryCache: true,
-	})
+	// Wire via wiring.Build using the shared integration harness defaults.
+	buildResult, err := wiring.Build(cfg, logger, IntegrationBuildOpts())
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap dependencies: %v", err)
