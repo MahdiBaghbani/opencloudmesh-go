@@ -3,6 +3,8 @@ package service
 import (
 	"slices"
 	"testing"
+
+	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 )
 
 // TestAppServicesParity guards the core-service parity contract: the root
@@ -38,6 +40,32 @@ func TestAppServicesParity(t *testing.T) {
 	// Every core service must be accounted for: root or app, no overlap.
 	if len(app)+1 != len(CoreServices) {
 		t.Errorf("AppServices() length %d + 1 root != CoreServices length %d", len(app), len(CoreServices))
+	}
+}
+
+// TestServiceOrderMatchesWiringFixtures guards the static CoreServices table
+// against the shared wiring fixture baseline used by bootstrap parity tests.
+func TestServiceOrderMatchesWiringFixtures(t *testing.T) {
+	if !slices.Equal(CoreServices, wiringtest.ExpectedCoreServicesOrder) {
+		t.Errorf(
+			"CoreServices = %v, want %v",
+			CoreServices,
+			wiringtest.ExpectedCoreServicesOrder,
+		)
+	}
+	if RootService != wiringtest.ExpectedRootService {
+		t.Errorf(
+			"RootService = %q, want %q",
+			RootService,
+			wiringtest.ExpectedRootService,
+		)
+	}
+	if !slices.Equal(AppServices(), wiringtest.ExpectedAppServicesOrder) {
+		t.Errorf(
+			"AppServices() = %v, want %v",
+			AppServices(),
+			wiringtest.ExpectedAppServicesOrder,
+		)
 	}
 }
 

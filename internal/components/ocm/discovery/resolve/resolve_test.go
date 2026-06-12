@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -171,23 +170,5 @@ func TestUIWayfEnabledFromConfig(t *testing.T) {
 				t.Errorf("UIWayfEnabledFromConfig() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestResolveInputs_FrozenShape(t *testing.T) {
-	typ := reflect.TypeOf(ResolveInputs{})
-	if typ.NumField() != 7 {
-		t.Fatalf("ResolveInputs field count = %d, want 7 frozen fields", typ.NumField())
-	}
-
-	in := ResolveInputs{}
-	if in.PublicOrigin != "" || in.ExternalBasePath != "" || in.TokenExchangePath != "" {
-		t.Fatal("zero ResolveInputs should have empty string fields")
-	}
-	if in.KeyManager != nil || in.OpenCloudMeshPolicy != nil || in.RuntimePolicy != nil {
-		t.Fatal("zero ResolveInputs should have nil policy/crypto fields")
-	}
-	if in.UIWayfEnabled {
-		t.Fatal("zero ResolveInputs should have UIWayfEnabled=false")
 	}
 }

@@ -72,6 +72,18 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 			}
 			defer r2.Close()
 
+			gotOutByID, err := r2.OutgoingInvites.GetByID(ctx, outInvite.ID)
+			if err != nil {
+				t.Fatalf("OutgoingInvites.GetByID after restart: %v", err)
+			}
+			if gotOutByID.Token != outInvite.Token {
+				t.Errorf(
+					"outgoing invite token mismatch: expected %q, got %q",
+					outInvite.Token,
+					gotOutByID.Token,
+				)
+			}
+
 			gotOut, err := r2.OutgoingInvites.GetByToken(ctx, outInvite.Token)
 			if err != nil {
 				t.Fatalf("OutgoingInvites.GetByToken after restart: %v", err)
@@ -102,6 +114,20 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 					"incoming invite recipient mismatch: expected %q, got %q",
 					inInvite.RecipientUserID,
 					gotIn.RecipientUserID,
+				)
+			}
+
+			gotInByToken, err := r2.IncomingInvites.GetByTokenForRecipientUserID(
+				ctx, inInvite.Token, inInvite.RecipientUserID,
+			)
+			if err != nil {
+				t.Fatalf("IncomingInvites.GetByTokenForRecipientUserID after restart: %v", err)
+			}
+			if gotInByToken.ID != inInvite.ID {
+				t.Errorf(
+					"incoming invite token index mismatch: expected %q, got %q",
+					inInvite.ID,
+					gotInByToken.ID,
 				)
 			}
 		})

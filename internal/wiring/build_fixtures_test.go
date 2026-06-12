@@ -2,10 +2,8 @@ package wiring_test
 
 import (
 	"reflect"
-	"slices"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
@@ -43,26 +41,6 @@ func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {
 	}
 	if result.Deps == nil {
 		t.Fatal("Build must return explicit Deps in BuildResult")
-	}
-}
-
-func TestFixtures_CoreServicesOrder(t *testing.T) {
-	if !slices.Equal(service.CoreServices, wiringtest.ExpectedCoreServicesOrder) {
-		t.Fatalf("CoreServices = %v, want %v",
-			service.CoreServices, wiringtest.ExpectedCoreServicesOrder)
-	}
-}
-
-func TestFixtures_RootService(t *testing.T) {
-	if service.RootService != wiringtest.ExpectedRootService {
-		t.Fatalf("RootService = %q, want %q", service.RootService, wiringtest.ExpectedRootService)
-	}
-}
-
-func TestFixtures_AppServicesOrder(t *testing.T) {
-	got := service.AppServices()
-	if !slices.Equal(got, wiringtest.ExpectedAppServicesOrder) {
-		t.Fatalf("AppServices() = %v, want %v", got, wiringtest.ExpectedAppServicesOrder)
 	}
 }
 
