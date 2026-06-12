@@ -15,9 +15,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
-const snapshotDiscoveryGolden = "testdata/wellknown_discovery_dev.golden.json"
+const discoveryGoldenPath = "testdata/wellknown_discovery_dev.golden.json"
 
-func snapshotResolveInputs(cfg *config.Config) resolve.ResolveInputs {
+func goldenResolveInputs(cfg *config.Config) resolve.ResolveInputs {
 	return resolve.ResolveInputs{
 		PublicOrigin:        cfg.PublicOrigin,
 		ExternalBasePath:    cfg.ExternalBasePath,
@@ -27,7 +27,7 @@ func snapshotResolveInputs(cfg *config.Config) resolve.ResolveInputs {
 	}
 }
 
-func TestBehaviorSnapshot_WellknownDiscoveryGolden(t *testing.T) {
+func TestDiscoveryGolden_WellknownDevConfig(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://snapshot.test"
 	cfg.ExternalBasePath = ""
@@ -35,7 +35,7 @@ func TestBehaviorSnapshot_WellknownDiscoveryGolden(t *testing.T) {
 	cfg.Signature.OutboundMode = "off"
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc, err := New(Inputs{Resolve: snapshotResolveInputs(cfg)}, map[string]any{}, log)
+	svc, err := New(Inputs{Resolve: goldenResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestBehaviorSnapshot_WellknownDiscoveryGolden(t *testing.T) {
 		t.Fatalf("decode golden: %v", err)
 	}
 	if !discoveryEqual(gotDisc, wantDisc) {
-		t.Fatalf("discovery output drifted from golden %s", snapshotDiscoveryGolden)
+		t.Fatalf("discovery output drifted from golden %s", discoveryGoldenPath)
 	}
 }
 
@@ -92,7 +92,7 @@ func TestWriteWellknownDiscoveryGolden(t *testing.T) {
 	cfg.Signature.OutboundMode = "off"
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc, err := New(Inputs{Resolve: snapshotResolveInputs(cfg)}, map[string]any{}, log)
+	svc, err := New(Inputs{Resolve: goldenResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
