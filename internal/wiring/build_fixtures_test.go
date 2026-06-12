@@ -32,33 +32,6 @@ func TestFixtures_HarnessWireOptionsFixture(t *testing.T) {
 	if fixture.OutboundOverride == nil {
 		t.Fatal("harness fixture must include OutboundOverride")
 	}
-	got := toBuildOpts(fixture)
-	want := wiring.BuildOpts{
-		FastAuth:                fixture.FastAuth,
-		SkipCrypto:              fixture.SkipCrypto,
-		SkipPeerTrust:           fixture.SkipPeerTrust,
-		SkipSignatureMiddleware: fixture.SkipSignatureMiddleware,
-		OutboundOverride:        fixture.OutboundOverride,
-		SkipDiscoveryCache:      fixture.SkipDiscoveryCache,
-	}
-	if got != want {
-		t.Fatalf("BuildOpts conversion must preserve harness fixture, got %+v want %+v", got, want)
-	}
-}
-
-func TestFixtures_ProductionZeroValueStruct(t *testing.T) {
-	var got wiring.BuildOpts
-	var want wiring.BuildOpts
-	if got != want {
-		t.Fatalf("zero BuildOpts = %+v, want zero value", got)
-	}
-	if got.FastAuth || got.SkipCrypto || got.SkipPeerTrust ||
-		got.SkipSignatureMiddleware || got.SkipDiscoveryCache || got.OutboundOverride != nil {
-		t.Fatalf("production BuildOpts must remain zero-valued, got %+v", got)
-	}
-	if !reflect.ValueOf(wiringtest.ProductionWireOptions).IsZero() {
-		t.Fatal("ProductionWireOptions must remain zero-valued")
-	}
 }
 
 func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {

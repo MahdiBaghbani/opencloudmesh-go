@@ -56,5 +56,3 @@ func TestOutgoingShareRepo_CreateAndLookup(t *testing.T) {
 		t.Error("wrong shareId from webdavId lookup")
 	}
 }
-
-// OutgoingHandler tests have been moved to internal/components/api/outgoing/shares/handler_test.go
