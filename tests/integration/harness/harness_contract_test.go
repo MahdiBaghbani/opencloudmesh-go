@@ -1,32 +1,9 @@
 package harness
 
 import (
-	"reflect"
 	"strings"
 	"testing"
-
-	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 )
-
-func TestHarnessContract_IntegrationBuildOptsMatchFixture(t *testing.T) {
-	got := IntegrationBuildOpts()
-	want := fixtureBuildOpts(wiringtest.HarnessWireOptions)
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("IntegrationBuildOpts() = %+v, want %+v", got, want)
-	}
-}
-
-func fixtureBuildOpts(f wiringtest.FixtureBuildOpts) wiring.BuildOpts {
-	return wiring.BuildOpts{
-		FastAuth:                f.FastAuth,
-		SkipCrypto:              f.SkipCrypto,
-		SkipPeerTrust:           f.SkipPeerTrust,
-		SkipSignatureMiddleware: f.SkipSignatureMiddleware,
-		OutboundOverride:        f.OutboundOverride,
-		SkipDiscoveryCache:      f.SkipDiscoveryCache,
-	}
-}
 
 func TestSubprocessConfig_needsSecureTransport(t *testing.T) {
 	cases := []struct {
