@@ -33,7 +33,7 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	// OutboundMode "off" should skip signing
@@ -81,7 +81,7 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -122,7 +122,7 @@ func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -163,7 +163,7 @@ func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -204,7 +204,7 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	mappings := []peercompat.ProfileMapping{

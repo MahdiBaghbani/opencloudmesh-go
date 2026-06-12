@@ -143,7 +143,7 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-email-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // legacy
+		CreatedByUserID: "", // no creator user id
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
@@ -163,7 +163,7 @@ func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-name-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // legacy
+		CreatedByUserID: "", // no creator user id
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
@@ -357,36 +357,36 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 	}
 }
 
-func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
+func TestHandleInviteAccepted_EmptyCreator_PlaceholderIdentity(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 	invite := &invitesoutgoing.OutgoingInvite{
-		Token:           "legacy-token",
+		Token:           "empty-creator-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // legacy
+		CreatedByUserID: "", // no creator user id
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
 	repo.Create(context.Background(), invite)
 
-	w := postInviteAccepted(handler, `{"token":"legacy-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
+	w := postInviteAccepted(handler, `{"token":"empty-creator-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for legacy backfill, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 200 for empty-creator placeholder identity, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var resp spec.InviteAcceptedResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	expectedUserID := address.EncodeFederatedOpaqueID("unknown", testProvider)
 	if resp.UserID != expectedUserID {
-		t.Errorf("userID = %q, want %q (placeholder for legacy)", resp.UserID, expectedUserID)
+		t.Errorf("userID = %q, want %q (placeholder for empty creator)", resp.UserID, expectedUserID)
 	}
 	if resp.Email != "" {
-		t.Errorf("email = %q, want empty (legacy backfill)", resp.Email)
+		t.Errorf("email = %q, want empty (empty-creator placeholder)", resp.Email)
 	}
 	if resp.Name != "" {
-		t.Errorf("name = %q, want empty (legacy backfill)", resp.Name)
+		t.Errorf("name = %q, want empty (empty-creator placeholder)", resp.Name)
 	}
 }
 

@@ -85,7 +85,7 @@ func TestHandleFederations_WithServers(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,
@@ -163,7 +163,7 @@ func TestHandleFederations_DiscoveryFailureDropsServer(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,
@@ -350,7 +350,7 @@ func TestHandleDiscover_Success(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,
@@ -408,7 +408,7 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,
@@ -464,7 +464,7 @@ func TestHandleDiscover_NoInviteAcceptDialog(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,
@@ -510,7 +510,7 @@ func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,

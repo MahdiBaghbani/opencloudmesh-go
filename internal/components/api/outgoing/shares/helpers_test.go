@@ -143,7 +143,7 @@ func hasCapability(capabilities []string, capability string) bool {
 
 func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 	raw := httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:           "off",
+		DerivedSSRFMode:           "off",
 		TimeoutMS:          5000,
 		ConnectTimeoutMS:   2000,
 		MaxResponseBytes:   1048576,
@@ -156,7 +156,7 @@ func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 // any discovery call reaches the network, letting tests count discovery hits.
 func makeNoCacheTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 	raw := httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:           "off",
+		DerivedSSRFMode:           "off",
 		TimeoutMS:          5000,
 		ConnectTimeoutMS:   2000,
 		MaxResponseBytes:   1048576,

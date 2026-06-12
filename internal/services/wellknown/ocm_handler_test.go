@@ -277,7 +277,7 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 		cfg.Signature.AllowMismatch = false
 		cfg.CompatibilityScope = "none"
 		cfg.TLS.Mode = "selfsigned"
-		cfg.OutboundHTTP.SSRFMode = "strict"
+		cfg.OutboundHTTP.DerivedSSRFMode = "strict"
 		cfg.OutboundHTTP.InsecureSkipVerify = false
 		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 		c := &OCMProviderConfig{

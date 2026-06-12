@@ -26,7 +26,7 @@ var HarnessWireOptions = FixtureBuildOpts{
 	SkipSignatureMiddleware: true,
 	OutboundOverride: &config.OutboundHTTPConfig{
 		SSRF:               config.SSRFConfig{Mode: "off"},
-		SSRFMode:           "off",
+		DerivedSSRFMode:    "off",
 		TimeoutMS:          5000,
 		ConnectTimeoutMS:   2000,
 		MaxRedirects:       1,

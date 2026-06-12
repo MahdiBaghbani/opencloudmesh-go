@@ -102,14 +102,14 @@ func (c *Client) getResolver() Resolver {
 }
 
 // isStrictMode reports whether SSRF enforcement is active.
-// cfg.SSRF.Mode is the authoritative source. When it is empty, the derived
-// shim cfg.SSRFMode is consulted as a fallback for programmatic callers that
-// set only the top-level field directly.
+// cfg.SSRF.Mode is the authoritative source. When it is empty, DerivedSSRFMode
+// is consulted as a fallback for programmatic callers that set only the
+// top-level field directly.
 func (c *Client) isStrictMode() bool {
 	if c.cfg.SSRF.Mode != "" {
 		return c.cfg.SSRF.Mode == "strict"
 	}
-	return c.cfg.SSRFMode == "strict"
+	return c.cfg.DerivedSSRFMode == "strict"
 }
 
 // Get performs a GET request with safety protections.

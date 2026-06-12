@@ -29,7 +29,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -76,7 +76,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -122,7 +122,7 @@ func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	mappings := []peercompat.ProfileMapping{
@@ -172,7 +172,7 @@ func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	mappings := []peercompat.ProfileMapping{}

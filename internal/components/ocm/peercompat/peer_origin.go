@@ -67,9 +67,9 @@ func (c *CompiledContract) IsPeerAbsoluteURIAllowed(absoluteURI, peerInput strin
 		return false
 	}
 
-	// Keep legacy behavior for nil-contract call sites.
+	// Preserve nil-contract authority matching for call sites without a compiled contract.
 	if c == nil {
-		return legacyAuthorityMatch(parsed.Host, peerInput, "https")
+		return authorityMatch(parsed.Host, peerInput, "https")
 	}
 
 	origin := c.ResolvePeerOrigin(peerInput)
@@ -80,7 +80,7 @@ func (c *CompiledContract) IsPeerAbsoluteURIAllowed(absoluteURI, peerInput strin
 		return false
 	}
 
-	return legacyAuthorityMatch(parsed.Host, origin.PeerDomain, uriScheme)
+	return authorityMatch(parsed.Host, origin.PeerDomain, uriScheme)
 }
 
 func peerDomainFromInput(peerInput string) (string, string) {
@@ -99,7 +99,7 @@ func peerDomainFromInput(peerInput string) (string, string) {
 	return input, ""
 }
 
-func legacyAuthorityMatch(leftAuthority, rightAuthority, scheme string) bool {
+func authorityMatch(leftAuthority, rightAuthority, scheme string) bool {
 	left, err := hostport.Normalize(leftAuthority, scheme)
 	if err != nil {
 		return false

@@ -119,7 +119,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 
 	cfg := &config.OutboundHTTPConfig{
 		SSRF:               config.SSRFConfig{Mode: "off"},
-		SSRFMode:           "off",
+		DerivedSSRFMode:           "off",
 		TimeoutMS:          5000,
 		InsecureSkipVerify: false,
 	}

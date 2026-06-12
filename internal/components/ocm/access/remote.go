@@ -56,7 +56,7 @@ type Client struct {
 }
 
 // NewClient returns a Client; panics if discoveryClient is nil. A nil peer
-// contract keeps legacy nil-dependency behavior and disables Basic fallback.
+// contract preserves nil-dependency behavior and disables Basic fallback.
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	discoveryClient *discovery.Client,
@@ -112,7 +112,7 @@ func accessHostForDiscovery(share *ShareInfo) string {
 // Access fetches a remote share using the best available auth method.
 // When the share requires token exchange, code flow is mandatory.
 // When the owner supports exchange but the share does not mandate it,
-// code flow is attempted opportunistically with a legacy-bearer fallback.
+// code flow is attempted opportunistically with a plain-bearer fallback.
 // Any Bearer 401/403 triggers a Basic auth pattern ladder.
 func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult, error) {
 	share := opts.Share
@@ -134,7 +134,7 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		tokenExchanged = true
 	} else if share.SenderExchangeCapable {
 		// Owner supports exchange but this share does not mandate it.
-		// Attempt code flow; fall back to legacy bearer on failure.
+		// Attempt code flow; fall back to plain bearer on failure.
 		result, err := c.doTokenExchange(ctx, share, discoveryHost)
 		if err == nil {
 			accessToken = result.AccessToken

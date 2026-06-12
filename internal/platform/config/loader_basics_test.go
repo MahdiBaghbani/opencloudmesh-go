@@ -323,7 +323,7 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		{"TLS.ACME.Directory", dev.TLS.ACME.Directory, "https://acme-staging-v02.api.letsencrypt.org/directory"},
 		{"TLS.ACME.UseStaging", dev.TLS.ACME.UseStaging, true},
 		{"OutboundHTTP.SSRF.Mode", dev.OutboundHTTP.SSRF.Mode, "off"},
-		{"OutboundHTTP.SSRFMode", dev.OutboundHTTP.SSRFMode, "off"},
+		{"OutboundHTTP.DerivedSSRFMode", dev.OutboundHTTP.DerivedSSRFMode, "off"},
 		{"OutboundHTTP.MaxRedirects", dev.OutboundHTTP.MaxRedirects, 3},
 		{"OutboundHTTP.InsecureSkipVerify", dev.OutboundHTTP.InsecureSkipVerify, true},
 		{"OutboundHTTP.ProxyEnvFallback", dev.OutboundHTTP.ProxyEnvFallback, false},

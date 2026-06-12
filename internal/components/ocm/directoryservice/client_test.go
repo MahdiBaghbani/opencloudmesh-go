@@ -34,7 +34,7 @@ func testPayload() []byte {
 
 func newTestHTTPClient() *httpclient.Client {
 	return httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     0,

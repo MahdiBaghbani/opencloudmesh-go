@@ -65,7 +65,7 @@ func StrictConfig() *Config {
 		},
 		OutboundHTTP: OutboundHTTPConfig{
 			SSRF:               SSRFConfig{Mode: "strict"},
-			SSRFMode:           "strict",
+			DerivedSSRFMode:    "strict",
 			TimeoutMS:          10000,
 			ConnectTimeoutMS:   2000,
 			MaxRedirects:       1,
@@ -131,7 +131,7 @@ func DevConfig() *Config {
 	cfg.TLS.ACME.Directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
 	cfg.TLS.ACME.UseStaging = true
 	cfg.OutboundHTTP.SSRF.Mode = "off"
-	cfg.OutboundHTTP.SSRFMode = "off"
+	cfg.OutboundHTTP.DerivedSSRFMode = "off"
 	cfg.OutboundHTTP.MaxRedirects = 3
 	cfg.OutboundHTTP.InsecureSkipVerify = true
 	cfg.OutboundHTTP.ProxyEnvFallback = false

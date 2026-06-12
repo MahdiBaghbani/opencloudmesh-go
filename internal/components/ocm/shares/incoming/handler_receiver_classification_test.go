@@ -81,7 +81,7 @@ func newHandlerWithDiscovery(
 	t.Helper()
 
 	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:           "off",
+		DerivedSSRFMode:    "off",
 		TimeoutMS:          5000,
 		ConnectTimeoutMS:   2000,
 		MaxResponseBytes:   1048576,
@@ -394,7 +394,7 @@ func TestReceiverClassification_LegacyOwner(t *testing.T) {
 
 // TestReceiverClassification_DiscoveryFailure_PlainShare verifies that when
 // owner discovery fails and the wire does NOT claim must-exchange-token,
-// the share is accepted as legacy (both flags false).
+// the share is accepted as plain (both exchange flags false).
 func TestReceiverClassification_DiscoveryFailure_PlainShare(t *testing.T) {
 	// Server that returns 500 to simulate discovery failure
 	failSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -534,7 +534,7 @@ func TestReceiverClassification_RemoteDiscoveryUsesPeerOriginPolicy(t *testing.T
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:           "off",
+		DerivedSSRFMode:    "off",
 		TimeoutMS:          5000,
 		ConnectTimeoutMS:   2000,
 		MaxResponseBytes:   1048576,

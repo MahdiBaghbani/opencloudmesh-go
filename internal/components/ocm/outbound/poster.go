@@ -31,7 +31,7 @@ type Poster struct {
 }
 
 // NewPoster builds a Poster from the outbound dependency set. A nil peer
-// contract keeps legacy nil-dependency origin resolution behavior.
+// contract preserves nil-dependency origin resolution behavior.
 func NewPoster(
 	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,

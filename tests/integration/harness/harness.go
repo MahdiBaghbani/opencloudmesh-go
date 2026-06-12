@@ -63,7 +63,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to find free port: %v", err)
 	}
 
-	// Create config - DevConfig() has TLS.Mode="off", SSRFMode="off", InsecureSkipVerify=true
+	// Create config - DevConfig() has TLS.Mode="off", DerivedSSRFMode="off", InsecureSkipVerify=true
 	cfg := config.DevConfig()
 	cfg.ListenAddr = fmt.Sprintf(":%d", port)
 	cfg.PublicOrigin = fmt.Sprintf("http://localhost:%d", port)

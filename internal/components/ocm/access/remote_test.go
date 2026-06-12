@@ -46,7 +46,7 @@ func newTestDiscoveryServer() *httptest.Server {
 
 func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextClient) {
 	cfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,

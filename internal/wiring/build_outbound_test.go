@@ -18,7 +18,7 @@ import (
 func strictSSRFCfg(port int) *config.Config {
 	cfg := tscfg.DevConfigNoSignatures(port)
 	cfg.OutboundHTTP.SSRF.Mode = "strict"
-	cfg.OutboundHTTP.SSRFMode = "strict"
+	cfg.OutboundHTTP.DerivedSSRFMode = "strict"
 	return cfg
 }
 

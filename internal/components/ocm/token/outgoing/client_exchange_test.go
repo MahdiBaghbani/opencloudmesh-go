@@ -44,7 +44,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -96,7 +96,7 @@ func TestClient_Exchange_RediscoveryFailureIsReturned(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode: "off",
+		DerivedSSRFMode: "off",
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -165,11 +165,11 @@ func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil), nil)
 
@@ -223,11 +223,11 @@ func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil), nil)
 

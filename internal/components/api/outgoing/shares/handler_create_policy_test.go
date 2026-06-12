@@ -86,7 +86,7 @@ func TestHandleCreate_StrictRejectsLegacyPeer_NoSend(t *testing.T) {
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
-	tmpFile, err := os.CreateTemp("/tmp", "outgoing-failfast-legacy-*")
+	tmpFile, err := os.CreateTemp("/tmp", "outgoing-failfast-plain-*")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestHandleCreate_MalformedCapablePeerDegradesToLegacy(t *testing.T) {
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 
-	filePath := createTempShareFile(t, "outgoing-malformed-legacy-*")
+	filePath := createTempShareFile(t, "outgoing-malformed-plain-*")
 	receiverHost := srv.Listener.Addr().String()
 	body := `{
 		"receiverDomain": "` + receiverHost + `",

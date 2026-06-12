@@ -117,8 +117,8 @@ func Load(opts LoaderOptions) (*Config, error) {
 	// Overlay CLI flag overrides.
 	overlayFlags(cfg, opts.FlagOverrides)
 
-	// Derive SSRFMode shim from SSRF.Mode for programmatic caller compatibility.
-	cfg.OutboundHTTP.SSRFMode = cfg.OutboundHTTP.SSRF.Mode
+	// Populate DerivedSSRFMode from SSRF.Mode for programmatic caller compatibility.
+	cfg.OutboundHTTP.DerivedSSRFMode = cfg.OutboundHTTP.SSRF.Mode
 
 	// Validate tls_dir and derive related TLS paths when set.
 	if md.IsDefined("tls", "tls_dir") && strings.TrimSpace(cfg.TLS.TLSDir) == "" {

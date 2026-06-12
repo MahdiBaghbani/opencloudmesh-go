@@ -79,7 +79,7 @@ func newTestRouterWithDeps(
 func newTestOutboundClients(t *testing.T) (httpclient.HTTPClient, *discovery.Client) {
 	t.Helper()
 	outboundCfg := &config.OutboundHTTPConfig{
-		SSRFMode:           "off",
+		DerivedSSRFMode:           "off",
 		InsecureSkipVerify: true,
 		MaxResponseBytes:   1 << 20,
 	}

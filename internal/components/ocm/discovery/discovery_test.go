@@ -350,7 +350,7 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,
@@ -400,7 +400,7 @@ func TestClientDiscover_RejectsLegacyPublicKeyWithoutCompat(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,
@@ -477,7 +477,7 @@ func TestClientDiscover_CacheContractDrift(t *testing.T) {
 	}
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,
@@ -572,7 +572,7 @@ func TestClientDiscover_AllowsLegacyPublicKeyWithPeerCompat(t *testing.T) {
 	}
 
 	httpCfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "off",
+		DerivedSSRFMode:         "off",
 		TimeoutMS:        5000,
 		ConnectTimeoutMS: 2000,
 		MaxRedirects:     1,

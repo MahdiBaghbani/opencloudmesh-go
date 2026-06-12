@@ -361,10 +361,10 @@ type OutboundHTTPConfig struct {
 	// Configure via [outbound_http.ssrf] in TOML.
 	SSRF SSRFConfig `toml:"ssrf"`
 
-	// SSRFMode is a derived shim populated from SSRF.Mode by the config loader.
+	// DerivedSSRFMode is populated from SSRF.Mode by the config loader.
 	// It is not decoded from TOML; use [outbound_http.ssrf] instead.
 	// Retained for programmatic callers that set this field directly.
-	SSRFMode string `toml:"-"`
+	DerivedSSRFMode string `toml:"-"`
 
 	// TimeoutMS is the overall request timeout in milliseconds
 	TimeoutMS int `toml:"timeout_ms"`
@@ -406,7 +406,7 @@ type OutboundHTTPConfig struct {
 func OutboundHTTPConfigStrict() OutboundHTTPConfig {
 	return OutboundHTTPConfig{
 		SSRF:               SSRFConfig{Mode: "strict"},
-		SSRFMode:           "strict",
+		DerivedSSRFMode:    "strict",
 		TimeoutMS:          10000,
 		ConnectTimeoutMS:   2000,
 		MaxRedirects:       1,

@@ -447,18 +447,18 @@ func hasReason(reasons []string, want string) bool {
 	return false
 }
 
-// TestRuntimePolicyEvaluate_LegacySSRFModeFallback verifies that when
-// OutboundHTTP.SSRF.Mode is empty but the legacy SSRFMode shim is set,
-// the posture derives SSRFMode from the shim so programmatic configs are
-// classified consistently.
-func TestRuntimePolicyEvaluate_LegacySSRFModeFallback(t *testing.T) {
+// TestRuntimePolicyEvaluate_DerivedSSRFModeFallback verifies that when
+// OutboundHTTP.SSRF.Mode is empty but DerivedSSRFMode is set, the posture
+// derives transport SSRF mode from DerivedSSRFMode so programmatic configs are classified
+// consistently.
+func TestRuntimePolicyEvaluate_DerivedSSRFModeFallback(t *testing.T) {
 	cfg := config.DevConfig()
-	cfg.OutboundHTTP.SSRF.Mode = ""      // nested mode empty
-	cfg.OutboundHTTP.SSRFMode = "strict" // legacy shim only
+	cfg.OutboundHTTP.SSRF.Mode = ""             // nested mode empty
+	cfg.OutboundHTTP.DerivedSSRFMode = "strict" // shim only
 
 	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
 
 	if eval.Transport.SSRFMode != "strict" {
-		t.Fatalf("expected SSRFMode=strict via legacy fallback, got %q", eval.Transport.SSRFMode)
+		t.Fatalf("expected transport SSRFMode=strict via DerivedSSRFMode fallback, got %q", eval.Transport.SSRFMode)
 	}
 }

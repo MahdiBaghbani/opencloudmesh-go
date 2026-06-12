@@ -10,8 +10,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	ocmpolicy "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm"
 )
 
 func TestOutboundPolicy_Off(t *testing.T) {
@@ -258,7 +258,7 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "legacy.example.com", Profile: "compat"},
+		{Pattern: "compat.example.com", Profile: "compat"},
 	}
 	contract := ocm.MustCompileContract(t, profiles, mappings)
 
@@ -276,7 +276,7 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 		PeerContract:        contract,
 	}
 
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "legacy.example.com", discNoCriteria, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "compat.example.com", discNoCriteria, true)
 	if decision.ShouldSign {
 		t.Error("peer_profile_level_override=all should allow unsigned even in strict mode when peer has no criteria")
 	}
@@ -342,7 +342,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryDoesNotImplyUnsigned(t *testing.T
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "legacy.example.com", Profile: "compat"},
+		{Pattern: "compat.example.com", Profile: "compat"},
 	}
 	contract := ocm.MustCompileContract(t, profiles, mappings)
 
@@ -353,7 +353,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryDoesNotImplyUnsigned(t *testing.T
 		OnDiscoveryError:    "reject",
 	}
 
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "legacy.example.com", nil, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "compat.example.com", nil, true)
 	if !decision.ShouldSign {
 		t.Fatalf("missing discovery must not imply unsigned fallback in strict mode: %+v", decision)
 	}
@@ -371,7 +371,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryAllowsExplicitFailOpen(t *testing
 		},
 	}
 	mappings := []peercompat.ProfileMapping{
-		{Pattern: "legacy.example.com", Profile: "compat"},
+		{Pattern: "compat.example.com", Profile: "compat"},
 	}
 	contract := ocm.MustCompileContract(t, profiles, mappings)
 
@@ -382,7 +382,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryAllowsExplicitFailOpen(t *testing
 		OnDiscoveryError:    "reject",
 	}
 
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "legacy.example.com", nil, true)
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "compat.example.com", nil, true)
 	if decision.ShouldSign {
 		t.Fatalf("explicit fail-open should allow unsigned strict compatibility path: %+v", decision)
 	}
