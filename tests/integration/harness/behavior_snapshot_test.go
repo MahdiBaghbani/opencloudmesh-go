@@ -38,7 +38,7 @@ func TestBehaviorSnapshot_HarnessWireOptionsAnchoredToSource(t *testing.T) {
 	text := string(body)
 
 	for _, needle := range []string{
-		`app.BootstrapDeps(cfg, logger, app.WireOptions{`,
+		`wiring.Build(cfg, logger, wiring.BuildOpts{`,
 		`FastAuth:                true,`,
 		`SkipCrypto:              true,`,
 		`SkipPeerTrust:           true,`,

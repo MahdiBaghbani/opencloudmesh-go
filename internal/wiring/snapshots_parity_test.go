@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
@@ -74,8 +73,8 @@ func TestSnapshots_ProductionZeroValueMainAnchor(t *testing.T) {
 	text := string(body)
 
 	for _, needle := range []string{
-		`result, err := app.BootstrapDeps(cfg, logger, app.WireOptions{})`,
-		`app.BootstrapDeps(cfg, logger, app.WireOptions{})`,
+		`result, err := wiring.Build(cfg, logger, wiring.BuildOpts{})`,
+		`wiring.Build(cfg, logger, wiring.BuildOpts{})`,
 	} {
 		if !strings.Contains(text, needle) {
 			t.Fatalf("production zero-value wiring path missing %q", needle)
@@ -131,9 +130,9 @@ func TestSnapshots_UnprotectedSets(t *testing.T) {
 	deps.ResetDeps()
 	t.Cleanup(deps.ResetDeps)
 
-	_, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
 	if err != nil {
-		t.Fatalf("BootstrapDeps failed: %v", err)
+		t.Fatalf("Build failed: %v", err)
 	}
 
 	log := wiringtest.DiscardLogger()

@@ -3,7 +3,6 @@ package wiring_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
@@ -16,9 +15,9 @@ func TestOptionsParity_HarnessOptionsBootstrapSucceeds(t *testing.T) {
 
 	deps.ResetDeps()
 
-	result, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
 	if err != nil {
-		t.Fatalf("BootstrapDeps with harness options failed: %v", err)
+		t.Fatalf("Build with harness options failed: %v", err)
 	}
 
 	_ = result.RootCAPool
@@ -30,12 +29,12 @@ func TestOptionsParity_ProductionOptionsBootstrapSucceeds(t *testing.T) {
 
 	deps.ResetDeps()
 
-	result, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), wiring.BuildOpts{})
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiring.BuildOpts{})
 	if err != nil {
-		t.Fatalf("BootstrapDeps with production (zero) options failed: %v", err)
+		t.Fatalf("Build with production (zero) options failed: %v", err)
 	}
 
 	if result.RuntimeEval.DerivedTier == "" {
-		t.Error("RuntimeEval.DerivedTier is empty; BootstrapDeps must populate it")
+		t.Error("RuntimeEval.DerivedTier is empty; Build must populate it")
 	}
 }

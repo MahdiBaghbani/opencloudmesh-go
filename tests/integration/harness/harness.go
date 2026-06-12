@@ -23,6 +23,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -91,8 +92,8 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		Level: slog.LevelWarn,
 	}))
 
-	// Reset shared deps for test isolation, then wire via BootstrapDeps.
-	// WireOptions reflects the intended harness defaults:
+	// Reset shared deps for test isolation, then wire via wiring.Build.
+	// BuildOpts reflects the intended harness defaults:
 	//   - FastAuth: low-cost argon2id for test speed
 	//   - SkipCrypto: no signing keys; avoids leaking production crypto into tests
 	//   - SkipPeerTrust: peer trust stack is not exercised in in-process tests
@@ -100,7 +101,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	//   - OutboundOverride: permissive localhost-friendly outbound config
 	//   - SkipDiscoveryCache: no-op cache avoids stale cross-test discovery entries
 	deps.ResetDeps()
-	bootstrapResult, err := app.BootstrapDeps(cfg, logger, app.WireOptions{
+	bootstrapResult, err := wiring.Build(cfg, logger, wiring.BuildOpts{
 		FastAuth:                true,
 		SkipCrypto:              true,
 		SkipPeerTrust:           true,

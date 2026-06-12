@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -26,9 +26,9 @@ func TestPersistenceParity_MemoryBackend(t *testing.T) {
 	cfg := wiringtest.DevConfigHarness(18094)
 
 	deps.ResetDeps()
-	result, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
 	if err != nil {
-		t.Fatalf("BootstrapDeps failed: %v", err)
+		t.Fatalf("Build failed: %v", err)
 	}
 
 	d := deps.GetDeps()
@@ -59,9 +59,9 @@ func TestPersistenceParity_JSONBackend(t *testing.T) {
 	cfg.Persistence.DataDir = t.TempDir()
 
 	deps.ResetDeps()
-	result, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
 	if err != nil {
-		t.Fatalf("BootstrapDeps failed: %v", err)
+		t.Fatalf("Build failed: %v", err)
 	}
 
 	d := deps.GetDeps()
@@ -91,8 +91,8 @@ func TestPersistenceParity_RejectsUnknownBackend(t *testing.T) {
 	cfg.Persistence.Backend = "bogus-not-a-backend"
 
 	deps.ResetDeps()
-	_, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
 	if err == nil {
-		t.Fatal("BootstrapDeps must fail for unknown persistence backend")
+		t.Fatal("Build must fail for unknown persistence backend")
 	}
 }

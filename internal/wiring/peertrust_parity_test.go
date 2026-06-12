@@ -3,9 +3,9 @@ package wiring_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -22,7 +22,7 @@ func TestPeerTrustParity_SkipPeerTrustGatesDeps(t *testing.T) {
 	t.Run("SkipPeerTrust=true with PeerTrust.Enabled=true produces nil trust deps", func(t *testing.T) {
 		deps.ResetDeps()
 		opts := wiringtest.HarnessWireOptions()
-		_, err := app.BootstrapDeps(peerTrustCfg(18084), wiringtest.DiscardLogger(), opts)
+		_, err := wiring.Build(peerTrustCfg(18084), wiringtest.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -39,7 +39,7 @@ func TestPeerTrustParity_SkipPeerTrustGatesDeps(t *testing.T) {
 		deps.ResetDeps()
 		opts := wiringtest.HarnessWireOptions()
 		opts.SkipPeerTrust = false
-		_, err := app.BootstrapDeps(peerTrustCfg(18085), wiringtest.DiscardLogger(), opts)
+		_, err := wiring.Build(peerTrustCfg(18085), wiringtest.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}

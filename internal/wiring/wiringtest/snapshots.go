@@ -30,7 +30,7 @@ var SnapshotHarnessWireOptions = app.WireOptions{
 // tests/integration/harness/harness.go StartTestServerWithConfig bootstrap.
 // Keep in sync with tests/integration/harness/behavior_snapshot_test.go.
 var SnapshotHarnessWireOptionsSourceNeedles = []string{
-	`app.BootstrapDeps(cfg, logger, app.WireOptions{`,
+	`wiring.Build(cfg, logger, wiring.BuildOpts{`,
 	`FastAuth:                true,`,
 	`SkipCrypto:              true,`,
 	`SkipPeerTrust:           true,`,

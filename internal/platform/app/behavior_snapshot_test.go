@@ -74,12 +74,12 @@ var legacyCutoverInventory = []legacyCutoverAnchor{
 	{
 		seam:     "main.go production bootstrap and service loop",
 		path:     "cmd/opencloudmesh-go/main.go",
-		contains: []string{"app.BootstrapDeps", "service.CoreServices", "deps.GetDeps"},
+		contains: []string{"wiring.Build", "service.CoreServices", "deps.GetDeps"},
 	},
 	{
 		seam:     "harness bootstrap parity",
 		path:     "tests/integration/harness/harness.go",
-		contains: []string{"app.BootstrapDeps", "service.CoreServices", "healthEndpointURL"},
+		contains: []string{"wiring.Build", "service.CoreServices", "healthEndpointURL"},
 	},
 	{
 		seam:     "subprocess binary startup",

@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -30,7 +30,7 @@ func TestOutboundParity_OverrideAffectsSSRF(t *testing.T) {
 
 	t.Run("OutboundOverride SSRF=off allows localhost request", func(t *testing.T) {
 		deps.ResetDeps()
-		_, err := app.BootstrapDeps(strictSSRFCfg(18090), wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+		_, err := wiring.Build(strictSSRFCfg(18090), wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -49,7 +49,7 @@ func TestOutboundParity_OverrideAffectsSSRF(t *testing.T) {
 		deps.ResetDeps()
 		opts := wiringtest.HarnessWireOptions()
 		opts.OutboundOverride = nil
-		_, err := app.BootstrapDeps(strictSSRFCfg(18091), wiringtest.DiscardLogger(), opts)
+		_, err := wiring.Build(strictSSRFCfg(18091), wiringtest.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -72,7 +72,7 @@ func TestOutboundParity_OverrideHonorsTLSRoots(t *testing.T) {
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
 	deps.ResetDeps()
-	_, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
 	if err != nil {
 		t.Fatalf("bootstrap must succeed when OutboundOverride has empty CA paths: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestOutboundParity_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
 	deps.ResetDeps()
 	opts := wiringtest.HarnessWireOptions()
 	opts.OutboundOverride = nil
-	_, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), opts)
+	_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
 	if err == nil {
 		t.Fatal("bootstrap must fail when cfg.OutboundHTTP.TLSRootCAFile is invalid and no override is set")
 	}

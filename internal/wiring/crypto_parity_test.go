@@ -3,8 +3,8 @@ package wiring_test
 import (
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -15,7 +15,7 @@ func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 		cfg := wiringtest.DevConfigHarness(18082)
 
 		deps.ResetDeps()
-		_, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+		_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -37,7 +37,7 @@ func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
 		deps.ResetDeps()
 		opts := wiringtest.HarnessWireOptions()
 		opts.SkipCrypto = false
-		_, err := app.BootstrapDeps(cfg, wiringtest.DiscardLogger(), opts)
+		_, err := wiring.Build(cfg, wiringtest.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}

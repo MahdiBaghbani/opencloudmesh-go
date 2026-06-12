@@ -19,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -118,7 +119,7 @@ func main() {
 		}
 	}
 
-	result, err := app.BootstrapDeps(cfg, logger, app.WireOptions{})
+	result, err := wiring.Build(cfg, logger, wiring.BuildOpts{})
 	if err != nil {
 		logger.Error("failed to bootstrap dependencies", "error", err)
 		os.Exit(1)

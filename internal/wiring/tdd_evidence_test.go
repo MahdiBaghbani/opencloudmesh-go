@@ -7,8 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring/wiringtest"
+
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 const (
@@ -93,10 +96,95 @@ func TestTDD_WiringSkeletonScaffoldTypesPresent(t *testing.T) {
 	for _, needle := range []string{
 		"type BuildOpts =",
 		"type BuildResult =",
-		"T1 skeleton",
+		"func Build(",
 	} {
 		if !strings.Contains(text, needle) {
-			t.Fatalf("build.go missing T1 scaffold marker %q", needle)
+			t.Fatalf("build.go missing T2 entrypoint marker %q", needle)
+		}
+	}
+}
+
+func TestTDD_BuildEntrypointWiresDeps(t *testing.T) {
+	cfg := wiringtest.DevConfigHarness(18110)
+	deps.ResetDeps()
+	t.Cleanup(deps.ResetDeps)
+
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiringtest.HarnessWireOptions())
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	if deps.GetDeps() == nil {
+		t.Fatal("Build must call deps.SetDeps")
+	}
+	if result.RuntimeEval.DerivedTier == "" {
+		t.Error("BuildResult.RuntimeEval.DerivedTier is empty")
+	}
+	if result.Persistence == nil {
+		t.Error("BuildResult.Persistence is nil")
+	}
+}
+
+func TestTDD_BuildProductionZeroValueOpts(t *testing.T) {
+	cfg := wiringtest.DevConfigNoSignatures(18111)
+	deps.ResetDeps()
+	t.Cleanup(deps.ResetDeps)
+
+	result, err := wiring.Build(cfg, wiringtest.DiscardLogger(), wiring.BuildOpts{})
+	if err != nil {
+		t.Fatalf("Build with zero opts failed: %v", err)
+	}
+	if deps.GetDeps() == nil {
+		t.Fatal("Build must call deps.SetDeps")
+	}
+	if result.RuntimeEval.DerivedTier == "" {
+		t.Error("BuildResult.RuntimeEval.DerivedTier is empty for production opts")
+	}
+	if result.Persistence == nil {
+		t.Error("BuildResult.Persistence is nil")
+	}
+}
+
+func TestTDD_BuildNoProductionCallerUsesBootstrapDeps(t *testing.T) {
+	root := wiringtest.ModuleRoot(t)
+	const allowlistRel = "internal/wiring/build.go"
+	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
+
+	for _, relRoot := range productionRoots {
+		absRoot := filepath.Join(root, relRoot)
+		if _, err := os.Stat(absRoot); os.IsNotExist(err) {
+			continue
+		}
+		err := filepath.WalkDir(absRoot, func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			rel = filepath.ToSlash(rel)
+			if rel == allowlistRel {
+				return nil
+			}
+			body, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if strings.Contains(string(body), "app.BootstrapDeps") {
+				t.Fatalf("%s must not call app.BootstrapDeps; use wiring.Build (only %s may forward)",
+					rel, allowlistRel)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", relRoot, err)
 		}
 	}
 }
