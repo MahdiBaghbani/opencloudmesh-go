@@ -8,8 +8,7 @@ import (
 func resolveInputs(cfg *config.Config, d *Deps) resolve.ResolveInputs {
 	tokenPath := cfg.TokenExchange.Path
 	return resolve.ResolveInputs{
-		PublicOrigin:        cfg.PublicOrigin,
-		ExternalBasePath:    cfg.ExternalBasePath,
+		LocalIdentity:       d.LocalIdentity,
 		TokenExchangePath:   tokenPath,
 		KeyManager:          d.KeyManager,
 		OpenCloudMeshPolicy: d.OpenCloudMeshPolicy,

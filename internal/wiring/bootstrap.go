@@ -20,11 +20,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 )
 
@@ -88,6 +87,12 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
 	runtimeEval := runtimePolicy.Evaluate()
 
+	localIdentity, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
+	if err != nil {
+		return BuildResult{}, fmt.Errorf("derive local public identity: %w", err)
+	}
+	cfg.ExternalBasePath = localIdentity.ExternalBasePath
+
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
 	var userAuth *identity.UserAuth
@@ -107,7 +112,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 					return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
 				}
 			}
-			keyManager = crypto.NewKeyManager(cfg.Signature.KeyPath, cfg.PublicOrigin)
+			keyManager = crypto.NewKeyManager(cfg.Signature.KeyPath, localIdentity.Origin)
 			if err := keyManager.LoadOrGenerate(); err != nil {
 				return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
 			}
@@ -157,7 +162,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 		defaultVerificationPolicy := runtimePolicy.DirectoryServiceVerificationPolicy()
 		dirServiceClient := directoryservice.NewClient(rawHTTPClient, defaultVerificationPolicy, logger)
-		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, cfg.PublicScheme(), logger, refreshTimeout)
+		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, localIdentity.Scheme, logger, refreshTimeout)
 
 		for _, cfgPath := range cfg.PeerTrust.ConfigPaths {
 			tgCfg, err := peertrust.LoadTrustGroupConfig(cfgPath)
@@ -211,7 +216,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 			runtimePolicy,
 			peerContract,
 			peerDiscoveryAdapter,
-			cfg.PublicOrigin,
+			localIdentity.Origin,
 			logger,
 		)
 	}
@@ -219,40 +224,30 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	tokenStore := token.NewMemoryTokenStore()
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
 
-	localProviderFQDN, err := instanceid.ProviderFQDN(cfg.PublicOrigin)
-	if err != nil {
-		return BuildResult{}, fmt.Errorf("derive provider FQDN: %w", err)
-	}
-	localProviderFQDNForCompare, err := hostport.Normalize(localProviderFQDN, cfg.PublicScheme())
-	if err != nil {
-		return BuildResult{}, fmt.Errorf("normalize provider FQDN for comparison: %w", err)
-	}
-
 	built := &Deps{
-		PartyRepo:                   partyRepo,
-		SessionRepo:                 sessionRepo,
-		UserAuth:                    userAuth,
-		IncomingShareRepo:           persistence.IncomingShares,
-		OutgoingShareRepo:           persistence.OutgoingShares,
-		OutgoingInviteRepo:          persistence.OutgoingInvites,
-		IncomingInviteRepo:          persistence.IncomingInvites,
-		TokenStore:                  tokenStore,
-		HTTPClient:                  httpClient,
-		DiscoveryClient:             discoveryClient,
-		OpenCloudMeshPolicy:         openCloudMeshPolicy,
-		RuntimePolicy:               runtimePolicy,
-		KeyManager:                  keyManager,
-		Signer:                      signer,
-		OutboundPolicy:              outboundPolicy,
-		SignatureMiddleware:         signatureMiddleware,
-		TrustGroupMgr:               trustGroupMgr,
-		PolicyEngine:                policyEngine,
-		PeerContract:                peerContract,
-		LocalProviderFQDN:           localProviderFQDN,
-		LocalProviderFQDNForCompare: localProviderFQDNForCompare,
-		Config:                      cfg,
-		Cache:                       cacheInstance,
-		RealIP:                      realIPExtractor,
+		PartyRepo:           partyRepo,
+		SessionRepo:         sessionRepo,
+		UserAuth:            userAuth,
+		IncomingShareRepo:   persistence.IncomingShares,
+		OutgoingShareRepo:   persistence.OutgoingShares,
+		OutgoingInviteRepo:  persistence.OutgoingInvites,
+		IncomingInviteRepo:  persistence.IncomingInvites,
+		TokenStore:          tokenStore,
+		HTTPClient:          httpClient,
+		DiscoveryClient:     discoveryClient,
+		OpenCloudMeshPolicy: openCloudMeshPolicy,
+		RuntimePolicy:       runtimePolicy,
+		KeyManager:          keyManager,
+		Signer:              signer,
+		OutboundPolicy:      outboundPolicy,
+		SignatureMiddleware: signatureMiddleware,
+		TrustGroupMgr:       trustGroupMgr,
+		PolicyEngine:        policyEngine,
+		PeerContract:        peerContract,
+		LocalIdentity:       localIdentity,
+		Config:              cfg,
+		Cache:               cacheInstance,
+		RealIP:              realIPExtractor,
 	}
 
 	return BuildResult{

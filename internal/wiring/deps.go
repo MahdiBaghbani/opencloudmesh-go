@@ -18,6 +18,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
 // Deps holds shared dependencies built by wiring.Build for service construction.
@@ -53,9 +54,8 @@ type Deps struct {
 	PolicyEngine  *peertrust.PolicyEngine
 	PeerContract  *peercompat.CompiledContract
 
-	// Provider identity derived from PublicOrigin at startup
-	LocalProviderFQDN           string // raw host[:port] from PublicOrigin (lowercased)
-	LocalProviderFQDNForCompare string // scheme-aware normalized (default port stripped)
+	// LocalIdentity is the SSOT for published public identity derived at startup.
+	LocalIdentity localidentity.Identity
 
 	// Config (for handlers that need config values)
 	Config *config.Config

@@ -100,22 +100,19 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		tokenPath = "token"
 	}
 	return ocm.New(ocm.Inputs{
-		IncomingShareRepo:           d.IncomingShareRepo,
-		OutgoingShareRepo:           d.OutgoingShareRepo,
-		OutgoingInviteRepo:          d.OutgoingInviteRepo,
-		PartyRepo:                   d.PartyRepo,
-		PolicyEngine:                d.PolicyEngine,
-		DiscoveryClient:             d.DiscoveryClient,
-		OpenCloudMeshPolicy:         d.OpenCloudMeshPolicy,
-		RuntimePolicy:               d.RuntimePolicy,
-		PeerContract:                d.PeerContract,
-		LocalProviderFQDN:           d.LocalProviderFQDN,
-		LocalProviderFQDNForCompare: d.LocalProviderFQDNForCompare,
-		TokenStore:                  d.TokenStore,
-		SignatureMiddleware:         d.SignatureMiddleware,
-		PublicOrigin:                cfg.PublicOrigin,
-		PublicScheme:                cfg.PublicScheme(),
-		TokenExchangePath:           tokenPath,
+		IncomingShareRepo:   d.IncomingShareRepo,
+		OutgoingShareRepo:   d.OutgoingShareRepo,
+		OutgoingInviteRepo:  d.OutgoingInviteRepo,
+		PartyRepo:           d.PartyRepo,
+		PolicyEngine:        d.PolicyEngine,
+		DiscoveryClient:     d.DiscoveryClient,
+		OpenCloudMeshPolicy: d.OpenCloudMeshPolicy,
+		RuntimePolicy:       d.RuntimePolicy,
+		PeerContract:        d.PeerContract,
+		LocalIdentity:       d.LocalIdentity,
+		TokenStore:          d.TokenStore,
+		SignatureMiddleware: d.SignatureMiddleware,
+		TokenExchangePath:   tokenPath,
 	}, svcCfg, log)
 }
 
@@ -151,7 +148,7 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		OutboundPolicy:      d.OutboundPolicy,
 		OpenCloudMeshPolicy: d.OpenCloudMeshPolicy,
 		PeerContract:        d.PeerContract,
-		LocalProviderFQDN:   d.LocalProviderFQDN,
+		LocalIdentity:       d.LocalIdentity,
 		Ratelimit:           ratelimitInputs(d),
 		InterceptorProfiles: profiles,
 	}, svcCfg, log)
@@ -159,8 +156,7 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 
 func buildUIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return ui.New(ui.Inputs{
-		ExternalBasePath:  cfg.ExternalBasePath,
-		LocalProviderFQDN: d.LocalProviderFQDN,
+		LocalIdentity: d.LocalIdentity,
 	}, svcCfg, log)
 }
 

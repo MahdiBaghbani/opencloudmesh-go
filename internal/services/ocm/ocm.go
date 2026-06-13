@@ -80,24 +80,24 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.OpenCloudMeshPolicy,
 		inputs.RuntimePolicy,
 		inputs.PeerContract,
-		inputs.LocalProviderFQDNForCompare,
-		inputs.PublicScheme,
+		inputs.LocalIdentity.ProviderDomainCompare,
+		inputs.LocalIdentity.Scheme,
 		log,
 	)
-	notifHandler := notifincoming.NewHandler(inputs.OutgoingShareRepo, inputs.PublicOrigin, log)
+	notifHandler := notifincoming.NewHandler(inputs.OutgoingShareRepo, inputs.LocalIdentity.Origin, log)
 	invitesHandler := invitesincoming.NewHandler(
 		inputs.OutgoingInviteRepo,
 		inputs.PartyRepo,
 		inputs.PolicyEngine,
-		inputs.LocalProviderFQDN,
-		inputs.PublicOrigin,
+		inputs.LocalIdentity.ProviderDomain,
+		inputs.LocalIdentity.Scheme,
 		log,
 	)
 	tokenHandler := tokenincoming.NewHandler(
 		inputs.OutgoingShareRepo,
 		inputs.TokenStore,
 		&c.TokenExchange,
-		inputs.PublicOrigin,
+		inputs.LocalIdentity.Origin,
 		log,
 	)
 

@@ -90,15 +90,15 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 
 	// Derive cross-cutting values from ResolveInputs when not explicitly
 	// set in per-service TOML. Per-service TOML wins when a key is present
-	// in the raw map (even if zero-valued). Endpoint needs PublicOrigin so
-	// we never synthesize a relative or origin-less URL.
-	if _, set := rawOCMProvider["endpoint"]; !set && in.PublicOrigin != "" {
-		c.Endpoint = in.PublicOrigin + in.ExternalBasePath
+	// in the raw map (even if zero-valued). Endpoint needs Origin so we never
+	// synthesize a relative or origin-less URL.
+	if _, set := rawOCMProvider["endpoint"]; !set && in.LocalIdentity.Origin != "" {
+		c.Endpoint = in.LocalIdentity.EndpointBase
 	}
 
 	if _, set := rawOCMProvider["webdav_root"]; !set {
-		if in.ExternalBasePath != "" {
-			c.WebDAVRoot = in.ExternalBasePath + "/webdav/ocm/"
+		if in.LocalIdentity.ExternalBasePath != "" {
+			c.WebDAVRoot = in.LocalIdentity.ExternalBasePath + "/webdav/ocm/"
 		} else {
 			c.WebDAVRoot = "/webdav/ocm/"
 		}
@@ -121,8 +121,8 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 		}
 	}
 
-	if _, set := rawOCMProvider["invite_accept_dialog"]; !set && in.UIWayfEnabled && in.PublicOrigin != "" {
-		c.InviteAcceptDialog = in.PublicOrigin + in.ExternalBasePath + "/ui/accept-invite"
+	if _, set := rawOCMProvider["invite_accept_dialog"]; !set && in.UIWayfEnabled && in.LocalIdentity.Origin != "" {
+		c.InviteAcceptDialog = in.LocalIdentity.EndpointBase + "/ui/accept-invite"
 	}
 
 	var publicKeys []discovery.PublicKey

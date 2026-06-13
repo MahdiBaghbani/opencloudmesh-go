@@ -89,7 +89,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.DiscoveryClient,
 		inputs.Signer,
 		inputs.OutboundPolicy,
-		inputs.LocalProviderFQDN,
+		inputs.LocalIdentity.ProviderDomain,
 	)
 	accessClient := access.NewClient(
 		inputs.HTTPClient,
@@ -113,7 +113,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.HTTPClient,
 		inputs.Signer,
 		inputs.OutboundPolicy,
-		inputs.LocalProviderFQDN,
+		inputs.LocalIdentity.ProviderDomain,
 		currentUser,
 		log,
 	)
@@ -128,7 +128,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.DiscoveryClient,
 		inputs.Signer,
 		inputs.OutboundPolicy,
-		inputs.LocalProviderFQDN,
+		inputs.LocalIdentity.ProviderDomain,
 		currentUser,
 		log,
 	)
@@ -136,7 +136,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	outgoingInvitesHandler := outgoinginvites.NewHandler(
 		inputs.OutgoingInviteRepo,
-		inputs.LocalProviderFQDN,
+		inputs.LocalIdentity.ProviderDomain,
 		currentUser,
 		log,
 	)

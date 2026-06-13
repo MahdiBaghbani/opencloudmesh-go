@@ -19,7 +19,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -38,19 +37,17 @@ func NewHandler(
 	outgoingRepo invitesoutgoing.OutgoingInviteRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
-	localProviderFQDN string,
-	publicOrigin string,
+	localProviderDomain string,
+	localScheme string,
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
-
-	localScheme := config.SchemeFromOrigin(publicOrigin)
 
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		partyRepo:    partyRepo,
 		policyEngine: policyEngine,
-		providerFQDN: localProviderFQDN,
+		providerFQDN: localProviderDomain,
 		logger:       logger,
 		localScheme:  localScheme,
 	}

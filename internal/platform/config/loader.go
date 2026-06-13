@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
 // LoaderOptions controls how configuration is loaded.
@@ -153,6 +155,13 @@ func Load(opts LoaderOptions) (*Config, error) {
 	if err := validatePublicOrigin(cfg); err != nil {
 		return nil, err
 	}
+
+	// Validate and normalize external_base_path.
+	validatedBasePath, err := localidentity.ValidateExternalBasePath(cfg.ExternalBasePath)
+	if err != nil {
+		return nil, fmt.Errorf("invalid external_base_path: %w", err)
+	}
+	cfg.ExternalBasePath = validatedBasePath
 
 	// Validate outbound TLS CA paths.
 	if err := validateOutboundTLSPaths(cfg); err != nil {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
 func TestNormalizePublicOrigin(t *testing.T) {
@@ -48,6 +49,22 @@ func TestNormalizePublicOrigin(t *testing.T) {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
 		})
+	}
+}
+
+func TestLocalIdentityUsesNormalizePublicOrigin(t *testing.T) {
+	const origin = "https://EXAMPLE.COM:9200/"
+	normalized, err := instanceid.NormalizePublicOrigin(origin)
+	if err != nil {
+		t.Fatalf("NormalizePublicOrigin: %v", err)
+	}
+
+	id, err := localidentity.Derive(origin, "")
+	if err != nil {
+		t.Fatalf("Derive: %v", err)
+	}
+	if id.Origin != normalized {
+		t.Errorf("Origin = %q, want %q", id.Origin, normalized)
 	}
 }
 

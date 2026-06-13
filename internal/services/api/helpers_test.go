@@ -12,7 +12,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
+
+func testLocalIdentity() localidentity.Identity {
+	id, err := localidentity.Derive("https://localhost", "")
+	if err != nil {
+		panic("testLocalIdentity: " + err.Error())
+	}
+	return id
+}
 
 func testAPIInputs() Inputs {
 	cfg := config.DevConfig()
@@ -29,7 +38,7 @@ func testAPIInputs() Inputs {
 		HTTPClient:          httpclient.NewContextClient(rawHTTP),
 		DiscoveryClient:     discovery.NewClient(rawHTTP, nil),
 		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		LocalProviderFQDN:   "localhost",
+		LocalIdentity:       testLocalIdentity(),
 		Ratelimit: ratelimit.Inputs{
 			KeyFunc: realIP.GetClientIPString,
 		},

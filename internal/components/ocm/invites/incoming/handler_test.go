@@ -23,12 +23,12 @@ import (
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 const (
-	testProvider     = "example.com"
-	testPublicOrigin = "https://example.com"
+	testProvider = "example.com"
+	testScheme   = "https"
 )
 
 func newTestHandler(repo *invitesoutgoing.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
-	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testPublicOrigin, testLogger)
+	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testScheme, testLogger)
 }
 
 func postInviteAccepted(handler *incoming.Handler, body string) *httptest.ResponseRecorder {

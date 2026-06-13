@@ -13,6 +13,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
+	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
 type ocmTestPeerDiscovery struct{}
@@ -26,10 +28,14 @@ func (ocmTestPeerDiscovery) GetPublicKey(context.Context, string) (string, error
 }
 
 func testInputs(cfg *config.Config) Inputs {
+	id, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
+	if err != nil {
+		panic("testInputs: " + err.Error())
+	}
 	return Inputs{
 		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
-		PublicScheme:        cfg.PublicScheme(),
+		LocalIdentity:       id,
 		TokenExchangePath:   "token",
 	}
 }
@@ -43,16 +49,16 @@ func setupTestInputsWithSignature(t *testing.T) Inputs {
 	t.Helper()
 
 	cfg := config.DevConfig()
+	in := testInputs(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	signatureMiddleware := inboundsignature.NewSignatureMiddleware(
 		runtimePolicy,
 		nil,
 		ocmTestPeerDiscovery{},
-		cfg.PublicOrigin,
+		in.LocalIdentity.Origin,
 		logger,
 	)
-	in := testInputs(cfg)
 	in.RuntimePolicy = runtimePolicy
 	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
 	in.SignatureMiddleware = signatureMiddleware
@@ -234,6 +240,7 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 	tokenExchangeEnabled := true
 	cfg := &config.Config{
+		PublicOrigin: "https://example.com",
 		TokenExchange: config.TokenExchangeConfig{
 			Enabled: &tokenExchangeEnabled,
 			Path:    "token",
@@ -271,7 +278,7 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 		},
 	}
 	in := Inputs{
-		PublicOrigin:      cfg.PublicOrigin,
+		LocalIdentity:     tslocalid.MustTestIdentity(t, cfg.PublicOrigin, cfg.ExternalBasePath),
 		RuntimePolicy:     policy.NewRuntimePolicy(cfg, nil),
 		TokenExchangePath: "token",
 	}

@@ -5,7 +5,6 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
-	"strings"
 )
 
 //go:embed templates/*.html
@@ -15,21 +14,17 @@ var templateFS embed.FS
 type Handler struct {
 	basePath       string
 	wayfEnabled    bool
-	providerDomain string // raw host[:port] for WAYF invite links
+	providerDomain string // published provider domain for WAYF invite links
 	templates      *template.Template
 }
 
-// NewHandler builds a UI handler.
+// NewHandler builds a UI handler. basePath and providerDomain come from the
+// validated local identity contract; basePath is already normalized.
 func NewHandler(basePath string, wayfEnabled bool, providerDomain string) (*Handler, error) {
 	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
-
-	if basePath != "" && !strings.HasPrefix(basePath, "/") {
-		basePath = "/" + basePath
-	}
-	basePath = strings.TrimSuffix(basePath, "/")
 
 	return &Handler{
 		basePath:       basePath,

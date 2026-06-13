@@ -13,14 +13,18 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
 const discoveryGoldenPath = "testdata/wellknown_discovery_dev.golden.json"
 
 func goldenResolveInputs(cfg *config.Config) resolve.ResolveInputs {
+	id, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
+	if err != nil {
+		panic("goldenResolveInputs: " + err.Error())
+	}
 	return resolve.ResolveInputs{
-		PublicOrigin:        cfg.PublicOrigin,
-		ExternalBasePath:    cfg.ExternalBasePath,
+		LocalIdentity:       id,
 		TokenExchangePath:   cfg.TokenExchange.Path,
 		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),

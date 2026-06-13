@@ -35,7 +35,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	defer ts.Stop(t)
 
 	d := ts.Deps
-	localProvider := d.LocalProviderFQDN
+	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user (the invite creator whose identity appears in the response)
 	localUser := &identity.User{
@@ -159,7 +159,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	defer ts.Stop(t)
 
 	d := ts.Deps
-	localProvider := d.LocalProviderFQDN
+	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user (the share recipient)
 	shareUser := &identity.User{
@@ -260,7 +260,7 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	defer ts.Stop(t)
 
 	d := ts.Deps
-	localProvider := d.LocalProviderFQDN
+	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user
 	shareUser := &identity.User{
@@ -336,7 +336,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	defer ts.Stop(t)
 
 	d := ts.Deps
-	localProvider := d.LocalProviderFQDN
+	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user (the share recipient)
 	shareUser := &identity.User{

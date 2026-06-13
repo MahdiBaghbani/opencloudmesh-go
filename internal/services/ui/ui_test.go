@@ -7,6 +7,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
+	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
 func testLog() *slog.Logger {
@@ -23,8 +26,13 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 	}
 }
 
+func testIdentity(t *testing.T, basePath string) localidentity.Identity {
+	t.Helper()
+	return tslocalid.MustTestIdentity(t, "https://localhost:9200", basePath)
+}
+
 func TestNew_AcceptsExternalBasePath(t *testing.T) {
-	svc, err := New(Inputs{ExternalBasePath: "/ocm"}, map[string]any{}, testLog())
+	svc, err := New(Inputs{LocalIdentity: testIdentity(t, "/ocm")}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -143,7 +151,7 @@ func TestService_InboxEndpoint(t *testing.T) {
 }
 
 func TestService_LoginEndpoint_WithBasePath(t *testing.T) {
-	svc, err := New(Inputs{ExternalBasePath: "/ocm"}, map[string]any{}, testLog())
+	svc, err := New(Inputs{LocalIdentity: testIdentity(t, "/ocm")}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -200,7 +208,7 @@ func TestService_AcceptInvite_RendersWithoutSession(t *testing.T) {
 	m := map[string]any{
 		"wayf": map[string]any{"enabled": true},
 	}
-	svc, err := New(Inputs{ExternalBasePath: "/ocm"}, m, testLog())
+	svc, err := New(Inputs{LocalIdentity: testIdentity(t, "/ocm")}, m, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

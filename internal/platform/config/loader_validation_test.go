@@ -162,6 +162,28 @@ on_discovery_error = "ignore"
 	}
 }
 
+func TestLoad_InvalidExternalBasePath_FailsFast(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "dev"
+public_origin = "https://example.com"
+external_base_path = "ocm"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid external_base_path")
+	}
+	if !strings.Contains(err.Error(), "external_base_path") {
+		t.Errorf("expected external_base_path error, got: %v", err)
+	}
+}
+
 func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")

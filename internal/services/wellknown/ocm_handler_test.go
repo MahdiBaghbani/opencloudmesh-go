@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
@@ -327,9 +328,8 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 			Endpoint: "https://cloud.example.com/ocm",
 		}
 		resolveIn := resolve.ResolveInputs{
-			PublicOrigin:     "https://cloud.example.com",
-			ExternalBasePath: "/ocm",
-			UIWayfEnabled:    true,
+			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+			UIWayfEnabled: true,
 		}
 
 		// rawOCMProvider does NOT contain invite_accept_dialog
@@ -353,9 +353,8 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 			InviteAcceptDialog: "https://custom.example.com/accept",
 		}
 		resolveIn := resolve.ResolveInputs{
-			PublicOrigin:     "https://cloud.example.com",
-			ExternalBasePath: "/ocm",
-			UIWayfEnabled:    true,
+			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+			UIWayfEnabled: true,
 		}
 
 		// rawOCMProvider DOES contain invite_accept_dialog
@@ -379,9 +378,8 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 			Endpoint: "https://cloud.example.com/ocm",
 		}
 		resolveIn := resolve.ResolveInputs{
-			PublicOrigin:     "https://cloud.example.com",
-			ExternalBasePath: "/ocm",
-			UIWayfEnabled:    false,
+			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+			UIWayfEnabled: false,
 		}
 
 		raw := map[string]any{

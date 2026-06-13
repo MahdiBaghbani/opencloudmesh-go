@@ -1,15 +1,18 @@
-package resolve
+package resolve_test
 
 import (
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
+	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
 func TestResolve_AppliesServiceLocalDefaults(t *testing.T) {
-	c := &ProviderConfig{}
-	in := Resolve(c, nil, ResolveInputs{})
+	c := &resolve.ProviderConfig{}
+	in := resolve.Resolve(c, nil, resolve.ResolveInputs{})
 
 	if in.Params.OCMPrefix != "ocm" {
 		t.Errorf("expected OCMPrefix default 'ocm', got %q", in.Params.OCMPrefix)
@@ -20,13 +23,12 @@ func TestResolve_AppliesServiceLocalDefaults(t *testing.T) {
 }
 
 func TestResolve_DerivesEndpointAndWebDAVRoot(t *testing.T) {
-	c := &ProviderConfig{}
-	in := ResolveInputs{
-		PublicOrigin:     "https://cloud.example.com",
-		ExternalBasePath: "/ocm",
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 	}
 
-	built := Resolve(c, map[string]any{}, in)
+	built := resolve.Resolve(c, map[string]any{}, in)
 
 	if built.Params.Endpoint != "https://cloud.example.com/ocm" {
 		t.Errorf("expected derived endpoint, got %q", built.Params.Endpoint)
@@ -37,13 +39,13 @@ func TestResolve_DerivesEndpointAndWebDAVRoot(t *testing.T) {
 }
 
 func TestResolve_SkipsEndpointDerivationWithoutPublicOrigin(t *testing.T) {
-	c := &ProviderConfig{}
-	in := ResolveInputs{ExternalBasePath: "/ocm"}
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{LocalIdentity: localidentity.Identity{ExternalBasePath: "/ocm"}}
 
-	built := Resolve(c, map[string]any{}, in)
+	built := resolve.Resolve(c, map[string]any{}, in)
 
 	if built.Params.Endpoint != "" {
-		t.Errorf("expected empty endpoint without PublicOrigin, got %q", built.Params.Endpoint)
+		t.Errorf("expected empty endpoint without Origin, got %q", built.Params.Endpoint)
 	}
 	if built.Params.WebDAVRoot != "/ocm/webdav/ocm/" {
 		t.Errorf("expected derived webdav_root, got %q", built.Params.WebDAVRoot)
@@ -51,20 +53,19 @@ func TestResolve_SkipsEndpointDerivationWithoutPublicOrigin(t *testing.T) {
 }
 
 func TestResolve_RawConfigWinsOverDerivation(t *testing.T) {
-	c := &ProviderConfig{
+	c := &resolve.ProviderConfig{
 		Endpoint:   "https://explicit.example.com",
 		WebDAVRoot: "/explicit/dav/",
 	}
-	in := ResolveInputs{
-		PublicOrigin:     "https://cloud.example.com",
-		ExternalBasePath: "/ocm",
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 	}
 	raw := map[string]any{
 		"endpoint":    "https://explicit.example.com",
 		"webdav_root": "/explicit/dav/",
 	}
 
-	built := Resolve(c, raw, in)
+	built := resolve.Resolve(c, raw, in)
 
 	if built.Params.Endpoint != "https://explicit.example.com" {
 		t.Errorf("expected explicit endpoint preserved, got %q", built.Params.Endpoint)
@@ -75,10 +76,10 @@ func TestResolve_RawConfigWinsOverDerivation(t *testing.T) {
 }
 
 func TestResolve_TokenExchangePathDefault(t *testing.T) {
-	c := &ProviderConfig{}
-	in := ResolveInputs{PublicOrigin: "https://example.com"}
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", "")}
 
-	built := Resolve(c, nil, in)
+	built := resolve.Resolve(c, nil, in)
 
 	if built.Params.TokenExchangePath != "token" {
 		t.Errorf("expected default token path 'token', got %q", built.Params.TokenExchangePath)
@@ -87,13 +88,13 @@ func TestResolve_TokenExchangePathDefault(t *testing.T) {
 
 func TestResolve_DerivesCompatibilityOverride(t *testing.T) {
 	cfg := config.CompatConfig()
-	in := ResolveInputs{
-		PublicOrigin:  "https://example.com",
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
 		RuntimePolicy: policy.NewRuntimePolicy(cfg, nil),
 	}
-	c := &ProviderConfig{Endpoint: "https://example.com"}
+	c := &resolve.ProviderConfig{Endpoint: "https://example.com"}
 
-	built := Resolve(c, map[string]any{}, in)
+	built := resolve.Resolve(c, map[string]any{}, in)
 
 	if len(built.Overrides) != 1 {
 		t.Fatalf("expected one crawler override, got %d", len(built.Overrides))
@@ -104,15 +105,14 @@ func TestResolve_DerivesCompatibilityOverride(t *testing.T) {
 }
 
 func TestResolve_DerivesInviteAcceptDialogFromWAYF(t *testing.T) {
-	c := &ProviderConfig{}
-	in := ResolveInputs{
-		PublicOrigin:     "https://cloud.example.com",
-		ExternalBasePath: "/ocm",
-		UIWayfEnabled:    true,
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+		UIWayfEnabled: true,
 	}
 	raw := map[string]any{"endpoint": "https://cloud.example.com/ocm"}
 
-	built := Resolve(c, raw, in)
+	built := resolve.Resolve(c, raw, in)
 
 	if built.Params.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
 		t.Errorf("expected derived inviteAcceptDialog, got %q", built.Params.InviteAcceptDialog)
@@ -120,16 +120,16 @@ func TestResolve_DerivesInviteAcceptDialogFromWAYF(t *testing.T) {
 }
 
 func TestResolve_SkipsInviteAcceptDialogWithoutPublicOrigin(t *testing.T) {
-	c := &ProviderConfig{}
-	in := ResolveInputs{
-		ExternalBasePath: "/ocm",
-		UIWayfEnabled:    true,
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: localidentity.Identity{ExternalBasePath: "/ocm"},
+		UIWayfEnabled: true,
 	}
 
-	built := Resolve(c, map[string]any{}, in)
+	built := resolve.Resolve(c, map[string]any{}, in)
 
 	if built.Params.InviteAcceptDialog != "" {
-		t.Errorf("expected empty inviteAcceptDialog without PublicOrigin, got %q", built.Params.InviteAcceptDialog)
+		t.Errorf("expected empty inviteAcceptDialog without Origin, got %q", built.Params.InviteAcceptDialog)
 	}
 }
 
@@ -139,34 +139,16 @@ func TestUIWayfEnabledFromConfig(t *testing.T) {
 		uiRaw map[string]any
 		want  bool
 	}{
-		{
-			name:  "nil ui config",
-			uiRaw: nil,
-			want:  false,
-		},
-		{
-			name: "disabled nested map",
-			uiRaw: map[string]any{
-				"wayf": map[string]any{
-					"enabled": false,
-				},
-			},
-			want: false,
-		},
-		{
-			name: "enabled nested map",
-			uiRaw: map[string]any{
-				"wayf": map[string]any{
-					"enabled": true,
-				},
-			},
-			want: true,
-		},
+		{"nil config", nil, false},
+		{"empty config", map[string]any{}, false},
+		{"wayf disabled", map[string]any{"wayf": map[string]any{"enabled": false}}, false},
+		{"wayf enabled", map[string]any{"wayf": map[string]any{"enabled": true}}, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := UIWayfEnabledFromConfig(tt.uiRaw); got != tt.want {
+			got := resolve.UIWayfEnabledFromConfig(tt.uiRaw)
+			if got != tt.want {
 				t.Errorf("UIWayfEnabledFromConfig() = %v, want %v", got, tt.want)
 			}
 		})
