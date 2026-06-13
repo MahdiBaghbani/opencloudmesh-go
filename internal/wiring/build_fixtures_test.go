@@ -61,7 +61,7 @@ func TestFixtures_UnprotectedSets(t *testing.T) {
 		t.Run(want.Service, func(t *testing.T) {
 			svc, ok := services[want.Service]
 			if !ok {
-				t.Fatalf("service %q missing from static table", want.Service)
+				t.Fatalf("service %q missing from built services", want.Service)
 			}
 			t.Cleanup(func() { _ = svc.Close() })
 

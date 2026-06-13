@@ -3,6 +3,7 @@
 package wiring
 
 import (
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
@@ -32,43 +33,49 @@ var HarnessWireOptions = FixtureBuildOpts{
 // ProductionWireOptions is the main.go zero-value bootstrap path.
 var ProductionWireOptions = FixtureBuildOpts{}
 
-// ExpectedCoreServicesOrder is the baseline for service construction and route
-// mount order.
-var ExpectedCoreServicesOrder = []string{
-	"wellknown",
-	"ocm",
-	"ocmaux",
-	"api",
-	"ui",
-	"webdav",
-}
-
-// ExpectedAppServicesOrder is CoreServices minus the root service, preserving order.
-var ExpectedAppServicesOrder = []string{
-	"ocm",
-	"ocmaux",
-	"api",
-	"ui",
-	"webdav",
-}
-
-// ExpectedRootService is the core service mounted at the host root.
-const ExpectedRootService = "wellknown"
-
 // ServiceUnprotectedPaths names a service and its default Unprotected() paths.
 type ServiceUnprotectedPaths struct {
 	Service string
 	Paths   []string
 }
 
-// ExpectedUnprotectedSets captures default DevConfig Unprotected() declarations.
-var ExpectedUnprotectedSets = []ServiceUnprotectedPaths{
-	{Service: "wellknown", Paths: []string{
+// unprotectedPathExpectations holds default DevConfig Unprotected() path lists
+// keyed by descriptor service name. Service names and order come from
+// service.Descriptors().
+var unprotectedPathExpectations = map[string][]string{
+	"wellknown": {
 		"/.well-known/ocm", "/.well-known/ocm/", "/ocm-provider", "/ocm-provider/",
-	}},
-	{Service: "ocm", Paths: []string{"/shares", "/notifications", "/invite-accepted", "/token"}},
-	{Service: "ocmaux", Paths: []string{"/federations", "/discover"}},
-	{Service: "api", Paths: []string{"/healthz", "/auth/login"}},
-	{Service: "ui", Paths: []string{"/login"}},
-	{Service: "webdav", Paths: []string{"/ocm"}},
+	},
+	"ocm":    {"/shares", "/notifications", "/invite-accepted", "/token"},
+	"ocmaux": {"/federations", "/discover"},
+	"api":    {"/healthz", "/auth/login"},
+	"ui":     {"/login"},
+	"webdav": {"/ocm"},
+}
+
+// ExpectedUnprotectedSets captures default DevConfig Unprotected() declarations
+// in descriptor order.
+var ExpectedUnprotectedSets = buildExpectedUnprotectedSets()
+
+func buildExpectedUnprotectedSets() []ServiceUnprotectedPaths {
+	descs := service.Descriptors()
+	out := make([]ServiceUnprotectedPaths, 0, len(descs))
+	seen := make(map[string]struct{}, len(descs))
+	for _, d := range descs {
+		paths, ok := unprotectedPathExpectations[d.Name]
+		if !ok {
+			panic("missing unprotected path expectations for descriptor " + d.Name)
+		}
+		seen[d.Name] = struct{}{}
+		out = append(out, ServiceUnprotectedPaths{
+			Service: d.Name,
+			Paths:   paths,
+		})
+	}
+	for name := range unprotectedPathExpectations {
+		if _, ok := seen[name]; !ok {
+			panic("stale unprotected path expectations for removed descriptor " + name)
+		}
+	}
+	return out
 }

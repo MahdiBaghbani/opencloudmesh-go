@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 // TestRepoContract runs the full repo-level contract against every backend.
@@ -13,29 +13,10 @@ import (
 // must match its observable behavior on every operation including list
 // operations and recipient-scoped access.
 func TestRepoContract(t *testing.T) {
-	backends := []struct {
-		name string
-		open func(*testing.T) *repos.Repos
-	}{
-		{"memory", newMemoryRepos},
-		{"json", newJSONRepos},
-		{
-			"sqlite",
-			func(t *testing.T) *repos.Repos {
-				return newDurableRepos(t, config.BackendSQLite)
-			},
-		},
-		{
-			"mirror",
-			func(t *testing.T) *repos.Repos {
-				return newDurableRepos(t, config.BackendMirror)
-			},
-		},
-	}
-	for _, tt := range backends {
+	for _, tt := range tsrepos.OpenTestRepos() {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			r := tt.open(t)
+		t.Run(tt.Name, func(t *testing.T) {
+			r := tt.Open(t)
 			defer r.Close()
 			runRepoContract(t, r)
 		})
@@ -51,16 +32,12 @@ func TestRepoContract(t *testing.T) {
 func TestDurableDriverSurfaceParity(t *testing.T) {
 	ctx := context.Background()
 
-	for _, backend := range []string{
-		config.BackendJSON,
-		config.BackendSQLite,
-		config.BackendMirror,
-	} {
+	for _, backend := range tsrepos.DurableBackends() {
 		backend := backend
 		t.Run(backend, func(t *testing.T) {
 			// repos.New internally type-asserts drv.(fullStore); failure here
 			// means the driver is missing at least one store interface.
-			r := newDurableRepos(t, backend)
+			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
 
 			if r.OutgoingShares == nil {

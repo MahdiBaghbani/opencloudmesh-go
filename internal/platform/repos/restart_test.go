@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
@@ -17,7 +19,7 @@ import (
 // work after reopen. Memory is intentionally excluded (no durable restart).
 func TestDurableRepos_InviteRestart(t *testing.T) {
 	ctx := context.Background()
-	for _, backend := range []string{config.BackendJSON, config.BackendSQLite, config.BackendMirror} {
+	for _, backend := range tsrepos.DurableBackends() {
 		backend := backend
 		t.Run(backend, func(t *testing.T) {
 			dir := t.TempDir()

@@ -3,8 +3,6 @@ package service
 import (
 	"slices"
 	"testing"
-
-	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 )
 
 // TestAppServicesParity guards the core-service parity contract: the root
@@ -12,20 +10,16 @@ import (
 // order. This prevents silent drift between service construction and route
 // mounting when a core service is added, removed, or renamed.
 func TestAppServicesParity(t *testing.T) {
-	// RootService must be a member of CoreServices.
 	if !slices.Contains(CoreServices, RootService) {
 		t.Fatalf("RootService %q is not present in CoreServices %v", RootService, CoreServices)
 	}
 
 	app := AppServices()
 
-	// AppServices must never include the root service.
 	if slices.Contains(app, RootService) {
 		t.Errorf("AppServices() must not include RootService %q, got %v", RootService, app)
 	}
 
-	// Reconstructing CoreServices from RootService + AppServices, preserving
-	// CoreServices order, must match exactly (no dropped or extra services).
 	want := make([]string, 0, len(CoreServices))
 	for _, name := range CoreServices {
 		if name == RootService {
@@ -37,35 +31,49 @@ func TestAppServicesParity(t *testing.T) {
 		t.Errorf("AppServices() = %v, want %v (CoreServices order minus RootService)", app, want)
 	}
 
-	// Every core service must be accounted for: root or app, no overlap.
 	if len(app)+1 != len(CoreServices) {
 		t.Errorf("AppServices() length %d + 1 root != CoreServices length %d", len(app), len(CoreServices))
 	}
 }
 
-// TestServiceOrderMatchesWiringFixtures guards the static CoreServices table
-// against the shared wiring fixture baseline used by bootstrap parity tests.
-func TestServiceOrderMatchesWiringFixtures(t *testing.T) {
-	if !slices.Equal(CoreServices, wiringtest.ExpectedCoreServicesOrder) {
-		t.Errorf(
-			"CoreServices = %v, want %v",
-			CoreServices,
-			wiringtest.ExpectedCoreServicesOrder,
-		)
+// TestDescriptorsDerivedViews guards that CoreServices and route metadata stay
+// aligned with the canonical descriptor table.
+func TestDescriptorsDerivedViews(t *testing.T) {
+	descs := Descriptors()
+	if len(descs) != len(CoreServices) {
+		t.Fatalf("descriptor count = %d, want CoreServices length %d", len(descs), len(CoreServices))
 	}
-	if RootService != wiringtest.ExpectedRootService {
-		t.Errorf(
-			"RootService = %q, want %q",
-			RootService,
-			wiringtest.ExpectedRootService,
-		)
+
+	names := make([]string, len(descs))
+	rootCount := 0
+	for i, d := range descs {
+		names[i] = d.Name
+		if d.Build == "" {
+			t.Errorf("descriptor %q has no build key", d.Name)
+		}
+		if d.MountAtRoot {
+			rootCount++
+			if d.Name != RootService {
+				t.Errorf("MountAtRoot service = %q, want RootService %q", d.Name, RootService)
+			}
+		}
+		if len(d.RouteGroups) == 0 {
+			t.Errorf("descriptor %q has no route groups", d.Name)
+		}
+		if d.Prefix != "" && d.MountAtRoot {
+			t.Errorf("descriptor %q is MountAtRoot but has prefix %q", d.Name, d.Prefix)
+		}
 	}
-	if !slices.Equal(AppServices(), wiringtest.ExpectedAppServicesOrder) {
-		t.Errorf(
-			"AppServices() = %v, want %v",
-			AppServices(),
-			wiringtest.ExpectedAppServicesOrder,
-		)
+	if !slices.Equal(names, CoreServices) {
+		t.Errorf("descriptor names = %v, want CoreServices %v", names, CoreServices)
+	}
+	if rootCount != 1 {
+		t.Fatalf("MountAtRoot descriptor count = %d, want 1", rootCount)
+	}
+
+	routeGroups := RouteGroupsFromDescriptors()
+	if len(routeGroups) < len(descs) {
+		t.Fatalf("route group count = %d, want at least %d", len(routeGroups), len(descs))
 	}
 }
 

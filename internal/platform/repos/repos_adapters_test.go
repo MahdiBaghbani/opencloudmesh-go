@@ -10,8 +10,8 @@ import (
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 // TestJSON_IncomingShare_CreateDuplicate verifies that a second Create for the
@@ -19,7 +19,7 @@ import (
 // not ErrShareNotFound.
 func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 	ctx := context.Background()
-	r := newJSONRepos(t)
+	r := tsrepos.OpenJSON(t)
 	defer r.Close()
 
 	share := &sharesinbox.IncomingShare{
@@ -57,7 +57,7 @@ func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 // not ErrInviteNotFound.
 func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
 	ctx := context.Background()
-	r := newJSONRepos(t)
+	r := tsrepos.OpenJSON(t)
 	defer r.Close()
 
 	invite := &invitesinbox.IncomingInvite{
@@ -89,10 +89,10 @@ func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
 // Create -> GetByID round-trip through all durable backends (json, sqlite, mirror).
 func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 	ctx := context.Background()
-	for _, backend := range []string{config.BackendJSON, config.BackendSQLite, config.BackendMirror} {
+	for _, backend := range tsrepos.DurableBackends() {
 		backend := backend
 		t.Run(backend, func(t *testing.T) {
-			r := newDurableRepos(t, backend)
+			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
 
 			sentAt := time.Unix(time.Now().Unix(), 0).UTC()
@@ -131,10 +131,10 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 // through durable backends.
 func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 	ctx := context.Background()
-	for _, backend := range []string{config.BackendJSON, config.BackendSQLite, config.BackendMirror} {
+	for _, backend := range tsrepos.DurableBackends() {
 		backend := backend
 		t.Run(backend, func(t *testing.T) {
-			r := newDurableRepos(t, backend)
+			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
 
 			share := &sharesoutgoing.OutgoingShare{
@@ -182,10 +182,10 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	exp := int64(9999999)
-	for _, backend := range []string{config.BackendJSON, config.BackendSQLite, config.BackendMirror} {
+	for _, backend := range tsrepos.DurableBackends() {
 		backend := backend
 		t.Run(backend, func(t *testing.T) {
-			r := newDurableRepos(t, backend)
+			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
 
 			share := &sharesinbox.IncomingShare{

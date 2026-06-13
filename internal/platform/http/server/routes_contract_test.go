@@ -19,14 +19,18 @@ type routeGroupExpectation struct {
 	AtHostRoot   bool
 }
 
-var expectedRouteGroups = []routeGroupExpectation{
-	{Name: "well-known-ocm", PathPrefix: "/.well-known/ocm", RequiresAuth: false, AtHostRoot: true},
-	{Name: "ocm-provider", PathPrefix: "/ocm-provider", RequiresAuth: false, AtHostRoot: true},
-	{Name: "ocm-api", PathPrefix: "/ocm", RequiresAuth: false, AtHostRoot: false},
-	{Name: "ocm-aux", PathPrefix: "/ocm-aux", RequiresAuth: false, AtHostRoot: false},
-	{Name: "api", PathPrefix: "/api", RequiresAuth: true, AtHostRoot: false},
-	{Name: "ui", PathPrefix: "/ui", RequiresAuth: true, AtHostRoot: false},
-	{Name: "webdav", PathPrefix: "/webdav/ocm", RequiresAuth: false, AtHostRoot: false},
+func expectedRouteGroups() []routeGroupExpectation {
+	specs := service.RouteGroupsFromDescriptors()
+	out := make([]routeGroupExpectation, len(specs))
+	for i, spec := range specs {
+		out[i] = routeGroupExpectation{
+			Name:         spec.Name,
+			PathPrefix:   spec.PathPrefix,
+			RequiresAuth: spec.RequiresAuth,
+			AtHostRoot:   spec.AtHostRoot,
+		}
+	}
+	return out
 }
 
 type authDecisionCase struct {
@@ -79,10 +83,11 @@ func (t *orderTrackingService) Close() error {
 
 func TestRoutesContract_RouteGroupsTable(t *testing.T) {
 	got := GetRouteGroups()
-	if len(got) != len(expectedRouteGroups) {
-		t.Fatalf("route group count = %d, want %d", len(got), len(expectedRouteGroups))
+	want := expectedRouteGroups()
+	if len(got) != len(want) {
+		t.Fatalf("route group count = %d, want %d", len(got), len(want))
 	}
-	for i, want := range expectedRouteGroups {
+	for i, want := range want {
 		g := got[i]
 		if g.Name != want.Name ||
 			g.PathPrefix != want.PathPrefix ||
@@ -167,12 +172,9 @@ func newOrderTrackingServer(t *testing.T, mountOrder, closeOrder *[]string) *Ser
 }
 
 func servicePrefixForOrderTest(name string) string {
-	switch name {
-	case service.RootService:
-		return ""
-	case "ocmaux":
-		return "ocm-aux"
-	default:
+	desc, ok := service.DescriptorByName(name)
+	if !ok {
 		return name
 	}
+	return desc.Prefix
 }

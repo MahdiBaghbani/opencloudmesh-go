@@ -6,6 +6,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 // ---- backend selection ----
@@ -146,34 +147,13 @@ func TestNew_UnknownBackend(t *testing.T) {
 // ---- helpers ----
 
 func newMemoryRepos(t *testing.T) *repos.Repos {
-	t.Helper()
-	r, err := repos.New(context.Background(), config.PersistenceConfig{Backend: config.BackendMemory})
-	if err != nil {
-		t.Fatalf("repos.New(memory): %v", err)
-	}
-	return r
+	return tsrepos.OpenMemory(t)
 }
 
 func newJSONRepos(t *testing.T) *repos.Repos {
-	t.Helper()
-	r, err := repos.New(context.Background(), config.PersistenceConfig{
-		Backend: config.BackendJSON,
-		DataDir: t.TempDir(),
-	})
-	if err != nil {
-		t.Fatalf("repos.New(json): %v", err)
-	}
-	return r
+	return tsrepos.OpenJSON(t)
 }
 
 func newDurableRepos(t *testing.T, backend string) *repos.Repos {
-	t.Helper()
-	r, err := repos.New(context.Background(), config.PersistenceConfig{
-		Backend: backend,
-		DataDir: t.TempDir(),
-	})
-	if err != nil {
-		t.Fatalf("repos.New(%s): %v", backend, err)
-	}
-	return r
+	return tsrepos.OpenDurable(t, backend)
 }
