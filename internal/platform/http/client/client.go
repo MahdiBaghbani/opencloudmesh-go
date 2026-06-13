@@ -59,14 +59,8 @@ type Client struct {
 // rootCAs is optional; nil uses the system certificate pool.
 func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 	if cfg == nil {
-		cfg = &config.OutboundHTTPConfig{
-			SSRF:               config.SSRFConfig{Mode: "strict"},
-			TimeoutMS:          10000,
-			ConnectTimeoutMS:   2000,
-			MaxRedirects:       1,
-			MaxResponseBytes:   1048576,
-			InsecureSkipVerify: false,
-		}
+		strict := config.OutboundHTTPConfigStrict()
+		cfg = &strict
 	}
 
 	c := &Client{cfg: cfg}

@@ -70,12 +70,12 @@ func toInt(v any) (int, bool) {
 
 // Config holds Redis connection configuration.
 type Config struct {
-	Addr            string        // Redis address (host:port)
-	Password        string        // Optional password
-	DB              int           // Database number
-	DialTimeout     time.Duration // Connection timeout
-	ConnTimeout     time.Duration // Read/write timeout per connection (valkey-go uses one timeout for both)
-	DefaultTTL      time.Duration // Default TTL for cache entries
+	Addr        string        // Redis address (host:port)
+	Password    string        // Optional password
+	DB          int           // Database number
+	DialTimeout time.Duration // Connection timeout
+	ConnTimeout time.Duration // Read/write timeout per connection (valkey-go uses one timeout for both)
+	DefaultTTL  time.Duration // Default TTL for cache entries
 }
 
 // DefaultConfig returns sensible defaults for Redis connection.
@@ -86,7 +86,7 @@ func DefaultConfig() *Config {
 		DB:          0,
 		DialTimeout: 5 * time.Second,
 		ConnTimeout: 3 * time.Second,
-		DefaultTTL:  15 * time.Minute,
+		DefaultTTL:  cache.TTLDiscovery,
 	}
 }
 

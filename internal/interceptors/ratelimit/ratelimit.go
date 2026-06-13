@@ -27,7 +27,7 @@ func (c *Config) ApplyDefaults() {
 		c.RequestsPerWindow = 100
 	}
 	if c.WindowSeconds == 0 {
-		c.WindowSeconds = 60
+		c.WindowSeconds = int(cache.TTLRateLimit / time.Second)
 	}
 }
 

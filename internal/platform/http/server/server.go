@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -69,9 +68,9 @@ func New(
 	s.httpServer = &http.Server{
 		Addr:         cfg.ListenAddr,
 		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  config.DefaultServerReadTimeout,
+		WriteTimeout: config.DefaultServerWriteTimeout,
+		IdleTimeout:  config.DefaultServerIdleTimeout,
 	}
 
 	return s, nil
@@ -152,9 +151,9 @@ func (s *Server) startACME() error {
 	s.challengeServer = &http.Server{
 		Addr:         httpAddr,
 		Handler:      challengeMux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  config.DefaultChallengeReadTimeout,
+		WriteTimeout: config.DefaultChallengeWriteTimeout,
+		IdleTimeout:  config.DefaultChallengeIdleTimeout,
 	}
 
 	challengeListener, err := net.Listen("tcp", httpAddr)
@@ -166,7 +165,7 @@ func (s *Server) startACME() error {
 		if s.challengeServer == nil {
 			return
 		}
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), config.DefaultServerShutdownTimeout)
 		defer cancel()
 		if shutdownErr := s.challengeServer.Shutdown(shutdownCtx); shutdownErr != nil && !errors.Is(shutdownErr, http.ErrServerClosed) {
 			_ = s.challengeServer.Close()
@@ -211,7 +210,7 @@ func (s *Server) startACME() error {
 		if errors.Is(challengeErr, http.ErrServerClosed) {
 			return <-httpsErrCh
 		}
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), config.DefaultServerShutdownTimeout)
 		defer cancel()
 		_ = s.httpServer.Shutdown(shutdownCtx)
 		return fmt.Errorf("challenge server exited unexpectedly: %w", challengeErr)

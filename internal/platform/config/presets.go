@@ -63,16 +63,7 @@ func StrictConfig() *Config {
 				UseStaging: false,
 			},
 		},
-		OutboundHTTP: OutboundHTTPConfig{
-			SSRF:               SSRFConfig{Mode: "strict"},
-			DerivedSSRFMode:    "strict",
-			TimeoutMS:          10000,
-			ConnectTimeoutMS:   2000,
-			MaxRedirects:       1,
-			MaxResponseBytes:   1048576,
-			InsecureSkipVerify: false,
-			ProxyEnvFallback:   true,
-		},
+		OutboundHTTP: DefaultOutboundHTTP(),
 		Signature: SignatureConfig{
 			InboundMode:              "strict",
 			OutboundMode:             "strict",
@@ -82,12 +73,9 @@ func StrictConfig() *Config {
 			AllowMismatch:            false,
 		},
 		PeerTrust: PeerTrustConfig{
-			Enabled:     false,
-			ConfigPaths: nil,
-			MembershipCache: PeerTrustMembershipCacheConfig{
-				TTLSeconds:      21600,  // 6 hours
-				MaxStaleSeconds: 604800, // 7 days
-			},
+			Enabled:         false,
+			ConfigPaths:     nil,
+			MembershipCache: DefaultPeerTrustMembershipCache(),
 		},
 		Logging: LoggingConfig{
 			Level:          "info",

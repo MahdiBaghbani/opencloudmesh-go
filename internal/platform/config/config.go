@@ -403,16 +403,12 @@ type OutboundHTTPConfig struct {
 }
 
 // OutboundHTTPConfigStrict returns strict outbound HTTP config for production.
+// ProxyEnvFallback is false so programmatic callers do not inherit ambient env
+// proxy settings unless explicitly configured.
 func OutboundHTTPConfigStrict() OutboundHTTPConfig {
-	return OutboundHTTPConfig{
-		SSRF:               SSRFConfig{Mode: "strict"},
-		DerivedSSRFMode:    "strict",
-		TimeoutMS:          10000,
-		ConnectTimeoutMS:   2000,
-		MaxRedirects:       1,
-		MaxResponseBytes:   1048576,
-		InsecureSkipVerify: false,
-	}
+	cfg := DefaultOutboundHTTP()
+	cfg.ProxyEnvFallback = false
+	return cfg
 }
 
 // BuildServiceConfig returns the raw service config map for a given service name.
