@@ -122,6 +122,10 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create core services: %v", err)
 	}
+	if err := service.ValidateBuiltServices(services); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("built service validation rejected: %v", err)
+	}
 
 	serverDeps, err := wiring.BuildServerDeps(cfg, logger, d)
 	if err != nil {
@@ -199,26 +203,9 @@ func (ts *TestServer) LogFile(name string) string {
 
 // validatePreBootstrapStartup runs the fail-fast checks that the real binary
 // applies before any side-effecting bootstrap. It returns an error (rather than
-// calling t.Fatalf) so it can be unit-tested directly. It covers two surfaces:
-//   - unknown [http.services.*] names (a typo must never start partially), and
-//   - the compatibility-scope startup guardrails that config.Load enforces,
-//     reused here so an in-memory config patched past Load() still rejects the
-//     same broader impossible startup states the binary rejects.
+// calling t.Fatalf) so it can be unit-tested directly.
 func validatePreBootstrapStartup(cfg *config.Config) error {
-	if cfg.HTTP.Services != nil {
-		var names []string
-		for name := range cfg.HTTP.Services {
-			names = append(names, name)
-		}
-		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
-			return fmt.Errorf("unknown service names in [http.services]: %s (allowed: %s)",
-				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
-		}
-	}
-	if err := config.ValidateCompatibilityScopeStartupGuardrails(cfg); err != nil {
-		return err
-	}
-	return nil
+	return service.ValidatePreBootstrap(cfg)
 }
 
 // checkStartupPosture mirrors the main.go startup guard: when

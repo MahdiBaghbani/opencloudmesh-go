@@ -4,25 +4,41 @@ import (
 	"sort"
 )
 
-// CoreServices lists service names always constructed via the static wiring table.
-var CoreServices = []string{"wellknown", "ocm", "ocmaux", "api", "ui", "webdav"}
+var (
+	// CoreServices lists service names always constructed via the descriptor table.
+	CoreServices = coreServiceNames()
+	// RootService is the core service mounted at the host root rather than under
+	// external_base_path.
+	RootService = rootServiceName()
+)
 
-// RootService is the core service mounted at the host root rather than under
-// external_base_path. Every other CoreServices entry is mounted as an app
-// endpoint. This marker keeps route mounting derived from CoreServices instead
-// of a separate hardcoded list.
-const RootService = "wellknown"
+func coreServiceNames() []string {
+	names := make([]string, len(descriptors))
+	for i, d := range descriptors {
+		names[i] = d.Name
+	}
+	return names
+}
+
+func rootServiceName() string {
+	for _, d := range descriptors {
+		if d.MountAtRoot {
+			return d.Name
+		}
+	}
+	return ""
+}
 
 // AppServices returns the core service names mounted under external_base_path,
 // in CoreServices order, excluding RootService (mounted at the host root).
 // Order is significant for Chi route matching, so it mirrors CoreServices.
 func AppServices() []string {
-	names := make([]string, 0, len(CoreServices))
-	for _, name := range CoreServices {
-		if name == RootService {
+	names := make([]string, 0, len(descriptors))
+	for _, d := range descriptors {
+		if d.MountAtRoot {
 			continue
 		}
-		names = append(names, name)
+		names = append(names, d.Name)
 	}
 	return names
 }

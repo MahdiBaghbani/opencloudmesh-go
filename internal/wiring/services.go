@@ -16,24 +16,36 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/services/wellknown"
 )
 
-type coreServiceEntry struct {
-	name  string
-	build func(*config.Config, map[string]any, *slog.Logger, *Deps) (service.Service, error)
+type coreServiceBuilder func(
+	*config.Config,
+	map[string]any,
+	*slog.Logger,
+	*Deps,
+) (service.Service, error)
+
+// coreServiceBuilders maps descriptor Build keys to wiring constructors.
+var coreServiceBuilders = map[service.BuildKey]coreServiceBuilder{
+	service.BuildWellknown: buildWellknownService,
+	service.BuildOCM:       buildOCMService,
+	service.BuildOCMAux:    buildOCMAuxService,
+	service.BuildAPI:       buildAPIService,
+	service.BuildUI:        buildUIService,
+	service.BuildWebDAV:    buildWebDAVService,
 }
 
-var coreServiceTable = []coreServiceEntry{
-	{name: "wellknown", build: buildWellknownService},
-	{name: "ocm", build: buildOCMService},
-	{name: "ocmaux", build: buildOCMAuxService},
-	{name: "api", build: buildAPIService},
-	{name: "ui", build: buildUIService},
-	{name: "webdav", build: buildWebDAVService},
+// RegisteredBuildKeys returns the build keys wired in this package.
+func RegisteredBuildKeys() []service.BuildKey {
+	keys := make([]service.BuildKey, 0, len(coreServiceBuilders))
+	for k := range coreServiceBuilders {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func CoreServiceNames() []string {
-	names := make([]string, len(coreServiceTable))
-	for i, entry := range coreServiceTable {
-		names[i] = entry.name
+	names := make([]string, len(service.Descriptors()))
+	for i, d := range service.Descriptors() {
+		names[i] = d.Name
 	}
 	return names
 }
@@ -46,17 +58,25 @@ func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[st
 		return nil, server.ErrMissingRealIP
 	}
 
-	services := make(map[string]service.Service, len(coreServiceTable))
-	for _, entry := range coreServiceTable {
-		svcCfg := cfg.BuildServiceConfig(entry.name)
+	descs := service.Descriptors()
+	services := make(map[string]service.Service, len(descs))
+	for _, desc := range descs {
+		if desc.Build == "" {
+			return nil, fmt.Errorf("descriptor %q has no build key", desc.Name)
+		}
+		build, ok := coreServiceBuilders[desc.Build]
+		if !ok {
+			return nil, fmt.Errorf("no builder registered for service %q (build key %q)", desc.Name, desc.Build)
+		}
+		svcCfg := cfg.BuildServiceConfig(desc.Name)
 		if svcCfg == nil {
 			svcCfg = make(map[string]any)
 		}
-		svc, err := entry.build(cfg, svcCfg, logger, d)
+		svc, err := build(cfg, svcCfg, logger, d)
 		if err != nil {
-			return nil, fmt.Errorf("create service %q: %w", entry.name, err)
+			return nil, fmt.Errorf("create service %q: %w", desc.Name, err)
 		}
-		services[entry.name] = svc
+		services[desc.Name] = svc
 	}
 	return services, nil
 }

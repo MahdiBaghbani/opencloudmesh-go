@@ -18,14 +18,20 @@ type RouteGroup struct {
 	AtHostRoot   bool
 }
 
-var routeGroups = []RouteGroup{
-	{Name: "well-known-ocm", PathPrefix: "/.well-known/ocm", RequiresAuth: false, AtHostRoot: true},
-	{Name: "ocm-provider", PathPrefix: "/ocm-provider", RequiresAuth: false, AtHostRoot: true},
-	{Name: "ocm-api", PathPrefix: "/ocm", RequiresAuth: false, AtHostRoot: false},
-	{Name: "ocm-aux", PathPrefix: "/ocm-aux", RequiresAuth: false, AtHostRoot: false},
-	{Name: "api", PathPrefix: "/api", RequiresAuth: true, AtHostRoot: false},
-	{Name: "ui", PathPrefix: "/ui", RequiresAuth: true, AtHostRoot: false},
-	{Name: "webdav", PathPrefix: "/webdav/ocm", RequiresAuth: false, AtHostRoot: false},
+var routeGroups = routeGroupsFromDescriptors()
+
+func routeGroupsFromDescriptors() []RouteGroup {
+	specs := service.RouteGroupsFromDescriptors()
+	groups := make([]RouteGroup, len(specs))
+	for i, spec := range specs {
+		groups[i] = RouteGroup{
+			Name:         spec.Name,
+			PathPrefix:   spec.PathPrefix,
+			RequiresAuth: spec.RequiresAuth,
+			AtHostRoot:   spec.AtHostRoot,
+		}
+	}
+	return groups
 }
 
 func GetRouteGroups() []RouteGroup {

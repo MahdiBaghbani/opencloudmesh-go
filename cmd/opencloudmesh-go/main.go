@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -95,20 +94,9 @@ func main() {
 	slog.SetDefault(logger)
 	logger.Info("effective configuration", "config", cfg.Redacted())
 
-	// Unknown [http.services.*] keys fail fast before any side-effecting bootstrap
-	// (directory creation, key generation) so a typo never causes partial startup.
-	if cfg.HTTP.Services != nil {
-		var names []string
-		for name := range cfg.HTTP.Services {
-			names = append(names, name)
-		}
-		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
-			logger.Error("unknown service names in [http.services]",
-				"unknown", strings.Join(unknown, ", "),
-				"allowed", strings.Join(allowed, ", "),
-			)
-			os.Exit(1)
-		}
+	if err := service.ValidatePreBootstrap(cfg); err != nil {
+		logger.Error("pre-bootstrap startup validation failed", "error", err)
+		os.Exit(1)
 	}
 
 	result, err := wiring.Build(cfg, logger, wiring.BuildOpts{})
@@ -172,6 +160,10 @@ func main() {
 	services, err := wiring.BuildCoreServices(cfg, logger, d)
 	if err != nil {
 		logger.Error("failed to create services", "error", err)
+		os.Exit(1)
+	}
+	if err := service.ValidateBuiltServices(services); err != nil {
+		logger.Error("built service validation failed", "error", err)
 		os.Exit(1)
 	}
 
