@@ -6,7 +6,7 @@ import (
 
 	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
-	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
+	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 
@@ -15,14 +15,14 @@ import (
 
 func TestFixtures_HarnessWireOptionsMatchIntegrationHarness(t *testing.T) {
 	got := harness.IntegrationBuildOpts()
-	want := toBuildOpts(wiringtest.HarnessWireOptions)
+	want := toBuildOpts(tswiring.HarnessWireOptions)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("IntegrationBuildOpts() = %+v, want %+v", got, want)
 	}
 }
 
 func TestFixtures_HarnessWireOptionsFixture(t *testing.T) {
-	fixture := wiringtest.HarnessWireOptions
+	fixture := tswiring.HarnessWireOptions
 	if !fixture.FastAuth || !fixture.SkipCrypto || !fixture.SkipPeerTrust ||
 		!fixture.SkipSignatureMiddleware || !fixture.SkipDiscoveryCache {
 		t.Fatalf("harness fixture must keep harness skip flags enabled, got %+v", fixture)
@@ -57,7 +57,7 @@ func TestFixtures_UnprotectedSets(t *testing.T) {
 		t.Fatalf("BuildCoreServices failed: %v", err)
 	}
 
-	for _, want := range wiringtest.ExpectedUnprotectedSets {
+	for _, want := range tswiring.ExpectedUnprotectedSets {
 		t.Run(want.Service, func(t *testing.T) {
 			svc, ok := services[want.Service]
 			if !ok {

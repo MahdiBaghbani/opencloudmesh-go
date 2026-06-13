@@ -1,15 +1,15 @@
 package wiring_test
 
 import (
-	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
+	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 )
 
 func harnessBuildOpts() wiring.BuildOpts {
-	return toBuildOpts(wiringtest.HarnessWireOptions)
+	return toBuildOpts(tswiring.HarnessWireOptions)
 }
 
-func toBuildOpts(f wiringtest.FixtureBuildOpts) wiring.BuildOpts {
+func toBuildOpts(f tswiring.FixtureBuildOpts) wiring.BuildOpts {
 	return wiring.BuildOpts{
 		FastAuth:                f.FastAuth,
 		SkipCrypto:              f.SkipCrypto,

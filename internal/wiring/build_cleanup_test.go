@@ -10,7 +10,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
-	wiringtest "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
+	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 )
 
 func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
@@ -34,7 +34,7 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 	t.Cleanup(func() { wireSharedDepsHook = oldWire })
 
 	cfg := tscfg.DevConfigHarness(18200)
-	_, err := Build(cfg, tslog.DiscardLogger(), harnessBuildOptsForPackageTest(wiringtest.HarnessWireOptions))
+	_, err := Build(cfg, tslog.DiscardLogger(), harnessBuildOptsForPackageTest(tswiring.HarnessWireOptions))
 	if err == nil {
 		t.Fatal("expected wire shared deps failure")
 	}
@@ -54,7 +54,7 @@ func TestWireSharedDeps_RejectsNilPersistence(t *testing.T) {
 	}
 }
 
-func harnessBuildOptsForPackageTest(f wiringtest.FixtureBuildOpts) BuildOpts {
+func harnessBuildOptsForPackageTest(f tswiring.FixtureBuildOpts) BuildOpts {
 	return BuildOpts{
 		FastAuth:                f.FastAuth,
 		SkipCrypto:              f.SkipCrypto,
