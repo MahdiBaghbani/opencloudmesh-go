@@ -17,8 +17,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -142,26 +142,20 @@ func hasCapability(capabilities []string, capability string) bool {
 }
 
 func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {
-	raw := httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:           "off",
-		TimeoutMS:          5000,
-		ConnectTimeoutMS:   2000,
-		MaxResponseBytes:   1048576,
-		InsecureSkipVerify: true,
-	}, nil)
+	cfg := tshttp.PermissiveConfig()
+	cfg.DerivedSSRFMode = "off"
+	cfg.InsecureSkipVerify = true
+	raw := httpclient.New(cfg, nil)
 	return discovery.NewClient(raw, nil), httpclient.NewContextClient(raw)
 }
 
 // makeNoCacheTLSClients wires a discovery client with caching disabled so that
 // any discovery call reaches the network, letting tests count discovery hits.
 func makeNoCacheTLSClients() (*discovery.Client, *httpclient.ContextClient) {
-	raw := httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:           "off",
-		TimeoutMS:          5000,
-		ConnectTimeoutMS:   2000,
-		MaxResponseBytes:   1048576,
-		InsecureSkipVerify: true,
-	}, nil)
+	cfg := tshttp.PermissiveConfig()
+	cfg.DerivedSSRFMode = "off"
+	cfg.InsecureSkipVerify = true
+	raw := httpclient.New(cfg, nil)
 	return discovery.NewClient(raw, cache.NewNoopCache()), httpclient.NewContextClient(raw)
 }
 

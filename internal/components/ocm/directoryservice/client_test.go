@@ -14,8 +14,8 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -33,13 +33,10 @@ func testPayload() []byte {
 }
 
 func newTestHTTPClient() *httpclient.Client {
-	return httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     0,
-		MaxResponseBytes: 1048576,
-	}, nil)
+	cfg := tshttp.PermissiveConfig()
+	cfg.DerivedSSRFMode = "off"
+	cfg.MaxRedirects = 0
+	return httpclient.New(cfg, nil)
 }
 
 func serveJWS(t *testing.T, body []byte) *httptest.Server {

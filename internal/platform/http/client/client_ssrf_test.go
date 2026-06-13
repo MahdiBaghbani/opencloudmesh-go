@@ -265,7 +265,7 @@ func TestClient_DerivedSSRFModeCompatibility(t *testing.T) {
 		TimeoutMS:        500,
 		ConnectTimeoutMS: 200,
 		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}
 	c := httpclient.New(cfg, nil)
 

@@ -12,15 +12,7 @@ func IntegrationBuildOpts() wiring.BuildOpts {
 		SkipCrypto:              true,
 		SkipPeerTrust:           true,
 		SkipSignatureMiddleware: true,
-		OutboundOverride: &config.OutboundHTTPConfig{
-			SSRF:               config.SSRFConfig{Mode: "off"},
-			DerivedSSRFMode:    "off",
-			TimeoutMS:          5000,
-			ConnectTimeoutMS:   2000,
-			MaxRedirects:       1,
-			MaxResponseBytes:   1048576,
-			InsecureSkipVerify: true,
-		},
-		SkipDiscoveryCache: true,
+		OutboundOverride:        config.TestHarnessOutboundHTTP(),
+		SkipDiscoveryCache:      true,
 	}
 }

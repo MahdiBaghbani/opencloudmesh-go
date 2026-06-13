@@ -234,7 +234,7 @@ func (s *SubprocessServer) Stop(t *testing.T) {
 		select {
 		case <-done:
 			// Process exited
-		case <-time.After(5 * time.Second):
+		case <-time.After(config.DefaultTestShutdownWait):
 			// Force kill
 			s.cmd.Process.Kill()
 			<-done

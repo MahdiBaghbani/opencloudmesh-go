@@ -15,8 +15,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocmaux"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
@@ -84,13 +84,8 @@ func TestHandleFederations_WithServers(t *testing.T) {
 	}))
 	defer discServer.Close()
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
@@ -162,13 +157,8 @@ func TestHandleFederations_DiscoveryFailureDropsServer(t *testing.T) {
 	}))
 	defer discServer.Close()
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
@@ -349,13 +339,8 @@ func TestHandleDiscover_Success(t *testing.T) {
 	}))
 	defer discServer.Close()
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
@@ -407,13 +392,8 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 	}))
 	defer discServer.Close()
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
@@ -463,13 +443,8 @@ func TestHandleDiscover_NoInviteAcceptDialog(t *testing.T) {
 	}))
 	defer discServer.Close()
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
@@ -509,13 +484,8 @@ func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
 	}))
 	defer discServer.Close()
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 

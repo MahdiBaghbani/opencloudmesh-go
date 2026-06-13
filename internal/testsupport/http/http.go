@@ -10,6 +10,16 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
+// Re-exported test timeout defaults (SSOT: config package).
+const (
+	TestOutboundTimeoutMS = config.TestOutboundTimeoutMS
+	TestOutboundConnectMS = config.TestOutboundConnectMS
+)
+
+// DefaultShutdownWait is the standard bounded wait for server shutdown and
+// async test synchronization.
+const DefaultShutdownWait = config.DefaultTestShutdownWait
+
 // PermissiveConfig returns a fresh OutboundHTTPConfig with SSRF off and
 // relaxed timeouts. Modify the returned pointer to add proxy settings or
 // other test-specific overrides.
@@ -17,11 +27,17 @@ func PermissiveConfig() *config.OutboundHTTPConfig {
 	return &config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
 		ProxyEnvFallback: false,
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+		TimeoutMS:        TestOutboundTimeoutMS,
+		ConnectTimeoutMS: TestOutboundConnectMS,
+		MaxRedirects:     config.DefaultOutboundMaxRedirects,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}
+}
+
+// HarnessOutboundConfig returns the integration-harness outbound baseline:
+// permissive SSRF, test timeouts, and TLS verification disabled.
+func HarnessOutboundConfig() *config.OutboundHTTPConfig {
+	return config.TestHarnessOutboundHTTP()
 }
 
 // StrictNoneOutboundConfig returns a fresh OutboundHTTPConfig with strict
@@ -33,8 +49,8 @@ func StrictNoneOutboundConfig() *config.OutboundHTTPConfig {
 		SSRF:             config.SSRFConfig{Mode: "strict"},
 		TimeoutMS:        1000,
 		ConnectTimeoutMS: 500,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+		MaxRedirects:     config.DefaultOutboundMaxRedirects,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}
 }
 
@@ -47,8 +63,8 @@ func StrictShortTimeoutConfig() *config.OutboundHTTPConfig {
 		SSRF:             config.SSRFConfig{Mode: "strict"},
 		TimeoutMS:        200,
 		ConnectTimeoutMS: 100,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+		MaxRedirects:     config.DefaultOutboundMaxRedirects,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}
 }
 

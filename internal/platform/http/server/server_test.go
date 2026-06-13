@@ -26,6 +26,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // trackingService is a test service that records when Close() is called.
@@ -280,7 +281,7 @@ func TestACME_TwoListeners(t *testing.T) {
 	}
 
 	// 4. Clean shutdown.
-	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutCtx, cancel := context.WithTimeout(context.Background(), tshttp.DefaultShutdownWait)
 	defer cancel()
 	if err := srv.Shutdown(shutCtx); err != nil {
 		t.Errorf("shutdown error: %v", err)
@@ -292,7 +293,7 @@ func TestACME_TwoListeners(t *testing.T) {
 		if sErr != nil && !errors.Is(sErr, http.ErrServerClosed) {
 			t.Errorf("unexpected Start() error: %v", sErr)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(tshttp.DefaultShutdownWait):
 		t.Error("Start() did not return after shutdown")
 	}
 }
@@ -367,7 +368,7 @@ func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
 		if startErr == nil {
 			t.Fatal("expected Start() to fail when HTTPS bind is blocked")
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(tshttp.DefaultShutdownWait):
 		t.Fatal("Start() did not return after HTTPS bind failure")
 	}
 

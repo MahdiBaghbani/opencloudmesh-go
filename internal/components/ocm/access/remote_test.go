@@ -17,8 +17,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func newTestDiscoveryServer() *httptest.Server {
@@ -45,13 +45,8 @@ func newTestDiscoveryServer() *httptest.Server {
 }
 
 func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextClient) {
-	cfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	cfg := tshttp.PermissiveConfig()
+	cfg.DerivedSSRFMode = "off"
 	rawClient := httpclient.New(cfg, nil)
 	discClient := discovery.NewClient(rawClient, nil)
 	ctxClient := httpclient.NewContextClient(rawClient)

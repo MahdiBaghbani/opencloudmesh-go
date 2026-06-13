@@ -4,6 +4,7 @@ package wiring
 
 import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // FixtureBuildOpts mirrors wiring.BuildOpts for harness fixtures without
@@ -24,16 +25,8 @@ var HarnessWireOptions = FixtureBuildOpts{
 	SkipCrypto:              true,
 	SkipPeerTrust:           true,
 	SkipSignatureMiddleware: true,
-	OutboundOverride: &config.OutboundHTTPConfig{
-		SSRF:               config.SSRFConfig{Mode: "off"},
-		DerivedSSRFMode:    "off",
-		TimeoutMS:          5000,
-		ConnectTimeoutMS:   2000,
-		MaxRedirects:       1,
-		MaxResponseBytes:   1048576,
-		InsecureSkipVerify: true,
-	},
-	SkipDiscoveryCache: true,
+	OutboundOverride:        tshttp.HarnessOutboundConfig(),
+	SkipDiscoveryCache:      true,
 }
 
 // ProductionWireOptions is the main.go zero-value bootstrap path.

@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
@@ -349,13 +350,8 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	}))
 	defer server.Close()
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	httpClient := httpclient.New(httpCfg, nil)
 	client := discovery.NewClient(httpClient, nil)
 
@@ -399,13 +395,8 @@ func TestClientDiscover_RejectsLegacyPublicKeyWithoutCompat(t *testing.T) {
 	}))
 	defer server.Close()
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	disc, err := client.Discover(context.Background(), server.URL)
@@ -476,13 +467,8 @@ func TestClientDiscover_CacheContractDrift(t *testing.T) {
 		return contract
 	}
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	// Without a compat contract, the legacy key must not be promoted.
@@ -571,13 +557,8 @@ func TestClientDiscover_AllowsLegacyPublicKeyWithPeerCompat(t *testing.T) {
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 
-	httpCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
-		TimeoutMS:        5000,
-		ConnectTimeoutMS: 2000,
-		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
-	}
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	client.SetPeerContract(contract)
 

@@ -17,6 +17,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // fakeDiscoveryServer returns an httptest.Server that serves an OCM discovery
@@ -82,9 +83,9 @@ func newHandlerWithDiscovery(
 
 	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
 		DerivedSSRFMode:    "off",
-		TimeoutMS:          5000,
-		ConnectTimeoutMS:   2000,
-		MaxResponseBytes:   1048576,
+		TimeoutMS:          tshttp.TestOutboundTimeoutMS,
+		ConnectTimeoutMS:   tshttp.TestOutboundConnectMS,
+		MaxResponseBytes:   config.DefaultMaxResponseBytes,
 		InsecureSkipVerify: true,
 	}, nil)
 	discClient := discovery.NewClient(rawHTTP, nil)
@@ -535,9 +536,9 @@ func TestReceiverClassification_RemoteDiscoveryUsesPeerOriginPolicy(t *testing.T
 	partyRepo := setupTestPartyRepo()
 	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
 		DerivedSSRFMode:    "off",
-		TimeoutMS:          5000,
-		ConnectTimeoutMS:   2000,
-		MaxResponseBytes:   1048576,
+		TimeoutMS:          tshttp.TestOutboundTimeoutMS,
+		ConnectTimeoutMS:   tshttp.TestOutboundConnectMS,
+		MaxResponseBytes:   config.DefaultMaxResponseBytes,
 		InsecureSkipVerify: true,
 	}, nil)
 	discClient := discovery.NewClient(rawHTTP, nil)
