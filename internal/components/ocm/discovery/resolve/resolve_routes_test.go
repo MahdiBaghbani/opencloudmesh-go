@@ -1,0 +1,73 @@
+package resolve_test
+
+import (
+	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
+
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocm"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ui"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/webdav"
+)
+
+func TestResolve_ProjectsFromRouteInventory(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	opts := service.RouteOpts{
+		ExternalBasePath:    "/ocm",
+		TokenExchangePath:   "auth/exchange",
+		WayfEnabled:         true,
+		InviteAcceptEnabled: true,
+	}
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+		RouteOpts:     opts,
+	}
+
+	built := resolve.Resolve(c, map[string]any{}, in)
+
+	if built.Params.EndPoint != "https://cloud.example.com/ocm/ocm" {
+		t.Errorf("EndPoint = %q", built.Params.EndPoint)
+	}
+	if built.Params.WebDAVRoot != "/ocm/webdav/ocm/" {
+		t.Errorf("WebDAVRoot = %q", built.Params.WebDAVRoot)
+	}
+	if built.Params.TokenEndPoint != "https://cloud.example.com/ocm/ocm/auth/exchange" {
+		t.Errorf("TokenEndPoint = %q", built.Params.TokenEndPoint)
+	}
+	if built.Params.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
+		t.Errorf("InviteAcceptDialog = %q", built.Params.InviteAcceptDialog)
+	}
+}
+
+func TestResolve_InviteAcceptIndependentFromWAYFAdvertise(t *testing.T) {
+	c := &resolve.ProviderConfig{AdvertiseInviteWAYF: false}
+	opts := service.RouteOpts{
+		ExternalBasePath:    "/ocm",
+		InviteAcceptEnabled: true,
+		WayfEnabled:         false,
+	}
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+		RouteOpts:     opts,
+	}
+
+	built := resolve.Resolve(c, map[string]any{"endpoint": "https://cloud.example.com/ocm"}, in)
+
+	if built.Params.AdvertiseInviteWAYF {
+		t.Fatal("test precondition: AdvertiseInviteWAYF must be false")
+	}
+	if built.Params.InviteAcceptDialog == "" {
+		t.Fatal("expected non-empty inviteAcceptDialog from ui-accept-invite route")
+	}
+
+	disc := discovery.BuildDiscovery(built.Params, nil)
+	if disc.InviteAcceptDialog == "" {
+		t.Error("expected inviteAcceptDialog in discovery document")
+	}
+	if disc.HasCapability("invite-wayf") {
+		t.Error("invite-wayf capability must not be added when AdvertiseInviteWAYF is false")
+	}
+}

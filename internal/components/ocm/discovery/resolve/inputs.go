@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
@@ -10,9 +11,9 @@ import (
 // Wiring assembles this struct; resolve does not read the global deps bag.
 type ResolveInputs struct {
 	LocalIdentity       localidentity.Identity
+	RouteOpts           service.RouteOpts
 	TokenExchangePath   string
 	KeyManager          *crypto.KeyManager
 	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
 	RuntimePolicy       *policy.RuntimePolicy
-	UIWayfEnabled       bool
 }

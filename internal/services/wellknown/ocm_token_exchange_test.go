@@ -6,6 +6,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
@@ -154,15 +155,8 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		found := false
-		for _, crit := range h.data.Criteria {
-			if crit == "token-exchange" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("expected token-exchange in criteria when evaluator RequiresTokenExchange=true")
+		if !h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
+			t.Error("expected must-exchange-token in criteria when evaluator RequiresTokenExchange=true")
 		}
 	})
 
@@ -182,10 +176,8 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		for _, crit := range h.data.Criteria {
-			if crit == "token-exchange" {
-				t.Error("expected token-exchange NOT in criteria when evaluator RequiresTokenExchange=false")
-			}
+		if h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
+			t.Error("expected must-exchange-token NOT in criteria when evaluator RequiresTokenExchange=false")
 		}
 	})
 
@@ -246,15 +238,8 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		found := false
-		for _, crit := range h.data.Criteria {
-			if crit == "token-exchange" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("expected token-exchange criteria to follow evaluator strictness even with per-service override")
+		if !h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
+			t.Error("expected must-exchange-token criteria to follow evaluator strictness even with per-service override")
 		}
 	})
 
@@ -280,10 +265,8 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		if h.data.TokenEndPoint != "" {
 			t.Fatalf("expected empty tokenEndPoint when code flow is disabled, got %q", h.data.TokenEndPoint)
 		}
-		for _, crit := range h.data.Criteria {
-			if crit == "token-exchange" {
-				t.Fatal("did not expect token-exchange criteria without exchange-token capability")
-			}
+		if h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
+			t.Fatal("did not expect must-exchange-token criteria without exchange-token capability")
 		}
 	})
 

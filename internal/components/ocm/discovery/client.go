@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -84,6 +85,14 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	return disc, nil
 }
 
+func discoveryOriginFromURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return strings.TrimSuffix(rawURL, "/")
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *Discovery, error) {
 	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
 	if err != nil {
@@ -94,7 +103,7 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 		return nil, nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
 	}
 
-	disc, err := c.normalizeDiscovery(data, discoveryURL)
+	disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(discoveryURL))
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid discovery JSON: %w", err)
 	}
@@ -123,6 +132,14 @@ func (c *Client) normalizeDiscovery(data []byte, baseURL string) (Discovery, err
 	}
 
 	disc := raw.Discovery
+	if disc.InviteAcceptDialog != "" {
+		resolveBase := disc.EndPoint
+		if resolveBase == "" {
+			resolveBase = baseURL
+		}
+		disc.InviteAcceptDialog = spec.ResolveInviteAcceptDialog(resolveBase, disc.InviteAcceptDialog)
+	}
+
 	if len(disc.PublicKeys) > 0 || raw.LegacyPublicKey == nil {
 		return disc, nil
 	}

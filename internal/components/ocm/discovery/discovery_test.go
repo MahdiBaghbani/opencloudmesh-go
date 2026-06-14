@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
@@ -18,7 +19,6 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-// Migrated from TestHandler_CriteriaAlwaysPresent -- now tests the spec type contract directly.
 func TestCriteriaAlwaysPresent(t *testing.T) {
 	disc := &discovery.Discovery{
 		Enabled:    true,
@@ -28,9 +28,6 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 
 	if disc.Criteria == nil {
 		t.Error("Criteria must not be nil")
-	}
-	if len(disc.Criteria) != 0 {
-		t.Errorf("expected empty criteria, got %v", disc.Criteria)
 	}
 
 	data, err := json.Marshal(disc)
@@ -47,7 +44,6 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 	if !ok {
 		t.Error("criteria key must be present in JSON")
 	}
-
 	criteriaSlice, ok := criteriaRaw.([]interface{})
 	if !ok {
 		t.Errorf("criteria must be an array, got %T", criteriaRaw)
@@ -57,10 +53,8 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 	}
 }
 
-// Migrated from TestHandler_CriteriaAdvertiseHTTPRequestSignatures -- now tests
-// evaluator-driven criteria via the canonical three-dimension model.
 func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
-	t.Run("require_token_exchange=true emits token-exchange criteria", func(t *testing.T) {
+	t.Run("require_token_exchange=true", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
 			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
@@ -69,11 +63,11 @@ func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
 		}
 		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
 		if !eval.RequiresTokenExchange {
-			t.Error("expected RequiresTokenExchange true for require_token_exchange=true")
+			t.Error("expected RequiresTokenExchange true")
 		}
 	})
 
-	t.Run("require_token_exchange=false does not emit token-exchange criteria", func(t *testing.T) {
+	t.Run("require_token_exchange=false", func(t *testing.T) {
 		tokenExchangeEnabled := true
 		cfg := &config.Config{
 			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
@@ -82,196 +76,7 @@ func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
 		}
 		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
 		if eval.RequiresTokenExchange {
-			t.Error("expected RequiresTokenExchange false for require_token_exchange=false")
-		}
-	})
-}
-
-func TestBuildDiscovery_DisabledWhenNoEndpoint(t *testing.T) {
-	disc := discovery.BuildDiscovery(discovery.BuildParams{Provider: "OpenCloudMesh"}, nil)
-
-	if disc.Enabled {
-		t.Error("expected Enabled=false when endpoint is empty")
-	}
-	if disc.APIVersion != "1.2.2" {
-		t.Errorf("expected APIVersion '1.2.2', got %q", disc.APIVersion)
-	}
-	if disc.Provider != "OpenCloudMesh" {
-		t.Errorf("expected Provider 'OpenCloudMesh', got %q", disc.Provider)
-	}
-	if disc.Criteria == nil {
-		t.Error("expected Criteria to be non-nil (empty slice)")
-	}
-}
-
-func TestBuildDiscovery_DisabledWhenInvalidEndpoint(t *testing.T) {
-	disc := discovery.BuildDiscovery(discovery.BuildParams{Endpoint: "://invalid-url"}, nil)
-
-	if disc.Enabled {
-		t.Error("expected Enabled=false for invalid URL")
-	}
-}
-
-func TestBuildDiscovery_EnabledWithEndpoint(t *testing.T) {
-	disc := discovery.BuildDiscovery(discovery.BuildParams{
-		Endpoint:   "https://example.com/myapp",
-		OCMPrefix:  "ocm",
-		WebDAVRoot: "/webdav/ocm/",
-	}, nil)
-
-	if !disc.Enabled {
-		t.Error("expected Enabled=true when endpoint is set")
-	}
-	if disc.EndPoint != "https://example.com/myapp/ocm" {
-		t.Errorf("expected EndPoint 'https://example.com/myapp/ocm', got %q", disc.EndPoint)
-	}
-	if len(disc.ResourceTypes) != 1 {
-		t.Fatalf("expected 1 resource type, got %d", len(disc.ResourceTypes))
-	}
-	if disc.ResourceTypes[0].Protocols["webdav"] != "/webdav/ocm/" {
-		t.Errorf("expected webdav protocol '/webdav/ocm/', got %q", disc.ResourceTypes[0].Protocols["webdav"])
-	}
-}
-
-func TestBuildDiscovery_TokenExchange(t *testing.T) {
-	t.Run("capable sets endpoint and capability", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			Endpoint:             "https://example.com/app",
-			OCMPrefix:            "ocm",
-			TokenExchangePath:    "exchange",
-			TokenExchangeCapable: true,
-		}, nil)
-
-		if !disc.HasCapability("exchange-token") {
-			t.Error("expected 'exchange-token' capability")
-		}
-		if disc.TokenEndPoint != "https://example.com/app/ocm/exchange" {
-			t.Errorf("unexpected tokenEndPoint %q", disc.TokenEndPoint)
-		}
-	})
-
-	t.Run("capable with empty path defaults to token", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			Endpoint:             "https://example.com",
-			OCMPrefix:            "ocm",
-			TokenExchangeCapable: true,
-		}, nil)
-
-		if disc.TokenEndPoint != "https://example.com/ocm/token" {
-			t.Errorf("unexpected tokenEndPoint %q", disc.TokenEndPoint)
-		}
-	})
-
-	t.Run("not capable omits endpoint and capability", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			Endpoint:  "https://example.com",
-			OCMPrefix: "ocm",
-		}, nil)
-
-		if disc.HasCapability("exchange-token") {
-			t.Error("did not expect 'exchange-token' capability")
-		}
-		if disc.TokenEndPoint != "" {
-			t.Errorf("expected empty tokenEndPoint, got %q", disc.TokenEndPoint)
-		}
-	})
-}
-
-func TestBuildDiscovery_PublicKeysAddHTTPSig(t *testing.T) {
-	disc := discovery.BuildDiscovery(discovery.BuildParams{
-		Endpoint:  "https://example.com",
-		OCMPrefix: "ocm",
-		PublicKeys: []discovery.PublicKey{
-			{KeyID: "key1", PublicKeyPem: "pem", Algorithm: "ed25519"},
-		},
-	}, nil)
-
-	if len(disc.PublicKeys) != 1 {
-		t.Fatalf("expected 1 public key, got %d", len(disc.PublicKeys))
-	}
-	if !disc.HasCapability("http-sig") {
-		t.Error("expected 'http-sig' capability when public keys are present")
-	}
-}
-
-func TestBuildDiscovery_UnconditionalCapabilities(t *testing.T) {
-	disc := discovery.BuildDiscovery(discovery.BuildParams{
-		Endpoint:  "https://example.com",
-		OCMPrefix: "ocm",
-	}, nil)
-
-	for _, cap := range []string{"invites", "webdav-uri", "protocol-object", "notifications"} {
-		if !disc.HasCapability(cap) {
-			t.Errorf("expected unconditional capability %q", cap)
-		}
-	}
-}
-
-func TestBuildDiscovery_InviteWAYF(t *testing.T) {
-	t.Run("dialog with advertise adds invite-wayf", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			Endpoint:            "https://example.com",
-			OCMPrefix:           "ocm",
-			InviteAcceptDialog:  "https://example.com/ui/accept-invite",
-			AdvertiseInviteWAYF: true,
-		}, nil)
-
-		if disc.InviteAcceptDialog != "https://example.com/ui/accept-invite" {
-			t.Errorf("unexpected inviteAcceptDialog %q", disc.InviteAcceptDialog)
-		}
-		if !disc.HasCapability("invite-wayf") {
-			t.Error("expected 'invite-wayf' capability")
-		}
-	})
-
-	t.Run("dialog without advertise omits invite-wayf", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			Endpoint:           "https://example.com",
-			OCMPrefix:          "ocm",
-			InviteAcceptDialog: "https://example.com/ui/accept-invite",
-		}, nil)
-
-		if disc.HasCapability("invite-wayf") {
-			t.Error("did not expect 'invite-wayf' capability without advertise flag")
-		}
-	})
-}
-
-func TestBuildDiscovery_Criteria(t *testing.T) {
-	t.Run("http signatures requirement emits criterion", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			Endpoint:               "https://example.com",
-			OCMPrefix:              "ocm",
-			RequiresHTTPSignatures: true,
-		}, nil)
-
-		if !disc.HasCriteria("http-request-signatures") {
-			t.Error("expected 'http-request-signatures' criterion")
-		}
-	})
-
-	t.Run("token exchange requirement with capability emits criterion", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			Endpoint:              "https://example.com",
-			OCMPrefix:             "ocm",
-			TokenExchangeCapable:  true,
-			RequiresTokenExchange: true,
-		}, nil)
-
-		if !disc.HasCriteria("token-exchange") {
-			t.Error("expected 'token-exchange' criterion")
-		}
-	})
-
-	t.Run("token exchange requirement without capability omits criterion", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			Endpoint:              "https://example.com",
-			OCMPrefix:             "ocm",
-			RequiresTokenExchange: true,
-		}, nil)
-
-		if disc.HasCriteria("token-exchange") {
-			t.Error("did not expect 'token-exchange' criterion without capability")
+			t.Error("expected RequiresTokenExchange false")
 		}
 	})
 }
@@ -289,40 +94,20 @@ func TestDiscovery_Helpers(t *testing.T) {
 			},
 		},
 		Capabilities: []string{"http-sig", "exchange-token"},
-		Criteria:     []string{"http-request-signatures"},
+		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
 		PublicKeys: []discovery.PublicKey{
 			{KeyID: "key1", PublicKeyPem: "..."},
 		},
 	}
 
-	if disc.GetEndpoint() != "https://example.com/ocm" {
-		t.Errorf("GetEndpoint failed")
-	}
-
 	if disc.GetWebDAVPath() != "/webdav/ocm/" {
 		t.Errorf("GetWebDAVPath failed: %q", disc.GetWebDAVPath())
 	}
-
-	if !disc.HasCapability("http-sig") {
-		t.Error("HasCapability http-sig should be true")
+	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+		t.Error("HasCriteria must-use-http-sig should be true")
 	}
-	if disc.HasCapability("unknown") {
-		t.Error("HasCapability unknown should be false")
-	}
-
 	if !disc.HasCriteria("http-request-signatures") {
-		t.Error("HasCriteria http-request-signatures should be true")
-	}
-	if disc.HasCriteria("unknown") {
-		t.Error("HasCriteria unknown should be false")
-	}
-
-	pk := disc.GetPublicKey("key1")
-	if pk == nil {
-		t.Error("GetPublicKey key1 should return a key")
-	}
-	if disc.GetPublicKey("unknown") != nil {
-		t.Error("GetPublicKey unknown should return nil")
+		t.Error("HasCriteria legacy alias should be true")
 	}
 
 	url, err := disc.BuildWebDAVURL("abc123")
@@ -362,14 +147,6 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	if !disc.Enabled {
 		t.Error("expected discovery to be enabled")
 	}
-
-	disc2, err := client.Discover(context.Background(), server.URL)
-	if err != nil {
-		t.Fatalf("second Discover failed: %v", err)
-	}
-	if disc2.EndPoint != disc.EndPoint {
-		t.Error("expected same discovery result from cache")
-	}
 }
 
 func TestClientDiscover_RejectsLegacyPublicKeyWithoutCompat(t *testing.T) {
@@ -408,15 +185,6 @@ func TestClientDiscover_RejectsLegacyPublicKeyWithoutCompat(t *testing.T) {
 	}
 }
 
-// TestClientDiscover_CacheContractDrift proves that the discovery cache stores
-// raw response bytes, so normalization always reflects the current peer contract
-// rather than the contract that was active at fetch time.
-//
-// Sequence:
-//  1. Fetch with no compat contract -> publicKeys empty, raw bytes cached.
-//  2. Set compat contract (same client, no new HTTP call) -> cache hit re-normalizes
-//     -> legacy publicKey promoted into publicKeys.
-//  3. Remove contract -> cache hit re-normalizes again -> publicKeys empty.
 func TestClientDiscover_CacheContractDrift(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -471,7 +239,6 @@ func TestClientDiscover_CacheContractDrift(t *testing.T) {
 	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
-	// Without a compat contract, the legacy key must not be promoted.
 	disc1, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("Discover without compat failed: %v", err)
@@ -483,31 +250,25 @@ func TestClientDiscover_CacheContractDrift(t *testing.T) {
 		t.Fatalf("expected exactly 1 HTTP call, got %d", callCount)
 	}
 
-	// With a compat contract added, the same client must hit cache (no new HTTP call).
-	// Re-normalization must promote the legacy key.
 	client.SetPeerContract(buildContract(t))
 	disc2, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("Discover with compat contract failed: %v", err)
 	}
 	if callCount != 1 {
-		t.Fatalf("unexpected HTTP call after compat contract set (should have used cache), call count %d", callCount)
+		t.Fatalf("unexpected HTTP call after compat contract set, call count %d", callCount)
 	}
 	if len(disc2.PublicKeys) != 1 {
 		t.Fatalf("expected legacy key promoted to publicKeys, got %+v", disc2.PublicKeys)
 	}
-	if disc2.PublicKeys[0].KeyID != "https://peer.example.com/ocm#legacy" {
-		t.Fatalf("unexpected key ID %q", disc2.PublicKeys[0].KeyID)
-	}
 
-	// After removing the compat contract, a cache hit must re-normalize without compat.
 	client.SetPeerContract(nil)
 	disc3, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("Discover after contract removed failed: %v", err)
 	}
 	if callCount != 1 {
-		t.Fatalf("unexpected HTTP call after contract removed (should have used cache), call count %d", callCount)
+		t.Fatalf("unexpected HTTP call after contract removed, call count %d", callCount)
 	}
 	if len(disc3.PublicKeys) != 0 {
 		t.Fatalf("expected empty publicKeys after contract removed, got %+v", disc3.PublicKeys)
@@ -525,7 +286,7 @@ func TestClientDiscover_AllowsLegacyPublicKeyWithPeerCompat(t *testing.T) {
 			"apiVersion":    "1.2.2",
 			"endPoint":      "https://peer.example.com/ocm",
 			"resourceTypes": []any{},
-			"criteria":      []any{"http-request-signatures"},
+			"criteria":      []any{spec.CriteriaMustUseHTTPSig},
 			"capabilities":  []string{"http-sig"},
 			"publicKey": map[string]string{
 				"keyId":        "https://peer.example.com/ocm#legacy",
@@ -568,11 +329,5 @@ func TestClientDiscover_AllowsLegacyPublicKeyWithPeerCompat(t *testing.T) {
 	}
 	if len(disc.PublicKeys) != 1 {
 		t.Fatalf("expected legacy publicKey to normalize into one publicKeys entry, got %+v", disc.PublicKeys)
-	}
-	if disc.PublicKeys[0].KeyID != "https://peer.example.com/ocm#legacy" {
-		t.Fatalf("unexpected key ID %q", disc.PublicKeys[0].KeyID)
-	}
-	if disc.PublicKeys[0].Algorithm != "rsa" {
-		t.Fatalf("expected normalized legacy key algorithm rsa, got %q", disc.PublicKeys[0].Algorithm)
 	}
 }

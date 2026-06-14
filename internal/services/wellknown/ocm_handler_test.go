@@ -9,9 +9,14 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
+
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocm"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ui"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/webdav"
 )
 
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
@@ -137,15 +142,8 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		found := false
-		for _, crit := range h.data.Criteria {
-			if crit == "http-request-signatures" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("expected 'http-request-signatures' in criteria")
+		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+			t.Error("expected must-use-http-sig in criteria")
 		}
 	})
 }
@@ -163,15 +161,8 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		found := false
-		for _, crit := range h.data.Criteria {
-			if crit == "http-request-signatures" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("expected http-request-signatures criteria from runtime policy")
+		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+			t.Error("expected must-use-http-sig criteria from runtime policy")
 		}
 	})
 
@@ -187,10 +178,8 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		for _, crit := range h.data.Criteria {
-			if crit == "http-request-signatures" {
-				t.Error("did not expect http-request-signatures for lenient runtime posture")
-			}
+		if h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+			t.Error("did not expect must-use-http-sig for lenient runtime posture")
 		}
 	})
 
@@ -206,10 +195,8 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		for _, crit := range h.data.Criteria {
-			if crit == "http-request-signatures" {
-				t.Error("did not expect http-request-signatures for off runtime posture")
-			}
+		if h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+			t.Error("did not expect must-use-http-sig for off runtime posture")
 		}
 	})
 
@@ -229,12 +216,9 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		for _, crit := range h.data.Criteria {
-			if crit == "http-request-signatures" {
-				return
-			}
+		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+			t.Error("expected must-use-http-sig to follow runtime policy")
 		}
-		t.Error("expected http-request-signatures to follow runtime policy")
 	})
 }
 
@@ -322,14 +306,17 @@ func TestNewOCMHandler_InvalidEndpointURL(t *testing.T) {
 	}
 }
 
-func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
-	t.Run("derives inviteAcceptDialog when WAYF enabled", func(t *testing.T) {
+func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
+	t.Run("derives inviteAcceptDialog when invite accept route active", func(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://cloud.example.com/ocm",
 		}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
-			UIWayfEnabled: true,
+			RouteOpts: service.RouteOpts{
+				ExternalBasePath:    "/ocm",
+				InviteAcceptEnabled: true,
+			},
 		}
 
 		// rawOCMProvider does NOT contain invite_accept_dialog
@@ -354,7 +341,10 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 		}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
-			UIWayfEnabled: true,
+			RouteOpts: service.RouteOpts{
+				ExternalBasePath:    "/ocm",
+				InviteAcceptEnabled: true,
+			},
 		}
 
 		// rawOCMProvider DOES contain invite_accept_dialog
@@ -373,13 +363,13 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 		}
 	})
 
-	t.Run("no derivation when WAYF disabled", func(t *testing.T) {
+	t.Run("no derivation when invite accept route inactive", func(t *testing.T) {
 		c := &OCMProviderConfig{
 			Endpoint: "https://cloud.example.com/ocm",
 		}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
-			UIWayfEnabled: false,
+			RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
 		}
 
 		raw := map[string]any{
@@ -392,7 +382,7 @@ func TestNewOCMHandler_WAYFAutoDerivation(t *testing.T) {
 		}
 
 		if h.data.InviteAcceptDialog != "" {
-			t.Errorf("expected empty inviteAcceptDialog when WAYF disabled, got %q", h.data.InviteAcceptDialog)
+			t.Errorf("expected empty inviteAcceptDialog when invite accept route inactive, got %q", h.data.InviteAcceptDialog)
 		}
 	})
 }
@@ -416,7 +406,7 @@ func TestNewOCMHandler_InviteWAYFCapability(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("expected 'invite-wayf' in capabilities when AdvertiseInviteWAYF=true and InviteAcceptDialog is set")
+		t.Error("expected 'invite-wayf' in capabilities when AdvertiseInviteWAYF=true")
 	}
 }
 
