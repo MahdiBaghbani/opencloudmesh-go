@@ -1,4 +1,26 @@
-import { defineConfig, devices } from '@playwright/test';
+import { chromium, defineConfig, devices } from '@playwright/test';
+import { existsSync } from 'node:fs';
+
+function firstExistingPath(paths: Array<string | undefined>): string | undefined {
+  return paths.find((path): path is string => Boolean(path && existsSync(path)));
+}
+
+const bundledChromiumExecutable = chromium.executablePath();
+const systemChromiumExecutable = firstExistingPath([
+  process.env.OCM_E2E_CHROMIUM_EXECUTABLE,
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+  '/snap/bin/chromium',
+]);
+const chromiumLaunchOptions =
+  !existsSync(bundledChromiumExecutable) && systemChromiumExecutable
+    ? { executablePath: systemChromiumExecutable }
+    : undefined;
+const usingSystemChromium = Boolean(chromiumLaunchOptions);
+const chromiumUseOptions = {
+  ...devices['Desktop Chrome'],
+  ...(chromiumLaunchOptions ? { launchOptions: chromiumLaunchOptions } : {}),
+};
 
 /**
  * Playwright configuration for OpenCloudMesh E2E tests.
@@ -29,7 +51,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
 
     // Record video for every test run (artifacts available for debugging)
-    video: 'on',
+    video: usingSystemChromium ? 'off' : 'on',
     
     // Timeout for actions
     actionTimeout: 10000,
@@ -49,7 +71,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: chromiumUseOptions,
     },
   ],
 
