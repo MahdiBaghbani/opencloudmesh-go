@@ -110,12 +110,7 @@ func RowByID(opts service.RouteOpts, id string) (service.RouteRow, bool) {
 
 // OCMTokenRow returns the OCM token exchange endpoint row from Routes(opts).
 func OCMTokenRow(opts service.RouteOpts) (service.RouteRow, bool) {
-	for _, row := range InventoryRows(opts) {
-		if row.Service == "ocm" && strings.Contains(row.ID, "ocm-token-") {
-			return row, true
-		}
-	}
-	return service.RouteRow{}, false
+	return RowByID(opts, service.RouteIDOCMToken)
 }
 
 // OCMTokenFullPath returns the aggregate full path for the OCM token endpoint row.
@@ -129,7 +124,7 @@ func OCMTokenFullPath(opts service.RouteOpts) (string, bool) {
 
 // HealthFullPath returns the aggregate full path for the api-healthz row.
 func HealthFullPath(opts service.RouteOpts) (string, bool) {
-	row, ok := RowByID(opts, "api-healthz")
+	row, ok := RowByID(opts, service.RouteIDAPIHealthz)
 	if !ok {
 		return "", false
 	}

@@ -176,13 +176,13 @@ func TestRoutePathMatrix_WayfAndAcceptInviteUnderBasePath(t *testing.T) {
 	})
 	opts := service.RouteOptsFromConfig(ts.Config)
 
-	wayfRow, ok := tsrouting.RowByID(opts, "ui-wayf")
+	wayfRow, ok := tsrouting.RowByID(opts, service.RouteIDUIWAYF)
 	if !ok {
 		t.Fatal("Routes(opts) missing ui-wayf row")
 	}
 	wayfPath := tsrouting.ProbePathFromRow(wayfRow)
 
-	acceptRow, ok := tsrouting.RowByID(opts, "ui-accept-invite")
+	acceptRow, ok := tsrouting.RowByID(opts, service.RouteIDUIAcceptInvite)
 	if !ok {
 		t.Fatal("Routes(opts) missing ui-accept-invite row")
 	}

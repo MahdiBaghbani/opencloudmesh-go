@@ -1,8 +1,6 @@
 package ocm
 
 import (
-	"fmt"
-
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 )
 
@@ -58,7 +56,7 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 			TrustClass:    service.TrustPeerRequired,
 		},
 		{
-			ID:            fmt.Sprintf("ocm-token-%s", opts.TokenExchangePath),
+			ID:            service.RouteIDOCMToken,
 			Service:       "ocm",
 			Method:        "POST",
 			Pattern:       tokenPattern,

@@ -321,6 +321,33 @@ func TestRegisteredRouteSpecs_AllResolveDescriptor(t *testing.T) {
 	}
 }
 
+func TestRouteIDSSOT_StaticTokenAndSubtreeDefault(t *testing.T) {
+	if got := service.SubtreeDefaultID("ocm"); got != "ocm-subtree-default" {
+		t.Errorf("SubtreeDefaultID(ocm) = %q, want ocm-subtree-default", got)
+	}
+
+	tokenPaths := []string{"token", "auth/exchange", "token/v2"}
+	for _, tokenPath := range tokenPaths {
+		t.Run(tokenPath, func(t *testing.T) {
+			opts := service.RouteOpts{TokenExchangePath: tokenPath}
+			rows := service.Routes(opts)
+			var tokenRow *service.RouteRow
+			for i := range rows {
+				if rows[i].ID == service.RouteIDOCMToken {
+					tokenRow = &rows[i]
+					break
+				}
+			}
+			if tokenRow == nil {
+				t.Fatalf("Routes(opts) missing token row for path %q", tokenPath)
+			}
+			if tokenRow.ID != service.RouteIDOCMToken {
+				t.Errorf("token row ID = %q, want %q", tokenRow.ID, service.RouteIDOCMToken)
+			}
+		})
+	}
+}
+
 func TestDerivedRouteInventory_ExternalBasePath(t *testing.T) {
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",

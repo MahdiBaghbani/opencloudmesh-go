@@ -30,7 +30,7 @@ func init() {
 func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 	return []service.RouteSpec{
 		{
-			ID:            "api-healthz",
+			ID:            service.RouteIDAPIHealthz,
 			Service:       "api",
 			Method:        "GET",
 			Pattern:       RouteHealthz,

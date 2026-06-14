@@ -72,7 +72,7 @@ func syntheticSubtreeRows(opts RouteOpts) []RouteRow {
 		policy := defaultSubtreeSessionPolicy(desc.Name)
 		rows = append(rows, RouteRow{
 			RouteSpec: RouteSpec{
-				ID:            desc.Name + "-subtree-default",
+				ID:            SubtreeDefaultID(desc.Name),
 				Service:       desc.Name,
 				SessionPolicy: policy,
 				SurfaceClass:  surfaceClassForService(desc.Name),

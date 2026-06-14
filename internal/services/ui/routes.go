@@ -49,7 +49,7 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 			TrustClass:    service.TrustPeerNone,
 		},
 		{
-			ID:               "ui-wayf",
+			ID:               service.RouteIDUIWAYF,
 			Service:          "ui",
 			Method:           "GET",
 			Pattern:          RouteWAYF,
@@ -61,7 +61,7 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 			TrustClass:       service.TrustPeerNone,
 		},
 		{
-			ID:               "ui-accept-invite",
+			ID:               service.RouteIDUIAcceptInvite,
 			Service:          "ui",
 			Method:           "GET",
 			Pattern:          RouteAcceptInvite,

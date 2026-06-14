@@ -15,7 +15,7 @@ func init() {
 func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 	return []service.RouteSpec{
 		{
-			ID:            "webdav-ocm-wildcard",
+			ID:            service.RouteIDWebDAVOCMWildcard,
 			Service:       "webdav",
 			Method:        "*",
 			Pattern:       RouteOCMWildcard,

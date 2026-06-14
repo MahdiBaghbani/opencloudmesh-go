@@ -92,7 +92,7 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 
 	rows := service.Routes(opts)
 	for _, row := range rows {
-		if row.ID == "ocm-subtree-default" {
+		if row.ID == service.SubtreeDefaultID("ocm") {
 			if id.Origin != "" {
 				paths.EndPoint = absolutePathFromHostRoot(id.Origin, row.FullPath)
 			}
@@ -101,15 +101,15 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 	}
 
 	inv := service.DerivedRouteInventory(opts)
-	if row, ok := ocmTokenRow(inv); ok && id.Origin != "" {
+	if row, ok := rowByID(inv, service.RouteIDOCMToken); ok && id.Origin != "" {
 		paths.TokenEndPoint = absolutePathFromHostRoot(id.Origin, row.FullPath)
 	}
 
-	if row, ok := rowByID(inv, "webdav-ocm-wildcard"); ok {
+	if row, ok := rowByID(inv, service.RouteIDWebDAVOCMWildcard); ok {
 		paths.WebDAVRoot = webdavRootFromWildcard(row.FullPath)
 	}
 
-	if row, ok := rowByID(inv, "ui-accept-invite"); ok && id.Origin != "" {
+	if row, ok := rowByID(inv, service.RouteIDUIAcceptInvite); ok && id.Origin != "" {
 		paths.InviteAcceptDialog = absolutePathFromHostRoot(id.Origin, row.FullPath)
 	}
 
@@ -139,15 +139,6 @@ func DeriveDiscoveryPathsFromEndpointBase(endpointBase, ocmPrefix string, opts s
 func rowByID(rows []service.RouteRow, id string) (service.RouteRow, bool) {
 	for _, row := range rows {
 		if row.ID == id {
-			return row, true
-		}
-	}
-	return service.RouteRow{}, false
-}
-
-func ocmTokenRow(rows []service.RouteRow) (service.RouteRow, bool) {
-	for _, row := range rows {
-		if row.Service == "ocm" && strings.Contains(row.ID, "ocm-token-") {
 			return row, true
 		}
 	}
