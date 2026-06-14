@@ -43,7 +43,7 @@ async function assertStrictDiscovery(page: Page, baseURL: string) {
   expect(res.status()).toBe(200);
   const body = await res.json();
   expect(body.capabilities).toContain('http-sig');
-  expect(body.criteria).toContain('http-request-signatures');
+  expect(body.criteria).toContain('must-use-http-sig');
   // WAYF requires inviteAcceptDialog in discovery (auto-derived when WAYF is enabled)
   expect(body.inviteAcceptDialog).toBeTruthy();
 }

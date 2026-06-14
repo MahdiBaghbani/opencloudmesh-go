@@ -39,6 +39,8 @@ type SubprocessConfig struct {
 	KeepSignatureDefaults   bool              // when true, skip the [signature] override block so mode presets apply
 	SSRFMode                string            // when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
 	DisableProxyEnvFallback bool              // when true, emits proxy_env_fallback = false in [outbound_http]
+	TLSRootCAFile           string            // when set, adds tls_root_ca_file under [outbound_http]
+	BootstrapAdminPassword  string            // when set, adds password under [server.bootstrap_admin]
 	ExtraConfig             string            // Additional TOML config to append
 	ExtraFiles              map[string]string // Extra files to write to tempDir: {relativePath: contents}
 }
@@ -142,6 +144,8 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		cfg.CompatibilityScope,
 		cfg.KeepSignatureDefaults,
 		cfg.DisableProxyEnvFallback,
+		cfg.TLSRootCAFile,
+		cfg.BootstrapAdminPassword,
 		cfg.ExtraConfig,
 	)
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -380,7 +384,7 @@ func extraDefinesPublicOrigin(extra string) bool {
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, disableProxyEnvFallback bool, extra string) string {
+func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, disableProxyEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword string, extra string) string {
 	secure := needsSecureTransport(mode, compatibilityScope)
 
 	// Derive the scheme for the generated default public_origin from the FINAL
@@ -441,15 +445,18 @@ mode = "off"
 		}
 	}
 
+	bootstrapAdmin := "[server.bootstrap_admin]\nusername = \"admin\"\n"
+	if strings.TrimSpace(bootstrapAdminPassword) != "" {
+		bootstrapAdmin += fmt.Sprintf("password = %q\n", bootstrapAdminPassword)
+	}
+	bootstrapAdmin += "\n"
+
 	if secure {
 		// insecure_skip_verify must be false for scoped/none scope guardrails to pass.
 		config += `[server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
-[server.bootstrap_admin]
-username = "admin"
-
-[outbound_http]
+` + bootstrapAdmin + `[outbound_http]
 timeout_ms = 5000
 connect_timeout_ms = 2000
 max_redirects = 1
@@ -460,10 +467,7 @@ insecure_skip_verify = false
 		config += `[server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
-[server.bootstrap_admin]
-username = "admin"
-
-[outbound_http]
+` + bootstrapAdmin + `[outbound_http]
 timeout_ms = 5000
 connect_timeout_ms = 2000
 max_redirects = 1
@@ -474,6 +478,10 @@ insecure_skip_verify = true
 
 	if disableProxyEnvFallback {
 		config += "proxy_env_fallback = false\n"
+	}
+
+	if strings.TrimSpace(tlsRootCAFile) != "" {
+		config += fmt.Sprintf("tls_root_ca_file = %q\n", tlsRootCAFile)
 	}
 
 	if !keepSigDefaults {

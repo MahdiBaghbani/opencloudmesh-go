@@ -63,7 +63,7 @@ public_origin = "http://ignored.test"
 
 func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
 	t.Run("unbounded dev uses tls off", func(t *testing.T) {
-		cfg := generateTOMLConfig("test", 8080, "/tmp", "dev", "unbounded", false, false, "")
+		cfg := generateTOMLConfig("test", 8080, "/tmp", "dev", "unbounded", false, false, "", "", "")
 		if !strings.Contains(cfg, `mode = "off"`) {
 			t.Fatalf("expected tls off in generated config:\n%s", cfg)
 		}
@@ -73,7 +73,7 @@ func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
 	})
 
 	t.Run("none scope uses selfsigned tls", func(t *testing.T) {
-		cfg := generateTOMLConfig("test", 8443, "/tmp", "strict", "none", false, false, "")
+		cfg := generateTOMLConfig("test", 8443, "/tmp", "strict", "none", false, false, "", "", "")
 		if !strings.Contains(cfg, `mode = "selfsigned"`) {
 			t.Fatalf("expected selfsigned TLS in generated config:\n%s", cfg)
 		}
@@ -83,7 +83,7 @@ func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
 		extra := `[tls]
 mode = "off"
 `
-		cfg := generateTOMLConfig("test", 8080, "/tmp", "strict", "none", false, false, extra)
+		cfg := generateTOMLConfig("test", 8080, "/tmp", "strict", "none", false, false, "", "", extra)
 		if strings.Count(cfg, "[tls]") != 1 {
 			t.Fatalf("expected single [tls] table, got:\n%s", cfg)
 		}
