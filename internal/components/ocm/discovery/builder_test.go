@@ -57,6 +57,7 @@ func TestBuildDiscovery_CriteriaUseIETFStrings(t *testing.T) {
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:               "https://example.com/ocm",
 		WebDAVRoot:             "/webdav/ocm/",
+		TokenEndPoint:          "https://example.com/ocm/token",
 		TokenExchangeCapable:   true,
 		RequiresTokenExchange:  true,
 		RequiresHTTPSignatures: true,
@@ -70,11 +71,30 @@ func TestBuildDiscovery_CriteriaUseIETFStrings(t *testing.T) {
 	}
 }
 
+func TestBuildDiscovery_OmitsTokenExchangeWhenEndpointEmpty(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:              "https://example.com/ocm",
+		WebDAVRoot:            "/webdav/ocm/",
+		TokenExchangeCapable:  true,
+		RequiresTokenExchange: true,
+	}, nil)
+
+	if disc.HasCapability("exchange-token") {
+		t.Error("did not expect exchange-token without token endpoint")
+	}
+	if disc.TokenEndPoint != "" {
+		t.Errorf("TokenEndPoint = %q, want empty", disc.TokenEndPoint)
+	}
+	if disc.HasCriteria(spec.CriteriaMustExchangeToken) {
+		t.Error("did not expect must-exchange-token without token endpoint")
+	}
+}
+
 func TestBuildDiscovery_InviteAcceptIndependentFromWAYF(t *testing.T) {
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
-		EndPoint:           "https://example.com/ocm",
-		WebDAVRoot:         "/webdav/ocm/",
-		InviteAcceptDialog: "https://example.com/ui/accept-invite",
+		EndPoint:            "https://example.com/ocm",
+		WebDAVRoot:          "/webdav/ocm/",
+		InviteAcceptDialog:  "https://example.com/ui/accept-invite",
 		AdvertiseInviteWAYF: false,
 	}, nil)
 

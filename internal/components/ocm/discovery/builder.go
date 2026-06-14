@@ -64,9 +64,11 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 		capabilities = append(capabilities, "http-sig")
 	}
 
-	if p.TokenExchangeCapable {
+	if p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		capabilities = append(capabilities, "exchange-token")
 		disc.TokenEndPoint = p.TokenEndPoint
+	} else if p.TokenExchangeCapable && p.TokenEndPoint == "" {
+		log.Warn("token exchange enabled but token endpoint is empty; omitting exchange-token capability")
 	}
 
 	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery
@@ -84,7 +86,7 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 	if p.RequiresHTTPSignatures {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustUseHTTPSig)
 	}
-	if p.RequiresTokenExchange && p.TokenExchangeCapable {
+	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustExchangeToken)
 	} else if p.RequiresTokenExchange && !p.TokenExchangeCapable {
 		log.Warn("local evaluator requires token exchange but code flow is disabled; omitting token-exchange criteria")
