@@ -51,9 +51,12 @@ and operator-managed validation.
   - Under `compatibility_scope=none`, the proxy host is treated as an
     operator-trusted hop, so private and loopback proxy addresses are
     allowed.
-  - Destination SSRF checks remain the hard boundary. Proxy routing and
-    `NO_PROXY` can change how a request is sent, but they do not permit
-    blocked destinations.
+- Destination SSRF checks remain the hard boundary. Proxy routing and
+  `NO_PROXY` can change how a request is sent, but they do not permit
+  blocked destinations.
+
+See [outbound-http-ssrf.md](outbound-http-ssrf.md) for discover helper
+behavior and operator-facing error shapes.
 
 ## What this repo does not prove
 

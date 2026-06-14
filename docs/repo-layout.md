@@ -152,9 +152,15 @@ docs/repo-layout.md              (this file)
 docs/testing.md
 docs/development.md
 docs/configuration.md
+docs/identity-and-public-origin.md
+docs/routes-and-auth.md
+docs/protocol-endpoints.md
+docs/discovery.md
+docs/invite-wayf-and-accept.md
+docs/directory-service-and-ocm-aux.md
+docs/outbound-http-ssrf.md
 docs/naming-conventions.md
 docs/verification-boundary.md
-docs/directory-service-vs-ocmaux-federations.md
 ```
 
 ## docker/

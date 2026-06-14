@@ -108,6 +108,26 @@ make test-e2e           # builds binary, then runs Playwright
 E2E runs sequentially (`workers: 1`) to avoid port conflicts between
 subprocess servers.
 
+## Behavior verification map
+
+Focused docs cite the packages and tests that prove each behavior. Use this
+map to find the right proof when changing invite, discovery, or route
+policy code.
+
+| Behavior | Doc | Verification command |
+| -------- | --- | -------------------- |
+| Public identity, default-port strip, base path | [identity-and-public-origin.md](identity-and-public-origin.md) | `go test ./internal/platform/localidentity/...` |
+| Route specs, `Routes(opts)`, projections | [routes-and-auth.md](routes-and-auth.md) | `go test ./internal/architecture/... -run RoutePolicy` |
+| Discovery fields and config | [discovery.md](discovery.md) | `go test ./internal/services/wellknown/... -run 'DiscoveryFields\|InviteAcceptDialogFromRoutes\|InviteWAYFCapability\|UnconditionalCapabilities'` |
+| Protocol vs UI vs helper surfaces | [protocol-endpoints.md](protocol-endpoints.md), [routes-and-auth.md](routes-and-auth.md) | `go test ./internal/frameworks/service/... -run Route` |
+| WAYF Alice/Bob, accept-invite redirect | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `go test ./tests/integration/... -run 'Wayf\|AcceptInvite'` |
+| MVP invite API (no WAYF) | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `go test ./tests/integration/... -run TestInviteAcceptTwoInstanceAPI` |
+| Discover normalization (T7a) | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `go test ./tests/integration/... -run TestOCMAuxDiscover` |
+| Directory Service JWS (T7b) | [directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md) | `go test ./tests/integration/... -run TestDirectoryServiceJWSFeedsFederations` |
+| SSRF on discover | [outbound-http-ssrf.md](outbound-http-ssrf.md) | `go test ./tests/integration/... -run TestOCMAuxDiscover_SSRF` |
+| WAYF browser flows | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `make test-e2e` (specs `wayf.spec.ts`, `wayf-two-instance.spec.ts`) |
+| Live discovery from server | [discovery.md](discovery.md) | `go test ./tests/integration/... -run 'DiscoveryEndpoint\|LegacyDiscovery\|DiscoveryRemains\|DiscoveryRoutesMatch'` |
+
 ## Verification boundary
 
 Strict verification proves a narrow contract. A green strict run does not

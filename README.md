@@ -48,9 +48,15 @@ Docker build and run notes remain in the Docker section below.
 | Testing (unit, integration, E2E) | [docs/testing.md](docs/testing.md) |
 | Development workflow | [docs/development.md](docs/development.md) |
 | Configuration and presets | [docs/configuration.md](docs/configuration.md) |
+| Identity and public origin | [docs/identity-and-public-origin.md](docs/identity-and-public-origin.md) |
+| Routes and auth | [docs/routes-and-auth.md](docs/routes-and-auth.md) |
+| Protocol endpoints | [docs/protocol-endpoints.md](docs/protocol-endpoints.md) |
+| Discovery | [docs/discovery.md](docs/discovery.md) |
+| Invite, WAYF, and accept | [docs/invite-wayf-and-accept.md](docs/invite-wayf-and-accept.md) |
+| Directory Service and OCM aux | [docs/directory-service-and-ocm-aux.md](docs/directory-service-and-ocm-aux.md) |
+| Outbound HTTP and SSRF | [docs/outbound-http-ssrf.md](docs/outbound-http-ssrf.md) |
 | Naming conventions | [docs/naming-conventions.md](docs/naming-conventions.md) |
 | Strict verification boundary | [docs/verification-boundary.md](docs/verification-boundary.md) |
-| Directory Service vs /ocm-aux | [docs/directory-service-vs-ocmaux-federations.md](docs/directory-service-vs-ocmaux-federations.md) |
 
 Test-specific guides:
 

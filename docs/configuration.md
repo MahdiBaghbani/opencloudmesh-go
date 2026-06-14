@@ -63,13 +63,14 @@ TOML sections map to `internal/platform/config.Config`:
 | ------- | ---- |
 | `mode` | Preset bundle selector |
 | `compatibility_scope` | Exception-governance axis |
-| `public_origin`, `listen_addr`, `external_base_path` | Identity and binding |
+| `public_origin`, `listen_addr`, `external_base_path` | Identity and binding (see [identity-and-public-origin.md](identity-and-public-origin.md)) |
 | `[server]` | Trusted proxies |
 | `[tls]` | TLS mode (selfsigned, static, acme, ...) |
-| `[outbound_http]` | Outbound client, SSRF, proxy, TLS roots |
+| `[outbound_http]` | Outbound client, SSRF, proxy, TLS roots (see [outbound-http-ssrf.md](outbound-http-ssrf.md)) |
+| `[http.services.ui.wayf]` | WAYF UI, invite accept route, discovery fields (see [invite-wayf-and-accept.md](invite-wayf-and-accept.md)) |
+| `[peer_trust]` | Directory Service trust groups, membership policy, and cache (see [directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md)) |
 | `[signature]` | HTTP signature inbound/outbound modes |
 | `[peer_profiles]` | Peer compatibility mappings |
-| `[peer_trust]` | Federation membership trust |
 | `[token_exchange]` | Token exchange endpoint settings |
 | `[logging]` | Log level and sensitivity |
 | `[cache]` | Cache driver selection |
@@ -100,11 +101,14 @@ Read [verification-boundary.md](verification-boundary.md) for:
 - What remains operator-gated (peer profiles, containers, external suites)
 - How route policies interact with compatibility scope
 
-Directory Service spec behavior vs local `/ocm-aux/*` helpers:
-[directory-service-vs-ocmaux-federations.md](directory-service-vs-ocmaux-federations.md).
+Directory Service and `/ocm-aux/*` helpers:
+[directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md).
 
 ## Related docs
 
 - [development.md](development.md) - run commands and local workflow
 - [architecture.md](architecture.md) - how config flows into wiring
+- [identity-and-public-origin.md](identity-and-public-origin.md) -
+  `public_origin` and `external_base_path`
+- [discovery.md](discovery.md) - discovery fields from config
 - [testing.md](testing.md) - config fixtures in tests

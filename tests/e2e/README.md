@@ -64,8 +64,12 @@ material, not public CA chains.
 | `inbox.spec.ts`, `inbox-ui.spec.ts` | Inbox flows |
 | `invites.spec.ts`, `outgoing-invites.spec.ts` | Invite flows |
 | `invite-flow.spec.ts`, `accept-share.spec.ts` | Share acceptance |
-| `wayf.spec.ts`, `wayf-two-instance.spec.ts` | WAYF UI |
+| `wayf.spec.ts`, `wayf-two-instance.spec.ts` | WAYF UI (Alice discovers Bob, accept flow) |
 | `two-instance-share-with.spec.ts` | Two-instance sharing |
+
+WAYF browser proofs complement integration tests in
+`wayf_invite_accept_test.go` and `accept_invite_redirect_test.go`.
+Guide: [docs/invite-wayf-and-accept.md](../../docs/invite-wayf-and-accept.md).
 
 ## Artifacts
 

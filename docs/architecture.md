@@ -117,14 +117,28 @@ tests. Architecture tests require that only `_test.go` files outside the
 testsupport tree may import it. See [testing.md](testing.md) and
 [repo-layout.md](repo-layout.md).
 
+## Route policy guards
+
+`internal/architecture/route_policy_wiring_test.go` enforces that
+`service.Routes(opts)` and its projections (`DerivedAuthRows`,
+`DerivedRouteGroups`, `DerivedRouteInventory`,
+`SessionAuthRequiredForPath`) stay consistent. It also checks surface-class
+rules: HTTP signature handler auth only on protocol routes, invite accept
+dialog metadata on UI routes only, and peer trust classes on protocol routes.
+
+Details: [routes-and-auth.md](routes-and-auth.md).
+
 ## Related docs
 
 - [repo-layout.md](repo-layout.md) - directory map
 - [testing.md](testing.md) - test layers and architecture guard details
+- [routes-and-auth.md](routes-and-auth.md) - route specs and auth surfaces
+- [identity-and-public-origin.md](identity-and-public-origin.md) - public
+  identity derivation
 - [naming-conventions.md](naming-conventions.md) - naming rules enforced
   by architecture tests
 - [configuration.md](configuration.md) - presets and config axes
 - [verification-boundary.md](verification-boundary.md) - what strict
   verification proves and does not prove
-- [directory-service-vs-ocmaux-federations.md](directory-service-vs-ocmaux-federations.md)
-  - Directory Service spec vs local `/ocm-aux/*` helpers
+- [directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md) -
+  Directory Service spec vs local `/ocm-aux/*` helpers

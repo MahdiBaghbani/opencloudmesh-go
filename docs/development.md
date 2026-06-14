@@ -57,9 +57,9 @@ Details: [testing.md](testing.md).
 
 | Task | Start here |
 | ---- | ---------- |
-| New HTTP route | `internal/services/<group>/`, service registry |
-| OCM protocol logic | `internal/components/ocm/<area>/` |
-| Config field | `internal/platform/config/` |
+| New HTTP route | `internal/services/<group>/`, service registry ([routes-and-auth.md](routes-and-auth.md)) |
+| OCM protocol logic | `internal/components/ocm/<area>/` ([protocol-endpoints.md](protocol-endpoints.md)) |
+| Config field | `internal/platform/config/` ([configuration.md](configuration.md)) |
 | Wire new dependency | `internal/wiring/` |
 | Architecture rule | `internal/architecture/<topic>_test.go` |
 | Shared test helper | `internal/testsupport/<area>/` |
@@ -87,4 +87,6 @@ enforce several naming and import rules automatically.
 
 - [configuration.md](configuration.md) - presets and config axes
 - [architecture.md](architecture.md) - layering and guards
+- [routes-and-auth.md](routes-and-auth.md) - route specs and surfaces
+- [invite-wayf-and-accept.md](invite-wayf-and-accept.md) - WAYF dev flows
 - [verification-boundary.md](verification-boundary.md) - strict contract scope

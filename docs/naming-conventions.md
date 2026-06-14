@@ -43,10 +43,10 @@ address helpers under `internal/components/ocm/address/`.
 The `internal/components/federation` package was removed. Do not reintroduce
 imports of that path. `TestNoFederationPackageImports` enforces this.
 
-Docs and comments should not refer to removed migration-era package names or
+Docs and comments should not refer to removed legacy package names or
 old test harness names. If you need federation behavior, use the current
 `peer_trust`, `directoryservice`, and `ocmaux` surfaces documented in
-[directory-service-vs-ocmaux-federations.md](directory-service-vs-ocmaux-federations.md).
+[directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md).
 
 ## Structured logging
 

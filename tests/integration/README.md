@@ -43,9 +43,19 @@ Examples in this tree:
 - OCM identity and federation listing
 - Runtime posture and ratelimit behavior
 - ACME and subprocess transport scenarios
+- WAYF invite accept and accept-invite login redirect preservation
+- `/ocm-aux/discover` URL normalization and SSRF blocking
+- Hermetic Directory Service JWS feeding `/ocm-aux/federations`
+- MVP two-instance invite accept via API and protocol callback
 
-These tests exercise multiple layers together. Prefer unit tests under
-`internal/` for single-package logic.
+See [docs/testing.md](../../docs/testing.md) for the behavior verification
+map with `go test` commands per scenario.
+
+Focused guides:
+
+- [docs/invite-wayf-and-accept.md](../../docs/invite-wayf-and-accept.md)
+- [docs/directory-service-and-ocm-aux.md](../../docs/directory-service-and-ocm-aux.md)
+- [docs/outbound-http-ssrf.md](../../docs/outbound-http-ssrf.md)
 
 ## internal/testsupport
 
