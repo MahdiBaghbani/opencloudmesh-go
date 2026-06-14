@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -174,14 +176,25 @@ path = "auth/exchange"
 	})
 
 	t.Run("PerServicePathRoutesToHandler", func(t *testing.T) {
-		// POST to /ocm/auth/exchange should route to handler (not 404)
+		opts := service.RouteOpts{
+			TokenExchangePath: "auth/exchange",
+		}
+		tokenPath, ok := tsrouting.OCMTokenFullPath(opts)
+		if !ok {
+			t.Fatal("Routes(opts) missing token endpoint for auth/exchange")
+		}
+		if tokenPath != "/ocm/auth/exchange" {
+			t.Fatalf("aggregate token path = %q, want /ocm/auth/exchange", tokenPath)
+		}
+
+		// POST to aggregate path should route to handler (not 404)
 		data := url.Values{}
 		data.Set("grant_type", "ocm_share")
 		data.Set("client_id", "receiver.example.com")
 		data.Set("code", "nonexistent-secret")
 
 		resp, err := http.Post(
-			srv.BaseURL+"/ocm/auth/exchange",
+			srv.BaseURL+tokenPath,
 			"application/x-www-form-urlencoded",
 			strings.NewReader(data.Encode()),
 		)
@@ -251,14 +264,25 @@ path = "token/v2"
 	})
 
 	t.Run("NestedPathRoutesToHandler", func(t *testing.T) {
-		// POST to /ocm/token/v2 should route to handler (not 404)
+		opts := service.RouteOpts{
+			TokenExchangePath: "token/v2",
+		}
+		tokenPath, ok := tsrouting.OCMTokenFullPath(opts)
+		if !ok {
+			t.Fatal("Routes(opts) missing token endpoint for token/v2")
+		}
+		if tokenPath != "/ocm/token/v2" {
+			t.Fatalf("aggregate token path = %q, want /ocm/token/v2", tokenPath)
+		}
+
+		// POST to aggregate path should route to handler (not 404)
 		data := url.Values{}
 		data.Set("grant_type", "ocm_share")
 		data.Set("client_id", "receiver.example.com")
 		data.Set("code", "nonexistent-secret")
 
 		resp, err := http.Post(
-			srv.BaseURL+"/ocm/token/v2",
+			srv.BaseURL+tokenPath,
 			"application/x-www-form-urlencoded",
 			strings.NewReader(data.Encode()),
 		)
@@ -279,14 +303,19 @@ path = "token/v2"
 	})
 
 	t.Run("DefaultPathReturns404", func(t *testing.T) {
-		// POST to /ocm/token (default path) should return 404 when custom path is configured
+		defaultPath, ok := tsrouting.OCMTokenFullPath(service.DefaultRouteOpts())
+		if !ok {
+			t.Fatal("Routes(opts) missing default token endpoint")
+		}
+
+		// POST to default aggregate path should return 404 when custom path is configured
 		data := url.Values{}
 		data.Set("grant_type", "ocm_share")
 		data.Set("client_id", "receiver.example.com")
 		data.Set("code", "some-secret")
 
 		resp, err := http.Post(
-			srv.BaseURL+"/ocm/token",
+			srv.BaseURL+defaultPath,
 			"application/x-www-form-urlencoded",
 			strings.NewReader(data.Encode()),
 		)
@@ -297,7 +326,7 @@ path = "token/v2"
 
 		// Should return 404 because the route is now at /ocm/token/v2
 		if resp.StatusCode != http.StatusNotFound {
-			t.Errorf("default path /ocm/token should return 404 when custom path is configured, got %d", resp.StatusCode)
+			t.Errorf("default path %q should return 404 when custom path is configured, got %d", defaultPath, resp.StatusCode)
 		}
 	})
 }

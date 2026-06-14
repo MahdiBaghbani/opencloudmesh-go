@@ -6,15 +6,27 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
+
+func healthPathForConfig(t *testing.T, cfg *config.Config) string {
+	t.Helper()
+	opts := service.RouteOptsFromConfig(cfg)
+	path, ok := tsrouting.HealthFullPath(opts)
+	if !ok {
+		t.Fatal("Routes(opts) missing api-healthz row")
+	}
+	return path
+}
 
 func TestHealthEndpoint(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	resp, err := http.Get(ts.BaseURL + "/api/healthz")
+	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
 	if err != nil {
 		t.Fatalf("failed to get health endpoint: %v", err)
 	}
@@ -46,7 +58,7 @@ func TestHealthEndpointWithExternalBasePath(t *testing.T) {
 	})
 	defer ts.Stop(t)
 
-	resp, err := http.Get(ts.BaseURL + "/ocm/api/healthz")
+	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
 	if err != nil {
 		t.Fatalf("failed to get health endpoint: %v", err)
 	}
@@ -54,6 +66,38 @@ func TestHealthEndpointWithExternalBasePath(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+}
+
+// TestDiscoveryRemainsHostRootWithExternalBasePath verifies well-known discovery
+// stays at the host root when app routes mount under external_base_path.
+func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
+	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+		cfg.ExternalBasePath = "/ocm"
+	})
+	defer ts.Stop(t)
+
+	for _, path := range tsrouting.HostRootDiscoveryPaths() {
+		resp, err := http.Get(ts.BaseURL + path)
+		if err != nil {
+			t.Fatalf("failed to get discovery at %q: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("host-root discovery %q returned %d, want 200", path, resp.StatusCode)
+		}
+	}
+
+	for _, path := range tsrouting.HostRootDiscoveryPaths() {
+		prefixed := ts.BaseURL + "/ocm" + path
+		resp, err := http.Get(prefixed)
+		if err != nil {
+			t.Fatalf("failed to get prefixed discovery at %q: %v", prefixed, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			t.Errorf("discovery must not be served under external_base_path at %s", prefixed)
+		}
 	}
 }
 
@@ -75,7 +119,7 @@ func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
 		t.Fatalf("BaseURL must not use the advertised PublicOrigin, got %q", ts.BaseURL)
 	}
 
-	resp, err := http.Get(ts.BaseURL + "/api/healthz")
+	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
 	if err != nil {
 		t.Fatalf("health check against local listener failed: %v", err)
 	}
