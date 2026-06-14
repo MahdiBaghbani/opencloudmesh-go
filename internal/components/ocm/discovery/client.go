@@ -67,7 +67,7 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	cacheKey := "discovery:" + baseURL
 	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
-		disc, err := c.normalizeDiscovery(data, baseURL)
+		disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(baseURL))
 		if err == nil {
 			return &disc, nil
 		}
