@@ -1,82 +1,139 @@
 # opencloudmesh-go
 
-Open Cloud Mesh (OCM) server implementation in Go. Delivered as the M5 (OCM
-Stub Implementation) milestone of the [Sovereign Tech
-Fund](https://github.com/orgs/cs3org/projects/3/views/1) funded OCM project.
+Open Cloud Mesh (OCM) server implementation in Go. The runtime targets a
+practical WebDAV-centered subset of the pinned OCM-API surface: discovery,
+`shareType=user`, the current notification subset, and strict token-exchange
+and HTTP-signature behavior on that reduced path.
 
-## Purpose
+## Quickstart
 
-This project provides an Open Cloud Mesh server implementation in Go. The
-current strict target is a practical WebDAV-centered subset of the pinned
-OCM-API surface: latest-shape discovery, `shareType=user`, the current
-notification subset, and strict token-exchange and HTTP-signature behavior on
-that reduced path.
+From the repo root:
 
-The runtime exposes preset bundles `strict`, `compat`, and `dev`.
+```sh
+# Build the server binary
+make build
 
-Those presets are convenience entry points, not the architecture authority:
-the effective posture is resolved from canonical OCM policy,
-`compatibility_scope`, and the signature, transport, trust, and peer-compat
-axes.
+# Run unit and integration tests (excludes E2E)
+make test
 
-The transport axis includes a nested SSRF subsystem under
-`outbound_http.ssrf`. The strict preset is deny-by-default there:
-`ssrf.mode=strict`, no active route policy, and no private-route
-exceptions unless an operator-declared route policy is configured. The
-verified positive path is narrow: a route policy can admit only the
-private hostname destinations that match its explicit host suffix,
-CIDR, and port allowlists. IP-literal targets are a separate path that
-requires `allow_ip_literals=true` plus matching CIDR and port
-allowlists. A named route policy stays on the transport axis. It does
-not broaden peer compatibility or claim broad interoperability, and by
-itself it does not demote the runtime to dev posture. Turning
-`ssrf.mode=off` is a real transport relaxation and is never part of the
-strict posture.
+# Run E2E tests (install browsers once, then run)
+make test-e2e-install
+make test-e2e
+```
 
-`compatibility_scope` is the supervising exception-governance axis:
-`none` means no compatibility relaxations, `scoped` allows explicit peer-scoped
-exceptions, and `unbounded` allows node-wide compatibility defaults. A strict
-runtime posture is derived only when the resolved behavior stays inside the
-WebDAV-centered strict target and `compatibility_scope=none`.
+Run the server locally:
 
-Verification boundaries for the strict target are documented in
-[`docs/verification-boundary.md`](docs/verification-boundary.md).
+```sh
+# Strict preset (default when no config or -mode is given)
+./bin/opencloudmesh-go
 
-`token-only` is an outbound-only HTTP-signature relaxation. It is useful for
-compatibility, but it is never part of the strict posture.
+# Dev preset via CLI
+./bin/opencloudmesh-go -mode dev
 
-## OCM-STA and Milestones
+# Strict preset with a TOML file
+./bin/opencloudmesh-go -config docker/configs/config-tls.toml
 
-Project tasks and milestones are coordinated in the [OCM-STA repository](https://github.com/cs3org/OCM-STA). OCM-STA holds Sovereign Tech Fund activity tracking. M5 (OCM Stub Implementation) is delivered by this repo.
+# Override preset from the CLI (precedence: preset -> TOML -> flags)
+./bin/opencloudmesh-go -mode strict -public-origin https://localhost:9200
+```
+
+Docker build and run notes remain in the Docker section below.
+
+## Documentation
+
+| Topic | Doc |
+| ----- | --- |
+| Architecture and layering | [docs/architecture.md](docs/architecture.md) |
+| Repo layout (code and tests) | [docs/repo-layout.md](docs/repo-layout.md) |
+| Testing (unit, integration, E2E) | [docs/testing.md](docs/testing.md) |
+| Development workflow | [docs/development.md](docs/development.md) |
+| Configuration and presets | [docs/configuration.md](docs/configuration.md) |
+| Identity and public origin | [docs/identity-and-public-origin.md](docs/identity-and-public-origin.md) |
+| Routes and auth | [docs/routes-and-auth.md](docs/routes-and-auth.md) |
+| Protocol endpoints | [docs/protocol-endpoints.md](docs/protocol-endpoints.md) |
+| Discovery | [docs/discovery.md](docs/discovery.md) |
+| Invite, WAYF, and accept | [docs/invite-wayf-and-accept.md](docs/invite-wayf-and-accept.md) |
+| Directory Service and OCM aux | [docs/directory-service-and-ocm-aux.md](docs/directory-service-and-ocm-aux.md) |
+| Outbound HTTP and SSRF | [docs/outbound-http-ssrf.md](docs/outbound-http-ssrf.md) |
+| Naming conventions | [docs/naming-conventions.md](docs/naming-conventions.md) |
+| Strict verification boundary | [docs/verification-boundary.md](docs/verification-boundary.md) |
+
+Test-specific guides:
+
+- [tests/integration/README.md](tests/integration/README.md) - in-process
+  integration harness
+- [tests/e2e/README.md](tests/e2e/README.md) - Playwright browser tests
+- [tests/ca_pool/README.md](tests/ca_pool/README.md) - outbound TLS root CA
+  pool tests
+
+## Repo navigation
+
+```text
+cmd/opencloudmesh-go/     Binary entrypoint
+internal/                 Production and test-support code
+  architecture/           Architecture guard tests
+  components/             Domain logic (ocm, api, identity, ...)
+  frameworks/             Service registry and startup
+  interceptors/           HTTP middleware (ratelimit, ...)
+  platform/               Config, HTTP, cache, store, repos
+  services/               HTTP route handlers
+  testsupport/            Test-only helpers (not for production)
+  wiring/                 Composition root (Build)
+tests/                    Top-level integration, E2E, and CA pool tests
+docs/                     Developer documentation
+docker/                   Container image and sample configs
+```
+
+See [docs/repo-layout.md](docs/repo-layout.md) for the full map.
+
+## Presets and configuration
+
+The server resolves config in this order: preset bundle, TOML file, CLI flags.
+
+Preset bundles: `strict`, `compat`, and `dev`. They are convenience entry
+points, not the sole authority for runtime posture. Effective behavior also
+depends on `compatibility_scope` and the signature, transport, trust, and
+peer-compat axes.
+
+Example configs:
+
+- `docker/configs/config.toml` - minimal dev preset for containers
+- `docker/configs/config-tls.toml` - strict preset with static TLS
+- `tests/ca_pool/configs/valid.toml` - valid outbound root CA path
+- `tests/ca_pool/configs/invalid.toml` - invalid CA path (startup failure)
+
+Details: [docs/configuration.md](docs/configuration.md).
 
 ## Build and test
 
 ```sh
-# Build
-make build
-
-# Unit and integration tests (excludes E2E)
-make test
-
-# E2E tests (requires make test-e2e-install once)
-make test-e2e
+make build              # go build -> bin/opencloudmesh-go
+make test-go            # unit tests (excludes tests/integration)
+make test-integration   # integration tests only
+make test               # test-go + test-integration
+make test-e2e-install   # bun install + Playwright browsers
+make test-e2e           # Playwright E2E (builds binary first)
+make fmt vet tidy       # formatting and static checks
 ```
+
+See [docs/testing.md](docs/testing.md) and [docs/development.md](docs/development.md).
 
 ## Docker
 
 Build and run the server in a container.
 
-| Mode  | Port | Description                                                  |
-| ----- | ---- | ------------------------------------------------------------ |
-| HTTP  | 8080 | Default. No TLS.                                             |
+| Mode  | Port | Description |
+| ----- | ---- | ----------- |
+| HTTP  | 8080 | Default. No TLS. |
 | TLS   | 443  | Set TLS_ENABLED=true. Uses pre-installed or env-provided certs. |
 
-| Pre-installed files     | Purpose            |
-| ----------------------- | ------------------ |
-| ocm-go.crt, ocm-go.key  | Leaf cert and key  |
-| dockypody.crt           | CA for trust store |
+| Pre-installed files    | Purpose |
+| ---------------------- | ------- |
+| ocm-go.crt, ocm-go.key | Leaf cert and key |
+| dockypody.crt          | CA for trust store |
 
-Pre-installed cert hostnames: ocm-go.docker, ocm-go1.docker through ocm-go4.docker, localhost, 127.0.0.1, ::1
+Pre-installed cert hostnames: ocm-go.docker, ocm-go1.docker through
+ocm-go4.docker, localhost, 127.0.0.1, ::1
 
 ```sh
 # Build
@@ -100,32 +157,35 @@ docker run -d -p 8080:8080 -v /path/to/config.toml:/config/config.toml:ro \
 
 **Identity (set at least one of HOST or PUBLIC_ORIGIN):**
 
-| Variable      | Required               | Description                                                               |
-| ------------- | ---------------------- | -------------------------------------------------------------------------- |
+| Variable      | Required               | Description |
+| ------------- | ---------------------- | ----------- |
 | HOST          | If PUBLIC_ORIGIN empty | Short hostname (e.g. ocm-go1). Added to /etc/hosts. Used to derive PUBLIC_ORIGIN. |
-| PUBLIC_ORIGIN | If HOST empty          | Full base URL. Passed as --public-origin.                                  |
+| PUBLIC_ORIGIN | If HOST empty          | Full base URL. Passed as --public-origin. |
 
 **Mode:**
 
-| Variable    | Default | Description                                   |
-| ----------- | ------- | --------------------------------------------- |
+| Variable    | Default | Description |
+| ----------- | ------- | ----------- |
 | OCM_GO_MODE | (none)  | Override preset bundle: `strict`, `compat`, or `dev`. |
 
 **Config:**
 
-| Variable | Default | Description                                                             |
-| -------- | ------- | ----------------------------------------------------------------------- |
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
 | CONFIG   | (auto)  | Path to config.toml in container. Use with `-v` to mount your own file. |
 
 **TLS:**
 
-| Variable    | Default | Description                                                         |
-| ----------- | ------- | ------------------------------------------------------------------- |
-| TLS_ENABLED | false   | Set to `true` for TLS on port 443.                                  |
-| TLS_CERT    | (none)  | Base64-encoded PEM cert. Overwrites pre-installed cert at startup.  |
-| TLS_KEY     | (none)  | Base64-encoded PEM key. Overwrites pre-installed key at startup.   |
+| Variable    | Default | Description |
+| ----------- | ------- | ----------- |
+| TLS_ENABLED | false   | Set to `true` for TLS on port 443. |
+| TLS_CERT    | (none)  | Base64-encoded PEM cert. Overwrites pre-installed cert at startup. |
+| TLS_KEY     | (none)  | Base64-encoded PEM key. Overwrites pre-installed key at startup. |
 | TLS_CA      | (none)  | Base64-encoded PEM CA. Overwrites pre-installed CA and updates trust store. |
 
 ## OCM-API specification
 
-Protocol behavior is defined in the [OCM-API IETF-RFC](https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery).
+Protocol behavior is defined in the [OCM-API IETF-RFC][ocm-rfc]. The vendored
+pin lives at `internal/components/ocm/spec/vendor/pin.json`.
+
+[ocm-rfc]: https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery

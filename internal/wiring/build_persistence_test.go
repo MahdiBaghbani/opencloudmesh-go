@@ -1,0 +1,95 @@
+package wiring_test
+
+import (
+	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
+	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
+
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
+)
+
+func assertMemoryBackedTokenStore(t *testing.T, d *wiring.Deps) {
+	t.Helper()
+	if d.TokenStore == nil {
+		t.Fatal("TokenStore must be non-nil")
+	}
+	if _, ok := d.TokenStore.(*token.MemoryTokenStore); !ok {
+		t.Errorf("TokenStore must stay memory-backed, got %T", d.TokenStore)
+	}
+}
+
+func TestPersistence_MemoryBackend(t *testing.T) {
+	cfg := tscfg.DevConfigHarness(18094)
+
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	d := result.Deps
+	if d.IncomingShareRepo == nil {
+		t.Error("IncomingShareRepo must be non-nil")
+	}
+	if d.OutgoingShareRepo == nil {
+		t.Error("OutgoingShareRepo must be non-nil")
+	}
+	if d.OutgoingInviteRepo == nil {
+		t.Error("OutgoingInviteRepo must be non-nil")
+	}
+	if d.IncomingInviteRepo == nil {
+		t.Error("IncomingInviteRepo must be non-nil")
+	}
+	if result.Persistence == nil {
+		t.Fatal("Persistence must be non-nil")
+	}
+	assertMemoryBackedTokenStore(t, d)
+	if err := result.Persistence.Close(); err != nil {
+		t.Errorf("Persistence.Close() for memory backend: %v", err)
+	}
+}
+
+func TestPersistence_JSONBackend(t *testing.T) {
+	cfg := tscfg.DevConfigHarness(18096)
+	cfg.Persistence.Backend = config.BackendJSON
+	cfg.Persistence.DataDir = t.TempDir()
+
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	d := result.Deps
+	if d.IncomingShareRepo == nil {
+		t.Error("IncomingShareRepo must be non-nil")
+	}
+	if d.OutgoingShareRepo == nil {
+		t.Error("OutgoingShareRepo must be non-nil")
+	}
+	if d.OutgoingInviteRepo == nil {
+		t.Error("OutgoingInviteRepo must be non-nil")
+	}
+	if d.IncomingInviteRepo == nil {
+		t.Error("IncomingInviteRepo must be non-nil")
+	}
+	if result.Persistence == nil {
+		t.Fatal("Persistence must be non-nil")
+	}
+	assertMemoryBackedTokenStore(t, d)
+	if err := result.Persistence.Close(); err != nil {
+		t.Errorf("Persistence.Close() for json backend: %v", err)
+	}
+}
+
+func TestPersistence_RejectsUnknownBackend(t *testing.T) {
+	cfg := tscfg.DevConfigHarness(18095)
+	cfg.Persistence.Backend = "bogus-not-a-backend"
+
+	_, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
+	if err == nil {
+		t.Fatal("Build must fail for unknown persistence backend")
+	}
+}

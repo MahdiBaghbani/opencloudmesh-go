@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -21,8 +22,8 @@ type CacheConfig struct {
 // DefaultCacheConfig returns the default cache configuration.
 func DefaultCacheConfig() CacheConfig {
 	return CacheConfig{
-		TTL:      6 * time.Hour,
-		MaxStale: 7 * 24 * time.Hour,
+		TTL:      time.Duration(config.DefaultPeerTrustCacheTTLSeconds) * time.Second,
+		MaxStale: time.Duration(config.DefaultPeerTrustCacheMaxStaleSeconds) * time.Second,
 	}
 }
 
@@ -40,8 +41,8 @@ type TrustGroupManager struct {
 // TrustGroup represents a single trust group with its state.
 type TrustGroup struct {
 	config            *TrustGroupConfig
-	memberAuthorities []memberAuthority            // precomputed normalized host authorities
-	directoryListings []directoryservice.Listing   // cached listings (verified and unverified)
+	memberAuthorities []memberAuthority          // precomputed normalized host authorities
+	directoryListings []directoryservice.Listing // cached listings (verified and unverified)
 	lastRefresh       time.Time
 	refreshing        bool
 	refreshMu         sync.Mutex
@@ -282,4 +283,3 @@ func (m *TrustGroupManager) SetCacheForTesting(trustGroupID string, listings []d
 	tg.lastRefresh = lastRefresh
 	tg.memberAuthorities = m.precomputeAuthorities(listings)
 }
-

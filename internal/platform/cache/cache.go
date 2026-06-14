@@ -1,4 +1,4 @@
-// Package cache provides caching with TTL support for discovery, JWKS, and rate limiting.
+// Package cache provides caching with TTL support for discovery and rate limiting.
 // Uses a Reva-style registry pattern: drivers register via init(), callers use NewDefault() or NewFromConfig().
 package cache
 
@@ -125,7 +125,6 @@ type CacheWithCounter interface {
 // Default TTLs for different cache categories.
 const (
 	TTLDiscovery = 15 * time.Minute // Discovery document cache
-	TTLJWKs      = 15 * time.Minute // JWKS cache
 	TTLRateLimit = 1 * time.Minute  // Rate limit window
 )
 

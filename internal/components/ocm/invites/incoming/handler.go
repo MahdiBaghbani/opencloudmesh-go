@@ -13,13 +13,12 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -38,25 +37,23 @@ func NewHandler(
 	outgoingRepo invitesoutgoing.OutgoingInviteRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
-	localProviderFQDN string,
-	publicOrigin string,
+	localProviderDomain string,
+	localScheme string,
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
-
-	localScheme := config.SchemeFromOrigin(publicOrigin)
 
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		partyRepo:    partyRepo,
 		policyEngine: policyEngine,
-		providerFQDN: localProviderFQDN,
+		providerFQDN: localProviderDomain,
 		logger:       logger,
 		localScheme:  localScheme,
 	}
 }
 
-// HandleInviteAccepted handles POST /ocm/invite-accepted. Error table: F3=A.
+// HandleInviteAccepted handles POST /ocm/invite-accepted.
 func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -132,7 +129,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
 		return
 	}
-	peerIdentity := crypto.GetPeerIdentity(ctx)
+	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
 	normalizedRecipientProvider := req.RecipientProvider
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
@@ -173,7 +170,8 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// buildInviteAcceptedResponse returns local inviting user identity. F5=A: empty CreatedByUserID -> placeholder.
+// buildInviteAcceptedResponse returns local inviting user identity.
+// When CreatedByUserID is empty, a placeholder federated opaque ID is returned.
 func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invitesoutgoing.OutgoingInvite, log *slog.Logger) spec.InviteAcceptedResponse {
 	if invite.CreatedByUserID == "" {
 		return spec.InviteAcceptedResponse{

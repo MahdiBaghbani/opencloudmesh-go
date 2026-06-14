@@ -9,57 +9,29 @@ import (
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
-func TestNew_FailsWithoutSharedDeps(t *testing.T) {
-	// Ensure deps are not set
-	deps.ResetDeps()
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	_, err := New(m, log)
-	if err == nil {
-		t.Error("expected error when SharedDeps not initialized")
-	}
+func testLog() *slog.Logger {
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 }
 
-func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		TokenStore:        token.NewMemoryTokenStore(),
-	})
-
+func TestNew_SucceedsWithInputs(t *testing.T) {
 	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testWebDAVInputs(), m, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if svc == nil {
 		t.Fatal("expected non-nil service")
 	}
 }
 
-func TestNew_UsesMinimalSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		TokenStore:        token.NewMemoryTokenStore(),
-	})
-
+func TestNew_UsesMinimalInputs(t *testing.T) {
 	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testWebDAVInputs(), m, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	s := svc.(*Service)
 	if s.handler == nil {
 		t.Fatal("expected non-nil handler")
@@ -67,8 +39,6 @@ func TestNew_UsesMinimalSharedDeps(t *testing.T) {
 }
 
 func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
-	deps.ResetDeps()
-
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	strictShare := &sharesoutgoing.OutgoingShare{
 		ProviderID:        "provider-strict-share",
@@ -81,12 +51,11 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 		t.Fatalf("failed to seed outgoing share: %v", err)
 	}
 
-	deps.SetDeps(&deps.Deps{
+	in := Inputs{
 		OutgoingShareRepo: repo,
 		TokenStore:        token.NewMemoryTokenStore(),
-	})
-
-	svc, err := New(map[string]any{}, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
+	}
+	svc, err := New(in, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,85 +73,30 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		TokenStore:        token.NewMemoryTokenStore(),
-	})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testWebDAVInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if svc.Prefix() != "webdav" {
 		t.Errorf("expected prefix 'webdav', got %q", svc.Prefix())
 	}
 }
 
-func TestService_Unprotected(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		TokenStore:        token.NewMemoryTokenStore(),
-	})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 1 {
-		t.Errorf("expected 1 unprotected path, got %d", len(unprotected))
-	}
-
-	if len(unprotected) > 0 && unprotected[0] != "/ocm" {
-		t.Errorf("expected unprotected path '/ocm', got %q", unprotected[0])
-	}
-}
-
 func TestService_Handler(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		TokenStore:        token.NewMemoryTokenStore(),
-	})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testWebDAVInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if svc.Handler() == nil {
 		t.Error("expected non-nil Handler")
 	}
 }
 
 func TestService_Close(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		TokenStore:        token.NewMemoryTokenStore(),
-	})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testWebDAVInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if err := svc.Close(); err != nil {
 		t.Errorf("unexpected error on Close: %v", err)
 	}
@@ -190,17 +104,9 @@ func TestService_Close(t *testing.T) {
 
 // Note: Endpoint-level tests for webdav behavior are in internal/webdav/webdav_test.go.
 // The service-level tests here focus on the registry service interface (New, Prefix,
-// Unprotected, Handler, Close) and config handling.
-// Full end-to-end tests with proper path handling are in tests/integration/.
+// Handler, Close) and config handling.
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		TokenStore:        token.NewMemoryTokenStore(),
-	})
-
-	// Create a logger that captures output
 	var logBuf testLogBuffer
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
@@ -208,12 +114,11 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 		"unknown_key": "value",
 	}
 
-	_, err := New(m, log)
+	_, err := New(testWebDAVInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Check that a warning was logged
 	if !logBuf.contains("unused config keys") {
 		t.Error("expected warning about unused config keys")
 	}

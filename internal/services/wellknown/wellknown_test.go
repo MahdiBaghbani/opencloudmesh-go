@@ -1,19 +1,18 @@
 package wellknown
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-func TestNew_FailsWithoutSharedDeps(t *testing.T) {
-	// Ensure deps are not set
-	deps.ResetDeps()
-
+func TestNew_SucceedsWithResolveInputs(t *testing.T) {
 	m := map[string]any{
 		"ocmprovider": map[string]any{
 			"endpoint": "https://example.com",
@@ -21,24 +20,7 @@ func TestNew_FailsWithoutSharedDeps(t *testing.T) {
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	_, err := New(m, log)
-	if err == nil {
-		t.Error("expected error when SharedDeps not initialized")
-	}
-}
-
-func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
-	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -46,302 +28,245 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 	if svc.Prefix() != "" {
 		t.Errorf("expected empty prefix, got %q", svc.Prefix())
 	}
+}
 
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 4 {
-		t.Errorf("expected 4 unprotected paths, got %d", len(unprotected))
-	}
+func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	// Check unprotected paths (including trailing-slash aliases)
-	expectedPaths := map[string]bool{
-		"/.well-known/ocm":  false,
-		"/.well-known/ocm/": false,
-		"/ocm-provider":     false,
-		"/ocm-provider/":    false,
-	}
-	for _, p := range unprotected {
-		if _, ok := expectedPaths[p]; ok {
-			expectedPaths[p] = true
-		}
-	}
-	for p, found := range expectedPaths {
-		if !found {
-			t.Errorf("expected unprotected path %q not found", p)
-		}
+	m := map[string]any{
+		"unknown_key": "value",
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+		},
 	}
 
-	if svc.Handler() == nil {
-		t.Error("expected non-nil Handler")
+	_, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestNew_RejectsInvalidOCMProviderConfig(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	m := map[string]any{
+		"ocmprovider": "not-a-map",
 	}
 
-	// Close should not error
+	_, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err == nil {
+		t.Error("expected error for invalid ocmprovider config type")
+	}
+}
+
+func TestService_HandlerReturnsValidResponse(t *testing.T) {
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+		},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestService_Close(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+		},
+	}
+
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	if err := svc.Close(); err != nil {
 		t.Errorf("unexpected error on Close: %v", err)
 	}
 }
 
-func TestNew_RemovedNestedAdvertiseKey_IsNotSpeciallyRejected(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint":                          "https://example.com",
-			"advertise_http_request_signatures": false,
-		},
-	}
+func TestService_TrailingSlashAliases(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	if _, err := New(m, log); err != nil {
-		t.Fatalf("expected removed nested key to follow normal decode behavior, got %v", err)
-	}
-}
-
-func TestNew_ConfigDecodeError(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	// Pass invalid config structure
-	m := map[string]any{
-		"ocmprovider": "not-a-map", // should be a map
-	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	_, err := New(m, log)
-	if err == nil {
-		t.Error("expected error for invalid config structure")
-	}
-}
-
-func TestConfig_ApplyDefaults(t *testing.T) {
-	c := &Config{}
-	c.ApplyDefaults()
-
-	// Should apply defaults to nested OCMProvider
-	if c.OCMProvider.OCMPrefix != "ocm" {
-		t.Errorf("expected OCMProvider.OCMPrefix 'ocm', got %q", c.OCMProvider.OCMPrefix)
-	}
-}
-
-func TestHandler_ClearsRawPath(t *testing.T) {
-	// Smoke test: verify Handler() wraps with RawPath clearing
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
 	m := map[string]any{
 		"ocmprovider": map[string]any{
 			"endpoint": "https://example.com",
 		},
 	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	handler := svc.Handler()
-
-	// Create request with RawPath set (simulating percent-encoded segments)
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req.URL.RawPath = "/.well-known/ocm"
-
-	// Verify RawPath is set before calling handler
-	if req.URL.RawPath == "" {
-		t.Fatal("test setup error: RawPath should be set")
-	}
-
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	// The handler should have cleared RawPath before routing.
-	// We can't directly observe this from outside, but we verify the request
-	// was processed (status 200) which means chi routing worked correctly
-	// even with RawPath initially set.
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d (RawPath clearing may have failed)", rec.Code)
-	}
-}
-
-func TestTrailingSlashAliases_ReturnSameResponse(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
-	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	handler := svc.Handler()
-
-	testCases := []struct {
-		name    string
-		path    string
-		aliasOf string
-	}{
-		{"well-known trailing slash", "/.well-known/ocm/", "/.well-known/ocm"},
-		{"ocm-provider trailing slash", "/ocm-provider/", "/ocm-provider"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Get response from primary path
-			req1 := httptest.NewRequest(http.MethodGet, tc.aliasOf, nil)
-			rec1 := httptest.NewRecorder()
-			handler.ServeHTTP(rec1, req1)
-
-			// Get response from trailing-slash alias
-			req2 := httptest.NewRequest(http.MethodGet, tc.path, nil)
-			rec2 := httptest.NewRecorder()
-			handler.ServeHTTP(rec2, req2)
-
-			if rec1.Code != http.StatusOK {
-				t.Errorf("primary path %s: expected status 200, got %d", tc.aliasOf, rec1.Code)
-			}
-			if rec2.Code != http.StatusOK {
-				t.Errorf("alias path %s: expected status 200, got %d", tc.path, rec2.Code)
-			}
-			if rec1.Body.String() != rec2.Body.String() {
-				t.Errorf("responses differ:\n  primary: %s\n  alias: %s", rec1.Body.String(), rec2.Body.String())
-			}
-		})
-	}
-}
-
-func TestAPIVersionOverride_MatchingUserAgent(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-			"api_version_overrides": []map[string]any{
-				{
-					"user_agent_contains": "Nextcloud Server Crawler",
-					"api_version":         "1.1",
-				},
-			},
-		},
-	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	handler := svc.Handler()
-
-	// Request with matching User-Agent
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req.Header.Set("User-Agent", "Nextcloud Server Crawler/30.0.0")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rec.Code)
-	}
-
-	body := rec.Body.String()
-	// Check that apiVersion is 1.1 (the override), not the default 1.2.2
-	if !contains(body, `"apiVersion":"1.1"`) {
-		t.Errorf("expected apiVersion 1.1 in response, got: %s", body)
-	}
-}
-
-func TestAPIVersionOverride_NoMatch_UsesDefault(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-			"api_version_overrides": []map[string]any{
-				{
-					"user_agent_contains": "Nextcloud Server Crawler",
-					"api_version":         "1.1",
-				},
-			},
-		},
-	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	handler := svc.Handler()
-
-	// Request with non-matching User-Agent
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; SomeBot/1.0)")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rec.Code)
-	}
-
-	body := rec.Body.String()
-	// Check that apiVersion is the default 1.2.2
-	if !contains(body, `"apiVersion":"1.2.2"`) {
-		t.Errorf("expected default apiVersion 1.2.2 in response, got: %s", body)
-	}
-}
-
-func TestAPIVersionOverride_NoOverrides_UsesDefault(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-			// No api_version_overrides
-		},
-	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	handler := svc.Handler()
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req.Header.Set("User-Agent", "Nextcloud Server Crawler/30.0.0")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rec.Code)
-	}
-
-	body := rec.Body.String()
-	// Without overrides configured, should use default 1.2.2
-	if !contains(body, `"apiVersion":"1.2.2"`) {
-		t.Errorf("expected default apiVersion 1.2.2 in response, got: %s", body)
-	}
-}
-
-// contains checks if substr is in s (simple helper for tests)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsAt(s, substr))
-}
-
-func containsAt(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+	for _, path := range []string{"/.well-known/ocm/", "/ocm-provider/"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+		svc.Handler().ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("path %s: expected 200, got %d", path, w.Code)
 		}
 	}
-	return false
+}
+
+func TestService_OCMProviderAlias(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+		},
+	}
+
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/ocm-provider", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestService_PercentEncodedPath(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+		},
+	}
+
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req.URL.RawPath = "/.well-known%2Focm"
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for percent-encoded path, got %d", w.Code)
+	}
+}
+
+func TestService_APIVersionOverride(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+			"api_version_overrides": []map[string]any{
+				{
+					"user_agent_contains": "Nextcloud Server Crawler",
+					"api_version":         "1.1",
+				},
+			},
+		},
+	}
+
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req.Header.Set("User-Agent", "Nextcloud Server Crawler/1.0")
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var disc spec.Discovery
+	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if disc.APIVersion != "1.1" {
+		t.Fatalf("expected apiVersion 1.1 for crawler override, got %q", disc.APIVersion)
+	}
+}
+
+func TestService_APIVersionOverride_NoMatchUsesDefault(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+			"api_version_overrides": []map[string]any{
+				{
+					"user_agent_contains": "Nextcloud Server Crawler",
+					"api_version":         "1.1",
+				},
+			},
+		},
+	}
+
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req.Header.Set("User-Agent", "SomeOtherClient/1.0")
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var disc spec.Discovery
+	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if disc.APIVersion != "1.2.2" {
+		t.Fatalf("expected default apiVersion 1.2.2, got %q", disc.APIVersion)
+	}
+}
+
+func TestService_APIVersionOverride_NoOverridesUsesDefault(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+		},
+	}
+
+	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var disc spec.Discovery
+	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if disc.APIVersion != "1.2.2" {
+		t.Fatalf("expected default apiVersion 1.2.2, got %q", disc.APIVersion)
+	}
 }

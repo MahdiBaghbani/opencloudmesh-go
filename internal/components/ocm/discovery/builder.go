@@ -4,21 +4,17 @@ import (
 	"log/slog"
 	"net/url"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// BuildParams holds the resolved inputs needed to construct a static OCM
-// discovery document. The caller (the wellknown service) is responsible for
-// config defaulting and for deriving cross-cutting values from shared deps
-// (key manager, policy evaluators), then hands those resolved values here.
-// This keeps the discovery component free of any dependency on the service or
-// deps layers.
+// BuildParams holds route-projected discovery inputs resolved by the caller.
+// Path fields are final values; the builder does not join route segments.
 type BuildParams struct {
 	Provider            string
-	Endpoint            string
-	OCMPrefix           string
+	EndPoint            string
 	WebDAVRoot          string
-	TokenExchangePath   string
+	TokenEndPoint       string
 	InviteAcceptDialog  string
 	AdvertiseInviteWAYF bool
 
@@ -27,17 +23,13 @@ type BuildParams struct {
 	PublicKeys []PublicKey
 
 	// Evaluation flags resolved by the caller from the canonical policies.
-	// TokenExchangeCapable advertises exchange-token and a token endpoint.
-	// RequiresTokenExchange emits the token-exchange criterion (only when
-	// capable). RequiresHTTPSignatures emits the http-request-signatures
-	// criterion.
 	TokenExchangeCapable   bool
 	RequiresTokenExchange  bool
 	RequiresHTTPSignatures bool
 }
 
 // BuildDiscovery constructs the static discovery document (Reva pattern:
-// computed once, not at request time). An empty or unparseable endpoint yields
+// computed once, not at request time). An empty or unparseable endPoint yields
 // a disabled document, mirroring the prior service-layer behavior.
 func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 	log = logutil.NoopIfNil(log)
@@ -49,17 +41,16 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 		Criteria:   []string{}, // Always present, serializes as [] when empty
 	}
 
-	if p.Endpoint == "" {
+	if p.EndPoint == "" {
 		return disc
 	}
-	if _, err := url.Parse(p.Endpoint); err != nil {
+	if _, err := url.Parse(p.EndPoint); err != nil {
 		return disc
 	}
 
 	disc.Enabled = true
-	disc.EndPoint, _ = url.JoinPath(p.Endpoint, p.OCMPrefix)
+	disc.EndPoint = p.EndPoint
 
-	// Resource types with WebDAV protocol
 	disc.ResourceTypes = []ResourceType{{
 		Name:       "file",
 		ShareTypes: []string{"user"},
@@ -73,34 +64,30 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 		capabilities = append(capabilities, "http-sig")
 	}
 
-	if p.TokenExchangeCapable {
+	if p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		capabilities = append(capabilities, "exchange-token")
-		tokenPath := p.TokenExchangePath
-		if tokenPath == "" {
-			tokenPath = "token"
-		}
-		disc.TokenEndPoint, _ = url.JoinPath(p.Endpoint, p.OCMPrefix, tokenPath)
+		disc.TokenEndPoint = p.TokenEndPoint
+	} else if p.TokenExchangeCapable && p.TokenEndPoint == "" {
+		log.Warn("token exchange enabled but token endpoint is empty; omitting exchange-token capability")
 	}
 
 	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery
 	capabilities = append(capabilities, "invites", "webdav-uri", "protocol-object", "notifications")
 
-	// Invite accept dialog (WAYF)
 	if p.InviteAcceptDialog != "" {
 		disc.InviteAcceptDialog = p.InviteAcceptDialog
-		if p.AdvertiseInviteWAYF {
-			capabilities = append(capabilities, "invite-wayf")
-		}
+	}
+	if p.AdvertiseInviteWAYF {
+		capabilities = append(capabilities, "invite-wayf")
 	}
 
 	disc.Capabilities = capabilities
 
-	// Criteria (always present, serializes as [] when empty)
 	if p.RequiresHTTPSignatures {
-		disc.Criteria = append(disc.Criteria, "http-request-signatures")
+		disc.Criteria = append(disc.Criteria, spec.CriteriaMustUseHTTPSig)
 	}
-	if p.RequiresTokenExchange && p.TokenExchangeCapable {
-		disc.Criteria = append(disc.Criteria, "token-exchange")
+	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
+		disc.Criteria = append(disc.Criteria, spec.CriteriaMustExchangeToken)
 	} else if p.RequiresTokenExchange && !p.TokenExchangeCapable {
 		log.Warn("local evaluator requires token exchange but code flow is disabled; omitting token-exchange criteria")
 	}

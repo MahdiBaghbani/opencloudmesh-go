@@ -52,7 +52,9 @@ func TestTwoInstanceDiscovery(t *testing.T) {
 	}
 }
 
-// TestTwoInstanceCrossDiscovery verifies instance1 can discover instance2 via /ocm-aux/discover.
+// TestTwoInstanceCrossDiscovery verifies instance1 can reach instance2 via /ocm-aux/discover.
+// Dev instances expose OCM discovery but not inviteAcceptDialog, so the helper returns a
+// reason-coded failure after successful upstream discovery (T7a).
 func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -64,9 +66,6 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	)
 	defer h.Stop(t)
 
-	// Instance1 should be able to discover instance2 through its /ocm-aux/discover endpoint
-	// Uses base= parameter (not peer=) with the target server's base URL
-	// SSRF protection is off in dev mode, so cross-instance discovery should succeed
 	discoverURL := h.Server1.BaseURL + "/ocm-aux/discover?base=" + h.Server2.BaseURL
 	resp, err := http.Get(discoverURL)
 	if err != nil {
@@ -75,39 +74,30 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// Assert 200 status - cross-discovery should succeed in dev mode
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusBadGateway {
 		h.DumpLogs(t)
-		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+		t.Fatalf("expected status 502, got %d", resp.StatusCode)
 	}
 
-	// Assert proper JSON response structure
 	var discoverResp struct {
-		Success   bool `json:"success"`
-		Discovery *struct {
-			Enabled  bool   `json:"enabled"`
-			Provider string `json:"provider"`
-			EndPoint string `json:"endPoint"`
-		} `json:"discovery"`
-		Error string `json:"error,omitempty"`
+		Success    bool   `json:"success"`
+		Error      string `json:"error"`
+		ReasonCode string `json:"reasonCode"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&discoverResp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if !discoverResp.Success {
-		t.Errorf("expected success=true, got error: %s", discoverResp.Error)
+	if discoverResp.Success {
+		t.Fatal("expected success=false when peer lacks inviteAcceptDialog")
 	}
-	if discoverResp.Discovery == nil {
-		t.Fatal("expected discovery object in response")
+	if discoverResp.ReasonCode != "no_invite_accept_dialog" {
+		t.Fatalf("reasonCode = %q, want no_invite_accept_dialog", discoverResp.ReasonCode)
 	}
-	if !discoverResp.Discovery.Enabled {
-		t.Error("expected discovery.enabled=true")
+	if discoverResp.Error == "" {
+		t.Fatal("expected friendly error message")
 	}
-	if discoverResp.Discovery.Provider != "OpenCloudMesh" {
-		t.Errorf("expected provider 'OpenCloudMesh', got %q", discoverResp.Discovery.Provider)
-	}
-	t.Logf("cross-discovery succeeded: endpoint=%s", discoverResp.Discovery.EndPoint)
+	t.Logf("cross-discovery reached peer but helper failed as expected: %s", discoverResp.Error)
 }
 
 // TestSSRFBlockingWithIPLiterals verifies SSRF protection blocks private IPs.
@@ -174,15 +164,13 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 	}
 }
 
-// TestSSRFRoutePolicyAllowsExplicitCIDRDiscover proves the positive path: an
-// active SSRF route policy with explicit CIDR and port allowance permits a
-// private destination that strict mode would otherwise block. The source runs
-// in compat mode (SSRF strict by preset), the target in dev mode. The route
-// policy uses allow_ip_literals=true with 127.0.0.0/8 and the target's dynamic
-// port so that 127.0.0.1:<port> passes all three SSRF checks (ip_literals
-// allowed, IP in CIDR, port in allowed list). "localhost" is hard-blocked by
-// the SSRF engine regardless of policy, so 127.0.0.1 is used directly.
-// allow_ip_literals=true is permitted under compat's unbounded compatibility_scope.
+// TestSSRFRoutePolicyAllowsExplicitCIDRDiscover proves the positive SSRF path: an
+// active route policy with explicit CIDR and port allowance permits a private
+// destination that strict mode would otherwise block. The source runs in compat
+// mode (SSRF strict by preset), the target in dev mode. The route policy uses
+// allow_ip_literals=true with 127.0.0.0/8 and the target's dynamic port so that
+// 127.0.0.1:<port> passes all three SSRF checks. The discover helper may still
+// return no_invite_accept_dialog after upstream discovery succeeds (T7a).
 func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -230,34 +218,36 @@ allow_ip_literals = true
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusForbidden {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
-		t.Fatalf("expected 200 OK from route-policy-allowed private destination, got %d", resp.StatusCode)
+		t.Fatalf("route policy should allow 127.0.0.1:%d, got 403 Forbidden", target.Port)
+	}
+	if resp.StatusCode != http.StatusBadGateway {
+		source.DumpLogs(t)
+		target.DumpLogs(t)
+		t.Fatalf("expected 502 after route-policy-permitted discovery, got %d", resp.StatusCode)
 	}
 
 	var discoverResp struct {
-		Success   bool `json:"success"`
-		Discovery *struct {
-			Enabled  bool   `json:"enabled"`
-			Provider string `json:"provider"`
-		} `json:"discovery"`
-		Error string `json:"error,omitempty"`
+		Success    bool   `json:"success"`
+		Error      string `json:"error"`
+		ReasonCode string `json:"reasonCode"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&discoverResp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if !discoverResp.Success {
-		t.Errorf("expected success=true from route-policy-permitted destination, got error: %s", discoverResp.Error)
+	if discoverResp.Success {
+		t.Fatal("expected success=false when target lacks inviteAcceptDialog")
 	}
-	if discoverResp.Discovery == nil {
-		t.Fatal("expected discovery object in response")
+	if discoverResp.ReasonCode != "no_invite_accept_dialog" {
+		t.Fatalf("reasonCode = %q, want no_invite_accept_dialog", discoverResp.ReasonCode)
 	}
-	if !discoverResp.Discovery.Enabled {
-		t.Error("expected discovery.enabled=true")
+	if discoverResp.Error == "" {
+		t.Fatal("expected friendly error message")
 	}
-	t.Logf("SSRF route policy allowed private destination 127.0.0.1:%d; provider=%s", target.Port, discoverResp.Discovery.Provider)
+	t.Logf("SSRF route policy allowed 127.0.0.1:%d; discover helper failed as expected: %s", target.Port, discoverResp.Error)
 }
 
 // noProxyLocalhostClient returns an HTTP client with the ambient proxy disabled.

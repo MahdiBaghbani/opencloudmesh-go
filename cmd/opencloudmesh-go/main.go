@@ -9,25 +9,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-
-	// Register interceptors (triggers init() registration)
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/loader"
-
-	// Register services (triggers init() registration)
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
 )
 
 func main() {
@@ -102,23 +94,12 @@ func main() {
 	slog.SetDefault(logger)
 	logger.Info("effective configuration", "config", cfg.Redacted())
 
-	// Unknown [http.services.*] keys fail fast before any side-effecting bootstrap
-	// (directory creation, key generation) so a typo never causes partial startup.
-	if cfg.HTTP.Services != nil {
-		var names []string
-		for name := range cfg.HTTP.Services {
-			names = append(names, name)
-		}
-		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
-			logger.Error("unknown service names in [http.services]",
-				"unknown", strings.Join(unknown, ", "),
-				"allowed", strings.Join(allowed, ", "),
-			)
-			os.Exit(1)
-		}
+	if err := service.ValidatePreBootstrap(cfg); err != nil {
+		logger.Error("pre-bootstrap startup validation failed", "error", err)
+		os.Exit(1)
 	}
 
-	result, err := app.BootstrapDeps(cfg, logger, app.WireOptions{})
+	result, err := wiring.Build(cfg, logger, wiring.BuildOpts{})
 	if err != nil {
 		logger.Error("failed to bootstrap dependencies", "error", err)
 		os.Exit(1)
@@ -155,9 +136,9 @@ func main() {
 		)
 	}
 
-	d := deps.GetDeps()
+	d := result.Deps
 	if d == nil {
-		logger.Error(app.ErrMsgNilDepsAfterBootstrap)
+		logger.Error(wiring.ErrMsgNilDepsAfterBuild)
 		os.Exit(1)
 	}
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
@@ -176,26 +157,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	services := make(map[string]service.Service)
-	for _, name := range service.CoreServices {
-		svcCfg := cfg.BuildServiceConfig(name)
-		if svcCfg == nil {
-			svcCfg = make(map[string]any)
-		}
-		newFn := service.Get(name)
-		if newFn == nil {
-			logger.Error("core service not registered", "service", name)
-			os.Exit(1)
-		}
-		svc, err := newFn(svcCfg, logger)
-		if err != nil {
-			logger.Error("failed to create service", "service", name, "error", err)
-			os.Exit(1)
-		}
-		services[name] = svc
+	services, err := wiring.BuildCoreServices(cfg, logger, d)
+	if err != nil {
+		logger.Error("failed to create services", "error", err)
+		os.Exit(1)
+	}
+	if err := service.ValidateBuiltServices(services); err != nil {
+		logger.Error("built service validation failed", "error", err)
+		os.Exit(1)
 	}
 
-	srv, err := server.New(cfg, logger, services)
+	serverDeps, err := wiring.BuildServerDeps(cfg, logger, d)
+	if err != nil {
+		logger.Error("failed to build server deps", "error", err)
+		os.Exit(1)
+	}
+
+	srv, err := server.New(cfg, logger, services, serverDeps)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
@@ -228,6 +206,12 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("shutdown error", "error", err)
 		os.Exit(1)
+	}
+
+	if result.Persistence != nil {
+		if err := result.Persistence.Close(); err != nil {
+			logger.Warn("error closing persistence", "error", err)
+		}
 	}
 
 	logger.Info("server stopped")

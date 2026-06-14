@@ -2,6 +2,7 @@
 package ratelimit
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -11,13 +12,8 @@ import (
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
-
-func init() {
-	interceptors.Register("ratelimit", New)
-}
 
 // Config defines rate limiting parameters decoded from interceptor config.
 type Config struct {
@@ -31,7 +27,7 @@ func (c *Config) ApplyDefaults() {
 		c.RequestsPerWindow = 100
 	}
 	if c.WindowSeconds == 0 {
-		c.WindowSeconds = 60
+		c.WindowSeconds = int(cache.TTLRateLimit / time.Second)
 	}
 }
 
@@ -44,9 +40,21 @@ type Limiter struct {
 	log     *slog.Logger
 }
 
-// New creates a new ratelimit interceptor from the given config.
-func New(conf map[string]any, log *slog.Logger) (interceptors.Middleware, error) {
+var (
+	ErrMissingCache   = errors.New("ratelimit: cache not provided")
+	ErrMissingKeyFunc = errors.New("ratelimit: key function not provided")
+)
+
+// New creates a ratelimit interceptor from narrow injected inputs.
+func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Middleware, error) {
 	log = logutil.NoopIfNil(log)
+
+	if inputs.Cache == nil {
+		return nil, ErrMissingCache
+	}
+	if inputs.KeyFunc == nil {
+		return nil, ErrMissingKeyFunc
+	}
 
 	var c Config
 	if err := svccfg.Decode(conf, &c); err != nil {
@@ -54,11 +62,9 @@ func New(conf map[string]any, log *slog.Logger) (interceptors.Middleware, error)
 	}
 	c.ApplyDefaults()
 
-	d := deps.GetDeps()
-
 	limiter := &Limiter{
-		cache:   d.Cache,
-		keyFunc: d.RealIP.GetClientIPString,
+		cache:   inputs.Cache,
+		keyFunc: inputs.KeyFunc,
 		limit:   c.RequestsPerWindow,
 		window:  time.Duration(c.WindowSeconds) * time.Second,
 		log:     log,
@@ -73,7 +79,6 @@ func (l *Limiter) Wrap(next http.Handler) http.Handler {
 		key := l.keyFunc(r)
 		count, resetAt, err := l.cache.Increment(r.Context(), "ratelimit:"+key, 1, l.window)
 		if err != nil {
-			// On error, log and allow the request through
 			l.log.Warn("rate limit check failed", "error", err)
 			next.ServeHTTP(w, r)
 			return

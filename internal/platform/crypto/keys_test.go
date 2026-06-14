@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
 func TestKeyManager_LoadOrGenerate(t *testing.T) {
@@ -75,6 +76,18 @@ func TestKeyManager_StableKeyID(t *testing.T) {
 				t.Errorf("expected keyId %q, got %q", tt.expectedKeyID, km.GetKeyID())
 			}
 		})
+	}
+}
+
+func TestKeyManager_KeyIDPreservesExplicitPortFromLocalIdentityOrigin(t *testing.T) {
+	id, err := localidentity.Derive("https://cloud.example.org:443", "")
+	if err != nil {
+		t.Fatalf("Derive: %v", err)
+	}
+	want := id.Origin + "/ocm#key-1"
+	km := crypto.NewKeyManager("", id.Origin)
+	if km.GetKeyID() != want {
+		t.Errorf("keyId = %q, want %q", km.GetKeyID(), want)
 	}
 }
 

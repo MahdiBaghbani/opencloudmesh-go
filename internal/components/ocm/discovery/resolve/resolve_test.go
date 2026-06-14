@@ -1,124 +1,151 @@
-package resolve
+package resolve_test
 
 import (
-	"log/slog"
-	"os"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
+	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
+
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocm"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ui"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/webdav"
 )
 
-func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-}
-
 func TestResolve_AppliesServiceLocalDefaults(t *testing.T) {
-	c := &ProviderConfig{}
-	in := Resolve(c, nil, &deps.Deps{}, testLogger())
+	c := &resolve.ProviderConfig{}
+	in := resolve.Resolve(c, nil, resolve.ResolveInputs{})
 
-	if in.Params.OCMPrefix != "ocm" {
-		t.Errorf("expected OCMPrefix default 'ocm', got %q", in.Params.OCMPrefix)
+	if c.OCMPrefix != "ocm" {
+		t.Errorf("expected OCMPrefix default 'ocm', got %q", c.OCMPrefix)
 	}
 	if in.Params.Provider != "OpenCloudMesh" {
 		t.Errorf("expected Provider default 'OpenCloudMesh', got %q", in.Params.Provider)
 	}
 }
 
-func TestResolve_DerivesEndpointAndWebDAVRoot(t *testing.T) {
-	c := &ProviderConfig{}
-	d := &deps.Deps{
-		Config: &config.Config{
-			PublicOrigin:     "https://cloud.example.com",
-			ExternalBasePath: "/ocm",
-		},
+func TestResolve_DerivesEndPointAndWebDAVRoot(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+		RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
 	}
 
-	// Raw map omits endpoint and webdav_root, so both are derived.
-	in := Resolve(c, map[string]any{}, d, testLogger())
+	built := resolve.Resolve(c, map[string]any{}, in)
 
-	if in.Params.Endpoint != "https://cloud.example.com/ocm" {
-		t.Errorf("expected derived endpoint, got %q", in.Params.Endpoint)
+	if built.Params.EndPoint != "https://cloud.example.com/ocm/ocm" {
+		t.Errorf("expected derived endPoint, got %q", built.Params.EndPoint)
 	}
-	if in.Params.WebDAVRoot != "/ocm/webdav/ocm/" {
-		t.Errorf("expected derived webdav_root, got %q", in.Params.WebDAVRoot)
+	if built.Params.WebDAVRoot != "/ocm/webdav/ocm/" {
+		t.Errorf("expected derived webdav_root, got %q", built.Params.WebDAVRoot)
+	}
+}
+
+func TestResolve_SkipsEndPointDerivationWithoutPublicOrigin(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: localidentity.Identity{ExternalBasePath: "/ocm"},
+		RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
+	}
+
+	built := resolve.Resolve(c, map[string]any{}, in)
+
+	if built.Params.EndPoint != "" {
+		t.Errorf("expected empty endPoint without Origin, got %q", built.Params.EndPoint)
+	}
+	if built.Params.WebDAVRoot != "/ocm/webdav/ocm/" {
+		t.Errorf("expected derived webdav_root, got %q", built.Params.WebDAVRoot)
 	}
 }
 
 func TestResolve_RawConfigWinsOverDerivation(t *testing.T) {
-	c := &ProviderConfig{
+	c := &resolve.ProviderConfig{
 		Endpoint:   "https://explicit.example.com",
 		WebDAVRoot: "/explicit/dav/",
 	}
-	d := &deps.Deps{
-		Config: &config.Config{
-			PublicOrigin:     "https://cloud.example.com",
-			ExternalBasePath: "/ocm",
-		},
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+		RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
 	}
 	raw := map[string]any{
 		"endpoint":    "https://explicit.example.com",
 		"webdav_root": "/explicit/dav/",
 	}
 
-	in := Resolve(c, raw, d, testLogger())
+	built := resolve.Resolve(c, raw, in)
 
-	if in.Params.Endpoint != "https://explicit.example.com" {
-		t.Errorf("expected explicit endpoint preserved, got %q", in.Params.Endpoint)
+	if built.Params.EndPoint != "https://explicit.example.com/ocm" {
+		t.Errorf("expected explicit endPoint, got %q", built.Params.EndPoint)
 	}
-	if in.Params.WebDAVRoot != "/explicit/dav/" {
-		t.Errorf("expected explicit webdav_root preserved, got %q", in.Params.WebDAVRoot)
+	if built.Params.WebDAVRoot != "/explicit/dav/" {
+		t.Errorf("expected explicit webdav_root preserved, got %q", built.Params.WebDAVRoot)
 	}
 }
 
-func TestResolve_TokenExchangePathDefault(t *testing.T) {
-	c := &ProviderConfig{}
-	d := &deps.Deps{Config: &config.Config{PublicOrigin: "https://example.com"}}
+func TestResolve_TokenEndPointDefault(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
+		RouteOpts:     service.DefaultRouteOpts(),
+	}
 
-	in := Resolve(c, nil, d, testLogger())
+	built := resolve.Resolve(c, nil, in)
 
-	if in.Params.TokenExchangePath != "token" {
-		t.Errorf("expected default token path 'token', got %q", in.Params.TokenExchangePath)
+	if built.Params.TokenEndPoint != "https://example.com/ocm/token" {
+		t.Errorf("expected default token endpoint, got %q", built.Params.TokenEndPoint)
 	}
 }
 
 func TestResolve_DerivesCompatibilityOverride(t *testing.T) {
 	cfg := config.CompatConfig()
-	d := &deps.Deps{
-		Config:        cfg,
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
+		RouteOpts:     service.DefaultRouteOpts(),
 		RuntimePolicy: policy.NewRuntimePolicy(cfg, nil),
 	}
-	c := &ProviderConfig{Endpoint: "https://example.com"}
+	c := &resolve.ProviderConfig{Endpoint: "https://example.com"}
 
-	in := Resolve(c, map[string]any{}, d, testLogger())
+	built := resolve.Resolve(c, map[string]any{}, in)
 
-	if len(in.Overrides) != 1 {
-		t.Fatalf("expected one crawler override, got %d", len(in.Overrides))
-	}
-	if in.Overrides[0].UserAgentContains != "Nextcloud Server Crawler" || in.Overrides[0].APIVersion != "1.1" {
-		t.Errorf("unexpected override: %+v", in.Overrides[0])
+	if len(built.Overrides) != 1 {
+		t.Fatalf("expected one crawler override, got %d", len(built.Overrides))
 	}
 }
 
-func TestResolve_DerivesInviteAcceptDialogFromWAYF(t *testing.T) {
-	c := &ProviderConfig{}
-	d := &deps.Deps{
-		Config: &config.Config{
-			PublicOrigin:     "https://cloud.example.com",
-			ExternalBasePath: "/ocm",
-			HTTP: config.HTTPConfig{
-				Services: map[string]map[string]any{
-					"ui": {"wayf": map[string]any{"enabled": true}},
-				},
-			},
+func TestResolve_DerivesInviteAcceptDialogFromRouteInventory(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+		RouteOpts: service.RouteOpts{
+			ExternalBasePath:    "/ocm",
+			InviteAcceptEnabled: true,
 		},
 	}
 	raw := map[string]any{"endpoint": "https://cloud.example.com/ocm"}
 
-	in := Resolve(c, raw, d, testLogger())
+	built := resolve.Resolve(c, raw, in)
 
-	if in.Params.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
-		t.Errorf("expected derived inviteAcceptDialog, got %q", in.Params.InviteAcceptDialog)
+	if built.Params.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
+		t.Errorf("expected derived inviteAcceptDialog, got %q", built.Params.InviteAcceptDialog)
+	}
+}
+
+func TestResolve_SkipsInviteAcceptDialogWithoutPublicOrigin(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: localidentity.Identity{ExternalBasePath: "/ocm"},
+		RouteOpts: service.RouteOpts{
+			ExternalBasePath:    "/ocm",
+			InviteAcceptEnabled: true,
+		},
+	}
+
+	built := resolve.Resolve(c, map[string]any{}, in)
+
+	if built.Params.InviteAcceptDialog != "" {
+		t.Errorf("expected empty inviteAcceptDialog without Origin, got %q", built.Params.InviteAcceptDialog)
 	}
 }

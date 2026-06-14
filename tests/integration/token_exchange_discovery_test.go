@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -71,11 +72,16 @@ mode = "off"
 		if disc.TokenEndPoint == "" {
 			t.Error("compat mode should advertise tokenEndPoint")
 		}
-		for _, criterion := range disc.Criteria {
-			if criterion == "http-request-signatures" {
-				t.Error("compat mode should not advertise http-request-signatures criterion")
+			hasHTTPReqSigs := false
+			for _, criterion := range disc.Criteria {
+				if criterion == spec.CriteriaMustUseHTTPSig || criterion == "http-request-signatures" {
+					hasHTTPReqSigs = true
+					break
+				}
 			}
-		}
+			if hasHTTPReqSigs {
+				t.Error("compat mode should not advertise signature criterion")
+			}
 	})
 
 	t.Run("HealthEndpoint", func(t *testing.T) {
@@ -203,14 +209,14 @@ outbound_mode = "strict"
 
 			hasHTTPReqSigs := false
 			for _, criterion := range disc.Criteria {
-				if criterion == "http-request-signatures" {
+				if criterion == spec.CriteriaMustUseHTTPSig || criterion == "http-request-signatures" {
 					hasHTTPReqSigs = true
 					break
 				}
 			}
 			if hasHTTPReqSigs != tt.wantHTTPReqSigs {
 				t.Fatalf(
-					"mode %s criteria mismatch: has http-request-signatures=%v, want %v (criteria=%v)",
+					"mode %s criteria mismatch: has signature criterion=%v, want %v (criteria=%v)",
 					tt.mode,
 					hasHTTPReqSigs,
 					tt.wantHTTPReqSigs,

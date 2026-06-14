@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/ocmtest/configfixture"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm/configfixture"
 )
 
 func TestLoad_OldFlatSSRFKey_Fails(t *testing.T) {
@@ -207,7 +207,7 @@ func TestLoad_SSRF_NoneScope_StrictWithValidRoutePolicy_Loads(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	// strict preset satisfies all compatibility_scope=none guardrails, so
+	// strict preset satisfies all compatibility_scope=none requirements, so
 	// a valid route policy under mode=strict must load without error.
 	tomlContent := configfixture.NoneScopeBase() +
 		configfixture.SSRFStrictWithPolicy("internal") +
@@ -265,6 +265,56 @@ func TestLoad_SSRF_NoneScope_RoutePolicyWithCatchAllCIDR_Fails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "0.0.0.0/0") {
 		t.Errorf("expected catch-all CIDR error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_RoutePolicyEmptyCIDRs_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := configfixture.NoneScopeBase() +
+		configfixture.SSRFStrictWithPolicy("internal") + `
+[outbound_http.ssrf.route_policies.internal]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = []
+allowed_ports = [8080]
+allow_ip_literals = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error: empty allow_private_cidrs forbidden under compatibility_scope=none")
+	}
+	if !strings.Contains(err.Error(), "allow_private_cidrs") {
+		t.Errorf("expected allow_private_cidrs error, got: %v", err)
+	}
+}
+
+func TestLoad_SSRF_NoneScope_RoutePolicyEmptyAllowedPorts_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := configfixture.NoneScopeBase() +
+		configfixture.SSRFStrictWithPolicy("internal") + `
+[outbound_http.ssrf.route_policies.internal]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = ["10.0.0.0/8"]
+allowed_ports = []
+allow_ip_literals = false
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error: empty allowed_ports forbidden under compatibility_scope=none")
+	}
+	if !strings.Contains(err.Error(), "allowed_ports") {
+		t.Errorf("expected allowed_ports error, got: %v", err)
 	}
 }
 
@@ -348,7 +398,7 @@ func TestLoad_SSRF_NoneScope_RoutePolicyWithInvalidPort_Fails(t *testing.T) {
 	}
 }
 
-func TestSSRFRoutePolicyGuardrails_BlankHostSuffix_NoneScope(t *testing.T) {
+func TestSSRFRoutePolicy_BlankHostSuffix_NoneScope(t *testing.T) {
 	tests := []struct {
 		name     string
 		suffixes string
@@ -390,7 +440,7 @@ allow_ip_literals = false
 	}
 }
 
-func TestSSRFRoutePolicyGuardrails_BlankHostSuffix_ScopedScope(t *testing.T) {
+func TestSSRFRoutePolicy_BlankHostSuffix_ScopedScope(t *testing.T) {
 	tests := []struct {
 		name     string
 		suffixes string

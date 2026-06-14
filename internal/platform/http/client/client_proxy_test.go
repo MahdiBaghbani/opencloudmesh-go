@@ -15,7 +15,7 @@ import (
 	"time"
 
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client/outboundtestutil"
+	outboundtestutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // TestClient_ProxyEnvFallbackDisabled_IgnoresEnv verifies that when
@@ -65,7 +65,7 @@ func TestClient_ProxyEnvFallbackEnabled_UsesEnv(t *testing.T) {
 	}))
 	defer proxy.Close()
 
-	// Set env proxy before constructing the client so the hostname snapshot fires.
+	// Set env proxy before constructing the client so proxy detection runs.
 	// Clear all other proxy-related vars so ambient env does not interfere.
 	t.Setenv("HTTP_PROXY", proxy.URL)
 	t.Setenv("http_proxy", proxy.URL)
@@ -282,7 +282,7 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 	// SSRF off: destination is a local non-loopback IP used for the routing test.
 	cfg := outboundtestutil.PermissiveConfig()
 	cfg.ProxyEnvFallback = true
-	// Construct after setting env so proxy host snapshotting matches the env
+	// Construct after setting env so proxy host detection matches the env
 	// proxy configuration used by the transport.
 	c := httpclient.New(cfg, nil)
 

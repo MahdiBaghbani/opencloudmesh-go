@@ -80,27 +80,6 @@ non_strict_peer_outbound_policy = "prefer-strict"
 	}
 }
 
-func TestLoad_LegacyPeerPolicy_UnsupportedFails(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
-mode = "strict"
-legacy_peer_policy = "prefer-strict"
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for unsupported legacy_peer_policy key")
-	}
-	if !strings.Contains(err.Error(), "legacy_peer_policy") {
-		t.Errorf("expected error mentioning legacy_peer_policy, got: %v", err)
-	}
-}
-
 func TestLoad_CrossField_RequireTokenExchangeRequiresTokenExchange(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")

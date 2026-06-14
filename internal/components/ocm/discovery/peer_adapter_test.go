@@ -51,7 +51,7 @@ func TestPeerDiscoveryAdapter_IsSigningCapableFollowsCriteria(t *testing.T) {
 			defer srv.Close()
 
 			outboundCfg := &config.OutboundHTTPConfig{
-				SSRFMode:           "off",
+				DerivedSSRFMode:           "off",
 				MaxResponseBytes:   1 << 20,
 				InsecureSkipVerify: false,
 			}

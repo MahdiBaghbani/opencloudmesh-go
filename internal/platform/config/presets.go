@@ -63,16 +63,7 @@ func StrictConfig() *Config {
 				UseStaging: false,
 			},
 		},
-		OutboundHTTP: OutboundHTTPConfig{
-			SSRF:               SSRFConfig{Mode: "strict"},
-			SSRFMode:           "strict",
-			TimeoutMS:          10000,
-			ConnectTimeoutMS:   2000,
-			MaxRedirects:       1,
-			MaxResponseBytes:   1048576,
-			InsecureSkipVerify: false,
-			ProxyEnvFallback:   true,
-		},
+		OutboundHTTP: DefaultOutboundHTTP(),
 		Signature: SignatureConfig{
 			InboundMode:              "strict",
 			OutboundMode:             "strict",
@@ -82,12 +73,9 @@ func StrictConfig() *Config {
 			AllowMismatch:            false,
 		},
 		PeerTrust: PeerTrustConfig{
-			Enabled:     false,
-			ConfigPaths: nil,
-			MembershipCache: PeerTrustMembershipCacheConfig{
-				TTLSeconds:      21600,  // 6 hours
-				MaxStaleSeconds: 604800, // 7 days
-			},
+			Enabled:         false,
+			ConfigPaths:     nil,
+			MembershipCache: DefaultPeerTrustMembershipCache(),
 		},
 		Logging: LoggingConfig{
 			Level:          "info",
@@ -99,6 +87,9 @@ func StrictConfig() *Config {
 		},
 		RequireTokenExchange: true,
 		PeerPolicy:           "strict",
+		Persistence: PersistenceConfig{
+			Backend: BackendMemory,
+		},
 	}
 }
 
@@ -128,7 +119,7 @@ func DevConfig() *Config {
 	cfg.TLS.ACME.Directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
 	cfg.TLS.ACME.UseStaging = true
 	cfg.OutboundHTTP.SSRF.Mode = "off"
-	cfg.OutboundHTTP.SSRFMode = "off"
+	cfg.OutboundHTTP.DerivedSSRFMode = "off"
 	cfg.OutboundHTTP.MaxRedirects = 3
 	cfg.OutboundHTTP.InsecureSkipVerify = true
 	cfg.OutboundHTTP.ProxyEnvFallback = false

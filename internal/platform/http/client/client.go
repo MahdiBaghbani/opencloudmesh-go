@@ -59,14 +59,8 @@ type Client struct {
 // rootCAs is optional; nil uses the system certificate pool.
 func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 	if cfg == nil {
-		cfg = &config.OutboundHTTPConfig{
-			SSRF:               config.SSRFConfig{Mode: "strict"},
-			TimeoutMS:          10000,
-			ConnectTimeoutMS:   2000,
-			MaxRedirects:       1,
-			MaxResponseBytes:   1048576,
-			InsecureSkipVerify: false,
-		}
+		strict := config.OutboundHTTPConfigStrict()
+		cfg = &strict
 	}
 
 	c := &Client{cfg: cfg}
@@ -102,14 +96,14 @@ func (c *Client) getResolver() Resolver {
 }
 
 // isStrictMode reports whether SSRF enforcement is active.
-// cfg.SSRF.Mode is the authoritative source. When it is empty, the derived
-// shim cfg.SSRFMode is consulted as a fallback for programmatic callers that
-// set only the top-level field directly.
+// cfg.SSRF.Mode is the authoritative source. When it is empty, DerivedSSRFMode
+// is consulted as a fallback for programmatic callers that set only the
+// top-level field directly.
 func (c *Client) isStrictMode() bool {
 	if c.cfg.SSRF.Mode != "" {
 		return c.cfg.SSRF.Mode == "strict"
 	}
-	return c.cfg.SSRFMode == "strict"
+	return c.cfg.DerivedSSRFMode == "strict"
 }
 
 // Get performs a GET request with safety protections.
@@ -253,7 +247,12 @@ func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Resp
 
 // IsSSRFError returns true if the error is an SSRF blocking error.
 func IsSSRFError(err error) bool {
-	return errors.Is(err, ErrSSRFBlocked) || errors.Is(err, ErrHostUnresolvable)
+	return errors.Is(err, ErrSSRFBlocked)
+}
+
+// IsHostUnresolvable returns true when strict-mode DNS lookup failed closed.
+func IsHostUnresolvable(err error) bool {
+	return errors.Is(err, ErrHostUnresolvable)
 }
 
 // IsRedirectError returns true if the error is a redirect-related error.

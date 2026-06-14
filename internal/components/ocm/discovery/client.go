@@ -5,17 +5,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 // ErrDiscoveryDisabled is returned when the discovery client is nil or disabled.
 var ErrDiscoveryDisabled = errors.New("discovery client not configured")
+
+// ErrDiscoveryNotFound is returned when both discovery endpoints respond with HTTP 404.
+var ErrDiscoveryNotFound = errors.New("discovery endpoint not found")
+
+// ErrInvalidDiscoveryJSON is returned when a discovery response body cannot be parsed.
+var ErrInvalidDiscoveryJSON = errors.New("invalid discovery json")
+
+// ErrOCMDisabled is returned when the remote discovery document reports enabled=false.
+var ErrOCMDisabled = errors.New("ocm disabled at provider")
 
 // Client fetches and caches remote OCM discovery documents. Discovers via /.well-known/ocm and /ocm-provider fallback.
 type Client struct {
@@ -66,7 +77,7 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	cacheKey := "discovery:" + baseURL
 	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
-		disc, err := c.normalizeDiscovery(data, baseURL)
+		disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(baseURL))
 		if err == nil {
 			return &disc, nil
 		}
@@ -84,6 +95,14 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	return disc, nil
 }
 
+func discoveryOriginFromURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return strings.TrimSuffix(rawURL, "/")
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *Discovery, error) {
 	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
 	if err != nil {
@@ -91,16 +110,19 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 	}
 
 	if resp.StatusCode != 200 {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, nil, fmt.Errorf("discovery returned status %d: %w", resp.StatusCode, ErrDiscoveryNotFound)
+		}
 		return nil, nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
 	}
 
-	disc, err := c.normalizeDiscovery(data, discoveryURL)
+	disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(discoveryURL))
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid discovery JSON: %w", err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrInvalidDiscoveryJSON, err)
 	}
 
 	if !disc.Enabled {
-		return nil, nil, fmt.Errorf("OCM is disabled at %s", discoveryURL)
+		return nil, nil, fmt.Errorf("%w at %s", ErrOCMDisabled, discoveryURL)
 	}
 
 	return data, &disc, nil
@@ -123,6 +145,14 @@ func (c *Client) normalizeDiscovery(data []byte, baseURL string) (Discovery, err
 	}
 
 	disc := raw.Discovery
+	if disc.InviteAcceptDialog != "" {
+		resolveBase := disc.EndPoint
+		if resolveBase == "" {
+			resolveBase = baseURL
+		}
+		disc.InviteAcceptDialog = spec.ResolveInviteAcceptDialog(resolveBase, disc.InviteAcceptDialog)
+	}
+
 	if len(disc.PublicKeys) > 0 || raw.LegacyPublicKey == nil {
 		return disc, nil
 	}

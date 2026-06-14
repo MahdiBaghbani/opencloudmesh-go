@@ -18,7 +18,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -123,7 +122,7 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 	defer ts.Stop(t)
 
 	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
-	d := deps.GetDeps()
+	d := ts.Deps
 	if d == nil || d.Config == nil || d.OpenCloudMeshPolicy == nil || d.OutgoingShareRepo == nil {
 		t.Fatal("shared deps are not fully initialized")
 	}
@@ -245,4 +244,88 @@ func startCapableNonStrictReceiver(t *testing.T) (*httptest.Server, *atomic.Int3
 	}))
 
 	return srv, postCount, mustExchangeFlag
+}
+
+func TestOutgoingSharePolicyDifferences_MalformedDiscovery(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	falseVal := false
+	tests := []struct {
+		name         string
+		peerPolicy   string
+		wantStatus   int
+		wantPosts    int32
+		wantMustExch *bool
+	}{
+		{
+			name:       "strict rejects malformed capable non-strict peer",
+			peerPolicy: "strict",
+			wantStatus: reason.APIStatus(reason.PeerPolicyUnsatisfied),
+			wantPosts:  0,
+		},
+		{
+			name:         "prefer-strict degrades malformed peer to legacy",
+			peerPolicy:   "prefer-strict",
+			wantStatus:   http.StatusCreated,
+			wantPosts:    1,
+			wantMustExch: &falseVal,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			// Each subtest needs its own server because policy is frozen at startup.
+			ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+				cfg.PeerPolicy = tc.peerPolicy
+			})
+			defer ts.Stop(t)
+
+			token := loginAdmin(t, ts.BaseURL, "admin", "admin")
+
+			shareFile, err := os.CreateTemp("/tmp", "policy-diff-malformed-*")
+			if err != nil {
+				t.Fatalf("failed to create temp share file: %v", err)
+			}
+			if _, err := shareFile.WriteString("policy diff malformed integration payload"); err != nil {
+				t.Fatalf("failed to seed temp share file: %v", err)
+			}
+			if err := shareFile.Close(); err != nil {
+				t.Fatalf("failed to close temp share file: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
+
+			receiver, postCount, mustExchangeFlag := startMalformedCapableNonStrictReceiver(t)
+			defer receiver.Close()
+
+			receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
+			status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
+				"receiverDomain": receiverDomain,
+				"shareWith":      "bob@" + receiverDomain,
+				"localPath":      shareFile.Name(),
+				"permissions":    []string{"read"},
+			})
+
+			if status != tc.wantStatus {
+				t.Fatalf("expected status %d, got %d: %s", tc.wantStatus, status, body)
+			}
+
+			if got := postCount.Load(); got != tc.wantPosts {
+				t.Fatalf("expected receiver POST count %d, got %d", tc.wantPosts, got)
+			}
+
+			if tc.wantMustExch != nil {
+				gotFlag := mustExchangeFlag.Load()
+				if gotFlag == -1 {
+					t.Fatal("receiver did not capture must-exchange-token state")
+				}
+				gotMust := gotFlag == 1
+				if gotMust != *tc.wantMustExch {
+					t.Fatalf("must-exchange-token mismatch: got %v, want %v", gotMust, *tc.wantMustExch)
+				}
+			}
+		})
+	}
 }

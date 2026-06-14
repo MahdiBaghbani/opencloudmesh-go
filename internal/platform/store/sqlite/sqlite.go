@@ -1,26 +1,25 @@
 // Package sqlite implements a SQLite-based persistence driver using GORM.
+// It is a thin wrapper over the shared sqlitecore.Core engine.
 package sqlite
 
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlitecore"
 )
 
 func init() {
 	store.Register("sqlite", NewDriver)
 }
 
-// Driver implements the store.Driver interface using SQLite via GORM.
+// Driver implements the store.Driver interface using the shared SQLite core.
+// It implements all four persistence surfaces: OutgoingShareStore,
+// IncomingShareStore, OutgoingInviteStore, and IncomingInviteStore.
 type Driver struct {
 	dataDir string
-	db      *gorm.DB
+	core    *sqlitecore.Core
 }
 
 // NewDriver creates a new SQLite driver instance.
@@ -28,10 +27,7 @@ func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 	if cfg.DataDir == "" {
 		return nil, fmt.Errorf("data_dir is required for sqlite driver")
 	}
-
-	return &Driver{
-		dataDir: cfg.DataDir,
-	}, nil
+	return &Driver{dataDir: cfg.DataDir}, nil
 }
 
 // Name returns the driver name.
@@ -39,172 +35,136 @@ func (d *Driver) Name() string {
 	return "sqlite"
 }
 
-// Init initializes the SQLite database and runs AutoMigrate.
+// Init opens the SQLite database and runs AutoMigrate via the shared core.
 func (d *Driver) Init(ctx context.Context) error {
-	dbPath := filepath.Join(d.dataDir, "ocm.db")
-
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
-	}
-
-	d.db = db
-
-	// AutoMigrate creates/updates tables based on model structs
-	if err := db.AutoMigrate(
-		&store.OutgoingShare{},
-		&store.IncomingShare{},
-		&store.Invite{},
-	); err != nil {
-		return fmt.Errorf("failed to migrate database: %w", err)
-	}
-
-	return nil
-}
-
-// Close closes the database connection.
-func (d *Driver) Close() error {
-	if d.db == nil {
-		return nil
-	}
-	sqlDB, err := d.db.DB()
+	core, err := sqlitecore.Open(d.dataDir)
 	if err != nil {
 		return err
 	}
-	return sqlDB.Close()
+	d.core = core
+	return nil
 }
 
-// ShareStore implementation
+// Close closes the database connection. Safe to call before Init.
+func (d *Driver) Close() error {
+	return d.core.Close()
+}
 
-// CreateOutgoingShare creates a new outgoing share.
+// OutgoingShareStore implementation
+
 func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
-	result := d.db.WithContext(ctx).Create(share)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+	return d.core.CreateOutgoingShare(ctx, share)
 }
 
-// GetOutgoingShare retrieves an outgoing share by providerId.
+func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareId string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareByID(ctx, shareId)
+}
+
 func (d *Driver) GetOutgoingShare(ctx context.Context, providerId string) (*store.OutgoingShare, error) {
-	var share store.OutgoingShare
-	result := d.db.WithContext(ctx).First(&share, "provider_id = ?", providerId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, store.ErrNotFound
-		}
-		return nil, result.Error
-	}
-	return &share, nil
+	return d.core.GetOutgoingShare(ctx, providerId)
 }
 
-// GetOutgoingShareByWebDAVId retrieves an outgoing share by webdavId.
 func (d *Driver) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*store.OutgoingShare, error) {
-	var share store.OutgoingShare
-	result := d.db.WithContext(ctx).First(&share, "web_dav_id = ?", webdavId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, store.ErrNotFound
-		}
-		return nil, result.Error
-	}
-	return &share, nil
+	return d.core.GetOutgoingShareByWebDAVId(ctx, webdavId)
 }
 
-// UpdateOutgoingShare updates an existing outgoing share.
+func (d *Driver) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareBySharedSecret(ctx, sharedSecret)
+}
+
 func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
-	result := d.db.WithContext(ctx).Save(share)
-	return result.Error
+	return d.core.UpdateOutgoingShare(ctx, share)
 }
 
-// DeleteOutgoingShare deletes an outgoing share.
 func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerId string) error {
-	result := d.db.WithContext(ctx).Delete(&store.OutgoingShare{}, "provider_id = ?", providerId)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return store.ErrNotFound
-	}
-	return nil
+	return d.core.DeleteOutgoingShare(ctx, providerId)
 }
 
-// ListOutgoingShares returns all outgoing shares.
 func (d *Driver) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare, error) {
-	var shares []*store.OutgoingShare
-	result := d.db.WithContext(ctx).Find(&shares)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	return shares, nil
+	return d.core.ListOutgoingShares(ctx)
 }
 
-// CreateIncomingShare creates a new incoming share.
+// IncomingShareStore implementation
+
 func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingShare) error {
-	result := d.db.WithContext(ctx).Create(share)
-	return result.Error
+	return d.core.CreateIncomingShare(ctx, share)
 }
 
-// GetIncomingShare retrieves an incoming share by shareId.
-func (d *Driver) GetIncomingShare(ctx context.Context, shareId string) (*store.IncomingShare, error) {
-	var share store.IncomingShare
-	result := d.db.WithContext(ctx).First(&share, "share_id = ?", shareId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, store.ErrNotFound
-		}
-		return nil, result.Error
-	}
-	return &share, nil
+func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*store.IncomingShare, error) {
+	return d.core.GetIncomingShareByIDForRecipient(ctx, shareId, recipientUserId)
 }
 
-// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerId.
 func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*store.IncomingShare, error) {
-	var share store.IncomingShare
-	result := d.db.WithContext(ctx).First(&share, "sending_server = ? AND provider_id = ?", sendingServer, providerId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, store.ErrNotFound
-		}
-		return nil, result.Error
-	}
-	return &share, nil
+	return d.core.GetIncomingShareByProviderKey(ctx, sendingServer, providerId)
 }
 
-// UpdateIncomingShare updates an existing incoming share.
-func (d *Driver) UpdateIncomingShare(ctx context.Context, share *store.IncomingShare) error {
-	result := d.db.WithContext(ctx).Save(share)
-	return result.Error
+func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUserId string) ([]*store.IncomingShare, error) {
+	return d.core.ListIncomingSharesByRecipient(ctx, recipientUserId)
 }
 
-// DeleteIncomingShare deletes an incoming share.
-func (d *Driver) DeleteIncomingShare(ctx context.Context, shareId string) error {
-	result := d.db.WithContext(ctx).Delete(&store.IncomingShare{}, "share_id = ?", shareId)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return store.ErrNotFound
-	}
-	return nil
+func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareId string, recipientUserId string, state string) error {
+	return d.core.UpdateIncomingShareStatusForRecipient(ctx, shareId, recipientUserId, state)
 }
 
-// ListIncomingShares returns incoming shares for a user.
-func (d *Driver) ListIncomingShares(ctx context.Context, userId string) ([]*store.IncomingShare, error) {
-	var shares []*store.IncomingShare
-	query := d.db.WithContext(ctx)
-	if userId != "" {
-		query = query.Where("user_id = ?", userId)
-	}
-	result := query.Find(&shares)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	return shares, nil
+func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareId string, recipientUserId string) error {
+	return d.core.DeleteIncomingShareForRecipient(ctx, shareId, recipientUserId)
+}
+
+// OutgoingInviteStore implementation
+
+func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
+	return d.core.CreateOutgoingInvite(ctx, invite)
+}
+
+func (d *Driver) GetOutgoingInvite(ctx context.Context, id string) (*store.OutgoingInvite, error) {
+	return d.core.GetOutgoingInvite(ctx, id)
+}
+
+func (d *Driver) GetOutgoingInviteByToken(ctx context.Context, token string) (*store.OutgoingInvite, error) {
+	return d.core.GetOutgoingInviteByToken(ctx, token)
+}
+
+func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
+	return d.core.UpdateOutgoingInvite(ctx, invite)
+}
+
+func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
+	return d.core.DeleteOutgoingInvite(ctx, id)
+}
+
+func (d *Driver) ListOutgoingInvites(ctx context.Context, userId string) ([]*store.OutgoingInvite, error) {
+	return d.core.ListOutgoingInvites(ctx, userId)
+}
+
+// IncomingInviteStore implementation
+
+func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
+	return d.core.CreateIncomingInvite(ctx, invite)
+}
+
+func (d *Driver) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) (*store.IncomingInvite, error) {
+	return d.core.GetIncomingInviteForRecipient(ctx, id, recipientUserId)
+}
+
+func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*store.IncomingInvite, error) {
+	return d.core.GetIncomingInviteByToken(ctx, token, recipientUserId)
+}
+
+func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserId string, status string) error {
+	return d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserId, status)
+}
+
+func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) error {
+	return d.core.DeleteIncomingInviteForRecipient(ctx, id, recipientUserId)
+}
+
+func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*store.IncomingInvite, error) {
+	return d.core.ListIncomingInvites(ctx, recipientUserId)
 }
 
 // Compile-time interface checks
 var _ store.Driver = (*Driver)(nil)
-var _ store.ShareStore = (*Driver)(nil)
+var _ store.OutgoingShareStore = (*Driver)(nil)
+var _ store.IncomingShareStore = (*Driver)(nil)
+var _ store.OutgoingInviteStore = (*Driver)(nil)
+var _ store.IncomingInviteStore = (*Driver)(nil)

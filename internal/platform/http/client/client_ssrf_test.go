@@ -9,7 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client/outboundtestutil"
+	outboundtestutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestClient_SSRFProtection(t *testing.T) {
@@ -129,10 +129,10 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 		t.Fatal("expected error for unresolvable host")
 	}
 	// The .invalid TLD is guaranteed to fail resolution (RFC 6761); the client
-	// must classify this as an SSRF error (ErrHostUnresolvable), not let it
-	// pass silently as a generic connection error.
-	if !httpclient.IsSSRFError(err) {
-		t.Errorf("expected SSRF-classified error for unresolvable host, got: %v", err)
+	// must classify this as ErrHostUnresolvable, not let it pass silently as a
+	// generic connection error.
+	if !httpclient.IsHostUnresolvable(err) {
+		t.Errorf("expected host-unresolvable error, got: %v", err)
 	}
 }
 
@@ -255,23 +255,23 @@ func TestContextAwareDNSCancellation(t *testing.T) {
 	}
 }
 
-// TestClient_LegacySSRFModeCompatibility verifies that a caller that sets only
-// the legacy SSRFMode shim (and leaves SSRF.Mode empty) still gets strict-mode
+// TestClient_DerivedSSRFModeCompatibility verifies that a caller that sets only
+// DerivedSSRFMode (and leaves SSRF.Mode empty) still gets strict-mode
 // enforcement. This covers programmatic callers that have not yet migrated to
 // the nested SSRF.Mode field.
-func TestClient_LegacySSRFModeCompatibility(t *testing.T) {
+func TestClient_DerivedSSRFModeCompatibility(t *testing.T) {
 	cfg := &config.OutboundHTTPConfig{
-		SSRFMode:         "strict", // legacy shim only; SSRF.Mode intentionally empty
+		DerivedSSRFMode:  "strict", // shim only; SSRF.Mode intentionally empty
 		TimeoutMS:        500,
 		ConnectTimeoutMS: 200,
 		MaxRedirects:     1,
-		MaxResponseBytes: 1048576,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}
 	c := httpclient.New(cfg, nil)
 
 	_, err := c.Get(context.Background(), "http://127.0.0.1/test")
 	if err == nil {
-		t.Fatal("expected SSRF error when legacy SSRFMode=strict and SSRF.Mode is empty")
+		t.Fatal("expected SSRF error when DerivedSSRFMode=strict and SSRF.Mode is empty")
 	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF-classified error, got: %v", err)

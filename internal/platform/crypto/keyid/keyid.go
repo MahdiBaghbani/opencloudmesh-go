@@ -1,6 +1,6 @@
 // Package keyid provides canonical parsing and comparison normalization for
 // OCM keyId URIs. It is the single source of truth for remote peer keyId
-// handling, unifying the previously duplicated implementations.
+// handling across the codebase.
 package keyid
 
 import (

@@ -8,238 +8,130 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func TestNew_FailsWithoutSharedDeps(t *testing.T) {
-	// Ensure deps are not set
-	deps.ResetDeps()
+func testLog() *slog.Logger {
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+}
 
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	_, err := New(m, log)
+func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
+	_, err := New(Inputs{}, map[string]any{}, testLog())
 	if err == nil {
-		t.Error("expected error when SharedDeps not initialized")
+		t.Fatal("expected error when required inputs are missing")
 	}
 }
 
-func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+func TestNew_SucceedsWithInputs(t *testing.T) {
+	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if svc == nil {
 		t.Fatal("expected non-nil service")
 	}
 }
 
 func TestService_Prefix(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if svc.Prefix() != "ocm-aux" {
 		t.Errorf("expected prefix 'ocm-aux', got %q", svc.Prefix())
 	}
 }
 
-func TestService_Unprotected(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 2 {
-		t.Errorf("expected 2 unprotected paths, got %d", len(unprotected))
-	}
-
-	expectedPaths := map[string]bool{
-		"/federations": false,
-		"/discover":    false,
-	}
-	for _, p := range unprotected {
-		if _, ok := expectedPaths[p]; ok {
-			expectedPaths[p] = true
-		}
-	}
-	for p, found := range expectedPaths {
-		if !found {
-			t.Errorf("expected unprotected path %q not found", p)
-		}
-	}
-}
-
 func TestService_Handler(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if svc.Handler() == nil {
 		t.Error("expected non-nil Handler")
 	}
 }
 
 func TestService_Close(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	if err := svc.Close(); err != nil {
 		t.Errorf("unexpected error on Close: %v", err)
 	}
 }
 
 func TestService_FederationsEndpoint(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		// TrustGroupMgr is nil - handler should still work (returns empty array)
-	})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	req := httptest.NewRequest(http.MethodGet, "/federations", nil)
 	w := httptest.NewRecorder()
-
 	svc.Handler().ServeHTTP(w, req)
-
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
 	}
-
-	// Response is a top-level JSON array (Reva-aligned strict break)
 	var result []json.RawMessage
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Errorf("expected valid JSON array response: %v\nbody: %s", err, w.Body.String())
 	}
-
 	if len(result) != 0 {
 		t.Errorf("expected empty array with nil TrustGroupMgr, got %d entries", len(result))
 	}
 }
 
 func TestService_DiscoverEndpoint_MissingBase(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	req := httptest.NewRequest(http.MethodGet, "/discover", nil)
 	w := httptest.NewRecorder()
-
 	svc.Handler().ServeHTTP(w, req)
-
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
-
-	// Should return JSON error
 	var resp map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Errorf("expected valid JSON response: %v", err)
 	}
-
 	if resp["success"] != false {
 		t.Error("expected success=false in response")
 	}
 }
 
 func TestService_DiscoverEndpoint_NoDiscoveryClient(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		// DiscoveryClient is nil
-	})
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
+	in := testOCMAuxInputs()
+	in.DiscoveryClient = nil
+	svc, err := New(in, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	req := httptest.NewRequest(http.MethodGet, "/discover?base=https://example.com", nil)
 	w := httptest.NewRecorder()
-
 	svc.Handler().ServeHTTP(w, req)
-
-	// Should return 501 Not Implemented when discovery client is nil
 	if w.Code != http.StatusNotImplemented {
 		t.Errorf("expected status 501, got %d", w.Code)
 	}
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{})
-
-	// Create a logger that captures output
 	var logBuf testLogBuffer
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
-
 	m := map[string]any{
 		"unknown_key": "value",
 	}
-
-	_, err := New(m, log)
+	_, err := New(testOCMAuxInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	// Check that a warning was logged
 	if !logBuf.contains("unused config keys") {
 		t.Error("expected warning about unused config keys")
 	}
 }
 
-// testLogBuffer is a simple buffer for capturing log output
 type testLogBuffer struct {
 	data []byte
 }
@@ -250,14 +142,14 @@ func (b *testLogBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (b *testLogBuffer) contains(s string) bool {
-	return len(b.data) > 0 && string(b.data) != "" && 
+	return len(b.data) > 0 && string(b.data) != "" &&
 		(len(s) == 0 || (len(b.data) >= len(s) && containsString(string(b.data), s)))
 }
 
 func containsString(haystack, needle string) bool {
-	return len(haystack) >= len(needle) && 
-		(haystack == needle || 
-		 (len(haystack) > len(needle) && searchString(haystack, needle)))
+	return len(haystack) >= len(needle) &&
+		(haystack == needle ||
+			(len(haystack) > len(needle) && searchString(haystack, needle)))
 }
 
 func searchString(haystack, needle string) bool {

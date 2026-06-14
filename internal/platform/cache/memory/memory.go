@@ -12,7 +12,7 @@ import (
 func init() {
 	cache.RegisterDriver("memory", func(config map[string]any) cache.CacheWithCounter {
 		// Apply defaults (Reva-style)
-		defaultTTL := 15 * time.Minute
+		defaultTTL := cache.TTLDiscovery
 		cleanupInterval := 5 * time.Minute
 
 		// Override from config if present

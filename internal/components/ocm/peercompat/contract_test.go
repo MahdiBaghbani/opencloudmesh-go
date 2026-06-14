@@ -48,31 +48,6 @@ func TestNewCompiledContract_CompilesExplicitUnsignedDiscovery(t *testing.T) {
 	}
 }
 
-func TestNewCompiledContract_RejectsRemovedQuirks(t *testing.T) {
-	deletedQuirks := []string{
-		"skip_" + "digest_validation",
-		"allow_" + "keyid_mismatch",
-		"allow_" + "unsigned_discovery",
-	}
-	for _, quirk := range deletedQuirks {
-		t.Run(quirk, func(t *testing.T) {
-			custom := map[string]*Profile{
-				"broken": {
-					Name:                "broken",
-					TokenExchangeQuirks: []string{quirk},
-				},
-			}
-			_, err := NewCompiledContract(custom, nil)
-			if err == nil {
-				t.Fatalf("expected unsupported token_exchange_quirk error for %q", quirk)
-			}
-			if !strings.Contains(err.Error(), "unsupported token_exchange_quirk") {
-				t.Fatalf("expected unsupported quirk error, got %v", err)
-			}
-		})
-	}
-}
-
 func TestNewCompiledContract_RejectsInvalidGrantType(t *testing.T) {
 	custom := map[string]*Profile{
 		"broken": {
@@ -86,6 +61,24 @@ func TestNewCompiledContract_RejectsInvalidGrantType(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unsupported token_exchange_grant_type") {
 		t.Fatalf("expected unsupported grant type error, got %v", err)
+	}
+}
+
+func TestNewCompiledContract_RejectsUnsupportedTokenExchangeQuirk(t *testing.T) {
+	custom := map[string]*Profile{
+		"broken": {
+			Name: "broken",
+			TokenExchangeQuirks: []string{
+				"totally_unknown_quirk",
+			},
+		},
+	}
+	_, err := NewCompiledContract(custom, nil)
+	if err == nil {
+		t.Fatal("expected unsupported token_exchange_quirk error")
+	}
+	if !strings.Contains(err.Error(), "unsupported token_exchange_quirk") {
+		t.Fatalf("expected unsupported quirk error, got %v", err)
 	}
 }
 

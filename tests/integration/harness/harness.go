@@ -18,28 +18,24 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/app"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	// Register cache drivers
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-
-	// Register interceptors (triggers init() registration)
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/loader"
-
-	// Register services (triggers init() registration)
-	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/loader"
 )
 
 // TestServer wraps a server instance for testing.
 type TestServer struct {
-	Server  *server.Server
-	Config  *config.Config
-	BaseURL string
-	TempDir string
-	once    sync.Once
+	Server      *server.Server
+	Config      *config.Config
+	BaseURL     string
+	TempDir     string
+	Deps        *wiring.Deps
+	persistence *repos.Repos
+	once        sync.Once
 }
 
 // StartTestServer creates and starts a test server with dynamic port allocation.
@@ -67,7 +63,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to find free port: %v", err)
 	}
 
-	// Create config - DevConfig() has TLS.Mode="off", SSRFMode="off", InsecureSkipVerify=true
+	// Create config - DevConfig() has TLS.Mode="off", DerivedSSRFMode="off", InsecureSkipVerify=true
 	cfg := config.DevConfig()
 	cfg.ListenAddr = fmt.Sprintf(":%d", port)
 	cfg.PublicOrigin = fmt.Sprintf("http://localhost:%d", port)
@@ -89,31 +85,8 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		Level: slog.LevelWarn,
 	}))
 
-	// Reset shared deps for test isolation, then wire via BootstrapDeps.
-	// WireOptions reflects the intended harness defaults:
-	//   - FastAuth: low-cost argon2id for test speed
-	//   - SkipCrypto: no signing keys; avoids leaking production crypto into tests
-	//   - SkipPeerTrust: peer trust stack is not exercised in in-process tests
-	//   - SkipSignatureMiddleware: inbound signature verification skipped
-	//   - OutboundOverride: permissive localhost-friendly outbound config
-	//   - SkipDiscoveryCache: no-op cache avoids stale cross-test discovery entries
-	deps.ResetDeps()
-	bootstrapResult, err := app.BootstrapDeps(cfg, logger, app.WireOptions{
-		FastAuth:                true,
-		SkipCrypto:              true,
-		SkipPeerTrust:           true,
-		SkipSignatureMiddleware: true,
-		OutboundOverride: &config.OutboundHTTPConfig{
-			SSRF:               config.SSRFConfig{Mode: "off"}, // Allow localhost connections in tests
-			SSRFMode:           "off",
-			TimeoutMS:          5000,
-			ConnectTimeoutMS:   2000,
-			MaxRedirects:       1,
-			MaxResponseBytes:   1048576,
-			InsecureSkipVerify: true, // For self-signed certs in tests
-		},
-		SkipDiscoveryCache: true,
-	})
+	// Wire via wiring.Build using the shared integration harness defaults.
+	buildResult, err := wiring.Build(cfg, logger, IntegrationBuildOpts())
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap dependencies: %v", err)
@@ -122,16 +95,15 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	// Posture guard parity with main.go: a compatibility_scope=none config that
 	// resolves to a non-strict runtime posture is an impossible production state
 	// and must not silently start in-process.
-	if err := checkStartupPosture(cfg, bootstrapResult.RuntimeEval); err != nil {
+	if err := checkStartupPosture(cfg, buildResult.RuntimeEval); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("startup posture rejected: %v", err)
 	}
 
-	// Bootstrap test admin user
-	d := deps.GetDeps()
+	d := buildResult.Deps
 	if d == nil {
 		os.RemoveAll(tempDir)
-		t.Fatal(app.ErrMsgNilDepsAfterBootstrap)
+		t.Fatal(wiring.ErrMsgNilDepsAfterBuild)
 	}
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
 	adminUser := identity.SeededUser{
@@ -145,33 +117,28 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		t.Fatalf("failed to bootstrap users: %v", err)
 	}
 
-	// Construct all core services via registry loop (mirrors main.go).
-	// Each service derives cross-cutting values from SharedDeps internally.
-	services := make(map[string]service.Service)
-	for _, name := range service.CoreServices {
-		svcCfg := cfg.BuildServiceConfig(name)
-		if svcCfg == nil {
-			svcCfg = make(map[string]any)
-		}
-		newFn := service.Get(name)
-		if newFn == nil {
-			os.RemoveAll(tempDir)
-			t.Fatalf("core service %q not registered", name)
-		}
-		svc, err := newFn(svcCfg, logger)
-		if err != nil {
-			os.RemoveAll(tempDir)
-			t.Fatalf("failed to create %s service: %v", name, err)
-		}
-		services[name] = svc
+	services, err := wiring.BuildCoreServices(cfg, logger, d)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to create core services: %v", err)
+	}
+	if err := service.ValidateBuiltServices(services); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("built service validation rejected: %v", err)
 	}
 
-	srv, err := server.New(cfg, logger, services)
+	serverDeps, err := wiring.BuildServerDeps(cfg, logger, d)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatalf("failed to build server deps: %v", err)
+	}
+
+	srv, err := server.New(cfg, logger, services, serverDeps)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)
 	}
-	srv.SetRootCAPool(bootstrapResult.RootCAPool)
+	srv.SetRootCAPool(buildResult.RootCAPool)
 
 	// Start server in background
 	go func() {
@@ -194,10 +161,12 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	}
 
 	ts := &TestServer{
-		Server:  srv,
-		Config:  cfg,
-		BaseURL: baseURL,
-		TempDir: tempDir,
+		Server:      srv,
+		Config:      cfg,
+		BaseURL:     baseURL,
+		TempDir:     tempDir,
+		Deps:        d,
+		persistence: buildResult.Persistence,
 	}
 	t.Cleanup(func() { ts.Stop(t) })
 	return ts
@@ -215,6 +184,12 @@ func (ts *TestServer) Stop(t *testing.T) {
 			t.Logf("warning: shutdown error: %v", err)
 		}
 
+		if ts.persistence != nil {
+			if err := ts.persistence.Close(); err != nil {
+				t.Logf("warning: persistence close error: %v", err)
+			}
+		}
+
 		if err := os.RemoveAll(ts.TempDir); err != nil {
 			t.Logf("warning: failed to remove temp dir: %v", err)
 		}
@@ -228,26 +203,9 @@ func (ts *TestServer) LogFile(name string) string {
 
 // validatePreBootstrapStartup runs the fail-fast checks that the real binary
 // applies before any side-effecting bootstrap. It returns an error (rather than
-// calling t.Fatalf) so it can be unit-tested directly. It covers two surfaces:
-//   - unknown [http.services.*] names (a typo must never start partially), and
-//   - the compatibility-scope startup guardrails that config.Load enforces,
-//     reused here so an in-memory config patched past Load() still rejects the
-//     same broader impossible startup states the binary rejects.
+// calling t.Fatalf) so it can be unit-tested directly.
 func validatePreBootstrapStartup(cfg *config.Config) error {
-	if cfg.HTTP.Services != nil {
-		var names []string
-		for name := range cfg.HTTP.Services {
-			names = append(names, name)
-		}
-		if unknown, allowed := service.CheckServiceNames(names); len(unknown) > 0 {
-			return fmt.Errorf("unknown service names in [http.services]: %s (allowed: %s)",
-				strings.Join(unknown, ", "), strings.Join(allowed, ", "))
-		}
-	}
-	if err := config.ValidateCompatibilityScopeStartupGuardrails(cfg); err != nil {
-		return err
-	}
-	return nil
+	return service.ValidatePreBootstrap(cfg)
 }
 
 // checkStartupPosture mirrors the main.go startup guard: when

@@ -15,7 +15,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client/outboundtestutil"
+	outboundtestutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // fixedResolver maps hostnames to IP addresses for deterministic SSRF testing.

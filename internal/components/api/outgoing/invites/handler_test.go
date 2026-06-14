@@ -13,11 +13,17 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-const testProvider = "example.com:9200"
+const testPublicOrigin = "https://example.com:9200"
+
+func testLocalProvider(t *testing.T) string {
+	t.Helper()
+	return tslocalid.MustTestIdentity(t, testPublicOrigin, "").ProviderDomain
+}
 
 func testCurrentUser(user *identity.User) func(context.Context) (*identity.User, error) {
 	return func(ctx context.Context) (*identity.User, error) {
@@ -31,9 +37,37 @@ func failCurrentUser() func(context.Context) (*identity.User, error) {
 	}
 }
 
+func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) {
+	const originWithDefaultPort = "https://example.com:443"
+	wantProvider := tslocalid.MustTestIdentity(t, originWithDefaultPort, "").ProviderDomain
+	if wantProvider != "example.com" {
+		t.Fatalf("test setup: ProviderDomain = %q, want example.com", wantProvider)
+	}
+
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	handler := outgoinginvites.NewHandler(repo, wantProvider, nil, testLogger)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	w := httptest.NewRecorder()
+
+	handler.HandleCreateOutgoing(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp invites.CreateOutgoingResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.ProviderFQDN != wantProvider {
+		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, wantProvider)
+	}
+}
+
 func TestHandleCreateOutgoing_Success(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, testProvider, nil, testLogger)
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), nil, testLogger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
@@ -54,8 +88,9 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 	if resp.Token == "" {
 		t.Error("token is empty")
 	}
-	if resp.ProviderFQDN != testProvider {
-		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, testProvider)
+	wantProvider := testLocalProvider(t)
+	if resp.ProviderFQDN != wantProvider {
+		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, wantProvider)
 	}
 
 	stored, err := repo.GetByToken(context.Background(), resp.Token)
@@ -73,7 +108,7 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 		ID:       "creator-uuid",
 		Username: "alice",
 	}
-	handler := outgoinginvites.NewHandler(repo, testProvider, testCurrentUser(user), testLogger)
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), testCurrentUser(user), testLogger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
@@ -98,7 +133,7 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 
 func TestHandleCreateOutgoing_NilCurrentUser_NoCreatedByUserID(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, testProvider, nil, testLogger)
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), nil, testLogger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
@@ -120,7 +155,7 @@ func TestHandleCreateOutgoing_NilCurrentUser_NoCreatedByUserID(t *testing.T) {
 
 func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, testProvider, nil, testLogger)
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), nil, testLogger)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
@@ -134,7 +169,7 @@ func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 
 func TestHandleCreateOutgoing_MethodNotAllowed_Returns405(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, testProvider, nil, testLogger)
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), nil, testLogger)
 
 	req := httptest.NewRequest(http.MethodPut, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()

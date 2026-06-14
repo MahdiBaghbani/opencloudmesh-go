@@ -1,29 +1,12 @@
-// Package resolve derives the cross-cutting inputs for an OCM discovery
-// document from shared deps and the raw per-service config, then hands the
-// resolved values to the discovery builder. It lives near the discovery
-// component (rather than inside it) because it depends on the platform deps
-// layer, which itself imports discovery; keeping resolution here avoids an
-// import cycle while pulling this logic out of the service layer.
+// Package resolve derives OCM discovery provider configuration from service-local
+// TOML plus narrow ResolveInputs supplied by wiring. Endpoint derivation requires
+// a non-empty PublicOrigin; per-service endpoint values in raw TOML always win.
 package resolve
 
 import (
-	"log/slog"
-
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
-
-// uiWayfProbe is a minimal struct for peeking at the UI service's WAYF config.
-// Used to auto-derive inviteAcceptDialog when WAYF is enabled but
-// invite_accept_dialog is not explicitly configured.
-type uiWayfProbe struct {
-	Wayf struct {
-		Enabled bool `mapstructure:"enabled"`
-	} `mapstructure:"wayf"`
-}
 
 // APIVersionOverride allows overriding apiVersion based on User-Agent.
 // Used for Nextcloud Server Crawler compatibility (expects apiVersion 1.1).
@@ -35,7 +18,7 @@ type APIVersionOverride struct {
 // ProviderConfig holds OCM discovery configuration.
 type ProviderConfig struct {
 	Endpoint   string `mapstructure:"endpoint"`    // This host's full URL (origin + base path)
-	OCMPrefix  string `mapstructure:"ocm_prefix"`  // Default: "ocm"
+	OCMPrefix  string `mapstructure:"ocm_prefix"`  // Deprecated: route inventory owns protocol mount
 	Provider   string `mapstructure:"provider"`    // Friendly name
 	WebDAVRoot string `mapstructure:"webdav_root"` // WebDAV path
 
@@ -44,18 +27,15 @@ type ProviderConfig struct {
 		Path    string `mapstructure:"path"`
 	} `mapstructure:"token_exchange"`
 
-	// Invite accept dialog URL (absolute) for WAYF helpers
+	// Invite accept dialog URL (absolute) for invite-accept UI
 	InviteAcceptDialog  string `mapstructure:"invite_accept_dialog"`
 	AdvertiseInviteWAYF bool   `mapstructure:"advertise_invite_wayf"`
 
 	// APIVersionOverrides allows overriding apiVersion based on User-Agent.
-	// Used for Nextcloud Server Crawler compatibility.
 	APIVersionOverrides []APIVersionOverride `mapstructure:"api_version_overrides"`
 }
 
 // ApplyDefaults sets default values for service-local fields only.
-// Cross-cutting fields (endpoint, webdav_root, token_exchange, etc.) are
-// derived from SharedDeps in Resolve().
 func (c *ProviderConfig) ApplyDefaults() {
 	if c.OCMPrefix == "" {
 		c.OCMPrefix = "ocm"
@@ -65,7 +45,6 @@ func (c *ProviderConfig) ApplyDefaults() {
 	}
 }
 
-// localEvaluation is a local snapshot of the canonical evaluator output.
 type localEvaluation struct {
 	codeFlow               bool
 	strict                 bool
@@ -80,104 +59,109 @@ type BuildInputs struct {
 }
 
 // Resolve applies service-local defaults, derives cross-cutting values from
-// SharedDeps when not explicitly set in per-service TOML, resolves public keys
-// and policy-driven evaluation flags, and returns the resolved discovery build
-// params plus any apiVersion overrides. It mutates c in place to record the
-// derived values (preserving the prior service-layer behavior).
-//
-// rawOCMProvider is the raw config map from TOML (used for key-presence
-// detection so we can distinguish "not set" from "explicitly set to zero").
-func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, d *deps.Deps, log *slog.Logger) BuildInputs {
-	log = logutil.NoopIfNil(log)
+// ResolveInputs and route inventory when not explicitly set in per-service TOML,
+// resolves public keys and policy-driven evaluation flags, and returns the
+// resolved discovery build params plus any apiVersion overrides.
+func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs) BuildInputs {
 	c.ApplyDefaults()
 
-	// Derive cross-cutting values from SharedDeps config when not explicitly
-	// set in per-service TOML. Per-service TOML wins when a key is present
-	// in the raw map (even if zero-valued).
-	if d != nil && d.Config != nil {
-		if _, set := rawOCMProvider["endpoint"]; !set {
-			c.Endpoint = d.Config.PublicOrigin + d.Config.ExternalBasePath
-		}
+	routeOpts := in.RouteOpts
+	if routeOpts.TokenExchangePath == "" {
+		routeOpts.TokenExchangePath = in.TokenExchangePath
+	}
+	if routeOpts.TokenExchangePath == "" {
+		routeOpts.TokenExchangePath = "token"
+	}
 
-		if _, set := rawOCMProvider["webdav_root"]; !set {
-			if d.Config.ExternalBasePath != "" {
-				c.WebDAVRoot = d.Config.ExternalBasePath + "/webdav/ocm/"
-			} else {
-				c.WebDAVRoot = "/webdav/ocm/"
-			}
-		}
+	projected, hasProjection := spec.DeriveDiscoveryPaths(in.LocalIdentity, routeOpts)
 
-		// Token exchange path derivation. Capability enablement belongs to the
-		// canonical OCM policy when SharedDeps provides it.
-		var rawTE map[string]any
-		if te, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
-			rawTE = te
-		}
-		if _, set := rawTE["path"]; !set {
-			c.TokenExchange.Path = d.Config.TokenExchange.Path
-			if c.TokenExchange.Path == "" {
-				c.TokenExchange.Path = "token"
-			}
-		}
+	endpointExplicit := false
+	if _, set := rawOCMProvider["endpoint"]; set {
+		endpointExplicit = true
+	}
+	if _, set := rawOCMProvider["endpoint"]; !set && in.LocalIdentity.Origin != "" {
+		c.Endpoint = in.LocalIdentity.EndpointBase
+	}
 
-		// API version overrides for unbounded compatibility posture
-		// (Nextcloud crawler compat).
-		if _, set := rawOCMProvider["api_version_overrides"]; !set {
-			if d.RuntimePolicy != nil && d.RuntimePolicy.AllowsGlobalCompatibilityDefaults() {
-				c.APIVersionOverrides = []APIVersionOverride{{
-					UserAgentContains: "Nextcloud Server Crawler",
-					APIVersion:        "1.1",
-				}}
-			}
-		}
+	endPoint := projected.EndPoint
+	webdavRoot := projected.WebDAVRoot
+	tokenEndPoint := projected.TokenEndPoint
+	inviteAcceptDialog := projected.InviteAcceptDialog
 
-		// Auto-derive inviteAcceptDialog when WAYF is enabled and the field
-		// is not explicitly set in TOML. Peek at the UI service's config to
-		// check WAYF enablement. This cross-service config read is acceptable
-		// because discovery data is static (computed once at construction).
-		if _, set := rawOCMProvider["invite_accept_dialog"]; !set {
-			var probe uiWayfProbe
-			if uiRaw := d.Config.HTTP.Services["ui"]; uiRaw != nil {
-				_ = mapstructure.Decode(uiRaw, &probe)
-			}
-			if probe.Wayf.Enabled {
-				c.InviteAcceptDialog = d.Config.PublicOrigin + d.Config.ExternalBasePath + "/ui/accept-invite"
-			}
+	if c.Endpoint != "" && (endpointExplicit || endPoint == "") {
+		endPoint = spec.DeriveDiscoveryPathsFromEndpointBase(c.Endpoint, c.OCMPrefix, routeOpts).EndPoint
+	}
+
+	if _, set := rawOCMProvider["webdav_root"]; set {
+		webdavRoot = c.WebDAVRoot
+	} else if hasProjection {
+		c.WebDAVRoot = webdavRoot
+	} else if c.WebDAVRoot != "" {
+		webdavRoot = c.WebDAVRoot
+	}
+
+	var rawTE map[string]any
+	if te, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
+		rawTE = te
+	}
+	if _, set := rawTE["path"]; !set && c.TokenExchange.Path == "" {
+		c.TokenExchange.Path = routeOpts.TokenExchangePath
+	} else if c.TokenExchange.Path != "" {
+		routeOpts.TokenExchangePath = c.TokenExchange.Path
+		if reproj, ok := spec.DeriveDiscoveryPaths(in.LocalIdentity, routeOpts); ok {
+			tokenEndPoint = reproj.TokenEndPoint
+		}
+	}
+	if _, set := rawTE["path"]; set || c.TokenExchange.Path != "" {
+		if c.Endpoint != "" && (endpointExplicit || tokenEndPoint == "") {
+			tokenEndPoint = spec.DeriveDiscoveryPathsFromEndpointBase(c.Endpoint, c.OCMPrefix, routeOpts).TokenEndPoint
+		}
+	} else if tokenEndPoint == "" && c.Endpoint != "" {
+		tokenEndPoint = spec.DeriveDiscoveryPathsFromEndpointBase(c.Endpoint, c.OCMPrefix, routeOpts).TokenEndPoint
+	}
+
+	if _, set := rawOCMProvider["invite_accept_dialog"]; set {
+		inviteAcceptDialog = c.InviteAcceptDialog
+	} else if inviteAcceptDialog != "" {
+		c.InviteAcceptDialog = inviteAcceptDialog
+	}
+
+	if _, set := rawOCMProvider["api_version_overrides"]; !set {
+		if in.RuntimePolicy != nil && in.RuntimePolicy.AllowsGlobalCompatibilityDefaults() {
+			c.APIVersionOverrides = []APIVersionOverride{{
+				UserAgentContains: "Nextcloud Server Crawler",
+				APIVersion:        "1.1",
+			}}
 		}
 	}
 
-	// Resolve public keys from SharedDeps when available.
 	var publicKeys []discovery.PublicKey
-	if d != nil && d.KeyManager != nil {
+	if in.KeyManager != nil {
 		publicKeys = []discovery.PublicKey{{
-			KeyID:        d.KeyManager.GetKeyID(),
-			PublicKeyPem: d.KeyManager.GetPublicKeyPEM(),
+			KeyID:        in.KeyManager.GetKeyID(),
+			PublicKeyPem: in.KeyManager.GetPublicKeyPEM(),
 			Algorithm:    "ed25519",
 		}}
 	}
 
-	// Token exchange capability is owned by OpenCloudMeshPolicy when available.
 	var localEval localEvaluation
-	if d != nil && d.OpenCloudMeshPolicy != nil {
-		ev := d.OpenCloudMeshPolicy.Evaluate()
+	if in.OpenCloudMeshPolicy != nil {
+		ev := in.OpenCloudMeshPolicy.Evaluate()
 		localEval = localEvaluation{codeFlow: ev.TokenExchangeCapable, strict: ev.RequiresTokenExchange}
 	} else {
-		// Keep narrow tests usable when they seed the service-local config
-		// directly, but do not silently re-derive this from shared raw config.
 		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
 	}
-	if d != nil && d.RuntimePolicy != nil {
-		localEval.requiresHTTPSignatures = d.RuntimePolicy.Evaluate().Signature.RequiresHTTPRequestSignatures
+	if in.RuntimePolicy != nil {
+		localEval.requiresHTTPSignatures = in.RuntimePolicy.Evaluate().Signature.RequiresHTTPRequestSignatures
 	}
 
 	return BuildInputs{
 		Params: discovery.BuildParams{
 			Provider:               c.Provider,
-			Endpoint:               c.Endpoint,
-			OCMPrefix:              c.OCMPrefix,
-			WebDAVRoot:             c.WebDAVRoot,
-			TokenExchangePath:      c.TokenExchange.Path,
-			InviteAcceptDialog:     c.InviteAcceptDialog,
+			EndPoint:               endPoint,
+			WebDAVRoot:             webdavRoot,
+			TokenEndPoint:          tokenEndPoint,
+			InviteAcceptDialog:     inviteAcceptDialog,
 			AdvertiseInviteWAYF:    c.AdvertiseInviteWAYF,
 			PublicKeys:             publicKeys,
 			TokenExchangeCapable:   localEval.codeFlow,

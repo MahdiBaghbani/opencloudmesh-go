@@ -19,7 +19,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -35,8 +34,8 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	d := deps.GetDeps()
-	localProvider := d.LocalProviderFQDN
+	d := ts.Deps
+	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user (the invite creator whose identity appears in the response)
 	localUser := &identity.User{
@@ -138,8 +137,8 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 // --- Share creation identity tests ---
 //
 // These tests verify inbound share creation through the full server stack.
-// They exercise the federated opaque ID decode fallback (Phase 4) and
-// Reva-style OCM address acceptance for owner/sender (Phase 3).
+// They exercise the federated opaque ID decode fallback and
+// Reva-style OCM address acceptance for owner/sender.
 //
 // Outbound share identity encoding (owner/sender emission via
 // FormatOutgoingOCMAddressFromUserID) is covered by unit tests in
@@ -159,8 +158,8 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	d := deps.GetDeps()
-	localProvider := d.LocalProviderFQDN
+	d := ts.Deps
+	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user (the share recipient)
 	shareUser := &identity.User{
@@ -260,8 +259,8 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	d := deps.GetDeps()
-	localProvider := d.LocalProviderFQDN
+	d := ts.Deps
+	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user
 	shareUser := &identity.User{
@@ -336,8 +335,8 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	d := deps.GetDeps()
-	localProvider := d.LocalProviderFQDN
+	d := ts.Deps
+	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user (the share recipient)
 	shareUser := &identity.User{

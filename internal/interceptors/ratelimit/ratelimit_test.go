@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,9 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
 )
 
@@ -85,14 +84,49 @@ func (m *mockCache) Reset(ctx context.Context, key string) error {
 	return m.counter.Reset(ctx, key)
 }
 
-func TestInit_RegistersInterceptor(t *testing.T) {
-	// The init() function should have registered the ratelimit interceptor
-	fn, ok := interceptors.Get("ratelimit")
-	if !ok {
-		t.Fatal("expected ratelimit interceptor to be registered")
+func TestNew_CreatesMiddleware(t *testing.T) {
+	mock := &mockCache{counter: newMockCounter()}
+	realIP := realip.NewTrustedProxies(nil)
+	in := Inputs{
+		Cache:   mock,
+		KeyFunc: realIP.GetClientIPString,
 	}
-	if fn == nil {
-		t.Fatal("expected non-nil interceptor constructor")
+
+	middleware, err := New(in, map[string]any{
+		"requests_per_window": int64(10),
+		"window_seconds":      60,
+	}, slog.Default())
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+	if middleware == nil {
+		t.Fatal("expected non-nil middleware")
+	}
+}
+
+func TestNew_FailsWithoutCache(t *testing.T) {
+	realIP := realip.NewTrustedProxies(nil)
+	in := Inputs{KeyFunc: realIP.GetClientIPString}
+
+	_, err := New(in, map[string]any{}, slog.Default())
+	if err == nil {
+		t.Fatal("expected error when Cache is nil")
+	}
+	if !errors.Is(err, ErrMissingCache) {
+		t.Fatalf("expected ErrMissingCache, got: %v", err)
+	}
+}
+
+func TestNew_FailsWithoutKeyFunc(t *testing.T) {
+	mock := &mockCache{counter: newMockCounter()}
+	in := Inputs{Cache: mock}
+
+	_, err := New(in, map[string]any{}, slog.Default())
+	if err == nil {
+		t.Fatal("expected error when KeyFunc is nil")
+	}
+	if !errors.Is(err, ErrMissingKeyFunc) {
+		t.Fatalf("expected ErrMissingKeyFunc, got: %v", err)
 	}
 }
 
@@ -352,27 +386,23 @@ func TestWithKeyFunc(t *testing.T) {
 	}
 }
 
-func TestNew_WithDeps(t *testing.T) {
-	// Setup deps with mock cache and realip
-	deps.ResetDeps()
+func TestNew_WithInputs(t *testing.T) {
 	counter := newMockCounter()
 	mockCacheInstance := &mockCache{counter: counter}
 	realIPExtractor := realip.NewTrustedProxies(nil)
 
-	deps.SetDeps(&deps.Deps{
-		Cache:  mockCacheInstance,
-		RealIP: realIPExtractor,
-	})
-	defer deps.ResetDeps()
+	in := Inputs{
+		Cache:   mockCacheInstance,
+		KeyFunc: realIPExtractor.GetClientIPString,
+	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	// Create interceptor via New
 	conf := map[string]any{
 		"requests_per_window": int64(10),
 		"window_seconds":      30,
 	}
-	middleware, err := New(conf, logger)
+	middleware, err := New(in, conf, logger)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}

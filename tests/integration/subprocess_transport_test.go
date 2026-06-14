@@ -12,9 +12,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-// TestSubprocessTransportFollowsExtraConfigTLS guards against a subprocess
-// harness regression: the harness must derive BaseURL and the readiness probe
-// scheme from the FINAL effective config, not just the preset inputs.
+// TestSubprocessTransportFollowsExtraConfigTLS verifies subprocess harness
+// behavior: the harness must derive BaseURL and the readiness probe scheme from
+// the FINAL effective config, not just the preset inputs.
 //
 // The "dev" preset implies plain HTTP, so the preset-derived transport is http.
 // The test then overrides TLS via ExtraConfig ([tls] mode = "selfsigned"), which
@@ -35,7 +35,7 @@ func TestSubprocessTransportFollowsExtraConfigTLS(t *testing.T) {
 		KeepSignatureDefaults: true,
 		// Override the preset HTTP transport with self-signed HTTPS. The "dev"
 		// preset resolves compatibility_scope=unbounded, so selfsigned TLS is
-		// permitted by the loader guardrails.
+		// permitted by the loader compatibility requirements.
 		ExtraConfig: `
 [tls]
 mode = "selfsigned"
@@ -57,9 +57,9 @@ mode = "selfsigned"
 	}
 }
 
-// TestSubprocessDiscoveryFollowsExtraConfigTLS guards the root cause behind the
-// transport-override fix: the generated default public_origin must follow the
-// FINAL effective TLS mode, not just the preset heuristic. Discovery
+// TestSubprocessDiscoveryFollowsExtraConfigTLS verifies the root cause behind
+// the transport-override fix: the generated default public_origin must follow
+// the FINAL effective TLS mode, not just the preset heuristic. Discovery
 // (internal/services/wellknown/ocm.go) derives the advertised endPoint from
 // PublicOrigin + ExternalBasePath, so a stale HTTP public_origin would make a
 // self-signed HTTPS listener advertise an http:// discovery endpoint.

@@ -22,10 +22,11 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity/sessiongate"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // trackingService is a test service that records when Close() is called.
@@ -37,52 +38,61 @@ type trackingService struct {
 
 func (t *trackingService) Handler() http.Handler { return http.NotFoundHandler() }
 func (t *trackingService) Prefix() string        { return t.prefix }
-func (t *trackingService) Unprotected() []string { return nil }
 func (t *trackingService) Close() error {
 	*t.closeOrder = append(*t.closeOrder, t.name)
 	return nil
 }
 
-// setupTestSharedDeps sets up SharedDeps for testing and returns a cleanup function.
-func setupTestSharedDeps(t *testing.T) func() {
+func testServerDeps(t *testing.T, cfg *config.Config, logger *slog.Logger) ServerDeps {
 	t.Helper()
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		PartyRepo:   identity.NewMemoryPartyRepo(),
-		SessionRepo: identity.NewMemorySessionRepo(),
-		UserAuth:    identity.NewUserAuth(1),
-		HTTPClient:  httpclient.NewContextClient(httpclient.New(nil, nil)),
+	partyRepo := identity.NewMemoryPartyRepo()
+	sessionRepo := identity.NewMemorySessionRepo()
+	realIP := realip.NewTrustedProxies(nil)
+	return ServerDeps{
+		RealIP: realIP,
+		AuthGate: func(requireAuth func(string) bool) func(http.Handler) http.Handler {
+			return sessiongate.NewAuthGate(sessiongate.AuthGateConfig{
+				RequireAuth: requireAuth,
+				Log:         logger,
+				SessionRepo: sessionRepo,
+				PartyRepo:   partyRepo,
+				BasePath:    cfg.ExternalBasePath,
+			})
+		},
+	}
+}
+
+func TestNew_FailsWithMissingServerDeps(t *testing.T) {
+	cfg := config.DevConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	t.Run("empty deps", func(t *testing.T) {
+		_, err := New(cfg, logger, nil, ServerDeps{})
+		if err == nil {
+			t.Fatal("expected error for missing server deps")
+		}
+		if !errors.Is(err, ErrMissingRealIP) {
+			t.Errorf("expected ErrMissingRealIP, got: %v", err)
+		}
 	})
-	return func() {
-		deps.ResetDeps()
-	}
+
+	t.Run("missing auth gate", func(t *testing.T) {
+		sd := ServerDeps{RealIP: realip.NewTrustedProxies(nil)}
+		_, err := New(cfg, logger, nil, sd)
+		if err == nil {
+			t.Fatal("expected error for missing auth gate")
+		}
+		if !errors.Is(err, ErrMissingAuthGate) {
+			t.Errorf("expected ErrMissingAuthGate, got: %v", err)
+		}
+	})
 }
 
-func TestNew_FailsWithNilSharedDeps(t *testing.T) {
+func TestNew_SucceedsWithServerDeps(t *testing.T) {
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	// Ensure SharedDeps is nil
-	deps.ResetDeps()
-	defer deps.ResetDeps()
-
-	_, err := New(cfg, logger, nil)
-	if err == nil {
-		t.Fatal("expected error for nil SharedDeps")
-	}
-	if !errors.Is(err, ErrMissingSharedDeps) {
-		t.Errorf("expected ErrMissingSharedDeps, got: %v", err)
-	}
-}
-
-func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	cfg := config.DevConfig()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	cleanup := setupTestSharedDeps(t)
-	defer cleanup()
-
-	srv, err := New(cfg, logger, nil) // nil service map acceptable for tests
+	srv, err := New(cfg, logger, nil, testServerDeps(t, cfg, logger))
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
@@ -95,23 +105,16 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 	cfg := config.DevConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	cleanup := setupTestSharedDeps(t)
-	defer cleanup()
-
-	// Track close order
 	var closeOrder []string
-
-	// Create tracking services
 	svc1 := &trackingService{name: "svc1", prefix: "svc1", closeOrder: &closeOrder}
 	svc2 := &trackingService{name: "svc2", prefix: "svc2", closeOrder: &closeOrder}
 	svc3 := &trackingService{name: "svc3", prefix: "svc3", closeOrder: &closeOrder}
 
-	// Create server with services in map (mount order: ocmaux, api, ui)
 	srv, err := New(cfg, logger, map[string]service.Service{
 		"ocmaux": svc1,
 		"api":    svc2,
 		"ui":     svc3,
-	})
+	}, testServerDeps(t, cfg, logger))
 	if err != nil {
 		t.Fatalf("failed to create server: %v", err)
 	}
@@ -212,10 +215,7 @@ func TestACME_TwoListeners(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	cleanup := setupTestSharedDeps(t)
-	defer cleanup()
-
-	srv, err := New(cfg, logger, nil)
+	srv, err := New(cfg, logger, nil, testServerDeps(t, cfg, logger))
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestACME_TwoListeners(t *testing.T) {
 	}
 
 	// 4. Clean shutdown.
-	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutCtx, cancel := context.WithTimeout(context.Background(), tshttp.DefaultShutdownWait)
 	defer cancel()
 	if err := srv.Shutdown(shutCtx); err != nil {
 		t.Errorf("shutdown error: %v", err)
@@ -292,7 +292,7 @@ func TestACME_TwoListeners(t *testing.T) {
 		if sErr != nil && !errors.Is(sErr, http.ErrServerClosed) {
 			t.Errorf("unexpected Start() error: %v", sErr)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(tshttp.DefaultShutdownWait):
 		t.Error("Start() did not return after shutdown")
 	}
 }
@@ -303,14 +303,11 @@ func TestACME_MissingPorts(t *testing.T) {
 	cfg.ListenAddr = "127.0.0.1:0"
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	sd := testServerDeps(t, cfg, logger)
 
-	cleanup := setupTestSharedDeps(t)
-	defer cleanup()
-
-	// HTTPPort = 0
 	cfg.TLS.HTTPPort = 0
 	cfg.TLS.HTTPSPort = 9443
-	srv, err := New(cfg, logger, nil)
+	srv, err := New(cfg, logger, nil, sd)
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}
@@ -318,10 +315,9 @@ func TestACME_MissingPorts(t *testing.T) {
 		t.Error("expected error for zero HTTPPort")
 	}
 
-	// HTTPSPort = 0
 	cfg.TLS.HTTPPort = 9080
 	cfg.TLS.HTTPSPort = 0
-	srv, err = New(cfg, logger, nil)
+	srv, err = New(cfg, logger, nil, sd)
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}
@@ -356,10 +352,7 @@ func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
 	cfg.PublicOrigin = fmt.Sprintf("https://localhost:%d", httpsPort)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	cleanup := setupTestSharedDeps(t)
-	defer cleanup()
-
-	srv, err := New(cfg, logger, nil)
+	srv, err := New(cfg, logger, nil, testServerDeps(t, cfg, logger))
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}
@@ -374,7 +367,7 @@ func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
 		if startErr == nil {
 			t.Fatal("expected Start() to fail when HTTPS bind is blocked")
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(tshttp.DefaultShutdownWait):
 		t.Fatal("Start() did not return after HTTPS bind failure")
 	}
 

@@ -8,63 +8,25 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/deps"
 )
 
-// setupTestDeps creates minimal SharedDeps for testing.
-func setupTestDeps() {
-	deps.ResetDeps()
-	deps.SetDeps(&deps.Deps{
-		// Identity (required for api service)
-		PartyRepo:   identity.NewMemoryPartyRepo(),
-		SessionRepo: identity.NewMemorySessionRepo(),
-		UserAuth:    identity.NewUserAuthFast(),
-		// Repos
-		IncomingShareRepo:  sharesinbox.NewMemoryIncomingShareRepo(),
-		OutgoingShareRepo:  sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		OutgoingInviteRepo: invitesoutgoing.NewMemoryOutgoingInviteRepo(),
-		IncomingInviteRepo: invitesinbox.NewMemoryIncomingInviteRepo(),
-		TokenStore:         token.NewMemoryTokenStore(),
-		// Clients
-		HTTPClient:      httpclient.NewContextClient(httpclient.New(nil, nil)),
-		DiscoveryClient: discovery.NewClient(httpclient.New(nil, nil), nil),
-		// Provider identity
-		LocalProviderFQDN:           "localhost",
-		LocalProviderFQDNForCompare: "localhost",
-		// Config
-		Config: config.DevConfig(),
-	})
-}
-
-func TestNew_FailsWithoutSharedDeps(t *testing.T) {
-	deps.ResetDeps()
-
+func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	_, err := New(m, log)
+	_, err := New(Inputs{}, m, log)
 	if err == nil {
-		t.Error("expected error when SharedDeps not initialized")
+		t.Fatal("expected error when required inputs are missing")
 	}
 }
 
-func TestNew_SucceedsWithSharedDeps(t *testing.T) {
-	setupTestDeps()
+func TestNew_SucceedsWithInputs(t *testing.T) {
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,12 +37,11 @@ func TestNew_SucceedsWithSharedDeps(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
-	setupTestDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,45 +51,12 @@ func TestService_Prefix(t *testing.T) {
 	}
 }
 
-func TestService_Unprotected(t *testing.T) {
-	setupTestDeps()
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 2 {
-		t.Errorf("expected 2 unprotected paths, got %d", len(unprotected))
-	}
-
-	expectedPaths := map[string]bool{
-		"/healthz":     false,
-		"/auth/login":  false,
-	}
-	for _, p := range unprotected {
-		if _, ok := expectedPaths[p]; ok {
-			expectedPaths[p] = true
-		}
-	}
-	for p, found := range expectedPaths {
-		if !found {
-			t.Errorf("expected unprotected path %q not found", p)
-		}
-	}
-}
-
 func TestService_Handler(t *testing.T) {
-	setupTestDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -139,12 +67,11 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
-	setupTestDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -155,12 +82,11 @@ func TestService_Close(t *testing.T) {
 }
 
 func TestService_HealthzEndpoint(t *testing.T) {
-	setupTestDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -186,12 +112,11 @@ func TestService_HealthzEndpoint(t *testing.T) {
 }
 
 func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
-	setupTestDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -209,12 +134,11 @@ func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 }
 
 func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
-	setupTestDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -232,12 +156,11 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
-	setupTestDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -255,12 +178,11 @@ func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestService_AdminFederationsEndpoint_NotImplemented(t *testing.T) {
-	setupTestDeps()
 
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(m, log)
+	svc, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -277,7 +199,6 @@ func TestService_AdminFederationsEndpoint_NotImplemented(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
-	setupTestDeps()
 
 	var logBuf testLogBuffer
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -286,7 +207,7 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 		"unknown_key": "value",
 	}
 
-	_, err := New(m, log)
+	_, err := New(testAPIInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

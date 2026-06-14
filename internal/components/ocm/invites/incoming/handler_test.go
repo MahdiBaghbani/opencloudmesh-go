@@ -13,22 +13,22 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 const (
-	testProvider     = "example.com"
-	testPublicOrigin = "https://example.com"
+	testProvider = "example.com"
+	testScheme   = "https"
 )
 
 func newTestHandler(repo *invitesoutgoing.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
-	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testPublicOrigin, testLogger)
+	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testScheme, testLogger)
 }
 
 func postInviteAccepted(handler *incoming.Handler, body string) *httptest.ResponseRecorder {
@@ -143,7 +143,7 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-email-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // legacy
+		CreatedByUserID: "", // no creator user id
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
@@ -163,7 +163,7 @@ func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-name-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // legacy
+		CreatedByUserID: "", // no creator user id
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
@@ -247,7 +247,7 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 	body := validAcceptedBody("trust-token")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	peerCtx := context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+	peerCtx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           "attacker.com",
 		AuthorityForCompare: "attacker.com",
 		Authenticated:       true,
@@ -357,36 +357,36 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 	}
 }
 
-func TestHandleInviteAccepted_LegacyInvite_PlaceholderIdentity(t *testing.T) {
+func TestHandleInviteAccepted_EmptyCreator_PlaceholderIdentity(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 	invite := &invitesoutgoing.OutgoingInvite{
-		Token:           "legacy-token",
+		Token:           "empty-creator-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // legacy
+		CreatedByUserID: "", // no creator user id
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
 	repo.Create(context.Background(), invite)
 
-	w := postInviteAccepted(handler, `{"token":"legacy-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
+	w := postInviteAccepted(handler, `{"token":"empty-creator-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for legacy backfill, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 200 for empty-creator placeholder identity, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var resp spec.InviteAcceptedResponse
 	json.NewDecoder(w.Body).Decode(&resp)
 	expectedUserID := address.EncodeFederatedOpaqueID("unknown", testProvider)
 	if resp.UserID != expectedUserID {
-		t.Errorf("userID = %q, want %q (placeholder for legacy)", resp.UserID, expectedUserID)
+		t.Errorf("userID = %q, want %q (placeholder for empty creator)", resp.UserID, expectedUserID)
 	}
 	if resp.Email != "" {
-		t.Errorf("email = %q, want empty (legacy backfill)", resp.Email)
+		t.Errorf("email = %q, want empty (empty-creator placeholder)", resp.Email)
 	}
 	if resp.Name != "" {
-		t.Errorf("name = %q, want empty (legacy backfill)", resp.Name)
+		t.Errorf("name = %q, want empty (empty-creator placeholder)", resp.Name)
 	}
 }
 
@@ -412,7 +412,7 @@ func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 	body := `{"recipientProvider":"other.com:443","token":"empty-origin-token","userID":"u@host","email":"e","name":"n"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	peerCtx := context.WithValue(req.Context(), crypto.PeerIdentityKey, &crypto.PeerIdentity{
+	peerCtx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           "other.com",
 		AuthorityForCompare: "other.com",
 		Authenticated:       true,

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -204,7 +205,7 @@ outbound_mode = "off"
 	select {
 	case <-exitDone:
 		shutdownDone = true
-	case <-time.After(5 * time.Second):
+	case <-time.After(tshttp.DefaultShutdownWait):
 		cmd.Process.Kill()
 		<-exitDone
 		shutdownDone = true

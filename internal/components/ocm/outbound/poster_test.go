@@ -46,7 +46,7 @@ func newTestSigner(t *testing.T) *crypto.RFC9421Signer {
 
 // httpSigDiscovery returns a discovery document that advertises the http-sig
 // capability and a public key. This is exactly the shape that used to trigger
-// the legacy capability-based signing fallback when no outbound policy was set.
+// the removed capability-based signing fallback when no outbound policy was set.
 func httpSigDiscovery() *discovery.Discovery {
 	return &discovery.Discovery{
 		EndPoint:     "https://peer.example/ocm",
@@ -90,8 +90,8 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 	}
 }
 
-// TestSendResolved_NilPolicyDoesNotSign is the regression for removing the
-// legacy capability-based signing fallback. Even with a signer available and a
+// TestSendResolved_NilPolicyDoesNotSign is the regression test for the removed
+// capability-based signing fallback. Even with a signer available and a
 // peer advertising http-sig plus a public key (the old fallback trigger), a nil
 // outbound policy must send the request unsigned.
 func TestSendResolved_NilPolicyDoesNotSign(t *testing.T) {
