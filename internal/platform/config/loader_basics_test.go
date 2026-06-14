@@ -305,7 +305,7 @@ func TestCompatConfig(t *testing.T) {
 
 // TestDevConfig_DerivesFromStrict pins the behavior-preserving contract for
 // DevConfig now that it overlays StrictConfig. It checks every dev-specific
-// delta, confirms shared defaults stay inherited from strict, and guards
+// delta, confirms shared defaults stay inherited from strict, and checks
 // against token-exchange pointer aliasing across separate preset calls.
 func TestDevConfig_DerivesFromStrict(t *testing.T) {
 	dev := DevConfig()
@@ -380,7 +380,7 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		t.Fatal("expected dev token_exchange.enabled pointer to be non-nil true")
 	}
 
-	// Guard against pointer aliasing: separate preset calls must own distinct
+	// Prevent pointer aliasing: separate preset calls must own distinct
 	// pointers so mutating one config never leaks into another.
 	if dev.TokenExchange.Enabled == strict.TokenExchange.Enabled {
 		t.Error("dev and strict share the same token_exchange.enabled pointer")

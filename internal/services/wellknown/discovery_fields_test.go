@@ -36,7 +36,7 @@ func discoveryResolveInputs(cfg *config.Config) resolve.ResolveInputs {
 
 func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	cfg := config.DevConfig()
-	cfg.PublicOrigin = "http://snapshot.test"
+	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
 	cfg.Signature.InboundMode = "off"
 	cfg.Signature.OutboundMode = "off"
@@ -64,10 +64,10 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	if !disc.Enabled {
 		t.Fatal("expected enabled discovery")
 	}
-	if disc.EndPoint != "http://snapshot.test/ocm" {
+	if disc.EndPoint != "http://fields.test/ocm" {
 		t.Errorf("EndPoint = %q", disc.EndPoint)
 	}
-	if disc.TokenEndPoint != "http://snapshot.test/ocm/token" {
+	if disc.TokenEndPoint != "http://fields.test/ocm/token" {
 		t.Errorf("TokenEndPoint = %q", disc.TokenEndPoint)
 	}
 	if disc.ResourceTypes[0].Protocols["webdav"] != "/webdav/ocm/" {
@@ -80,7 +80,7 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 
 func TestDiscoveryFields_BasePathMount(t *testing.T) {
 	cfg := config.DevConfig()
-	cfg.PublicOrigin = "http://snapshot.test"
+	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = "/ocm"
 	cfg.Signature.InboundMode = "off"
 	cfg.Signature.OutboundMode = "off"
@@ -101,10 +101,10 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 		t.Fatalf("decode response: %v", err)
 	}
 
-	if disc.EndPoint != "http://snapshot.test/ocm/ocm" {
+	if disc.EndPoint != "http://fields.test/ocm/ocm" {
 		t.Errorf("EndPoint = %q", disc.EndPoint)
 	}
-	if disc.TokenEndPoint != "http://snapshot.test/ocm/ocm/token" {
+	if disc.TokenEndPoint != "http://fields.test/ocm/ocm/token" {
 		t.Errorf("TokenEndPoint = %q", disc.TokenEndPoint)
 	}
 	if disc.ResourceTypes[0].Protocols["webdav"] != "/ocm/webdav/ocm/" {
@@ -114,7 +114,7 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 
 func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 	cfg := config.DevConfig()
-	cfg.PublicOrigin = "http://snapshot.test"
+	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
 	cfg.Signature.InboundMode = "off"
 	cfg.Signature.OutboundMode = "off"

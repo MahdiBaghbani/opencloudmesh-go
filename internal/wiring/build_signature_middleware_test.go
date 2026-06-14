@@ -10,7 +10,7 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func TestSignatureMiddlewareParity_SkipGatesConstruction(t *testing.T) {
+func TestSignatureMiddlewareSkip_GatesConstruction(t *testing.T) {
 	t.Run("SkipSignatureMiddleware=true produces nil middleware", func(t *testing.T) {
 		result, err := wiring.Build(
 			tscfg.DevConfigNoSignatures(18086),

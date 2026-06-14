@@ -22,7 +22,7 @@ func strictSSRFCfg(port int) *config.Config {
 	return cfg
 }
 
-func TestOutboundParity_OverrideAffectsSSRF(t *testing.T) {
+func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -65,7 +65,7 @@ func TestOutboundParity_OverrideAffectsSSRF(t *testing.T) {
 	})
 }
 
-func TestOutboundParity_OverrideHonorsTLSRoots(t *testing.T) {
+func TestOutboundOverride_HonorsTLSRoots(t *testing.T) {
 	cfg := tscfg.DevConfigNoSignatures(18092)
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
@@ -75,7 +75,7 @@ func TestOutboundParity_OverrideHonorsTLSRoots(t *testing.T) {
 	}
 }
 
-func TestOutboundParity_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
+func TestOutbound_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
 	cfg := tscfg.DevConfigNoSignatures(18093)
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 

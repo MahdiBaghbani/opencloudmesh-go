@@ -10,7 +10,7 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func TestDiscoveryCacheParity_SkipDiscoveryCacheWiresClient(t *testing.T) {
+func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 	t.Run("SkipDiscoveryCache=true wires NoopCache to discovery client", func(t *testing.T) {
 		result, err := wiring.Build(
 			tscfg.DevConfigNoSignatures(18088),

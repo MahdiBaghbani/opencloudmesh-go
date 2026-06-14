@@ -8,9 +8,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 )
 
-// TestCoreServiceNamesMatchesCoreServices guards parity between the wiring
-// table and service.CoreServices. Lives in service_test to avoid an import
-// cycle (wiring imports service).
+// TestCoreServiceNamesMatchesCoreServices verifies the wiring table matches
+// service.CoreServices. Lives in service_test to avoid an import cycle (wiring
+// imports service).
 func TestCoreServiceNamesMatchesCoreServices(t *testing.T) {
 	if !slices.Equal(wiring.CoreServiceNames(), service.CoreServices) {
 		t.Errorf(
@@ -21,8 +21,8 @@ func TestCoreServiceNamesMatchesCoreServices(t *testing.T) {
 	}
 }
 
-// TestCoreServiceBuildersCoverDescriptors guards that every descriptor build
-// key has a wiring builder and that no orphan builders exist.
+// TestCoreServiceBuildersCoverDescriptors verifies every descriptor build key
+// has a wiring builder and that no orphan builders exist.
 func TestCoreServiceBuildersCoverDescriptors(t *testing.T) {
 	descs := service.Descriptors()
 	registered := make(map[service.BuildKey]struct{}, len(wiring.RegisteredBuildKeys()))

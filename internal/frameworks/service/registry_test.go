@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-// TestAppServicesParity guards the core-service parity contract: the root
-// service plus the app services must exactly reconstruct CoreServices, in
-// order. This prevents silent drift between service construction and route
-// mounting when a core service is added, removed, or renamed.
-func TestAppServicesParity(t *testing.T) {
+// TestAppServicesMatchCoreServicesMinusRoot verifies the root service plus app
+// services exactly reconstruct CoreServices in order. This prevents silent drift
+// between service construction and route mounting when a core service is added,
+// removed, or renamed.
+func TestAppServicesMatchCoreServicesMinusRoot(t *testing.T) {
 	if !slices.Contains(CoreServices, RootService) {
 		t.Fatalf("RootService %q is not present in CoreServices %v", RootService, CoreServices)
 	}
@@ -36,7 +36,7 @@ func TestAppServicesParity(t *testing.T) {
 	}
 }
 
-// TestDescriptorsDerivedViews guards that CoreServices stay aligned with the
+// TestDescriptorsDerivedViews verifies CoreServices stay aligned with the
 // canonical descriptor table.
 func TestDescriptorsDerivedViews(t *testing.T) {
 	descs := Descriptors()

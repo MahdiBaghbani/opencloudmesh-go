@@ -23,13 +23,13 @@ func TestRepoContract(t *testing.T) {
 	}
 }
 
-// TestDurableDriverSurfaceParity is an explicit guard that json, sqlite, and
-// mirror each expose all four app repo interfaces and that every required list
+// TestDurableDriversExposeAllRepoInterfaces verifies json, sqlite, and mirror
+// each expose all four app repo interfaces and that every required list
 // operation is callable without error. repos.New returns an error if the
 // underlying store driver does not implement the fullStore union (via
 // type-assertion in newDurableRepos); this test makes that assertion visible
 // and also smoke-tests each list operation to confirm it is wired correctly.
-func TestDurableDriverSurfaceParity(t *testing.T) {
+func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
@@ -58,13 +58,13 @@ func TestDurableDriverSurfaceParity(t *testing.T) {
 			if _, err := r.OutgoingShares.List(ctx); err != nil {
 				t.Errorf("OutgoingShares.List on empty store: %v", err)
 			}
-			if _, err := r.IncomingShares.ListByRecipientUserID(ctx, "parity-user"); err != nil {
+			if _, err := r.IncomingShares.ListByRecipientUserID(ctx, "contract-user"); err != nil {
 				t.Errorf("IncomingShares.ListByRecipientUserID on empty store: %v", err)
 			}
 			if _, err := r.OutgoingInvites.List(ctx); err != nil {
 				t.Errorf("OutgoingInvites.List on empty store: %v", err)
 			}
-			if _, err := r.IncomingInvites.ListByRecipientUserID(ctx, "parity-user"); err != nil {
+			if _, err := r.IncomingInvites.ListByRecipientUserID(ctx, "contract-user"); err != nil {
 				t.Errorf("IncomingInvites.ListByRecipientUserID on empty store: %v", err)
 			}
 		})

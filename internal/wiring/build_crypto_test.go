@@ -10,7 +10,7 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func TestCryptoParity_SkipCryptoGatesDeps(t *testing.T) {
+func TestCryptoSkip_GatesDeps(t *testing.T) {
 	t.Run("SkipCrypto=true produces nil crypto deps", func(t *testing.T) {
 		cfg := tscfg.DevConfigHarness(18082)
 

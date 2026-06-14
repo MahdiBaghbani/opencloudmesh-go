@@ -48,10 +48,10 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 }
 
-// TestHealthEndpointWithExternalBasePath guards against a harness readiness
-// regression: when external_base_path is set, app endpoints (including
-// /api/healthz) mount under that prefix, so in-process startup must not
-// falsely fail by probing the bare root /api/healthz.
+// TestHealthEndpointWithExternalBasePath verifies harness readiness when
+// external_base_path is set: app endpoints (including /api/healthz) mount under
+// that prefix, so in-process startup must not falsely fail by probing the bare
+// root /api/healthz.
 func TestHealthEndpointWithExternalBasePath(t *testing.T) {
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.ExternalBasePath = "/ocm"
@@ -101,8 +101,8 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 	}
 }
 
-// TestBaseURLTracksListenerNotPublicOrigin guards against a harness regression:
-// when a test patches cfg.PublicOrigin to an advertised origin, the server still
+// TestBaseURLTracksListenerNotPublicOrigin verifies harness behavior when a
+// test patches cfg.PublicOrigin to an advertised origin: the server still
 // listens on the ephemeral local port. TestServer.BaseURL must remain the real
 // local request target (localhost:<allocated port>) so local test traffic and
 // readiness probing keep working regardless of the advertised origin.

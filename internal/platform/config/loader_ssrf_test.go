@@ -207,7 +207,7 @@ func TestLoad_SSRF_NoneScope_StrictWithValidRoutePolicy_Loads(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	// strict preset satisfies all compatibility_scope=none guardrails, so
+	// strict preset satisfies all compatibility_scope=none requirements, so
 	// a valid route policy under mode=strict must load without error.
 	tomlContent := configfixture.NoneScopeBase() +
 		configfixture.SSRFStrictWithPolicy("internal") +
@@ -398,7 +398,7 @@ func TestLoad_SSRF_NoneScope_RoutePolicyWithInvalidPort_Fails(t *testing.T) {
 	}
 }
 
-func TestSSRFRoutePolicyGuardrails_BlankHostSuffix_NoneScope(t *testing.T) {
+func TestSSRFRoutePolicy_BlankHostSuffix_NoneScope(t *testing.T) {
 	tests := []struct {
 		name     string
 		suffixes string
@@ -440,7 +440,7 @@ allow_ip_literals = false
 	}
 }
 
-func TestSSRFRoutePolicyGuardrails_BlankHostSuffix_ScopedScope(t *testing.T) {
+func TestSSRFRoutePolicy_BlankHostSuffix_ScopedScope(t *testing.T) {
 	tests := []struct {
 		name     string
 		suffixes string

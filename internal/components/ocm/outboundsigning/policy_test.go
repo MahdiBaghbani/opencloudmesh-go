@@ -288,8 +288,8 @@ func TestOutboundPolicy_Strict_PeerProfileOverrideAll(t *testing.T) {
 	}
 }
 
-func TestOutboundPolicy_Strict_CriteriaGuardrail(t *testing.T) {
-	// Test the guardrail: AllowUnsignedOutbound must not override peer's criteria requirement
+func TestOutboundPolicy_Strict_CriteriaRequirementOverridesAllowUnsigned(t *testing.T) {
+	// AllowUnsignedOutbound must not override a peer's criteria requirement.
 	profiles := map[string]*peercompat.Profile{
 		"compat": {
 			Name:                  "compat",

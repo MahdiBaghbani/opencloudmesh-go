@@ -18,7 +18,7 @@ func peerTrustCfg(port int) *config.Config {
 	return cfg
 }
 
-func TestPeerTrustParity_SkipPeerTrustGatesDeps(t *testing.T) {
+func TestPeerTrustSkip_GatesDeps(t *testing.T) {
 	t.Run("SkipPeerTrust=true with PeerTrust.Enabled=true produces nil trust deps", func(t *testing.T) {
 		opts := harnessBuildOpts()
 		result, err := wiring.Build(peerTrustCfg(18084), tslog.DiscardLogger(), opts)

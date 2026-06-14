@@ -10,7 +10,7 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func TestOptionsParity_HarnessOptionsBootstrapSucceeds(t *testing.T) {
+func TestOptions_HarnessBootstrapSucceeds(t *testing.T) {
 	cfg := tscfg.DevConfigHarness(18080)
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
@@ -22,7 +22,7 @@ func TestOptionsParity_HarnessOptionsBootstrapSucceeds(t *testing.T) {
 	_ = result.RuntimeEval
 }
 
-func TestOptionsParity_ProductionOptionsBootstrapSucceeds(t *testing.T) {
+func TestOptions_ProductionBootstrapSucceeds(t *testing.T) {
 	cfg := tscfg.DevConfigNoSignatures(18081)
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), wiring.BuildOpts{})

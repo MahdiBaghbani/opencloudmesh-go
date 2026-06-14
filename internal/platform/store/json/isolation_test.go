@@ -329,7 +329,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 }
 
 // TestJSONOutgoingInviteIsolation is a regression test for the pointer-aliasing
-// guard in the outgoing invite persistence path.
+// check in the outgoing invite persistence path.
 //
 // Verifies:
 //  1. Create clones input: post-create mutation of the caller's pointer does

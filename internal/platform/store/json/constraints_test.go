@@ -121,7 +121,7 @@ func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 		t.Errorf("expected 0 invites for bob, got %d", len(got))
 	}
 
-	// Empty string must return empty, not all invites (wildcard guard).
+	// Empty string must return empty, not all invites (wildcard rejection).
 	got, err = inStore.ListIncomingInvites(ctx, "")
 	if err != nil {
 		t.Fatalf("ListIncomingInvites(empty): %v", err)

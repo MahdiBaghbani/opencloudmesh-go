@@ -90,7 +90,7 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 	}
 }
 
-// TestSendResolved_NilPolicyDoesNotSign is the regression guard for the removed
+// TestSendResolved_NilPolicyDoesNotSign is the regression test for the removed
 // capability-based signing fallback. Even with a signer available and a
 // peer advertising http-sig plus a public key (the old fallback trigger), a nil
 // outbound policy must send the request unsigned.

@@ -106,7 +106,7 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 			name: "none-scope allow_mismatch contradiction rejected before startup",
 			mutate: func(cfg *config.Config) {
 				// scope=none with signature.allow_mismatch=true is a static
-				// contradiction the posture-only guard does not catch.
+				// contradiction the posture-only validation does not catch.
 				cfg.CompatibilityScope = "none"
 				cfg.Signature.AllowMismatch = true
 			},
@@ -134,7 +134,7 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// StrictConfig is compatibility_scope=none and satisfies the
-			// none-scope guardrails, giving each case a valid starting point.
+			// none-scope compatibility requirements, giving each case a valid starting point.
 			cfg := config.StrictConfig()
 			tc.mutate(cfg)
 			err := validatePreBootstrapStartup(cfg)
