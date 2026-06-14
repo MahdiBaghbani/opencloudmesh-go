@@ -7,8 +7,8 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 )
 
-func TestRouteGroups_FromDerivedProjection(t *testing.T) {
-	groups := GetRouteGroups()
+func TestMountSpecs_FromDerivedProjection(t *testing.T) {
+	groups := GetMountSpecs()
 	if len(groups) == 0 {
 		t.Fatal("expected derived route groups")
 	}

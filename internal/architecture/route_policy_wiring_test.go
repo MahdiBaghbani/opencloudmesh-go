@@ -11,14 +11,14 @@ func TestRoutePolicyProjections_DerivedFromRoutes(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	routes := service.Routes(opts)
 	authRows := service.DerivedAuthRows(opts)
-	groups := service.DerivedRouteGroups(opts)
+	groups := service.DerivedMountSpecs(opts)
 	inventory := service.DerivedRouteInventory(opts)
 
 	if len(authRows) != len(routes) {
 		t.Fatalf("DerivedAuthRows count = %d, Routes count = %d", len(authRows), len(routes))
 	}
 	if len(groups) == 0 {
-		t.Fatal("DerivedRouteGroups returned no groups")
+		t.Fatal("DerivedMountSpecs returned no mount specs")
 	}
 	if len(inventory) == 0 {
 		t.Fatal("DerivedRouteInventory returned no product routes")

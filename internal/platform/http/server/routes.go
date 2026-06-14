@@ -18,13 +18,13 @@ type RouteGroup struct {
 	AtHostRoot   bool
 }
 
-func GetRouteGroups() []RouteGroup {
+func GetMountSpecs() []RouteGroup {
 	opts := service.DefaultRouteOpts()
-	return routeGroupsFromDerived(opts)
+	return mountSpecsFromDerived(opts)
 }
 
-func routeGroupsFromDerived(opts service.RouteOpts) []RouteGroup {
-	specs := service.DerivedRouteGroups(opts)
+func mountSpecsFromDerived(opts service.RouteOpts) []RouteGroup {
+	specs := service.DerivedMountSpecs(opts)
 	groups := make([]RouteGroup, len(specs))
 	for i, spec := range specs {
 		groups[i] = RouteGroup{

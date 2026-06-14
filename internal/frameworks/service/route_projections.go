@@ -27,8 +27,8 @@ type DerivedRouteGroup struct {
 	AtHostRoot   bool
 }
 
-// DerivedRouteGroups projects coarse route groups from Routes(opts).
-func DerivedRouteGroups(opts RouteOpts) []DerivedRouteGroup {
+// DerivedMountSpecs projects coarse mount subtrees from Routes(opts).
+func DerivedMountSpecs(opts RouteOpts) []DerivedRouteGroup {
 	rows := Routes(opts)
 	out := make([]DerivedRouteGroup, 0, len(rows))
 	for _, row := range rows {

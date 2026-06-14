@@ -141,10 +141,10 @@ func TestDerivedAuthRows_ProjectsFromRoutes(t *testing.T) {
 	}
 }
 
-func TestDerivedRouteGroups_ProjectsFromRoutes(t *testing.T) {
+func TestDerivedMountSpecs_ProjectsFromRoutes(t *testing.T) {
 	opts := service.DefaultRouteOpts()
 	rows := service.Routes(opts)
-	groups := service.DerivedRouteGroups(opts)
+	groups := service.DerivedMountSpecs(opts)
 	if len(groups) == 0 {
 		t.Fatal("expected derived route groups")
 	}
