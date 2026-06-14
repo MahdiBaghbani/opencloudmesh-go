@@ -38,7 +38,6 @@ type trackingService struct {
 
 func (t *trackingService) Handler() http.Handler { return http.NotFoundHandler() }
 func (t *trackingService) Prefix() string        { return t.prefix }
-func (t *trackingService) Unprotected() []string { return nil }
 func (t *trackingService) Close() error {
 	*t.closeOrder = append(*t.closeOrder, t.name)
 	return nil

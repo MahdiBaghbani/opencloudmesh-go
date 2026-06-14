@@ -51,43 +51,6 @@ func TestService_Prefix(t *testing.T) {
 	}
 }
 
-func TestService_Unprotected(t *testing.T) {
-	svc, err := New(Inputs{}, map[string]any{}, testLog())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 1 {
-		t.Errorf("expected 1 unprotected path, got %d", len(unprotected))
-	}
-	if len(unprotected) > 0 && unprotected[0] != "/login" {
-		t.Errorf("expected unprotected path '/login', got %q", unprotected[0])
-	}
-}
-
-func TestService_Unprotected_WayfEnabled(t *testing.T) {
-	m := map[string]any{
-		"wayf": map[string]any{"enabled": true},
-	}
-	svc, err := New(Inputs{}, m, testLog())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	unprotected := svc.Unprotected()
-	expected := map[string]bool{"/login": false, "/wayf": false}
-	for _, p := range unprotected {
-		if _, ok := expected[p]; !ok {
-			t.Errorf("unexpected unprotected path %q", p)
-		}
-		expected[p] = true
-	}
-	for p, found := range expected {
-		if !found {
-			t.Errorf("expected unprotected path %q not found", p)
-		}
-	}
-}
-
 func TestService_Handler(t *testing.T) {
 	svc, err := New(Inputs{}, map[string]any{}, testLog())
 	if err != nil {

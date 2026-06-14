@@ -6,6 +6,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
+	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 )
 
 // FixtureBuildOpts mirrors wiring.BuildOpts for harness fixtures without
@@ -33,49 +34,14 @@ var HarnessWireOptions = FixtureBuildOpts{
 // ProductionWireOptions is the main.go zero-value bootstrap path.
 var ProductionWireOptions = FixtureBuildOpts{}
 
-// ServiceUnprotectedPaths names a service and its default Unprotected() paths.
-type ServiceUnprotectedPaths struct {
-	Service string
-	Paths   []string
-}
+// ExpectedRouteOpts captures default DevConfig route-policy inputs.
+var ExpectedRouteOpts = tsrouting.DevOpts()
 
-// unprotectedPathExpectations holds default DevConfig Unprotected() path lists
-// keyed by descriptor service name. Service names and order come from
-// service.Descriptors().
-var unprotectedPathExpectations = map[string][]string{
-	"wellknown": {
-		"/.well-known/ocm", "/.well-known/ocm/", "/ocm-provider", "/ocm-provider/",
-	},
-	"ocm":    {"/shares", "/notifications", "/invite-accepted", "/token"},
-	"ocmaux": {"/federations", "/discover"},
-	"api":    {"/healthz", "/auth/login"},
-	"ui":     {"/login"},
-	"webdav": {"/ocm"},
-}
+// ExpectedPublicSessionPaths lists default DevConfig public session paths from
+// the route-policy aggregate.
+var ExpectedPublicSessionPaths = tsrouting.PublicSessionPaths(ExpectedRouteOpts)
 
-// ExpectedUnprotectedSets captures default DevConfig Unprotected() declarations
-// in descriptor order.
-var ExpectedUnprotectedSets = buildExpectedUnprotectedSets()
-
-func buildExpectedUnprotectedSets() []ServiceUnprotectedPaths {
-	descs := service.Descriptors()
-	out := make([]ServiceUnprotectedPaths, 0, len(descs))
-	seen := make(map[string]struct{}, len(descs))
-	for _, d := range descs {
-		paths, ok := unprotectedPathExpectations[d.Name]
-		if !ok {
-			panic("missing unprotected path expectations for descriptor " + d.Name)
-		}
-		seen[d.Name] = struct{}{}
-		out = append(out, ServiceUnprotectedPaths{
-			Service: d.Name,
-			Paths:   paths,
-		})
-	}
-	for name := range unprotectedPathExpectations {
-		if _, ok := seen[name]; !ok {
-			panic("stale unprotected path expectations for removed descriptor " + name)
-		}
-	}
-	return out
+// RouteOptsForConfig derives route opts the same way the HTTP server does.
+func RouteOptsForConfig(cfg *config.Config) service.RouteOpts {
+	return service.RouteOptsFromConfig(cfg)
 }

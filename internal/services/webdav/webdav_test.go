@@ -82,20 +82,6 @@ func TestService_Prefix(t *testing.T) {
 	}
 }
 
-func TestService_Unprotected(t *testing.T) {
-	svc, err := New(testWebDAVInputs(), map[string]any{}, testLog())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 1 {
-		t.Errorf("expected 1 unprotected path, got %d", len(unprotected))
-	}
-	if len(unprotected) > 0 && unprotected[0] != "/ocm" {
-		t.Errorf("expected unprotected path '/ocm', got %q", unprotected[0])
-	}
-}
-
 func TestService_Handler(t *testing.T) {
 	svc, err := New(testWebDAVInputs(), map[string]any{}, testLog())
 	if err != nil {
@@ -118,8 +104,7 @@ func TestService_Close(t *testing.T) {
 
 // Note: Endpoint-level tests for webdav behavior are in internal/webdav/webdav_test.go.
 // The service-level tests here focus on the registry service interface (New, Prefix,
-// Unprotected, Handler, Close) and config handling.
-// Full end-to-end tests with proper path handling are in tests/integration/.
+// Handler, Close) and config handling.
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	var logBuf testLogBuffer

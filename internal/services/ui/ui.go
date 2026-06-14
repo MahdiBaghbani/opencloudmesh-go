@@ -29,10 +29,9 @@ func (c *Config) ApplyDefaults() {}
 
 // Service is the UI service.
 type Service struct {
-	router      chi.Router
-	conf        *Config
-	log         *slog.Logger
-	wayfEnabled bool
+	router chi.Router
+	conf   *Config
+	log    *slog.Logger
 }
 
 // New creates a new UI service from narrow injected inputs.
@@ -54,17 +53,17 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	r := chi.NewRouter()
-	r.Get("/login", uiHandler.Login)
-	r.Get("/inbox", uiHandler.Inbox)
-	r.Get("/outgoing", uiHandler.Outgoing)
+	r.Get(RouteLogin, uiHandler.Login)
+	r.Get(RouteInbox, uiHandler.Inbox)
+	r.Get(RouteOutgoing, uiHandler.Outgoing)
 
 	if c.Wayf.Enabled {
-		r.Get("/wayf", uiHandler.Wayf)
-		r.Get("/accept-invite", uiHandler.AcceptInvite)
+		r.Get(RouteWAYF, uiHandler.Wayf)
+		r.Get(RouteAcceptInvite, uiHandler.AcceptInvite)
 		log.Info("WAYF UI enabled", "wayf_path", "/ui/wayf", "accept_invite_path", "/ui/accept-invite")
 	}
 
-	return &Service{router: r, conf: &c, log: log, wayfEnabled: c.Wayf.Enabled}, nil
+	return &Service{router: r, conf: &c, log: log}, nil
 }
 
 func (s *Service) Handler() http.Handler {
@@ -73,13 +72,6 @@ func (s *Service) Handler() http.Handler {
 
 func (s *Service) Prefix() string {
 	return "ui"
-}
-
-func (s *Service) Unprotected() []string {
-	if s.wayfEnabled {
-		return []string{"/login", "/wayf"}
-	}
-	return []string{"/login"}
 }
 
 func (s *Service) Close() error {

@@ -28,11 +28,6 @@ func TestNew_SucceedsWithResolveInputs(t *testing.T) {
 	if svc.Prefix() != "" {
 		t.Errorf("expected empty prefix, got %q", svc.Prefix())
 	}
-
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 4 {
-		t.Fatalf("expected 4 unprotected paths, got %d: %v", len(unprotected), unprotected)
-	}
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
@@ -101,37 +96,6 @@ func TestService_Close(t *testing.T) {
 
 	if err := svc.Close(); err != nil {
 		t.Errorf("unexpected error on Close: %v", err)
-	}
-}
-
-func TestService_UnprotectedPaths(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
-	}
-
-	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	expected := map[string]bool{
-		"/.well-known/ocm":  false,
-		"/.well-known/ocm/": false,
-		"/ocm-provider":     false,
-		"/ocm-provider/":    false,
-	}
-	for _, p := range svc.Unprotected() {
-		if _, ok := expected[p]; ok {
-			expected[p] = true
-		}
-	}
-	for p, found := range expected {
-		if !found {
-			t.Errorf("expected unprotected path %q not found", p)
-		}
 	}
 }
 

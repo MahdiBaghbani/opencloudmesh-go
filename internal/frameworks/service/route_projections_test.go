@@ -1,0 +1,106 @@
+package service
+
+import "testing"
+
+func TestPathMatchesRoute(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		pattern string
+		want    bool
+	}{
+		{
+			name:    "exact match",
+			path:    "/api/healthz",
+			pattern: "/api/healthz",
+			want:    true,
+		},
+		{
+			name:    "wildcard child path ocm subtree",
+			path:    "/ocm/foo",
+			pattern: "/ocm/*",
+			want:    true,
+		},
+		{
+			name:    "wildcard child path",
+			path:    "/webdav/ocm/foo",
+			pattern: "/webdav/ocm/*",
+			want:    true,
+		},
+		{
+			name:    "wildcard prefix only",
+			path:    "/webdav/ocm",
+			pattern: "/webdav/ocm/*",
+			want:    true,
+		},
+		{
+			name:    "param segment",
+			path:    "/api/inbox/shares/abc",
+			pattern: "/api/inbox/shares/{shareId}",
+			want:    true,
+		},
+		{
+			name:    "param nested suffix",
+			path:    "/api/inbox/shares/abc/accept",
+			pattern: "/api/inbox/shares/{shareId}/accept",
+			want:    true,
+		},
+		{
+			name:    "prefix must not match longer sibling segment",
+			path:    "/apiextra",
+			pattern: "/api",
+			want:    false,
+		},
+		{
+			name:    "prefix child path",
+			path:    "/api/inbox/shares",
+			pattern: "/api/inbox/shares",
+			want:    true,
+		},
+		{
+			name:    "trailing slash does not extend to sibling prefix",
+			path:    "/api/",
+			pattern: "/api/inbox/shares",
+			want:    false,
+		},
+		{
+			name:    "unrelated path",
+			path:    "/other/path",
+			pattern: "/api/inbox/shares/{shareId}",
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := pathMatchesRoute(tt.path, tt.pattern)
+			if got != tt.want {
+				t.Errorf("pathMatchesRoute(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSessionAuthChecker_MatchesSessionAuthRequiredForPath(t *testing.T) {
+	opts := DefaultRouteOpts()
+	checker := NewSessionAuthChecker(opts)
+
+	paths := []string{
+		"/.well-known/ocm",
+		"/api/healthz",
+		"/api/auth/login",
+		"/api/inbox/shares",
+		"/api/inbox/shares/abc",
+		"/webdav/ocm/somefile",
+		"/ui/dashboard",
+		"/unknown/path",
+	}
+
+	for _, path := range paths {
+		got := checker.Required(path)
+		want := SessionAuthRequiredForPath(path, opts)
+		if got != want {
+			t.Errorf("checker.Required(%q) = %v, SessionAuthRequiredForPath = %v", path, got, want)
+		}
+	}
+}

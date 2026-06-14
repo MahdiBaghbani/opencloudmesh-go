@@ -116,4 +116,3 @@ type descriptorStub struct {
 func (s *descriptorStub) Handler() http.Handler { return nil }
 func (s *descriptorStub) Prefix() string        { return s.prefix }
 func (s *descriptorStub) Close() error          { return nil }
-func (s *descriptorStub) Unprotected() []string { return nil }

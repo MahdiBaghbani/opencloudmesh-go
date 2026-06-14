@@ -31,8 +31,7 @@ func ValidatePreBootstrap(cfg *config.Config) error {
 
 // ValidateBuiltServices checks built services match the descriptor table:
 // counts align, every descriptor has a non-nil built service with matching
-// Prefix(), each descriptor declares at least one route group, and no extra
-// built services exist without descriptors.
+// Prefix(), and no extra built services exist without descriptors.
 func ValidateBuiltServices(services map[string]Service) error {
 	if len(services) < len(descriptors) {
 		return fmt.Errorf(
@@ -48,9 +47,6 @@ func ValidateBuiltServices(services map[string]Service) error {
 		}
 		if svc == nil {
 			return fmt.Errorf("built service %q is nil", want.Name)
-		}
-		if len(want.RouteGroups) == 0 {
-			return fmt.Errorf("descriptor %q has no route groups", want.Name)
 		}
 		if got := svc.Prefix(); got != want.Prefix {
 			return fmt.Errorf(

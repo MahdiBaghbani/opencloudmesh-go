@@ -36,8 +36,8 @@ func TestAppServicesParity(t *testing.T) {
 	}
 }
 
-// TestDescriptorsDerivedViews guards that CoreServices and route metadata stay
-// aligned with the canonical descriptor table.
+// TestDescriptorsDerivedViews guards that CoreServices stay aligned with the
+// canonical descriptor table.
 func TestDescriptorsDerivedViews(t *testing.T) {
 	descs := Descriptors()
 	if len(descs) != len(CoreServices) {
@@ -57,9 +57,6 @@ func TestDescriptorsDerivedViews(t *testing.T) {
 				t.Errorf("MountAtRoot service = %q, want RootService %q", d.Name, RootService)
 			}
 		}
-		if len(d.RouteGroups) == 0 {
-			t.Errorf("descriptor %q has no route groups", d.Name)
-		}
 		if d.Prefix != "" && d.MountAtRoot {
 			t.Errorf("descriptor %q is MountAtRoot but has prefix %q", d.Name, d.Prefix)
 		}
@@ -69,11 +66,6 @@ func TestDescriptorsDerivedViews(t *testing.T) {
 	}
 	if rootCount != 1 {
 		t.Fatalf("MountAtRoot descriptor count = %d, want 1", rootCount)
-	}
-
-	routeGroups := RouteGroupsFromDescriptors()
-	if len(routeGroups) < len(descs) {
-		t.Fatalf("route group count = %d, want at least %d", len(routeGroups), len(descs))
 	}
 }
 

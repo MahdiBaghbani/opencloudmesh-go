@@ -31,10 +31,9 @@ func (c *Config) ApplyDefaults() {
 
 // Service is the OCM protocol service.
 type Service struct {
-	router        chi.Router
-	conf          *Config
-	log           *slog.Logger
-	tokenSettings *tokenincoming.TokenExchangeSettings
+	router chi.Router
+	conf   *Config
+	log    *slog.Logger
 }
 
 // New creates a new OCM protocol service from narrow injected inputs.
@@ -106,25 +105,24 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	if inputs.SignatureMiddleware != nil {
 		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveSharesRequest)).
-			Post("/shares", sharesHandler.CreateShare)
+			Post(RouteShares, sharesHandler.CreateShare)
 		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveNotificationsRequest)).
-			Post("/notifications", notifHandler.HandleNotification)
+			Post(RouteNotifications, notifHandler.HandleNotification)
 		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveInviteAcceptedRequest)).
-			Post("/invite-accepted", invitesHandler.HandleInviteAccepted)
+			Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
 		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveTokenRequest)).
 			Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
 	} else {
-		r.Post("/shares", sharesHandler.CreateShare)
-		r.Post("/notifications", notifHandler.HandleNotification)
-		r.Post("/invite-accepted", invitesHandler.HandleInviteAccepted)
+		r.Post(RouteShares, sharesHandler.CreateShare)
+		r.Post(RouteNotifications, notifHandler.HandleNotification)
+		r.Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
 		r.Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
 	}
 
 	return &Service{
-		router:        r,
-		conf:          &c,
-		log:           log,
-		tokenSettings: &c.TokenExchange,
+		router: r,
+		conf:   &c,
+		log:    log,
 	}, nil
 }
 
@@ -141,15 +139,6 @@ func (s *Service) Handler() http.Handler {
 
 func (s *Service) Prefix() string {
 	return "ocm"
-}
-
-func (s *Service) Unprotected() []string {
-	return []string{
-		"/shares",
-		"/notifications",
-		"/invite-accepted",
-		s.tokenSettings.RoutePath(),
-	}
 }
 
 func (s *Service) Close() error {

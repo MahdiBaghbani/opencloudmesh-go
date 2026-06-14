@@ -49,7 +49,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	)
 
 	r := chi.NewRouter()
-	r.HandleFunc("/ocm/*", handler.ServeHTTP)
+	r.HandleFunc(RouteOCMWildcard, handler.ServeHTTP)
 
 	return &Service{router: r, conf: &c, log: log, handler: handler}, nil
 }
@@ -60,10 +60,6 @@ func (s *Service) Handler() http.Handler {
 
 func (s *Service) Prefix() string {
 	return "webdav"
-}
-
-func (s *Service) Unprotected() []string {
-	return []string{"/ocm"}
 }
 
 func (s *Service) Close() error {

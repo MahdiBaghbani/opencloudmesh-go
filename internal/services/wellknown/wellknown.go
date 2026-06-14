@@ -64,10 +64,10 @@ func (s *svc) routerInit(in resolve.ResolveInputs, rawOCMProvider map[string]any
 	if err != nil {
 		return err
 	}
-	s.router.Get("/.well-known/ocm", handler.ServeHTTP)
-	s.router.Get("/ocm-provider", handler.ServeHTTP)
-	s.router.Get("/.well-known/ocm/", handler.ServeHTTP)
-	s.router.Get("/ocm-provider/", handler.ServeHTTP)
+	s.router.Get(RouteWellKnownOCM, handler.ServeHTTP)
+	s.router.Get(RouteOCMProvider, handler.ServeHTTP)
+	s.router.Get(RouteWellKnownOCMSlash, handler.ServeHTTP)
+	s.router.Get(RouteOCMProviderSlash, handler.ServeHTTP)
 	return nil
 }
 
@@ -76,11 +76,6 @@ func (s *svc) Close() error { return nil }
 
 // Prefix implements service.Service.
 func (s *svc) Prefix() string { return "" }
-
-// Unprotected implements service.Service.
-func (s *svc) Unprotected() []string {
-	return []string{"/.well-known/ocm", "/.well-known/ocm/", "/ocm-provider", "/ocm-provider/"}
-}
 
 // Handler implements service.Service.
 func (s *svc) Handler() http.Handler { return httpwrap.ClearRawPath(s.router) }

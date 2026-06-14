@@ -18,10 +18,13 @@ type RouteGroup struct {
 	AtHostRoot   bool
 }
 
-var routeGroups = routeGroupsFromDescriptors()
+func GetRouteGroups() []RouteGroup {
+	opts := service.DefaultRouteOpts()
+	return routeGroupsFromDerived(opts)
+}
 
-func routeGroupsFromDescriptors() []RouteGroup {
-	specs := service.RouteGroupsFromDescriptors()
+func routeGroupsFromDerived(opts service.RouteOpts) []RouteGroup {
+	specs := service.DerivedRouteGroups(opts)
 	groups := make([]RouteGroup, len(specs))
 	for i, spec := range specs {
 		groups[i] = RouteGroup{
@@ -34,46 +37,9 @@ func routeGroupsFromDescriptors() []RouteGroup {
 	return groups
 }
 
-func GetRouteGroups() []RouteGroup {
-	return routeGroups
-}
-
-func IsAuthRequired(path string, basePath string, mountedServices []service.Service) bool {
-	for _, rg := range routeGroups {
-		if rg.AtHostRoot {
-			if pathMatchesPrefix(path, rg.PathPrefix) {
-				return rg.RequiresAuth
-			}
-		}
-	}
-
-	for _, svc := range mountedServices {
-		if svc == nil {
-			continue
-		}
-		svcBase := basePath
-		prefix := svc.Prefix()
-		if prefix != "" {
-			svcBase += "/" + prefix
-		}
-		for _, unprotected := range svc.Unprotected() {
-			fullPath := svcBase + unprotected
-			if pathMatchesPrefix(path, fullPath) {
-				return false
-			}
-		}
-	}
-
-	for _, rg := range routeGroups {
-		if !rg.AtHostRoot {
-			fullPrefix := basePath + rg.PathPrefix
-			if pathMatchesPrefix(path, fullPrefix) {
-				return rg.RequiresAuth
-			}
-		}
-	}
-
-	return true
+// IsAuthRequired reports whether the session auth gate requires authentication.
+func IsAuthRequired(path string, opts service.RouteOpts) bool {
+	return service.SessionAuthRequiredForPath(path, opts)
 }
 
 func (s *Server) mountService(r chi.Router, svc service.Service, atRoot bool) {
@@ -93,18 +59,6 @@ func (s *Server) mountService(r chi.Router, svc service.Service, atRoot bool) {
 	s.mountedServices = append(s.mountedServices, svc)
 }
 
-func pathMatchesPrefix(path, prefix string) bool {
-	if path == prefix {
-		return true
-	}
-	if len(path) > len(prefix) && path[:len(prefix)] == prefix {
-		if path[len(prefix)] == '/' {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *Server) setupRoutes() chi.Router {
 	r := chi.NewRouter()
 
@@ -113,10 +67,9 @@ func (s *Server) setupRoutes() chi.Router {
 	r.Use(httpmw.AccessLogMiddleware(s.logger, s.deps.RealIP))
 	r.Use(chimw.Recoverer)
 
-	requireAuth := func(path string) bool {
-		return IsAuthRequired(path, s.cfg.ExternalBasePath, s.mountedServices)
-	}
-	r.Use(s.deps.AuthGate(requireAuth))
+	routeOpts := service.RouteOptsFromConfig(s.cfg)
+	authChecker := service.NewSessionAuthChecker(routeOpts)
+	r.Use(s.deps.AuthGate(authChecker.Required))
 
 	s.mountService(r, s.services[service.RootService], true)
 

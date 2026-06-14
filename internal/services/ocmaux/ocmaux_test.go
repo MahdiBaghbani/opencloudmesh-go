@@ -42,31 +42,6 @@ func TestService_Prefix(t *testing.T) {
 	}
 }
 
-func TestService_Unprotected(t *testing.T) {
-	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 2 {
-		t.Errorf("expected 2 unprotected paths, got %d", len(unprotected))
-	}
-	expectedPaths := map[string]bool{
-		"/federations": false,
-		"/discover":    false,
-	}
-	for _, p := range unprotected {
-		if _, ok := expectedPaths[p]; ok {
-			expectedPaths[p] = true
-		}
-	}
-	for p, found := range expectedPaths {
-		if !found {
-			t.Errorf("expected unprotected path %q not found", p)
-		}
-	}
-}
-
 func TestService_Handler(t *testing.T) {
 	svc, err := New(testOCMAuxInputs(), map[string]any{}, testLog())
 	if err != nil {

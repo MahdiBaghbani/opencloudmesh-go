@@ -154,41 +154,29 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	r := chi.NewRouter()
-	r.Get("/healthz", api.HealthHandler)
+	r.Get(RouteHealthz, api.HealthHandler)
 
-	r.Route("/auth", func(r chi.Router) {
-		if loginMiddleware != nil {
-			r.With(loginMiddleware).Post("/login", authHandler.Login)
-		} else {
-			r.Post("/login", authHandler.Login)
-		}
-		r.Post("/logout", authHandler.Logout)
-		r.Get("/me", authHandler.GetCurrentUser)
-	})
+	if loginMiddleware != nil {
+		r.With(loginMiddleware).Post(RouteAuthLogin, authHandler.Login)
+	} else {
+		r.Post(RouteAuthLogin, authHandler.Login)
+	}
+	r.Post(RouteAuthLogout, authHandler.Logout)
+	r.Get(RouteAuthMe, authHandler.GetCurrentUser)
 
-	r.Route("/inbox", func(r chi.Router) {
-		r.Get("/shares", inboxSharesHandler.HandleList)
-		r.Get("/shares/{shareId}", inboxSharesHandler.HandleGetDetail)
-		r.Post("/shares/{shareId}/accept", inboxSharesHandler.HandleAccept)
-		r.Post("/shares/{shareId}/decline", inboxSharesHandler.HandleDecline)
-		r.Post("/shares/{shareId}/verify-access", inboxSharesHandler.HandleVerifyAccess)
-		r.Get("/invites", inboxInvitesHandler.HandleList)
-		r.Post("/invites/import", inboxInvitesHandler.HandleImport)
-		r.Post("/invites/{inviteId}/accept", inboxInvitesHandler.HandleAccept)
-		r.Post("/invites/{inviteId}/decline", inboxInvitesHandler.HandleDecline)
-	})
+	r.Get(RouteInboxShares, inboxSharesHandler.HandleList)
+	r.Get(RouteInboxShareDetail, inboxSharesHandler.HandleGetDetail)
+	r.Post(RouteInboxShareAccept, inboxSharesHandler.HandleAccept)
+	r.Post(RouteInboxShareDecline, inboxSharesHandler.HandleDecline)
+	r.Post(RouteInboxShareVerifyAccess, inboxSharesHandler.HandleVerifyAccess)
+	r.Get(RouteInboxInvites, inboxInvitesHandler.HandleList)
+	r.Post(RouteInboxInviteImport, inboxInvitesHandler.HandleImport)
+	r.Post(RouteInboxInviteAccept, inboxInvitesHandler.HandleAccept)
+	r.Post(RouteInboxInviteDecline, inboxInvitesHandler.HandleDecline)
 
-	r.Route("/shares", func(r chi.Router) {
-		r.Post("/outgoing", outgoingHandler.HandleCreate)
-	})
-
-	r.Route("/invites", func(r chi.Router) {
-		r.Post("/outgoing", outgoingInvitesHandler.HandleCreateOutgoing)
-	})
-
-	r.Route("/admin", func(r chi.Router) {
-		r.Get("/federations", notImplementedHandler("admin-federations"))
-	})
+	r.Post(RouteSharesOutgoing, outgoingHandler.HandleCreate)
+	r.Post(RouteInvitesOutgoing, outgoingInvitesHandler.HandleCreateOutgoing)
+	r.Get(RouteAdminFederations, notImplementedHandler("admin-federations"))
 
 	return &Service{router: r, conf: &c, log: log}, nil
 }
@@ -224,10 +212,6 @@ func (s *Service) Handler() http.Handler {
 
 func (s *Service) Prefix() string {
 	return "api"
-}
-
-func (s *Service) Unprotected() []string {
-	return []string{"/healthz", "/auth/login"}
 }
 
 func (s *Service) Close() error {

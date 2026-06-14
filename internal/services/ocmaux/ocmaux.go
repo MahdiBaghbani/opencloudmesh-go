@@ -70,12 +70,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	r := chi.NewRouter()
-	r.Get("/federations", auxHandler.HandleFederations)
+	r.Get(RouteFederations, auxHandler.HandleFederations)
 
 	if discoverMiddleware != nil {
-		r.With(discoverMiddleware).Get("/discover", auxHandler.HandleDiscover)
+		r.With(discoverMiddleware).Get(RouteDiscover, auxHandler.HandleDiscover)
 	} else {
-		r.Get("/discover", auxHandler.HandleDiscover)
+		r.Get(RouteDiscover, auxHandler.HandleDiscover)
 	}
 
 	return &Service{router: r, conf: &c, log: log}, nil
@@ -94,10 +94,6 @@ func (s *Service) Handler() http.Handler {
 
 func (s *Service) Prefix() string {
 	return "ocm-aux"
-}
-
-func (s *Service) Unprotected() []string {
-	return []string{"/federations", "/discover"}
 }
 
 func (s *Service) Close() error {

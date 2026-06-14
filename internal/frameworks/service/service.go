@@ -9,5 +9,4 @@ type Service interface {
 	Handler() http.Handler
 	Prefix() string
 	Close() error
-	Unprotected() []string
 }

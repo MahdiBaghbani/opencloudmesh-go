@@ -103,38 +103,6 @@ func TestService_Prefix(t *testing.T) {
 	}
 }
 
-func TestService_Unprotected(t *testing.T) {
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(setupTestInputs(), m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	unprotected := svc.Unprotected()
-	if len(unprotected) != 4 {
-		t.Fatalf("expected 4 unprotected paths, got %d: %v", len(unprotected), unprotected)
-	}
-
-	expectedPaths := map[string]bool{
-		"/shares":          false,
-		"/notifications":   false,
-		"/invite-accepted": false,
-		"/token":           false,
-	}
-	for _, p := range unprotected {
-		if _, ok := expectedPaths[p]; ok {
-			expectedPaths[p] = true
-		}
-	}
-	for p, found := range expectedPaths {
-		if !found {
-			t.Errorf("expected unprotected path %q not found", p)
-		}
-	}
-}
-
 func TestService_Handler(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))

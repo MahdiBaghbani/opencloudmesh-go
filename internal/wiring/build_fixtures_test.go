@@ -6,6 +6,7 @@ import (
 
 	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
+	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
@@ -44,31 +45,12 @@ func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {
 	}
 }
 
-func TestFixtures_UnprotectedSets(t *testing.T) {
+func TestFixtures_RoutePolicyPublicPaths(t *testing.T) {
 	cfg := tscfg.DevConfigNoSignatures(18100)
+	opts := tswiring.RouteOptsForConfig(cfg)
+	want := tsrouting.PublicSessionPaths(opts)
 
-	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
-
-	services, err := wiring.BuildCoreServices(cfg, tslog.DiscardLogger(), result.Deps)
-	if err != nil {
-		t.Fatalf("BuildCoreServices failed: %v", err)
-	}
-
-	for _, want := range tswiring.ExpectedUnprotectedSets {
-		t.Run(want.Service, func(t *testing.T) {
-			svc, ok := services[want.Service]
-			if !ok {
-				t.Fatalf("service %q missing from built services", want.Service)
-			}
-			t.Cleanup(func() { _ = svc.Close() })
-
-			got := append([]string(nil), svc.Unprotected()...)
-			if !reflect.DeepEqual(got, want.Paths) {
-				t.Fatalf("Unprotected() = %v, want %v", got, want.Paths)
-			}
-		})
+	if !reflect.DeepEqual(want, tswiring.ExpectedPublicSessionPaths) {
+		t.Fatalf("public session paths = %v, want fixture %v", want, tswiring.ExpectedPublicSessionPaths)
 	}
 }
