@@ -167,7 +167,7 @@ func TestService_WayfEndpoint_Enabled(t *testing.T) {
 	}
 }
 
-func TestService_AcceptInvite_RendersWithoutSession(t *testing.T) {
+func TestService_AcceptInvite_RendersTemplate(t *testing.T) {
 	m := map[string]any{
 		"wayf": map[string]any{"enabled": true},
 	}
@@ -185,26 +185,9 @@ func TestService_AcceptInvite_RendersWithoutSession(t *testing.T) {
 	if !strings.HasPrefix(ct, "text/html") {
 		t.Errorf("expected text/html, got %q", ct)
 	}
-}
-
-func TestService_AcceptInvite_RendersWithSession(t *testing.T) {
-	m := map[string]any{
-		"wayf": map[string]any{"enabled": true},
-	}
-	svc, err := New(Inputs{}, m, testLog())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "/accept-invite?token=abc&providerDomain=remote.example.com", nil)
-	req.AddCookie(&http.Cookie{Name: "session", Value: "valid-token"})
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	ct := w.Header().Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/html") {
-		t.Errorf("expected text/html, got %q", ct)
+	body := w.Body.String()
+	if !strings.Contains(body, "abc") || !strings.Contains(body, "remote.example.com") {
+		t.Error("expected accept-invite template to render query token and provider domain")
 	}
 }
 

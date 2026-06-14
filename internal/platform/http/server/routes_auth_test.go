@@ -1,8 +1,16 @@
 package server
 
 import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity/sessiongate"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 )
@@ -75,5 +83,56 @@ func TestIsAuthRequired_WayfEnabled(t *testing.T) {
 	}
 	if !IsAuthRequired("/ui/accept-invite", opts) {
 		t.Error("expected /ui/accept-invite protected when invite accept enabled")
+	}
+}
+
+func TestIsAuthRequired_AcceptInviteWithExternalBasePath(t *testing.T) {
+	opts := service.RouteOpts{
+		ExternalBasePath:    "/ocm",
+		WayfEnabled:         true,
+		InviteAcceptEnabled: true,
+		TokenExchangePath:   "token",
+	}
+	if IsAuthRequired("/ocm/ui/wayf", opts) {
+		t.Error("expected /ocm/ui/wayf public when WAYF enabled")
+	}
+	if !IsAuthRequired("/ocm/ui/accept-invite", opts) {
+		t.Error("expected /ocm/ui/accept-invite protected")
+	}
+}
+
+func TestSessionGate_AcceptInviteProtectedAtServer(t *testing.T) {
+	opts := service.RouteOpts{
+		WayfEnabled:         true,
+		InviteAcceptEnabled: true,
+		TokenExchangePath:   "token",
+	}
+	checker := service.NewSessionAuthChecker(opts)
+
+	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
+	partyRepo := identity.NewMemoryPartyRepo()
+	sessionRepo := identity.NewMemorySessionRepo()
+
+	r := chi.NewRouter()
+	r.Use(sessiongate.NewAuthGate(sessiongate.AuthGateConfig{
+		RequireAuth: checker.Required,
+		Log:         logger,
+		SessionRepo: sessionRepo,
+		PartyRepo:   partyRepo,
+	}))
+	r.Get("/ui/accept-invite", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/ui/accept-invite?token=t&providerDomain=p", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected 302 for unauthenticated accept-invite, got %d", rr.Code)
+	}
+	if !strings.HasSuffix(rr.Header().Get("Location"), "/ui/login") &&
+		!strings.Contains(rr.Header().Get("Location"), "/ui/login?") {
+		t.Fatalf("expected redirect to login, got %q", rr.Header().Get("Location"))
 	}
 }
