@@ -66,6 +66,72 @@ func TestRoutes_IsCanonicalAggregate(t *testing.T) {
 	}
 }
 
+func TestRoutes_ProductRowsHavePolicyMetadata(t *testing.T) {
+	opts := service.DefaultRouteOpts()
+	for _, row := range service.Routes(opts) {
+		if row.Synthetic {
+			continue
+		}
+		if row.SurfaceClass == "" {
+			t.Errorf("product route %q missing SurfaceClass", row.ID)
+		}
+		if row.HandlerAuth == "" {
+			t.Errorf("product route %q missing HandlerAuth", row.ID)
+		}
+		if row.TrustClass == "" {
+			t.Errorf("product route %q missing TrustClass", row.ID)
+		}
+	}
+}
+
+func TestRoutes_SyntheticRowsHaveSurfaceClass(t *testing.T) {
+	opts := service.DefaultRouteOpts()
+	for _, row := range service.Routes(opts) {
+		if !row.Synthetic {
+			continue
+		}
+		if row.SurfaceClass == "" {
+			t.Errorf("synthetic row %q missing SurfaceClass", row.ID)
+		}
+	}
+}
+
+func TestRoutes_ProtocolRowsUseHTTPSigHandlerAuth(t *testing.T) {
+	opts := service.DefaultRouteOpts()
+	for _, row := range service.Routes(opts) {
+		if row.Synthetic || row.SurfaceClass != service.SurfaceProtocol {
+			continue
+		}
+		if row.HandlerAuth != service.HandlerAuthOptionalHTTPSig {
+			t.Errorf("protocol route %q HandlerAuth = %q, want optional HTTP signature", row.ID, row.HandlerAuth)
+		}
+	}
+}
+
+func TestRoutes_APIOutboundKindsDeclaredOnAPIRows(t *testing.T) {
+	opts := service.DefaultRouteOpts()
+	found := map[service.OutboundProtocolKind]bool{
+		service.OutboundNotifications: false,
+		service.OutboundShares:        false,
+		service.OutboundInvites:       false,
+		service.OutboundAccess:        false,
+	}
+	for _, row := range service.Routes(opts) {
+		if row.Synthetic || row.SurfaceClass != service.SurfaceAPI {
+			continue
+		}
+		if row.OutboundProtocolKind == service.OutboundNone {
+			continue
+		}
+		found[row.OutboundProtocolKind] = true
+	}
+	for kind, ok := range found {
+		if !ok {
+			t.Errorf("Routes(opts) missing api row with outbound kind %q", kind)
+		}
+	}
+}
+
 func TestDerivedAuthRows_ProjectsFromRoutes(t *testing.T) {
 	opts := service.DefaultRouteOpts()
 	rows := service.Routes(opts)
