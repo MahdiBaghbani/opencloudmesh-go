@@ -3,7 +3,9 @@ package ocmaux
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -134,6 +136,24 @@ type DiscoverResponse struct {
 	InviteAcceptDialogAbsolute string               `json:"inviteAcceptDialogAbsolute,omitempty"`
 }
 
+// Discover reason codes for /ocm-aux/discover helper responses.
+const (
+	discoverReasonInvalidURL           = "invalid_url"
+	discoverReasonDNSUnresolvable      = "dns_unresolvable"
+	discoverReasonNoOCMDiscovery       = "no_ocm_discovery"
+	discoverReasonNoInviteAcceptDialog = "no_invite_accept_dialog"
+)
+
+const (
+	discoverMsgMissingBase          = "Enter a provider URL to discover."
+	discoverMsgInvalidURL           = "Enter a valid provider URL using http or https."
+	discoverMsgSSRFBlocked          = "That provider address is not allowed."
+	discoverMsgDNSFailed            = "Could not resolve that provider address."
+	discoverMsgNoOCM                = "No OCM-enabled provider was found at that address."
+	discoverMsgNoInviteAcceptDialog = "That provider does not provide an invite accept dialog."
+	discoverMsgUpstream             = "Could not reach that provider."
+)
+
 // HandleDiscover serves GET /ocm-aux/discover?base=<url>. Returns 400/403/501/502 on error.
 func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -143,40 +163,39 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	baseParam := r.URL.Query().Get("base")
+	baseParam := strings.TrimSpace(r.URL.Query().Get("base"))
 	if baseParam == "" {
-		h.sendDiscoverError(w, http.StatusBadRequest, "missing 'base' query parameter", "")
+		h.sendDiscoverError(w, http.StatusBadRequest, discoverMsgMissingBase, discoverReasonInvalidURL, nil)
 		return
 	}
 
-	originURL, err := normalizeToOrigin(baseParam)
-	if err != nil {
-		h.sendDiscoverError(w, http.StatusBadRequest, err.Error(), "")
+	originURL, normErr := normalizeToOrigin(baseParam)
+	if normErr != nil {
+		h.sendDiscoverError(w, http.StatusBadRequest, discoverMsgInvalidURL, discoverReasonInvalidURL, normErr)
 		return
 	}
 
 	if h.discoveryClient == nil {
-		h.sendDiscoverError(w, http.StatusNotImplemented, "discovery client not configured", reason.PeerDiscoveryDisabled)
+		h.sendDiscoverError(w, http.StatusNotImplemented, "discovery client not configured", reason.PeerDiscoveryDisabled, nil)
 		return
 	}
 
 	disc, err := h.discoveryClient.Discover(ctx, originURL)
 	if err != nil {
-		if httpclient.IsSSRFError(err) {
-			h.sendDiscoverError(w, http.StatusForbidden, err.Error(), reason.PeerPolicyUnsatisfied)
-			return
-		}
-		h.sendDiscoverError(w, http.StatusBadGateway, err.Error(), reason.PeerDiscoveryFailed)
+		status, reasonCode, userMsg := classifyDiscoverError(err)
+		h.sendDiscoverError(w, status, userMsg, reasonCode, err)
+		return
+	}
+
+	if disc.InviteAcceptDialog == "" {
+		h.sendDiscoverError(w, http.StatusBadGateway, discoverMsgNoInviteAcceptDialog, discoverReasonNoInviteAcceptDialog, nil)
 		return
 	}
 
 	resp := DiscoverResponse{
-		Success:   true,
-		Discovery: disc,
-	}
-
-	if disc.InviteAcceptDialog != "" {
-		resp.InviteAcceptDialogAbsolute = resolveInviteDialog(originURL, disc.InviteAcceptDialog)
+		Success:                    true,
+		Discovery:                  disc,
+		InviteAcceptDialogAbsolute: resolveInviteDialog(originURL, disc.InviteAcceptDialog),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -184,7 +203,13 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 }
 
 // sendDiscoverError returns a JSON error for the discover endpoint.
-func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, message, reasonCode string) {
+func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, message, reasonCode string, debugErr error) {
+	if debugErr != nil {
+		h.logger.Debug("ocm-aux discover failed",
+			"reason_code", reasonCode,
+			"error", debugErr,
+		)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	resp := DiscoverResponse{
@@ -197,23 +222,69 @@ func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, messag
 	json.NewEncoder(w).Encode(resp)
 }
 
-// normalizeToOrigin parses a URL and returns scheme://host.
+// normalizeToOrigin normalizes user-entered provider input to scheme://host[:port].
 func normalizeToOrigin(rawURL string) (string, error) {
-	parsed, err := url.Parse(rawURL)
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return "", errMissingHost
+	}
+
+	candidate := rawURL
+	if !strings.Contains(candidate, "://") {
+		candidate = "https://" + candidate
+	}
+
+	parsed, err := url.Parse(candidate)
 	if err != nil {
 		return "", err
 	}
 
 	scheme := strings.ToLower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
-		return "", &url.Error{Op: "parse", URL: rawURL, Err: errUnsupportedScheme}
+		return "", errUnsupportedScheme
 	}
 
-	if parsed.Host == "" {
-		return "", &url.Error{Op: "parse", URL: rawURL, Err: errMissingHost}
+	host := parsed.Host
+	if host == "" {
+		// Bare host without path can land in Path when scheme is missing from input.
+		if parsed.Path != "" && !strings.Contains(parsed.Path, "/") && !strings.Contains(parsed.Path, ":") {
+			host = parsed.Path
+		}
+	}
+	if host == "" {
+		return "", errMissingHost
 	}
 
-	return scheme + "://" + parsed.Host, nil
+	return scheme + "://" + host, nil
+}
+
+func classifyDiscoverError(err error) (status int, reasonCode, userMsg string) {
+	if err == nil {
+		return http.StatusOK, "", ""
+	}
+
+	if httpclient.IsSSRFError(err) {
+		return http.StatusForbidden, reason.SSRFBlocked, discoverMsgSSRFBlocked
+	}
+	if httpclient.IsHostUnresolvable(err) {
+		return http.StatusBadGateway, discoverReasonDNSUnresolvable, discoverMsgDNSFailed
+	}
+	if errors.Is(err, httpclient.ErrInvalidURL) {
+		return http.StatusBadRequest, discoverReasonInvalidURL, discoverMsgInvalidURL
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return http.StatusBadGateway, reason.PeerUnreachable, discoverMsgUpstream
+	}
+
+	if errors.Is(err, discovery.ErrOCMDisabled) ||
+		errors.Is(err, discovery.ErrInvalidDiscoveryJSON) ||
+		errors.Is(err, discovery.ErrDiscoveryNotFound) {
+		return http.StatusBadGateway, discoverReasonNoOCMDiscovery, discoverMsgNoOCM
+	}
+
+	return http.StatusBadGateway, reason.PeerDiscoveryFailed, discoverMsgUpstream
 }
 
 type validationError string

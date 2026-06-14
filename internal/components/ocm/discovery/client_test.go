@@ -3,6 +3,7 @@ package discovery_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -149,4 +150,71 @@ func TestClientDiscover_PreservesAbsoluteInviteAcceptDialog(t *testing.T) {
 	if disc.InviteAcceptDialog != "https://custom.example.com/accept" {
 		t.Errorf("InviteAcceptDialog = %q", disc.InviteAcceptDialog)
 	}
+}
+
+func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
+
+	t.Run("not found", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.NotFound(w, r)
+		}))
+		defer server.Close()
+
+		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+		_, err := client.Discover(context.Background(), server.URL)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !errors.Is(err, discovery.ErrDiscoveryNotFound) {
+			t.Fatalf("errors.Is(err, ErrDiscoveryNotFound) = false, err = %v", err)
+		}
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/.well-known/ocm" && r.URL.Path != "/ocm-provider" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("{not-json"))
+		}))
+		defer server.Close()
+
+		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+		_, err := client.Discover(context.Background(), server.URL)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
+			t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
+		}
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/.well-known/ocm" && r.URL.Path != "/ocm-provider" {
+				http.NotFound(w, r)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{
+				"enabled":       false,
+				"apiVersion":    "1.2.2",
+				"resourceTypes": []any{},
+				"criteria":      []any{},
+			})
+		}))
+		defer server.Close()
+
+		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+		_, err := client.Discover(context.Background(), server.URL)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !errors.Is(err, discovery.ErrOCMDisabled) {
+			t.Fatalf("errors.Is(err, ErrOCMDisabled) = false, err = %v", err)
+		}
+	})
 }

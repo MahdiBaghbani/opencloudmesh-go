@@ -129,10 +129,10 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 		t.Fatal("expected error for unresolvable host")
 	}
 	// The .invalid TLD is guaranteed to fail resolution (RFC 6761); the client
-	// must classify this as an SSRF error (ErrHostUnresolvable), not let it
-	// pass silently as a generic connection error.
-	if !httpclient.IsSSRFError(err) {
-		t.Errorf("expected SSRF-classified error for unresolvable host, got: %v", err)
+	// must classify this as ErrHostUnresolvable, not let it pass silently as a
+	// generic connection error.
+	if !httpclient.IsHostUnresolvable(err) {
+		t.Errorf("expected host-unresolvable error, got: %v", err)
 	}
 }
 

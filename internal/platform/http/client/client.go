@@ -247,7 +247,12 @@ func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Resp
 
 // IsSSRFError returns true if the error is an SSRF blocking error.
 func IsSSRFError(err error) bool {
-	return errors.Is(err, ErrSSRFBlocked) || errors.Is(err, ErrHostUnresolvable)
+	return errors.Is(err, ErrSSRFBlocked)
+}
+
+// IsHostUnresolvable returns true when strict-mode DNS lookup failed closed.
+func IsHostUnresolvable(err error) bool {
+	return errors.Is(err, ErrHostUnresolvable)
 }
 
 // IsRedirectError returns true if the error is a redirect-related error.

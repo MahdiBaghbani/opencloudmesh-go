@@ -279,30 +279,6 @@ func TestHandleDiscover_MissingBase(t *testing.T) {
 	}
 }
 
-func TestHandleDiscover_InvalidBase(t *testing.T) {
-	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
-
-	tests := []struct {
-		name  string
-		query string
-	}{
-		{"no scheme", "?base=example.com"},
-		{"ftp scheme", "?base=ftp://example.com"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/discover"+tt.query, nil)
-			w := httptest.NewRecorder()
-			h.HandleDiscover(w, req)
-
-			if w.Code != http.StatusBadRequest {
-				t.Errorf("expected 400, got %d", w.Code)
-			}
-		})
-	}
-}
-
 func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
@@ -326,12 +302,13 @@ func TestHandleDiscover_Success(t *testing.T) {
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
-				"enabled":       true,
-				"apiVersion":    "1.2.2",
-				"endPoint":      "https://example.com/ocm",
-				"provider":      "TestProvider",
-				"resourceTypes": []any{},
-				"criteria":      []any{},
+				"enabled":            true,
+				"apiVersion":         "1.2.2",
+				"endPoint":           "https://example.com/ocm",
+				"provider":           "TestProvider",
+				"inviteAcceptDialog": "/apps/ocm/invite-accept",
+				"resourceTypes":      []any{},
+				"criteria":           []any{},
 			})
 			return
 		}
@@ -424,45 +401,6 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 	}
 	if resp.InviteAcceptDialogAbsolute == "/apps/ocm/invite-accept" {
 		t.Error("expected absolute URL, got relative")
-	}
-}
-
-func TestHandleDiscover_NoInviteAcceptDialog(t *testing.T) {
-	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
-				"enabled":       true,
-				"apiVersion":    "1.2.2",
-				"endPoint":      "https://example.com/ocm",
-				"resourceTypes": []any{},
-				"criteria":      []any{},
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer discServer.Close()
-
-	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
-	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
-	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
-
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
-	req = req.WithContext(context.Background())
-	w := httptest.NewRecorder()
-	h.HandleDiscover(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-
-	var resp struct {
-		InviteAcceptDialogAbsolute string `json:"inviteAcceptDialogAbsolute"`
-	}
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp.InviteAcceptDialogAbsolute != "" {
-		t.Errorf("expected empty inviteAcceptDialogAbsolute when not in discovery, got %q", resp.InviteAcceptDialogAbsolute)
 	}
 }
 

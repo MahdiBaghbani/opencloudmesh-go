@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -17,6 +18,15 @@ import (
 
 // ErrDiscoveryDisabled is returned when the discovery client is nil or disabled.
 var ErrDiscoveryDisabled = errors.New("discovery client not configured")
+
+// ErrDiscoveryNotFound is returned when both discovery endpoints respond with HTTP 404.
+var ErrDiscoveryNotFound = errors.New("discovery endpoint not found")
+
+// ErrInvalidDiscoveryJSON is returned when a discovery response body cannot be parsed.
+var ErrInvalidDiscoveryJSON = errors.New("invalid discovery json")
+
+// ErrOCMDisabled is returned when the remote discovery document reports enabled=false.
+var ErrOCMDisabled = errors.New("ocm disabled at provider")
 
 // Client fetches and caches remote OCM discovery documents. Discovers via /.well-known/ocm and /ocm-provider fallback.
 type Client struct {
@@ -100,16 +110,19 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 	}
 
 	if resp.StatusCode != 200 {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, nil, fmt.Errorf("discovery returned status %d: %w", resp.StatusCode, ErrDiscoveryNotFound)
+		}
 		return nil, nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
 	}
 
 	disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(discoveryURL))
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid discovery JSON: %w", err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrInvalidDiscoveryJSON, err)
 	}
 
 	if !disc.Enabled {
-		return nil, nil, fmt.Errorf("OCM is disabled at %s", discoveryURL)
+		return nil, nil, fmt.Errorf("%w at %s", ErrOCMDisabled, discoveryURL)
 	}
 
 	return data, &disc, nil
