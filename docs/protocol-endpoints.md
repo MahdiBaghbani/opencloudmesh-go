@@ -16,17 +16,28 @@ Full paths come from `service.Routes(opts)`; see
 
 ## Endpoint categories
 
-All protocol routes use `SurfaceClass: protocol`, public session policy, and
-optional HTTP signature handler auth. Trust is enforced per route.
+Protocol traffic uses `SurfaceClass: protocol`, public session policy, and
+optional HTTP signature handler auth on the handler. Peer trust is enforced
+per route; notifications use a dedicated trust class.
 
-| Route id | Method | Pattern | Trust |
-| -------- | ------ | ------- | ----- |
-| `ocm-shares` | POST | `/shares` | Peer required |
-| `ocm-notifications` | POST | `/notifications` | Notifications special |
-| `ocm-invite-accepted` | POST | `/invite-accepted` | Peer required |
-| `ocm-token` | POST | configurable (default `/token`) | Peer required |
+The `ocm` service registers four protocol handlers in
+`internal/services/ocm/routes.go`. Route ids, patterns, and trust metadata
+aggregate through `service.Routes(opts)` in
+`internal/frameworks/service/route_aggregate.go`. Projections such as
+`service.DerivedRouteInventory` derive from that aggregate. This page
+explains behavior; it is not a maintained route list. See
+[routes-and-auth.md](routes-and-auth.md).
 
-Registration: `internal/services/ocm/routes.go`.
+`internal/architecture/route_policy_wiring_test.go` locks wiring expectations:
+
+- `TestRoutePolicyProjections_DerivedFromRoutes` - projections match
+  `Routes(opts)`
+- `TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol` - HTTP
+  signature handler auth only on protocol routes
+- `TestRoutePolicyWiring_ProtocolRoutesHavePeerTrustClass` - peer trust on
+  every protocol route
+- `TestRoutePolicyWiring_InviteAcceptDialogDistinctFromInviteAccepted` -
+  `/ui/accept-invite` is not `POST /ocm/invite-accepted`
 
 ### Shares
 
