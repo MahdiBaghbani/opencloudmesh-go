@@ -42,10 +42,19 @@ type federationEntry struct {
 
 // serverEntry is a server in a federation, optionally with discovery-enriched inviteAcceptDialog.
 type serverEntry struct {
-	DisplayName        string `json:"displayName"`
-	URL                string `json:"url"`
-	InviteAcceptDialog string `json:"inviteAcceptDialog,omitempty"`
+	DisplayName        string                  `json:"displayName"`
+	URL                string                  `json:"url"`
+	InviteAcceptDialog string                  `json:"inviteAcceptDialog,omitempty"`
+	Status             *serverEnrichmentStatus `json:"status,omitempty"`
 }
+
+// serverEnrichmentStatus reports OCM discovery enrichment outcome for a federation row.
+type serverEnrichmentStatus struct {
+	Discovery  string `json:"discovery"`
+	ReasonCode string `json:"reasonCode,omitempty"`
+}
+
+const discoveryEnrichmentFailed = "failed"
 
 // HandleFederations serves GET /ocm-aux/federations (Reva-aligned, discovery-enriched).
 func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
@@ -79,14 +88,21 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 				if h.discoveryClient != nil {
 					disc, err := h.discoveryClient.Discover(ctx, srv.URL)
 					if err != nil {
-						h.logger.Debug("discovery enrichment failed, dropping server",
+						_, reasonCode, _ := classifyDiscoverError(err)
+						if reasonCode == "" {
+							reasonCode = reason.PeerDiscoveryFailed
+						}
+						se.Status = &serverEnrichmentStatus{
+							Discovery:  discoveryEnrichmentFailed,
+							ReasonCode: reasonCode,
+						}
+						h.logger.Debug("discovery enrichment failed, keeping server with status",
 							"federation", listing.Federation,
 							"server_url", srv.URL,
+							"reason_code", reasonCode,
 							"error", err,
 						)
-						continue // silently drop this server
-					}
-					if disc.InviteAcceptDialog != "" {
+					} else if disc.InviteAcceptDialog != "" {
 						se.InviteAcceptDialog = resolveInviteDialog(srv.URL, disc.InviteAcceptDialog)
 					}
 				}
