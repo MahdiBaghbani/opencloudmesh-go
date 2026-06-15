@@ -165,11 +165,11 @@ func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
+		DerivedSSRFMode:  "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
+		DerivedSSRFMode:  "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil), nil)
 
@@ -223,11 +223,11 @@ func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
+		DerivedSSRFMode:  "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
+		DerivedSSRFMode:  "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil), nil)
 
@@ -257,5 +257,76 @@ func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T
 	}
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when rediscovery fails")
+	}
+}
+
+func TestClient_Exchange_PeerMissingExchangeTokenCapability(t *testing.T) {
+	tokenEndpointCalled := false
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/ocm":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(discovery.Discovery{
+				Enabled:      true,
+				APIVersion:   "1.2.2",
+				EndPoint:     server.URL + "/ocm",
+				Capabilities: []string{"http-sig"},
+				ResourceTypes: []discovery.ResourceType{
+					{
+						Name:       "file",
+						ShareTypes: []string{"user"},
+						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+					},
+				},
+			})
+		case "/ocm/token":
+			tokenEndpointCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(token.TokenResponse{
+				AccessToken: "should-not-be-returned",
+				TokenType:   "Bearer",
+				ExpiresIn:   3600,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		DerivedSSRFMode: "off",
+	}, nil))
+	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
+		DerivedSSRFMode:  "off",
+		MaxResponseBytes: 1 << 20,
+	}, nil), nil)
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		discClient,
+		&mockSigner{},
+		makePolicy("off", nil),
+		"my-instance.example.com",
+	)
+
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL + "/ocm/token",
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+	if err == nil {
+		t.Fatal("expected capability-missing failure")
+	}
+
+	var ce *peercompat.ClassifiedError
+	if !isClassifiedError(err, &ce) {
+		t.Fatalf("expected ClassifiedError, got %T", err)
+	}
+	if ce.ReasonCode != peercompat.ReasonPeerCapabilityMissing {
+		t.Fatalf("expected reason %q, got %q", peercompat.ReasonPeerCapabilityMissing, ce.ReasonCode)
+	}
+	if tokenEndpointCalled {
+		t.Fatal("token endpoint should not be called when peer lacks exchange-token capability")
 	}
 }

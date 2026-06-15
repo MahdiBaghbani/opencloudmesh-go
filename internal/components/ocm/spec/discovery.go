@@ -63,6 +63,23 @@ func (d *Discovery) HasCriteria(criterion string) bool {
 	return false
 }
 
+// RequiresHTTPSig reports whether the peer requires signed OCM requests per the
+// IETF must-use-http-sig criterion (including the legacy alias).
+func (d *Discovery) RequiresHTTPSig() bool {
+	if d == nil {
+		return false
+	}
+	return d.HasCriteria(CriteriaMustUseHTTPSig)
+}
+
+// IsHTTPSigCapable reports whether the peer advertises the http-sig capability.
+func (d *Discovery) IsHTTPSigCapable() bool {
+	if d == nil {
+		return false
+	}
+	return d.HasCapability("http-sig")
+}
+
 func criteriaEquivalent(stored, query string) bool {
 	if stored == query {
 		return true

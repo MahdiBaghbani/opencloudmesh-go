@@ -210,7 +210,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	var outboundPolicy *outboundsigning.OutboundPolicy
 	if !opts.SkipCrypto {
 		outboundPolicy = outboundsigning.NewOutboundPolicy(
-			outboundsigning.ResolveInputs(runtimePolicy, openCloudMeshPolicy),
+			outboundsigning.ResolveInputs(runtimePolicy),
 			peerContract,
 		)
 	}

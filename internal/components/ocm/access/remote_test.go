@@ -62,6 +62,14 @@ func buildContractFromRegistry(t *testing.T, registry *peercompat.ProfileRegistr
 	return contract
 }
 
+// accessMockSigner adds a Signature header for signed token exchange tests.
+type accessMockSigner struct{}
+
+func (accessMockSigner) Sign(req *http.Request) error {
+	req.Header.Set("Signature", "mock-signature")
+	return nil
+}
+
 func newHTTPTestContract(t *testing.T) *peercompat.CompiledContract {
 	t.Helper()
 	contract, err := peercompat.NewCompiledContract(
@@ -477,6 +485,10 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 			return
 		}
 		if r.URL.Path == "/ocm/token" {
+			if r.Header.Get("Signature") == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
 			_ = r.ParseForm()
 			tokenGrantType = r.FormValue("grant_type")
 			if tokenGrantType != "ocm_share" {
@@ -519,11 +531,10 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode:        "off",
-		PeerProfileOverride: "non-strict",
-		PeerContract:        contract,
+		OutboundMode: "off",
+		PeerContract: contract,
 	}
-	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, nil, policy, "local.example.com")
+	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, accessMockSigner{}, policy, "local.example.com")
 	client := access.NewClient(ctxClient, discClient, tokenClient, contract)
 
 	result, err := client.Access(context.Background(), access.AccessOptions{

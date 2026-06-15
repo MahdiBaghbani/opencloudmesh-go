@@ -72,16 +72,15 @@ func RuntimePolicy(
 }
 
 // OutboundPolicy builds an OutboundPolicy by resolving inputs from the runtime
-// and canonical OCM policy, then constructing via outboundsigning.NewOutboundPolicy.
+// policy, then constructing via outboundsigning.NewOutboundPolicy.
 func OutboundPolicy(
 	t *testing.T,
 	runtime *ocmpolicy.RuntimePolicy,
-	openCloudMesh *ocmpolicy.OpenCloudMeshPolicy,
 	contract *peercompat.CompiledContract,
 ) *outboundsigning.OutboundPolicy {
 	t.Helper()
 	return outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtime, openCloudMesh),
+		outboundsigning.ResolveInputs(runtime),
 		contract,
 	)
 }

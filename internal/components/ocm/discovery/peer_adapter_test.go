@@ -28,6 +28,11 @@ func TestPeerDiscoveryAdapter_IsSigningCapableFollowsCriteria(t *testing.T) {
 		},
 		{
 			name:     "criterion marks peer as requiring signed requests",
+			criteria: []string{"must-use-http-sig"},
+			want:     true,
+		},
+		{
+			name:     "legacy criterion alias still marks peer as signing-capable",
 			criteria: []string{"http-request-signatures"},
 			want:     true,
 		},

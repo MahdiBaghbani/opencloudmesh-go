@@ -121,6 +121,9 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	senderHost := ExtractSenderHost(req.Sender)
+	if peerIdentity != nil && peerIdentity.Authenticated {
+		senderHost = peerIdentity.AuthorityForCompare
+	}
 	if h.policyEngine != nil {
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)
 		if !decision.Allowed {

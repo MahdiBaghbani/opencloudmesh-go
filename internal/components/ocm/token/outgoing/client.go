@@ -110,6 +110,17 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 			)
 		}
 		shouldSign = decision.ShouldSign
+		if !shouldSign {
+			reasonCode := peercompat.ReasonSignatureRequired
+			message := "token exchange requires signing"
+			cause := fmt.Errorf("unsigned token exchange is not supported")
+			if disc != nil && !disc.HasCapability("exchange-token") {
+				reasonCode = peercompat.ReasonPeerCapabilityMissing
+				message = decision.Reason
+				cause = fmt.Errorf("peer does not advertise exchange-token capability")
+			}
+			return nil, peercompat.NewClassifiedError(reasonCode, message, cause)
+		}
 	}
 
 	tokenDecision := peercompat.TokenExchangeDecision{
@@ -123,7 +134,11 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 	grantType := tokenDecision.GrantType
 
 	if !shouldSign {
-		return c.exchangeUnsigned(ctx, req, grantType)
+		return nil, peercompat.NewClassifiedError(
+			peercompat.ReasonSignatureRequired,
+			"token exchange requires signing",
+			fmt.Errorf("unsigned token exchange is not supported"),
+		)
 	}
 
 	result, err := c.exchangeSigned(ctx, req, grantType, false)
@@ -135,13 +150,6 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 
 	if c.outboundPolicy != nil {
 		fallback := c.outboundPolicy.TokenExchangeFallbackForReason(req.PeerDomain, reasonCode)
-		if fallback.AllowUnsignedRetry {
-			result, err = c.exchangeUnsigned(ctx, req, grantType)
-			if err == nil {
-				result.QuirkApplied = fallback.Quirk
-				return result, nil
-			}
-		}
 		if fallback.AllowJSONBodyRetry {
 			result, err = c.exchangeJSON(ctx, req, grantType, shouldSign)
 			if err == nil {
@@ -175,16 +183,6 @@ func (c *Client) exchangeSigned(ctx context.Context, req ExchangeRequest, grantT
 				err,
 			)
 		}
-	}
-
-	return c.doRequest(ctx, httpReq)
-}
-
-// exchangeUnsigned sends an unsigned token exchange request.
-func (c *Client) exchangeUnsigned(ctx context.Context, req ExchangeRequest, grantType string) (*ExchangeResult, error) {
-	httpReq, err := c.buildFormRequest(ctx, req, grantType)
-	if err != nil {
-		return nil, err
 	}
 
 	return c.doRequest(ctx, httpReq)

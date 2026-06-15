@@ -33,6 +33,22 @@ func TestHasCriteria_IETFAndLegacyAliases(t *testing.T) {
 	}
 }
 
+func TestRequiresHTTPSigAndIsHTTPSigCapable(t *testing.T) {
+	disc := &spec.Discovery{
+		Capabilities: []string{"http-sig"},
+		Criteria:     []string{"must-use-http-sig"},
+	}
+	if !disc.RequiresHTTPSig() {
+		t.Error("RequiresHTTPSig() should be true")
+	}
+	if !disc.IsHTTPSigCapable() {
+		t.Error("IsHTTPSigCapable() should be true")
+	}
+	if (&spec.Discovery{}).RequiresHTTPSig() {
+		t.Error("nil criteria should not require http sig")
+	}
+}
+
 func TestDeriveDiscoveryPaths_RootMount(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://example.com", "")
 	paths, ok := spec.DeriveDiscoveryPaths(id, service.DefaultRouteOpts())

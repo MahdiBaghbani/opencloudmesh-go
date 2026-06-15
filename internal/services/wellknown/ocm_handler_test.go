@@ -83,20 +83,9 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Public keys should be populated
-	if len(h.data.PublicKeys) != 1 {
-		t.Fatalf("expected 1 public key, got %d", len(h.data.PublicKeys))
-	}
-
-	pk := h.data.PublicKeys[0]
-	if pk.Algorithm != "ed25519" {
-		t.Errorf("expected algorithm 'ed25519', got %q", pk.Algorithm)
-	}
-	if pk.KeyID != km.GetKeyID() {
-		t.Errorf("expected keyID %q, got %q", km.GetKeyID(), pk.KeyID)
-	}
-	if pk.PublicKeyPem == "" {
-		t.Error("expected non-empty PublicKeyPem")
+	// JWKS-first advertisement: http-sig without inline publicKeys PEM.
+	if len(h.data.PublicKeys) != 0 {
+		t.Fatalf("expected no inline publicKeys, got %d", len(h.data.PublicKeys))
 	}
 
 	// http-sig capability should be present

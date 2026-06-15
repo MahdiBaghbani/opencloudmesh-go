@@ -35,7 +35,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 	client := tokenoutgoing.NewClient(
 		httpClient,
 		dummyDiscClient(),
-		nil,
+		&mockSigner{},
 		makePolicy("off", nil),
 		"my-instance.example.com",
 	)
@@ -82,7 +82,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 	client := tokenoutgoing.NewClient(
 		httpClient,
 		dummyDiscClient(),
-		nil,
+		&mockSigner{},
 		makePolicy("off", nil),
 		"my-instance.example.com",
 	)

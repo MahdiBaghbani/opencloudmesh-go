@@ -45,7 +45,7 @@ func (p *PeerDiscoveryAdapter) IsSigningCapable(ctx context.Context, host string
 		return false, fmt.Errorf("discovery failed for %s: %w", host, err)
 	}
 
-	return disc.HasCriteria("http-request-signatures"), nil
+	return disc.RequiresHTTPSig(), nil
 }
 
 // GetPublicKey fetches the public key for a keyId via /.well-known/jwks.json.
