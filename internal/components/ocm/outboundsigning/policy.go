@@ -317,11 +317,11 @@ func (p *OutboundPolicy) decideCriteriaOnly(
 			Reason:     "peer criteria does not include http-request-signatures",
 		}
 	}
-	if !disc.HasCapability("http-sig") || len(disc.PublicKeys) == 0 {
+	if !disc.HasCapability("http-sig") {
 		return SigningDecision{
 			ShouldSign: true,
-			Reason:     "peer requires signatures but lacks http-sig capability or publicKeys",
-			Error:      fmt.Errorf("peer requires http-request-signatures but does not advertise http-sig capability or publicKeys"),
+			Reason:     "peer requires signatures but lacks http-sig capability",
+			Error:      fmt.Errorf("peer requires http-request-signatures but does not advertise http-sig capability"),
 		}
 	}
 	if !hasSigner {

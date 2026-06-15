@@ -112,7 +112,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 					return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
 				}
 			}
-			keyManager = crypto.NewKeyManager(cfg.Signature.KeyPath, localIdentity.Origin)
+			keyManager = crypto.NewKeyManagerWithFragment(
+				cfg.Signature.KeyPath,
+				localIdentity.Origin,
+				cfg.Signature.KidFragment,
+			)
 			if err := keyManager.LoadOrGenerate(); err != nil {
 				return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
 			}
@@ -197,7 +201,10 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	var signer *crypto.RFC9421Signer
 	if keyManager != nil {
-		signer = crypto.NewRFC9421Signer(keyManager)
+		signer = crypto.NewRFC9421SignerWithOptions(
+			keyManager,
+			crypto.RFC9421OptionsFromConfig(cfg.Signature),
+		)
 	}
 
 	var outboundPolicy *outboundsigning.OutboundPolicy
@@ -210,13 +217,14 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	var signatureMiddleware *signature.SignatureMiddleware
 	if !opts.SkipSignatureMiddleware {
-		peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient)
+		peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient, rawHTTPClient)
 		peerDiscoveryAdapter.SetPeerContract(peerContract)
 		signatureMiddleware = signature.NewSignatureMiddleware(
 			runtimePolicy,
 			peerContract,
 			peerDiscoveryAdapter,
 			localIdentity.Origin,
+			cfg.Signature,
 			logger,
 		)
 	}

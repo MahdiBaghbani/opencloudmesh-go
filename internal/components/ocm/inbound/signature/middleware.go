@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	chimw "github.com/go-chi/chi/v5/middleware"
 )
@@ -75,6 +76,7 @@ func NewSignatureMiddleware(
 	peerContract *peercompat.CompiledContract,
 	pd PeerDiscovery,
 	publicOrigin string,
+	sigCfg config.SignatureConfig,
 	logger *slog.Logger,
 ) *SignatureMiddleware {
 	logger = logutil.NoopIfNil(logger)
@@ -105,10 +107,12 @@ func NewSignatureMiddleware(
 		onDiscoveryErr:     onDiscoveryErr,
 		peerContract:       peerContract,
 		compatibilityScope: compatibilityScope,
-		verifier:           crypto.NewRFC9421Verifier(),
-		peerDiscovery:      pd,
-		logger:             logger,
-		localScheme:        localScheme,
+		verifier: crypto.NewRFC9421VerifierWithOptions(
+			crypto.RFC9421OptionsFromConfig(sigCfg),
+		),
+		peerDiscovery: pd,
+		logger:        logger,
+		localScheme:   localScheme,
 	}
 }
 
@@ -200,35 +204,40 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 				})
 
 				if result.Verified {
-					// Parse keyId using canonical keyid module
-					parsed, err := keyid.Parse(result.KeyID)
+					parsedKid, err := keyid.ParseKid(result.KeyID)
 					if err != nil {
 						m.logger.Error("failed to parse keyId", "keyId", result.KeyID, "error", err)
 						http.Error(w, "invalid signature keyId", http.StatusBadRequest)
 						return
 					}
 
+					compareScheme := parsedKid.Scheme
+					if compareScheme == "" {
+						compareScheme = m.localScheme
+					}
+					keyAuthorityForCompare := authorityForCompareFromKid(parsedKid, compareScheme)
+
 					// Check for mismatch between declared peer and keyId authority.
 					peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
 					allowMismatch := m.allowMismatch || (peerDecision.Matched && peerDecision.AllowMismatchedHost)
 					if declaredPeer != "" && !allowMismatch {
-						normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, parsed.Scheme)
+						normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, compareScheme)
 						if err != nil {
 							m.logger.Warn("failed to normalize declared peer for comparison",
 								"declared_peer", declaredPeer, "error", err)
 							// Skip mismatch enforcement on error (no new rejection path)
-						} else if normalizedDeclared != keyid.AuthorityForCompareFromKeyID(parsed) {
+						} else if normalizedDeclared != keyAuthorityForCompare {
 							m.logger.Warn("peer identity mismatch",
 								"declared", normalizedDeclared,
-								"key_id_authority", keyid.AuthorityForCompareFromKeyID(parsed))
+								"key_id_authority", keyAuthorityForCompare)
 							http.Error(w, "peer identity mismatch", http.StatusForbidden)
 							return
 						}
 					}
 
 					peerIdentity = &PeerIdentity{
-						Authority:           keyid.Authority(parsed),
-						AuthorityForCompare: keyid.AuthorityForCompareFromKeyID(parsed),
+						Authority:           parsedKid.Authority,
+						AuthorityForCompare: keyAuthorityForCompare,
 						Authenticated:       true,
 						KeyID:               result.KeyID,
 					}
@@ -344,4 +353,15 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func authorityForCompareFromKid(k keyid.Kid, scheme string) string {
+	if k.Scheme != "" {
+		scheme = k.Scheme
+	}
+	normalized, err := hostport.Normalize(k.Authority, scheme)
+	if err != nil {
+		return k.Authority
+	}
+	return normalized
 }

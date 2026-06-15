@@ -142,16 +142,36 @@ func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) 
 		PeerProfileOverride: "non-strict",
 	}
 
-	// Peer requires signatures but lacks capability
+	// Peer requires signatures but lacks http-sig capability.
 	discBroken := &discovery.Discovery{
-		Capabilities: []string{}, // No http-sig
+		Capabilities: []string{},
 		Criteria:     []string{"http-request-signatures"},
-		PublicKeys:   []discovery.PublicKey{}, // No keys
 	}
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discBroken, true)
 	if decision.Error == nil {
-		t.Error("criteria-only should error when peer requires signatures but lacks capability")
+		t.Error("criteria-only should error when peer requires signatures but lacks http-sig capability")
+	}
+}
+
+func TestOutboundPolicy_CriteriaOnly_SignsWithoutDiscoveryPublicKeys(t *testing.T) {
+	policy := &outboundsigning.OutboundPolicy{
+		OutboundMode:        "criteria-only",
+		PeerProfileOverride: "non-strict",
+	}
+
+	disc := &discovery.Discovery{
+		Capabilities: []string{"http-sig"},
+		Criteria:     []string{"http-request-signatures"},
+		PublicKeys:   []discovery.PublicKey{},
+	}
+
+	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", disc, true)
+	if !decision.ShouldSign {
+		t.Fatalf("criteria-only should sign when peer requires signatures via JWKS path: %+v", decision)
+	}
+	if decision.Error != nil {
+		t.Fatalf("empty discovery publicKeys must not block outbound signing: %v", decision.Error)
 	}
 }
 

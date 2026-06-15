@@ -57,6 +57,7 @@ func setupTestInputsWithSignature(t *testing.T) Inputs {
 		nil,
 		ocmTestPeerDiscovery{},
 		in.LocalIdentity.Origin,
+		cfg.Signature,
 		logger,
 	)
 	in.RuntimePolicy = runtimePolicy

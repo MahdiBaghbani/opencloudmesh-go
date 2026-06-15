@@ -90,7 +90,8 @@ func ratelimitInputs(d *Deps) ratelimit.Inputs {
 
 func buildWellknownService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return wellknown.New(wellknown.Inputs{
-		Resolve: resolveInputs(cfg, d),
+		Resolve:    resolveInputs(cfg, d),
+		KeyManager: d.KeyManager,
 	}, svcCfg, log)
 }
 
