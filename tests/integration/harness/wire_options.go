@@ -16,3 +16,12 @@ func IntegrationBuildOpts() wiring.BuildOpts {
 		SkipDiscoveryCache:      true,
 	}
 }
+
+// IETFIntegrationBuildOpts returns wiring.BuildOpts for HTTP signature integration
+// tests that exercise real crypto and inbound signature middleware.
+func IETFIntegrationBuildOpts() wiring.BuildOpts {
+	opts := IntegrationBuildOpts()
+	opts.SkipCrypto = false
+	opts.SkipSignatureMiddleware = false
+	return opts
+}

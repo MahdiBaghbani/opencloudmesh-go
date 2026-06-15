@@ -8,6 +8,7 @@ import (
 
 	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
+	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -102,5 +103,23 @@ func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
 	sigInput := req.Header.Get("Signature-Input")
 	if !strings.HasPrefix(sigInput, "wiredlabel=") {
 		t.Fatalf("Signature-Input = %q, want wiredlabel= prefix from config", sigInput)
+	}
+}
+
+func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
+	cfg := tscfg.DevConfigHarness(18089)
+
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), toBuildOpts(tswiring.IETFWireOptions))
+	if err != nil {
+		t.Fatalf("bootstrap failed: %v", err)
+	}
+	if result.Deps.KeyManager == nil {
+		t.Fatal("KeyManager must be non-nil for IETF harness opts")
+	}
+	if result.Deps.Signer == nil {
+		t.Fatal("Signer must be non-nil for IETF harness opts")
+	}
+	if result.Deps.OutboundPolicy == nil {
+		t.Fatal("OutboundPolicy must be non-nil for IETF harness opts")
 	}
 }

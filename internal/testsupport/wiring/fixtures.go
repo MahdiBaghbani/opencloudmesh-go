@@ -31,6 +31,17 @@ var HarnessWireOptions = FixtureBuildOpts{
 	SkipDiscoveryCache:      true,
 }
 
+// IETFWireOptions enables real crypto and signature middleware for HTTP
+// signature integration tests (see harness.IETFIntegrationBuildOpts).
+var IETFWireOptions = FixtureBuildOpts{
+	FastAuth:                true,
+	SkipCrypto:              false,
+	SkipPeerTrust:           true,
+	SkipSignatureMiddleware: false,
+	OutboundOverride:        tshttp.HarnessOutboundConfig(),
+	SkipDiscoveryCache:      true,
+}
+
 // ProductionWireOptions is the main.go zero-value bootstrap path.
 var ProductionWireOptions = FixtureBuildOpts{}
 

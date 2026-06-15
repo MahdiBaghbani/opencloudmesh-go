@@ -22,6 +22,17 @@ func TestFixtures_HarnessWireOptionsMatchIntegrationHarness(t *testing.T) {
 	}
 }
 
+func TestFixtures_IETFWireOptionsMatchIntegrationHarness(t *testing.T) {
+	got := harness.IETFIntegrationBuildOpts()
+	want := toBuildOpts(tswiring.IETFWireOptions)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("IETFIntegrationBuildOpts() = %+v, want %+v", got, want)
+	}
+	if got.SkipCrypto || got.SkipSignatureMiddleware {
+		t.Fatal("IETF wire options must enable crypto and signature middleware")
+	}
+}
+
 func TestFixtures_HarnessWireOptionsFixture(t *testing.T) {
 	fixture := tswiring.HarnessWireOptions
 	if !fixture.FastAuth || !fixture.SkipCrypto || !fixture.SkipPeerTrust ||

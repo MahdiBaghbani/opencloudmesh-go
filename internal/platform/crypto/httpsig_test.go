@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -456,5 +457,170 @@ func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
 	}
 	if len(opts.AllowedAlgorithms) != 1 || opts.AllowedAlgorithms[0] != "ed25519" {
 		t.Fatalf("AllowedAlgorithms = %v", opts.AllowedAlgorithms)
+	}
+}
+
+func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
+	fixedNow := time.Unix(1_730_815_200, 0)
+	cases := []struct {
+		name   string
+		method string
+		target string
+		body   []byte
+	}{
+		{
+			name:   "GET empty body omits digest components",
+			method: "GET",
+			target: "https://example.com/.well-known/ocm",
+			body:   nil,
+		},
+		{
+			name:   "POST with body includes Appendix B digest set",
+			method: "POST",
+			target: "https://example.com/ocm/shares",
+			body:   []byte(`{"shareWith":"alice@peer.example"}`),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			km := crypto.NewKeyManager("", "https://example.com")
+			if err := km.LoadOrGenerate(); err != nil {
+				t.Fatal(err)
+			}
+
+			opts := crypto.DefaultRFC9421Options()
+			opts.Now = func() time.Time { return fixedNow }
+
+			signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+			verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+			var reqBody io.Reader = http.NoBody
+			if tc.body != nil {
+				reqBody = bytes.NewReader(tc.body)
+			}
+			req, err := http.NewRequest(tc.method, tc.target, reqBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Host = "example.com"
+			if len(tc.body) > 0 {
+				req.Header.Set("Content-Type", "application/json")
+			}
+
+			if err := signer.SignRequest(req, tc.body); err != nil {
+				t.Fatalf("SignRequest: %v", err)
+			}
+
+			sigInput := req.Header.Get("Signature-Input")
+			if !strings.HasPrefix(sigInput, "ocm=") {
+				t.Fatalf("Signature-Input = %q, want ocm= prefix", sigInput)
+			}
+			for _, want := range []string{"created=", `keyid=`, `alg="ed25519"`} {
+				if !strings.Contains(sigInput, want) {
+					t.Fatalf("Signature-Input missing %q: %q", want, sigInput)
+				}
+			}
+
+			if len(tc.body) == 0 {
+				for _, unwanted := range []string{`"content-digest"`, `"content-length"`} {
+					if strings.Contains(sigInput, unwanted) {
+						t.Fatalf("empty-body Signature-Input should omit %s: %q", unwanted, sigInput)
+					}
+				}
+			} else {
+				for _, want := range []string{`"content-digest"`, `"content-length"`} {
+					if !strings.Contains(sigInput, want) {
+						t.Fatalf("body Signature-Input missing %q: %q", want, sigInput)
+					}
+				}
+			}
+
+			result := verifier.VerifyRequest(req, tc.body, func(keyID string) (ed25519.PublicKey, error) {
+				return km.GetSigningKey().PublicKey, nil
+			})
+			if !result.Verified {
+				t.Fatalf("verification failed: %v", result.Error)
+			}
+		})
+	}
+}
+
+func TestAppendixB_VectorVerify_Negative(t *testing.T) {
+	fixedNow := time.Unix(1_730_815_200, 0)
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return fixedNow }
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/token", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+
+	keyFetcher := func(keyID string) (ed25519.PublicKey, error) {
+		return km.GetSigningKey().PublicKey, nil
+	}
+
+	cases := []struct {
+		name    string
+		mutate  func(*http.Request)
+		wantErr string
+	}{
+		{
+			name: "wrong signature label",
+			mutate: func(r *http.Request) {
+				r.Header.Set("Signature-Input", strings.Replace(r.Header.Get("Signature-Input"), "ocm=", "other=", 1))
+				r.Header.Set("Signature", strings.Replace(r.Header.Get("Signature"), "ocm=", "other=", 1))
+			},
+			wantErr: "label",
+		},
+		{
+			name: "changed method after signing",
+			mutate: func(r *http.Request) {
+				r.Method = http.MethodGet
+			},
+			wantErr: "verification failed",
+		},
+		{
+			name: "stripped Signature header",
+			mutate: func(r *http.Request) {
+				r.Header.Del("Signature")
+			},
+			wantErr: "missing Signature",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cloned := req.Clone(req.Context())
+			for k, vals := range req.Header {
+				cloned.Header[k] = append([]string(nil), vals...)
+			}
+			tc.mutate(cloned)
+
+			result := verifier.VerifyRequest(cloned, body, keyFetcher)
+			if result.Verified {
+				t.Fatal("expected verification failure")
+			}
+			if result.Error == nil {
+				t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+			}
+			if !strings.Contains(strings.ToLower(result.Error.Error()), strings.ToLower(tc.wantErr)) {
+				t.Fatalf("error = %v, want substring %q", result.Error, tc.wantErr)
+			}
+		})
 	}
 }

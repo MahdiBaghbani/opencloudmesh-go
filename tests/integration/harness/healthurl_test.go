@@ -9,6 +9,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 )
 
 func TestHealthEndpointURL(t *testing.T) {
@@ -148,6 +149,120 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 				t.Fatalf("validatePreBootstrapStartup() = %v, want error containing %q", err, tc.wantSubstr)
 			}
 		})
+	}
+}
+
+func TestApplyIETFConfigDefaults(t *testing.T) {
+	dev := config.DevConfig()
+	cfg := config.DevConfig()
+	applyIETFConfigDefaults(cfg)
+
+	if cfg.Signature.InboundMode != "strict" {
+		t.Fatalf("Signature.InboundMode = %q, want strict", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Fatalf("Signature.OutboundMode = %q, want strict", cfg.Signature.OutboundMode)
+	}
+	if cfg.Signature.Label != config.DefaultSignatureLabel {
+		t.Fatalf("Signature.Label = %q, want %q", cfg.Signature.Label, config.DefaultSignatureLabel)
+	}
+	if cfg.Signature.AllowMismatch {
+		t.Fatal("Signature.AllowMismatch = true, want false")
+	}
+	if !cfg.RequireTokenExchange {
+		t.Fatal("RequireTokenExchange = false, want true")
+	}
+
+	assertIETFHarnessLocalhostPeerMappings(t, cfg.PeerProfiles.Mappings)
+
+	// Intentionally preserved DevConfig leniencies for in-process localhost tests.
+	if cfg.Mode != dev.Mode {
+		t.Fatalf("Mode = %q, want preserved %q", cfg.Mode, dev.Mode)
+	}
+	if cfg.CompatibilityScope != dev.CompatibilityScope {
+		t.Fatalf("CompatibilityScope = %q, want preserved %q", cfg.CompatibilityScope, dev.CompatibilityScope)
+	}
+	if cfg.TLS.Mode != dev.TLS.Mode {
+		t.Fatalf("TLS.Mode = %q, want preserved %q", cfg.TLS.Mode, dev.TLS.Mode)
+	}
+	if cfg.OutboundHTTP.SSRF.Mode != dev.OutboundHTTP.SSRF.Mode {
+		t.Fatalf("OutboundHTTP.SSRF.Mode = %q, want preserved %q", cfg.OutboundHTTP.SSRF.Mode, dev.OutboundHTTP.SSRF.Mode)
+	}
+	if cfg.OutboundHTTP.InsecureSkipVerify != dev.OutboundHTTP.InsecureSkipVerify {
+		t.Fatalf("OutboundHTTP.InsecureSkipVerify = %v, want preserved %v", cfg.OutboundHTTP.InsecureSkipVerify, dev.OutboundHTTP.InsecureSkipVerify)
+	}
+	if cfg.Signature.PeerProfileLevelOverride != dev.Signature.PeerProfileLevelOverride {
+		t.Fatalf("Signature.PeerProfileLevelOverride = %q, want preserved %q", cfg.Signature.PeerProfileLevelOverride, dev.Signature.PeerProfileLevelOverride)
+	}
+	if cfg.Signature.OnDiscoveryError != dev.Signature.OnDiscoveryError {
+		t.Fatalf("Signature.OnDiscoveryError = %q, want preserved %q", cfg.Signature.OnDiscoveryError, dev.Signature.OnDiscoveryError)
+	}
+	if cfg.PeerPolicy != dev.PeerPolicy {
+		t.Fatalf("PeerPolicy = %q, want preserved %q", cfg.PeerPolicy, dev.PeerPolicy)
+	}
+}
+
+func TestIETFHarnessLocalhostPeerMappings(t *testing.T) {
+	mappings := ietfHarnessLocalhostPeerMappings()
+	assertIETFHarnessLocalhostPeerMappings(t, mappings)
+}
+
+func assertIETFHarnessLocalhostPeerMappings(t *testing.T, mappings []config.PeerProfileMapping) {
+	t.Helper()
+
+	want := map[string]string{
+		"localhost": "dev",
+		"127.0.0.1": "dev",
+	}
+	if len(mappings) != len(want) {
+		t.Fatalf("peer profile mappings = %d, want %d", len(mappings), len(want))
+	}
+
+	got := make(map[string]string, len(mappings))
+	for _, mapping := range mappings {
+		got[mapping.Pattern] = mapping.Profile
+	}
+	for pattern, profile := range want {
+		if got[pattern] != profile {
+			t.Fatalf("mapping[%q] = %q, want profile %q (full mappings: %+v)",
+				pattern, got[pattern], profile, mappings)
+		}
+	}
+}
+
+func TestIETFIntegrationBuildOpts(t *testing.T) {
+	opts := IETFIntegrationBuildOpts()
+	if opts.SkipCrypto {
+		t.Fatal("SkipCrypto must be false for IETF integration path")
+	}
+	if opts.SkipSignatureMiddleware {
+		t.Fatal("SkipSignatureMiddleware must be false for IETF integration path")
+	}
+
+	base := IntegrationBuildOpts()
+	if opts.FastAuth != base.FastAuth {
+		t.Fatal("IETF opts should preserve FastAuth from integration baseline")
+	}
+	if opts.SkipPeerTrust != base.SkipPeerTrust {
+		t.Fatal("IETF opts should preserve SkipPeerTrust from integration baseline")
+	}
+	if opts.SkipDiscoveryCache != base.SkipDiscoveryCache {
+		t.Fatal("IETF opts should preserve SkipDiscoveryCache from integration baseline")
+	}
+}
+
+func TestIETFIntegrationBuildOpts_MatchesWiringBuildOpts(t *testing.T) {
+	got := IETFIntegrationBuildOpts()
+	want := wiring.BuildOpts{
+		FastAuth:                true,
+		SkipCrypto:              false,
+		SkipPeerTrust:           true,
+		SkipSignatureMiddleware: false,
+		OutboundOverride:        got.OutboundOverride,
+		SkipDiscoveryCache:      true,
+	}
+	if got != want {
+		t.Fatalf("IETFIntegrationBuildOpts() = %+v, want %+v", got, want)
 	}
 }
 
