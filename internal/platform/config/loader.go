@@ -119,6 +119,8 @@ func Load(opts LoaderOptions) (*Config, error) {
 	// Overlay CLI flag overrides.
 	overlayFlags(cfg, opts.FlagOverrides)
 
+	applySignatureDefaults(cfg)
+
 	// Populate DerivedSSRFMode from SSRF.Mode for programmatic caller compatibility.
 	cfg.OutboundHTTP.DerivedSSRFMode = cfg.OutboundHTTP.SSRF.Mode
 
@@ -174,6 +176,25 @@ func Load(opts LoaderOptions) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func applySignatureDefaults(cfg *Config) {
+	defaults := DefaultSignatureConfig()
+	if cfg.Signature.Label == "" {
+		cfg.Signature.Label = defaults.Label
+	}
+	if cfg.Signature.KidFragment == "" {
+		cfg.Signature.KidFragment = defaults.KidFragment
+	}
+	if cfg.Signature.CreatedMaxAgeSeconds == 0 {
+		cfg.Signature.CreatedMaxAgeSeconds = defaults.CreatedMaxAgeSeconds
+	}
+	if cfg.Signature.CreatedMaxSkewSeconds == 0 {
+		cfg.Signature.CreatedMaxSkewSeconds = defaults.CreatedMaxSkewSeconds
+	}
+	if len(cfg.Signature.AllowedAlgorithms) == 0 {
+		cfg.Signature.AllowedAlgorithms = append([]string(nil), defaults.AllowedAlgorithms...)
+	}
 }
 
 // validateEnums validates enum-like config fields and returns an error for invalid values.
@@ -244,6 +265,27 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid signature.on_discovery_error %q: must be one of reject, allow", cfg.Signature.OnDiscoveryError)
+	}
+
+	if cfg.Signature.Label == "" {
+		return fmt.Errorf("signature.label must not be empty")
+	}
+	if cfg.Signature.KidFragment == "" {
+		return fmt.Errorf("signature.kid_fragment must not be empty")
+	}
+	if cfg.Signature.CreatedMaxAgeSeconds <= 0 {
+		return fmt.Errorf("signature.created_max_age_seconds must be positive")
+	}
+	if cfg.Signature.CreatedMaxSkewSeconds < 0 {
+		return fmt.Errorf("signature.created_max_skew_seconds must be non-negative")
+	}
+	if len(cfg.Signature.AllowedAlgorithms) == 0 {
+		return fmt.Errorf("signature.allowed_algorithms must not be empty")
+	}
+	for _, alg := range cfg.Signature.AllowedAlgorithms {
+		if strings.TrimSpace(alg) == "" {
+			return fmt.Errorf("signature.allowed_algorithms must not contain empty values")
+		}
 	}
 
 	// cache.driver (empty defaults to memory)

@@ -64,14 +64,7 @@ func StrictConfig() *Config {
 			},
 		},
 		OutboundHTTP: DefaultOutboundHTTP(),
-		Signature: SignatureConfig{
-			InboundMode:              "strict",
-			OutboundMode:             "strict",
-			PeerProfileLevelOverride: "off",
-			KeyPath:                  ".ocm/keys/signing.pem",
-			OnDiscoveryError:         "reject",
-			AllowMismatch:            false,
-		},
+		Signature:    DefaultSignatureConfig(),
 		PeerTrust: PeerTrustConfig{
 			Enabled:         false,
 			ConfigPaths:     nil,

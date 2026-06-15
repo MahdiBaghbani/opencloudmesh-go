@@ -29,6 +29,14 @@ const (
 	DefaultPeerTrustCacheMaxStaleSeconds = 604800 // 7 days
 )
 
+// HTTP signature defaults (RFC 9421 / OCM IETF Appendix B).
+const (
+	DefaultSignatureLabel          = "ocm"
+	DefaultSignatureKidFragment    = "key1"
+	DefaultSignatureCreatedMaxAge  = 300
+	DefaultSignatureCreatedMaxSkew = 60
+)
+
 // Test-oriented outbound and wait defaults (integration harness + unit tests).
 const (
 	TestOutboundTimeoutMS = 5000
@@ -73,5 +81,22 @@ func DefaultPeerTrustMembershipCache() PeerTrustMembershipCacheConfig {
 	return PeerTrustMembershipCacheConfig{
 		TTLSeconds:      DefaultPeerTrustCacheTTLSeconds,
 		MaxStaleSeconds: DefaultPeerTrustCacheMaxStaleSeconds,
+	}
+}
+
+// DefaultSignatureConfig returns RFC 9421 / OCM IETF signature defaults.
+func DefaultSignatureConfig() SignatureConfig {
+	return SignatureConfig{
+		InboundMode:              "strict",
+		OutboundMode:             "strict",
+		PeerProfileLevelOverride: "off",
+		KeyPath:                  ".ocm/keys/signing.pem",
+		OnDiscoveryError:         "reject",
+		AllowMismatch:            false,
+		Label:                    DefaultSignatureLabel,
+		KidFragment:              DefaultSignatureKidFragment,
+		CreatedMaxAgeSeconds:     DefaultSignatureCreatedMaxAge,
+		CreatedMaxSkewSeconds:    DefaultSignatureCreatedMaxSkew,
+		AllowedAlgorithms:        []string{"ed25519"},
 	}
 }
