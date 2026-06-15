@@ -7,6 +7,7 @@ bin/
 *.swp
 *.swo
 .ocm/
+.rumdl_cache/
 scripts/rewrite/
 
 # OS
