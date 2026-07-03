@@ -13,7 +13,7 @@ import (
 )
 
 func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18082)
+	cfg := tscfg.DevConfigHarness()
 	cfg.ExternalBasePath = "/ocm"
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
@@ -36,7 +36,7 @@ func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
 func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 	const messyOrigin = "https://Cloud.Example.COM:443/"
 
-	cfg := tscfg.DevConfigHarness(18085)
+	cfg := tscfg.DevConfigHarness()
 	cfg.PublicOrigin = messyOrigin
 	cfg.ExternalBasePath = "/ocm"
 	cfg.Signature.KeyPath = filepath.Join(t.TempDir(), "signing.pem")

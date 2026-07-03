@@ -16,7 +16,7 @@ import (
 
 func TestCryptoSkip_GatesDeps(t *testing.T) {
 	t.Run("SkipCrypto=true produces nil crypto deps", func(t *testing.T) {
-		cfg := tscfg.DevConfigHarness(18082)
+		cfg := tscfg.DevConfigHarness()
 
 		result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 		if err != nil {
@@ -35,7 +35,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 	})
 
 	t.Run("SkipCrypto=false with signature modes off produces non-nil OutboundPolicy", func(t *testing.T) {
-		cfg := tscfg.DevConfigNoSignatures(18083)
+		cfg := tscfg.DevConfigNoSignatures()
 
 		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
@@ -56,7 +56,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 	})
 
 	t.Run("SkipCrypto=false with signature modes on produces non-nil Signer", func(t *testing.T) {
-		cfg := tscfg.DevConfigHarness(18084)
+		cfg := tscfg.DevConfigHarness()
 
 		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
@@ -75,7 +75,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 }
 
 func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18088)
+	cfg := tscfg.DevConfigHarness()
 	cfg.Signature.Label = "wiredlabel"
 
 	opts := harnessBuildOpts()
@@ -107,7 +107,7 @@ func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
 }
 
 func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18089)
+	cfg := tscfg.DevConfigHarness()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), toBuildOpts(tswiring.IETFWireOptions))
 	if err != nil {

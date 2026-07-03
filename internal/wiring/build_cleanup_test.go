@@ -33,7 +33,7 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 	}
 	t.Cleanup(func() { wireSharedDepsHook = oldWire })
 
-	cfg := tscfg.DevConfigHarness(18200)
+	cfg := tscfg.DevConfigHarness()
 	_, err := Build(cfg, tslog.DiscardLogger(), harnessBuildOptsForPackageTest(tswiring.HarnessWireOptions))
 	if err == nil {
 		t.Fatal("expected wire shared deps failure")
@@ -44,7 +44,7 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 }
 
 func TestWireSharedDeps_RejectsNilPersistence(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18199)
+	cfg := tscfg.DevConfigHarness()
 	_, err := wireSharedDeps(cfg, tslog.DiscardLogger(), BuildOpts{}, nil)
 	if err == nil {
 		t.Fatal("expected error for nil persistence")

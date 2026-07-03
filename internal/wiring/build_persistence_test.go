@@ -23,7 +23,7 @@ func assertMemoryBackedTokenStore(t *testing.T, d *wiring.Deps) {
 }
 
 func TestPersistence_MemoryBackend(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18094)
+	cfg := tscfg.DevConfigHarness()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
@@ -53,7 +53,7 @@ func TestPersistence_MemoryBackend(t *testing.T) {
 }
 
 func TestPersistence_JSONBackend(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18096)
+	cfg := tscfg.DevConfigHarness()
 	cfg.Persistence.Backend = config.BackendJSON
 	cfg.Persistence.DataDir = t.TempDir()
 
@@ -85,7 +85,7 @@ func TestPersistence_JSONBackend(t *testing.T) {
 }
 
 func TestPersistence_RejectsUnknownBackend(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18095)
+	cfg := tscfg.DevConfigHarness()
 	cfg.Persistence.Backend = "bogus-not-a-backend"
 
 	_, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())

@@ -11,7 +11,7 @@ import (
 )
 
 func TestOptions_HarnessBootstrapSucceeds(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18080)
+	cfg := tscfg.DevConfigHarness()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
@@ -23,7 +23,7 @@ func TestOptions_HarnessBootstrapSucceeds(t *testing.T) {
 }
 
 func TestOptions_ProductionBootstrapSucceeds(t *testing.T) {
-	cfg := tscfg.DevConfigNoSignatures(18081)
+	cfg := tscfg.DevConfigNoSignatures()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), wiring.BuildOpts{})
 	if err != nil {

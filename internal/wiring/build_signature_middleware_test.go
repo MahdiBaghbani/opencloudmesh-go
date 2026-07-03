@@ -14,7 +14,7 @@ import (
 func TestSignatureMiddlewareSkip_GatesConstruction(t *testing.T) {
 	t.Run("SkipSignatureMiddleware=true produces nil middleware", func(t *testing.T) {
 		result, err := wiring.Build(
-			tscfg.DevConfigNoSignatures(18086),
+			tscfg.DevConfigNoSignatures(),
 			tslog.DiscardLogger(),
 			harnessBuildOpts(),
 		)
@@ -31,7 +31,7 @@ func TestSignatureMiddlewareSkip_GatesConstruction(t *testing.T) {
 		opts.SkipSignatureMiddleware = false
 		opts.SkipCrypto = false
 		result, err := wiring.Build(
-			tscfg.DevConfigNoSignatures(18087),
+			tscfg.DevConfigNoSignatures(),
 			tslog.DiscardLogger(),
 			opts,
 		)
@@ -45,7 +45,7 @@ func TestSignatureMiddlewareSkip_GatesConstruction(t *testing.T) {
 
 	t.Run("IETF harness opts produce non-nil middleware with signing keys", func(t *testing.T) {
 		result, err := wiring.Build(
-			tscfg.DevConfigHarness(18090),
+			tscfg.DevConfigHarness(),
 			tslog.DiscardLogger(),
 			toBuildOpts(tswiring.IETFWireOptions),
 		)

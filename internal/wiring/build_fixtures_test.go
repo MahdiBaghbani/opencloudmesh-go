@@ -45,7 +45,7 @@ func TestFixtures_HarnessWireOptionsFixture(t *testing.T) {
 }
 
 func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {
-	cfg := tscfg.DevConfigNoSignatures(18112)
+	cfg := tscfg.DevConfigNoSignatures()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), wiring.BuildOpts{})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {
 }
 
 func TestFixtures_RoutePolicyPublicPaths(t *testing.T) {
-	cfg := tscfg.DevConfigNoSignatures(18100)
+	cfg := tscfg.DevConfigNoSignatures()
 	opts := tswiring.RouteOptsForConfig(cfg)
 	want := tsrouting.PublicSessionPaths(opts)
 
