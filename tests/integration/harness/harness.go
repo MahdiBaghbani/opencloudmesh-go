@@ -49,6 +49,55 @@ func StartTestServer(t *testing.T) *TestServer {
 // need a specific policy or config setting at server-creation time.
 func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestServer {
 	t.Helper()
+	return startTestServer(t, patch, IntegrationBuildOpts())
+}
+
+// StartTestServerWithIETFConfig starts a test server with real signing keys and
+// inbound signature middleware enabled. Use for HTTP signature integration tests.
+func StartTestServerWithIETFConfig(t *testing.T, patch func(*config.Config)) *TestServer {
+	t.Helper()
+	return startTestServer(t, func(cfg *config.Config) {
+		applyIETFConfigDefaults(cfg)
+		if patch != nil {
+			patch(cfg)
+		}
+	}, IETFIntegrationBuildOpts())
+}
+
+// applyIETFConfigDefaults is a hybrid overlay on DevConfig(): it tightens only
+// the signature inbound/outbound modes, label, allow_mismatch, token exchange
+// requirement, and localhost peer-profile mappings needed for in-process HTTP
+// signature tests. Other DevConfig leniencies (TLS off, SSRF off,
+// insecure_skip_verify, peer_profile_level_override, on_discovery_error, and
+// unbounded compatibility scope) are intentionally preserved; see
+// TestApplyIETFConfigDefaults.
+//
+// localhost and 127.0.0.1 map to the built-in "dev" peer profile because
+// StartTestServerWithIETFConfig serves plain HTTP on ephemeral localhost ports.
+// Peer discovery and JWKS resolution (for example provider verification of a
+// client keyId during signed token exchange) must therefore use http:// peers.
+// Without these mappings, ResolvePeerOrigin would keep the default strict
+// profile, reject HTTP transport, and break in-process two-instance JWKS fetch.
+func applyIETFConfigDefaults(cfg *config.Config) {
+	cfg.Signature.InboundMode = "strict"
+	cfg.Signature.OutboundMode = "strict"
+	cfg.Signature.Label = config.DefaultSignatureLabel
+	cfg.Signature.AllowMismatch = false
+	cfg.RequireTokenExchange = true
+	cfg.PeerProfiles.Mappings = ietfHarnessLocalhostPeerMappings()
+}
+
+// ietfHarnessLocalhostPeerMappings returns the localhost bridge mappings
+// required for in-process IETF integration tests over plain HTTP.
+func ietfHarnessLocalhostPeerMappings() []config.PeerProfileMapping {
+	return []config.PeerProfileMapping{
+		{Pattern: "localhost", Profile: "dev"},
+		{Pattern: "127.0.0.1", Profile: "dev"},
+	}
+}
+
+func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.BuildOpts) *TestServer {
+	t.Helper()
 
 	// Create temp directory for test data
 	tempDir, err := os.MkdirTemp("", "ocm-test-*")
@@ -67,6 +116,7 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	cfg := config.DevConfig()
 	cfg.ListenAddr = fmt.Sprintf(":%d", port)
 	cfg.PublicOrigin = fmt.Sprintf("http://localhost:%d", port)
+	cfg.Signature.KeyPath = filepath.Join(tempDir, "keys", "signing.pem")
 
 	if patch != nil {
 		patch(cfg)
@@ -85,8 +135,8 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 		Level: slog.LevelWarn,
 	}))
 
-	// Wire via wiring.Build using the shared integration harness defaults.
-	buildResult, err := wiring.Build(cfg, logger, IntegrationBuildOpts())
+	// Wire via wiring.Build using the caller-selected harness build options.
+	buildResult, err := wiring.Build(cfg, logger, buildOpts)
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap dependencies: %v", err)

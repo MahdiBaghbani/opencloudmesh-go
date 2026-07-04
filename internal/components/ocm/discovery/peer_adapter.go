@@ -2,23 +2,31 @@ package discovery
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
-// PeerDiscoveryAdapter implements crypto.PeerDiscovery using discovery.Client.
+// PeerDiscoveryAdapter implements crypto.PeerDiscovery using JWKS resolution.
 type PeerDiscoveryAdapter struct {
 	client       *Client
 	peerContract *peercompat.CompiledContract
+	jwks         *jwks.Resolver
 }
 
-func NewPeerDiscoveryAdapter(client *Client) *PeerDiscoveryAdapter {
+func NewPeerDiscoveryAdapter(client *Client, httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
 	if client == nil {
 		return &PeerDiscoveryAdapter{}
 	}
-	return &PeerDiscoveryAdapter{client: client}
+	return &PeerDiscoveryAdapter{
+		client: client,
+		jwks:   jwks.NewResolver(httpClient),
+	}
 }
 
 // SetPeerContract wires the compiled compatibility contract so peer discovery
@@ -37,35 +45,52 @@ func (p *PeerDiscoveryAdapter) IsSigningCapable(ctx context.Context, host string
 		return false, fmt.Errorf("discovery failed for %s: %w", host, err)
 	}
 
-	return disc.HasCriteria("http-request-signatures"), nil
+	return disc.RequiresHTTPSig(), nil
 }
 
-// GetPublicKey fetches the public key for a keyId.
+// GetPublicKey fetches the public key for a keyId via /.well-known/jwks.json.
 func (p *PeerDiscoveryAdapter) GetPublicKey(ctx context.Context, keyID string) (string, error) {
-	if p.client == nil {
-		return "", fmt.Errorf("no discovery client configured")
+	if p.jwks == nil {
+		return "", fmt.Errorf("no JWKS resolver configured")
 	}
 
-	// Extract authority from keyId (e.g., "https://example.com/ocm#key1")
-	parsed, err := keyid.Parse(keyID)
+	parsed, err := keyid.ParseKid(keyID)
 	if err != nil {
 		return "", fmt.Errorf("invalid keyId %q: %w", keyID, err)
 	}
-	authority := keyid.Authority(parsed)
-	baseURL := p.resolvePeerBaseURL(authority)
-	disc, err := p.client.Discover(ctx, baseURL)
-	if err != nil {
-		return "", fmt.Errorf("discovery failed for %s: %w", authority, err)
+
+	scheme := parsed.Scheme
+	if scheme == "" {
+		scheme = "https"
 	}
-	pk := disc.GetPublicKey(keyID)
-	if pk == nil {
-		return "", fmt.Errorf("public key %s not found in discovery", keyID)
+	authority := parsed.Authority
+	baseURL := p.resolvePeerBaseURL(parsed.Authority)
+	if s, host, authErr := jwks.AuthorityFromBaseURL(baseURL); authErr == nil {
+		scheme = s
+		authority = host
 	}
 
-	return pk.PublicKeyPem, nil
+	pub, err := p.jwks.Resolve(ctx, scheme, authority, keyID)
+	if err != nil {
+		return "", fmt.Errorf("jwks lookup for %q: %w", keyID, err)
+	}
+
+	return ed25519PublicKeyPEM(pub)
+}
+
+func ed25519PublicKeyPEM(pub ed25519.PublicKey) (string, error) {
+	pkix, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return "", fmt.Errorf("marshal public key: %w", err)
+	}
+	block := &pem.Block{Type: "PUBLIC KEY", Bytes: pkix}
+	return string(pem.EncodeToMemory(block)), nil
 }
 
 func (p *PeerDiscoveryAdapter) resolvePeerBaseURL(host string) string {
+	if p.peerContract == nil {
+		return host
+	}
 	decision := p.peerContract.ResolvePeerOrigin(host)
 	return decision.BaseURL
 }

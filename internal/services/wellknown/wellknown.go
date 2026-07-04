@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
@@ -52,15 +51,15 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		conf:   &c,
 	}
 
-	if err := s.routerInit(inputs.Resolve, rawOCMProvider, log); err != nil {
+	if err := s.routerInit(inputs, rawOCMProvider, log); err != nil {
 		return nil, err
 	}
 
 	return s, nil
 }
 
-func (s *svc) routerInit(in resolve.ResolveInputs, rawOCMProvider map[string]any, log *slog.Logger) error {
-	handler, err := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, in, log)
+func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) error {
+	handler, err := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
 	if err != nil {
 		return err
 	}
@@ -68,6 +67,7 @@ func (s *svc) routerInit(in resolve.ResolveInputs, rawOCMProvider map[string]any
 	s.router.Get(RouteOCMProvider, handler.ServeHTTP)
 	s.router.Get(RouteWellKnownOCMSlash, handler.ServeHTTP)
 	s.router.Get(RouteOCMProviderSlash, handler.ServeHTTP)
+	s.router.Get(RouteWellKnownJWKS, newJWKSHandler(inputs.KeyManager).ServeHTTP)
 	return nil
 }
 

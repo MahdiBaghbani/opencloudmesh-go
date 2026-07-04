@@ -3,15 +3,59 @@ package crypto_test
 import (
 	"bytes"
 	"crypto/ed25519"
-	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
+
+func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate failed: %v", err)
+	}
+
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	req, err := http.NewRequest("GET", "https://example.com/ocm/discovery", nil)
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	req.Host = "example.com"
+
+	if err := signer.SignRequest(req, nil); err != nil {
+		t.Fatalf("SignRequest failed: %v", err)
+	}
+
+	sigInput := req.Header.Get("Signature-Input")
+	for _, unwanted := range []string{`"content-digest"`, `"content-length"`} {
+		if strings.Contains(sigInput, unwanted) {
+			t.Fatalf("empty-body Signature-Input should omit %s: %q", unwanted, sigInput)
+		}
+	}
+	for _, want := range []string{`"@method"`, `"@target-uri"`, `"date"`} {
+		if !strings.Contains(sigInput, want) {
+			t.Fatalf("empty-body Signature-Input missing %s: %q", want, sigInput)
+		}
+	}
+
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (ed25519.PublicKey, error) {
+		return km.GetSigningKey().PublicKey, nil
+	})
+	if !result.Verified {
+		t.Fatalf("empty-body verification failed: %v", result.Error)
+	}
+}
 
 func TestRFC9421_SignAndVerify(t *testing.T) {
 	km := crypto.NewKeyManager("", "https://example.com")
@@ -19,8 +63,11 @@ func TestRFC9421_SignAndVerify(t *testing.T) {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
 	}
 
-	signer := crypto.NewRFC9421Signer(km)
-	verifier := crypto.NewRFC9421Verifier()
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test": "data"}`)
 
@@ -31,20 +78,21 @@ func TestRFC9421_SignAndVerify(t *testing.T) {
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
-	// Sign the request
 	if err := signer.SignRequest(req, body); err != nil {
 		t.Fatalf("SignRequest failed: %v", err)
 	}
 
-	// Check that signature headers were added
-	if req.Header.Get("Signature-Input") == "" {
-		t.Error("missing Signature-Input header")
+	sigInput := req.Header.Get("Signature-Input")
+	if !strings.HasPrefix(sigInput, "ocm=") {
+		t.Fatalf("Signature-Input = %q, want ocm= prefix", sigInput)
 	}
 	if req.Header.Get("Signature") == "" {
 		t.Error("missing Signature header")
 	}
+	if req.Header.Get("Date") == "" {
+		t.Error("missing Date header")
+	}
 
-	// Verify the signature
 	result := verifier.VerifyRequest(req, body, func(keyID string) (ed25519.PublicKey, error) {
 		return km.GetSigningKey().PublicKey, nil
 	})
@@ -63,9 +111,11 @@ func TestRFC9421_SignatureParams(t *testing.T) {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
 	}
 
-	signer := crypto.NewRFC9421Signer(km)
-	body := []byte(`{"test": "data"}`)
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
+	body := []byte(`{"test": "data"}`)
 	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
@@ -75,22 +125,10 @@ func TestRFC9421_SignatureParams(t *testing.T) {
 	}
 
 	sigInput := req.Header.Get("Signature-Input")
-
-	// Check that required components are in the signature params
-	if !strings.Contains(sigInput, "\"@method\"") {
-		t.Error("@method not in signature params")
-	}
-	if !strings.Contains(sigInput, "\"@target-uri\"") {
-		t.Error("@target-uri not in signature params")
-	}
-	if !strings.Contains(sigInput, "created=") {
-		t.Error("created not in signature params")
-	}
-	if !strings.Contains(sigInput, "keyid=") {
-		t.Error("keyid not in signature params")
-	}
-	if !strings.Contains(sigInput, "alg=\"ed25519\"") {
-		t.Error("alg not in signature params")
+	for _, want := range []string{`"@method"`, `"@target-uri"`, `"content-digest"`, `"content-length"`, `"date"`, "created=", "keyid=", `alg="ed25519"`} {
+		if !strings.Contains(sigInput, want) {
+			t.Errorf("Signature-Input missing %q: %q", want, sigInput)
+		}
 	}
 }
 
@@ -99,7 +137,6 @@ func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
 
-	// No signature headers - should not verify
 	if verifier.HasSignatureHeaders(req) {
 		t.Error("should not have signature headers")
 	}
@@ -117,24 +154,24 @@ func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 }
 
 func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
-	// Create two different key managers
 	km1 := crypto.NewKeyManager("", "https://example.com")
 	km2 := crypto.NewKeyManager("", "https://attacker.com")
 	km1.LoadOrGenerate()
 	km2.LoadOrGenerate()
 
-	signer := crypto.NewRFC9421Signer(km1)
-	verifier := crypto.NewRFC9421Verifier()
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+
+	signer := crypto.NewRFC9421SignerWithOptions(km1, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test": "data"}`)
 	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
-	// Sign with km1
 	signer.SignRequest(req, body)
 
-	// Try to verify with km2's public key - should fail
 	result := verifier.VerifyRequest(req, body, func(keyID string) (ed25519.PublicKey, error) {
 		return km2.GetSigningKey().PublicKey, nil
 	})
@@ -144,31 +181,134 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Unix(1_730_815_200, 0)
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return now }
+	opts.CreatedMaxAge = time.Minute
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+
+	body := []byte(`{"test": "data"}`)
+	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Host = "example.com"
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+
+	staleVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
+		Label:              opts.Label,
+		CreatedMaxAge:      opts.CreatedMaxAge,
+		CreatedMaxSkew:     opts.CreatedMaxSkew,
+		AllowedAlgorithms:  opts.AllowedAlgorithms,
+		RequiredComponents: opts.RequiredComponents,
+		Now:                func() time.Time { return now.Add(2 * time.Minute) },
+	})
+
+	result := staleVerifier.VerifyRequest(req, body, func(keyID string) (ed25519.PublicKey, error) {
+		return km.GetSigningKey().PublicKey, nil
+	})
+	if result.Verified {
+		t.Fatal("expected stale created to fail verification")
+	}
+	if result.Error == nil || !strings.Contains(result.Error.Error(), "stale") {
+		t.Fatalf("error = %v, want stale created", result.Error)
+	}
+}
+
+func TestRFC9421_VerifyRejectsFutureCreated(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	signTime := time.Unix(1_730_815_200, 0)
+	verifyTime := signTime.Add(-2 * time.Minute)
+
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return signTime }
+	opts.CreatedMaxSkew = time.Minute
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+
+	body := []byte(`{"test": "data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "example.com"
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+
+	futureVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
+		Label:              opts.Label,
+		CreatedMaxAge:      opts.CreatedMaxAge,
+		CreatedMaxSkew:     opts.CreatedMaxSkew,
+		AllowedAlgorithms:  opts.AllowedAlgorithms,
+		RequiredComponents: opts.RequiredComponents,
+		Now:                func() time.Time { return verifyTime },
+	})
+
+	result := futureVerifier.VerifyRequest(req, body, func(keyID string) (ed25519.PublicKey, error) {
+		return km.GetSigningKey().PublicKey, nil
+	})
+	if result.Verified {
+		t.Fatal("expected future created to fail verification")
+	}
+	if result.Error == nil || !strings.Contains(result.Error.Error(), "too far in the future") {
+		t.Fatalf("error = %v, want future created rejection", result.Error)
+	}
+}
+
+func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	now := time.Now().Unix()
+	req := httptest.NewRequest("POST", "https://example.com/test", nil)
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="hmac-sha256"`,
+		now,
+	))
+	req.Header.Set("Signature", "ocm=:AAAA:")
+
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (ed25519.PublicKey, error) {
+		return nil, fmt.Errorf("should not fetch key")
+	})
+	if result.Verified {
+		t.Fatal("expected symmetric algorithm rejection")
+	}
+}
+
 func TestContentDigest(t *testing.T) {
 	body := []byte(`{"test": "data"}`)
 
 	req := httptest.NewRequest("POST", "/test", bytes.NewReader(body))
 
-	// Without Content-Digest header, verification should pass
 	if err := crypto.VerifyContentDigest(req, body); err != nil {
 		t.Errorf("should pass without Content-Digest: %v", err)
 	}
 
-	// Sign with correct digest
 	km := crypto.NewKeyManager("", "https://example.com")
 	km.LoadOrGenerate()
-	signer := crypto.NewRFC9421Signer(km)
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	req2, _ := http.NewRequest("POST", "https://example.com/test", bytes.NewReader(body))
 	req2.Host = "example.com"
 	signer.SignRequest(req2, body)
 
-	// Verify with correct body
 	if err := crypto.VerifyContentDigest(req2, body); err != nil {
 		t.Errorf("verification should pass with correct body: %v", err)
 	}
 
-	// Verify with wrong body
 	wrongBody := []byte(`{"wrong": "body"}`)
 	if err := crypto.VerifyContentDigest(req2, wrongBody); err == nil {
 		t.Error("verification should fail with wrong body")
@@ -203,8 +343,6 @@ func TestHasSignatureHeaders(t *testing.T) {
 	}
 }
 
-// TestVerifyRequest_RejectPaths covers deterministic reject paths in the
-// verifier for incomplete or malformed signature material.
 func TestVerifyRequest_RejectPaths(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 
@@ -213,12 +351,18 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
 	}
 
-	// A syntactically valid but cryptographically wrong 64-byte signature.
-	zeroSig := base64.StdEncoding.EncodeToString(make([]byte, 64))
+	zeroSig := "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==:"
 
 	keyFetcher := func(keyID string) (ed25519.PublicKey, error) {
 		return km.GetSigningKey().PublicKey, nil
 	}
+
+	now := time.Now().Unix()
+	validParams := fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519"`,
+		now,
+		km.GetKeyID(),
+	)
 
 	tests := []struct {
 		name           string
@@ -229,51 +373,36 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 	}{
 		{
 			name:          "missing Signature-Input header",
-			signatureInput: "",
-			signature:     fmt.Sprintf("sig1=:%s:", zeroSig),
+			signature:     zeroSig,
 			fetcher:       keyFetcher,
 			wantErrSubstr: "missing Signature-Input",
 		},
 		{
 			name:           "missing Signature header",
-			signatureInput: `sig1=("@method");created=1234567890;keyid="https://example.com#key1";alg="ed25519"`,
-			signature:      "",
+			signatureInput: validParams,
 			fetcher:        keyFetcher,
 			wantErrSubstr:  "missing Signature",
 		},
 		{
-			name:           "missing keyid in params",
-			signatureInput: `sig1=("@method");created=1234567890;alg="ed25519"`,
-			signature:      fmt.Sprintf("sig1=:%s:", zeroSig),
+			name:           "missing created parameter",
+			signatureInput: `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519"`,
+			signature:      zeroSig,
 			fetcher:        keyFetcher,
-			wantErrSubstr:  "keyid not found",
+			wantErrSubstr:  "missing created",
 		},
 		{
-			name:           "empty keyid",
-			signatureInput: `sig1=("@method");created=1234567890;keyid="";alg="ed25519"`,
-			signature:      fmt.Sprintf("sig1=:%s:", zeroSig),
+			name:           "missing minimum component",
+			signatureInput: fmt.Sprintf(`ocm=("@method");created=%d;keyid=%q;alg="ed25519"`, now, km.GetKeyID()),
+			signature:      zeroSig,
 			fetcher:        keyFetcher,
-			wantErrSubstr:  "empty keyid",
-		},
-		{
-			name:           "invalid base64 signature encoding",
-			signatureInput: `sig1=("@method");created=1234567890;keyid="https://example.com#key1";alg="ed25519"`,
-			signature:      "sig1=:not!valid!base64!!!:",
-			fetcher:        keyFetcher,
-			wantErrSubstr:  "invalid signature encoding",
-		},
-		{
-			name:           "malformed keyid missing closing quote",
-			signatureInput: `sig1=("@method");created=1234567890;keyid="https://example.com#key1`,
-			signature:      fmt.Sprintf("sig1=:%s:", zeroSig),
-			fetcher:        keyFetcher,
-			wantErrSubstr:  "malformed keyid",
+			wantErrSubstr:  "missing required signature component",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("POST", "https://example.com/test", nil)
+			req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
@@ -291,6 +420,206 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 			}
 			if !strings.Contains(result.Error.Error(), tt.wantErrSubstr) {
 				t.Errorf("error = %q, want substring %q", result.Error.Error(), tt.wantErrSubstr)
+			}
+		})
+	}
+}
+
+func TestAppendixBCoveredComponents(t *testing.T) {
+	components := crypto.AppendixBCoveredComponents()
+	want := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	if len(components) != len(want) {
+		t.Fatalf("components = %v", components)
+	}
+	for i, c := range want {
+		if components[i] != c {
+			t.Fatalf("components[%d] = %q, want %q", i, components[i], c)
+		}
+	}
+}
+
+func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
+	sig := config.SignatureConfig{
+		Label:                 "customlabel",
+		CreatedMaxAgeSeconds:  120,
+		CreatedMaxSkewSeconds: 15,
+		AllowedAlgorithms:     []string{"ed25519"},
+	}
+	opts := crypto.RFC9421OptionsFromConfig(sig)
+	if opts.Label != "customlabel" {
+		t.Fatalf("Label = %q", opts.Label)
+	}
+	if opts.CreatedMaxAge != 120*time.Second {
+		t.Fatalf("CreatedMaxAge = %v", opts.CreatedMaxAge)
+	}
+	if opts.CreatedMaxSkew != 15*time.Second {
+		t.Fatalf("CreatedMaxSkew = %v", opts.CreatedMaxSkew)
+	}
+	if len(opts.AllowedAlgorithms) != 1 || opts.AllowedAlgorithms[0] != "ed25519" {
+		t.Fatalf("AllowedAlgorithms = %v", opts.AllowedAlgorithms)
+	}
+}
+
+func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
+	fixedNow := time.Unix(1_730_815_200, 0)
+	cases := []struct {
+		name   string
+		method string
+		target string
+		body   []byte
+	}{
+		{
+			name:   "GET empty body omits digest components",
+			method: "GET",
+			target: "https://example.com/.well-known/ocm",
+			body:   nil,
+		},
+		{
+			name:   "POST with body includes Appendix B digest set",
+			method: "POST",
+			target: "https://example.com/ocm/shares",
+			body:   []byte(`{"shareWith":"alice@peer.example"}`),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			km := crypto.NewKeyManager("", "https://example.com")
+			if err := km.LoadOrGenerate(); err != nil {
+				t.Fatal(err)
+			}
+
+			opts := crypto.DefaultRFC9421Options()
+			opts.Now = func() time.Time { return fixedNow }
+
+			signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+			verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+			var reqBody io.Reader = http.NoBody
+			if tc.body != nil {
+				reqBody = bytes.NewReader(tc.body)
+			}
+			req, err := http.NewRequest(tc.method, tc.target, reqBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Host = "example.com"
+			if len(tc.body) > 0 {
+				req.Header.Set("Content-Type", "application/json")
+			}
+
+			if err := signer.SignRequest(req, tc.body); err != nil {
+				t.Fatalf("SignRequest: %v", err)
+			}
+
+			sigInput := req.Header.Get("Signature-Input")
+			if !strings.HasPrefix(sigInput, "ocm=") {
+				t.Fatalf("Signature-Input = %q, want ocm= prefix", sigInput)
+			}
+			for _, want := range []string{"created=", `keyid=`, `alg="ed25519"`} {
+				if !strings.Contains(sigInput, want) {
+					t.Fatalf("Signature-Input missing %q: %q", want, sigInput)
+				}
+			}
+
+			if len(tc.body) == 0 {
+				for _, unwanted := range []string{`"content-digest"`, `"content-length"`} {
+					if strings.Contains(sigInput, unwanted) {
+						t.Fatalf("empty-body Signature-Input should omit %s: %q", unwanted, sigInput)
+					}
+				}
+			} else {
+				for _, want := range []string{`"content-digest"`, `"content-length"`} {
+					if !strings.Contains(sigInput, want) {
+						t.Fatalf("body Signature-Input missing %q: %q", want, sigInput)
+					}
+				}
+			}
+
+			result := verifier.VerifyRequest(req, tc.body, func(keyID string) (ed25519.PublicKey, error) {
+				return km.GetSigningKey().PublicKey, nil
+			})
+			if !result.Verified {
+				t.Fatalf("verification failed: %v", result.Error)
+			}
+		})
+	}
+}
+
+func TestAppendixB_VectorVerify_Negative(t *testing.T) {
+	fixedNow := time.Unix(1_730_815_200, 0)
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return fixedNow }
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/token", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+
+	keyFetcher := func(keyID string) (ed25519.PublicKey, error) {
+		return km.GetSigningKey().PublicKey, nil
+	}
+
+	cases := []struct {
+		name    string
+		mutate  func(*http.Request)
+		wantErr string
+	}{
+		{
+			name: "wrong signature label",
+			mutate: func(r *http.Request) {
+				r.Header.Set("Signature-Input", strings.Replace(r.Header.Get("Signature-Input"), "ocm=", "other=", 1))
+				r.Header.Set("Signature", strings.Replace(r.Header.Get("Signature"), "ocm=", "other=", 1))
+			},
+			wantErr: "label",
+		},
+		{
+			name: "changed method after signing",
+			mutate: func(r *http.Request) {
+				r.Method = http.MethodGet
+			},
+			wantErr: "verification failed",
+		},
+		{
+			name: "stripped Signature header",
+			mutate: func(r *http.Request) {
+				r.Header.Del("Signature")
+			},
+			wantErr: "missing Signature",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cloned := req.Clone(req.Context())
+			for k, vals := range req.Header {
+				cloned.Header[k] = append([]string(nil), vals...)
+			}
+			tc.mutate(cloned)
+
+			result := verifier.VerifyRequest(cloned, body, keyFetcher)
+			if result.Verified {
+				t.Fatal("expected verification failure")
+			}
+			if result.Error == nil {
+				t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+			}
+			if !strings.Contains(strings.ToLower(result.Error.Error()), strings.ToLower(tc.wantErr)) {
+				t.Fatalf("error = %v, want substring %q", result.Error, tc.wantErr)
 			}
 		})
 	}

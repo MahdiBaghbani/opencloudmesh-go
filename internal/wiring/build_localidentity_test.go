@@ -13,7 +13,7 @@ import (
 )
 
 func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
-	cfg := tscfg.DevConfigHarness(18082)
+	cfg := tscfg.DevConfigHarness()
 	cfg.ExternalBasePath = "/ocm"
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
@@ -36,7 +36,7 @@ func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
 func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 	const messyOrigin = "https://Cloud.Example.COM:443/"
 
-	cfg := tscfg.DevConfigHarness(18085)
+	cfg := tscfg.DevConfigHarness()
 	cfg.PublicOrigin = messyOrigin
 	cfg.ExternalBasePath = "/ocm"
 	cfg.Signature.KeyPath = filepath.Join(t.TempDir(), "signing.pem")
@@ -60,14 +60,14 @@ func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 		t.Fatalf("test setup: LocalIdentity.Origin %q must differ from raw PublicOrigin %q", gotOrigin, cfg.PublicOrigin)
 	}
 
-	wantKeyID := gotOrigin + "/ocm#key-1"
+	wantKeyID := result.Deps.LocalIdentity.ProviderDomain + "#key1"
 	if got := result.Deps.KeyManager.GetKeyID(); got != wantKeyID {
-		t.Errorf("KeyManager keyId = %q, want %q derived from LocalIdentity.Origin", got, wantKeyID)
+		t.Errorf("KeyManager keyId = %q, want %q derived from provider domain", got, wantKeyID)
 	}
 
 	naiveKeyID := cfg.PublicOrigin + "/ocm#key-1"
 	if result.Deps.KeyManager.GetKeyID() == naiveKeyID {
-		t.Errorf("keyId must not equal naive raw PublicOrigin concat %q", naiveKeyID)
+		t.Errorf("keyId must not equal legacy URI concat %q", naiveKeyID)
 	}
 
 	want, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)

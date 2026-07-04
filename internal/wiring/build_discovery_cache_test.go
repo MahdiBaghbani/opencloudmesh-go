@@ -13,7 +13,7 @@ import (
 func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 	t.Run("SkipDiscoveryCache=true wires NoopCache to discovery client", func(t *testing.T) {
 		result, err := wiring.Build(
-			tscfg.DevConfigNoSignatures(18088),
+			tscfg.DevConfigNoSignatures(),
 			tslog.DiscardLogger(),
 			harnessBuildOpts(),
 		)
@@ -33,7 +33,7 @@ func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 		opts := harnessBuildOpts()
 		opts.SkipDiscoveryCache = false
 		result, err := wiring.Build(
-			tscfg.DevConfigNoSignatures(18089),
+			tscfg.DevConfigNoSignatures(),
 			tslog.DiscardLogger(),
 			opts,
 		)

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
@@ -363,6 +364,62 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected validationError {shareWith, NOT_FOUND}")
+	}
+}
+
+func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
+	const authenticatedSender = "verified-sender.com"
+	const rawSenderHost = "wrong-sender.com"
+	const providerID = "auth-sender-override"
+
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "` + providerID + `",
+		"owner": "owner@` + rawSenderHost + `",
+		"sender": "user@` + rawSenderHost + `",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {
+			"name": "webdav",
+			"webdav": {
+				"uri": "abc123",
+				"sharedSecret": "secret123",
+				"permissions": ["read"]
+			}
+		}
+	}`
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
+		Authority:           authenticatedSender,
+		AuthorityForCompare: authenticatedSender,
+		Authenticated:       true,
+	})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	stored, err := repo.GetByProviderID(context.Background(), authenticatedSender, providerID)
+	if err != nil {
+		t.Fatalf("expected share indexed by authenticated sender, got error: %v", err)
+	}
+	if stored.SenderHost != authenticatedSender {
+		t.Fatalf("SenderHost = %q, want authenticated authority %q", stored.SenderHost, authenticatedSender)
+	}
+
+	if _, err := repo.GetByProviderID(context.Background(), rawSenderHost, providerID); err == nil {
+		t.Fatal("expected share not indexed under raw sender host")
 	}
 }
 

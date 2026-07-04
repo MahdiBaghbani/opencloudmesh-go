@@ -13,7 +13,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	chimw "github.com/go-chi/chi/v5/middleware"
 )
@@ -149,7 +148,7 @@ func TestSignatureMiddleware_LenientMode_AllowsCapablePeerByProfile(t *testing.T
 		},
 	)
 
-	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	mw := newTestSignatureMiddleware(cfg, contract, pd, "https://receiver.example.com", logger)
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
 		return "sender.example.com", nil
 	}
@@ -189,7 +188,7 @@ func TestSignatureMiddleware_LenientMode_AllowsDiscoveryFailureByProfile(t *test
 		},
 	)
 
-	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	mw := newTestSignatureMiddleware(cfg, contract, pd, "https://receiver.example.com", logger)
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
 		return "sender.example.com", nil
 	}
@@ -229,7 +228,7 @@ func TestSignatureMiddleware_LenientMode_RejectsDiscoveryFailureWhenUnmatched(t 
 		},
 	)
 
-	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	mw := newTestSignatureMiddleware(cfg, contract, pd, "https://receiver.example.com", logger)
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
 		return "sender.example.com", nil
 	}
@@ -274,7 +273,7 @@ func TestSignatureMiddleware_StrictMode_MatchedProfileAllowsMismatch(t *testing.
 		},
 	)
 
-	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	mw := newTestSignatureMiddleware(cfg, contract, pd, "https://receiver.example.com", logger)
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
 		return "declared.example.com", nil
 	}
@@ -322,7 +321,7 @@ func TestSignatureMiddleware_LogsCompatibilityDecisionFields(t *testing.T) {
 		},
 	)
 
-	mw := sig.NewSignatureMiddleware(runtimePolicyFromSignature(cfg), contract, pd, "https://receiver.example.com", logger)
+	mw := newTestSignatureMiddleware(cfg, contract, pd, "https://receiver.example.com", logger)
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
 		return "sender.example.com", nil
 	}

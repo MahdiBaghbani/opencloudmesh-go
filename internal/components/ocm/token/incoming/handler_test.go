@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
@@ -530,5 +531,85 @@ func TestHandler_DisabledReturns501(t *testing.T) {
 
 	if resp.Error != "not_implemented" {
 		t.Errorf("expected error 'not_implemented', got %q", resp.Error)
+	}
+}
+
+func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-identity-match",
+		WebDAVID:     "webdav-identity-match",
+		SharedSecret: "identity-match-secret",
+		ReceiverHost: "receiver.example.com",
+		LocalPath:    "/tmp/test.txt",
+	}
+	shareRepo.Create(context.Background(), share)
+
+	form := url.Values{}
+	form.Set("grant_type", "ocm_share")
+	form.Set("client_id", "receiver.example.com")
+	form.Set("code", "identity-match-secret")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
+		AuthorityForCompare: "receiver.example.com",
+		Authenticated:       true,
+	})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 when verified identity matches receiver, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-identity-mismatch",
+		WebDAVID:     "webdav-identity-mismatch",
+		SharedSecret: "identity-mismatch-secret",
+		ReceiverHost: "receiver.example.com",
+		LocalPath:    "/tmp/test.txt",
+	}
+	shareRepo.Create(context.Background(), share)
+
+	form := url.Values{}
+	form.Set("grant_type", "ocm_share")
+	form.Set("client_id", "receiver.example.com")
+	form.Set("code", "identity-mismatch-secret")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
+		AuthorityForCompare: "other.example.com",
+		Authenticated:       true,
+	})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 when verified identity mismatches receiver, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Error != token.ErrorInvalidClient {
+		t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
 	}
 }

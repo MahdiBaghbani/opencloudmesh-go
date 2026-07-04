@@ -15,8 +15,8 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func strictSSRFCfg(port int) *config.Config {
-	cfg := tscfg.DevConfigNoSignatures(port)
+func strictSSRFCfg() *config.Config {
+	cfg := tscfg.DevConfigNoSignatures()
 	cfg.OutboundHTTP.SSRF.Mode = "strict"
 	cfg.OutboundHTTP.DerivedSSRFMode = "strict"
 	return cfg
@@ -29,7 +29,7 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 	defer srv.Close()
 
 	t.Run("OutboundOverride SSRF=off allows localhost request", func(t *testing.T) {
-		result, err := wiring.Build(strictSSRFCfg(18090), tslog.DiscardLogger(), harnessBuildOpts())
+		result, err := wiring.Build(strictSSRFCfg(), tslog.DiscardLogger(), harnessBuildOpts())
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -47,7 +47,7 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 	t.Run("without OutboundOverride SSRF=strict blocks localhost request", func(t *testing.T) {
 		opts := harnessBuildOpts()
 		opts.OutboundOverride = nil
-		result, err := wiring.Build(strictSSRFCfg(18091), tslog.DiscardLogger(), opts)
+		result, err := wiring.Build(strictSSRFCfg(), tslog.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -66,7 +66,7 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 }
 
 func TestOutboundOverride_HonorsTLSRoots(t *testing.T) {
-	cfg := tscfg.DevConfigNoSignatures(18092)
+	cfg := tscfg.DevConfigNoSignatures()
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
 	_, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
@@ -76,7 +76,7 @@ func TestOutboundOverride_HonorsTLSRoots(t *testing.T) {
 }
 
 func TestOutbound_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
-	cfg := tscfg.DevConfigNoSignatures(18093)
+	cfg := tscfg.DevConfigNoSignatures()
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
 	opts := harnessBuildOpts()

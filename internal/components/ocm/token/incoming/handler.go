@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
@@ -94,6 +95,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
 
 	if h.outgoingRepo == nil {
 		log.Error("token exchange attempted but outgoing share repo not configured")
@@ -129,6 +131,16 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 			"got", req.ClientID)
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidClient, "client_id mismatch")
 		return
+	}
+
+	if peerIdentity != nil && peerIdentity.Authenticated {
+		if peerIdentity.AuthorityForCompare != normalizedReceiver {
+			log.Warn("token exchange verified identity mismatch",
+				"expected", normalizedReceiver,
+				"got", peerIdentity.AuthorityForCompare)
+			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidClient, "client_id mismatch")
+			return
+		}
 	}
 
 	accessToken, err := token.GenerateAccessToken()

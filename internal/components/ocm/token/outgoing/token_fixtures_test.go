@@ -18,7 +18,7 @@ import (
 
 func dummyDiscClient() *discovery.Client {
 	return discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:         "off",
+		DerivedSSRFMode:  "off",
 		MaxResponseBytes: 1 << 20,
 	}, nil), nil)
 }
@@ -42,8 +42,7 @@ func (s *mockSigner) Sign(req *http.Request) error {
 // makePolicy builds an OutboundPolicy for tests.
 func makePolicy(outboundMode string, profileRegistry *peercompat.ProfileRegistry) *outboundsigning.OutboundPolicy {
 	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode:        outboundMode,
-		PeerProfileOverride: "non-strict",
+		OutboundMode: outboundMode,
 	}
 	if profileRegistry != nil {
 		contract, err := peercompat.BuildCompiledContractFromRegistry(profileRegistry)

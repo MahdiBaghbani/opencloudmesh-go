@@ -15,7 +15,6 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 
 	km := crypto.NewKeyManager(keyPath, "https://example.com:9200")
 
-	// First call should generate a key
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
 	}
@@ -28,23 +27,15 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 		t.Errorf("expected algorithm ed25519, got %s", key.Algorithm)
 	}
 
-	// Key should be persisted
 	if _, err := os.Stat(keyPath); err != nil {
 		t.Errorf("key file should exist: %v", err)
 	}
 
-	// Second call with new KeyManager should load the same key
 	km2 := crypto.NewKeyManager(keyPath, "https://example.com:9200")
 	if err := km2.LoadOrGenerate(); err != nil {
 		t.Fatalf("LoadOrGenerate (reload) failed: %v", err)
 	}
 
-	key2 := km2.GetSigningKey()
-	if key2 == nil {
-		t.Fatal("expected signing key to be set after reload")
-	}
-
-	// Public keys should match
 	pem1 := km.GetPublicKeyPEM()
 	pem2 := km2.GetPublicKeyPEM()
 	if pem1 != pem2 {
@@ -57,16 +48,13 @@ func TestKeyManager_StableKeyID(t *testing.T) {
 		publicOrigin  string
 		expectedKeyID string
 	}{
-		{"https://example.com", "https://example.com/ocm#key-1"},
-		{"https://example.com:443", "https://example.com:443/ocm#key-1"},
-		{"https://example.com:9200", "https://example.com:9200/ocm#key-1"},
-		{"http://localhost:8080", "http://localhost:8080/ocm#key-1"},
-		// Default-port preservation: :443 is NOT stripped from the emitted keyId
-		{"https://cloud.example.org:443", "https://cloud.example.org:443/ocm#key-1"},
-		// Trailing slash is normalized away
-		{"https://example.com/", "https://example.com/ocm#key-1"},
-		// Uppercase host is lowercased
-		{"https://EXAMPLE.COM", "https://example.com/ocm#key-1"},
+		{"https://example.com", "example.com#key1"},
+		{"https://example.com:443", "example.com#key1"},
+		{"https://example.com:9200", "example.com:9200#key1"},
+		{"http://localhost:8080", "localhost:8080#key1"},
+		{"https://cloud.example.org:443", "cloud.example.org#key1"},
+		{"https://example.com/", "example.com#key1"},
+		{"https://EXAMPLE.COM", "example.com#key1"},
 	}
 
 	for _, tt := range tests {
@@ -79,15 +67,30 @@ func TestKeyManager_StableKeyID(t *testing.T) {
 	}
 }
 
-func TestKeyManager_KeyIDPreservesExplicitPortFromLocalIdentityOrigin(t *testing.T) {
+func TestKeyManager_KeyIDUsesProviderDomain(t *testing.T) {
 	id, err := localidentity.Derive("https://cloud.example.org:443", "")
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
-	want := id.Origin + "/ocm#key-1"
+	want := id.ProviderDomain + "#key1"
 	km := crypto.NewKeyManager("", id.Origin)
 	if km.GetKeyID() != want {
 		t.Errorf("keyId = %q, want %q", km.GetKeyID(), want)
+	}
+}
+
+func TestKeyManager_JWKS(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	set := km.JWKS()
+	if len(set.Keys) != 1 {
+		t.Fatalf("keys = %d, want 1", len(set.Keys))
+	}
+	if set.Keys[0].Kid != km.GetKeyID() {
+		t.Fatalf("kid = %q, want %q", set.Keys[0].Kid, km.GetKeyID())
 	}
 }
 
@@ -103,7 +106,7 @@ func TestKeyManager_Sign(t *testing.T) {
 		t.Fatalf("Sign failed: %v", err)
 	}
 
-	if len(sig) != 64 { // Ed25519 signature is 64 bytes
+	if len(sig) != 64 {
 		t.Errorf("expected 64 byte signature, got %d", len(sig))
 	}
 }
@@ -124,10 +127,8 @@ func TestParsePublicKeyPEM(t *testing.T) {
 		t.Fatalf("ParsePublicKeyPEM failed: %v", err)
 	}
 
-	// Verify it matches the original
 	key := km.GetSigningKey()
 	if len(pub) != len(key.PublicKey) {
 		t.Error("parsed key length mismatch")
 	}
 }
-

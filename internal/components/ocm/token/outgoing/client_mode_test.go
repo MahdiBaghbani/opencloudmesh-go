@@ -19,13 +19,13 @@ import (
 
 func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Signature") != "" {
-			t.Error("should not have Signature header in off mode")
+		if r.Header.Get("Signature") == "" {
+			t.Error("expected Signature header even when outbound_mode=off")
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "unsigned-token",
+			AccessToken: "signed-off-mode-token",
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,
 		})
@@ -36,7 +36,6 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 		DerivedSSRFMode: "off",
 	}, nil))
 
-	// OutboundMode "off" should skip signing
 	client := tokenoutgoing.NewClient(
 		httpClient,
 		dummyDiscClient(),
@@ -54,8 +53,31 @@ func TestClient_Exchange_OutboundModeOff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
 	}
-	if result.AccessToken != "unsigned-token" {
-		t.Errorf("expected 'unsigned-token', got %s", result.AccessToken)
+	if result.AccessToken != "signed-off-mode-token" {
+		t.Errorf("expected 'signed-off-mode-token', got %s", result.AccessToken)
+	}
+}
+
+func TestClient_Exchange_OutboundModeOff_NoSignerRejected(t *testing.T) {
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		DerivedSSRFMode: "off",
+	}, nil))
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		dummyDiscClient(),
+		nil,
+		makePolicy("off", nil),
+		"my-instance.example.com",
+	)
+
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: "https://peer.example.com/token",
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+	if err == nil {
+		t.Fatal("expected error when token exchange has no signer")
 	}
 }
 
@@ -188,15 +210,15 @@ func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
+func TestClient_Exchange_PeerProfileQuirkStillSigns(t *testing.T) {
 	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Signature") != "" {
-			t.Error("expected unsigned request when accept_plain_token quirk applies")
+		if r.Header.Get("Signature") == "" {
+			t.Error("expected signed token exchange even when accept_plain_token quirk exists")
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "unsigned-quirk-token",
+			AccessToken: "signed-quirk-token",
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,
 		})
@@ -227,11 +249,9 @@ func TestClient_Exchange_PeerProfileQuirk(t *testing.T) {
 	})
 
 	if err != nil {
-		t.Fatalf("Exchange should succeed with quirk: %v", err)
+		t.Fatalf("Exchange should succeed with signature: %v", err)
 	}
-	if result.AccessToken != "unsigned-quirk-token" {
-		t.Errorf("expected 'unsigned-quirk-token', got %s", result.AccessToken)
+	if result.AccessToken != "signed-quirk-token" {
+		t.Errorf("expected 'signed-quirk-token', got %s", result.AccessToken)
 	}
-	// Note: QuirkApplied is only set when we fallback from signed -> unsigned
-	// With OutboundPolicy, the decision is made upfront so no fallback occurs
 }

@@ -117,3 +117,18 @@ func TestBuildDiscovery_InviteWAYFFromAdvertiseFlag(t *testing.T) {
 		t.Error("expected invite-wayf from advertise flag")
 	}
 }
+
+func TestBuildDiscovery_AdvertiseHTTPSigWithoutInlinePublicKeys(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:         "https://example.com/ocm",
+		WebDAVRoot:       "/webdav/ocm/",
+		AdvertiseHTTPSig: true,
+	}, nil)
+
+	if !disc.IsHTTPSigCapable() {
+		t.Error("expected http-sig capability from AdvertiseHTTPSig")
+	}
+	if len(disc.PublicKeys) != 0 {
+		t.Fatalf("expected no inline publicKeys, got %+v", disc.PublicKeys)
+	}
+}

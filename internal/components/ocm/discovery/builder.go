@@ -18,8 +18,12 @@ type BuildParams struct {
 	InviteAcceptDialog  string
 	AdvertiseInviteWAYF bool
 
-	// PublicKeys to advertise. When non-empty, the document also advertises
-	// the http-sig capability.
+	// AdvertiseHTTPSig adds the http-sig capability when local signing keys are
+	// published via /.well-known/jwks.json (not inline publicKeys PEM).
+	AdvertiseHTTPSig bool
+
+	// PublicKeys is deprecated for outbound JWKS-first advertisement; kept empty
+	// in the greenfield path so peers resolve keys from JWKS.
 	PublicKeys []PublicKey
 
 	// Evaluation flags resolved by the caller from the canonical policies.
@@ -59,9 +63,14 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 
 	capabilities := []string{}
 
+	if p.AdvertiseHTTPSig {
+		capabilities = append(capabilities, "http-sig")
+	}
 	if len(p.PublicKeys) > 0 {
 		disc.PublicKeys = p.PublicKeys
-		capabilities = append(capabilities, "http-sig")
+		if !p.AdvertiseHTTPSig {
+			capabilities = append(capabilities, "http-sig")
+		}
 	}
 
 	if p.TokenExchangeCapable && p.TokenEndPoint != "" {

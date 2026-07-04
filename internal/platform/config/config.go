@@ -278,6 +278,21 @@ type SignatureConfig struct {
 
 	// AllowMismatch allows declared peer vs keyId host mismatch (dev-only)
 	AllowMismatch bool `toml:"allow_mismatch"`
+
+	// Label is the RFC 9421 signature dictionary label (default: ocm).
+	Label string `toml:"label"`
+
+	// KidFragment is the host#fragment suffix for local JWKS kid (default: key1).
+	KidFragment string `toml:"kid_fragment"`
+
+	// CreatedMaxAgeSeconds is the maximum signature age verifiers accept.
+	CreatedMaxAgeSeconds int `toml:"created_max_age_seconds"`
+
+	// CreatedMaxSkewSeconds is the maximum clock skew into the future verifiers accept.
+	CreatedMaxSkewSeconds int `toml:"created_max_skew_seconds"`
+
+	// AllowedAlgorithms lists permitted asymmetric RFC 9421 algorithms.
+	AllowedAlgorithms []string `toml:"allowed_algorithms"`
 }
 
 // TLSConfig holds TLS-related settings.
@@ -484,6 +499,11 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
 	sb.WriteString(fmt.Sprintf("    OnDiscoveryError: %q,\n", c.Signature.OnDiscoveryError))
 	sb.WriteString(fmt.Sprintf("    AllowMismatch: %v,\n", c.Signature.AllowMismatch))
+	sb.WriteString(fmt.Sprintf("    Label: %q,\n", c.Signature.Label))
+	sb.WriteString(fmt.Sprintf("    KidFragment: %q,\n", c.Signature.KidFragment))
+	sb.WriteString(fmt.Sprintf("    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds))
+	sb.WriteString(fmt.Sprintf("    CreatedMaxSkewSeconds: %d,\n", c.Signature.CreatedMaxSkewSeconds))
+	sb.WriteString(fmt.Sprintf("    AllowedAlgorithms: %v,\n", c.Signature.AllowedAlgorithms))
 	sb.WriteString("  },\n")
 	sb.WriteString("  PeerProfiles: {\n")
 	sb.WriteString(fmt.Sprintf("    MappingsCount: %d,\n", len(c.PeerProfiles.Mappings)))

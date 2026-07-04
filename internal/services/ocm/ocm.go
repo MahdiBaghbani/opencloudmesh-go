@@ -104,13 +104,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	r := chi.NewRouter()
 
 	if inputs.SignatureMiddleware != nil {
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveSharesRequest)).
+		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignature(peerResolver.ResolveSharesRequest)).
 			Post(RouteShares, sharesHandler.CreateShare)
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveNotificationsRequest)).
+		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignature(nil)).
 			Post(RouteNotifications, notifHandler.HandleNotification)
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveInviteAcceptedRequest)).
+		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignature(peerResolver.ResolveInviteAcceptedRequest)).
 			Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequest(peerResolver.ResolveTokenRequest)).
+		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignature(peerResolver.ResolveTokenRequest)).
 			Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
 	} else {
 		r.Post(RouteShares, sharesHandler.CreateShare)

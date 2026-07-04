@@ -116,7 +116,8 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 }
 
 // applySigning applies the outbound signing decision from the configured
-// policy. When no outbound policy is configured the request is sent unsigned.
+// policy. OH-2-governed endpoint kinds fail closed when no outbound policy is
+// configured; notifications may still be sent unsigned.
 func (p *Poster) applySigning(
 	httpReq *http.Request,
 	req Request,
@@ -124,12 +125,22 @@ func (p *Poster) applySigning(
 	disc *discovery.Discovery,
 ) error {
 	if p.outboundPolicy == nil {
-		return nil
+		switch req.Kind {
+		case outboundsigning.EndpointShares,
+			outboundsigning.EndpointInvites,
+			outboundsigning.EndpointTokenExchange:
+			return fmt.Errorf("outbound signing policy is not configured")
+		default:
+			return nil
+		}
 	}
 
 	decision := p.outboundPolicy.ShouldSign(req.Kind, peerDomain, disc, p.signer != nil)
 	if decision.Error != nil {
 		return fmt.Errorf("outbound signing policy error: %w", decision.Error)
+	}
+	if req.Kind == outboundsigning.EndpointShares && !decision.ShouldSign {
+		return fmt.Errorf("unsigned share dispatch is not supported")
 	}
 	if decision.ShouldSign && p.signer != nil {
 		if err := p.signer.SignRequest(httpReq, req.Body); err != nil {

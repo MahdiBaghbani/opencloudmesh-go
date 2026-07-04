@@ -45,3 +45,22 @@ func TestConfig_Redacted(t *testing.T) {
 		t.Error("expected WebDAVTokenExchange block removed from redacted output")
 	}
 }
+
+func TestLoad_StrictModeSignatureIETFDefaults(t *testing.T) {
+	cfg, err := Load(LoaderOptions{ModeFlag: "strict"})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Signature.Label != DefaultSignatureLabel {
+		t.Fatalf("Label = %q, want %q", cfg.Signature.Label, DefaultSignatureLabel)
+	}
+	if cfg.Signature.InboundMode != "strict" {
+		t.Fatalf("InboundMode = %q, want strict", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Fatalf("OutboundMode = %q, want strict", cfg.Signature.OutboundMode)
+	}
+	if len(cfg.Signature.AllowedAlgorithms) != 1 || cfg.Signature.AllowedAlgorithms[0] != "ed25519" {
+		t.Fatalf("AllowedAlgorithms = %v", cfg.Signature.AllowedAlgorithms)
+	}
+}

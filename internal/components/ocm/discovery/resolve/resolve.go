@@ -136,13 +136,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	}
 
 	var publicKeys []discovery.PublicKey
-	if in.KeyManager != nil {
-		publicKeys = []discovery.PublicKey{{
-			KeyID:        in.KeyManager.GetKeyID(),
-			PublicKeyPem: in.KeyManager.GetPublicKeyPEM(),
-			Algorithm:    "ed25519",
-		}}
-	}
+	advertiseHTTPSig := in.KeyManager != nil
 
 	var localEval localEvaluation
 	if in.OpenCloudMeshPolicy != nil {
@@ -164,6 +158,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			InviteAcceptDialog:     inviteAcceptDialog,
 			AdvertiseInviteWAYF:    c.AdvertiseInviteWAYF,
 			PublicKeys:             publicKeys,
+			AdvertiseHTTPSig:       advertiseHTTPSig,
 			TokenExchangeCapable:   localEval.codeFlow,
 			RequiresTokenExchange:  localEval.strict,
 			RequiresHTTPSignatures: localEval.requiresHTTPSignatures,

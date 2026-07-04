@@ -242,6 +242,21 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Signature.OnDiscoveryError != "" {
 			cfg.Signature.OnDiscoveryError = fc.Signature.OnDiscoveryError
 		}
+		if fc.Signature.Label != "" {
+			cfg.Signature.Label = fc.Signature.Label
+		}
+		if fc.Signature.KidFragment != "" {
+			cfg.Signature.KidFragment = fc.Signature.KidFragment
+		}
+		if fc.Signature.CreatedMaxAgeSeconds > 0 {
+			cfg.Signature.CreatedMaxAgeSeconds = fc.Signature.CreatedMaxAgeSeconds
+		}
+		if fc.Signature.CreatedMaxSkewSeconds > 0 {
+			cfg.Signature.CreatedMaxSkewSeconds = fc.Signature.CreatedMaxSkewSeconds
+		}
+		if len(fc.Signature.AllowedAlgorithms) > 0 {
+			cfg.Signature.AllowedAlgorithms = fc.Signature.AllowedAlgorithms
+		}
 		// AllowMismatch is bool
 		cfg.Signature.AllowMismatch = fc.Signature.AllowMismatch
 	}
