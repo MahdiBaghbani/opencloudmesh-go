@@ -1,0 +1,16 @@
+{
+  "repo_notes": [
+    {
+      "author": "OpenCloudMesh Go maintainers",
+      "content": "This repository is a Go implementation of Open Cloud Mesh, not the protocol specification itself. Treat these as the primary sources, in order: README.md for the public overview, docs/verification-boundary.md for what this repo actually claims and proves, docs/architecture.md and docs/configuration.md for structure and runtime posture, and internal/components/ocm/spec/vendor/pin.json for the pinned OCM-API snapshot. Normative protocol semantics live in cs3org/OCM-API, not here."
+    },
+    {
+      "author": "OpenCloudMesh Go maintainers",
+      "content": "Keep the scope honest. This server implements a practical WebDAV-centered subset of OCM, including discovery, user shares, invite flows, token exchange, a notification subset, and related UI and helper paths. Do not describe it as full OCM-API coverage or broad interoperability with arbitrary peers. Presets strict, compat, and dev are only entry points; effective behavior also depends on compatibility_scope and the signature, transport, trust, and peer-compat settings."
+    },
+    {
+      "author": "OpenCloudMesh Go maintainers",
+      "content": "Give focused coverage to the parts that matter most for implementers and operators: local public identity and public_origin handling; discovery generation and normalization; routes and auth classes; inbound and outbound HTTP signatures; outbound SSRF controls; invite, WAYF, and accept flows; token exchange; Directory Service vs ocm-aux helpers; and the test layers in docs/testing.md and tests/README files. Treat docs/verification-boundary.md as the contract for what a green strict run means."
+    }
+  ]
+}
