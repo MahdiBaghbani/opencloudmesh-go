@@ -1,9 +1,65 @@
-# opencloudmesh-go
+# OpenCloudMesh Go
 
-Open Cloud Mesh (OCM) server implementation in Go. The runtime targets a
-practical WebDAV-centered subset of the pinned OCM-API surface: discovery,
-`shareType=user`, the current notification subset, and strict token-exchange
-and HTTP-signature behavior on that reduced path.
+> A Go reference implementation for a strict, WebDAV-centered slice of
+> Open Cloud Mesh.
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MahdiBaghbani/opencloudmesh-go)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE.md)
+
+OpenCloudMesh Go is a Go server for Open Cloud Mesh (OCM). It focuses on a
+pinned, practical slice of the protocol: discovery, user shares, invite flows,
+token exchange, a notification subset, HTTP-signature-aware behavior, and
+WebDAV access on that path.
+
+This repository is not the OCM specification itself, and it does not claim full
+OCM-API coverage or broad compatibility with arbitrary peers. What it does try
+to offer is narrower and more useful: a documented strict contract, a pinned
+spec snapshot, and a real server you can run, test, and extend.
+
+Status: active development. The strict contract is the part that is supported
+and tested on every change; expect the edges outside it to keep moving.
+
+## Why OpenCloudMesh Go
+
+When a discovery stub is not enough, you usually want a real peer you can talk
+to, a clear idea of what "strict" means, and a codebase that does not hide the
+interesting parts behind magic. That is what this repo is trying to be.
+
+It gives you a runnable OCM peer in Go, keeps the scope explicit instead of
+pretending to implement everything, and pins behavior to a specific OCM-API
+snapshot. It also tries to make the compatibility story legible: signatures,
+transport, trust, and peer-compat behavior are all deliberate knobs rather than
+silent fallbacks.
+
+Right now that means discovery, user-share flows on the WebDAV-centered path,
+invite handling, accept flows, optional WAYF support, token exchange on the
+documented OCM route surface, the current notification subset, and a bundled UI
+and API for practical local and multi-instance workflows.
+
+For the exact route surface, start with
+[docs/protocol-endpoints.md](docs/protocol-endpoints.md) and
+[docs/discovery.md](docs/discovery.md).
+
+## Who it is for
+
+You will probably get the most out of this if you are building or testing OCM
+peers and want something concrete to talk to, if you are studying how a
+signature-aware, WebDAV-centered OCM flow actually fits together, or if you need
+a Go server whose scope and guarantees are written down rather than implied. If
+you are looking for a full, drop-in OCM implementation that federates with every
+peer out there, this is not that yet, and it is honest about it.
+
+## What passing tests mean
+
+The repo ships unit tests, architecture guard tests, integration tests, and
+optional Playwright E2E flows. They matter, but they do not all prove the same
+thing, and this README should not pretend otherwise.
+
+The narrow contract this repo stands behind lives in
+[docs/verification-boundary.md](docs/verification-boundary.md). If you want to
+know what a green strict run actually proves, what remains operator-managed,
+and what this project does not claim about arbitrary peers, read that file
+first.
 
 ## Quickstart
 
@@ -13,58 +69,88 @@ From the repo root:
 # Build the server binary
 make build
 
-# Run unit and integration tests (excludes E2E)
+# Run unit and integration tests
 make test
 
-# Run E2E tests (install browsers once, then run)
-make test-e2e-install
-make test-e2e
-```
-
-Run the server locally:
-
-```sh
-# Strict preset (default when no config or -mode is given)
+# Start the server in strict mode (default)
 ./bin/opencloudmesh-go
 
-# Dev preset via CLI
+# Check discovery
+curl http://localhost:9200/.well-known/ocm
+```
+
+Useful local variants:
+
+```sh
+# Dev preset
 ./bin/opencloudmesh-go -mode dev
 
 # Strict preset with a TOML file
 ./bin/opencloudmesh-go -config docker/configs/config-tls.toml
 
-# Override preset from the CLI (precedence: preset -> TOML -> flags)
+# Override from the CLI
 ./bin/opencloudmesh-go -mode strict -public-origin https://localhost:9200
 ```
 
-Docker build and run notes remain in the Docker section below.
+## See it work
+
+The quickest way to watch two peers talk is the bundled two-instance runner. It
+builds the binary and starts a sender and a receiver side by side:
+
+```sh
+./scripts/dev/two-instance.sh
+```
+
+That gives you a sender on `http://localhost:9200` and a receiver on
+`http://localhost:9201`, both ready for a local share flow. Hit Ctrl+C to stop
+both. From there you can open discovery on each, or drive an invite and accept
+between them.
+
+## Presets and configuration
+
+The server resolves config in this order: preset bundle, TOML file, CLI flags.
+
+The shipped preset bundles are `strict`, `compat`, and `dev`. They are good
+starting points, but they are not the whole posture story. Effective behavior
+still depends on `compatibility_scope` and the signature, transport, trust, and
+peer-compat settings.
+
+If you are getting oriented, start here:
+
+- [docs/configuration.md](docs/configuration.md)
+- [docs/identity-and-public-origin.md](docs/identity-and-public-origin.md)
+- [docs/routes-and-auth.md](docs/routes-and-auth.md)
+
+Useful sample configs:
+
+- `docker/configs/config.toml` for a minimal container-oriented dev setup
+- `docker/configs/config-tls.toml` for a strict setup with static TLS
+- `tests/ca_pool/configs/valid.toml` and `invalid.toml` for outbound root CA
+  validation
 
 ## Documentation
 
-| Topic | Doc |
-| ----- | --- |
-| Architecture and layering | [docs/architecture.md](docs/architecture.md) |
-| Repo layout (code and tests) | [docs/repo-layout.md](docs/repo-layout.md) |
-| Testing (unit, integration, E2E) | [docs/testing.md](docs/testing.md) |
-| Development workflow | [docs/development.md](docs/development.md) |
-| Configuration and presets | [docs/configuration.md](docs/configuration.md) |
-| Identity and public origin | [docs/identity-and-public-origin.md](docs/identity-and-public-origin.md) |
-| Routes and auth | [docs/routes-and-auth.md](docs/routes-and-auth.md) |
-| Protocol endpoints | [docs/protocol-endpoints.md](docs/protocol-endpoints.md) |
-| Discovery | [docs/discovery.md](docs/discovery.md) |
-| Invite, WAYF, and accept | [docs/invite-wayf-and-accept.md](docs/invite-wayf-and-accept.md) |
-| Directory Service and OCM aux | [docs/directory-service-and-ocm-aux.md](docs/directory-service-and-ocm-aux.md) |
-| Outbound HTTP and SSRF | [docs/outbound-http-ssrf.md](docs/outbound-http-ssrf.md) |
-| Naming conventions | [docs/naming-conventions.md](docs/naming-conventions.md) |
-| Strict verification boundary | [docs/verification-boundary.md](docs/verification-boundary.md) |
+### Core docs
 
-Test-specific guides:
+- [docs/architecture.md](docs/architecture.md)
+- [docs/repo-layout.md](docs/repo-layout.md)
+- [docs/development.md](docs/development.md)
+- [docs/testing.md](docs/testing.md)
 
-- [tests/integration/README.md](tests/integration/README.md) - in-process
-  integration harness
-- [tests/e2e/README.md](tests/e2e/README.md) - Playwright browser tests
-- [tests/ca_pool/README.md](tests/ca_pool/README.md) - outbound TLS root CA
-  pool tests
+### Protocol and runtime behavior
+
+- [docs/protocol-endpoints.md](docs/protocol-endpoints.md)
+- [docs/discovery.md](docs/discovery.md)
+- [docs/invite-wayf-and-accept.md](docs/invite-wayf-and-accept.md)
+- [docs/directory-service-and-ocm-aux.md](docs/directory-service-and-ocm-aux.md)
+- [docs/outbound-http-ssrf.md](docs/outbound-http-ssrf.md)
+- [docs/verification-boundary.md](docs/verification-boundary.md)
+
+### Test guides
+
+- [tests/integration/README.md](tests/integration/README.md)
+- [tests/e2e/README.md](tests/e2e/README.md)
+- [tests/ca_pool/README.md](tests/ca_pool/README.md)
 
 ## Repo navigation
 
@@ -78,114 +164,101 @@ internal/                 Production and test-support code
   platform/               Config, HTTP, cache, store, repos
   services/               HTTP route handlers
   testsupport/            Test-only helpers (not for production)
-  wiring/                 Composition root (Build)
-tests/                    Top-level integration, E2E, and CA pool tests
-docs/                     Developer documentation
+  wiring/                 Composition root
+tests/                    Integration, E2E, and CA pool tests
+docs/                     Developer and protocol documentation
 docker/                   Container image and sample configs
 ```
 
 See [docs/repo-layout.md](docs/repo-layout.md) for the full map.
 
-## Presets and configuration
-
-The server resolves config in this order: preset bundle, TOML file, CLI flags.
-
-Preset bundles: `strict`, `compat`, and `dev`. They are convenience entry
-points, not the sole authority for runtime posture. Effective behavior also
-depends on `compatibility_scope` and the signature, transport, trust, and
-peer-compat axes.
-
-Example configs:
-
-- `docker/configs/config.toml` - minimal dev preset for containers
-- `docker/configs/config-tls.toml` - strict preset with static TLS
-- `tests/ca_pool/configs/valid.toml` - valid outbound root CA path
-- `tests/ca_pool/configs/invalid.toml` - invalid CA path (startup failure)
-
-Details: [docs/configuration.md](docs/configuration.md).
-
 ## Build and test
 
 ```sh
-make build              # go build -> bin/opencloudmesh-go
-make test-go            # unit tests (excludes tests/integration)
-make test-integration   # integration tests only
-make test               # test-go + test-integration
-make test-e2e-install   # bun install + Playwright browsers
-make test-e2e           # Playwright E2E (builds binary first)
-make fmt vet tidy       # formatting and static checks
+make build
+make test-go
+make test-integration
+make test
+make test-e2e-install
+make test-e2e
+make fmt
+make vet
+make tidy
 ```
 
-See [docs/testing.md](docs/testing.md) and [docs/development.md](docs/development.md).
+`make test` runs unit and integration tests. E2E stays separate because it
+needs Bun, Playwright, and a built binary.
 
 ## Docker
 
-Build and run the server in a container.
-
-| Mode  | Port | Description |
-| ----- | ---- | ----------- |
-| HTTP  | 8080 | Default. No TLS. |
-| TLS   | 443  | Set TLS_ENABLED=true. Uses pre-installed or env-provided certs. |
-
-| Pre-installed files    | Purpose |
-| ---------------------- | ------- |
-| ocm-go.crt, ocm-go.key | Leaf cert and key |
-| dockypody.crt          | CA for trust store |
-
-Pre-installed cert hostnames: ocm-go.docker, ocm-go1.docker through
-ocm-go4.docker, localhost, 127.0.0.1, ::1
+Build the local image:
 
 ```sh
-# Build
 ./scripts/build-docker.sh
 # or: docker build -t opencloudmesh-go:local -f docker/Dockerfile .
-
-# HTTP mode (default)
-docker run -d -p 8080:8080 -e HOST=ocm-go1 opencloudmesh-go:local
-curl http://localhost:8080/.well-known/ocm
-
-# TLS mode (pre-installed certs)
-docker run -d -p 443:443 -e HOST=ocm-go1 -e TLS_ENABLED=true opencloudmesh-go:local
-curl -k https://localhost/.well-known/ocm
-
-# Custom config (mount your config and set CONFIG path)
-docker run -d -p 8080:8080 -v /path/to/config.toml:/config/config.toml:ro \
-  -e CONFIG=/config/config.toml -e HOST=ocm-go1 opencloudmesh-go:local
 ```
 
-### Environment variables
+Run in HTTP mode:
 
-**Identity (set at least one of HOST or PUBLIC_ORIGIN):**
+```sh
+docker run -d -p 8080:8080 -e HOST=ocm-go1 opencloudmesh-go:local
+curl http://localhost:8080/.well-known/ocm
+```
 
-| Variable      | Required               | Description |
-| ------------- | ---------------------- | ----------- |
-| HOST          | If PUBLIC_ORIGIN empty | Short hostname (e.g. ocm-go1). Added to /etc/hosts. Used to derive PUBLIC_ORIGIN. |
-| PUBLIC_ORIGIN | If HOST empty          | Full base URL. Passed as --public-origin. |
+Run in TLS mode with the pre-installed certs:
 
-**Mode:**
+```sh
+docker run -d -p 443:443 -e HOST=ocm-go1 -e TLS_ENABLED=true opencloudmesh-go:local
+curl -k https://localhost/.well-known/ocm
+```
 
-| Variable    | Default | Description |
-| ----------- | ------- | ----------- |
-| OCM_GO_MODE | (none)  | Override preset bundle: `strict`, `compat`, or `dev`. |
+Set at least one of `HOST` or `PUBLIC_ORIGIN`. The full environment-variable
+reference, including TLS material and how the entrypoint derives the public
+origin, lives in [docs/docker.md](docs/docker.md).
 
-**Config:**
+## DeepWiki
 
-| Variable | Default | Description |
-| -------- | ------- | ----------- |
-| CONFIG   | (auto)  | Path to config.toml in container. Use with `-v` to mount your own file. |
+If you want a browsable, AI-generated overview of the repository, see
+[DeepWiki](https://deepwiki.com/MahdiBaghbani/opencloudmesh-go). The files
+under [`docs/`](docs/) are still the source of truth.
 
-**TLS:**
+## Ecosystem
 
-| Variable    | Default | Description |
-| ----------- | ------- | ----------- |
-| TLS_ENABLED | false   | Set to `true` for TLS on port 443. |
-| TLS_CERT    | (none)  | Base64-encoded PEM cert. Overwrites pre-installed cert at startup. |
-| TLS_KEY     | (none)  | Base64-encoded PEM key. Overwrites pre-installed key at startup. |
-| TLS_CA      | (none)  | Base64-encoded PEM CA. Overwrites pre-installed CA and updates trust store. |
+OpenCloudMesh Go sits in the middle of the wider OCM stack. The protocol lives
+in [cs3org/OCM-API](https://github.com/cs3org/OCM-API). This repo provides a
+runnable Go server for a focused OCM slice, and downstream container and
+interoperability setups use it alongside the wider OCM image and test tooling.
 
-## OCM-API specification
+Protocol behavior is pinned to the OCM-API snapshot at
+[`a2b8bacd4590ff201a06883330b67636e99c4f5b`](https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-OCM.md),
+with the vendored pin recorded in `internal/components/ocm/spec/vendor/pin.json`.
 
-Protocol behavior is defined in the [OCM-API IETF-RFC][ocm-rfc]. The vendored
-pin lives at `internal/components/ocm/spec/vendor/pin.json`.
+## Acknowledgements
 
-[ocm-rfc]: https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery
+OpenCloudMesh Go exists because someone chose to fund open source
+infrastructure. A big thank you to the Sovereign Tech Agency for backing this
+work, which Mahdi Baghbani develops as part of Open Cloud Mesh.
+
+<p>
+  <a href="https://www.sovereign.tech/tech/open-cloud-mesh">
+    <img alt="Sovereign Tech Agency" src="assets/logos/funders/sovereign-tech-agency.svg" height="64">
+  </a>
+</p>
+
+You can read the full story in [FUNDING.md](FUNDING.md).
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the
+development workflow, validation commands, and pull request expectations.
+
+## Questions and issues
+
+Bug reports, questions, and ideas are welcome on the
+[issue tracker](https://github.com/MahdiBaghbani/opencloudmesh-go/issues). If
+something in the docs is unclear or wrong, that is worth an issue too.
+
+## License
+
+Licensed under the GNU Affero General Public License v3.0 or later
+(AGPL-3.0-or-later). See [LICENSE.md](LICENSE.md).
