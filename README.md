@@ -1,7 +1,7 @@
 # OpenCloudMesh Go
 
-> A Go reference implementation for a strict, WebDAV-centered slice of
-> Open Cloud Mesh.
+> A runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered
+> subset of the protocol.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MahdiBaghbani/opencloudmesh-go)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE.md)
