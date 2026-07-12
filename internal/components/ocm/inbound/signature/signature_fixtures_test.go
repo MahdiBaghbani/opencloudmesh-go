@@ -2,18 +2,21 @@ package signature_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 type mockPeerDiscovery struct {
 	signingCapable  map[string]bool
 	signingErrors   map[string]error
-	publicKeysPEM   map[string]string
+	publicKeys      map[string]sigalg.ResolvedPublicKey
 	publicKeyErrors map[string]error
 }
 
@@ -24,14 +27,24 @@ func (m *mockPeerDiscovery) IsSigningCapable(ctx context.Context, host string) (
 	return m.signingCapable[host], nil
 }
 
-func (m *mockPeerDiscovery) GetPublicKey(ctx context.Context, keyID string) (string, error) {
+func (m *mockPeerDiscovery) ResolveVerificationKey(ctx context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
 	if err, ok := m.publicKeyErrors[keyID]; ok {
-		return "", err
+		return sigalg.ResolvedPublicKey{}, err
 	}
-	if pem, ok := m.publicKeysPEM[keyID]; ok {
-		return pem, nil
+	if key, ok := m.publicKeys[keyID]; ok {
+		return key, nil
 	}
-	return "", nil
+	return sigalg.ResolvedPublicKey{}, fmt.Errorf("public key not found for %q", keyID)
+}
+
+func resolvedKeyFromManager(km *crypto.KeyManager) sigalg.ResolvedPublicKey {
+	return sigalg.ResolvedPublicKey{
+		KeyID:     km.GetKeyID(),
+		Algorithm: sigalg.Ed25519,
+		PublicKey: km.GetSigningKey().PublicKey,
+		JWKKty:    "OKP",
+		JWKCrv:    "Ed25519",
+	}
 }
 
 func runtimePolicyFromSignature(cfg *config.SignatureConfig) *policy.RuntimePolicy {
