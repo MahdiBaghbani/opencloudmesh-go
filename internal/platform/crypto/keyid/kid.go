@@ -49,8 +49,37 @@ func ParseKid(kid string) (Kid, error) {
 	if authority == "" || fragment == "" {
 		return Kid{}, fmt.Errorf("keyid: malformed kid %q: expected host#fragment", kid)
 	}
+	if strings.Contains(authority, "/") {
+		return Kid{}, fmt.Errorf("keyid: host#fragment kid %q must not contain a path", kid)
+	}
 
 	return Kid{Authority: authority, Fragment: fragment}, nil
+}
+
+// CanonicalJWKSAuthority returns the scheme and hostport-normalized authority
+// used to fetch JWKS for a parsed kid. Host#fragment and absolute-URI kids use
+// the same authority rules. Empty scheme defaults to https. Paths in authority
+// are rejected.
+func CanonicalJWKSAuthority(k Kid) (scheme, authority string, err error) {
+	scheme = strings.ToLower(strings.TrimSpace(k.Scheme))
+	if scheme == "" {
+		scheme = "https"
+	}
+	if scheme != "http" && scheme != "https" {
+		return "", "", fmt.Errorf("keyid: unsupported scheme %q", k.Scheme)
+	}
+	authority = strings.TrimSpace(k.Authority)
+	if authority == "" {
+		return "", "", errors.New("keyid: empty authority")
+	}
+	if strings.Contains(authority, "/") {
+		return "", "", fmt.Errorf("keyid: authority %q must not contain a path", authority)
+	}
+	normalized, err := hostport.Normalize(authority, scheme)
+	if err != nil {
+		return "", "", fmt.Errorf("keyid: normalize JWKS authority: %w", err)
+	}
+	return scheme, normalized, nil
 }
 
 func parseKidFromURI(keyID string) (Kid, error) {
@@ -106,6 +135,8 @@ func KidFromPublicOrigin(publicOrigin, fragment string) (string, error) {
 }
 
 // KidMatches reports whether a signature keyid parameter matches a JWKS kid.
+// Authorities are compared after CanonicalJWKSAuthority so default ports and
+// case differences do not break lookup (e.g. example.com:443#key1 vs example.com#key1).
 func KidMatches(keyidParam, jwksKid string) bool {
 	parsed, err := ParseKid(keyidParam)
 	if err != nil {
@@ -115,5 +146,13 @@ func KidMatches(keyidParam, jwksKid string) bool {
 	if err != nil {
 		return false
 	}
-	return parsed.Authority == jwks.Authority && parsed.Fragment == jwks.Fragment
+	_, authA, err := CanonicalJWKSAuthority(parsed)
+	if err != nil {
+		return false
+	}
+	_, authB, err := CanonicalJWKSAuthority(jwks)
+	if err != nil {
+		return false
+	}
+	return authA == authB && parsed.Fragment == jwks.Fragment
 }
