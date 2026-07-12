@@ -1,4 +1,4 @@
-// Package jwks publishes and resolves Ed25519 public keys in RFC 7517 format.
+// Package jwks publishes and resolves public keys in RFC 7517 format.
 package jwks
 
 import (
@@ -14,22 +14,35 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 const (
 	WellKnownPath = "/.well-known/jwks.json"
 	// DefaultCacheTTL is how long a fetched JWKS document is reused before refresh.
-	DefaultCacheTTL = 5 * time.Minute
+	DefaultCacheTTL = 1 * time.Minute
+	// DefaultMinRefetchInterval caps forced refetch frequency after a kid miss.
+	DefaultMinRefetchInterval = 30 * time.Second
+	// DefaultNegativeCacheTTL is how long a kid miss is remembered per JWKS URL.
+	DefaultNegativeCacheTTL = 30 * time.Second
 )
 
 // Key is a single RFC 7517 JSON Web Key entry.
 type Key struct {
 	Kty string `json:"kty"`
-	Crv string `json:"crv,omitempty"`
 	Kid string `json:"kid"`
+	Use string `json:"use,omitempty"`
+	Alg string `json:"alg,omitempty"`
+	Crv string `json:"crv,omitempty"`
 	X   string `json:"x,omitempty"`
+	Y   string `json:"y,omitempty"`
+	N   string `json:"n,omitempty"`
+	E   string `json:"e,omitempty"`
 }
 
 // Set is a JSON Web Key Set.
@@ -43,6 +56,7 @@ func Ed25519Key(kid string, pub ed25519.PublicKey) Key {
 		Kty: "OKP",
 		Crv: "Ed25519",
 		Kid: kid,
+		Use: "sig",
 		X:   encodeBase64URL(pub),
 	}
 }
@@ -61,27 +75,68 @@ func (s Set) MarshalJSON() ([]byte, error) {
 	return json.Marshal(alias(s))
 }
 
-// FindEd25519 resolves an Ed25519 public key by JWKS kid.
-func (s Set) FindEd25519(kid string) (ed25519.PublicKey, error) {
+// ErrKeyNotFound indicates the JWKS document does not contain the requested kid.
+var ErrKeyNotFound = errors.New("jwks: key not found")
+
+// ErrAmbiguousKid indicates more than one JWKS entry matched the requested kid.
+var ErrAmbiguousKid = errors.New("jwks: ambiguous kid")
+
+// ErrNilHTTPClient indicates JWKS fetch was attempted without an HTTP client.
+var ErrNilHTTPClient = errors.New("jwks: nil HTTP client")
+
+// ErrResponseTooLarge indicates the JWKS response exceeded the configured size limit.
+var ErrResponseTooLarge = errors.New("jwks: response too large")
+
+// Find resolves a public key by JWKS kid into a ResolvedPublicKey.
+// Duplicate kid matches are rejected. Keys with use set to a value other
+// than "sig" are ignored for verification lookup.
+func (s Set) Find(kid string) (sigalg.ResolvedPublicKey, error) {
+	var matches []Key
 	for _, key := range s.Keys {
 		if !keyid.KidMatches(kid, key.Kid) {
 			continue
 		}
-		pub, err := sigalg.PublicKeyFromJWK(key.Kty, key.Crv, key.X)
-		if err != nil {
-			return nil, err
+		if key.Use != "" && !strings.EqualFold(key.Use, "sig") {
+			continue
 		}
-		edPub, ok := pub.(ed25519.PublicKey)
-		if !ok {
-			return nil, fmt.Errorf("jwks: key %q is not Ed25519", key.Kid)
-		}
-		return edPub, nil
+		matches = append(matches, key)
 	}
-	return nil, fmt.Errorf("jwks: key %q not found: %w", kid, ErrKeyNotFound)
+	if len(matches) == 0 {
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: key %q not found: %w", kid, ErrKeyNotFound)
+	}
+	if len(matches) > 1 {
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: ambiguous kid %q (%d matches): %w", kid, len(matches), ErrAmbiguousKid)
+	}
+	key := matches[0]
+	pub, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
+		Kty: key.Kty,
+		Crv: key.Crv,
+		Alg: key.Alg,
+		X:   key.X,
+		Y:   key.Y,
+		N:   key.N,
+		E:   key.E,
+	})
+	if err != nil {
+		return sigalg.ResolvedPublicKey{}, err
+	}
+	alg, err := sigalg.DeriveFromJWK(key.Kty, key.Crv, key.Alg)
+	if err != nil {
+		// RSA without alg: leave Algorithm empty; ResolveAlgorithm can use header.
+		if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
+			return sigalg.ResolvedPublicKey{}, err
+		}
+		alg = ""
+	}
+	return sigalg.ResolvedPublicKey{
+		KeyID:     key.Kid,
+		Algorithm: alg,
+		PublicKey: pub,
+		JWKKty:    key.Kty,
+		JWKCrv:    key.Crv,
+		JWKAlg:    key.Alg,
+	}, nil
 }
-
-// ErrKeyNotFound indicates the JWKS document does not contain the requested kid.
-var ErrKeyNotFound = errors.New("jwks: key not found")
 
 // HTTPDoer performs outbound HTTP requests for JWKS fetch.
 type HTTPDoer interface {
@@ -93,40 +148,99 @@ type cacheEntry struct {
 	fetchedAt time.Time
 }
 
+// ResolverOptions configures remote JWKS cache and fetch policy.
+// Zero TTL / MinRefetchInterval / NegativeCacheTTL / MaxResponseBytes select
+// package defaults. Negative durations disable min-refetch cooldown or
+// negative-kid caching.
+type ResolverOptions struct {
+	TTL                time.Duration
+	MinRefetchInterval time.Duration
+	NegativeCacheTTL   time.Duration
+	MaxResponseBytes   int64
+	Now                func() time.Time
+}
+
 // Resolver fetches and caches remote JWKS documents.
 type Resolver struct {
-	mu     sync.RWMutex
-	cache  map[string]cacheEntry
-	client HTTPDoer
-	ttl    time.Duration
-	now    func() time.Time
+	mu                 sync.RWMutex
+	cache              map[string]cacheEntry
+	negative           map[string]time.Time
+	lastFetchAt        map[string]time.Time
+	client             HTTPDoer
+	ttl                time.Duration
+	minRefetchInterval time.Duration
+	negativeTTL        time.Duration
+	maxResponseBytes   int64
+	now                func() time.Time
+	group              singleflight.Group
 }
 
 // NewResolver creates a JWKS resolver backed by client.
-func NewResolver(client HTTPDoer) *Resolver {
-	return NewResolverWithTTL(client, DefaultCacheTTL)
+func NewResolver(client HTTPDoer) (*Resolver, error) {
+	return NewResolverWithOptions(client, ResolverOptions{})
 }
 
 // NewResolverWithTTL creates a JWKS resolver with an explicit cache TTL.
-func NewResolverWithTTL(client HTTPDoer, ttl time.Duration) *Resolver {
+func NewResolverWithTTL(client HTTPDoer, ttl time.Duration) (*Resolver, error) {
+	return NewResolverWithOptions(client, ResolverOptions{TTL: ttl})
+}
+
+// NewResolverWithOptions creates a JWKS resolver with explicit policy options.
+func NewResolverWithOptions(client HTTPDoer, opts ResolverOptions) (*Resolver, error) {
 	if client == nil {
-		client = http.DefaultClient
+		return nil, ErrNilHTTPClient
 	}
+	ttl := opts.TTL
 	if ttl <= 0 {
 		ttl = DefaultCacheTTL
 	}
-	return &Resolver{
-		cache:  map[string]cacheEntry{},
-		client: client,
-		ttl:    ttl,
-		now:    time.Now,
+	minRefetch := opts.MinRefetchInterval
+	if minRefetch == 0 {
+		minRefetch = DefaultMinRefetchInterval
 	}
+	if minRefetch < 0 {
+		minRefetch = 0
+	}
+	negTTL := opts.NegativeCacheTTL
+	if negTTL == 0 {
+		negTTL = DefaultNegativeCacheTTL
+	}
+	if negTTL < 0 {
+		negTTL = 0
+	}
+	maxBytes := opts.MaxResponseBytes
+	if maxBytes <= 0 {
+		maxBytes = int64(config.DefaultMaxResponseBytes)
+	}
+	now := opts.Now
+	if now == nil {
+		now = time.Now
+	}
+	return &Resolver{
+		cache:              map[string]cacheEntry{},
+		negative:           map[string]time.Time{},
+		lastFetchAt:        map[string]time.Time{},
+		client:             client,
+		ttl:                ttl,
+		minRefetchInterval: minRefetch,
+		negativeTTL:        negTTL,
+		maxResponseBytes:   maxBytes,
+		now:                now,
+	}, nil
 }
 
 // FetchURL retrieves a JWKS document from an absolute URL.
 func FetchURL(ctx context.Context, client HTTPDoer, jwksURL string) (Set, error) {
+	return FetchURLLimited(ctx, client, jwksURL, int64(config.DefaultMaxResponseBytes))
+}
+
+// FetchURLLimited retrieves a JWKS document with an explicit response size cap.
+func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBytes int64) (Set, error) {
 	if client == nil {
-		client = http.DefaultClient
+		return Set{}, ErrNilHTTPClient
+	}
+	if maxBytes <= 0 {
+		maxBytes = int64(config.DefaultMaxResponseBytes)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
@@ -145,9 +259,12 @@ func FetchURL(ctx context.Context, client HTTPDoer, jwksURL string) (Set, error)
 		return Set{}, fmt.Errorf("jwks: fetch %s: status %d", jwksURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
 		return Set{}, fmt.Errorf("jwks: read body: %w", err)
+	}
+	if int64(len(body)) > maxBytes {
+		return Set{}, fmt.Errorf("jwks: fetch %s: %w", jwksURL, ErrResponseTooLarge)
 	}
 
 	var set Set
@@ -168,85 +285,175 @@ func URLForAuthority(scheme, authority string) string {
 	return scheme + "://" + authority + WellKnownPath
 }
 
-// Resolve fetches JWKS for authority using scheme and returns the Ed25519 key
-// matching kid.
+// Resolve fetches JWKS for authority using scheme and returns the key matching kid.
 func (r *Resolver) Resolve(
 	ctx context.Context,
 	scheme, authority, kid string,
-) (ed25519.PublicKey, error) {
+) (sigalg.ResolvedPublicKey, error) {
 	jwksURL := URLForAuthority(scheme, authority)
 
-	set, err := r.loadSet(ctx, jwksURL, false)
-	if err != nil {
-		return nil, err
+	if r.negativeHit(jwksURL, kid) {
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: key %q not found: %w", kid, ErrKeyNotFound)
 	}
 
-	pub, err := set.FindEd25519(kid)
+	set, _, err := r.loadSet(ctx, jwksURL, false)
+	if err != nil {
+		return sigalg.ResolvedPublicKey{}, err
+	}
+
+	pub, err := set.Find(kid)
 	if err == nil {
 		return pub, nil
 	}
 	if !errors.Is(err, ErrKeyNotFound) {
-		return nil, err
+		return sigalg.ResolvedPublicKey{}, err
 	}
 
-	// Re-fetch once on kid miss so rotated keys can be picked up without restart.
-	set, refreshErr := r.loadSet(ctx, jwksURL, true)
+	// Re-fetch once on kid miss so rotated keys can be picked up.
+	// minRefetchInterval may reuse the cached document instead.
+	set, fresh, refreshErr := r.loadSet(ctx, jwksURL, true)
 	if refreshErr != nil {
-		return nil, refreshErr
+		return sigalg.ResolvedPublicKey{}, refreshErr
 	}
-	return set.FindEd25519(kid)
+	pub, err = set.Find(kid)
+	if errors.Is(err, ErrKeyNotFound) && fresh {
+		r.rememberNegative(jwksURL, kid)
+	}
+	return pub, err
 }
 
-func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh bool) (Set, error) {
+func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh bool) (Set, bool, error) {
+	now := r.now()
+
 	if !forceRefresh {
 		r.mu.RLock()
 		entry, ok := r.cache[jwksURL]
 		r.mu.RUnlock()
-		if ok && r.now().Sub(entry.fetchedAt) < r.ttl {
-			return entry.set, nil
+		if ok && now.Sub(entry.fetchedAt) < r.ttl {
+			return entry.set, false, nil
+		}
+	} else {
+		r.mu.RLock()
+		entry, ok := r.cache[jwksURL]
+		lastFetch, haveFetch := r.lastFetchAt[jwksURL]
+		r.mu.RUnlock()
+		if ok && r.minRefetchInterval > 0 && haveFetch && now.Sub(lastFetch) < r.minRefetchInterval {
+			// Reuse the cached document while minRefetchInterval applies.
+			return entry.set, false, nil
 		}
 	}
 
-	set, err := FetchURL(ctx, r.client, jwksURL)
-	if err != nil {
-		return Set{}, err
+	type result struct {
+		set   Set
+		fresh bool
 	}
+	v, err, _ := r.group.Do(jwksURL, func() (any, error) {
+		now := r.now()
+		if !forceRefresh {
+			r.mu.RLock()
+			entry, ok := r.cache[jwksURL]
+			r.mu.RUnlock()
+			if ok && now.Sub(entry.fetchedAt) < r.ttl {
+				return result{set: entry.set, fresh: false}, nil
+			}
+		} else {
+			r.mu.RLock()
+			entry, ok := r.cache[jwksURL]
+			lastFetch, haveFetch := r.lastFetchAt[jwksURL]
+			r.mu.RUnlock()
+			if ok && r.minRefetchInterval > 0 && haveFetch && now.Sub(lastFetch) < r.minRefetchInterval {
+				return result{set: entry.set, fresh: false}, nil
+			}
+		}
 
-	r.mu.Lock()
-	r.cache[jwksURL] = cacheEntry{set: set, fetchedAt: r.now()}
-	r.mu.Unlock()
+		set, err := FetchURLLimited(ctx, r.client, jwksURL, r.maxResponseBytes)
+		if err != nil {
+			return nil, err
+		}
 
-	return set, nil
+		fetchedAt := r.now()
+		r.mu.Lock()
+		r.cache[jwksURL] = cacheEntry{set: set, fetchedAt: fetchedAt}
+		r.lastFetchAt[jwksURL] = fetchedAt
+		r.mu.Unlock()
+		return result{set: set, fresh: true}, nil
+	})
+	if err != nil {
+		return Set{}, false, err
+	}
+	out := v.(result)
+	return out.set, out.fresh, nil
 }
 
-// ResolveKeyID resolves a signature keyid parameter to an Ed25519 public key.
+func negativeKey(jwksURL, kid string) string {
+	return jwksURL + "\x00" + kid
+}
+
+func (r *Resolver) negativeHit(jwksURL, kid string) bool {
+	if r.negativeTTL <= 0 {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	until, ok := r.negative[negativeKey(jwksURL, kid)]
+	return ok && r.now().Before(until)
+}
+
+func (r *Resolver) rememberNegative(jwksURL, kid string) {
+	if r.negativeTTL <= 0 {
+		return
+	}
+	r.mu.Lock()
+	r.negative[negativeKey(jwksURL, kid)] = r.now().Add(r.negativeTTL)
+	r.mu.Unlock()
+}
+
+// ResolveKeyID resolves a signature keyid parameter to a ResolvedPublicKey.
+// Scheme and authority come from keyid.CanonicalJWKSAuthority. For
+// host#fragment kids, defaultScheme (when non-empty) overrides the canonical
+// https default and re-normalizes.
 func (r *Resolver) ResolveKeyID(
 	ctx context.Context,
 	defaultScheme, keyID string,
-) (ed25519.PublicKey, error) {
+) (sigalg.ResolvedPublicKey, error) {
 	parsed, err := keyid.ParseKid(keyID)
 	if err != nil {
-		return nil, err
+		return sigalg.ResolvedPublicKey{}, err
 	}
 
-	scheme := defaultScheme
-	if scheme == "" {
-		scheme = "https"
+	scheme, authority, err := keyid.CanonicalJWKSAuthority(parsed)
+	if err != nil {
+		return sigalg.ResolvedPublicKey{}, err
+	}
+	if parsed.Scheme == "" {
+		if ds := strings.ToLower(strings.TrimSpace(defaultScheme)); ds != "" {
+			scheme = ds
+			authority, err = hostport.Normalize(strings.TrimSpace(parsed.Authority), scheme)
+			if err != nil {
+				return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: normalize keyid authority: %w", err)
+			}
+		}
 	}
 
-	return r.Resolve(ctx, scheme, parsed.Authority, keyID)
+	return r.Resolve(ctx, scheme, authority, keyID)
 }
 
-// AuthorityFromBaseURL extracts scheme and authority from an absolute base URL.
+// AuthorityFromBaseURL extracts scheme and hostport-normalized authority from
+// an absolute base URL (path and query are ignored).
 func AuthorityFromBaseURL(baseURL string) (scheme, authority string, err error) {
 	u, err := url.Parse(strings.TrimSpace(baseURL))
 	if err != nil {
 		return "", "", err
 	}
-	if u.Scheme == "" || u.Host == "" {
+	scheme = strings.ToLower(u.Scheme)
+	if scheme == "" || u.Host == "" {
 		return "", "", fmt.Errorf("jwks: invalid base URL %q", baseURL)
 	}
-	return strings.ToLower(u.Scheme), strings.ToLower(u.Host), nil
+	authority, err = hostport.Normalize(u.Host, scheme)
+	if err != nil {
+		return "", "", fmt.Errorf("jwks: normalize authority from %q: %w", baseURL, err)
+	}
+	return scheme, authority, nil
 }
 
 func encodeBase64URL(raw []byte) string {
