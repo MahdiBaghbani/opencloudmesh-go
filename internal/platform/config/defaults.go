@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+)
 
 // Outbound HTTP defaults (production strict preset baseline).
 const (
@@ -97,6 +101,6 @@ func DefaultSignatureConfig() SignatureConfig {
 		KidFragment:              DefaultSignatureKidFragment,
 		CreatedMaxAgeSeconds:     DefaultSignatureCreatedMaxAge,
 		CreatedMaxSkewSeconds:    DefaultSignatureCreatedMaxSkew,
-		AllowedAlgorithms:        []string{"ed25519"},
+		AllowedAlgorithms:        append([]string(nil), sigalg.DefaultAllowed()...),
 	}
 }

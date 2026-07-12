@@ -13,6 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
@@ -120,6 +121,9 @@ func Load(opts LoaderOptions) (*Config, error) {
 	overlayFlags(cfg, opts.FlagOverrides)
 
 	applySignatureDefaults(cfg)
+	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
+		return nil, err
+	}
 
 	// Populate DerivedSSRFMode from SSRF.Mode for programmatic caller compatibility.
 	cfg.OutboundHTTP.DerivedSSRFMode = cfg.OutboundHTTP.SSRF.Mode
@@ -195,6 +199,52 @@ func applySignatureDefaults(cfg *Config) {
 	if len(cfg.Signature.AllowedAlgorithms) == 0 {
 		cfg.Signature.AllowedAlgorithms = append([]string(nil), defaults.AllowedAlgorithms...)
 	}
+}
+
+func normalizeAllowedAlgorithm(alg string) (string, error) {
+	normalized, err := sigalg.Normalize(alg)
+	if err != nil {
+		return "", err
+	}
+	if !sigalg.IsImplemented(normalized) {
+		return "", fmt.Errorf("unsupported algorithm %q", alg)
+	}
+	return normalized, nil
+}
+
+// NormalizeSignatureAllowedAlgorithms canonicalizes JOSE/native aliases,
+// rejects empty/whitespace/symmetric/unknown entries, and dedupes while
+// preserving first-seen order.
+func NormalizeSignatureAllowedAlgorithms(algorithms []string) ([]string, error) {
+	if len(algorithms) == 0 {
+		return nil, fmt.Errorf("signature.allowed_algorithms must not be empty")
+	}
+	normalizedAlgs := make([]string, 0, len(algorithms))
+	seen := make(map[string]struct{}, len(algorithms))
+	for _, alg := range algorithms {
+		if strings.TrimSpace(alg) == "" {
+			return nil, fmt.Errorf("signature.allowed_algorithms must not contain empty values")
+		}
+		normalized, err := normalizeAllowedAlgorithm(alg)
+		if err != nil {
+			return nil, fmt.Errorf("signature.allowed_algorithms: %w", err)
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		normalizedAlgs = append(normalizedAlgs, normalized)
+	}
+	return normalizedAlgs, nil
+}
+
+func normalizeSignatureConfig(sig *SignatureConfig) error {
+	normalized, err := NormalizeSignatureAllowedAlgorithms(sig.AllowedAlgorithms)
+	if err != nil {
+		return err
+	}
+	sig.AllowedAlgorithms = normalized
+	return nil
 }
 
 // validateEnums validates enum-like config fields and returns an error for invalid values.
@@ -278,14 +328,6 @@ func validateEnums(cfg *Config) error {
 	}
 	if cfg.Signature.CreatedMaxSkewSeconds < 0 {
 		return fmt.Errorf("signature.created_max_skew_seconds must be non-negative")
-	}
-	if len(cfg.Signature.AllowedAlgorithms) == 0 {
-		return fmt.Errorf("signature.allowed_algorithms must not be empty")
-	}
-	for _, alg := range cfg.Signature.AllowedAlgorithms {
-		if strings.TrimSpace(alg) == "" {
-			return fmt.Errorf("signature.allowed_algorithms must not contain empty values")
-		}
 	}
 
 	// cache.driver (empty defaults to memory)

@@ -43,7 +43,7 @@ func presetForMode(mode Mode) *Config {
 // StrictConfig returns production-safe strict defaults.
 func StrictConfig() *Config {
 	tokenExchangeEnabled := true
-	return &Config{
+	cfg := &Config{
 		Mode:               string(ModeStrict),
 		CompatibilityScope: "none",
 		PublicOrigin:       "https://localhost:9200",
@@ -84,6 +84,11 @@ func StrictConfig() *Config {
 			Backend: BackendMemory,
 		},
 	}
+	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
+		// Built-in defaults must already be canonical.
+		panic("config.StrictConfig: " + err.Error())
+	}
+	return cfg
 }
 
 // CompatConfig returns compatibility mode defaults.

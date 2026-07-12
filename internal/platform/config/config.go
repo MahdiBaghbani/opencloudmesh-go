@@ -291,7 +291,10 @@ type SignatureConfig struct {
 	// CreatedMaxSkewSeconds is the maximum clock skew into the future verifiers accept.
 	CreatedMaxSkewSeconds int `toml:"created_max_skew_seconds"`
 
-	// AllowedAlgorithms lists permitted asymmetric RFC 9421 algorithms.
+	// AllowedAlgorithms lists permitted asymmetric RFC 9421 algorithms for
+	// inbound verification and outbound SignRequest. The local private key
+	// (default Ed25519) still performs signing; this list must include that
+	// key's algorithm or SignRequest fails before the request is sent.
 	AllowedAlgorithms []string `toml:"allowed_algorithms"`
 }
 

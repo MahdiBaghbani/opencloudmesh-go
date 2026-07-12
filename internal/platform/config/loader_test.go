@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestConfig_Redacted(t *testing.T) {
@@ -60,7 +62,7 @@ func TestLoad_StrictModeSignatureIETFDefaults(t *testing.T) {
 	if cfg.Signature.OutboundMode != "strict" {
 		t.Fatalf("OutboundMode = %q, want strict", cfg.Signature.OutboundMode)
 	}
-	if len(cfg.Signature.AllowedAlgorithms) != 1 || cfg.Signature.AllowedAlgorithms[0] != "ed25519" {
+	if len(cfg.Signature.AllowedAlgorithms) != len(sigalg.DefaultAllowed()) || cfg.Signature.AllowedAlgorithms[0] != "ed25519" {
 		t.Fatalf("AllowedAlgorithms = %v", cfg.Signature.AllowedAlgorithms)
 	}
 }
