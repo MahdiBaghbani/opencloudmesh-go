@@ -6,23 +6,27 @@ package peercompat
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 // Reason codes for strict failures that may trigger quirk attempts.
 // These are stable identifiers for classifying why a strict attempt failed.
 const (
 	// Signature-related failures
-	ReasonSignatureRequired     = "signature_required"
-	ReasonSignatureInvalid      = "signature_invalid"
-	ReasonSignatureMismatch     = "signature_mismatch"
-	ReasonDigestMismatch        = "digest_mismatch"
-	ReasonKeyIDMismatch         = "keyid_mismatch"
-	ReasonKeyNotFound           = "key_not_found"
+	ReasonSignatureRequired = "signature_required"
+	ReasonSignatureInvalid  = "signature_invalid"
+	ReasonSignatureMismatch = "signature_mismatch"
+	ReasonDigestMismatch    = "digest_mismatch"
+	ReasonKeyIDMismatch     = "keyid_mismatch"
+	ReasonKeyNotFound       = "key_not_found"
 
 	// Token exchange failures
-	ReasonTokenExchangeFailed   = "token_exchange_failed"
-	ReasonTokenInvalidFormat    = "token_invalid_format"
-	ReasonTokenExpired          = "token_expired"
+	ReasonTokenExchangeFailed = "token_exchange_failed"
+	ReasonTokenInvalidFormat  = "token_invalid_format"
+	ReasonTokenExpired        = "token_expired"
 
 	// Discovery failures
 	ReasonDiscoveryFailed       = "discovery_failed"
@@ -30,20 +34,20 @@ const (
 	ReasonPeerCapabilityMissing = "peer_capability_missing"
 
 	// Network failures
-	ReasonNetworkError          = "network_error"
-	ReasonPeerUnreachable       = "peer_unreachable"
-	ReasonSSRFBlocked           = "ssrf_blocked"
-	ReasonTLSError              = "tls_error"
+	ReasonNetworkError    = "network_error"
+	ReasonPeerUnreachable = "peer_unreachable"
+	ReasonSSRFBlocked     = "ssrf_blocked"
+	ReasonTLSError        = "tls_error"
 
 	// Protocol failures
-	ReasonProtocolMismatch      = "protocol_mismatch"
-	ReasonUnsupportedVersion    = "unsupported_version"
+	ReasonProtocolMismatch   = "protocol_mismatch"
+	ReasonUnsupportedVersion = "unsupported_version"
 
 	// Remote access
-	ReasonRemoteError           = "remote_error"
+	ReasonRemoteError = "remote_error"
 
 	// Unknown/unclassified
-	ReasonUnknown               = "unknown"
+	ReasonUnknown = "unknown"
 )
 
 // ClassifiedError wraps an error with a reason code for orchestration decisions.
@@ -73,20 +77,37 @@ func NewClassifiedError(reasonCode, message string, cause error) *ClassifiedErro
 	}
 }
 
-// ClassifyError attempts to classify an error into a reason code.
+// ClassifyError classifies an error into a reason code:
+//  1. *ClassifiedError via errors.As
+//  2. Typed crypto/JWKS sentinels via errors.Is
+//  3. Substring fallback for remaining untyped messages
+//
 // Returns ReasonUnknown if the error cannot be classified.
 func ClassifyError(err error) string {
 	if err == nil {
 		return ""
 	}
 
-	// Check for ClassifiedError directly
 	var ce *ClassifiedError
 	if errors.As(err, &ce) {
 		return ce.ReasonCode
 	}
 
-	// Check error message patterns for common cases
+	switch {
+	case errors.Is(err, jwks.ErrKeyNotFound):
+		return ReasonKeyNotFound
+	case errors.Is(err, sigalg.ErrSymmetricNotPermitted),
+		errors.Is(err, sigalg.ErrAlgorithmNotAllowed),
+		errors.Is(err, sigalg.ErrAlgorithmMismatch),
+		errors.Is(err, sigalg.ErrAlgorithmUnderdetermined),
+		errors.Is(err, sigalg.ErrNotImplemented),
+		errors.Is(err, sigalg.ErrVerifyFailed),
+		errors.Is(err, sigalg.ErrInvalidSignatureEncoding),
+		errors.Is(err, sigalg.ErrWrongKeyType),
+		errors.Is(err, sigalg.ErrCurveMismatch):
+		return ReasonSignatureInvalid
+	}
+
 	errStr := err.Error()
 
 	// Signature-related
@@ -99,14 +120,11 @@ func ClassifyError(err error) string {
 	if containsAny(errStr, "signature mismatch", "signer mismatch") {
 		return ReasonSignatureMismatch
 	}
-	if containsAny(errStr, "digest mismatch", "content-digest") {
+	if containsAny(errStr, "digest mismatch", "content digest mismatch") {
 		return ReasonDigestMismatch
 	}
 	if containsAny(errStr, "keyid mismatch", "key id mismatch") {
 		return ReasonKeyIDMismatch
-	}
-	if containsAny(errStr, "key not found", "public key not found") {
-		return ReasonKeyNotFound
 	}
 
 	// Token exchange
@@ -156,32 +174,10 @@ func ClassifyError(err error) string {
 	return ReasonUnknown
 }
 
-// containsAny checks if s contains any of the given substrings (case-insensitive).
 func containsAny(s string, patterns ...string) bool {
-	sLower := toLower(s)
+	sLower := strings.ToLower(s)
 	for _, p := range patterns {
-		if contains(sLower, toLower(p)) {
-			return true
-		}
-	}
-	return false
-}
-
-func toLower(s string) string {
-	b := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		b[i] = c
-	}
-	return string(b)
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
+		if strings.Contains(sLower, strings.ToLower(p)) {
 			return true
 		}
 	}

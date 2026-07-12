@@ -100,6 +100,11 @@ func TestTokenExchangeFallbackForReason_AcceptPlainToken(t *testing.T) {
 	if fallback.Quirk != "accept_plain_token" {
 		t.Fatalf("expected accept_plain_token quirk, got %q", fallback.Quirk)
 	}
+
+	keyMiss := contract.TokenExchangeFallbackForReason("peer.example", ReasonKeyNotFound)
+	if !keyMiss.AllowUnsignedRetry {
+		t.Fatalf("expected unsigned retry for key_not_found: %+v", keyMiss)
+	}
 }
 
 func TestTokenExchangeFallbackForReason_SendTokenInBody(t *testing.T) {

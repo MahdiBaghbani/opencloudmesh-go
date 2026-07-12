@@ -59,6 +59,14 @@ func (c *CompiledContract) TokenExchangeDecisionForPeer(peerDomain string) Token
 
 // TokenExchangeFallbackForReason resolves token retry permissions from the
 // peer decision and the classified strict-attempt failure reason.
+//
+// Unsigned retry (accept_plain_token) is offered only when a peer mapping
+// matched and the compiled profile sets AcceptPlainToken. Unmatched peers
+// stay strict. The trigger set (signature_required / signature_invalid /
+// key_not_found) covers peers that reject or cannot verify a signed attempt;
+// it is not a general "any 4xx" escape hatch. Operators who map a peer into
+// such a profile accept that a successful unsigned exchange proves possession
+// of the shared secret without HTTP-message integrity on that retry.
 func (c *CompiledContract) TokenExchangeFallbackForReason(peerDomain, reasonCode string) TokenExchangeFallbackDecision {
 	decision := c.TokenExchangeDecisionForPeer(peerDomain)
 	fallback := TokenExchangeFallbackDecision{
@@ -67,6 +75,7 @@ func (c *CompiledContract) TokenExchangeFallbackForReason(peerDomain, reasonCode
 		ReasonCode: reasonCode,
 	}
 
+	// AcceptPlainToken / SendTokenInBody stay false unless Matched is set.
 	switch reasonCode {
 	case ReasonSignatureRequired, ReasonSignatureInvalid, ReasonKeyNotFound:
 		if decision.AcceptPlainToken {
