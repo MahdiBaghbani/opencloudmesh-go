@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
@@ -257,6 +258,176 @@ func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T
 	}
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when rediscovery fails")
+	}
+}
+
+func TestClient_Exchange_AcceptPlainTokenUnsignedRetry(t *testing.T) {
+	var tokenHits atomic.Int32
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenHits.Add(1)
+		if r.Header.Get("Signature") != "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(token.OAuthError{
+				Error:            token.ErrorUnauthorized,
+				ErrorDescription: "signature not accepted",
+			})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "plain-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		DerivedSSRFMode: "off",
+	}, nil))
+
+	contract, err := peercompat.NewCompiledContract(
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                "compat",
+				TokenExchangeQuirks: []string{"accept_plain_token"},
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "peer.example.com", Profile: "compat"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract: %v", err)
+	}
+	policy := makePolicy("strict", nil)
+	policy.PeerContract = contract
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		dummyDiscClient(),
+		&mockSigner{},
+		policy,
+		"my-instance.example.com",
+	)
+
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if result.AccessToken != "plain-token" {
+		t.Fatalf("AccessToken = %q", result.AccessToken)
+	}
+	if result.QuirkApplied != "accept_plain_token" {
+		t.Fatalf("QuirkApplied = %q, want accept_plain_token", result.QuirkApplied)
+	}
+	if got := tokenHits.Load(); got != 2 {
+		t.Fatalf("token endpoint hits = %d, want 2 (signed then unsigned)", got)
+	}
+}
+
+func TestClient_Exchange_AcceptPlainToken_Bare401AfterSigned(t *testing.T) {
+	var tokenHits atomic.Int32
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenHits.Add(1)
+		if r.Header.Get("Signature") != "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "bare-401-plain",
+			TokenType:   "Bearer",
+			ExpiresIn:   60,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		DerivedSSRFMode: "off",
+	}, nil))
+
+	contract, err := peercompat.NewCompiledContract(
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                "compat",
+				TokenExchangeQuirks: []string{"accept_plain_token"},
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "peer.example.com", Profile: "compat"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract: %v", err)
+	}
+	policy := makePolicy("strict", nil)
+	policy.PeerContract = contract
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		dummyDiscClient(),
+		&mockSigner{},
+		policy,
+		"my-instance.example.com",
+	)
+
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	if result.QuirkApplied != "accept_plain_token" {
+		t.Fatalf("QuirkApplied = %q", result.QuirkApplied)
+	}
+	if tokenHits.Load() != 2 {
+		t.Fatalf("hits = %d, want 2", tokenHits.Load())
+	}
+}
+
+func TestClient_Exchange_AcceptPlainToken_UnmatchedPeerNoDowngrade(t *testing.T) {
+	var tokenHits atomic.Int32
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenHits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(token.OAuthError{
+			Error:            token.ErrorUnauthorized,
+			ErrorDescription: "signature required",
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		DerivedSSRFMode: "off",
+	}, nil))
+
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		dummyDiscClient(),
+		&mockSigner{},
+		makePolicy("strict", nil),
+		"my-instance.example.com",
+	)
+
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  "test-secret",
+	})
+	if err == nil {
+		t.Fatal("expected failure without accept_plain_token mapping")
+	}
+	if tokenHits.Load() != 1 {
+		t.Fatalf("hits = %d, want 1 (no unsigned retry)", tokenHits.Load())
 	}
 }
 
