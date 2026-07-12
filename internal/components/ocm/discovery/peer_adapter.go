@@ -2,17 +2,15 @@ package discovery
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
-// PeerDiscoveryAdapter implements crypto.PeerDiscovery using JWKS resolution.
+// PeerDiscoveryAdapter implements inbound signature PeerDiscovery using JWKS.
 type PeerDiscoveryAdapter struct {
 	client       *Client
 	peerContract *peercompat.CompiledContract
@@ -23,9 +21,14 @@ func NewPeerDiscoveryAdapter(client *Client, httpClient jwks.HTTPDoer) *PeerDisc
 	if client == nil {
 		return &PeerDiscoveryAdapter{}
 	}
+	resolver, err := jwks.NewResolver(httpClient)
+	if err != nil {
+		// Constructor rejected the HTTP client.
+		return &PeerDiscoveryAdapter{client: client}
+	}
 	return &PeerDiscoveryAdapter{
 		client: client,
-		jwks:   jwks.NewResolver(httpClient),
+		jwks:   resolver,
 	}
 }
 
@@ -48,43 +51,43 @@ func (p *PeerDiscoveryAdapter) IsSigningCapable(ctx context.Context, host string
 	return disc.RequiresHTTPSig(), nil
 }
 
-// GetPublicKey fetches the public key for a keyId via /.well-known/jwks.json.
-func (p *PeerDiscoveryAdapter) GetPublicKey(ctx context.Context, keyID string) (string, error) {
+// ResolveVerificationKey fetches the public key for a keyId via /.well-known/jwks.json.
+func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
 	if p.jwks == nil {
-		return "", fmt.Errorf("no JWKS resolver configured")
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("no JWKS resolver configured")
 	}
 
 	parsed, err := keyid.ParseKid(keyID)
 	if err != nil {
-		return "", fmt.Errorf("invalid keyId %q: %w", keyID, err)
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("invalid keyId %q: %w", keyID, err)
 	}
 
-	scheme := parsed.Scheme
-	if scheme == "" {
-		scheme = "https"
+	scheme, authority, err := keyid.CanonicalJWKSAuthority(parsed)
+	if err != nil {
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("invalid keyId %q: %w", keyID, err)
 	}
-	authority := parsed.Authority
-	baseURL := p.resolvePeerBaseURL(parsed.Authority)
+
+	// Absolute-URI kids must pass peer absolute-URI policy before JWKS fetch.
+	if parsed.Scheme != "" && p.peerContract != nil {
+		if !p.peerContract.IsPeerAbsoluteURIAllowed(keyID, authority) {
+			return sigalg.ResolvedPublicKey{}, fmt.Errorf("absolute keyId %q is not allowed for peer %q", keyID, authority)
+		}
+	}
+
+	// Prefer the transport scheme from ResolvePeerOrigin (AllowHTTP).
+	baseURL := p.resolvePeerBaseURL(authority)
 	if s, host, authErr := jwks.AuthorityFromBaseURL(baseURL); authErr == nil {
 		scheme = s
 		authority = host
+	} else if decision := p.resolvePeerOrigin(authority); decision.Scheme != "" {
+		scheme = decision.Scheme
 	}
 
-	pub, err := p.jwks.Resolve(ctx, scheme, authority, keyID)
+	resolved, err := p.jwks.Resolve(ctx, scheme, authority, keyID)
 	if err != nil {
-		return "", fmt.Errorf("jwks lookup for %q: %w", keyID, err)
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup for %q: %w", keyID, err)
 	}
-
-	return ed25519PublicKeyPEM(pub)
-}
-
-func ed25519PublicKeyPEM(pub ed25519.PublicKey) (string, error) {
-	pkix, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		return "", fmt.Errorf("marshal public key: %w", err)
-	}
-	block := &pem.Block{Type: "PUBLIC KEY", Bytes: pkix}
-	return string(pem.EncodeToMemory(block)), nil
+	return resolved, nil
 }
 
 func (p *PeerDiscoveryAdapter) resolvePeerBaseURL(host string) string {
@@ -93,4 +96,11 @@ func (p *PeerDiscoveryAdapter) resolvePeerBaseURL(host string) string {
 	}
 	decision := p.peerContract.ResolvePeerOrigin(host)
 	return decision.BaseURL
+}
+
+func (p *PeerDiscoveryAdapter) resolvePeerOrigin(host string) peercompat.PeerOriginDecision {
+	if p.peerContract == nil {
+		return peercompat.PeerOriginDecision{}
+	}
+	return p.peerContract.ResolvePeerOrigin(host)
 }
