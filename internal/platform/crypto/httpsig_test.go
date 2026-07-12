@@ -2,7 +2,11 @@ package crypto_test
 
 import (
 	"bytes"
-	"crypto/ed25519"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +17,8 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
@@ -49,8 +55,11 @@ func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
 		}
 	}
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (ed25519.PublicKey, error) {
-		return km.GetSigningKey().PublicKey, nil
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
 	})
 	if !result.Verified {
 		t.Fatalf("empty-body verification failed: %v", result.Error)
@@ -93,8 +102,11 @@ func TestRFC9421_SignAndVerify(t *testing.T) {
 		t.Error("missing Date header")
 	}
 
-	result := verifier.VerifyRequest(req, body, func(keyID string) (ed25519.PublicKey, error) {
-		return km.GetSigningKey().PublicKey, nil
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
 	})
 
 	if !result.Verified {
@@ -141,8 +153,8 @@ func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 		t.Error("should not have signature headers")
 	}
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (ed25519.PublicKey, error) {
-		return nil, nil
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{}, nil
 	})
 
 	if result.Verified {
@@ -172,8 +184,11 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 
 	signer.SignRequest(req, body)
 
-	result := verifier.VerifyRequest(req, body, func(keyID string) (ed25519.PublicKey, error) {
-		return km2.GetSigningKey().PublicKey, nil
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km2.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
 	})
 
 	if result.Verified {
@@ -211,11 +226,17 @@ func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
 		Now:                func() time.Time { return now.Add(2 * time.Minute) },
 	})
 
-	result := staleVerifier.VerifyRequest(req, body, func(keyID string) (ed25519.PublicKey, error) {
-		return km.GetSigningKey().PublicKey, nil
+	result := staleVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
 	})
 	if result.Verified {
 		t.Fatal("expected stale created to fail verification")
+	}
+	if result.Reason != crypto.ReasonStaleCreated {
+		t.Fatalf("Reason = %q, want %q", result.Reason, crypto.ReasonStaleCreated)
 	}
 	if result.Error == nil || !strings.Contains(result.Error.Error(), "stale") {
 		t.Fatalf("error = %v, want stale created", result.Error)
@@ -257,11 +278,17 @@ func TestRFC9421_VerifyRejectsFutureCreated(t *testing.T) {
 		Now:                func() time.Time { return verifyTime },
 	})
 
-	result := futureVerifier.VerifyRequest(req, body, func(keyID string) (ed25519.PublicKey, error) {
-		return km.GetSigningKey().PublicKey, nil
+	result := futureVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
 	})
 	if result.Verified {
 		t.Fatal("expected future created to fail verification")
+	}
+	if result.Reason != crypto.ReasonFutureCreated {
+		t.Fatalf("Reason = %q, want %q", result.Reason, crypto.ReasonFutureCreated)
 	}
 	if result.Error == nil || !strings.Contains(result.Error.Error(), "too far in the future") {
 		t.Fatalf("error = %v, want future created rejection", result.Error)
@@ -272,17 +299,29 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	req := httptest.NewRequest("POST", "https://example.com/test", nil)
+	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="hmac-sha256"`,
 		now,
 	))
 	req.Header.Set("Signature", "ocm=:AAAA:")
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (ed25519.PublicKey, error) {
-		return nil, fmt.Errorf("should not fetch key")
+	fetches := 0
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		fetches++
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
 	})
 	if result.Verified {
 		t.Fatal("expected symmetric algorithm rejection")
+	}
+	if result.Reason != crypto.ReasonAlgorithmRejected {
+		t.Fatalf("Reason = %q, want %q (err=%v)", result.Reason, crypto.ReasonAlgorithmRejected, result.Error)
+	}
+	if fetches != 1 {
+		t.Fatalf("fetches = %d, want 1 after created/components", fetches)
 	}
 }
 
@@ -353,8 +392,11 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 
 	zeroSig := "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==:"
 
-	keyFetcher := func(keyID string) (ed25519.PublicKey, error) {
-		return km.GetSigningKey().PublicKey, nil
+	keyFetcher := func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
 	}
 
 	now := time.Now().Unix()
@@ -368,7 +410,7 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 		name           string
 		signatureInput string
 		signature      string
-		fetcher        func(string) (ed25519.PublicKey, error)
+		fetcher        func(string) (sigalg.ResolvedPublicKey, error)
 		wantErrSubstr  string
 	}{
 		{
@@ -443,7 +485,7 @@ func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
 		Label:                 "customlabel",
 		CreatedMaxAgeSeconds:  120,
 		CreatedMaxSkewSeconds: 15,
-		AllowedAlgorithms:     []string{"ed25519"},
+		AllowedAlgorithms:     sigalg.DefaultAllowed(),
 	}
 	opts := crypto.RFC9421OptionsFromConfig(sig)
 	if opts.Label != "customlabel" {
@@ -455,7 +497,7 @@ func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
 	if opts.CreatedMaxSkew != 15*time.Second {
 		t.Fatalf("CreatedMaxSkew = %v", opts.CreatedMaxSkew)
 	}
-	if len(opts.AllowedAlgorithms) != 1 || opts.AllowedAlgorithms[0] != "ed25519" {
+	if len(opts.AllowedAlgorithms) != len(sigalg.DefaultAllowed()) || opts.AllowedAlgorithms[0] != "ed25519" {
 		t.Fatalf("AllowedAlgorithms = %v", opts.AllowedAlgorithms)
 	}
 }
@@ -536,8 +578,11 @@ func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 				}
 			}
 
-			result := verifier.VerifyRequest(req, tc.body, func(keyID string) (ed25519.PublicKey, error) {
-				return km.GetSigningKey().PublicKey, nil
+			result := verifier.VerifyRequest(req, tc.body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+				return sigalg.ResolvedPublicKey{
+					KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+					JWKKty: "OKP", JWKCrv: "Ed25519",
+				}, nil
 			})
 			if !result.Verified {
 				t.Fatalf("verification failed: %v", result.Error)
@@ -570,8 +615,11 @@ func TestAppendixB_VectorVerify_Negative(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keyFetcher := func(keyID string) (ed25519.PublicKey, error) {
-		return km.GetSigningKey().PublicKey, nil
+	keyFetcher := func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
 	}
 
 	cases := []struct {
@@ -623,4 +671,335 @@ func TestAppendixB_VectorVerify_Negative(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+	opts := crypto.DefaultRFC9421Options()
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"ok":true}`)
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Date", opts.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
+	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
+	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+
+	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	created := opts.Now().Unix()
+	// Signature-Input omits alg; algorithm comes from the JWK. SignRequest
+	// always emits alg, so build params and signature base explicitly.
+	sigInput := fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q`,
+		created, km.GetKeyID(),
+	)
+	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+	sigBase, err := crypto.BuildSignatureBase(req, components)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullBase := sigBase + `"@signature-params": ` + paramsRaw
+	sig, err := km.Sign([]byte(fullBase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Signature-Input", sigInput)
+	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)))
+
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("expected omit-alg verify OK, got %v", result.Error)
+	}
+}
+
+func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	fetches := 0
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519"`)
+	req.Header.Set("Signature", "ocm=:AAAA:")
+
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		fetches++
+		return sigalg.ResolvedPublicKey{}, nil
+	})
+	if result.Verified {
+		t.Fatal("expected failure")
+	}
+	if result.Reason != crypto.ReasonMissingCreated {
+		t.Fatalf("Reason=%q want missing_created (err=%v)", result.Reason, result.Error)
+	}
+	if fetches != 0 {
+		t.Fatalf("fetches=%d want 0 before created validation", fetches)
+	}
+}
+
+func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	fetches := 0
+	now := time.Now().Unix()
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`ocm=("@method" "@target-uri");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		now,
+	))
+	req.Header.Set("Signature", "ocm=:AAAA:")
+
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		fetches++
+		return sigalg.ResolvedPublicKey{}, nil
+	})
+	if result.Verified {
+		t.Fatal("expected failure")
+	}
+	if result.Reason != crypto.ReasonMissingComponent {
+		t.Fatalf("Reason=%q want missing_component (err=%v)", result.Reason, result.Error)
+	}
+	if fetches != 0 {
+		t.Fatalf("fetches=%d want 0 before component validation", fetches)
+	}
+}
+
+func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	fetches := 0
+	now := time.Now().Unix()
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Content-Digest", "sha-256=:AAAA:")
+	req.Header.Set("Content-Length", "2")
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		now,
+	))
+	req.Header.Set("Signature", "ocm=not-a-byte-sequence")
+
+	result := verifier.VerifyRequest(req, []byte("{}"), func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		fetches++
+		return sigalg.ResolvedPublicKey{}, nil
+	})
+	if result.Verified {
+		t.Fatal("expected failure")
+	}
+	if result.Reason != crypto.ReasonMalformed {
+		t.Fatalf("Reason=%q want malformed (err=%v)", result.Reason, result.Error)
+	}
+	if fetches != 0 {
+		t.Fatalf("fetches=%d want 0 on malformed Signature", fetches)
+	}
+}
+
+func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := crypto.DefaultRFC9421Options()
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"ok":true}`)
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Date", opts.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
+	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
+	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+
+	keyID := "example.com#ec1"
+	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	created := opts.Now().Unix()
+	sigInput := fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q`,
+		created, keyID,
+	)
+	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+	sigBase, err := crypto.BuildSignatureBase(req, components)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullBase := sigBase + `"@signature-params": ` + paramsRaw
+	sum := sha256.Sum256([]byte(fullBase))
+	r, s, err := ecdsa.Sign(rand.Reader, priv, sum[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := sigalg.EncodeECDSARawRS(r, s, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Signature-Input", sigInput)
+	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(raw)))
+
+	result := verifier.VerifyRequest(req, body, func(id string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: id, Algorithm: sigalg.ECDSAP256SHA256, PublicKey: &priv.PublicKey,
+			JWKKty: "EC", JWKCrv: "P-256", JWKAlg: "ES256",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("expected omit-alg ECDSA verify OK, got %v", result.Error)
+	}
+}
+
+func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	now := time.Now().Unix()
+	body := []byte(`{"test":"data"}`)
+	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+
+	newReq := func() *http.Request {
+		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Digest", digest)
+		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+		req.Header.Set("Signature-Input", fmt.Sprintf(
+			`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+			now,
+		))
+		req.Header.Set("Signature", "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:")
+		return req
+	}
+
+	t.Run("key_not_found", func(t *testing.T) {
+		result := verifier.VerifyRequest(newReq(), body, func(string) (sigalg.ResolvedPublicKey, error) {
+			return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup: %w", jwks.ErrKeyNotFound)
+		})
+		if result.Verified {
+			t.Fatal("expected failure")
+		}
+		if result.Reason != crypto.ReasonKeyNotFound {
+			t.Fatalf("Reason=%q want key_not_found (err=%v)", result.Reason, result.Error)
+		}
+	})
+
+	t.Run("key_lookup_failed", func(t *testing.T) {
+		result := verifier.VerifyRequest(newReq(), body, func(string) (sigalg.ResolvedPublicKey, error) {
+			return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: fetch failed: connection refused")
+		})
+		if result.Verified {
+			t.Fatal("expected failure")
+		}
+		if result.Reason != crypto.ReasonKeyLookupFailed {
+			t.Fatalf("Reason=%q want key_lookup_failed (err=%v)", result.Reason, result.Error)
+		}
+	})
+}
+
+func TestVerifyRequest_RejectsDuplicateDictionaryLabel(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	now := time.Now().Unix()
+	body := []byte(`{"test":"data"}`)
+	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+
+	newReq := func(sigInput, signature string) *http.Request {
+		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Digest", digest)
+		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+		req.Header.Set("Signature-Input", sigInput)
+		req.Header.Set("Signature", signature)
+		return req
+	}
+
+	t.Run("duplicate_signature_input", func(t *testing.T) {
+		fetched := false
+		result := verifier.VerifyRequest(newReq(
+			fmt.Sprintf(
+				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519"`,
+				now, now,
+			),
+			"ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:",
+		), body, func(string) (sigalg.ResolvedPublicKey, error) {
+			fetched = true
+			return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+		})
+		if result.Verified {
+			t.Fatal("expected duplicate label rejection")
+		}
+		if result.Reason != crypto.ReasonMalformed {
+			t.Fatalf("Reason=%q want malformed (err=%v)", result.Reason, result.Error)
+		}
+		if result.Error == nil || !strings.Contains(result.Error.Error(), `multiple "ocm" signatures`) {
+			t.Fatalf("error = %v, want multiple ocm signatures", result.Error)
+		}
+		if fetched {
+			t.Fatal("key fetch must not run after duplicate-label rejection")
+		}
+	})
+
+	t.Run("duplicate_signature", func(t *testing.T) {
+		fetched := false
+		result := verifier.VerifyRequest(newReq(
+			fmt.Sprintf(
+				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519"`,
+				now,
+			),
+			"ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:, ocm=:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=:",
+		), body, func(string) (sigalg.ResolvedPublicKey, error) {
+			fetched = true
+			return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+		})
+		if result.Verified {
+			t.Fatal("expected duplicate Signature label rejection")
+		}
+		if result.Reason != crypto.ReasonMalformed {
+			t.Fatalf("Reason=%q want malformed (err=%v)", result.Reason, result.Error)
+		}
+		if result.Error == nil || !strings.Contains(result.Error.Error(), `multiple "ocm" signatures`) {
+			t.Fatalf("error = %v, want multiple ocm signatures", result.Error)
+		}
+		if fetched {
+			t.Fatal("key fetch must not run after duplicate-label rejection")
+		}
+	})
+}
+
+func TestCanonicalTargetURI_ConsistentWithAndWithoutURLScheme(t *testing.T) {
+	withScheme := httptest.NewRequest("POST", "https://example.com/ocm/shares?x=1", nil)
+	withScheme.Host = "example.com"
+	want := "https://example.com/ocm/shares?x=1"
+	if got := crypto.CanonicalTargetURI(withScheme); got != want {
+		t.Fatalf("with scheme: got %q want %q", got, want)
+	}
+
+	// Proxy-style request: path-only URL, Host set, no TLS -> http form.
+	without := httptest.NewRequest("POST", "/ocm/shares?x=1", nil)
+	without.Host = "example.com"
+	without.URL.Scheme = ""
+	without.URL.Host = ""
+	got := crypto.CanonicalTargetURI(without)
+	if got != "http://example.com/ocm/shares?x=1" {
+		t.Fatalf("without scheme: got %q", got)
+	}
+}
+
+func TestBuildSignatureBase_RejectsCRLFInComponent(t *testing.T) {
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req.Header.Set("date", "Fri, 16 Jan 2026 13:37:00 GMT\r\nX-Injected: 1")
+	_, err := crypto.BuildSignatureBase(req, []string{"@method", "date"})
+	if err == nil {
+		t.Fatal("expected CR/LF rejection")
+	}
+}
+
+func padCoordTest(b []byte, size int) []byte {
+	if len(b) >= size {
+		return b
+	}
+	out := make([]byte, size)
+	copy(out[size-len(b):], b)
+	return out
 }
