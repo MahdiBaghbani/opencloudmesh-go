@@ -80,7 +80,7 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 		log.Warn("token exchange enabled but token endpoint is empty; omitting exchange-token capability")
 	}
 
-	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery
+	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#ocm-api-discovery
 	capabilities = append(capabilities, "invites", "webdav-uri", "protocol-object", "notifications")
 
 	if p.InviteAcceptDialog != "" {

@@ -15,7 +15,7 @@ that returns a signed JWS (RFC 7515) listing federation members:
 It is not OCM discovery, not JWKS, and not an OCM provider endpoint.
 Verification keys are provisioned out of band.
 
-[ocm-ds]: https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#appendix-c-directory-service
+[ocm-ds]: https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#appendix-c-directory-service
 
 This server consumes Directory Service listings through
 `internal/components/ocm/directoryservice` when configured under

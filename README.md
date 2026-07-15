@@ -230,7 +230,7 @@ runnable Go server for a focused OCM slice, and downstream container and
 interoperability setups use it alongside the wider OCM image and test tooling.
 
 Protocol behavior is pinned to the OCM-API snapshot at
-[`a2b8bacd4590ff201a06883330b67636e99c4f5b`](https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-OCM.md),
+[`f9a704f63477134701c0b58b29bb6b98949361dc`](https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md),
 with the vendored pin recorded in `internal/components/ocm/spec/vendor/pin.json`.
 
 ## Acknowledgements

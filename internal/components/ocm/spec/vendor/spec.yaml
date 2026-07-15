@@ -3,25 +3,29 @@ info:
   title: Open Cloud Mesh API
   description: >
     Open Cloud Mesh OpenAPI Specification.
-    The semantic of the Protocol Specification is detailed in the
-    [IETF-RFC.md](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md) document.
-  version: 1.2.2
+    The semantic of the Protocol Specification is detailed in the OCM Internet-Draft document
+    published at the [IETF Datatracker](https://datatracker.ietf.org/doc/draft-ietf-ocm-open-cloud-mesh).
+  version: 1.4.0
   x-logo:
     url: logo.png
 servers:
-  - url: https://{discovery_fqdn}
+  - url: https://{ocm_endpoint}
+    description: >
+      The root of the Open Cloud Mesh API, dynamically resolved by taking the `endpoint`
+      value returned by the Discovery endpoint. 
     variables:
-      discovery_fqdn:
-        default: cloud.example.org
+      ocm_endpoint:
+        default: cloud.example.org/ocm
 paths:
   /.well-known/ocm:
+    servers:
+      - url: https://cloud.example.org
+        description: The OCM Server's top-level FQDN.
     get:
       summary: Discovery endpoint
       description: >
         Following [RFC8615], this endpoint returns the properties and
-        capabilities offered by an OCM Server. This endpoint MUST be
-        served at the OCM Server's root FQDN, e.g. as in
-        `https://cloud.example.org/.well-known/ocm`. See [OCM API Discovery](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md#ocm-api-discovery)
+        capabilities offered by an OCM Server. See [OCM API Discovery](https://datatracker.ietf.org/doc/html/draft-ietf-ocm-open-cloud-mesh#ocm-api-discovery)
         for more details.
       responses:
         "200":
@@ -31,26 +35,68 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Discovery"
-  /ocm-provider:
-    get:
-      summary: Legacy discovery endpoint
+  /request-share:
+    post:
+      summary: Request access to a share
       description: >
-        This endpoint is a replica of `/.well-known/ocm`, and MUST be served
-        at the OCM Server's root FQDN as well to ensure backwards compatibility.
-        OCM Servers MUST support both.
+        This endpoint is used to request access to a share.
+        The request MUST contain the share ID and the OCM address of the party
+        who wants to receive the share.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestShare"
+        description: The JSON object to request access to a share.
+        required: true
       responses:
-        "200":
-          description: See `/.well-known/ocm`.
+        "201":
+          description: >
+            Consumer successfully received request.
+        "400":
+          description: >
+            Bad request due to invalid or missing parameters.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Discovery"
+                $ref: "#/components/schemas/400"
+        "404":
+          description: >
+            The requested `share` is missing, or the requestor does not have
+            rights to access it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "501":
+          description: The server doesn't support requesting shares.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: The server is temporary unavailable (e.g. due to planned
+            maintenance).
+          headers:
+            Retry-After:
+              description: >
+                Indication for the client when the service could be requested
+                again in HTTP Date format as used by the Internet Message
+                Format [RFC5322] (e.g. `Wed, 21 Oct 2015 07:28:00 GMT`) or the
+                number of seconds (e.g. 3000 if you the service is expected to
+                be available again within 50 minutes).
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /shares:
     post:
       summary: Share Creation Notification endpoint
       description: >
         This endpoint is used by a Sending Server to notify a Receiving Server that
-        a new Share has been created. See [Share Creation Notification](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md#share-creation-notification)
+        a new Share has been created. See [Share Creation Notification](https://datatracker.ietf.org/doc/html/draft-ietf-ocm-open-cloud-mesh#share-creation-notification)
         for more details.
       requestBody:
         content:
@@ -132,7 +178,7 @@ paths:
       description: >
         This optional endpoint is used to inform the other party about a change
         that concerns a previously known entity, such as a Share or a trusted User.
-        See [Share Acceptance Notification](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md#share-acceptance-notification)
+        See [Share Acceptance Notification](https://datatracker.ietf.org/doc/html/draft-ietf-ocm-open-cloud-mesh#share-acceptance-notification)
         for more details.
       requestBody:
         content:
@@ -198,7 +244,7 @@ paths:
       summary: Invitation Acceptance endpoint
       description: >
         This optional endpoint is used to inform the Sender that an Invitation was accepted.
-        See [Invite flow](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md#invite-flow)
+        See [Invite flow](https://datatracker.ietf.org/doc/html/draft-ietf-ocm-open-cloud-mesh#invite-flow)
         for more details.
       requestBody:
         content:
@@ -211,7 +257,7 @@ paths:
       responses:
         "200":
           description: Invitation Acceptance Request successful (see [Invite Acceptance
-            Response](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md#invite-acceptance-response-details))
+            Response](https://datatracker.ietf.org/doc/html/draft-ietf-ocm-open-cloud-mesh#invite-acceptance-response-details))
           content:
             application/json:
               schema:
@@ -219,7 +265,7 @@ paths:
         "400":
           description: The Invitation Token is invalid or does not exist (see [Invite
             Acceptance
-            Response](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md#invite-acceptance-response-details))
+            Response](https://datatracker.ietf.org/doc/html/draft-ietf-ocm-open-cloud-mesh#invite-acceptance-response-details))
           content:
             application/json:
               schema:
@@ -227,14 +273,14 @@ paths:
         "403":
           description: Invite Receiver OCM Server is not trusted to accept this Invite
             (see [Invite Acceptance
-            Response](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md#invite-acceptance-response-details))
+            Response](https://datatracker.ietf.org/doc/html/draft-ietf-ocm-open-cloud-mesh#invite-acceptance-response-details))
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
         "409":
           description: Invitation already accepted (see [Invite Acceptance
-            Response](https://github.com/cs3org/OCM-API/blob/develop/IETF-RFC.md#invite-acceptance-response-details))
+            Response](https://datatracker.ietf.org/doc/html/draft-ietf-ocm-open-cloud-mesh#invite-acceptance-response-details))
           content:
             application/json:
               schema:
@@ -308,7 +354,7 @@ components:
         apiVersion:
           type: string
           description: The OCM API version this endpoint supports
-          example: 1.2.2
+          example: 1.4.0
         endPoint:
           type: string
           description: The URI of the OCM API available at this endpoint
@@ -362,27 +408,86 @@ components:
                       The top-level WebDAV path at this endpoint. In order to access
                       a remote shared resource, implementations SHOULD use this path
                       as a prefix (see sharing examples).
-                  webapp:
-                    type: string
+                  webdav-receive:
+                    type: object
+                    required:
+                      - uri
                     description: >
-                      The top-level path for web apps at this endpoint. In order to
-                      access a remote web app, implementations SHOULD use this path
-                      as a prefix (see sharing examples).
+                      Implementations that support receiving WebDAV shares SHOULD
+                      advertise them here. Note though that older implementations MAY
+                      not support this property.
+                    properties:
+                      uri:
+                        type: string
+                        description: >
+                          This property signals that this endpoint is capable of
+                          receiving `webdav` shares with the given URI format.
+                          The value MUST be either `"absolute"` or `"relative"`.
+                        enum:
+                          - absolute
+                          - relative
+                  webapp:
+                    type: object
+                    description: >
+                      Implementations that support sending WebApp shares MUST advertise
+                      them here, with an empty object as value.
+                  webapp-receive:
+                    type: object
+                    required:
+                      - targets
+                    description: >
+                      Implementations that support receiving WebApp shares MUST
+                      advertise them here.
+                    properties:
+                      targets:
+                        type: array
+                        minItems: 1
+                        description: >
+                          The ways this endpoint is able to present a webapp
+                          share to the user when acting as receiver.
+                          - "blank" signals that this endpoint supports opening
+                            the URI in a top-level browsing context, such as a
+                            new window or tab, or a full page navigation in the
+                            current window.
+                          - "iframe" signals that this endpoint supports
+                            embedding the URI in an iframe within its own UI,
+                            when the Sending Server allows framing by this
+                            receiver.
+                        items:
+                          type: string
+                          enum:
+                            - blank
+                            - iframe
                   ssh:
                     type: string
                     description: >
                       The top-level address in the form `host:port` of an endpoint
                       that supports ssh and scp with a public/private key based
                       authentication.
-                additionalProperties:
-                    type: string
+                  ssh-receive:
+                    type: object
                     description: >
-                      Any additional protocol supported for this resource type MAY
+                      Implementations that support receiving SSH shares MUST
+                      advertise them here, with an empty object as value.
+                additionalProperties:
+                    oneOf:
+                      - type: string
+                      - type: object
+                    description: >
+                      Any additional protocol supported for this resource type SHOULD
                       be advertised here, where the value MAY correspond to a top-level
-                      URI to be used for that protocol.
+                      URI to be used for that protocol, or any other relevant
+                      attribute required for that protocol. Similarly, additional
+                      receiving capabilities for custom protocols SHOULD be advertised.
                 example:
                   webdav: /remote/dav/ocm/
-                  webapp: /apps/ocm/
+                  webdav-receive: {
+                    "uri": "absolute"
+                  }
+                  webapp: {}
+                  webapp-receive: {
+                    "targets": ["blank", "iframe"]
+                  }
                   talk: /apps/spreed/api/
         capabilities:
           type: array
@@ -399,10 +504,9 @@ components:
               - invite-wayf
               - notifications
               - protocol-object
-              - webdav-uri
           example:
-            - webdav-uri
             - protocol-object
+            - invites
             - http-sig
         criteria:
           type: array
@@ -413,84 +517,34 @@ components:
           items:
             type: string
             enum:
-              - http-request-signatures
-              - token-exchange
+              - must-use-http-sig
+              - must-exchange-token
               - denylist
               - allowlist
-              - invite
+              - must-invite
           example:
             - allowlist
-            - invite
-        publicKey:
-          type: object
-          deprecated: true
-          description: >
-            DEPRECATED: Use publicKeys array instead for RFC 9421 support.
-            Legacy field for draft-cavage HTTP Signatures (RSA only).
-            Maintained for backward compatibility with existing deployments.
-            The signatory is optional but it MUST contain `keyId` and `publicKeyPem`.
-          properties:
-            keyId:
-              type: string
-              description: >
-                unique id of the key in URI format. The hostname set the origin
-                of the request and MUST be identical to the current discovery endpoint.
-              example: https://cloud.example.org/ocm#signature
-            publicKeyPem:
-              type: string
-              description: |
-                PEM-encoded RSA public key for draft-cavage signatures.
-              example: |
-                -----BEGIN PUBLIC KEY-----
-                MII...QDD
-                -----END PUBLIC KEY-----
-        publicKeys:
-          type: array
-          description: >
-            Array of public keys for RFC 9421 HTTP Message Signatures.
-            Servers advertising the "http-sig" capability MUST provide this field.
-            Clients SHOULD prefer RFC 9421 signatures when this capability is present.
-          items:
-            type: object
-            required:
-              - keyId
-              - publicKeyPem
-              - algorithm
-            properties:
-              keyId:
-                type: string
-                format: uri
-                description: >
-                  Unique identifier for this key in URI format.
-                  Hostname MUST match the discovery endpoint hostname.
-                example: https://cloud.example.org/ocm#key-1
-              publicKeyPem:
-                type: string
-                description: |
-                  PEM-encoded public key for RFC 9421 signatures.
-                example: |
-                  -----BEGIN PUBLIC KEY-----
-                  MCowBQYDK2VwAyEA...
-                  -----END PUBLIC KEY-----
-              algorithm:
-                type: string
-                description: >
-                  Cryptographic algorithm identifier from the IANA HTTP Signature
-                  Algorithms Registry as defined in RFC 9421 Section 6.2.
-                example: ed25519
+            - must-invite
         tokenEndPoint:
           type: string
           format: uri
           description: >
-            Optional URL of the Token Exchange endpoint to obtain bearer tokens in exchange for codes.
-            If the `exchange-token` capability is exposed, the tokenEndPoint MUST be advertised in the discovery response.
+            Optional URL of the Token Exchange endpoint hosted by the
+            provider when acting as Sending Server. The Receiving Server
+            POSTs here to obtain bearer tokens in exchange for
+            authorization codes (shared secrets). If the `exchange-token`
+            capability is exposed, the tokenEndPoint MUST be advertised
+            in the discovery response.
 
             **Token Exchange API:**
-            This optional endpoint allows obtaining a (potentially short-lived) bearer token in exchange for a secret.
+            This optional endpoint allows the Receiving Server to obtain
+            a (potentially short-lived) bearer token in exchange for an
+            authorization code (shared secret).
 
             **HTTP Request:**
             - Method: POST
-            - URL: The URL discovered in this field
+            - URL: The URL hosted by the Sending Server and discovered in
+              this field
             - Content-Type: application/x-www-form-urlencoded
             - Body: TokenRequest schema (form-encoded, required)
 
@@ -624,6 +678,7 @@ components:
               type: object
               required:
                 - uri
+                - sharedSecret
                 - permissions
               properties:
                 accessTypes:
@@ -644,12 +699,12 @@ components:
                 uri:
                   type: string
                   description: >
-                    An URI to access the remote resource. The URI SHOULD be relative,
+                    An URI to access the remote resource. The URI MAY be relative,
                     such as a key or a UUID, in which case the prefix exposed by the
                     `/.well-known/ocm` endpoint MUST be used to access the resource, or
-                    it MAY be absolute, including a hostname. The latter is deprecated.
+                    it MAY be absolute, including a hostname.
                     In all cases, for a `folder` resource, the composed URI acts
-                    as the root path, such that other files located within it SHOULD
+                    as the root path, such that other files located within it MUST
                     be accessible by appending their relative path to that URI.
                 sharedSecret:
                   type: string
@@ -686,7 +741,9 @@ components:
                         `sharedSecret` via a signed HTTPS request to tokenEndPoint at the
                         Sending Server, in order to get a short-lived token to be used
                         for subsequent access [RFC6749]. This requirement MAY be used if
-                        the recipient provider exposes the `exchange-token` capability.
+                        the Sending Server exposes the `exchange-token` capability and
+                        `tokenEndPoint`, and MUST be included when the Receiving Server
+                        advertises `must-exchange-token` in criteria.
                     enum:
                       - must-use-mfa
                       - must-exchange-token
@@ -697,38 +754,120 @@ components:
                     in case of `datatx` access type.
             webapp:
               type: object
+              required:
+                - uri
+                - sharedSecret
+                - targets
+                - permissions
+                - requirements
               properties:
                 uri:
                   type: string
                   description: >
                     An URI to a client-browsable view of the remote resource, such that
                     users may use a web application available at the sender site.
-                    The URI SHOULD be relative, such as a key or a UUID, in which case
-                    the prefix exposed by the `/.well-known/ocm` endpoint MUST be used
-                    to access the resource, or it MAY be absolute, including a hostname.
-                    Similar considerations as for the `webdav` case apply here.
-                    In all cases, for a `folder` resource, the composed URI acts
-                    as the root path, such that other files located within SHOULD
-                    be accessible by appending their relative path to that URI.
-                viewMode:
-                  type: string
-                  description: |
-                    The permissions granted to the sharee.
+                    The URI MUST be absolute, including a hostname. In case the
+                    underlying resource is a folder, the URI MUST act as a root path,
+                    such that files located within the folder are made accessible in
+                    the web app by appending their relative path to the URI.
+                targets:
+                  type: array
+                  minItems: 1
+                  description: >
+                    How the recipient should present the URI to the user.
+                    This array is REQUIRED and MUST NOT be empty: a webapp
+                    share without a target is invalid.
+                    - "blank" signals the recipient to open the URI in a top-level
+                    browsing context chosen by the receiver, such as a new window or
+                    tab, or a full page navigation in the current window.
+                    - "iframe" signals the recipient to embed the URI in an iframe within
+                      its own UI, when the Sending Server allows framing by the recipient.
+                  items:
+                    type: string
+                    enum:
+                      - blank
+                      - iframe
+                permissions:
+                  type: array
+                  minItems: 1
+                  description: >
+                    The permissions granted to the sharee. This array is
+                    REQUIRED and MUST NOT be empty.
                     - `view` allows access to the web app in view-only mode.
                     - `read` allows read and download access via the web app.
                     - `write` allows full editing rights via the web app.
-                  enum:
-                    - view
-                    - read
-                    - write
+                    - `share` allows re-share rights on the resource. This only
+                      applies to web apps that provide a mechanism for re-sharing.
+                  items:
+                    type: string
+                    enum:
+                      - view
+                      - read
+                      - write
+                      - share
+                requirements:
+                  type: array
+                  minItems: 1
+                  description: >
+                    The requirements that the sharee MUST fulfill to access the
+                    resource. This array is REQUIRED and MUST at least include
+                    `must-exchange-token`. If multiple protocols are present in
+                    the share payload, the requirements for the different
+                    protocols MUST agree.
+                    - `must-use-mfa` requires the user accessing the resource to be
+                      MFA-authenticated. This requirement MAY be used if the
+                      recipient provider exposes the `enforce-mfa` capability.
+                    - `must-exchange-token` requires the recipient to exchange the given
+                      `sharedSecret` via a signed HTTPS request to tokenEndPoint at the
+                      Sending Server, in order to get a short-lived token to be used
+                      for subsequent access [RFC6749].
+                  items:
+                    type: string
+                    enum:
+                      - must-use-mfa
+                      - must-exchange-token
                 sharedSecret:
                   type: string
                   description: >
-                    An optional secret to be used to access the remote web app, such as
-                    a bearer token.  To prevent leaking it in logs it MUST NOT appear
-                    in any URI.  In a multi-protocol share scenario with WebDAV, the
-                    access requirements provided in the `webdav` part MUST apply for
-                    `webapp` accesses as well.
+                    A secret for accessing the remote web app. To give access to the
+                    remote app, the receiver MUST first exchange this value at the
+                    Sending Server's `tokenEndPoint` using the Code Flow, then perform
+                    an HTTP POST request to the given URI with the resulting bearer
+                    token in a form field named `access_token`, along with another form
+                    field named `expired_session_redirect_uri` that represents the
+                    absolute HTTPS URI where the receiving server can restart access
+                    to the web app when the browser session expires. Web apps that
+                    do not support session refresh MAY ignore this field.
+                    The shared secret MUST
+                    NOT be exposed to the browser and MUST NOT appear in any URI. In a
+                    multi-protocol share, requirements that affect shared access policy
+                    MUST agree across the offered protocols.
+                appIconHint:
+                  type: string
+                  description: >
+                    An optional string in the form of a media type (MIME type) that
+                    describes the share as a whole, primarily intended as a way for
+                    the receiving server to select an appropriate local icon for the
+                    share. This is display metadata and MUST NOT be interpreted as
+                    fetchable or executable content. It does not need to appear in
+                    `mediaTypes`, but SHOULD describe the primary shared resource.
+                appName:
+                  type: string
+                  description: >
+                    An optional human-friendly name of the web application to be used
+                    in user interfaces when referring to this share.
+                mediaTypes:
+                  type: array
+                  description: >
+                    An optional array that describes the media (MIME) types that the
+                    webapp server can handle. This is a hint for receiver UI and
+                    routing decisions, and receivers MAY ignore values they do not
+                    understand. Unlike `appIconHint`, this describes formats the
+                    webapp can open rather than the share-level icon hint.
+                  minItems: 1
+                  uniqueItems: true
+                  items:
+                    type: string
             ssh:
               type: object
               properties:
@@ -778,16 +917,28 @@ components:
               name: multi
               webdav:
                 accessTypes: ['remote', 'datatx']
-                uri: 7c084226-d9a1-11e6-bf26-cec0c932ce01
+                uri: https://cloud.example.org/remote/dav/ocm/7c084226-d9a1-11e6-bf26-cec0c932ce01
                 sharedSecret: hfiuhworzwnur98d3wjiwhr
                 permissions:
                   - read
                 requirements:
-                  - mfa-enforced
+                  - must-use-mfa
+                  - must-exchange-token
               webapp:
-                uri: 7c084226-d9a1-11e6-bf26-cec0c932ce01
+                uri: https://apps.example.org/hedgedoc/7c084226-d9a1-11e6-bf26-cec0c932ce01
                 sharedSecret: hfiuhworzwnur98d3wjiwhr
-                viewMode: read
+                targets:
+                  - blank
+                permissions:
+                  - read
+                requirements:
+                  - must-use-mfa
+                  - must-exchange-token
+                appName: HedgeDoc
+                appIconHint: text/markdown
+                mediaTypes:
+                  - text/markdown
+                  - text/html
               ssh:
                 accessTypes: ['datatx']
                 uri: extuser@cloud.example.org:/7c084226-d9a1-11e6-bf26-cec0c932ce01
@@ -885,6 +1036,29 @@ components:
           type: string
           description: Name of the Invite Sender.
           example: John Doe
+    RequestShare:
+      type: object
+      required:
+        - owner
+        - shareWith
+        - share
+      properties:
+        owner:
+          type: string
+          description: >
+            OCM Address of the user who will be requested to share
+            the resource.
+          example: 527bd5b5d689e2c32ae974c6229ff785@apiwise.nl
+        shareWith:
+          type: string
+          description: >
+            OCM Address of the user, group or federation that
+            wants to receive a share of the resource.
+          example: 51dc30ddc473d43a6011e9ebba6ca770@geant.org
+        share:
+          type: string
+          description: A unique identifier for the resource.
+          example: 1234567890abcdef or https://ocm.example.org/files/spec.yaml
     TokenRequest:
       type: object
       required:

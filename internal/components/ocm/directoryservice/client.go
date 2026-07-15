@@ -1,5 +1,5 @@
 // Package directoryservice fetches and verifies OCM directory service listings.
-// See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#appendix-c-directory-service
+// See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#appendix-c-directory-service
 package directoryservice
 
 import (
