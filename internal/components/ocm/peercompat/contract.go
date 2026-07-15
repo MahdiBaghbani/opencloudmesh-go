@@ -16,6 +16,25 @@ const (
 	tokenQuirkSendTokenInBody  = "send_token_in_body"
 )
 
+// CompatibilityScope is the typed exception-governance axis that the matched-peer
+// gate consults at decision time. It mirrors platform/config values so the gate
+// can reject unbounded/unknown scopes without relying on startup validation.
+type CompatibilityScope string
+
+const (
+	// CompatibilityScopeScoped permits peer-scoped relaxations for named matched
+	// mappings. This is the only scope under which the gate grants relaxations.
+	CompatibilityScopeScoped CompatibilityScope = "scoped"
+	// CompatibilityScopeNone forbids compatibility exceptions; the gate stays
+	// closed even if a mapping were present.
+	CompatibilityScopeNone CompatibilityScope = "none"
+	// CompatibilityScopeUnbounded is the broad compat/dev scope. The gate
+	// rejects it at decision time so peer-scoped relaxations never leak through
+	// the unbounded path; the global on_discovery_error=allow path is the
+	// separate escape hatch (removed in CSDD-03).
+	CompatibilityScopeUnbounded CompatibilityScope = "unbounded"
+)
+
 var supportedBasicAuthPatterns = map[string]struct{}{
 	"token:":      {},
 	"token:token": {},
@@ -86,6 +105,7 @@ type CompiledContract struct {
 	registry *ProfileRegistry
 	profiles map[string]CompiledProfile
 	summary  CompatibilitySummary
+	scope    CompatibilityScope
 }
 
 // NewCompiledContract builds a compiled contract from profiles and mappings.
@@ -111,13 +131,26 @@ func NewCompiledContractFromConfig(
 	}
 
 	mappings := slices.Clone(cfg.PeerProfiles.Mappings)
-
-	return NewCompiledContract(customProfiles, mappings)
+	registry := NewProfileRegistry(customProfiles, mappings)
+	return BuildCompiledContractFromRegistry(registry)
 }
 
 // BuildCompiledContractFromRegistry compiles typed compatibility decisions.
+// The contract defaults to the scoped compatibility scope, so matched peers
+// receive relaxations while unmatched and closed-scope peers stay strict.
 func BuildCompiledContractFromRegistry(
 	registry *ProfileRegistry,
+) (*CompiledContract, error) {
+	return BuildCompiledContractFromRegistryWithScope(registry, CompatibilityScopeScoped)
+}
+
+// BuildCompiledContractFromRegistryWithScope compiles typed compatibility
+// decisions under an explicit compatibility scope. The scope is consulted by the
+// matched-peer gate at decision time; only CompatibilityScopeScoped permits
+// peer-scoped relaxations.
+func BuildCompiledContractFromRegistryWithScope(
+	registry *ProfileRegistry,
+	scope CompatibilityScope,
 ) (*CompiledContract, error) {
 	if registry == nil {
 		return nil, fmt.Errorf("profile registry is nil")
@@ -168,6 +201,7 @@ func BuildCompiledContractFromRegistry(
 		registry: registry,
 		profiles: compiledProfiles,
 		summary:  summary,
+		scope:    scope,
 	}, nil
 }
 
@@ -203,6 +237,52 @@ func (c *CompiledContract) Summary() CompatibilitySummary {
 	out := c.summary
 	out.Profiles = slices.Clone(c.summary.Profiles)
 	return out
+}
+
+// matchedPeerResult is the canonical matched-peer gate result. A zero value
+// (Matched=false, zero Profile) means the gate failed closed.
+type matchedPeerResult struct {
+	PeerDomain string
+	Profile    CompiledProfile
+	Matched    bool
+}
+
+// resolveMatchedPeer is the canonical matched-peer gate. Every peer-scoped
+// relaxation decision routes through it. It grants relaxations only when the
+// compatibility scope is scoped and a named mapping matched the normalized
+// peer domain. Empty/nil peers, nil contract or registry, unknown or unbounded
+// scopes, and unmatched peers all fail closed with Matched=false and a zero
+// Profile, so callers never copy relaxation fields from a strict fallback.
+func (c *CompiledContract) resolveMatchedPeer(peerInput string) matchedPeerResult {
+	domain := signatureDecisionPeerDomain(peerInput)
+	if domain == "" || c == nil || c.registry == nil || !c.scopeAllowsPeerRelaxations() {
+		return matchedPeerResult{PeerDomain: domain}
+	}
+
+	for _, mapping := range c.registry.mappings {
+		if !matchPattern(mapping.Pattern, domain) {
+			continue
+		}
+		profile, ok := c.profiles[mapping.Profile]
+		if !ok {
+			return matchedPeerResult{PeerDomain: domain}
+		}
+		return matchedPeerResult{
+			PeerDomain: domain,
+			Profile:    profile,
+			Matched:    true,
+		}
+	}
+
+	return matchedPeerResult{PeerDomain: domain}
+}
+
+// scopeAllowsPeerRelaxations reports whether the contract scope permits
+// peer-scoped relaxations. Only the scoped scope does; none, unbounded, and any
+// unknown value fail closed at decision time without relying on startup
+// validation.
+func (c *CompiledContract) scopeAllowsPeerRelaxations() bool {
+	return c != nil && c.scope == CompatibilityScopeScoped
 }
 
 func compileProfile(profile *Profile) (CompiledProfile, error) {

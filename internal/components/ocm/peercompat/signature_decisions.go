@@ -39,33 +39,22 @@ type LegacyDiscoveryDecision struct {
 // SignatureDecisionForPeer returns peer-scoped signature compatibility
 // decisions. Relaxations apply only when a peer mapping matched.
 func (c *CompiledContract) SignatureDecisionForPeer(peerDomain string) SignaturePeerDecision {
-	domain := signatureDecisionPeerDomain(peerDomain)
+	matched := c.resolveMatchedPeer(peerDomain)
 	decision := SignaturePeerDecision{
-		PeerDomain: domain,
+		PeerDomain: matched.PeerDomain,
 		Profile:    "strict",
 	}
-	if domain == "" || c == nil || c.registry == nil {
+	if !matched.Matched {
 		return decision
 	}
 
-	for _, mapping := range c.registry.mappings {
-		if !matchPattern(mapping.Pattern, domain) {
-			continue
-		}
-		profile, ok := c.profiles[mapping.Profile]
-		if !ok {
-			return decision
-		}
-		decision.Profile = profile.Name
-		decision.Matched = true
-		decision.AllowUnsignedInbound = profile.Signing.AllowUnsignedInbound
-		decision.AllowUnsignedOutbound = profile.Signing.AllowUnsignedOutbound
-		decision.AllowMismatchedHost = profile.Signing.AllowMismatchedHost
-		decision.AllowUnsignedDiscovery = profile.Signing.AllowUnsignedDiscovery
-		decision.AcceptLegacyDiscoveryPublicKey = profile.Signing.AcceptLegacyDiscoveryPublicKey
-		return decision
-	}
-
+	decision.Profile = matched.Profile.Name
+	decision.Matched = true
+	decision.AllowUnsignedInbound = matched.Profile.Signing.AllowUnsignedInbound
+	decision.AllowUnsignedOutbound = matched.Profile.Signing.AllowUnsignedOutbound
+	decision.AllowMismatchedHost = matched.Profile.Signing.AllowMismatchedHost
+	decision.AllowUnsignedDiscovery = matched.Profile.Signing.AllowUnsignedDiscovery
+	decision.AcceptLegacyDiscoveryPublicKey = matched.Profile.Signing.AcceptLegacyDiscoveryPublicKey
 	return decision
 }
 

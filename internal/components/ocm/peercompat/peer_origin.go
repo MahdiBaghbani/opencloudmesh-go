@@ -37,11 +37,14 @@ func (c *CompiledContract) ResolvePeerOrigin(peerInput string) PeerOriginDecisio
 		if inputScheme == "http" || inputScheme == "https" {
 			scheme = inputScheme
 		}
-	} else if profile, ok := c.ProfileForPeer(peerDomain); ok {
-		profileName = profile.Name
-		allowHTTP = profile.Transport.AllowHTTP
-		if allowHTTP {
-			scheme = "http"
+	} else {
+		matched := c.resolveMatchedPeer(peerDomain)
+		if matched.Matched {
+			profileName = matched.Profile.Name
+			allowHTTP = matched.Profile.Transport.AllowHTTP
+			if allowHTTP {
+				scheme = "http"
+			}
 		}
 	}
 

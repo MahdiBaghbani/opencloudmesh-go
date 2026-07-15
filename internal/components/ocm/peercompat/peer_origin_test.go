@@ -44,6 +44,64 @@ func TestResolvePeerOrigin_AllowHTTPOnlyForMappedPeers(t *testing.T) {
 	}
 }
 
+func TestResolvePeerOrigin_RejectsHTTPOutsideScopedGate(t *testing.T) {
+	custom := map[string]*Profile{
+		"dev-http": {
+			Name:      "dev-http",
+			AllowHTTP: true,
+		},
+	}
+	mappings := []ProfileMapping{
+		{Pattern: "mapped.example.com", Profile: "dev-http"},
+	}
+
+	tests := []struct {
+		name  string
+		scope CompatibilityScope
+	}{
+		{
+			name:  "unbounded",
+			scope: CompatibilityScopeUnbounded,
+		},
+		{
+			name:  "unknown",
+			scope: CompatibilityScope("unknown"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			registry := NewProfileRegistry(custom, mappings)
+			contract, err := BuildCompiledContractFromRegistryWithScope(
+				registry,
+				tt.scope,
+			)
+			if err != nil {
+				t.Fatalf("BuildCompiledContractFromRegistryWithScope() unexpected error: %v", err)
+			}
+
+			origin := contract.ResolvePeerOrigin("mapped.example.com")
+			if origin.Profile != "strict" {
+				t.Fatalf("origin profile = %q, want strict", origin.Profile)
+			}
+			if origin.Scheme != "https" {
+				t.Fatalf("origin scheme = %q, want https", origin.Scheme)
+			}
+			if origin.BaseURL != "https://mapped.example.com" {
+				t.Fatalf("origin baseURL = %q, want https://mapped.example.com", origin.BaseURL)
+			}
+			if origin.AllowHTTP {
+				t.Fatal("expected HTTP to remain disabled outside scoped gate")
+			}
+			if contract.IsPeerAbsoluteURIAllowed(
+				"http://mapped.example.com/webdav/file.txt",
+				"mapped.example.com",
+			) {
+				t.Fatal("expected HTTP absolute URI to remain rejected outside scoped gate")
+			}
+		})
+	}
+}
+
 func TestIsPeerAbsoluteURIAllowed_EnforcesHTTPGate(t *testing.T) {
 	custom := map[string]*Profile{
 		"dev-http": {
