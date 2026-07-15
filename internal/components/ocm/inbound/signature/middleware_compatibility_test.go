@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
@@ -204,6 +205,34 @@ func TestSignatureMiddleware_LenientMode_AllowsDiscoveryFailureByProfile(t *test
 	}
 }
 
+func TestSignatureMiddleware_LenientMode_GlobalOnDiscoveryErrorAllow(t *testing.T) {
+	cfg := &config.SignatureConfig{
+		InboundMode:      "lenient",
+		OnDiscoveryError: "allow",
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{
+		signingErrors: map[string]error{
+			"sender.example.com": fmt.Errorf("discovery failed"),
+		},
+	}
+
+	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com", nil
+	}
+	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"sender":"user@sender.example.com"}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected global OnDiscoveryError=allow, got %d", w.Code)
+	}
+}
+
 func TestSignatureMiddleware_LenientMode_RejectsDiscoveryFailureWhenUnmatched(t *testing.T) {
 	cfg := &config.SignatureConfig{
 		InboundMode:      "lenient",
@@ -256,8 +285,8 @@ func TestSignatureMiddleware_StrictMode_MatchedProfileAllowsMismatch(t *testing.
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
-		publicKeysPEM: map[string]string{
-			km.GetKeyID(): km.GetPublicKeyPEM(),
+		publicKeys: map[string]sigalg.ResolvedPublicKey{
+			km.GetKeyID(): resolvedKeyFromManager(km),
 		},
 	}
 	contract := buildContract(

@@ -2,8 +2,8 @@ package crypto
 
 import (
 	"bytes"
-	"crypto/ed25519"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigparams"
 )
@@ -207,87 +208,114 @@ func NewRFC9421VerifierWithOptions(opts RFC9421Options) *RFC9421Verifier {
 	return &RFC9421Verifier{opts: opts}
 }
 
+// Verification reason codes for middleware HTTP body mapping.
+const (
+	ReasonMalformed         = "malformed"
+	ReasonMissingCreated    = "missing_created"
+	ReasonFutureCreated     = "future_created"
+	ReasonStaleCreated      = "stale_created"
+	ReasonMissingComponent  = "missing_component"
+	ReasonKeyNotFound       = "key_not_found"
+	ReasonKeyLookupFailed   = "key_lookup_failed"
+	ReasonAlgorithmRejected = "algorithm_rejected"
+	ReasonCryptoFail        = "crypto_fail"
+)
+
 // VerificationResult contains the result of signature verification.
 type VerificationResult struct {
 	Verified bool
 	KeyID    string
 	Error    error
+	Reason   string
 }
 
 // VerifyRequest verifies an HTTP request signature.
 func (v *RFC9421Verifier) VerifyRequest(
 	req *http.Request,
 	body []byte,
-	publicKeyFetcher func(keyID string) (ed25519.PublicKey, error),
+	keyFetcher func(keyID string) (sigalg.ResolvedPublicKey, error),
 ) *VerificationResult {
 	sigInputHeader := req.Header.Get("Signature-Input")
 	if sigInputHeader == "" {
-		return &VerificationResult{Verified: false, Error: fmt.Errorf("missing Signature-Input header")}
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature-Input header")}
 	}
 
 	sigHeader := req.Header.Get("Signature")
 	if sigHeader == "" {
-		return &VerificationResult{Verified: false, Error: fmt.Errorf("missing Signature header")}
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature header")}
 	}
 
-	if strings.Count(sigInputHeader, v.opts.Label+"=") > 1 {
-		return &VerificationResult{Verified: false, Error: fmt.Errorf("multiple %q signatures", v.opts.Label)}
+	if sigparams.CountDictionaryMembers(sigInputHeader, v.opts.Label) > 1 {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple %q signatures", v.opts.Label)}
+	}
+	if sigparams.CountDictionaryMembers(sigHeader, v.opts.Label) > 1 {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple %q signatures", v.opts.Label)}
 	}
 
 	params, err := sigparams.ParseSignatureInput(sigInputHeader, v.opts.Label)
 	if err != nil {
-		return &VerificationResult{Verified: false, Error: fmt.Errorf("failed to parse Signature-Input: %w", err)}
-	}
-
-	if params.Created == 0 {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Error: fmt.Errorf("missing created parameter")}
-	}
-	if err := v.validateCreated(params.Created); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Error: err}
-	}
-
-	expectedComponents := PresentComponents(req, v.opts.RequiredComponents)
-	if err := validateRequiredComponents(params.Components, expectedComponents); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Error: err}
-	}
-
-	if err := sigalg.ValidateAllowed(params.Algorithm, v.opts.AllowedAlgorithms); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Error: err}
-	}
-
-	pubKey, err := publicKeyFetcher(params.KeyID)
-	if err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Error: fmt.Errorf("failed to get public key: %w", err)}
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("failed to parse Signature-Input: %w", err)}
 	}
 
 	sig, err := sigparams.ParseSignature(sigHeader, v.opts.Label)
 	if err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Error: err}
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMalformed, Error: err}
+	}
+
+	if params.Created == 0 {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingCreated, Error: fmt.Errorf("missing created parameter")}
+	}
+	if reason, err := v.validateCreated(params.Created); err != nil {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: reason, Error: err}
+	}
+
+	expectedComponents := PresentComponents(req, v.opts.RequiredComponents)
+	if err := validateRequiredComponents(params.Components, expectedComponents); err != nil {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingComponent, Error: err}
+	}
+
+	resolvedKey, err := keyFetcher(params.KeyID)
+	if err != nil {
+		reason := ReasonKeyLookupFailed
+		if errors.Is(err, jwks.ErrKeyNotFound) {
+			reason = ReasonKeyNotFound
+		}
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: reason, Error: fmt.Errorf("failed to get public key: %w", err)}
+	}
+
+	resolvedAlg, err := sigalg.ResolveAlgorithm(params.Algorithm, resolvedKey.JWKKty, resolvedKey.JWKCrv, resolvedKey.JWKAlg)
+	if err != nil {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonAlgorithmRejected, Error: err}
+	}
+	if err := sigalg.ValidateAllowed(resolvedAlg, v.opts.AllowedAlgorithms); err != nil {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonAlgorithmRejected, Error: err}
 	}
 
 	sigBase, err := buildSignatureBaseFromRequest(req, body, params.Components)
 	if err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Error: fmt.Errorf("failed to build signature base: %w", err)}
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMalformed, Error: fmt.Errorf("failed to build signature base: %w", err)}
 	}
 
 	fullBase := sigBase + fmt.Sprintf("\"@signature-params\": %s", params.Raw)
 
-	if err := sigalg.Verify(params.Algorithm, pubKey, []byte(fullBase), sig); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Error: fmt.Errorf("signature verification failed: %w", err)}
+	if err := sigalg.Verify(resolvedAlg, resolvedKey.PublicKey, []byte(fullBase), sig); err != nil {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonCryptoFail, Error: fmt.Errorf("signature verification failed: %w", err)}
 	}
 
 	return &VerificationResult{Verified: true, KeyID: params.KeyID}
 }
 
-func (v *RFC9421Verifier) validateCreated(created int64) error {
+func (v *RFC9421Verifier) validateCreated(created int64) (string, error) {
 	now := v.opts.Now().Unix()
-	if created > now+int64(v.opts.CreatedMaxSkew.Seconds()) {
-		return fmt.Errorf("created timestamp is too far in the future")
+	maxSkew := int64(v.opts.CreatedMaxSkew / time.Second)
+	maxAge := int64(v.opts.CreatedMaxAge / time.Second)
+	if created > now+maxSkew {
+		return ReasonFutureCreated, fmt.Errorf("created timestamp is too far in the future")
 	}
-	if now-created > int64(v.opts.CreatedMaxAge.Seconds()) {
-		return fmt.Errorf("created timestamp is stale")
+	if now-created > maxAge {
+		return ReasonStaleCreated, fmt.Errorf("created timestamp is stale")
 	}
-	return nil
+	return "", nil
 }
 
 func validateRequiredComponents(actual, required []string) error {
@@ -312,8 +340,11 @@ func buildSignatureBase(req *http.Request, components []string) (string, error) 
 	var lines []string
 	for _, comp := range components {
 		comp = strings.ToLower(comp)
-		value, err := componentValue(req, nil, comp, false)
+		value, err := componentValue(req, comp, false)
 		if err != nil {
+			return "", err
+		}
+		if err := rejectCRLF(comp, value); err != nil {
 			return "", err
 		}
 		lines = append(lines, fmt.Sprintf("\"%s\": %s", comp, value))
@@ -321,12 +352,21 @@ func buildSignatureBase(req *http.Request, components []string) (string, error) 
 	return strings.Join(lines, "\n") + "\n", nil
 }
 
-func buildSignatureBaseFromRequest(req *http.Request, body []byte, components []string) (string, error) {
+// BuildSignatureBase builds RFC 9421 signature-base lines for components
+// (without the trailing @signature-params line).
+func BuildSignatureBase(req *http.Request, components []string) (string, error) {
+	return buildSignatureBase(req, components)
+}
+
+func buildSignatureBaseFromRequest(req *http.Request, _ []byte, components []string) (string, error) {
 	var lines []string
 	for _, comp := range components {
 		comp = strings.ToLower(comp)
-		value, err := componentValue(req, body, comp, true)
+		value, err := componentValue(req, comp, true)
 		if err != nil {
+			return "", err
+		}
+		if err := rejectCRLF(comp, value); err != nil {
 			return "", err
 		}
 		lines = append(lines, fmt.Sprintf("\"%s\": %s", comp, value))
@@ -334,23 +374,19 @@ func buildSignatureBaseFromRequest(req *http.Request, body []byte, components []
 	return strings.Join(lines, "\n") + "\n", nil
 }
 
-func componentValue(req *http.Request, body []byte, comp string, received bool) (string, error) {
+func rejectCRLF(comp, value string) error {
+	if strings.ContainsAny(value, "\r\n") {
+		return fmt.Errorf("component %q value contains CR/LF", comp)
+	}
+	return nil
+}
+
+func componentValue(req *http.Request, comp string, received bool) (string, error) {
 	switch comp {
 	case "@method":
 		return req.Method, nil
 	case "@target-uri":
-		if req.URL.Scheme != "" {
-			return req.URL.String(), nil
-		}
-		scheme := "http"
-		if req.TLS != nil {
-			scheme = "https"
-		}
-		host := req.Host
-		if host == "" {
-			host = req.URL.Host
-		}
-		return scheme + "://" + host + req.URL.RequestURI(), nil
+		return CanonicalTargetURI(req), nil
 	case "@authority":
 		value := req.Host
 		if value == "" {
@@ -377,6 +413,24 @@ func componentValue(req *http.Request, body []byte, comp string, received bool) 
 		}
 		return value, nil
 	}
+}
+
+// CanonicalTargetURI returns one scheme://host+RequestURI form for both
+// signing and verification so proxy-reconstructed requests stay consistent.
+func CanonicalTargetURI(req *http.Request) string {
+	scheme := strings.ToLower(req.URL.Scheme)
+	if scheme == "" {
+		if req.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+	host := req.Host
+	if host == "" {
+		host = req.URL.Host
+	}
+	return scheme + "://" + host + req.URL.RequestURI()
 }
 
 // VerifyContentDigest verifies the Content-Digest header matches the body.

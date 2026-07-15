@@ -32,8 +32,10 @@ Core logic: `internal/platform/http/client/ssrf.go`.
 1. **Public destinations** pass when hostname resolves to public addresses.
 2. **Private destinations** require an active named route policy where
    hostname suffix, resolved IP/CIDR, and destination port all match.
-3. **IP literals** need `allow_ip_literals=true` plus matching CIDR and port
-   rules.
+3. **IP literals** are blocked under active strict/scoped route policies
+   (`allow_ip_literals=true` is rejected at config load in that lane).
+   Outside that lane, IP literals still need `allow_ip_literals=true`
+   plus matching CIDR and port rules.
 4. **localhost** hostnames are always blocked.
 
 The same checks run for initial URL preflight and redirect targets.

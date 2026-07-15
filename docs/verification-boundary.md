@@ -19,10 +19,10 @@ and operator-managed validation.
 - Private-route exceptions stay narrow. They require an active route
   policy, and the verified positive path is an operator-declared
   host-suffix/CIDR/port allowlist for matching private hostname
-  destinations only. IP-literal targets are a separate path that
-  requires `allow_ip_literals=true` plus matching CIDR and port
-  allowlists. Transport allowlisting stays separate from peer
-  compatibility.
+  destinations only. Under `compatibility_scope=none` with an active
+  strict or scoped SSRF route policy, `allow_ip_literals=true` is
+  rejected at config load, so IP-literal targets stay forbidden in that
+  lane. Transport allowlisting stays separate from peer compatibility.
 - The explicit-CIDR integration proof is intentionally narrow: it covers a
   matching operator-declared allowlist and the paired blocked case
   without that allowance. It does not prove arbitrary private-network
@@ -37,8 +37,54 @@ and operator-managed validation.
 - In that lane, outbound signing stays strict across endpoint kinds.
   Token exchange does not get a special outbound-signing exception when
   `compatibility_scope=none` is in effect.
+- Outbound token exchange may apply matched peer-profile quirks only after
+  a signed primary attempt fails. `accept_plain_token` allows one unsigned
+  retry when the failure classifies as `signature_required`,
+  `signature_invalid`, or `key_not_found`. `send_token_in_body` allows one
+  signed JSON-body retry when the failure classifies as
+  `token_exchange_failed` or `protocol_mismatch`. Unmatched peers never
+  get these downgrades.
 - Inbound verification rejects malformed HTTP-signature material. The
   verified behavior is strict rejection, not degraded acceptance.
+- Strict inbound mode does **not** mean Ed25519-only peers. Default
+  `signature.allowed_algorithms` accepts asymmetric RFC 9421 algorithms
+  `ed25519`, `ecdsa-p256-sha256`, `ecdsa-p384-sha384`, and
+  `rsa-v1_5-sha256` / `rsa-v1_5-sha384` / `rsa-v1_5-sha512`. Symmetric
+  algorithms remain forbidden.
+- Outbound SignRequest uses the same allow-list: the local signing key
+  algorithm must be listed in `signature.allowed_algorithms` or signing
+  fails before the request is sent (default key remains Ed25519).
+- Signature-Input `alg` may be omitted when the peer JWKS determines the
+  algorithm (RFC 9421). If `alg` is present, it must agree with the
+  JWK-derived algorithm; disagreement is rejected. ECDSA P-256 verification
+  is covered by an RFC 9421 Appendix B.2.4 vector and by an end-to-end path
+  through JWKS, peer discovery, and inbound middleware when `alg` is omitted.
+- Remote JWKS fetch rejects a nil HTTP client and responses larger than
+  `DefaultMaxResponseBytes` (`ErrResponseTooLarge`; no silent truncate).
+  Documents are cached briefly (default 1m TTL). Forced refetch on kid miss
+  respects `minRefetchInterval` (default 30s). Concurrent fetches for the
+  same URL are singleflighted. Kid misses may be negative-cached briefly.
+- Inbound signature failure responses use coarse bodies. Reason-to-body
+  and status mapping:
+  - `key_not_found` -> HTTP 401 `signature key not found`
+  - `key_lookup_failed` -> HTTP 502 `signature key lookup failed`
+  - `algorithm_rejected` -> HTTP 401 `signature algorithm rejected`
+  - all other verify failures (`malformed`, `missing_created`,
+    `future_created`, `stale_created`, `missing_component`,
+    `crypto_fail`, ...) -> HTTP 401 `signature verification failed`
+  Details remain in logs.
+- `signature.inbound_mode=off` skips verification only on routes that do
+  not require a signature. Routes mounted with
+  `VerifyOCMRequestRequireSignature*` still enforce signature (and digest)
+  checks when `off` is set.
+- When a declared-peer resolver is present, malformed or empty declared
+  peers fail closed with HTTP 400. Shares, invite-accepted, and token
+  routes also require a declared peer (`requireDeclaredPeer`).
+  Notifications stay signature-only (nil resolver): trust is bound to
+  keyId, not a body-declared peer.
+- Peer identity mismatch between declared peer and keyId authority
+  returns HTTP 403. Normalize errors on that path also fail closed with
+  403 unless mismatch is explicitly allowed.
 - Discovery caching stores raw response bytes and re-normalizes on cache
   read. The cache therefore preserves the fetched source bytes while
   letting the current peer contract control how legacy discovery fields

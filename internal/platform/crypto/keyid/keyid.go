@@ -99,9 +99,8 @@ func AuthorityForCompareFromKeyID(p Parsed) string {
 // sites (token handler, notifications, invites, shareWith provider match)
 // should use hostport.Normalize directly instead of importing this package.
 //
-// On parse failure, an error is returned. Call sites that enforce mismatch
-// must log and skip mismatch enforcement on error (do not introduce a new
-// rejection path).
+// On parse failure, an error is returned. Callers that enforce peer mismatch
+// should treat normalize errors as a mismatch failure.
 func AuthorityForCompareFromDeclaredPeer(peer string, scheme string) (string, error) {
 	return hostport.Normalize(peer, scheme)
 }

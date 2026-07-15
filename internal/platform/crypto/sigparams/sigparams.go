@@ -30,7 +30,7 @@ func ParseSignatureInput(header, label string) (Params, error) {
 		return Params{}, errors.New("sigparams: missing Signature-Input header")
 	}
 
-	entry, err := extractDictionaryEntry(header, label)
+	entry, err := extractDictionaryEntry(header, label, "Signature-Input")
 	if err != nil {
 		return Params{}, err
 	}
@@ -86,7 +86,7 @@ func ParseSignature(header, label string) ([]byte, error) {
 		return nil, errors.New("sigparams: missing Signature header")
 	}
 
-	entry, err := extractDictionaryEntry(header, label)
+	entry, err := extractDictionaryEntry(header, label, "Signature")
 	if err != nil {
 		return nil, err
 	}
@@ -104,19 +104,23 @@ func ParseSignature(header, label string) ([]byte, error) {
 }
 
 // FormatSignatureInput builds a Signature-Input dictionary member value.
+// When algorithm is empty, the alg parameter is omitted.
 func FormatSignatureInput(label string, components []string, created int64, keyID, algorithm string) string {
 	quoted := make([]string, len(components))
 	for i, c := range components {
 		quoted[i] = fmt.Sprintf("%q", strings.ToLower(c))
 	}
-	return fmt.Sprintf(
-		`%s=(%s);created=%d;keyid=%q;alg=%q`,
+	out := fmt.Sprintf(
+		`%s=(%s);created=%d;keyid=%q`,
 		label,
 		strings.Join(quoted, " "),
 		created,
 		keyID,
-		algorithm,
 	)
+	if algorithm != "" {
+		out += fmt.Sprintf(`;alg=%q`, algorithm)
+	}
+	return out
 }
 
 // FormatSignature builds a Signature dictionary member value.
@@ -124,24 +128,125 @@ func FormatSignature(label string, signature []byte) string {
 	return fmt.Sprintf("%s=:%s:", label, encodeBase64(signature))
 }
 
-func extractDictionaryEntry(header, label string) (string, error) {
-	prefix := label + "="
-	idx := strings.Index(header, prefix)
-	if idx < 0 {
-		return "", fmt.Errorf("sigparams: label %q not found in Signature header", label)
-	}
+// CountDictionaryMembers counts RFC 8941 dictionary members named label.
+// Matches only at top-level member keys so values like keyid="x, ocm=spoof"
+// do not count.
+func CountDictionaryMembers(header, label string) int {
+	count := 0
+	visitDictionaryMembers(header, label, func(_, _ int) bool {
+		count++
+		return true
+	})
+	return count
+}
 
-	start := idx + len(prefix)
-	end := len(header)
-	if comma := strings.Index(header[start:], ","); comma >= 0 {
-		end = start + comma
-	}
+// ExtractDictionaryMember returns the value of the first dictionary member
+// named label, using the same boundary rules as CountDictionaryMembers.
+func ExtractDictionaryMember(header, label string) (string, error) {
+	return extractDictionaryEntry(header, label, "dictionary")
+}
 
-	entry := strings.TrimSpace(header[start:end])
+func extractDictionaryEntry(header, label, headerName string) (string, error) {
+	var entry string
+	found := false
+	visitDictionaryMembers(header, label, func(start, end int) bool {
+		entry = strings.TrimSpace(header[start:end])
+		found = true
+		return false
+	})
+	if !found {
+		return "", fmt.Errorf("sigparams: label %q not found in %s header", label, headerName)
+	}
 	if entry == "" {
 		return "", fmt.Errorf("sigparams: empty entry for label %q", label)
 	}
 	return entry, nil
+}
+
+// visitDictionaryMembers walks top-level dictionary members (commas outside
+// quotes, inner lists, and byte sequences) and calls fn with [valueStart,
+// valueEnd) for each member whose key equals label. fn returning false stops.
+func visitDictionaryMembers(header, label string, fn func(start, end int) bool) {
+	prefix := label + "="
+	for memberStart := 0; memberStart < len(header); {
+		for memberStart < len(header) {
+			ch := header[memberStart]
+			if ch == ' ' || ch == '\t' || ch == ',' {
+				memberStart++
+				continue
+			}
+			break
+		}
+		if memberStart >= len(header) {
+			return
+		}
+		memberEnd := scanTopLevelMemberEnd(header, memberStart)
+		keyStart := memberStart
+		for keyStart < memberEnd {
+			ch := header[keyStart]
+			if ch == ' ' || ch == '\t' {
+				keyStart++
+				continue
+			}
+			break
+		}
+		if keyStart+len(prefix) <= memberEnd && header[keyStart:keyStart+len(prefix)] == prefix {
+			if !fn(keyStart+len(prefix), memberEnd) {
+				return
+			}
+		}
+		memberStart = memberEnd
+		if memberStart < len(header) && header[memberStart] == ',' {
+			memberStart++
+		}
+	}
+}
+
+// scanTopLevelMemberEnd returns the index of the next top-level comma, or
+// len(header). Quoted strings, parenthesized inner lists, and :byte-seq:
+// values are skipped so commas inside them do not split members.
+func scanTopLevelMemberEnd(header string, start int) int {
+	inQuote := false
+	parenDepth := 0
+	inByteSeq := false
+	for i := start; i < len(header); i++ {
+		ch := header[i]
+		if inByteSeq {
+			if ch == ':' {
+				inByteSeq = false
+			}
+			continue
+		}
+		if inQuote {
+			if ch == '\\' && i+1 < len(header) {
+				i++
+				continue
+			}
+			if ch == '"' {
+				inQuote = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inQuote = true
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+		case ':':
+			if parenDepth == 0 {
+				inByteSeq = true
+			}
+		case ',':
+			if parenDepth == 0 {
+				return i
+			}
+		}
+	}
+	return len(header)
 }
 
 func parseInnerList(entry string) ([]string, string, error) {

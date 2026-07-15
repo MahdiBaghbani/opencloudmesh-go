@@ -13,6 +13,7 @@ require (
 	github.com/valkey-io/valkey-go v1.0.71
 	golang.org/x/crypto v0.46.0
 	golang.org/x/net v0.48.0
+	golang.org/x/sync v0.19.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
 )
@@ -25,7 +26,6 @@ require (
 	github.com/miekg/dns v1.1.69 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	golang.org/x/mod v0.30.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
