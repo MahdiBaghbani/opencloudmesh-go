@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/httpwrap"
@@ -58,15 +59,26 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	return s, nil
 }
 
+func discoveryHandler(
+	handler *ocmHandler,
+	signatureMiddleware *inboundsignature.SignatureMiddleware,
+) http.Handler {
+	if signatureMiddleware == nil {
+		return handler
+	}
+	return signatureMiddleware.VerifyOCMRequestIfPresent()(handler)
+}
+
 func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) error {
 	handler, err := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
 	if err != nil {
 		return err
 	}
-	s.router.Get(RouteWellKnownOCM, handler.ServeHTTP)
-	s.router.Get(RouteOCMProvider, handler.ServeHTTP)
-	s.router.Get(RouteWellKnownOCMSlash, handler.ServeHTTP)
-	s.router.Get(RouteOCMProviderSlash, handler.ServeHTTP)
+	ocm := discoveryHandler(handler, inputs.SignatureMiddleware)
+	s.router.Get(RouteWellKnownOCM, ocm.ServeHTTP)
+	s.router.Get(RouteOCMProvider, ocm.ServeHTTP)
+	s.router.Get(RouteWellKnownOCMSlash, ocm.ServeHTTP)
+	s.router.Get(RouteOCMProviderSlash, ocm.ServeHTTP)
 	s.router.Get(RouteWellKnownJWKS, newJWKSHandler(inputs.KeyManager).ServeHTTP)
 	return nil
 }

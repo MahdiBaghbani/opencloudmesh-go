@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -16,4 +17,6 @@ type ResolveInputs struct {
 	KeyManager          *crypto.KeyManager
 	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
 	RuntimePolicy       *policy.RuntimePolicy
+	PeerContract        *peercompat.CompiledContract
+	PeerIdentity        RequestPeerIdentity
 }

@@ -138,12 +138,19 @@ func (m *SignatureMiddleware) decisionCompatibilityScope(profile string) string 
 	return "none"
 }
 
+// VerifyOCMRequestIfPresent verifies inbound signatures when present and
+// populates peer identity from a verified keyId. Unsigned requests pass through
+// without identity regardless of inbound mode. Invalid signatures are rejected.
+func (m *SignatureMiddleware) VerifyOCMRequestIfPresent() func(http.Handler) http.Handler {
+	return m.verifyOCMRequest(nil, false, false, true)
+}
+
 // VerifyOCMRequest is middleware for /ocm/* endpoints.
 // declaredPeerResolver extracts the declared peer from the request body.
 // When a resolver is present, malformed or missing declared peers return
 // HTTP 400.
 func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http.Request, body []byte) (string, error)) func(http.Handler) http.Handler {
-	return m.verifyOCMRequest(declaredPeerResolver, false, false)
+	return m.verifyOCMRequest(declaredPeerResolver, false, false, false)
 }
 
 // VerifyOCMRequestRequireSignature enforces a verified signature even when
@@ -153,7 +160,7 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 func (m *SignatureMiddleware) VerifyOCMRequestRequireSignature(
 	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
 ) func(http.Handler) http.Handler {
-	return m.verifyOCMRequest(declaredPeerResolver, true, false)
+	return m.verifyOCMRequest(declaredPeerResolver, true, false, false)
 }
 
 // VerifyOCMRequestRequireSignatureAndPeer enforces a verified signature and a
@@ -162,18 +169,20 @@ func (m *SignatureMiddleware) VerifyOCMRequestRequireSignature(
 func (m *SignatureMiddleware) VerifyOCMRequestRequireSignatureAndPeer(
 	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
 ) func(http.Handler) http.Handler {
-	return m.verifyOCMRequest(declaredPeerResolver, true, true)
+	return m.verifyOCMRequest(declaredPeerResolver, true, true, false)
 }
 
 func (m *SignatureMiddleware) verifyOCMRequest(
 	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
 	requireSignature bool,
 	requireDeclaredPeer bool,
+	optionalSignature bool,
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// off skips verification only when the route does not require a signature.
-			if m.inboundMode == "off" && !requireSignature {
+			// off skips verification only when the route does not require a
+			// signature and does not use verify-if-present semantics.
+			if m.inboundMode == "off" && !requireSignature && !optionalSignature {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -278,6 +287,16 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 				}
 			} else {
 				// No signature present
+				if optionalSignature {
+					if err := crypto.VerifyContentDigest(r, body); err != nil {
+						m.logger.Warn("content digest verification failed", "error", err)
+						http.Error(w, "content digest mismatch", http.StatusBadRequest)
+						return
+					}
+					next.ServeHTTP(w, r)
+					return
+				}
+
 				if requireSignature || m.inboundMode == "strict" {
 					http.Error(w, "signature required", http.StatusUnauthorized)
 					return

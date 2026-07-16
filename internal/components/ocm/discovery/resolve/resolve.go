@@ -8,9 +8,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-// APIVersionOverride allows overriding apiVersion based on User-Agent.
-// Used for Nextcloud Server Crawler compatibility (expects apiVersion 1.1).
+// APIVersionOverride applies a peer-profile-bound apiVersion when the matched
+// peer gate and User-Agent predicate both pass.
 type APIVersionOverride struct {
+	Profile           string `mapstructure:"profile"`
 	UserAgentContains string `mapstructure:"user_agent_contains"`
 	APIVersion        string `mapstructure:"api_version"`
 }
@@ -31,7 +32,7 @@ type ProviderConfig struct {
 	InviteAcceptDialog  string `mapstructure:"invite_accept_dialog"`
 	AdvertiseInviteWAYF bool   `mapstructure:"advertise_invite_wayf"`
 
-	// APIVersionOverrides allows overriding apiVersion based on User-Agent.
+	// APIVersionOverrides lists peer-profile-bound apiVersion overrides.
 	APIVersionOverrides []APIVersionOverride `mapstructure:"api_version_overrides"`
 }
 
@@ -51,8 +52,8 @@ type localEvaluation struct {
 	requiresHTTPSignatures bool
 }
 
-// BuildInputs bundles the resolved discovery build params with the
-// User-Agent based apiVersion overrides derived during resolution.
+// BuildInputs bundles the resolved discovery build params with peer-profile-
+// bound apiVersion overrides that passed compile-time binding validation.
 type BuildInputs struct {
 	Params    discovery.BuildParams
 	Overrides []APIVersionOverride
@@ -154,6 +155,6 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			RequiresTokenExchange:  localEval.strict,
 			RequiresHTTPSignatures: localEval.requiresHTTPSignatures,
 		},
-		Overrides: c.APIVersionOverrides,
+		Overrides: filterAPIVersionOverrides(c.APIVersionOverrides, in.PeerContract),
 	}
 }
