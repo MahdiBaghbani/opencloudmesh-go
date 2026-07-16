@@ -236,7 +236,7 @@ func TestService_APIVersionOverride_UserAgentOnlyDoesNotActivate(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if disc.APIVersion != "1.2.2" {
+	if disc.APIVersion != "1.4.0" {
 		t.Fatalf("expected default apiVersion without peer identity, got %q", disc.APIVersion)
 	}
 }
@@ -270,7 +270,7 @@ func TestService_APIVersionOverride_WithoutProfileBindingDoesNotActivate(t *test
 	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if disc.APIVersion != "1.2.2" {
+	if disc.APIVersion != "1.4.0" {
 		t.Fatalf("expected default apiVersion without profile binding, got %q", disc.APIVersion)
 	}
 }
@@ -309,8 +309,8 @@ func TestService_APIVersionOverride_NoMatchUsesDefault(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if disc.APIVersion != "1.2.2" {
-		t.Fatalf("expected default apiVersion 1.2.2, got %q", disc.APIVersion)
+	if disc.APIVersion != "1.4.0" {
+		t.Fatalf("expected default apiVersion 1.4.0, got %q", disc.APIVersion)
 	}
 }
 
@@ -339,8 +339,8 @@ func TestService_APIVersionOverride_NoOverridesUsesDefault(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if disc.APIVersion != "1.2.2" {
-		t.Fatalf("expected default apiVersion 1.2.2, got %q", disc.APIVersion)
+	if disc.APIVersion != "1.4.0" {
+		t.Fatalf("expected default apiVersion 1.4.0, got %q", disc.APIVersion)
 	}
 }
 
@@ -427,19 +427,19 @@ func TestService_APIVersionOverride_ThroughSignatureMiddleware(t *testing.T) {
 			name:               "off",
 			inboundMode:        "off",
 			signedAPIVersion:   "1.1",
-			unsignedAPIVersion: "1.2.2",
+			unsignedAPIVersion: "1.4.0",
 		},
 		{
 			name:               "lenient",
 			inboundMode:        "lenient",
 			signedAPIVersion:   "1.1",
-			unsignedAPIVersion: "1.2.2",
+			unsignedAPIVersion: "1.4.0",
 		},
 		{
 			name:               "strict",
 			inboundMode:        "strict",
 			signedAPIVersion:   "1.1",
-			unsignedAPIVersion: "1.2.2",
+			unsignedAPIVersion: "1.4.0",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -34,9 +34,9 @@ type Discovery struct {
 }
 
 type ResourceType struct {
-	Name       string            `json:"name"`
-	ShareTypes []string          `json:"shareTypes"`
-	Protocols  map[string]string `json:"protocols"`
+	Name       string    `json:"name"`
+	ShareTypes []string  `json:"shareTypes"`
+	Protocols  Protocols `json:"protocols"`
 }
 
 type PublicKey struct {
@@ -217,7 +217,7 @@ func (d *Discovery) GetEndpoint() string {
 func (d *Discovery) GetWebDAVPath() string {
 	for _, rt := range d.ResourceTypes {
 		if rt.Name == "file" {
-			if p, ok := rt.Protocols["webdav"]; ok {
+			if p, ok := rt.Protocols.StringRole("webdav"); ok {
 				return p
 			}
 		}

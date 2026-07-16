@@ -164,8 +164,8 @@ func TestDiscoveryEndpoint(t *testing.T) {
 	if !disc.Enabled {
 		t.Error("expected enabled=true")
 	}
-	if disc.APIVersion != "1.2.2" {
-		t.Errorf("expected apiVersion '1.2.2', got %q", disc.APIVersion)
+	if disc.APIVersion != "1.4.0" {
+		t.Errorf("expected apiVersion '1.4.0', got %q", disc.APIVersion)
 	}
 	if disc.Provider != "OpenCloudMesh" {
 		t.Errorf("expected provider 'OpenCloudMesh', got %q", disc.Provider)

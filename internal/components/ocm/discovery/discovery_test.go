@@ -90,7 +90,7 @@ func TestDiscovery_Helpers(t *testing.T) {
 			{
 				Name:       "file",
 				ShareTypes: []string{"user"},
-				Protocols:  map[string]string{"webdav": "/webdav/ocm/"},
+				Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")},
 			},
 		},
 		Capabilities: []string{"http-sig", "exchange-token"},

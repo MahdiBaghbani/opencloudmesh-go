@@ -26,6 +26,13 @@ type BuildParams struct {
 	// in the greenfield path so peers resolve keys from JWKS.
 	PublicKeys []PublicKey
 
+	// Receiver metadata for typed receive protocol roles.
+	WebDAVReceiveURI     string
+	WebAppReceiveTargets []string
+	AdvertiseWebApp      bool
+	AdvertiseSSHReceive  bool
+	TalkPath             string
+
 	// Evaluation flags resolved by the caller from the canonical policies.
 	TokenExchangeCapable   bool
 	RequiresTokenExchange  bool
@@ -33,32 +40,49 @@ type BuildParams struct {
 }
 
 // BuildDiscovery constructs the static discovery document (Reva pattern:
-// computed once, not at request time). An empty or unparseable endPoint yields
+// computed once, not at request time). An empty or non-absolute endPoint yields
 // a disabled document, mirroring the prior service-layer behavior.
 func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 	log = logutil.NoopIfNil(log)
 
 	disc := &Discovery{
 		Enabled:    false,
-		APIVersion: "1.2.2",
+		APIVersion: "1.4.0",
 		Provider:   p.Provider,
 		Criteria:   []string{}, // Always present, serializes as [] when empty
 	}
 
-	if p.EndPoint == "" {
-		return disc
-	}
-	if _, err := url.Parse(p.EndPoint); err != nil {
+	if p.EndPoint == "" || !isAbsoluteEndpoint(p.EndPoint) {
 		return disc
 	}
 
 	disc.Enabled = true
 	disc.EndPoint = p.EndPoint
 
+	protocols := spec.Protocols{}
+	if p.WebDAVRoot != "" {
+		protocols["webdav"] = spec.StringProtocolRole(p.WebDAVRoot)
+	}
+	if p.WebDAVReceiveURI != "" {
+		protocols["webdav-receive"] = spec.WebDAVReceiveRole(spec.WebDAVReceiveURIKind(p.WebDAVReceiveURI))
+	}
+	if len(p.WebAppReceiveTargets) > 0 {
+		protocols["webapp-receive"] = spec.WebAppReceiveRole(p.WebAppReceiveTargets)
+	}
+	if p.AdvertiseWebApp {
+		protocols["webapp"] = spec.EmptyObjectProtocolRole()
+	}
+	if p.AdvertiseSSHReceive {
+		protocols["ssh-receive"] = spec.EmptyObjectProtocolRole()
+	}
+	if p.TalkPath != "" {
+		protocols["talk"] = spec.StringProtocolRole(p.TalkPath)
+	}
+
 	disc.ResourceTypes = []ResourceType{{
 		Name:       "file",
 		ShareTypes: []string{"user"},
-		Protocols:  map[string]string{"webdav": p.WebDAVRoot},
+		Protocols:  protocols,
 	}}
 
 	capabilities := []string{}
@@ -80,8 +104,7 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 		log.Warn("token exchange enabled but token endpoint is empty; omitting exchange-token capability")
 	}
 
-	// Unconditional capabilities. See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#ocm-api-discovery
-	capabilities = append(capabilities, "invites", "webdav-uri", "protocol-object", "notifications")
+	capabilities = append(capabilities, "invites", "protocol-object", "notifications")
 
 	if p.InviteAcceptDialog != "" {
 		disc.InviteAcceptDialog = p.InviteAcceptDialog
@@ -102,4 +125,12 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 	}
 
 	return disc
+}
+
+func isAbsoluteEndpoint(endpoint string) bool {
+	u, err := url.Parse(endpoint)
+	if err != nil || u == nil {
+		return false
+	}
+	return u.Scheme != "" && u.Host != ""
 }

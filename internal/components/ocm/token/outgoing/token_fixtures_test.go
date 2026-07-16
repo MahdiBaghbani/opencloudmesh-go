@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -69,7 +70,7 @@ func newDiscoveryAwareTokenServer(tokenHandler http.HandlerFunc) *httptest.Serve
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			})

@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -32,7 +33,7 @@ func newTestDiscoveryServer() *httptest.Server {
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			}
@@ -209,7 +210,7 @@ func authLadderHandler(acceptAuth func(authHeader string) bool) http.HandlerFunc
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			}
@@ -335,7 +336,7 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			}
@@ -503,7 +504,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			}

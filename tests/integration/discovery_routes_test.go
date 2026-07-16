@@ -51,8 +51,9 @@ func TestDiscoveryRoutesMatchRouteInventory(t *testing.T) {
 			if disc.HasCapability("exchange-token") && disc.TokenEndPoint != projected.TokenEndPoint {
 				t.Errorf("TokenEndPoint = %q, want %q", disc.TokenEndPoint, projected.TokenEndPoint)
 			}
-			if disc.ResourceTypes[0].Protocols["webdav"] != projected.WebDAVRoot {
-				t.Errorf("webdav = %q, want %q", disc.ResourceTypes[0].Protocols["webdav"], projected.WebDAVRoot)
+			path, ok := disc.ResourceTypes[0].Protocols.StringRole("webdav")
+			if !ok || path != projected.WebDAVRoot {
+				t.Errorf("webdav = %q, want %q, ok=%v", path, projected.WebDAVRoot, ok)
 			}
 			if projected.InviteAcceptDialog != "" && disc.InviteAcceptDialog != projected.InviteAcceptDialog {
 				t.Errorf("InviteAcceptDialog = %q, want %q", disc.InviteAcceptDialog, projected.InviteAcceptDialog)

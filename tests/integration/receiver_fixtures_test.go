@@ -99,7 +99,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 				Enabled:       true,
 				APIVersion:    "1.2.2",
 				EndPoint:      srv.URL + "/ocm",
-				ResourceTypes: []spec.ResourceType{{Name: "file", ShareTypes: []string{"user"}, Protocols: map[string]string{"webdav": "/webdav/ocm/"}}},
+				ResourceTypes: []spec.ResourceType{{Name: "file", ShareTypes: []string{"user"}, Protocols: spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")}}},
 				Capabilities:  []string{"exchange-token", "http-sig"},
 				Criteria:      []string{"token-exchange", "http-request-signatures"},
 				PublicKeys: []spec.PublicKey{{

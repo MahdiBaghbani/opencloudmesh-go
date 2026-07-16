@@ -13,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -147,7 +148,7 @@ func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			})
@@ -447,7 +448,7 @@ func TestClient_Exchange_PeerMissingExchangeTokenCapability(t *testing.T) {
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			})
