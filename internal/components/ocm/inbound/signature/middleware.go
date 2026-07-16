@@ -61,7 +61,6 @@ type PeerDiscovery interface {
 type SignatureMiddleware struct {
 	inboundMode        string
 	allowMismatch      bool
-	onDiscoveryErr     string
 	peerContract       *peercompat.CompiledContract
 	compatibilityScope string
 	verifier           *crypto.RFC9421Verifier
@@ -84,7 +83,6 @@ func NewSignatureMiddleware(
 
 	localScheme := config.SchemeFromOrigin(publicOrigin)
 	inboundMode := "off"
-	onDiscoveryErr := "reject"
 	allowMismatch := false
 	compatibilityScope := "none"
 	if runtimePolicy != nil {
@@ -92,9 +90,6 @@ func NewSignatureMiddleware(
 		signature := eval.Signature
 		if signature.InboundMode != "" {
 			inboundMode = signature.InboundMode
-		}
-		if signature.OnDiscoveryError != "" {
-			onDiscoveryErr = signature.OnDiscoveryError
 		}
 		allowMismatch = signature.AllowMismatch
 		if eval.CompatibilityScope != "" {
@@ -105,7 +100,6 @@ func NewSignatureMiddleware(
 	return &SignatureMiddleware{
 		inboundMode:        inboundMode,
 		allowMismatch:      allowMismatch,
-		onDiscoveryErr:     onDiscoveryErr,
 		peerContract:       peerContract,
 		compatibilityScope: compatibilityScope,
 		verifier: crypto.NewRFC9421VerifierWithOptions(
@@ -293,7 +287,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 				if m.inboundMode == "lenient" && declaredPeer != "" {
 					isCapable, err := m.peerDiscovery.IsSigningCapable(r.Context(), declaredPeer)
 					if err != nil {
-						discoveryDecision := m.peerContract.ResolveDiscoveryFailure(declaredPeer, m.onDiscoveryErr)
+						discoveryDecision := m.peerContract.ResolveDiscoveryFailure(declaredPeer)
 						logEntry := peercompat.CompatibilityDecisionLog{
 							PeerDomain:         discoveryDecision.PeerDomain,
 							Profile:            discoveryDecision.Profile,

@@ -28,6 +28,10 @@ import (
 // TestACME_SubprocessTwoListeners starts the real binary in ACME mode and
 // verifies both the HTTP (challenge + redirect) and HTTPS (application)
 // listeners. Pre-generated certs mean zero ACME network calls.
+//
+// The generated config leaves [signature] unset so the dev preset's strict
+// inbound/outbound defaults apply; this test only exercises the ACME/TLS
+// listener setup, not signature enforcement.
 func TestACME_SubprocessTwoListeners(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -78,10 +82,6 @@ connect_timeout_ms = 2000
 max_redirects = 1
 max_response_bytes = 1048576
 insecure_skip_verify = true
-
-[signature]
-inbound_mode = "off"
-outbound_mode = "off"
 `, httpsPort, httpPort, httpsPort, acmeDir)
 
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {

@@ -4,9 +4,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 
@@ -96,22 +94,6 @@ func TestResolve_TokenEndPointDefault(t *testing.T) {
 
 	if built.Params.TokenEndPoint != "https://example.com/ocm/token" {
 		t.Errorf("expected default token endpoint, got %q", built.Params.TokenEndPoint)
-	}
-}
-
-func TestResolve_DerivesCompatibilityOverride(t *testing.T) {
-	cfg := config.CompatConfig()
-	in := resolve.ResolveInputs{
-		LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
-		RouteOpts:     service.DefaultRouteOpts(),
-		RuntimePolicy: policy.NewRuntimePolicy(cfg, nil),
-	}
-	c := &resolve.ProviderConfig{Endpoint: "https://example.com"}
-
-	built := resolve.Resolve(c, map[string]any{}, in)
-
-	if len(built.Overrides) != 1 {
-		t.Fatalf("expected one crawler override, got %d", len(built.Overrides))
 	}
 }
 

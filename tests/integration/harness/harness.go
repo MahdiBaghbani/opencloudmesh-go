@@ -68,8 +68,8 @@ func StartTestServerWithIETFConfig(t *testing.T, patch func(*config.Config)) *Te
 // the signature inbound/outbound modes, label, allow_mismatch, token exchange
 // requirement, and localhost peer-profile mappings needed for in-process HTTP
 // signature tests. Other DevConfig leniencies (TLS off, SSRF off,
-// insecure_skip_verify, peer_profile_level_override, on_discovery_error, and
-// unbounded compatibility scope) are intentionally preserved; see
+// insecure_skip_verify, and the bounded "scoped"
+// compatibility scope) are intentionally preserved; see
 // TestApplyIETFConfigDefaults.
 //
 // localhost and 127.0.0.1 map to the built-in "dev" peer profile because

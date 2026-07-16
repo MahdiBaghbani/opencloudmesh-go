@@ -13,7 +13,9 @@ type Config struct {
 	Mode string `toml:"mode"`
 
 	// CompatibilityScope is the supervising exception-governance axis.
-	// Values: "none", "scoped", "unbounded".
+	// Values: "none" (canonical strict, no mappings/relaxations), "scoped"
+	// (explicit named peer_profiles.mappings only; canonical without a peer
+	// match). Unknown values are rejected at startup.
 	CompatibilityScope string `toml:"compatibility_scope"`
 
 	// PublicOrigin is the public origin (scheme + host + port) for this instance.
@@ -272,10 +274,6 @@ type SignatureConfig struct {
 	// KeyPath is where the signing private key is stored
 	KeyPath string `toml:"key_path"`
 
-	// OnDiscoveryError determines behavior when peer discovery fails:
-	// "reject" (default) or "allow" (dev-only)
-	OnDiscoveryError string `toml:"on_discovery_error"`
-
 	// AllowMismatch allows declared peer vs keyId host mismatch (dev-only)
 	AllowMismatch bool `toml:"allow_mismatch"`
 
@@ -500,7 +498,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    OutboundMode: %q,\n", c.Signature.OutboundMode))
 	sb.WriteString(fmt.Sprintf("    PeerProfileLevelOverride: %q,\n", c.Signature.PeerProfileLevelOverride))
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
-	sb.WriteString(fmt.Sprintf("    OnDiscoveryError: %q,\n", c.Signature.OnDiscoveryError))
 	sb.WriteString(fmt.Sprintf("    AllowMismatch: %v,\n", c.Signature.AllowMismatch))
 	sb.WriteString(fmt.Sprintf("    Label: %q,\n", c.Signature.Label))
 	sb.WriteString(fmt.Sprintf("    KidFragment: %q,\n", c.Signature.KidFragment))

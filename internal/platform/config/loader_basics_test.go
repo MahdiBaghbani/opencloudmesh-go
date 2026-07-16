@@ -131,7 +131,9 @@ mode = "strict"
 }
 
 func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
-	// Create a TOML config file
+	// compat's compatibility_scope=scoped guardrail requires
+	// signature.outbound_mode=strict, so outbound_mode stays strict here;
+	// inbound_mode stays lenient to exercise the flag override.
 	tomlContent := `
 mode = "compat"
 public_origin = "https://from-toml.com"
@@ -139,7 +141,7 @@ listen_addr = ":9000"
 
 [signature]
 inbound_mode = "lenient"
-outbound_mode = "criteria-only"
+outbound_mode = "strict"
 `
 	configPath := writeTempConfig(t, tomlContent)
 
@@ -268,8 +270,8 @@ func TestDevConfig(t *testing.T) {
 	if cfg.Mode != "dev" {
 		t.Errorf("expected mode dev, got %s", cfg.Mode)
 	}
-	if cfg.CompatibilityScope != "unbounded" {
-		t.Errorf("expected compatibility scope unbounded, got %s", cfg.CompatibilityScope)
+	if cfg.CompatibilityScope != "scoped" {
+		t.Errorf("expected compatibility scope scoped, got %s", cfg.CompatibilityScope)
 	}
 	if cfg.OutboundHTTP.SSRF.Mode != "off" {
 		t.Errorf("expected SSRF mode off, got %s", cfg.OutboundHTTP.SSRF.Mode)
@@ -280,6 +282,20 @@ func TestDevConfig(t *testing.T) {
 	if !cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify true in dev")
 	}
+	// Dev uses scoped governance with a strict global OCM posture; only
+	// transport settings differ from strict.
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected signature inbound mode strict in dev, got %s", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Errorf("expected signature outbound mode strict in dev, got %s", cfg.Signature.OutboundMode)
+	}
+	if !cfg.RequireTokenExchange {
+		t.Error("expected RequireTokenExchange true in dev")
+	}
+	if cfg.PeerPolicy != "strict" {
+		t.Errorf("expected peer_policy strict in dev, got %q", cfg.PeerPolicy)
+	}
 }
 
 func TestCompatConfig(t *testing.T) {
@@ -288,14 +304,28 @@ func TestCompatConfig(t *testing.T) {
 	if cfg.Mode != "compat" {
 		t.Errorf("expected mode compat, got %s", cfg.Mode)
 	}
-	if cfg.CompatibilityScope != "unbounded" {
-		t.Errorf("expected compatibility scope unbounded, got %s", cfg.CompatibilityScope)
+	if cfg.CompatibilityScope != "scoped" {
+		t.Errorf("expected compatibility scope scoped, got %s", cfg.CompatibilityScope)
 	}
-	if cfg.Signature.InboundMode != "lenient" {
-		t.Errorf("expected signature inbound mode lenient, got %s", cfg.Signature.InboundMode)
+	// Compat uses scoped governance with a strict global OCM posture; legacy
+	// peer behavior must come from explicit peer_profiles.mappings.
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected signature inbound mode strict in compat, got %s", cfg.Signature.InboundMode)
 	}
-	if cfg.Signature.OutboundMode != "criteria-only" {
-		t.Errorf("expected signature outbound mode criteria-only, got %s", cfg.Signature.OutboundMode)
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Errorf("expected signature outbound mode strict in compat, got %s", cfg.Signature.OutboundMode)
+	}
+	if cfg.Signature.PeerProfileLevelOverride != "off" {
+		t.Errorf("expected peer_profile_level_override off in compat, got %s", cfg.Signature.PeerProfileLevelOverride)
+	}
+	if cfg.Signature.AllowMismatch {
+		t.Error("expected allow_mismatch false in compat")
+	}
+	if !cfg.RequireTokenExchange {
+		t.Error("expected RequireTokenExchange true in compat")
+	}
+	if cfg.PeerPolicy != "strict" {
+		t.Errorf("expected peer_policy strict in compat, got %q", cfg.PeerPolicy)
 	}
 	// SSRF stays strict in compat
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
@@ -318,7 +348,7 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		want any
 	}{
 		{"Mode", dev.Mode, "dev"},
-		{"CompatibilityScope", dev.CompatibilityScope, "unbounded"},
+		{"CompatibilityScope", dev.CompatibilityScope, "scoped"},
 		{"TLS.Mode", dev.TLS.Mode, "off"},
 		{"TLS.ACME.Directory", dev.TLS.ACME.Directory, "https://acme-staging-v02.api.letsencrypt.org/directory"},
 		{"TLS.ACME.UseStaging", dev.TLS.ACME.UseStaging, true},
@@ -327,14 +357,7 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		{"OutboundHTTP.MaxRedirects", dev.OutboundHTTP.MaxRedirects, 3},
 		{"OutboundHTTP.InsecureSkipVerify", dev.OutboundHTTP.InsecureSkipVerify, true},
 		{"OutboundHTTP.ProxyEnvFallback", dev.OutboundHTTP.ProxyEnvFallback, false},
-		{"Signature.InboundMode", dev.Signature.InboundMode, "lenient"},
-		{"Signature.OutboundMode", dev.Signature.OutboundMode, "criteria-only"},
-		{"Signature.PeerProfileLevelOverride", dev.Signature.PeerProfileLevelOverride, "non-strict"},
-		{"Signature.OnDiscoveryError", dev.Signature.OnDiscoveryError, "allow"},
-		{"Signature.AllowMismatch", dev.Signature.AllowMismatch, true},
 		{"Logging.Level", dev.Logging.Level, "debug"},
-		{"RequireTokenExchange", dev.RequireTokenExchange, false},
-		{"PeerPolicy", dev.PeerPolicy, "prefer-strict"},
 	}
 	for _, d := range deltas {
 		if d.got != d.want {
@@ -364,6 +387,14 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		{"PeerTrust.MembershipCache.MaxStaleSeconds", dev.PeerTrust.MembershipCache.MaxStaleSeconds, strict.PeerTrust.MembershipCache.MaxStaleSeconds},
 		{"Logging.AllowSensitive", dev.Logging.AllowSensitive, strict.Logging.AllowSensitive},
 		{"TokenExchange.Path", dev.TokenExchange.Path, strict.TokenExchange.Path},
+		// Dev keeps the same strict global OCM posture as strict; only transport
+		// differs (checked in the deltas above).
+		{"Signature.InboundMode", dev.Signature.InboundMode, strict.Signature.InboundMode},
+		{"Signature.OutboundMode", dev.Signature.OutboundMode, strict.Signature.OutboundMode},
+		{"Signature.PeerProfileLevelOverride", dev.Signature.PeerProfileLevelOverride, strict.Signature.PeerProfileLevelOverride},
+		{"Signature.AllowMismatch", dev.Signature.AllowMismatch, strict.Signature.AllowMismatch},
+		{"RequireTokenExchange", dev.RequireTokenExchange, strict.RequireTokenExchange},
+		{"PeerPolicy", dev.PeerPolicy, strict.PeerPolicy},
 	}
 	for _, i := range inherited {
 		if i.got != i.want {

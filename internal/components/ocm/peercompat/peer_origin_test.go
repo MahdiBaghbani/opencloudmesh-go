@@ -60,8 +60,8 @@ func TestResolvePeerOrigin_RejectsHTTPOutsideScopedGate(t *testing.T) {
 		scope CompatibilityScope
 	}{
 		{
-			name:  "unbounded",
-			scope: CompatibilityScopeUnbounded,
+			name:  "bogus",
+			scope: CompatibilityScope("bogus"),
 		},
 		{
 			name:  "unknown",

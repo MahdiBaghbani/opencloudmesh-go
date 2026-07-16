@@ -126,15 +126,6 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 		c.InviteAcceptDialog = inviteAcceptDialog
 	}
 
-	if _, set := rawOCMProvider["api_version_overrides"]; !set {
-		if in.RuntimePolicy != nil && in.RuntimePolicy.AllowsGlobalCompatibilityDefaults() {
-			c.APIVersionOverrides = []APIVersionOverride{{
-				UserAgentContains: "Nextcloud Server Crawler",
-				APIVersion:        "1.1",
-			}}
-		}
-	}
-
 	var publicKeys []discovery.PublicKey
 	advertiseHTTPSig := in.KeyManager != nil
 

@@ -150,40 +150,9 @@ func TestGate_UnknownScopeFailsClosed(t *testing.T) {
 		t.Fatalf("unexpected reason code: %s", legacy.ReasonCode)
 	}
 
-	discovery := contract.ResolveDiscoveryFailure("peer.example", "reject")
+	discovery := contract.ResolveDiscoveryFailure("peer.example")
 	if discovery.Allow {
 		t.Fatalf("expected unknown scope to reject discovery failure: %+v", discovery)
-	}
-	if discovery.ReasonCode != "discovery_error_reject" {
-		t.Fatalf("unexpected reason code: %s", discovery.ReasonCode)
-	}
-}
-
-func TestGate_UnboundedScopeFailsClosed(t *testing.T) {
-	registry := NewProfileRegistry(
-		map[string]*Profile{"compat": matchedPeerProfile()},
-		matchedPeerMappings(),
-	)
-	contract, err := BuildCompiledContractFromRegistryWithScope(
-		registry,
-		CompatibilityScopeUnbounded,
-	)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistryWithScope() unexpected error: %v", err)
-	}
-
-	assertStrictSignatureDecision(t, contract.SignatureDecisionForPeer("peer.example"))
-	assertStrictTokenDecision(t, contract.TokenExchangeDecisionForPeer("peer.example"))
-	assertStrictBasicAuthDecision(t, contract.BasicAuthDecisionForPeer("peer.example"))
-
-	legacy := contract.LegacyDiscoveryPublicKeyDecisionForPeer("peer.example")
-	if legacy.Allow {
-		t.Fatalf("expected unbounded scope to reject legacy discovery: %+v", legacy)
-	}
-
-	discovery := contract.ResolveDiscoveryFailure("peer.example", "reject")
-	if discovery.Allow {
-		t.Fatalf("expected unbounded scope to reject peer-scoped discovery: %+v", discovery)
 	}
 	if discovery.ReasonCode != "discovery_error_reject" {
 		t.Fatalf("unexpected reason code: %s", discovery.ReasonCode)
@@ -268,29 +237,5 @@ func TestGate_MatchedScopedPeerAppliesRelaxations(t *testing.T) {
 	}
 	if len(basicAuth.AllowedPatterns) != 1 || basicAuth.AllowedPatterns[0] != "token:" {
 		t.Fatalf("expected AllowedPatterns=[token:], got %+v", basicAuth.AllowedPatterns)
-	}
-}
-
-func TestGate_GlobalDiscoveryAllowPathUnaffectedByScope(t *testing.T) {
-	registry := NewProfileRegistry(
-		map[string]*Profile{"compat": matchedPeerProfile()},
-		matchedPeerMappings(),
-	)
-	contract, err := BuildCompiledContractFromRegistryWithScope(
-		registry,
-		CompatibilityScopeUnbounded,
-	)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistryWithScope() unexpected error: %v", err)
-	}
-
-	// Even under an unbounded (closed) scope, the global on_discovery_error=allow
-	// path must remain. Removing it is CSDD-03 scope.
-	decision := contract.ResolveDiscoveryFailure("peer.example", "allow")
-	if !decision.Allow {
-		t.Fatalf("expected global allow path to remain: %+v", decision)
-	}
-	if decision.ReasonCode != "global_on_discovery_error_allow" {
-		t.Fatalf("unexpected reason code: %s", decision.ReasonCode)
 	}
 }

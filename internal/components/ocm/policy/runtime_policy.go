@@ -33,7 +33,6 @@ type SignaturePosture struct {
 	InboundMode                   string
 	OutboundMode                  string
 	PeerProfileLevelOverride      string
-	OnDiscoveryError              string
 	RequiresHTTPRequestSignatures bool
 	AllowMismatch                 bool
 }
@@ -75,10 +74,9 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 					InboundMode:              "off",
 					OutboundMode:             "off",
 					PeerProfileLevelOverride: "off",
-					OnDiscoveryError:         "reject",
 				},
 				DerivedTier:        RuntimeTierCompat,
-				CompatibilityScope: "unbounded",
+				CompatibilityScope: "none",
 				Strict: StrictAssessment{
 					IsStrict:         false,
 					ViolationReasons: []string{"config_unavailable"},
@@ -99,7 +97,6 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 		InboundMode:                   cfg.Signature.InboundMode,
 		OutboundMode:                  cfg.Signature.OutboundMode,
 		PeerProfileLevelOverride:      cfg.Signature.PeerProfileLevelOverride,
-		OnDiscoveryError:              cfg.Signature.OnDiscoveryError,
 		RequiresHTTPRequestSignatures: deriveHTTPRequestSignatureRequirement(cfg.Signature.InboundMode),
 		AllowMismatch:                 cfg.Signature.AllowMismatch,
 	}
@@ -172,21 +169,10 @@ func (p *RuntimePolicy) Evaluate() RuntimeEvaluation {
 	return out
 }
 
-// AllowsGlobalCompatibilityDefaults reports whether node-wide compatibility
-// defaults may take effect for this runtime posture.
-func (p *RuntimePolicy) AllowsGlobalCompatibilityDefaults() bool {
-	if p == nil {
-		return false
-	}
-	return p.evaluation.CompatibilityScope == "unbounded"
-}
-
 // DirectoryServiceVerificationPolicy reports the default JWS verification
-// policy for Directory Service lookups on the trust axis.
+// policy for Directory Service lookups on the trust axis. Directory Service
+// JWS verification is required by default.
 func (p *RuntimePolicy) DirectoryServiceVerificationPolicy() string {
-	if p != nil && p.AllowsGlobalCompatibilityDefaults() {
-		return "optional"
-	}
 	return "required"
 }
 
@@ -205,12 +191,16 @@ func deriveTier(
 	return RuntimeTierCompat
 }
 
+// configuredCompatibilityScope resolves the effective compatibility scope
+// for posture derivation. An absent config or an empty scope is canonical
+// no-relaxation, so both resolve to "none" rather than any implicit broad
+// default; Load rejects unknown values at startup.
 func configuredCompatibilityScope(cfg *config.Config) string {
 	if cfg == nil {
-		return "unbounded"
+		return "none"
 	}
 	if cfg.CompatibilityScope == "" {
-		return "unbounded"
+		return "none"
 	}
 	return cfg.CompatibilityScope
 }
@@ -227,7 +217,6 @@ func hasDevelopmentRelaxations(
 	}
 	if signature.InboundMode == "off" ||
 		signature.OutboundMode == "off" ||
-		signature.OnDiscoveryError == "allow" ||
 		signature.AllowMismatch ||
 		signature.PeerProfileLevelOverride == "all" {
 		return true
@@ -284,9 +273,6 @@ func strictAssessmentReasons(
 	}
 	if signature.PeerProfileLevelOverride != "off" {
 		reasons = append(reasons, "signature_peer_profile_override_not_off")
-	}
-	if signature.OnDiscoveryError != "reject" {
-		reasons = append(reasons, "signature_on_discovery_error_not_reject")
 	}
 	if signature.AllowMismatch {
 		reasons = append(reasons, "signature_allow_mismatch_enabled")

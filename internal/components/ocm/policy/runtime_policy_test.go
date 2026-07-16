@@ -137,6 +137,10 @@ func TestRuntimePolicyEvaluate_DefaultStrictPresetClaimsStrict(t *testing.T) {
 	}
 }
 
+// TestRuntimePolicyEvaluate_DerivesCompatTier confirms CompatConfig's only
+// strict-posture deviation is a scoped (not none) compatibility scope: the
+// global OCM signature posture stays inherited strict from StrictConfig, so
+// no signature-mode violation reasons fire.
 func TestRuntimePolicyEvaluate_DerivesCompatTier(t *testing.T) {
 	cfg := config.CompatConfig()
 
@@ -148,17 +152,23 @@ func TestRuntimePolicyEvaluate_DerivesCompatTier(t *testing.T) {
 	if eval.Strict.IsStrict {
 		t.Fatalf("expected non-strict assessment, got reasons=%v", eval.Strict.ViolationReasons)
 	}
-	if !hasReason(eval.Strict.ViolationReasons, "signature_inbound_mode_not_strict") {
-		t.Fatalf("expected inbound-mode strict reason, got %v", eval.Strict.ViolationReasons)
+	if !hasReason(eval.Strict.ViolationReasons, "compatibility_scope_not_none") {
+		t.Fatalf("expected compatibility_scope_not_none reason, got %v", eval.Strict.ViolationReasons)
 	}
-	if !hasReason(eval.Strict.ViolationReasons, "signature_outbound_mode_not_strict") {
-		t.Fatalf("expected outbound-mode strict reason, got %v", eval.Strict.ViolationReasons)
+	if hasReason(eval.Strict.ViolationReasons, "signature_inbound_mode_not_strict") {
+		t.Fatalf("compat preset keeps global signature inbound strict; unexpected reasons=%v", eval.Strict.ViolationReasons)
 	}
-	if eval.CompatibilityScope != "unbounded" {
-		t.Fatalf("expected unbounded compatibility scope, got %q", eval.CompatibilityScope)
+	if hasReason(eval.Strict.ViolationReasons, "signature_outbound_mode_not_strict") {
+		t.Fatalf("compat preset keeps global signature outbound strict; unexpected reasons=%v", eval.Strict.ViolationReasons)
+	}
+	if eval.CompatibilityScope != "scoped" {
+		t.Fatalf("expected scoped compatibility scope, got %q", eval.CompatibilityScope)
 	}
 }
 
+// TestRuntimePolicyEvaluate_DerivesDevTier confirms DevConfig's dev tier comes
+// from its transport leniency (TLS off, SSRF off, InsecureSkipVerify), not
+// from any global OCM signature relaxation.
 func TestRuntimePolicyEvaluate_DerivesDevTier(t *testing.T) {
 	cfg := config.DevConfig()
 
@@ -167,8 +177,31 @@ func TestRuntimePolicyEvaluate_DerivesDevTier(t *testing.T) {
 	if eval.DerivedTier != policy.RuntimeTierDev {
 		t.Fatalf("expected dev tier, got %q", eval.DerivedTier)
 	}
-	if eval.CompatibilityScope != "unbounded" {
-		t.Fatalf("expected unbounded scope, got %q", eval.CompatibilityScope)
+	if eval.CompatibilityScope != "scoped" {
+		t.Fatalf("expected scoped scope, got %q", eval.CompatibilityScope)
+	}
+	if hasReason(eval.Strict.ViolationReasons, "signature_inbound_mode_not_strict") {
+		t.Fatalf("dev preset keeps global signature inbound strict; unexpected reasons=%v", eval.Strict.ViolationReasons)
+	}
+}
+
+// TestRuntimePolicyEvaluate_EmptyScopeResolvesToNone confirms an empty
+// CompatibilityScope (for example a bare programmatic Config) resolves to the
+// canonical none/no-relaxation scope rather than any implicit broad default.
+func TestRuntimePolicyEvaluate_EmptyScopeResolvesToNone(t *testing.T) {
+	cfg := &config.Config{}
+	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
+	if eval.CompatibilityScope != "none" {
+		t.Fatalf("expected empty compatibility_scope to resolve to none, got %q", eval.CompatibilityScope)
+	}
+}
+
+// TestRuntimePolicyEvaluate_NilConfigResolvesToNone confirms the nil-config
+// fallback path also resolves to the canonical none scope.
+func TestRuntimePolicyEvaluate_NilConfigResolvesToNone(t *testing.T) {
+	eval := policy.NewRuntimePolicy(nil, nil).Evaluate()
+	if eval.CompatibilityScope != "none" {
+		t.Fatalf("expected nil config to resolve to none, got %q", eval.CompatibilityScope)
 	}
 }
 
@@ -180,7 +213,6 @@ func TestRuntimePolicyEvaluate_DevPresetCanResolveStrictPosture(t *testing.T) {
 	cfg.Signature.InboundMode = "strict"
 	cfg.Signature.OutboundMode = "strict"
 	cfg.Signature.PeerProfileLevelOverride = "off"
-	cfg.Signature.OnDiscoveryError = "reject"
 	cfg.Signature.AllowMismatch = false
 	cfg.TLS.Mode = "selfsigned"
 	cfg.OutboundHTTP.SSRF.Mode = "strict"
@@ -206,23 +238,17 @@ func TestRuntimePolicy_DirectoryServiceVerificationPolicy(t *testing.T) {
 		cfg.Signature.PeerProfileLevelOverride = "off"
 
 		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
-		if runtimePolicy.AllowsGlobalCompatibilityDefaults() {
-			t.Fatal("expected strict posture to keep global compatibility defaults disabled")
-		}
 		if got := runtimePolicy.DirectoryServiceVerificationPolicy(); got != "required" {
 			t.Fatalf("expected required verification, got %q", got)
 		}
 	})
 
-	t.Run("unbounded compatibility makes verification optional", func(t *testing.T) {
+	t.Run("compat posture keeps verification required", func(t *testing.T) {
 		cfg := config.CompatConfig()
 
 		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
-		if !runtimePolicy.AllowsGlobalCompatibilityDefaults() {
-			t.Fatal("expected compat posture to allow global compatibility defaults")
-		}
-		if got := runtimePolicy.DirectoryServiceVerificationPolicy(); got != "optional" {
-			t.Fatalf("expected optional verification, got %q", got)
+		if got := runtimePolicy.DirectoryServiceVerificationPolicy(); got != "required" {
+			t.Fatalf("expected required verification even under compat, got %q", got)
 		}
 	})
 }
@@ -420,21 +446,21 @@ func TestRuntimePolicyEvaluate_StrictRoutePolicyUnderScopedIsCompatNotDev(t *tes
 	}
 }
 
-// TestRuntimePolicyEvaluate_SSRFOffUnderUnboundedIsDev confirms that
-// outbound_http.ssrf.mode=off under unbounded scope demotes posture to dev tier.
-func TestRuntimePolicyEvaluate_SSRFOffUnderUnboundedIsDev(t *testing.T) {
+// TestRuntimePolicyEvaluate_SSRFOffUnderScopedIsDev confirms that
+// outbound_http.ssrf.mode=off under scoped scope demotes posture to dev tier.
+func TestRuntimePolicyEvaluate_SSRFOffUnderScopedIsDev(t *testing.T) {
 	cfg := config.DevConfig()
 
 	eval := policy.NewRuntimePolicy(cfg, nil).Evaluate()
 
 	if eval.DerivedTier != policy.RuntimeTierDev {
-		t.Fatalf("SSRF off under unbounded should be dev tier, got %q", eval.DerivedTier)
+		t.Fatalf("SSRF off under scoped should be dev tier, got %q", eval.DerivedTier)
 	}
 	if !hasReason(eval.Strict.ViolationReasons, "outbound_http_ssrf_mode_not_strict") {
 		t.Fatalf("expected outbound_http_ssrf_mode_not_strict reason, got %v", eval.Strict.ViolationReasons)
 	}
-	if eval.CompatibilityScope != "unbounded" {
-		t.Fatalf("expected unbounded scope, got %q", eval.CompatibilityScope)
+	if eval.CompatibilityScope != "scoped" {
+		t.Fatalf("expected scoped scope, got %q", eval.CompatibilityScope)
 	}
 }
 

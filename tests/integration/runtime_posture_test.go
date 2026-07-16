@@ -272,40 +272,53 @@ global_enforce = false
 	}
 }
 
-func TestCompatModeTokenOnlyDemotesRuntimePosture(t *testing.T) {
+// TestCompatModeTokenOnlyRejectedAtStartup verifies that compat mode rejects
+// signature.outbound_mode=token-only at startup. Scoped compatibility requires
+// strict outbound signing at the top level; token-only relaxation must come
+// from an explicit matched peer_profiles mapping.
+func TestCompatModeTokenOnlyRejectedAtStartup(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
 	binaryPath := harness.BuildBinary(t)
-	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "compat-token-only",
-		Mode:                  "compat",
-		KeepSignatureDefaults: true,
-		ExtraConfig: `
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.toml")
+	config := `mode = "compat"
+listen_addr = "127.0.0.1:0"
+public_origin = "https://localhost:9209"
+external_base_path = ""
+
+[server]
+trusted_proxies = ["127.0.0.0/8", "::1/128"]
+
+[server.bootstrap_admin]
+username = "admin"
+
+[outbound_http]
+timeout_ms = 5000
+connect_timeout_ms = 2000
+max_redirects = 1
+max_response_bytes = 1048576
+insecure_skip_verify = true
+
 [signature]
 outbound_mode = "token-only"
-`,
-	})
-	defer srv.Stop(t)
-
-	resp, err := http.Get(srv.BaseURL + "/api/healthz")
-	if err != nil {
-		t.Fatalf("health check failed: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected healthz 200, got %d", resp.StatusCode)
+`
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
 	}
 
-	logPath := filepath.Join(srv.TempDir, "server.log")
-	logs := waitForLogSubstrings(t, logPath,
-		"token-only",
-		"resolved runtime posture is non-strict",
-		"signature_outbound_mode_not_strict",
-	)
-	if logs == "" {
-		t.Fatalf("expected token-only runtime posture log")
+	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected startup failure for compat scoped token-only posture, got success: %s", output)
+	}
+
+	outputText := string(output)
+	if !strings.Contains(outputText, "compatibility_scope=scoped requires signature.outbound_mode=strict") {
+		t.Fatalf("expected scoped token-only rejection error in output, got: %s", outputText)
 	}
 }
 

@@ -20,8 +20,13 @@ type PeerOriginDecision struct {
 }
 
 // ResolvePeerOrigin resolves peer origin and scheme for peer-boundary callers.
+// A nil contract (no compiled compatibility contract available to the caller)
+// always resolves to the canonical strict profile and HTTPS scheme; it never
+// preserves an explicit http:// input scheme. resolveMatchedPeer fails closed
+// for a nil receiver, so the nil and non-nil contract cases share one
+// resolution path.
 func (c *CompiledContract) ResolvePeerOrigin(peerInput string) PeerOriginDecision {
-	peerDomain, inputScheme := peerDomainFromInput(peerInput)
+	peerDomain, _ := peerDomainFromInput(peerInput)
 	if peerDomain == "" {
 		return PeerOriginDecision{}
 	}
@@ -30,21 +35,12 @@ func (c *CompiledContract) ResolvePeerOrigin(peerInput string) PeerOriginDecisio
 	allowHTTP := false
 	scheme := "https"
 
-	// Transitional behavior: preserve explicit scheme when no compiled contract
-	// is available in the caller, so existing tests and nil-dependency paths keep
-	// their current transport behavior.
-	if c == nil {
-		if inputScheme == "http" || inputScheme == "https" {
-			scheme = inputScheme
-		}
-	} else {
-		matched := c.resolveMatchedPeer(peerDomain)
-		if matched.Matched {
-			profileName = matched.Profile.Name
-			allowHTTP = matched.Profile.Transport.AllowHTTP
-			if allowHTTP {
-				scheme = "http"
-			}
+	matched := c.resolveMatchedPeer(peerDomain)
+	if matched.Matched {
+		profileName = matched.Profile.Name
+		allowHTTP = matched.Profile.Transport.AllowHTTP
+		if allowHTTP {
+			scheme = "http"
 		}
 	}
 
@@ -58,7 +54,10 @@ func (c *CompiledContract) ResolvePeerOrigin(peerInput string) PeerOriginDecisio
 }
 
 // IsPeerAbsoluteURIAllowed validates an absolute URI against the resolved peer
-// authority and transport policy.
+// authority and transport policy. A nil contract resolves through
+// ResolvePeerOrigin to the canonical strict/HTTPS profile, so it never allows
+// an http:// absoluteURI; it only matches on canonical HTTPS authority or
+// fails closed.
 func (c *CompiledContract) IsPeerAbsoluteURIAllowed(absoluteURI, peerInput string) bool {
 	parsed, err := url.Parse(absoluteURI)
 	if err != nil || parsed.Host == "" {
@@ -68,11 +67,6 @@ func (c *CompiledContract) IsPeerAbsoluteURIAllowed(absoluteURI, peerInput strin
 	uriScheme := strings.ToLower(parsed.Scheme)
 	if uriScheme != "http" && uriScheme != "https" {
 		return false
-	}
-
-	// Preserve nil-contract authority matching for call sites without a compiled contract.
-	if c == nil {
-		return authorityMatch(parsed.Host, peerInput, "https")
 	}
 
 	origin := c.ResolvePeerOrigin(peerInput)

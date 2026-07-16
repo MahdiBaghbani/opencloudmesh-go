@@ -40,6 +40,11 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	cfg.ExternalBasePath = ""
 	cfg.Signature.InboundMode = "off"
 	cfg.Signature.OutboundMode = "off"
+	// DevConfig defaults RequireTokenExchange to true, which populates
+	// must-exchange-token and would make the empty-criteria assertion fail for
+	// an unrelated reason, so this test disables it to isolate base-path field
+	// resolution.
+	cfg.RequireTokenExchange = false
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)

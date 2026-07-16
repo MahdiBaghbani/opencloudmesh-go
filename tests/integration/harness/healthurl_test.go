@@ -96,12 +96,14 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name: "scoped config with tls.mode off rejected before startup",
+			// Scoped compatibility does not constrain transport settings;
+			// strict signature and peer posture from StrictConfig keep this valid.
+			name: "scoped config with tls.mode off allowed before startup",
 			mutate: func(cfg *config.Config) {
 				cfg.CompatibilityScope = "scoped"
 				cfg.TLS.Mode = "off"
 			},
-			wantError: true,
+			wantError: false,
 		},
 		{
 			name: "none-scope allow_mismatch contradiction rejected before startup",
@@ -194,9 +196,6 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 	if cfg.Signature.PeerProfileLevelOverride != dev.Signature.PeerProfileLevelOverride {
 		t.Fatalf("Signature.PeerProfileLevelOverride = %q, want preserved %q", cfg.Signature.PeerProfileLevelOverride, dev.Signature.PeerProfileLevelOverride)
 	}
-	if cfg.Signature.OnDiscoveryError != dev.Signature.OnDiscoveryError {
-		t.Fatalf("Signature.OnDiscoveryError = %q, want preserved %q", cfg.Signature.OnDiscoveryError, dev.Signature.OnDiscoveryError)
-	}
 	if cfg.PeerPolicy != dev.PeerPolicy {
 		t.Fatalf("PeerPolicy = %q, want preserved %q", cfg.PeerPolicy, dev.PeerPolicy)
 	}
@@ -276,7 +275,6 @@ func TestCheckStartupPosture(t *testing.T) {
 		{name: "none with strict posture is allowed", scope: "none", isStrict: true, wantError: false},
 		{name: "none with non-strict posture is rejected", scope: "none", isStrict: false, wantError: true},
 		{name: "scoped with non-strict posture is allowed", scope: "scoped", isStrict: false, wantError: false},
-		{name: "unbounded with non-strict posture is allowed", scope: "unbounded", isStrict: false, wantError: false},
 		{name: "empty scope with non-strict posture is allowed", scope: "", isStrict: false, wantError: false},
 	}
 

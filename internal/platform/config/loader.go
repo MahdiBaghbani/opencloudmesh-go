@@ -252,10 +252,10 @@ func validateEnums(cfg *Config) error {
 	// mode is already validated by ParseMode before we get here
 
 	switch cfg.CompatibilityScope {
-	case "none", "scoped", "unbounded":
+	case "none", "scoped":
 		// valid
 	default:
-		return fmt.Errorf("invalid compatibility_scope %q: must be one of none, scoped, unbounded", cfg.CompatibilityScope)
+		return fmt.Errorf("invalid compatibility_scope %q: must be one of none, scoped", cfg.CompatibilityScope)
 	}
 
 	// tls.mode
@@ -307,14 +307,6 @@ func validateEnums(cfg *Config) error {
 		// valid
 	default:
 		return fmt.Errorf("invalid signature.peer_profile_level_override %q: must be one of off, non-strict, all", cfg.Signature.PeerProfileLevelOverride)
-	}
-
-	// signature.on_discovery_error
-	switch cfg.Signature.OnDiscoveryError {
-	case "reject", "allow":
-		// valid
-	default:
-		return fmt.Errorf("invalid signature.on_discovery_error %q: must be one of reject, allow", cfg.Signature.OnDiscoveryError)
 	}
 
 	if cfg.Signature.Label == "" {
@@ -458,7 +450,10 @@ func validateCompatibilityScopeGuardrails(cfg *Config) error {
 	case "scoped":
 		return validateScopedCompatibilityScopeGuardrails(cfg)
 	default:
-		return nil
+		return fmt.Errorf(
+			"invalid compatibility_scope %q: must be one of none, scoped",
+			cfg.CompatibilityScope,
+		)
 	}
 }
 
@@ -471,9 +466,6 @@ func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
 	}
 	if cfg.Signature.PeerProfileLevelOverride != "off" {
 		return fmt.Errorf("compatibility_scope=none requires signature.peer_profile_level_override=off")
-	}
-	if cfg.Signature.OnDiscoveryError != "reject" {
-		return fmt.Errorf("compatibility_scope=none requires signature.on_discovery_error=reject")
 	}
 	if cfg.Signature.AllowMismatch {
 		return fmt.Errorf("compatibility_scope=none requires signature.allow_mismatch=false")
@@ -543,6 +535,13 @@ func validateNoneScopePeerProfile(name string, p PeerProfile) error {
 	return nil
 }
 
+// validateScopedCompatibilityScopeGuardrails enforces the global OCM
+// posture for compatibility_scope=scoped. Unlike "none", "scoped" does not
+// constrain dev-only transport settings (tls.mode, outbound_http.ssrf.mode,
+// outbound_http.insecure_skip_verify): those remain operator-configurable so
+// presets like dev can keep local-only transport leniency without granting
+// any OCM-level legacy behavior. Legacy peer behavior can only come from
+// explicit peer_profiles.mappings resolved through the peercompat gate.
 func validateScopedCompatibilityScopeGuardrails(cfg *Config) error {
 	if cfg.Signature.InboundMode != "strict" {
 		return fmt.Errorf("compatibility_scope=scoped requires signature.inbound_mode=strict")
@@ -553,32 +552,22 @@ func validateScopedCompatibilityScopeGuardrails(cfg *Config) error {
 	if cfg.Signature.PeerProfileLevelOverride == "all" {
 		return fmt.Errorf("compatibility_scope=scoped requires signature.peer_profile_level_override!=all")
 	}
-	if cfg.Signature.OnDiscoveryError != "reject" {
-		return fmt.Errorf("compatibility_scope=scoped requires signature.on_discovery_error=reject")
-	}
 	if cfg.Signature.AllowMismatch {
 		return fmt.Errorf("compatibility_scope=scoped requires signature.allow_mismatch=false")
 	}
-	if cfg.TLS.Mode == "off" {
-		return fmt.Errorf("compatibility_scope=scoped requires tls.mode!=off")
-	}
-	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
-		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.ssrf.mode=strict")
+	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
+		return fmt.Errorf("compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled")
 	}
 	if err := validateSSRFRoutePolicyGuardrails(cfg, "scoped"); err != nil {
 		return err
-	}
-	if cfg.OutboundHTTP.InsecureSkipVerify {
-		return fmt.Errorf("compatibility_scope=scoped requires outbound_http.insecure_skip_verify=false")
-	}
-	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
-		return fmt.Errorf("compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled")
 	}
 	return nil
 }
 
 // validateSSRFRoutePolicyGuardrails enforces strict guardrails on the active
-// route policy when compatibility_scope is "none" or "scoped".
+// route policy. validateNoneCompatibilityScopeGuardrails and
+// validateScopedCompatibilityScopeGuardrails call this for scope "none" and
+// "scoped" respectively. The scope parameter labels the caller in error messages.
 func validateSSRFRoutePolicyGuardrails(cfg *Config, scope string) error {
 	activePolicy := cfg.OutboundHTTP.SSRF.RoutePolicy
 	if activePolicy == "" {

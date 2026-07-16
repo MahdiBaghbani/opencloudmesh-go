@@ -18,7 +18,7 @@ const (
 
 // CompatibilityScope is the typed exception-governance axis that the matched-peer
 // gate consults at decision time. It mirrors platform/config values so the gate
-// can reject unbounded/unknown scopes without relying on startup validation.
+// can reject unknown scopes without relying on startup validation.
 type CompatibilityScope string
 
 const (
@@ -28,11 +28,6 @@ const (
 	// CompatibilityScopeNone forbids compatibility exceptions; the gate stays
 	// closed even if a mapping were present.
 	CompatibilityScopeNone CompatibilityScope = "none"
-	// CompatibilityScopeUnbounded is the broad compat/dev scope. The gate
-	// rejects it at decision time so peer-scoped relaxations never leak through
-	// the unbounded path; the global on_discovery_error=allow path is the
-	// separate escape hatch (removed in CSDD-03).
-	CompatibilityScopeUnbounded CompatibilityScope = "unbounded"
 )
 
 var supportedBasicAuthPatterns = map[string]struct{}{
@@ -117,7 +112,9 @@ func NewCompiledContract(
 	return BuildCompiledContractFromRegistry(registry)
 }
 
-// NewCompiledContractFromConfig builds the compiled contract from config.
+// NewCompiledContractFromConfig builds the compiled contract from config,
+// wiring the configured compatibility_scope into the compiled contract so
+// the matched-peer gate enforces the operator's configured compatibility_scope.
 func NewCompiledContractFromConfig(
 	cfg *platformconfig.Config,
 ) (*CompiledContract, error) {
@@ -132,7 +129,21 @@ func NewCompiledContractFromConfig(
 
 	mappings := slices.Clone(cfg.PeerProfiles.Mappings)
 	registry := NewProfileRegistry(customProfiles, mappings)
-	return BuildCompiledContractFromRegistry(registry)
+	scope := compatibilityScopeFromConfig(cfg.CompatibilityScope)
+	return BuildCompiledContractFromRegistryWithScope(registry, scope)
+}
+
+// compatibilityScopeFromConfig maps a raw config compatibility_scope value to
+// the typed CompatibilityScope the gate consults at decision time. It
+// preserves unknown raw values as-is rather than normalizing them to a known
+// constant: the loader rejects unknown values at startup (see
+// internal/platform/config/loader.go validateEnums), but
+// scopeAllowsPeerRelaxations only grants relaxations for CompatibilityScopeScoped,
+// so any value that is not exactly "scoped" (including an empty string, "none",
+// or any other unrecognized value) fails closed here as a defense-in-depth
+// measure independent of startup validation.
+func compatibilityScopeFromConfig(raw string) CompatibilityScope {
+	return CompatibilityScope(raw)
 }
 
 // BuildCompiledContractFromRegistry compiles typed compatibility decisions.
@@ -250,9 +261,9 @@ type matchedPeerResult struct {
 // resolveMatchedPeer is the canonical matched-peer gate. Every peer-scoped
 // relaxation decision routes through it. It grants relaxations only when the
 // compatibility scope is scoped and a named mapping matched the normalized
-// peer domain. Empty/nil peers, nil contract or registry, unknown or unbounded
-// scopes, and unmatched peers all fail closed with Matched=false and a zero
-// Profile, so callers never copy relaxation fields from a strict fallback.
+// peer domain. Empty/nil peers, nil contract or registry, any non-scoped or
+// unknown scope, and unmatched peers all fail closed with Matched=false and a
+// zero Profile, so callers never copy relaxation fields from a strict fallback.
 func (c *CompiledContract) resolveMatchedPeer(peerInput string) matchedPeerResult {
 	domain := signatureDecisionPeerDomain(peerInput)
 	if domain == "" || c == nil || c.registry == nil || !c.scopeAllowsPeerRelaxations() {
@@ -278,9 +289,8 @@ func (c *CompiledContract) resolveMatchedPeer(peerInput string) matchedPeerResul
 }
 
 // scopeAllowsPeerRelaxations reports whether the contract scope permits
-// peer-scoped relaxations. Only the scoped scope does; none, unbounded, and any
-// unknown value fail closed at decision time without relying on startup
-// validation.
+// peer-scoped relaxations. Only the scoped scope does; none and any unknown
+// value fail closed at decision time without relying on startup validation.
 func (c *CompiledContract) scopeAllowsPeerRelaxations() bool {
 	return c != nil && c.scope == CompatibilityScopeScoped
 }

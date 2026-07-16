@@ -83,21 +83,6 @@ func TestSignatureDecisionForPeer_URLShapedInputDoesNotMatch(t *testing.T) {
 	}
 }
 
-func TestResolveDiscoveryFailure_GlobalAllowWins(t *testing.T) {
-	contract, err := NewCompiledContract(nil, nil)
-	if err != nil {
-		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
-	}
-
-	decision := contract.ResolveDiscoveryFailure("unknown.example", "allow")
-	if !decision.Allow {
-		t.Fatalf("expected discovery failure allow decision: %+v", decision)
-	}
-	if decision.ReasonCode != "global_on_discovery_error_allow" {
-		t.Fatalf("unexpected reason code: %s", decision.ReasonCode)
-	}
-}
-
 func TestResolveDiscoveryFailure_MatchedPeerCanFailOpen(t *testing.T) {
 	contract, err := NewCompiledContract(
 		map[string]*Profile{
@@ -112,7 +97,7 @@ func TestResolveDiscoveryFailure_MatchedPeerCanFailOpen(t *testing.T) {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
 	}
 
-	decision := contract.ResolveDiscoveryFailure("peer.example", "reject")
+	decision := contract.ResolveDiscoveryFailure("peer.example")
 	if !decision.Allow {
 		t.Fatalf("expected matched peer to fail open: %+v", decision)
 	}
@@ -135,7 +120,7 @@ func TestResolveDiscoveryFailure_UnmatchedPeerRejects(t *testing.T) {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
 	}
 
-	decision := contract.ResolveDiscoveryFailure("other.example", "reject")
+	decision := contract.ResolveDiscoveryFailure("other.example")
 	if decision.Allow {
 		t.Fatalf("expected unmatched peer to reject discovery failure: %+v", decision)
 	}

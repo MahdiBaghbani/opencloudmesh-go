@@ -3,8 +3,6 @@
 
 package peercompat
 
-import "strings"
-
 // SignaturePeerDecision captures peer-scoped compatibility decisions used by
 // signature-capability call sites.
 type SignaturePeerDecision struct {
@@ -18,8 +16,9 @@ type SignaturePeerDecision struct {
 	AcceptLegacyDiscoveryPublicKey bool
 }
 
-// DiscoveryFailureDecision resolves unsigned-discovery behavior from global and
-// peer-scoped settings.
+// DiscoveryFailureDecision resolves whether discovery errors may fail open.
+// Discovery fail-open is granted only to matched peers with
+// allow_unsigned_discovery.
 type DiscoveryFailureDecision struct {
 	PeerDomain string
 	Profile    string
@@ -66,22 +65,15 @@ func signatureDecisionPeerDomain(peerInput string) string {
 	return normalizeDomain(domain)
 }
 
-// ResolveDiscoveryFailure decides whether discovery errors can fail open. Global
-// allow takes precedence; otherwise only matched peers with
-// allow_unsigned_discovery may fail open.
-func (c *CompiledContract) ResolveDiscoveryFailure(peerDomain string, onDiscoveryError string) DiscoveryFailureDecision {
+// ResolveDiscoveryFailure decides whether discovery errors can fail open.
+// Only matched peers with allow_unsigned_discovery may fail open.
+func (c *CompiledContract) ResolveDiscoveryFailure(peerDomain string) DiscoveryFailureDecision {
 	peerDecision := c.SignatureDecisionForPeer(peerDomain)
 	decision := DiscoveryFailureDecision{
 		PeerDomain: peerDecision.PeerDomain,
 		Profile:    peerDecision.Profile,
 		Allow:      false,
 		ReasonCode: "discovery_error_reject",
-	}
-
-	if strings.EqualFold(onDiscoveryError, "allow") {
-		decision.Allow = true
-		decision.ReasonCode = "global_on_discovery_error_allow"
-		return decision
 	}
 
 	if peerDecision.Matched && peerDecision.AllowUnsignedDiscovery {

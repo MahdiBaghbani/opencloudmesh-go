@@ -239,9 +239,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Signature.KeyPath != "" {
 			cfg.Signature.KeyPath = fc.Signature.KeyPath
 		}
-		if fc.Signature.OnDiscoveryError != "" {
-			cfg.Signature.OnDiscoveryError = fc.Signature.OnDiscoveryError
-		}
 		if fc.Signature.Label != "" {
 			cfg.Signature.Label = fc.Signature.Label
 		}

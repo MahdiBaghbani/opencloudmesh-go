@@ -141,27 +141,6 @@ signature.advertise_http_request_signatures = true
 	}
 }
 
-func TestLoad_InvalidOnDiscoveryError_FailsFast(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
-[signature]
-on_discovery_error = "ignore"
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for invalid signature.on_discovery_error")
-	}
-	if !strings.Contains(err.Error(), "invalid signature.on_discovery_error") {
-		t.Errorf("expected on_discovery_error error, got: %v", err)
-	}
-}
-
 func TestLoad_InvalidExternalBasePath_FailsFast(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -184,13 +163,18 @@ external_base_path = "ocm"
 	}
 }
 
+// TestLoad_ValidEnumValues_Succeeds exercises enum values that remain
+// reachable end-to-end. Every valid compatibility_scope ("none" or "scoped")
+// requires signature inbound/outbound strict at the top level. Scoped forbids
+// only peer_profile_level_override=all; tls.mode and outbound_http.ssrf.mode
+// are not constrained by scoped guardrails.
 func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	// Test valid enum combinations.
 	tomlContent := `
 mode = "compat"
+compatibility_scope = "scoped"
 
 [tls]
 mode = "acme"
@@ -199,10 +183,7 @@ mode = "acme"
 mode = "off"
 
 [signature]
-inbound_mode = "lenient"
-outbound_mode = "criteria-only"
-peer_profile_level_override = "all"
-on_discovery_error = "allow"
+peer_profile_level_override = "non-strict"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -219,16 +200,13 @@ on_discovery_error = "allow"
 	if cfg.OutboundHTTP.SSRF.Mode != "off" {
 		t.Errorf("expected ssrf.mode off, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
-	if cfg.Signature.InboundMode != "lenient" {
-		t.Errorf("expected signature.inbound_mode lenient, got %s", cfg.Signature.InboundMode)
+	if cfg.Signature.PeerProfileLevelOverride != "non-strict" {
+		t.Errorf("expected peer_profile_level_override non-strict, got %s", cfg.Signature.PeerProfileLevelOverride)
 	}
-	if cfg.Signature.OutboundMode != "criteria-only" {
-		t.Errorf("expected signature.outbound_mode criteria-only, got %s", cfg.Signature.OutboundMode)
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected signature.inbound_mode strict, got %s", cfg.Signature.InboundMode)
 	}
-	if cfg.Signature.PeerProfileLevelOverride != "all" {
-		t.Errorf("expected peer_profile_level_override all, got %s", cfg.Signature.PeerProfileLevelOverride)
-	}
-	if cfg.Signature.OnDiscoveryError != "allow" {
-		t.Errorf("expected on_discovery_error allow, got %s", cfg.Signature.OnDiscoveryError)
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Errorf("expected signature.outbound_mode strict, got %s", cfg.Signature.OutboundMode)
 	}
 }

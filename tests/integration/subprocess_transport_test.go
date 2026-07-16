@@ -34,8 +34,9 @@ func TestSubprocessTransportFollowsExtraConfigTLS(t *testing.T) {
 		Mode:                  "dev",
 		KeepSignatureDefaults: true,
 		// Override the preset HTTP transport with self-signed HTTPS. The "dev"
-		// preset resolves compatibility_scope=unbounded, so selfsigned TLS is
-		// permitted by the loader compatibility requirements.
+		// preset resolves compatibility_scope=scoped, which does not constrain
+		// tls.mode, so selfsigned TLS is permitted by the loader compatibility
+		// requirements.
 		ExtraConfig: `
 [tls]
 mode = "selfsigned"

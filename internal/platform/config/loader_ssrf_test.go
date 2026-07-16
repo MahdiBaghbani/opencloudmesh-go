@@ -440,7 +440,10 @@ allow_ip_literals = false
 	}
 }
 
-func TestSSRFRoutePolicy_BlankHostSuffix_ScopedScope(t *testing.T) {
+// TestSSRFRoutePolicy_BlankHostSuffix_ScopedScopeRejected confirms blank host
+// suffixes are rejected under compatibility_scope=scoped because the SSRF
+// route-policy guardrail applies to both none and scoped.
+func TestSSRFRoutePolicy_BlankHostSuffix_ScopedScopeRejected(t *testing.T) {
 	tests := []struct {
 		name     string
 		suffixes string
