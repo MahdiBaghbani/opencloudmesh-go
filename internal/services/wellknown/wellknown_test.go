@@ -137,35 +137,11 @@ func TestService_TrailingSlashAliases(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, path := range []string{"/.well-known/ocm/", "/ocm-provider/"} {
-		req := httptest.NewRequest(http.MethodGet, path, nil)
-		w := httptest.NewRecorder()
-		svc.Handler().ServeHTTP(w, req)
-		if w.Code != http.StatusOK {
-			t.Errorf("path %s: expected 200, got %d", path, w.Code)
-		}
-	}
-}
-
-func TestService_OCMProviderAlias(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
-	}
-
-	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/ocm-provider", nil)
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm/", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
-
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Errorf("path /.well-known/ocm/: expected 200, got %d", w.Code)
 	}
 }
 

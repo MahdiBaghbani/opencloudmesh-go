@@ -152,6 +152,40 @@ func TestClientDiscover_PreservesAbsoluteInviteAcceptDialog(t *testing.T) {
 	}
 }
 
+func TestClientDiscover_NoLegacyFallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/ocm":
+			http.NotFound(w, r)
+		case "/ocm-provider":
+			raw := map[string]any{
+				"enabled":       true,
+				"apiVersion":    "1.2.2",
+				"endPoint":      "https://peer.example.com/ocm",
+				"resourceTypes": []any{},
+				"criteria":      []any{},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(raw)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpCfg := tshttp.PermissiveConfig()
+	httpCfg.DerivedSSRFMode = "off"
+	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
+	_, err := client.Discover(context.Background(), server.URL)
+	if err == nil {
+		t.Fatal("expected error when canonical discovery is missing")
+	}
+	if !errors.Is(err, discovery.ErrDiscoveryNotFound) {
+		t.Fatalf("errors.Is(err, ErrDiscoveryNotFound) = false, err = %v", err)
+	}
+}
+
 func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 	httpCfg := tshttp.PermissiveConfig()
 	httpCfg.DerivedSSRFMode = "off"
@@ -174,7 +208,7 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 
 	t.Run("invalid json", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/.well-known/ocm" && r.URL.Path != "/ocm-provider" {
+			if r.URL.Path != "/.well-known/ocm" {
 				http.NotFound(w, r)
 				return
 			}
@@ -195,7 +229,7 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/.well-known/ocm" && r.URL.Path != "/ocm-provider" {
+			if r.URL.Path != "/.well-known/ocm" {
 				http.NotFound(w, r)
 				return
 			}

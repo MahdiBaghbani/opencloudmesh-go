@@ -23,7 +23,8 @@ type Config struct {
 	PublicOrigin string `toml:"public_origin"`
 
 	// ExternalBasePath is the optional path prefix for app endpoints.
-	// Root-only endpoints (/.well-known/ocm, /ocm-provider) are never under this path.
+	// Root-only well-known endpoints (/.well-known/ocm and /.well-known/jwks.json)
+	// are never under this path.
 	// Example: "/ocm" or empty string
 	ExternalBasePath string `toml:"external_base_path"`
 

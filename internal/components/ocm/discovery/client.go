@@ -19,7 +19,7 @@ import (
 // ErrDiscoveryDisabled is returned when the discovery client is nil or disabled.
 var ErrDiscoveryDisabled = errors.New("discovery client not configured")
 
-// ErrDiscoveryNotFound is returned when both discovery endpoints respond with HTTP 404.
+// ErrDiscoveryNotFound is returned when the discovery endpoint responds with HTTP 404.
 var ErrDiscoveryNotFound = errors.New("discovery endpoint not found")
 
 // ErrInvalidDiscoveryJSON is returned when a discovery response body cannot be parsed.
@@ -28,7 +28,7 @@ var ErrInvalidDiscoveryJSON = errors.New("invalid discovery json")
 // ErrOCMDisabled is returned when the remote discovery document reports enabled=false.
 var ErrOCMDisabled = errors.New("ocm disabled at provider")
 
-// Client fetches and caches remote OCM discovery documents. Discovers via /.well-known/ocm and /ocm-provider fallback.
+// Client fetches and caches remote OCM discovery documents via /.well-known/ocm.
 type Client struct {
 	httpClient   *httpclient.Client
 	cache        cache.Cache
@@ -85,10 +85,7 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 
 	rawBytes, disc, err := c.fetchDiscovery(ctx, baseURL+"/.well-known/ocm")
 	if err != nil {
-		rawBytes, disc, err = c.fetchDiscovery(ctx, baseURL+"/ocm-provider")
-		if err != nil {
-			return nil, fmt.Errorf("failed to discover OCM at %s: %w", baseURL, err)
-		}
+		return nil, fmt.Errorf("failed to discover OCM at %s: %w", baseURL, err)
 	}
 	c.cache.Set(ctx, cacheKey, rawBytes, c.cacheTTL)
 

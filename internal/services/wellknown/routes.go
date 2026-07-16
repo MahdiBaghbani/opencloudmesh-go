@@ -8,8 +8,6 @@ const (
 	RouteWellKnownOCM      = "/.well-known/ocm"
 	RouteWellKnownOCMSlash = "/.well-known/ocm/"
 	RouteWellKnownJWKS     = "/.well-known/jwks.json"
-	RouteOCMProvider       = "/ocm-provider"
-	RouteOCMProviderSlash  = "/ocm-provider/"
 )
 
 func init() {
@@ -34,28 +32,6 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 			Service:         "wellknown",
 			Method:          "GET",
 			Pattern:         RouteWellKnownOCMSlash,
-			SessionPolicy:   service.SessionPublic,
-			HandlerAuth:     service.HandlerAuthNone,
-			SurfaceClass:    service.SurfaceDiscovery,
-			DiscoveryFields: []string{"end-point", "provider"},
-			TrustClass:      service.TrustPeerNone,
-		},
-		{
-			ID:              "wellknown-ocm-provider",
-			Service:         "wellknown",
-			Method:          "GET",
-			Pattern:         RouteOCMProvider,
-			SessionPolicy:   service.SessionPublic,
-			HandlerAuth:     service.HandlerAuthNone,
-			SurfaceClass:    service.SurfaceDiscovery,
-			DiscoveryFields: []string{"end-point", "provider"},
-			TrustClass:      service.TrustPeerNone,
-		},
-		{
-			ID:              "wellknown-ocm-provider-slash",
-			Service:         "wellknown",
-			Method:          "GET",
-			Pattern:         RouteOCMProviderSlash,
 			SessionPolicy:   service.SessionPublic,
 			HandlerAuth:     service.HandlerAuthNone,
 			SurfaceClass:    service.SurfaceDiscovery,
