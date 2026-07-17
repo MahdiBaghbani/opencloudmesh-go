@@ -153,7 +153,6 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		discoveryCache = cacheInstance
 	}
 	discoveryClient := discovery.NewClient(rawHTTPClient, discoveryCache)
-	discoveryClient.SetPeerContract(peerContract)
 
 	var trustGroupMgr *peertrust.TrustGroupManager
 	var policyEngine *peertrust.PolicyEngine

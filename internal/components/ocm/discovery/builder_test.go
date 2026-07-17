@@ -1,6 +1,8 @@
 package discovery_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
@@ -129,8 +131,13 @@ func TestBuildDiscovery_AdvertiseHTTPSigWithoutInlinePublicKeys(t *testing.T) {
 	if !disc.IsHTTPSigCapable() {
 		t.Error("expected http-sig capability from AdvertiseHTTPSig")
 	}
-	if len(disc.PublicKeys) != 0 {
-		t.Fatalf("expected no inline publicKeys, got %+v", disc.PublicKeys)
+
+	out, err := json.Marshal(disc)
+	if err != nil {
+		t.Fatalf("marshal discovery: %v", err)
+	}
+	if strings.Contains(string(out), "publicKey") {
+		t.Fatalf("expected no inline public key material in discovery JSON, got %s", out)
 	}
 }
 

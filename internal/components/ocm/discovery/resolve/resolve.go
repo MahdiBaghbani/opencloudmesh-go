@@ -61,8 +61,8 @@ type BuildInputs struct {
 
 // Resolve applies service-local defaults, derives cross-cutting values from
 // ResolveInputs and route inventory when not explicitly set in per-service TOML,
-// resolves public keys and policy-driven evaluation flags, and returns the
-// resolved discovery build params plus any apiVersion overrides.
+// resolves policy-driven evaluation flags, and returns the resolved discovery
+// build params plus any apiVersion overrides.
 func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs) BuildInputs {
 	c.ApplyDefaults()
 
@@ -127,7 +127,6 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 		c.InviteAcceptDialog = inviteAcceptDialog
 	}
 
-	var publicKeys []discovery.PublicKey
 	advertiseHTTPSig := in.KeyManager != nil
 
 	var localEval localEvaluation
@@ -149,7 +148,6 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			TokenEndPoint:          tokenEndPoint,
 			InviteAcceptDialog:     inviteAcceptDialog,
 			AdvertiseInviteWAYF:    c.AdvertiseInviteWAYF,
-			PublicKeys:             publicKeys,
 			AdvertiseHTTPSig:       advertiseHTTPSig,
 			TokenExchangeCapable:   localEval.codeFlow,
 			RequiresTokenExchange:  localEval.strict,

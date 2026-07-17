@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -95,9 +94,6 @@ func TestDiscovery_Helpers(t *testing.T) {
 		},
 		Capabilities: []string{"http-sig", "exchange-token"},
 		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
-		PublicKeys: []discovery.PublicKey{
-			{KeyID: "key1", PublicKeyPem: "..."},
-		},
 	}
 
 	if disc.GetWebDAVPath() != "/webdav/ocm/" {
@@ -149,43 +145,77 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	}
 }
 
-func TestClientDiscover_RejectsLegacyPublicKeyWithoutCompat(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/.well-known/ocm" {
-			http.NotFound(w, r)
-			return
-		}
-		raw := map[string]any{
-			"enabled":       true,
-			"apiVersion":    "1.2.2",
-			"endPoint":      "https://peer.example.com/ocm",
-			"resourceTypes": []any{},
-			"criteria":      []any{},
-			"capabilities":  []string{"http-sig"},
-			"publicKey": map[string]string{
-				"keyId":        "https://peer.example.com/ocm#legacy",
-				"publicKeyPem": "legacy-pem",
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
-	}))
-	defer server.Close()
-
-	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
-	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
-
-	disc, err := client.Discover(context.Background(), server.URL)
-	if err != nil {
-		t.Fatalf("Discover failed: %v", err)
+// inlineKeyDiscoveryPayload builds a raw discovery JSON document carrying
+// inline key material in either the singular publicKey wire shape or the
+// plural publicKeys wire shape.
+func inlineKeyDiscoveryPayload(shape, apiVersion string) map[string]any {
+	raw := map[string]any{
+		"enabled":       true,
+		"apiVersion":    apiVersion,
+		"endPoint":      "https://peer.example.com/ocm",
+		"resourceTypes": []any{},
+		"criteria":      []any{},
+		"capabilities":  []string{"http-sig"},
 	}
-	if len(disc.PublicKeys) != 0 {
-		t.Fatalf("expected legacy publicKey to stay disabled without compat, got %+v", disc.PublicKeys)
+	switch shape {
+	case "singular":
+		raw["publicKey"] = map[string]string{
+			"keyId":        "https://peer.example.com/ocm#legacy",
+			"publicKeyPem": "legacy-pem",
+		}
+	case "plural":
+		raw["publicKeys"] = []map[string]string{{
+			"keyId":        "https://peer.example.com/ocm#legacy",
+			"publicKeyPem": "legacy-pem",
+		}}
+	}
+	return raw
+}
+
+func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		shape      string
+		apiVersion string
+	}{
+		{name: "singular_1.2.2", shape: "singular", apiVersion: "1.2.2"},
+		{name: "plural_1.2.2", shape: "plural", apiVersion: "1.2.2"},
+		{name: "singular_1.4.0", shape: "singular", apiVersion: "1.4.0"},
+		{name: "plural_1.4.0", shape: "plural", apiVersion: "1.4.0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/.well-known/ocm" {
+					http.NotFound(w, r)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(inlineKeyDiscoveryPayload(tt.shape, tt.apiVersion))
+			}))
+			defer server.Close()
+
+			httpCfg := tshttp.PermissiveConfig()
+			httpCfg.DerivedSSRFMode = "off"
+			client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
+			disc, err := client.Discover(context.Background(), server.URL)
+			if err != nil {
+				t.Fatalf("Discover failed: %v", err)
+			}
+
+			out, err := json.Marshal(disc)
+			if err != nil {
+				t.Fatalf("marshal discovery: %v", err)
+			}
+			if strings.Contains(string(out), "legacy-pem") {
+				t.Fatalf("expected no inline key material, got %s", out)
+			}
+		})
 	}
 }
 
-func TestClientDiscover_CacheContractDrift(t *testing.T) {
+func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
@@ -195,139 +225,32 @@ func TestClientDiscover_CacheContractDrift(t *testing.T) {
 		callCount++
 		raw := map[string]any{
 			"enabled":       true,
-			"apiVersion":    "1.2.2",
+			"apiVersion":    "1.4.0",
 			"endPoint":      "https://peer.example.com/ocm",
 			"resourceTypes": []any{},
 			"criteria":      []any{},
 			"capabilities":  []string{"http-sig"},
-			"publicKey": map[string]string{
-				"keyId":        "https://peer.example.com/ocm#legacy",
-				"publicKeyPem": "legacy-pem",
-			},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(raw)
 	}))
 	defer server.Close()
 
-	parsed, err := url.Parse(server.URL)
-	if err != nil {
-		t.Fatalf("failed to parse server URL: %v", err)
-	}
-
-	buildContract := func(t *testing.T) *peercompat.CompiledContract {
-		t.Helper()
-		registry := peercompat.NewProfileRegistry(
-			map[string]*peercompat.Profile{
-				"compat": {
-					Name:                           "compat",
-					AcceptLegacyDiscoveryPublicKey: true,
-				},
-			},
-			[]peercompat.ProfileMapping{
-				{Pattern: parsed.Hostname(), Profile: "compat"},
-			},
-		)
-		contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-		if err != nil {
-			t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-		}
-		return contract
-	}
-
 	httpCfg := tshttp.PermissiveConfig()
 	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
-	disc1, err := client.Discover(context.Background(), server.URL)
-	if err != nil {
-		t.Fatalf("Discover without compat failed: %v", err)
-	}
-	if len(disc1.PublicKeys) != 0 {
-		t.Fatalf("expected empty publicKeys without compat, got %+v", disc1.PublicKeys)
+	if _, err := client.Discover(context.Background(), server.URL); err != nil {
+		t.Fatalf("first Discover failed: %v", err)
 	}
 	if callCount != 1 {
 		t.Fatalf("expected exactly 1 HTTP call, got %d", callCount)
 	}
 
-	client.SetPeerContract(buildContract(t))
-	disc2, err := client.Discover(context.Background(), server.URL)
-	if err != nil {
-		t.Fatalf("Discover with compat contract failed: %v", err)
+	if _, err := client.Discover(context.Background(), server.URL); err != nil {
+		t.Fatalf("second Discover failed: %v", err)
 	}
 	if callCount != 1 {
-		t.Fatalf("unexpected HTTP call after compat contract set, call count %d", callCount)
-	}
-	if len(disc2.PublicKeys) != 1 {
-		t.Fatalf("expected legacy key promoted to publicKeys, got %+v", disc2.PublicKeys)
-	}
-
-	client.SetPeerContract(nil)
-	disc3, err := client.Discover(context.Background(), server.URL)
-	if err != nil {
-		t.Fatalf("Discover after contract removed failed: %v", err)
-	}
-	if callCount != 1 {
-		t.Fatalf("unexpected HTTP call after contract removed, call count %d", callCount)
-	}
-	if len(disc3.PublicKeys) != 0 {
-		t.Fatalf("expected empty publicKeys after contract removed, got %+v", disc3.PublicKeys)
-	}
-}
-
-func TestClientDiscover_AllowsLegacyPublicKeyWithPeerCompat(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/.well-known/ocm" {
-			http.NotFound(w, r)
-			return
-		}
-		raw := map[string]any{
-			"enabled":       true,
-			"apiVersion":    "1.2.2",
-			"endPoint":      "https://peer.example.com/ocm",
-			"resourceTypes": []any{},
-			"criteria":      []any{spec.CriteriaMustUseHTTPSig},
-			"capabilities":  []string{"http-sig"},
-			"publicKey": map[string]string{
-				"keyId":        "https://peer.example.com/ocm#legacy",
-				"publicKeyPem": "legacy-pem",
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
-	}))
-	defer server.Close()
-
-	parsed, err := url.Parse(server.URL)
-	if err != nil {
-		t.Fatalf("failed to parse server URL: %v", err)
-	}
-	registry := peercompat.NewProfileRegistry(
-		map[string]*peercompat.Profile{
-			"compat": {
-				Name:                           "compat",
-				AcceptLegacyDiscoveryPublicKey: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: parsed.Hostname(), Profile: "compat"},
-		},
-	)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-
-	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
-	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
-	client.SetPeerContract(contract)
-
-	disc, err := client.Discover(context.Background(), server.URL)
-	if err != nil {
-		t.Fatalf("Discover failed: %v", err)
-	}
-	if len(disc.PublicKeys) != 1 {
-		t.Fatalf("expected legacy publicKey to normalize into one publicKeys entry, got %+v", disc.PublicKeys)
+		t.Fatalf("expected cache hit to avoid a second HTTP call, call count %d", callCount)
 	}
 }

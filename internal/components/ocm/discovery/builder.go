@@ -19,12 +19,8 @@ type BuildParams struct {
 	AdvertiseInviteWAYF bool
 
 	// AdvertiseHTTPSig adds the http-sig capability when local signing keys are
-	// published via /.well-known/jwks.json (not inline publicKeys PEM).
+	// published via /.well-known/jwks.json.
 	AdvertiseHTTPSig bool
-
-	// PublicKeys is deprecated for outbound JWKS-first advertisement; kept empty
-	// in the greenfield path so peers resolve keys from JWKS.
-	PublicKeys []PublicKey
 
 	// Receiver metadata for typed receive protocol roles.
 	WebDAVReceiveURI     string
@@ -89,12 +85,6 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 
 	if p.AdvertiseHTTPSig {
 		capabilities = append(capabilities, "http-sig")
-	}
-	if len(p.PublicKeys) > 0 {
-		disc.PublicKeys = p.PublicKeys
-		if !p.AdvertiseHTTPSig {
-			capabilities = append(capabilities, "http-sig")
-		}
 	}
 
 	if p.TokenExchangeCapable && p.TokenEndPoint != "" {

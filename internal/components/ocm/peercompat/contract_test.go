@@ -13,9 +13,8 @@ import (
 func TestNewCompiledContract_CompilesExplicitUnsignedDiscovery(t *testing.T) {
 	custom := map[string]*Profile{
 		"peer-a": {
-			Name:                           "peer-a",
-			AllowUnsignedDiscovery:         true,
-			AcceptLegacyDiscoveryPublicKey: true,
+			Name:                   "peer-a",
+			AllowUnsignedDiscovery: true,
 			TokenExchangeQuirks: []string{
 				"accept_plain_token",
 				"send_token_in_body",
@@ -36,9 +35,6 @@ func TestNewCompiledContract_CompilesExplicitUnsignedDiscovery(t *testing.T) {
 	}
 	if !profile.Signing.AllowUnsignedDiscovery {
 		t.Fatal("expected AllowUnsignedDiscovery to be compiled as explicit field")
-	}
-	if !profile.Signing.AcceptLegacyDiscoveryPublicKey {
-		t.Fatal("expected legacy discovery fallback to be compiled as explicit field")
 	}
 	if !profile.TokenExchange.AcceptPlainToken || !profile.TokenExchange.SendTokenInBody {
 		t.Fatal("expected token exchange quirks to compile into typed decisions")
@@ -89,11 +85,10 @@ func TestNewCompiledContractFromConfig_CopiesRetainedFields(t *testing.T) {
 	}
 	cfg.PeerProfiles.CustomProfiles = map[string]config.PeerProfile{
 		"compat-peer": {
-			AllowUnsignedDiscovery:         true,
-			AcceptLegacyDiscoveryPublicKey: true,
-			TokenExchangeQuirks:            []string{"accept_plain_token"},
-			TokenExchangeGrantType:         "ocm_share",
-			AllowedBasicAuthPatterns:       []string{"token:", "id:token"},
+			AllowUnsignedDiscovery:   true,
+			TokenExchangeQuirks:      []string{"accept_plain_token"},
+			TokenExchangeGrantType:   "ocm_share",
+			AllowedBasicAuthPatterns: []string{"token:", "id:token"},
 		},
 	}
 
@@ -108,9 +103,6 @@ func TestNewCompiledContractFromConfig_CopiesRetainedFields(t *testing.T) {
 	}
 	if !profile.Signing.AllowUnsignedDiscovery {
 		t.Fatal("expected AllowUnsignedDiscovery to survive config builder path")
-	}
-	if !profile.Signing.AcceptLegacyDiscoveryPublicKey {
-		t.Fatal("expected legacy discovery fallback to survive config builder path")
 	}
 	if !profile.TokenExchange.AcceptPlainToken {
 		t.Fatal("expected token exchange quirk to survive config builder path")

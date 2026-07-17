@@ -27,8 +27,7 @@ type Discovery struct {
 	Provider           string         `json:"provider,omitempty"`
 	ResourceTypes      []ResourceType `json:"resourceTypes"`
 	Capabilities       []string       `json:"capabilities,omitempty"`
-	Criteria           []string       `json:"criteria"` // Always present, serializes as [] when empty
-	PublicKeys         []PublicKey    `json:"publicKeys,omitempty"`
+	Criteria           []string       `json:"criteria"`                     // Always present, serializes as [] when empty
 	TokenEndPoint      string         `json:"tokenEndPoint,omitempty"`      // Required when exchange-token capability is advertised
 	InviteAcceptDialog string         `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
 }
@@ -37,12 +36,6 @@ type ResourceType struct {
 	Name       string    `json:"name"`
 	ShareTypes []string  `json:"shareTypes"`
 	Protocols  Protocols `json:"protocols"`
-}
-
-type PublicKey struct {
-	KeyID        string `json:"keyId"`
-	PublicKeyPem string `json:"publicKeyPem"`
-	Algorithm    string `json:"algorithm,omitempty"`
 }
 
 func (d *Discovery) HasCapability(cap string) bool {
@@ -223,15 +216,6 @@ func (d *Discovery) GetWebDAVPath() string {
 		}
 	}
 	return ""
-}
-
-func (d *Discovery) GetPublicKey(keyID string) *PublicKey {
-	for i := range d.PublicKeys {
-		if d.PublicKeys[i].KeyID == keyID {
-			return &d.PublicKeys[i]
-		}
-	}
-	return nil
 }
 
 // BuildWebDAVURL constructs the full WebDAV URL for accessing a share.

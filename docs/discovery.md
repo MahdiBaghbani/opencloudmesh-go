@@ -14,10 +14,9 @@ Built by `internal/components/ocm/discovery` and served by
 | `enabled`, `apiVersion`, `provider` | Handler and spec pin |
 | `endPoint` | Local identity + OCM mount (`EndpointBase` + `/ocm`) |
 | `tokenEndPoint` | Projected when token exchange is capable |
-| `resourceTypes[].protocols.webdav` | WebDAV route wildcard projection |
-| `capabilities` | Policy flags (invites, webdav-uri, notifications, ...). Adds `invite-wayf` when the WAYF route is active. |
+| `resourceTypes[].protocols` | Typed protocol roles (webdav path, plus receive roles when configured) |
+| `capabilities` | Policy flags (invites, protocol-object, notifications; adds `http-sig` when JWKS signing keys are published, `exchange-token` when token exchange is capable, `invite-wayf` when the WAYF route is active) |
 | `criteria` | Strictness requirements (HTTP sig, token exchange) |
-| `publicKeys` | Signing keys when configured |
 | `inviteAcceptDialog` | Derived when invite accept route is active |
 
 With `external_base_path = "/ocm"` on origin `http://fields.test`:

@@ -9,15 +9,14 @@ import "testing"
 // leakage through the gate is observable as a non-strict decision field.
 func matchedPeerProfile() *Profile {
 	return &Profile{
-		Name:                           "compat",
-		AllowUnsignedInbound:           true,
-		AllowUnsignedOutbound:          true,
-		AllowMismatchedHost:            true,
-		AllowUnsignedDiscovery:         true,
-		AcceptLegacyDiscoveryPublicKey: true,
-		TokenExchangeQuirks:            []string{"accept_plain_token", "send_token_in_body"},
-		TokenExchangeGrantType:         "ocm_share",
-		AllowedBasicAuthPatterns:       []string{"token:"},
+		Name:                     "compat",
+		AllowUnsignedInbound:     true,
+		AllowUnsignedOutbound:    true,
+		AllowMismatchedHost:      true,
+		AllowUnsignedDiscovery:   true,
+		TokenExchangeQuirks:      []string{"accept_plain_token", "send_token_in_body"},
+		TokenExchangeGrantType:   "ocm_share",
+		AllowedBasicAuthPatterns: []string{"token:"},
 	}
 }
 
@@ -36,8 +35,7 @@ func assertStrictSignatureDecision(t *testing.T, decision SignaturePeerDecision)
 		t.Fatalf("expected Profile=strict, got %q", decision.Profile)
 	}
 	if decision.AllowUnsignedInbound || decision.AllowUnsignedOutbound ||
-		decision.AllowMismatchedHost || decision.AllowUnsignedDiscovery ||
-		decision.AcceptLegacyDiscoveryPublicKey {
+		decision.AllowMismatchedHost || decision.AllowUnsignedDiscovery {
 		t.Fatalf("expected no signature relaxations on closed gate: %+v", decision)
 	}
 }
@@ -142,14 +140,6 @@ func TestGate_UnknownScopeFailsClosed(t *testing.T) {
 	assertStrictTokenDecision(t, contract.TokenExchangeDecisionForPeer("peer.example"))
 	assertStrictBasicAuthDecision(t, contract.BasicAuthDecisionForPeer("peer.example"))
 
-	legacy := contract.LegacyDiscoveryPublicKeyDecisionForPeer("peer.example")
-	if legacy.Allow {
-		t.Fatalf("expected unknown scope to reject legacy discovery: %+v", legacy)
-	}
-	if legacy.ReasonCode != "legacy_discovery_public_key_reject" {
-		t.Fatalf("unexpected reason code: %s", legacy.ReasonCode)
-	}
-
 	discovery := contract.ResolveDiscoveryFailure("peer.example")
 	if discovery.Allow {
 		t.Fatalf("expected unknown scope to reject discovery failure: %+v", discovery)
@@ -209,8 +199,7 @@ func TestGate_MatchedScopedPeerAppliesRelaxations(t *testing.T) {
 		t.Fatalf("expected Profile=compat, got %q", sig.Profile)
 	}
 	if !sig.AllowUnsignedInbound || !sig.AllowUnsignedOutbound ||
-		!sig.AllowMismatchedHost || !sig.AllowUnsignedDiscovery ||
-		!sig.AcceptLegacyDiscoveryPublicKey {
+		!sig.AllowMismatchedHost || !sig.AllowUnsignedDiscovery {
 		t.Fatalf("expected all signature relaxations applied: %+v", sig)
 	}
 

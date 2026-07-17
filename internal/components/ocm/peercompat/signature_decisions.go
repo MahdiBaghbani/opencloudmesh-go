@@ -6,29 +6,19 @@ package peercompat
 // SignaturePeerDecision captures peer-scoped compatibility decisions used by
 // signature-capability call sites.
 type SignaturePeerDecision struct {
-	PeerDomain                     string
-	Profile                        string
-	Matched                        bool
-	AllowUnsignedInbound           bool
-	AllowUnsignedOutbound          bool
-	AllowMismatchedHost            bool
-	AllowUnsignedDiscovery         bool
-	AcceptLegacyDiscoveryPublicKey bool
+	PeerDomain             string
+	Profile                string
+	Matched                bool
+	AllowUnsignedInbound   bool
+	AllowUnsignedOutbound  bool
+	AllowMismatchedHost    bool
+	AllowUnsignedDiscovery bool
 }
 
 // DiscoveryFailureDecision resolves whether discovery errors may fail open.
 // Discovery fail-open is granted only to matched peers with
 // allow_unsigned_discovery.
 type DiscoveryFailureDecision struct {
-	PeerDomain string
-	Profile    string
-	Allow      bool
-	ReasonCode string
-}
-
-// LegacyDiscoveryDecision resolves compatibility fallback for legacy discovery
-// publicKey material.
-type LegacyDiscoveryDecision struct {
 	PeerDomain string
 	Profile    string
 	Allow      bool
@@ -53,7 +43,6 @@ func (c *CompiledContract) SignatureDecisionForPeer(peerDomain string) Signature
 	decision.AllowUnsignedOutbound = matched.Profile.Signing.AllowUnsignedOutbound
 	decision.AllowMismatchedHost = matched.Profile.Signing.AllowMismatchedHost
 	decision.AllowUnsignedDiscovery = matched.Profile.Signing.AllowUnsignedDiscovery
-	decision.AcceptLegacyDiscoveryPublicKey = matched.Profile.Signing.AcceptLegacyDiscoveryPublicKey
 	return decision
 }
 
@@ -82,22 +71,5 @@ func (c *CompiledContract) ResolveDiscoveryFailure(peerDomain string) DiscoveryF
 		return decision
 	}
 
-	return decision
-}
-
-// LegacyDiscoveryPublicKeyDecisionForPeer resolves whether a peer may fall back
-// from legacy publicKey into canonical publicKeys during discovery parsing.
-func (c *CompiledContract) LegacyDiscoveryPublicKeyDecisionForPeer(peerDomain string) LegacyDiscoveryDecision {
-	peerDecision := c.SignatureDecisionForPeer(peerDomain)
-	decision := LegacyDiscoveryDecision{
-		PeerDomain: peerDecision.PeerDomain,
-		Profile:    peerDecision.Profile,
-		Allow:      false,
-		ReasonCode: "legacy_discovery_public_key_reject",
-	}
-	if peerDecision.Matched && peerDecision.AcceptLegacyDiscoveryPublicKey {
-		decision.Allow = true
-		decision.ReasonCode = "peer_accept_legacy_discovery_public_key"
-	}
 	return decision
 }

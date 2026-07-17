@@ -84,11 +84,6 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// JWKS-first advertisement: http-sig without inline publicKeys PEM.
-	if len(h.data.PublicKeys) != 0 {
-		t.Fatalf("expected no inline publicKeys, got %d", len(h.data.PublicKeys))
-	}
-
 	// http-sig capability should be present
 	found := false
 	for _, cap := range h.data.Capabilities {

@@ -81,7 +81,6 @@ func TestOutboundPolicy_Strict_AlwaysSigns(t *testing.T) {
 	disc := &discovery.Discovery{
 		Capabilities: []string{"http-sig"},
 		Criteria:     []string{},
-		PublicKeys:   []discovery.PublicKey{{KeyID: "key1"}},
 	}
 
 	kinds := []outboundsigning.EndpointKind{
@@ -148,7 +147,6 @@ func TestOutboundPolicy_CriteriaOnly_SignsWhenRequired(t *testing.T) {
 	discRequires := &discovery.Discovery{
 		Capabilities: []string{"http-sig"},
 		Criteria:     []string{"http-request-signatures"},
-		PublicKeys:   []discovery.PublicKey{{KeyID: "key1"}},
 	}
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discRequires, true)
@@ -160,7 +158,6 @@ func TestOutboundPolicy_CriteriaOnly_SignsWhenRequired(t *testing.T) {
 	discNoReq := &discovery.Discovery{
 		Capabilities: []string{"http-sig"},
 		Criteria:     []string{},
-		PublicKeys:   []discovery.PublicKey{{KeyID: "key1"}},
 	}
 
 	decision = policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discNoReq, true)
@@ -189,7 +186,7 @@ func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) 
 	}
 }
 
-func TestOutboundPolicy_CriteriaOnly_SignsWithoutDiscoveryPublicKeys(t *testing.T) {
+func TestOutboundPolicy_CriteriaOnly_SignsWhenPeerRequiresSignatures(t *testing.T) {
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode: "criteria-only",
 	}
@@ -197,15 +194,14 @@ func TestOutboundPolicy_CriteriaOnly_SignsWithoutDiscoveryPublicKeys(t *testing.
 	disc := &discovery.Discovery{
 		Capabilities: []string{"http-sig"},
 		Criteria:     []string{"http-request-signatures"},
-		PublicKeys:   []discovery.PublicKey{},
 	}
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", disc, true)
 	if !decision.ShouldSign {
-		t.Fatalf("criteria-only should sign when peer requires signatures via JWKS path: %+v", decision)
+		t.Fatalf("criteria-only should sign when the peer requires signatures: %+v", decision)
 	}
 	if decision.Error != nil {
-		t.Fatalf("empty discovery publicKeys must not block outbound signing: %v", decision.Error)
+		t.Fatalf("criteria-only signing should not error when a signer is available: %v", decision.Error)
 	}
 }
 

@@ -45,16 +45,12 @@ func newTestSigner(t *testing.T) *crypto.RFC9421Signer {
 }
 
 // httpSigDiscovery returns a discovery document that advertises the http-sig
-// capability and a public key. This is exactly the shape that used to trigger
-// the removed capability-based signing fallback when no outbound policy was set.
+// capability. This is exactly the shape that used to trigger the removed
+// capability-based signing fallback when no outbound policy was set.
 func httpSigDiscovery() *discovery.Discovery {
 	return &discovery.Discovery{
 		EndPoint:     "https://peer.example/ocm",
 		Capabilities: []string{"http-sig"},
-		PublicKeys: []discovery.PublicKey{{
-			KeyID:        "https://peer.example/ocm#key-1",
-			PublicKeyPem: "test-pem",
-		}},
 	}
 }
 

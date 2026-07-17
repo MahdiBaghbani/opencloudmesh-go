@@ -254,14 +254,6 @@ allow_unsigned_discovery = true
 			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.allow_unsigned_discovery",
 		},
 		{
-			name: "rejects accept_legacy_discovery_public_key",
-			extra: `
-[peer_profiles.custom_profiles.peer-a]
-accept_legacy_discovery_public_key = true
-`,
-			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.accept_legacy_discovery_public_key",
-		},
-		{
 			name: "rejects token_exchange_grant_type",
 			extra: `
 [peer_profiles.custom_profiles.peer-a]

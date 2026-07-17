@@ -102,11 +102,6 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 				ResourceTypes: []spec.ResourceType{{Name: "file", ShareTypes: []string{"user"}, Protocols: spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")}}},
 				Capabilities:  []string{"exchange-token", "http-sig"},
 				Criteria:      []string{"token-exchange", "http-request-signatures"},
-				PublicKeys: []spec.PublicKey{{
-					KeyID:        km.GetKeyID(),
-					PublicKeyPem: km.GetPublicKeyPEM(),
-					Algorithm:    "ed25519",
-				}},
 				TokenEndPoint: srv.URL + "/ocm/token",
 			}
 			w.Header().Set("Content-Type", "application/json")
