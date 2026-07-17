@@ -179,11 +179,8 @@ func TestValidateExactlyOneLabel(t *testing.T) {
 	t.Run("foreign_label", func(t *testing.T) {
 		header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
 		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
-		if err == nil {
-			t.Fatal("expected foreign label rejection")
-		}
-		if !strings.Contains(err.Error(), "foreign signature label") {
-			t.Fatalf("error = %v", err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
@@ -202,7 +199,42 @@ func TestValidateExactlyOneLabel(t *testing.T) {
 		header := `sig1=("@method");created=1;keyid="a#1"`
 		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
 		if err == nil {
-			t.Fatal("expected foreign label rejection")
+			t.Fatal("expected rejection when no ocm member is present")
+		}
+		if !strings.Contains(err.Error(), "ocm") {
+			t.Fatalf("error = %v, want missing ocm member", err)
 		}
 	})
+}
+
+// TestValidateExactlyOneLabel_AcceptsForeignLabelsWithOneOCM pins the target
+// v1.4 parser contract: a foreign dictionary label alongside exactly one ocm
+// member must be accepted, since only the ocm member is meaningful.
+func TestValidateExactlyOneLabel_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
+	header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
+	if err := sigparams.ValidateExactlyOneLabel(header, "ocm"); err != nil {
+		t.Fatalf("expected foreign labels alongside exactly one ocm member to be accepted, got: %v", err)
+	}
+}
+
+func TestValidateExactlyOneLabel_RejectsDuplicateOCMAlongsideForeignLabel(t *testing.T) {
+	header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1", ocm=("@method");created=3;keyid="c#1"`
+	err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+	if err == nil {
+		t.Fatal("expected duplicate ocm member rejection alongside a foreign label")
+	}
+	if !strings.Contains(err.Error(), `multiple "ocm" signatures`) {
+		t.Fatalf("error = %v, want duplicate ocm member error", err)
+	}
+}
+
+func TestValidateExactlyOneLabel_RejectsMissingOCMAmongForeignLabels(t *testing.T) {
+	header := `sig1=("@method");created=1;keyid="a#1", sig2=("@method");created=2;keyid="b#1"`
+	err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+	if err == nil {
+		t.Fatal("expected rejection when no ocm member is present among foreign labels")
+	}
+	if !strings.Contains(err.Error(), "ocm") {
+		t.Fatalf("error = %v, want missing ocm member", err)
+	}
 }

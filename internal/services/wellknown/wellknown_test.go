@@ -503,3 +503,86 @@ func TestService_APIVersionOverride_ThroughSignatureMiddleware(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://nc.example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+	signer := crypto.NewRFC9421Signer(km)
+
+	resolveInputs := nextcloudDiscoveryResolveInputs(t)
+	pd := &mockPeerDiscovery{
+		publicKeys: map[string]sigalg.ResolvedPublicKey{
+			km.GetKeyID(): resolvedKeyFromManager(km),
+		},
+	}
+	var captured *inboundsignature.PeerIdentity
+	resolveInputs.PeerIdentity = func(r *http.Request) string {
+		captured = inboundsignature.GetPeerIdentity(r.Context())
+		if captured == nil {
+			return ""
+		}
+		return captured.AuthorityForCompare
+	}
+
+	mw := signatureMiddlewareWithInboundMode(
+		t,
+		"strict",
+		resolveInputs.PeerContract,
+		pd,
+	)
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"endpoint": "https://example.com",
+			"api_version_overrides": []map[string]any{
+				{
+					"profile":             "nextcloud",
+					"user_agent_contains": "Nextcloud Server Crawler",
+					"api_version":         "1.1",
+				},
+			},
+		},
+	}
+	svc, err := New(Inputs{
+		Resolve:             resolveInputs,
+		SignatureMiddleware: mw,
+	}, m, testLogger())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"https://receiver.example.com/.well-known/ocm",
+		nil,
+	)
+	req.Host = "receiver.example.com"
+	req.Header.Set("User-Agent", "Nextcloud Server Crawler/1.0")
+	if err := signer.SignRequest(req, nil); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("signed discovery returned %d: %s", w.Code, w.Body.String())
+	}
+	if captured == nil {
+		t.Fatal("signed discovery did not populate peer identity")
+	}
+	if !captured.Authenticated {
+		t.Fatal("signed discovery peer identity is not authenticated")
+	}
+	if captured.AuthorityForCompare != "nc.example.com" {
+		t.Fatalf("AuthorityForCompare = %q, want %q", captured.AuthorityForCompare, "nc.example.com")
+	}
+
+	captured = nil
+	unsignedReq := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	unsignedW := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(unsignedW, unsignedReq)
+	if unsignedW.Code != http.StatusOK {
+		t.Fatalf("unsigned discovery returned %d: %s", unsignedW.Code, unsignedW.Body.String())
+	}
+}
