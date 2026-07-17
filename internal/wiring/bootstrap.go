@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -80,6 +81,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	if err != nil {
 		return BuildResult{}, fmt.Errorf("compile peer compatibility contract: %w", err)
 	}
+	peerOrigin := peerorigin.NewResolver(mappedPeerProfilesAllowHTTP(cfg, peerContract.Summary()))
 	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
 	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
 	runtimeEval := runtimePolicy.Evaluate()
@@ -209,7 +211,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	}
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient, rawHTTPClient)
-	peerDiscoveryAdapter.SetPeerContract(peerContract)
+	peerDiscoveryAdapter.SetPeerOrigin(peerOrigin)
 	signatureMiddleware := signature.NewSignatureMiddleware(
 		runtimePolicy,
 		peerContract,
@@ -242,6 +244,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		TrustGroupMgr:       trustGroupMgr,
 		PolicyEngine:        policyEngine,
 		PeerContract:        peerContract,
+		PeerOrigin:          peerOrigin,
 		LocalIdentity:       localIdentity,
 		Config:              cfg,
 		Cache:               cacheInstance,
@@ -254,4 +257,33 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		RuntimeEval: runtimeEval,
 		Persistence: persistence,
 	}, nil
+}
+
+// mappedPeerProfilesAllowHTTP reports whether any configured peer_profiles
+// mapping resolves to a profile with dev-mode HTTP transport enabled. This is
+// the explicit dev transport signal for peerorigin.NewResolver: peerorigin
+// itself stays a single strict-default flag with no per-peer matching, so the
+// one-time mapped-profile lookup happens here at wiring time, using the same
+// compiled contract summary policy.hasMappedProfileRelaxations already reads
+// for runtime posture. An empty mapping list (the common case outside the
+// IETF harness and any operator-configured local dev/test peers) always
+// resolves to false, so peer origin resolution stays HTTPS by default.
+func mappedPeerProfilesAllowHTTP(cfg *config.Config, summary peercompat.CompatibilitySummary) bool {
+	if len(cfg.PeerProfiles.Mappings) == 0 {
+		return false
+	}
+	summaryByName := make(map[string]peercompat.ProfileSummary, len(summary.Profiles))
+	for _, profileSummary := range summary.Profiles {
+		summaryByName[profileSummary.Name] = profileSummary
+	}
+	for _, mapping := range cfg.PeerProfiles.Mappings {
+		profileSummary, ok := summaryByName[mapping.Profile]
+		if !ok {
+			continue
+		}
+		if profileSummary.AllowHTTP {
+			return true
+		}
+	}
+	return false
 }

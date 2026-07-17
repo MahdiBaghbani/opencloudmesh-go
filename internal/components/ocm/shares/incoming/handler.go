@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
@@ -31,6 +32,7 @@ type Handler struct {
 	discoveryClient             *discovery.Client
 	canonicalPolicy             *policy.OpenCloudMeshPolicy
 	peerContract                *peercompat.CompiledContract
+	peerOrigin                  *peerorigin.Resolver
 	localProviderFQDNForCompare string
 	localScheme                 string
 	logger                      *slog.Logger
@@ -43,6 +45,7 @@ func NewHandler(
 	discoveryClient *discovery.Client,
 	canonicalPolicy *policy.OpenCloudMeshPolicy,
 	peerContract *peercompat.CompiledContract,
+	peerOrigin *peerorigin.Resolver,
 	localProviderFQDNForCompare string,
 	localScheme string,
 	logger *slog.Logger,
@@ -55,6 +58,7 @@ func NewHandler(
 		discoveryClient:             discoveryClient,
 		canonicalPolicy:             canonicalPolicy,
 		peerContract:                peerContract,
+		peerOrigin:                  peerOrigin,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 		logger:                      logger,
@@ -217,7 +221,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	// remote owner's exchange-token capability.
 	var classifiedMustExchange, classifiedSenderCapable bool
 	if h.discoveryClient != nil {
-		ownerOrigin := h.peerContract.ResolvePeerOrigin(ownerHost)
+		ownerOrigin := h.peerOrigin.Resolve(ownerHost)
 		disc, discErr := h.discoveryClient.Discover(r.Context(), ownerOrigin.BaseURL)
 		if discErr != nil {
 			if wireMustExchange || receiverRequiresExchange {

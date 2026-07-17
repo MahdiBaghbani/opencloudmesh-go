@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -50,7 +51,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 		t.Fatal("expected error for invalid grant")
 	}
 
-	var ce *peercompat.ClassifiedError
+	var ce *reason.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Errorf("expected ClassifiedError, got %T", err)
 	}
@@ -201,8 +202,8 @@ func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
 }
 
 // isClassifiedError reports whether err is a ClassifiedError and populates ce.
-func isClassifiedError(err error, ce **peercompat.ClassifiedError) bool {
-	if e, ok := err.(*peercompat.ClassifiedError); ok {
+func isClassifiedError(err error, ce **reason.ClassifiedError) bool {
+	if e, ok := err.(*reason.ClassifiedError); ok {
 		*ce = e
 		return true
 	}

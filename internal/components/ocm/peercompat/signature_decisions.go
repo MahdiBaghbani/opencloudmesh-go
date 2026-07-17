@@ -3,6 +3,11 @@
 
 package peercompat
 
+import (
+	"net/url"
+	"strings"
+)
+
 // SignaturePeerDecision captures peer-scoped compatibility decisions used by
 // signature-capability call sites.
 type SignaturePeerDecision struct {
@@ -49,11 +54,30 @@ func (c *CompiledContract) SignatureDecisionForPeer(peerDomain string) Signature
 }
 
 func signatureDecisionPeerDomain(peerInput string) string {
-	domain, inputScheme := peerDomainFromInput(peerInput)
+	domain, inputScheme := signatureDecisionParseInput(peerInput)
 	if inputScheme != "" {
 		return ""
 	}
 	return normalizeDomain(domain)
+}
+
+// signatureDecisionParseInput splits a peer input into its domain and, when
+// the input is a URL, the URL's scheme. Callers use the scheme to reject
+// URL-shaped inputs for domain-scoped signature decisions.
+func signatureDecisionParseInput(peerInput string) (string, string) {
+	input := strings.TrimSpace(peerInput)
+	if input == "" {
+		return "", ""
+	}
+
+	if strings.Contains(input, "://") {
+		parsed, err := url.Parse(input)
+		if err == nil && parsed.Host != "" {
+			return parsed.Host, strings.ToLower(parsed.Scheme)
+		}
+	}
+
+	return input, ""
 }
 
 // ResolveDiscoveryFailure decides whether discovery errors can fail open.

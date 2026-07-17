@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
@@ -96,6 +97,7 @@ func newHandlerWithDiscovery(
 		discClient,
 		canonicalPolicy,
 		newAllowHTTPPeerContract(t),
+		peerorigin.NewResolver(true),
 		"localhost:9200",
 		"https",
 		testLogger(),
@@ -548,6 +550,7 @@ func TestReceiverClassification_RemoteDiscoveryUsesPeerOriginPolicy(t *testing.T
 		discClient,
 		nil,
 		newAllowHTTPPeerContract(t),
+		peerorigin.NewResolver(true),
 		"localhost:9200",
 		"https",
 		testLogger(),
@@ -562,7 +565,7 @@ func TestReceiverClassification_RemoteDiscoveryUsesPeerOriginPolicy(t *testing.T
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201 when peer contract allows http owner discovery, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 201 when peer origin allows http owner discovery, got %d: %s", w.Code, w.Body.String())
 	}
 
 	shares, _ := repo.ListByRecipientUserID(context.Background(), "user-a-uuid")

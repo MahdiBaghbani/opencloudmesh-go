@@ -6,6 +6,7 @@ import (
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
@@ -24,6 +25,7 @@ type Inputs struct {
 	DiscoveryClient     *discovery.Client
 	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
 	PeerContract        *peercompat.CompiledContract
+	PeerOrigin          *peerorigin.Resolver
 	LocalIdentity       localidentity.Identity
 	TokenStore          token.TokenStore
 	SignatureMiddleware *inboundsignature.SignatureMiddleware

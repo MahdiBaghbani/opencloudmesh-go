@@ -17,6 +17,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
@@ -99,16 +100,16 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 	if c.outboundPolicy != nil && c.discoveryClient != nil {
 		peerBaseURL, baseErr := instanceid.NormalizePublicOrigin(req.TokenEndPoint)
 		if baseErr != nil {
-			return nil, peercompat.NewClassifiedError(
-				peercompat.ReasonDiscoveryFailed,
+			return nil, reason.NewClassifiedError(
+				reason.ReasonDiscoveryFailed,
 				"failed to derive rediscovery origin for token exchange",
 				baseErr,
 			)
 		}
 		d, discErr := c.discoveryClient.Discover(ctx, peerBaseURL)
 		if discErr != nil {
-			return nil, peercompat.NewClassifiedError(
-				peercompat.ReasonDiscoveryFailed,
+			return nil, reason.NewClassifiedError(
+				reason.ReasonDiscoveryFailed,
 				"failed to rediscover peer for token exchange",
 				discErr,
 			)
@@ -124,23 +125,23 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 			c.signer != nil,
 		)
 		if decision.Error != nil {
-			return nil, peercompat.NewClassifiedError(
-				peercompat.ReasonSignatureRequired,
+			return nil, reason.NewClassifiedError(
+				reason.ReasonSignatureRequired,
 				decision.Reason,
 				decision.Error,
 			)
 		}
 		shouldSign = decision.ShouldSign
 		if !shouldSign {
-			reasonCode := peercompat.ReasonSignatureRequired
+			reasonCode := reason.ReasonSignatureRequired
 			message := "token exchange requires signing"
 			cause := fmt.Errorf("unsigned token exchange is not supported")
 			if disc != nil && !disc.HasCapability("exchange-token") {
-				reasonCode = peercompat.ReasonPeerCapabilityMissing
+				reasonCode = reason.ReasonPeerCapabilityMissing
 				message = decision.Reason
 				cause = fmt.Errorf("peer does not advertise exchange-token capability")
 			}
-			return nil, peercompat.NewClassifiedError(reasonCode, message, cause)
+			return nil, reason.NewClassifiedError(reasonCode, message, cause)
 		}
 	}
 
@@ -155,8 +156,8 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 	grantType := tokenDecision.GrantType
 
 	if !shouldSign {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonSignatureRequired,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonSignatureRequired,
 			"token exchange requires signing",
 			fmt.Errorf("unsigned token exchange is not supported"),
 		)
@@ -168,7 +169,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 		return result, nil
 	}
 
-	reasonCode := peercompat.ClassifyError(err)
+	reasonCode := reason.ClassifyError(err)
 	encoding := encodingForm
 
 	if c.outboundPolicy != nil {
@@ -182,7 +183,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 				c.logDowngrade(req.PeerDomain, fallback, "json_body_retry")
 				return result, nil
 			}
-			reasonCode = peercompat.ClassifyError(err)
+			reasonCode = reason.ClassifyError(err)
 			encoding = encodingJSON
 			fallback = c.outboundPolicy.TokenExchangeFallbackForReason(req.PeerDomain, reasonCode)
 		}
@@ -195,11 +196,11 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 				c.logDowngrade(req.PeerDomain, fallback, "unsigned_retry")
 				return result, nil
 			}
-			reasonCode = peercompat.ClassifyError(err)
+			reasonCode = reason.ClassifyError(err)
 		}
 	}
 
-	return nil, peercompat.NewClassifiedError(reasonCode, "token exchange failed", err)
+	return nil, reason.NewClassifiedError(reasonCode, "token exchange failed", err)
 }
 
 func (c *Client) logDowngrade(peerDomain string, fallback peercompat.TokenExchangeFallbackDecision, decision string) {
@@ -238,15 +239,15 @@ func (c *Client) attemptExchange(
 
 	if sign {
 		if c.signer == nil {
-			return nil, peercompat.NewClassifiedError(
-				peercompat.ReasonSignatureRequired,
+			return nil, reason.NewClassifiedError(
+				reason.ReasonSignatureRequired,
 				"token exchange requires signing",
 				fmt.Errorf("no signer configured"),
 			)
 		}
 		if err := c.signer.Sign(httpReq); err != nil {
-			return nil, peercompat.NewClassifiedError(
-				peercompat.ReasonSignatureInvalid,
+			return nil, reason.NewClassifiedError(
+				reason.ReasonSignatureInvalid,
 				"failed to sign request",
 				err,
 			)
@@ -312,8 +313,8 @@ func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest, gran
 func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeResult, error) {
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonNetworkError,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonNetworkError,
 			"token exchange request failed",
 			err,
 		)
@@ -322,8 +323,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonNetworkError,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonNetworkError,
 			"failed to read response",
 			err,
 		)
@@ -336,14 +337,14 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		}
 		// Bare 401 after a signed attempt maps to signature_required.
 		if resp.StatusCode == http.StatusUnauthorized && req.Header.Get("Signature") != "" {
-			return nil, peercompat.NewClassifiedError(
-				peercompat.ReasonSignatureRequired,
+			return nil, reason.NewClassifiedError(
+				reason.ReasonSignatureRequired,
 				fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
 				nil,
 			)
 		}
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonTokenExchangeFailed,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenExchangeFailed,
 			fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
 			nil,
 		)
@@ -351,8 +352,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 
 	var tokenResp token.TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonTokenInvalidFormat,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
 			"failed to parse token response",
 			err,
 		)
@@ -372,16 +373,16 @@ func (c *Client) classifyOAuthError(oauthErr token.OAuthError, statusCode int) e
 	var reasonCode string
 	switch oauthErr.Error {
 	case token.ErrorInvalidGrant:
-		reasonCode = peercompat.ReasonTokenExchangeFailed
+		reasonCode = reason.ReasonTokenExchangeFailed
 	case token.ErrorInvalidClient:
-		reasonCode = peercompat.ReasonTokenExchangeFailed
+		reasonCode = reason.ReasonTokenExchangeFailed
 	case token.ErrorUnauthorized:
-		reasonCode = peercompat.ReasonSignatureRequired
+		reasonCode = reason.ReasonSignatureRequired
 	default:
-		reasonCode = peercompat.ReasonTokenExchangeFailed
+		reasonCode = reason.ReasonTokenExchangeFailed
 	}
 
-	return peercompat.NewClassifiedError(
+	return reason.NewClassifiedError(
 		reasonCode,
 		oauthErr.ErrorDescription,
 		nil,

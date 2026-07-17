@@ -23,7 +23,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
@@ -41,7 +41,7 @@ type Handler struct {
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
-	peerContract    *peercompat.CompiledContract
+	peerOrigin      *peerorigin.Resolver
 	localProvider   string // raw host[:port] for owner/sender identity
 	currentUser     func(context.Context) (*identity.User, error)
 	logger          *slog.Logger
@@ -83,10 +83,9 @@ func (h *Handler) SetAllowedPaths(paths []string) {
 	h.allowedPaths = paths
 }
 
-// SetPeerContract wires the compiled compatibility contract so receiver
-// discovery and signing decisions use the shared peer-origin resolver.
-func (h *Handler) SetPeerContract(peerContract *peercompat.CompiledContract) {
-	h.peerContract = peerContract
+// SetPeerOrigin wires the peer origin resolver used for receiver discovery.
+func (h *Handler) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
+	h.peerOrigin = peerOrigin
 }
 
 // HandleCreate handles POST /api/shares/outgoing.
@@ -335,7 +334,7 @@ func (h *Handler) sendShareToReceiver(
 		return fmt.Errorf("failed to encode payload: %w", err)
 	}
 
-	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.outboundPolicy, h.peerContract)
+	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.outboundPolicy, h.peerOrigin)
 	resp, err := poster.SendResolved(ctx, outbound.Request{
 		TargetHost:   origin.peerDomain,
 		EndpointPath: "shares",
@@ -370,7 +369,7 @@ type resolvedPeerOrigin struct {
 }
 
 func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
-	decision := h.peerContract.ResolvePeerOrigin(peerDomain)
+	decision := h.peerOrigin.Resolve(peerDomain)
 	return resolvedPeerOrigin{
 		baseURL:    decision.BaseURL,
 		peerDomain: decision.PeerDomain,

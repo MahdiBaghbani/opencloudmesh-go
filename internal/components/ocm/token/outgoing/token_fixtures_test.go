@@ -11,6 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -31,8 +32,8 @@ type mockSigner struct {
 
 func (s *mockSigner) Sign(req *http.Request) error {
 	if s.failSign {
-		return &peercompat.ClassifiedError{
-			ReasonCode: peercompat.ReasonSignatureInvalid,
+		return &reason.ClassifiedError{
+			ReasonCode: reason.ReasonSignatureInvalid,
 			Message:    "signing failed",
 		}
 	}

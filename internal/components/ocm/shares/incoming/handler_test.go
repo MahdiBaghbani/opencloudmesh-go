@@ -52,6 +52,7 @@ func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identit
 		nil, // no discovery client
 		nil, // no canonical policy
 		nil, // no peer contract
+		nil, // no peer origin resolver
 		"localhost:9200",
 		"https",
 		testLogger(),
@@ -704,6 +705,7 @@ func TestCreateShare_AcceptsMultiWithLegacyProfile(t *testing.T) {
 		nil,
 		nil,
 		newLegacyProtocolPeerContract(t),
+		nil,
 		"localhost:9200",
 		"https",
 		testLogger(),

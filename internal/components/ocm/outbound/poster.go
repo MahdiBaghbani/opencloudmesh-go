@@ -15,7 +15,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -27,24 +27,24 @@ type Poster struct {
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
-	peerContract    *peercompat.CompiledContract
+	peerOrigin      *peerorigin.Resolver
 }
 
 // NewPoster builds a Poster from the outbound dependency set. A nil peer
-// contract preserves nil-dependency origin resolution behavior.
+// origin resolver preserves nil-dependency origin resolution behavior.
 func NewPoster(
 	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
 	outboundPolicy *outboundsigning.OutboundPolicy,
-	peerContract *peercompat.CompiledContract,
+	peerOrigin *peerorigin.Resolver,
 ) *Poster {
 	return &Poster{
 		httpClient:      httpClient,
 		discoveryClient: discoveryClient,
 		signer:          signer,
 		outboundPolicy:  outboundPolicy,
-		peerContract:    peerContract,
+		peerOrigin:      peerOrigin,
 	}
 }
 
@@ -75,7 +75,7 @@ type ResolvedPeer struct {
 // signs the POST, and sends it. On success the caller owns the returned
 // response and must close its body.
 func (p *Poster) Send(ctx context.Context, req Request) (*http.Response, error) {
-	origin := p.peerContract.ResolvePeerOrigin(req.TargetHost)
+	origin := p.peerOrigin.Resolve(req.TargetHost)
 
 	disc, err := p.discoveryClient.Discover(ctx, origin.BaseURL)
 	if err != nil {

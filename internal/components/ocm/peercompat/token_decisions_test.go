@@ -3,7 +3,11 @@
 
 package peercompat
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
+)
 
 func TestTokenExchangeDecisionForPeer_MatchedProfile(t *testing.T) {
 	contract, err := NewCompiledContract(
@@ -155,7 +159,7 @@ func TestTokenExchangeFallbackForReason_AcceptPlainToken(t *testing.T) {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
 	}
 
-	fallback := contract.TokenExchangeFallbackForReason("peer.example", ReasonSignatureInvalid)
+	fallback := contract.TokenExchangeFallbackForReason("peer.example", reason.ReasonSignatureInvalid)
 	if !fallback.AllowUnsignedRetry {
 		t.Fatalf("expected unsigned retry for accept_plain_token: %+v", fallback)
 	}
@@ -163,7 +167,7 @@ func TestTokenExchangeFallbackForReason_AcceptPlainToken(t *testing.T) {
 		t.Fatalf("expected accept_plain_token quirk, got %q", fallback.Quirk)
 	}
 
-	keyMiss := contract.TokenExchangeFallbackForReason("peer.example", ReasonKeyNotFound)
+	keyMiss := contract.TokenExchangeFallbackForReason("peer.example", reason.ReasonKeyNotFound)
 	if !keyMiss.AllowUnsignedRetry {
 		t.Fatalf("expected unsigned retry for key_not_found: %+v", keyMiss)
 	}
@@ -185,7 +189,7 @@ func TestTokenExchangeFallbackForReason_SendTokenInBody(t *testing.T) {
 		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
 	}
 
-	fallback := contract.TokenExchangeFallbackForReason("peer.example", ReasonProtocolMismatch)
+	fallback := contract.TokenExchangeFallbackForReason("peer.example", reason.ReasonProtocolMismatch)
 	if !fallback.AllowJSONBodyRetry {
 		t.Fatalf("expected JSON-body retry for send_token_in_body: %+v", fallback)
 	}

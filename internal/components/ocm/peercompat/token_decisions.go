@@ -3,6 +3,8 @@
 
 package peercompat
 
+import "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
+
 // TokenExchangeDecision captures peer-scoped token-exchange compatibility
 // behavior. AcceptPlainToken, SendTokenInBody, and GrantType serve outbound
 // signing and token fallback consumers. AllowJSONTokenBody and
@@ -74,12 +76,12 @@ func (c *CompiledContract) TokenExchangeFallbackForReason(peerDomain, reasonCode
 
 	// AcceptPlainToken / SendTokenInBody stay false unless Matched is set.
 	switch reasonCode {
-	case ReasonSignatureRequired, ReasonSignatureInvalid, ReasonKeyNotFound:
+	case reason.ReasonSignatureRequired, reason.ReasonSignatureInvalid, reason.ReasonKeyNotFound:
 		if decision.AcceptPlainToken {
 			fallback.AllowUnsignedRetry = true
 			fallback.Quirk = tokenQuirkAcceptPlainToken
 		}
-	case ReasonTokenExchangeFailed, ReasonProtocolMismatch:
+	case reason.ReasonTokenExchangeFailed, reason.ReasonProtocolMismatch:
 		if decision.SendTokenInBody {
 			fallback.AllowJSONBodyRetry = true
 			fallback.Quirk = tokenQuirkSendTokenInBody

@@ -1,4 +1,4 @@
-package peercompat
+package reason
 
 import (
 	"errors"

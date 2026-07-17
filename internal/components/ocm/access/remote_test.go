@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -100,7 +101,7 @@ func TestBuildWebDAVURL_AbsoluteURIMatchingHost(t *testing.T) {
 	defer discServer.Close()
 
 	discClient, ctxClient := newTestClients(discServer.URL)
-	client := access.NewClient(ctxClient, discClient, nil, nil)
+	client := access.NewClient(ctxClient, discClient, nil, nil, nil)
 
 	share := &access.ShareInfo{
 		Status:            "accepted",
@@ -128,7 +129,7 @@ func TestBuildWebDAVURL_AbsoluteURIMismatchedHost(t *testing.T) {
 	defer discServer.Close()
 
 	discClient, ctxClient := newTestClients(discServer.URL)
-	client := access.NewClient(ctxClient, discClient, nil, nil)
+	client := access.NewClient(ctxClient, discClient, nil, nil, nil)
 
 	share := &access.ShareInfo{
 		Status:            "accepted",
@@ -155,7 +156,7 @@ func TestBuildWebDAVURL_AbsoluteURIParseError(t *testing.T) {
 	defer discServer.Close()
 
 	discClient, ctxClient := newTestClients(discServer.URL)
-	client := access.NewClient(ctxClient, discClient, nil, nil)
+	client := access.NewClient(ctxClient, discClient, nil, nil, nil)
 
 	share := &access.ShareInfo{
 		Status:            "accepted",
@@ -253,7 +254,7 @@ func TestAuthLadder_BearerSucceeds_NoBasicAttempts(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t))
+	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t), peerorigin.NewResolver(true))
 
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -291,7 +292,7 @@ func TestAuthLadder_Bearer401_BasicTokenColonSucceeds(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t))
+	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t), peerorigin.NewResolver(true))
 
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -371,7 +372,7 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 	}
 	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
 
-	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry))
+	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry), peerorigin.NewResolver(true))
 
 	senderHost := srv.Listener.Addr().String()
 
@@ -404,7 +405,7 @@ func TestAuthLadder_AllPatternsFail(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t))
+	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t), peerorigin.NewResolver(true))
 
 	_, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -435,7 +436,7 @@ func TestAuthLadder_NilPeerContract_BearerFailReturnsError(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, nil)
+	client := access.NewClient(ctxClient, discClient, nil, nil, nil)
 
 	_, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -466,7 +467,7 @@ func TestAuthLadder_ResponseBodiesClosed(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t))
+	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t), peerorigin.NewResolver(true))
 
 	_, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -558,7 +559,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		PeerContract: contract,
 	}
 	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, accessMockSigner{}, policy, "local.example.com")
-	client := access.NewClient(ctxClient, discClient, tokenClient, contract)
+	client := access.NewClient(ctxClient, discClient, tokenClient, contract, peerorigin.NewResolver(true))
 
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
@@ -645,7 +646,7 @@ func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
 	}
 	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
 
-	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry))
+	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry), peerorigin.NewResolver(true))
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
 			Status:       "accepted",

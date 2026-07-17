@@ -16,7 +16,6 @@ import (
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 )
@@ -198,8 +197,8 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonDiscoveryFailed,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonDiscoveryFailed,
 			"failed to discover sender",
 			fmt.Errorf("connection refused"),
 		)
@@ -231,8 +230,8 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonSignatureRequired,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonSignatureRequired,
 			"signature required",
 			nil,
 		)

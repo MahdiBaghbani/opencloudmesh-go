@@ -12,7 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
@@ -111,21 +111,6 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"local-http": {
-				Name:      "local-http",
-				AllowHTTP: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "*", Profile: "local-http"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
-
 	outboundCfg := &config.OutboundHTTPConfig{
 		DerivedSSRFMode:    "off",
 		MaxResponseBytes:   1 << 20,
@@ -134,7 +119,7 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 	rawClient := httpclient.New(outboundCfg, nil)
 	client := NewClient(rawClient, nil)
 	adapter := NewPeerDiscoveryAdapter(client, rawClient)
-	adapter.SetPeerContract(contract)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	keyID := km.GetKeyID()
 	parsed, err := keyid.ParseKid(keyID)
@@ -197,16 +182,6 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 	}
 	keyID = authority + "#ec1"
 
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"local-http": {Name: "local-http", AllowHTTP: true},
-		},
-		[]peercompat.ProfileMapping{{Pattern: "*", Profile: "local-http"}},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
-
 	outboundCfg := &config.OutboundHTTPConfig{
 		DerivedSSRFMode:    "off",
 		MaxResponseBytes:   1 << 20,
@@ -215,7 +190,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 	rawClient := httpclient.New(outboundCfg, nil)
 	client := NewClient(rawClient, nil)
 	adapter := NewPeerDiscoveryAdapter(client, rawClient)
-	adapter.SetPeerContract(contract)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
 	if err != nil {
@@ -253,18 +228,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Kid claims https, but AllowHTTP peer contract rewrites fetch scheme to http.
+	// Kid claims https, but the dev-mode resolver rewrites fetch scheme to http.
 	keyID = "https://" + authority + "#key1"
-
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"local-http": {Name: "local-http", AllowHTTP: true},
-		},
-		[]peercompat.ProfileMapping{{Pattern: "*", Profile: "local-http"}},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
 
 	outboundCfg := &config.OutboundHTTPConfig{
 		DerivedSSRFMode:    "off",
@@ -274,7 +239,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	rawClient := httpclient.New(outboundCfg, nil)
 	client := NewClient(rawClient, nil)
 	adapter := NewPeerDiscoveryAdapter(client, rawClient)
-	adapter.SetPeerContract(contract)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
 	if err != nil {
@@ -309,18 +274,8 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// http absolute kid while peer profile forbids HTTP.
+	// http absolute kid while the resolver has no dev-mode HTTP gate.
 	keyID := "http://" + authority + "#key1"
-
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"strict-https": {Name: "strict-https", AllowHTTP: false},
-		},
-		[]peercompat.ProfileMapping{{Pattern: "*", Profile: "strict-https"}},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
 
 	outboundCfg := &config.OutboundHTTPConfig{
 		DerivedSSRFMode:    "off",
@@ -330,7 +285,7 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 	rawClient := httpclient.New(outboundCfg, nil)
 	client := NewClient(rawClient, nil)
 	adapter := NewPeerDiscoveryAdapter(client, rawClient)
-	adapter.SetPeerContract(contract)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(false))
 
 	_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
 	if err == nil {
@@ -348,20 +303,7 @@ func padCoord(b []byte, size int) []byte {
 }
 
 func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"local-http": {
-				Name:      "local-http",
-				AllowHTTP: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "*", Profile: "local-http"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
+	peerOrigin := peerorigin.NewResolver(true)
 
 	outboundCfg := &config.OutboundHTTPConfig{
 		DerivedSSRFMode:    "off",
@@ -387,7 +329,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 		}
 
 		adapter := NewPeerDiscoveryAdapter(client, rawClient)
-		adapter.SetPeerContract(contract)
+		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
 		if err == nil {
@@ -412,7 +354,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 		}
 
 		adapter := NewPeerDiscoveryAdapter(client, rawClient)
-		adapter.SetPeerContract(contract)
+		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
 		if err == nil {
@@ -443,7 +385,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 		}
 
 		adapter := NewPeerDiscoveryAdapter(client, rawClient)
-		adapter.SetPeerContract(contract)
+		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
 		if err == nil {

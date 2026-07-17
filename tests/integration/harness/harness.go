@@ -79,12 +79,13 @@ func StartTestServerWithIETFConfig(t *testing.T, patch func(*config.Config)) *Te
 // compatibility scope) are intentionally preserved; see
 // TestApplyIETFConfigDefaults.
 //
-// localhost and 127.0.0.1 map to the built-in "dev" peer profile because
-// StartTestServerWithIETFConfig serves plain HTTP on ephemeral localhost ports.
-// Peer discovery and JWKS resolution (for example provider verification of a
-// client keyId during signed token exchange) must therefore use http:// peers.
-// Without these mappings, ResolvePeerOrigin would keep the default strict
-// profile, reject HTTP transport, and break in-process two-instance JWKS fetch.
+// StartTestServerWithIETFConfig serves plain HTTP on ephemeral localhost
+// ports because the localhost and 127.0.0.1 mappings below resolve to the
+// "dev" profile, which bootstrap uses as the global peerorigin dev-transport
+// signal (mappedPeerProfilesAllowHTTP) to enable in-process plain-HTTP peer
+// calls; the same mappings also supply the peer-compatibility decisions (for
+// example provider verification of a client keyId during signed token
+// exchange) exercised by these tests.
 func applyIETFConfigDefaults(cfg *config.Config) {
 	cfg.Signature.InboundMode = "strict"
 	cfg.Signature.OutboundMode = "strict"

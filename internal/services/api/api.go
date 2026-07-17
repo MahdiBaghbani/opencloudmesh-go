@@ -82,7 +82,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.Signer,
 		inputs.OutboundPolicy,
 	)
-	notificationClient.SetPeerContract(inputs.PeerContract)
+	notificationClient.SetPeerOrigin(inputs.PeerOrigin)
 
 	tokenClient := tokenoutgoing.NewClient(
 		inputs.HTTPClient,
@@ -96,6 +96,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.DiscoveryClient,
 		tokenClient,
 		inputs.PeerContract,
+		inputs.PeerOrigin,
 	)
 
 	inboxSharesHandler := inboxshares.NewHandler(
@@ -117,7 +118,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		currentUser,
 		log,
 	)
-	outgoingHandler.SetPeerContract(inputs.PeerContract)
+	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
 	if len(c.AllowedPaths) > 0 {
 		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
 	}
@@ -132,7 +133,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		currentUser,
 		log,
 	)
-	inboxInvitesHandler.SetPeerContract(inputs.PeerContract)
+	inboxInvitesHandler.SetPeerOrigin(inputs.PeerOrigin)
 
 	outgoingInvitesHandler := outgoinginvites.NewHandler(
 		inputs.OutgoingInviteRepo,

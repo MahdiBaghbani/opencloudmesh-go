@@ -7,6 +7,7 @@ import (
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
@@ -31,6 +32,7 @@ type Inputs struct {
 	OutboundPolicy      *outboundsigning.OutboundPolicy
 	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
 	PeerContract        *peercompat.CompiledContract
+	PeerOrigin          *peerorigin.Resolver
 	LocalIdentity       localidentity.Identity
 	Ratelimit           ratelimit.Inputs
 	InterceptorProfiles map[string]map[string]any

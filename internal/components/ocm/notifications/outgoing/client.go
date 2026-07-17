@@ -11,7 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -21,7 +21,7 @@ type Client struct {
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
-	peerContract    *peercompat.CompiledContract
+	peerOrigin      *peerorigin.Resolver
 }
 
 func NewClient(
@@ -38,10 +38,9 @@ func NewClient(
 	}
 }
 
-// SetPeerContract wires the compiled compatibility contract so discovery and
-// signing decisions use one shared peer-origin resolver.
-func (c *Client) SetPeerContract(peerContract *peercompat.CompiledContract) {
-	c.peerContract = peerContract
+// SetPeerOrigin wires the peer origin resolver used for outbound discovery.
+func (c *Client) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
+	c.peerOrigin = peerOrigin
 }
 
 func (c *Client) SendNotification(ctx context.Context, targetHost string, notification *notifications.NewNotification) error {
@@ -55,7 +54,7 @@ func (c *Client) SendNotification(ctx context.Context, targetHost string, notifi
 	if err != nil {
 		return fmt.Errorf("failed to encode notification: %w", err)
 	}
-	poster := outbound.NewPoster(c.httpClient, c.discoveryClient, c.signer, c.outboundPolicy, c.peerContract)
+	poster := outbound.NewPoster(c.httpClient, c.discoveryClient, c.signer, c.outboundPolicy, c.peerOrigin)
 	resp, err := poster.Send(ctx, outbound.Request{
 		TargetHost:   targetHost,
 		EndpointPath: "notifications",

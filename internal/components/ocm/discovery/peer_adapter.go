@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
@@ -12,9 +12,9 @@ import (
 
 // PeerDiscoveryAdapter implements inbound signature PeerDiscovery using JWKS.
 type PeerDiscoveryAdapter struct {
-	client       *Client
-	peerContract *peercompat.CompiledContract
-	jwks         *jwks.Resolver
+	client     *Client
+	peerOrigin *peerorigin.Resolver
+	jwks       *jwks.Resolver
 }
 
 func NewPeerDiscoveryAdapter(client *Client, httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
@@ -32,10 +32,10 @@ func NewPeerDiscoveryAdapter(client *Client, httpClient jwks.HTTPDoer) *PeerDisc
 	}
 }
 
-// SetPeerContract wires the compiled compatibility contract so peer discovery
-// follows the shared peer-origin resolver.
-func (p *PeerDiscoveryAdapter) SetPeerContract(peerContract *peercompat.CompiledContract) {
-	p.peerContract = peerContract
+// SetPeerOrigin wires the peer-origin resolver so peer discovery follows the
+// dev-mode HTTP transport gate.
+func (p *PeerDiscoveryAdapter) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
+	p.peerOrigin = peerOrigin
 }
 
 func (p *PeerDiscoveryAdapter) IsSigningCapable(ctx context.Context, host string) (bool, error) {
@@ -68,13 +68,13 @@ func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID
 	}
 
 	// Absolute-URI kids must pass peer absolute-URI policy before JWKS fetch.
-	if parsed.Scheme != "" && p.peerContract != nil {
-		if !p.peerContract.IsPeerAbsoluteURIAllowed(keyID, authority) {
+	if parsed.Scheme != "" && p.peerOrigin != nil {
+		if !p.peerOrigin.IsAbsoluteURIAllowed(keyID, authority) {
 			return sigalg.ResolvedPublicKey{}, fmt.Errorf("absolute keyId %q is not allowed for peer %q", keyID, authority)
 		}
 	}
 
-	// Prefer the transport scheme from ResolvePeerOrigin (AllowHTTP).
+	// Prefer the transport scheme from the resolved peer origin (AllowHTTP).
 	baseURL := p.resolvePeerBaseURL(authority)
 	if s, host, authErr := jwks.AuthorityFromBaseURL(baseURL); authErr == nil {
 		scheme = s
@@ -91,16 +91,16 @@ func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID
 }
 
 func (p *PeerDiscoveryAdapter) resolvePeerBaseURL(host string) string {
-	if p.peerContract == nil {
+	if p.peerOrigin == nil {
 		return host
 	}
-	decision := p.peerContract.ResolvePeerOrigin(host)
+	decision := p.peerOrigin.Resolve(host)
 	return decision.BaseURL
 }
 
-func (p *PeerDiscoveryAdapter) resolvePeerOrigin(host string) peercompat.PeerOriginDecision {
-	if p.peerContract == nil {
-		return peercompat.PeerOriginDecision{}
+func (p *PeerDiscoveryAdapter) resolvePeerOrigin(host string) peerorigin.Decision {
+	if p.peerOrigin == nil {
+		return peerorigin.Decision{}
 	}
-	return p.peerContract.ResolvePeerOrigin(host)
+	return p.peerOrigin.Resolve(host)
 }

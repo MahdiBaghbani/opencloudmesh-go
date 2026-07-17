@@ -16,6 +16,8 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -54,15 +56,19 @@ type Client struct {
 	discoveryClient *discovery.Client
 	tokenClient     *tokenoutgoing.Client
 	peerContract    *peercompat.CompiledContract
+	peerOrigin      *peerorigin.Resolver
 }
 
 // NewClient returns a Client; panics if discoveryClient is nil. A nil peer
-// contract preserves nil-dependency behavior and disables Basic fallback.
+// contract preserves nil-dependency behavior and disables Basic fallback. A
+// nil peer origin resolver preserves nil-dependency origin resolution
+// behavior.
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	discoveryClient *discovery.Client,
 	tokenClient *tokenoutgoing.Client,
 	peerContract *peercompat.CompiledContract,
+	peerOrigin *peerorigin.Resolver,
 ) *Client {
 	if discoveryClient == nil {
 		panic("access.NewClient: discoveryClient must not be nil")
@@ -72,6 +78,7 @@ func NewClient(
 		discoveryClient: discoveryClient,
 		tokenClient:     tokenClient,
 		peerContract:    peerContract,
+		peerOrigin:      peerOrigin,
 	}
 }
 
@@ -160,8 +167,8 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonNetworkError,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonNetworkError,
 			"WebDAV request failed",
 			err,
 		)
@@ -187,22 +194,22 @@ func (c *Client) doTokenExchange(ctx context.Context, share *ShareInfo, discover
 	origin := c.resolvePeerOrigin(discoveryHost)
 	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonDiscoveryFailed,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonDiscoveryFailed,
 			"failed to discover owner",
 			err,
 		)
 	}
 	if !disc.HasCapability("exchange-token") {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonPeerCapabilityMissing,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonPeerCapabilityMissing,
 			"owner does not advertise exchange-token capability",
 			nil,
 		)
 	}
 	if disc.TokenEndPoint == "" {
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonPeerCapabilityMissing,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonPeerCapabilityMissing,
 			"owner has no tokenEndPoint",
 			nil,
 		)
@@ -274,8 +281,8 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 
 	if result.Response.StatusCode != http.StatusOK {
 		result.Response.Body.Close()
-		return nil, peercompat.NewClassifiedError(
-			peercompat.ReasonRemoteError,
+		return nil, reason.NewClassifiedError(
+			reason.ReasonRemoteError,
 			"remote server returned error",
 			errors.New(result.Response.Status),
 		)
@@ -299,16 +306,16 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 	origin := c.resolvePeerOrigin(host)
 	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
-		return "", peercompat.NewClassifiedError(
-			peercompat.ReasonDiscoveryFailed,
+		return "", reason.NewClassifiedError(
+			reason.ReasonDiscoveryFailed,
 			"failed to discover sender",
 			err,
 		)
 	}
 	webdavURL, err := disc.BuildWebDAVURL(share.WebDAVID)
 	if err != nil {
-		return "", peercompat.NewClassifiedError(
-			peercompat.ReasonProtocolMismatch,
+		return "", reason.NewClassifiedError(
+			reason.ReasonProtocolMismatch,
 			"failed to build WebDAV URL",
 			err,
 		)
@@ -343,7 +350,7 @@ func isAbsoluteWebDAVURI(uri string) bool {
 
 // isAbsoluteURIHostValid compares absolute URI host to sender host via scheme-aware normalization.
 func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
-	return c.peerContract.IsPeerAbsoluteURIAllowed(absoluteURI, senderHost)
+	return c.peerOrigin.IsAbsoluteURIAllowed(absoluteURI, senderHost)
 }
 
 type resolvedPeerOrigin struct {
@@ -352,7 +359,7 @@ type resolvedPeerOrigin struct {
 }
 
 func (c *Client) resolvePeerOrigin(host string) resolvedPeerOrigin {
-	decision := c.peerContract.ResolvePeerOrigin(host)
+	decision := c.peerOrigin.Resolve(host)
 	return resolvedPeerOrigin{
 		baseURL:    decision.BaseURL,
 		peerDomain: decision.PeerDomain,

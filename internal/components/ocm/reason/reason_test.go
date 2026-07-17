@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 )
 
@@ -69,26 +68,26 @@ func TestReasonMappings(t *testing.T) {
 	}
 }
 
-func TestFromPeerCompat(t *testing.T) {
+func TestFromClassified(t *testing.T) {
 	tests := []struct {
 		name string
 		in   string
 		want string
 	}{
-		{name: "discovery failed", in: peercompat.ReasonDiscoveryFailed, want: reason.PeerDiscoveryFailed},
-		{name: "peer capability missing", in: peercompat.ReasonPeerCapabilityMissing, want: reason.PeerCapabilityMismatch},
-		{name: "signature required", in: peercompat.ReasonSignatureRequired, want: reason.PeerPolicyUnsatisfied},
-		{name: "signature invalid", in: peercompat.ReasonSignatureInvalid, want: reason.PeerPolicyUnsatisfied},
-		{name: "ssrf blocked", in: peercompat.ReasonSSRFBlocked, want: reason.PeerPolicyUnsatisfied},
-		{name: "network error", in: peercompat.ReasonNetworkError, want: reason.PeerUnreachable},
-		{name: "tls error", in: peercompat.ReasonTLSError, want: reason.PeerUnreachable},
-		{name: "unknown", in: peercompat.ReasonUnknown, want: reason.PeerUnreachable},
+		{name: "discovery failed", in: reason.ReasonDiscoveryFailed, want: reason.PeerDiscoveryFailed},
+		{name: "peer capability missing", in: reason.ReasonPeerCapabilityMissing, want: reason.PeerCapabilityMismatch},
+		{name: "signature required", in: reason.ReasonSignatureRequired, want: reason.PeerPolicyUnsatisfied},
+		{name: "signature invalid", in: reason.ReasonSignatureInvalid, want: reason.PeerPolicyUnsatisfied},
+		{name: "ssrf blocked", in: reason.ReasonSSRFBlocked, want: reason.PeerPolicyUnsatisfied},
+		{name: "network error", in: reason.ReasonNetworkError, want: reason.PeerUnreachable},
+		{name: "tls error", in: reason.ReasonTLSError, want: reason.PeerUnreachable},
+		{name: "unknown", in: reason.ReasonUnknown, want: reason.PeerUnreachable},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := reason.FromPeerCompat(tt.in); got != tt.want {
-				t.Fatalf("FromPeerCompat(%q)=%q, want %q", tt.in, got, tt.want)
+			if got := reason.FromClassified(tt.in); got != tt.want {
+				t.Fatalf("FromClassified(%q)=%q, want %q", tt.in, got, tt.want)
 			}
 		})
 	}
@@ -102,8 +101,8 @@ func TestCanonicalFromError(t *testing.T) {
 		}
 	})
 
-	t.Run("maps classified peercompat errors", func(t *testing.T) {
-		err := peercompat.NewClassifiedError(peercompat.ReasonSignatureRequired, "missing signature", nil)
+	t.Run("maps classified errors", func(t *testing.T) {
+		err := reason.NewClassifiedError(reason.ReasonSignatureRequired, "missing signature", nil)
 		if got := reason.CanonicalFromError(err); got != reason.PeerPolicyUnsatisfied {
 			t.Fatalf("CanonicalFromError()=%q, want %q", got, reason.PeerPolicyUnsatisfied)
 		}

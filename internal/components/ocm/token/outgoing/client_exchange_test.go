@@ -13,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
@@ -118,12 +119,12 @@ func TestClient_Exchange_RediscoveryFailureIsReturned(t *testing.T) {
 		t.Fatal("expected rediscovery failure")
 	}
 
-	var ce *peercompat.ClassifiedError
+	var ce *reason.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
-	if ce.ReasonCode != peercompat.ReasonDiscoveryFailed {
-		t.Fatalf("expected reason %q, got %q", peercompat.ReasonDiscoveryFailed, ce.ReasonCode)
+	if ce.ReasonCode != reason.ReasonDiscoveryFailed {
+		t.Fatalf("expected reason %q, got %q", reason.ReasonDiscoveryFailed, ce.ReasonCode)
 	}
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when rediscovery fails")
@@ -192,12 +193,12 @@ func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
 		t.Fatal("expected signing failure for strict peer without signer")
 	}
 
-	var ce *peercompat.ClassifiedError
+	var ce *reason.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
-	if ce.ReasonCode != peercompat.ReasonSignatureRequired {
-		t.Fatalf("expected reason %q, got %q (cause=%v err=%v)", peercompat.ReasonSignatureRequired, ce.ReasonCode, ce.Cause, err)
+	if ce.ReasonCode != reason.ReasonSignatureRequired {
+		t.Fatalf("expected reason %q, got %q (cause=%v err=%v)", reason.ReasonSignatureRequired, ce.ReasonCode, ce.Cause, err)
 	}
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when strict signing precondition fails")
@@ -250,12 +251,12 @@ func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T
 		t.Fatal("expected rediscovery failure")
 	}
 
-	var ce *peercompat.ClassifiedError
+	var ce *reason.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
-	if ce.ReasonCode != peercompat.ReasonDiscoveryFailed {
-		t.Fatalf("expected reason %q, got %q", peercompat.ReasonDiscoveryFailed, ce.ReasonCode)
+	if ce.ReasonCode != reason.ReasonDiscoveryFailed {
+		t.Fatalf("expected reason %q, got %q", reason.ReasonDiscoveryFailed, ce.ReasonCode)
 	}
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when rediscovery fails")
@@ -491,12 +492,12 @@ func TestClient_Exchange_PeerMissingExchangeTokenCapability(t *testing.T) {
 		t.Fatal("expected capability-missing failure")
 	}
 
-	var ce *peercompat.ClassifiedError
+	var ce *reason.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
-	if ce.ReasonCode != peercompat.ReasonPeerCapabilityMissing {
-		t.Fatalf("expected reason %q, got %q", peercompat.ReasonPeerCapabilityMissing, ce.ReasonCode)
+	if ce.ReasonCode != reason.ReasonPeerCapabilityMissing {
+		t.Fatalf("expected reason %q, got %q", reason.ReasonPeerCapabilityMissing, ce.ReasonCode)
 	}
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when peer lacks exchange-token capability")
