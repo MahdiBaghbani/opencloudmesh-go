@@ -6,30 +6,28 @@ import (
 )
 
 // IntegrationBuildOpts returns the wiring.BuildOpts used by StartTestServerWithConfig.
+// Crypto keys and inbound signature middleware match production posture; FastAuth,
+// SkipPeerTrust, harness outbound override, and SkipDiscoveryCache remain test
+// transport shortcuts.
 func IntegrationBuildOpts() wiring.BuildOpts {
 	return wiring.BuildOpts{
-		FastAuth:                true,
-		SkipCrypto:              true,
-		SkipPeerTrust:           true,
-		SkipSignatureMiddleware: true,
-		OutboundOverride:        config.TestHarnessOutboundHTTP(),
-		SkipDiscoveryCache:      true,
+		FastAuth:           true,
+		SkipCrypto:         false,
+		SkipPeerTrust:      true,
+		OutboundOverride:   config.TestHarnessOutboundHTTP(),
+		SkipDiscoveryCache: true,
 	}
 }
 
-// OutgoingSharePolicyBuildOpts enables outbound signing keys and policy while
-// keeping the default integration harness transport and middleware shortcuts.
+// OutgoingSharePolicyBuildOpts returns the integration harness baseline. Outbound
+// signing keys and policy are already enabled by IntegrationBuildOpts.
 func OutgoingSharePolicyBuildOpts() wiring.BuildOpts {
-	opts := IntegrationBuildOpts()
-	opts.SkipCrypto = false
-	return opts
+	return IntegrationBuildOpts()
 }
 
 // IETFIntegrationBuildOpts returns wiring.BuildOpts for HTTP signature integration
-// tests that exercise real crypto and inbound signature middleware.
+// tests. Identical to IntegrationBuildOpts after the harness converged on real
+// crypto and signature middleware.
 func IETFIntegrationBuildOpts() wiring.BuildOpts {
-	opts := IntegrationBuildOpts()
-	opts.SkipCrypto = false
-	opts.SkipSignatureMiddleware = false
-	return opts
+	return IntegrationBuildOpts()
 }

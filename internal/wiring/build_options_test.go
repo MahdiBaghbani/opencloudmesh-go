@@ -1,17 +1,17 @@
 package wiring_test
 
 import (
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
-	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func TestOptions_HarnessBootstrapSucceeds(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
@@ -23,7 +23,7 @@ func TestOptions_HarnessBootstrapSucceeds(t *testing.T) {
 }
 
 func TestOptions_ProductionBootstrapSucceeds(t *testing.T) {
-	cfg := tscfg.DevConfigNoSignatures()
+	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), wiring.BuildOpts{})
 	if err != nil {

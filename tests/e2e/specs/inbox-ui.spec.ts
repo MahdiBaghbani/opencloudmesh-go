@@ -2,7 +2,7 @@
  * Inbox UI development tests (single-server, fast feedback, seeded data).
  * Verifies inbox UI elements: data attributes, protocol details toggle,
  * verify-access error display, invite attributes.
- * Share seeded via direct POST to /ocm/shares (no two-instance overhead).
+ * Share seeded via signed POST to /ocm/shares (no two-instance overhead).
  */
 
 import { test, expect } from '@playwright/test';
@@ -12,6 +12,10 @@ import {
   stopServer,
   ServerInstance,
 } from '../harness/server';
+import {
+  localPeerShareFields,
+  postSignedIncomingShare,
+} from '../harness/signing';
 
 let binaryPath: string;
 
@@ -41,30 +45,27 @@ test.describe('Inbox UI', () => {
   }
 
   /**
-   * Seeds a test share via the server-to-server /ocm/shares endpoint.
-   * shareWith provider part must match the server's public_origin host:port.
+   * Seeds a test share via signed POST /ocm/shares using the instance key.
+   * shareWith and sender/owner providers must match public_origin host:port.
    */
   async function createTestShare(request: import('@playwright/test').APIRequestContext) {
-    const serverURL = new URL(server.baseURL);
-    const provider = serverURL.host;
+    const { provider, owner, sender } = localPeerShareFields(server);
 
-    const response = await request.post(`${server.baseURL}/ocm/shares`, {
-      headers: { 'Content-Type': 'application/json' },
-      data: {
-        shareWith: `admin@${provider}`,
-        name: 'ui-test-file.txt',
-        providerId: `ui-test-provider-${Date.now()}`,
-        owner: 'testowner@fake-sender.example.com',
-        sender: 'testsender@fake-sender.example.com',
-        shareType: 'user',
-        resourceType: 'file',
-        protocol: {
-          name: 'webdav',
-          webdav: {
-            uri: 'ui-test-webdav-id',
-            sharedSecret: 'test-secret-123',
-            permissions: ['read'],
-          },
+    const response = await postSignedIncomingShare(request, server, {
+      shareWith: `admin@${provider}`,
+      name: 'ui-test-file.txt',
+      providerId: `ui-test-provider-${Date.now()}`,
+      owner,
+      sender,
+      shareType: 'user',
+      resourceType: 'file',
+      protocol: {
+        name: 'webdav',
+        webdav: {
+          uri: 'ui-test-webdav-id',
+          sharedSecret: 'test-secret-123',
+          permissions: ['read'],
+          requirements: ['must-exchange-token'],
         },
       },
     });
@@ -167,7 +168,7 @@ test.describe('Inbox UI', () => {
   test('invite data-test-invite-sender on accepted invite', async ({ page }) => {
     // Create invite on this server, import and accept on the same server.
     // Acceptance triggers a self-referential /ocm/invite-accepted call which
-    // works in dev mode (SSRF off, same TLS CA).
+    // works with scoped transport (SSRF off, same TLS CA) and instance signing.
     // Uses page.request (not the standalone request fixture) so session cookies
     // are shared with the logged-in page context.
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
@@ -16,9 +16,11 @@ import (
 
 func TestCryptoSkip_GatesDeps(t *testing.T) {
 	t.Run("SkipCrypto=true produces nil crypto deps", func(t *testing.T) {
-		cfg := tscfg.DevConfigHarness()
+		cfg := config.DevConfig()
 
-		result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
+		opts := harnessBuildOpts()
+		opts.SkipCrypto = true
+		result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
@@ -34,29 +36,8 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 		}
 	})
 
-	t.Run("SkipCrypto=false with signature modes off produces non-nil OutboundPolicy", func(t *testing.T) {
-		cfg := tscfg.DevConfigNoSignatures()
-
-		opts := harnessBuildOpts()
-		opts.SkipCrypto = false
-		result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
-		if err != nil {
-			t.Fatalf("bootstrap failed: %v", err)
-		}
-		d := result.Deps
-		if d.KeyManager != nil {
-			t.Error("KeyManager must be nil when both signature modes are off")
-		}
-		if d.Signer != nil {
-			t.Error("Signer must be nil when KeyManager is nil")
-		}
-		if d.OutboundPolicy == nil {
-			t.Error("OutboundPolicy must be non-nil when SkipCrypto=false")
-		}
-	})
-
 	t.Run("SkipCrypto=false with signature modes on produces non-nil Signer", func(t *testing.T) {
-		cfg := tscfg.DevConfigHarness()
+		cfg := config.DevConfig()
 
 		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
@@ -75,7 +56,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 }
 
 func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	cfg.Signature.Label = "wiredlabel"
 
 	opts := harnessBuildOpts()
@@ -107,7 +88,7 @@ func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
 }
 
 func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), toBuildOpts(tswiring.IETFWireOptions))
 	if err != nil {

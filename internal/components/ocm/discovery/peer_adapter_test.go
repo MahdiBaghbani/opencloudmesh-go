@@ -49,11 +49,11 @@ func TestPeerDiscoveryAdapter_IsSigningCapableFollowsCriteria(t *testing.T) {
 			var srv *httptest.Server
 			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
-				case "/.well-known/ocm", "/ocm-provider":
+				case "/.well-known/ocm":
 					w.Header().Set("Content-Type", "application/json")
 					_ = json.NewEncoder(w).Encode(Discovery{
 						Enabled:      true,
-						APIVersion:   "1.2.2",
+						APIVersion:   "1.4.0",
 						EndPoint:     srv.URL + "/ocm",
 						Capabilities: []string{"http-sig"},
 						Criteria:     tt.criteria,
@@ -93,11 +93,11 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		case jwks.WellKnownPath:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(km.JWKS())
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
 			})
 		default:
@@ -178,11 +178,11 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
 			}}})
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
 			})
 		default:

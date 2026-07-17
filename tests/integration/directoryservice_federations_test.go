@@ -185,13 +185,13 @@ func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 	t.Helper()
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/.well-known/ocm" && r.URL.Path != "/ocm-provider" {
+		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"enabled":            true,
-			"apiVersion":         "1.2.2",
+			"apiVersion":         "1.4.0",
 			"endPoint":           srv.URL + "/ocm",
 			"inviteAcceptDialog": "/apps/ocm/invite-accept",
 			"resourceTypes":      []any{},
@@ -204,7 +204,7 @@ func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 func startBrokenOCMPeer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/.well-known/ocm" || r.URL.Path == "/ocm-provider" {
+		if r.URL.Path == "/.well-known/ocm" {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}

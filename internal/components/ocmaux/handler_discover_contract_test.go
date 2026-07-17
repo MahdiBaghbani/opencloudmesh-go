@@ -58,7 +58,7 @@ func TestHandleDiscover_Success(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
+				"apiVersion":         "1.4.0",
 				"endPoint":           "https://example.com/ocm",
 				"provider":           "TestProvider",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
@@ -112,7 +112,7 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
+				"apiVersion":         "1.4.0",
 				"endPoint":           "https://remote.example.com/ocm",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
 				"resourceTypes":      []any{},

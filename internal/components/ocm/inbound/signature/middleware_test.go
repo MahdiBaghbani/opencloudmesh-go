@@ -30,51 +30,6 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
-func TestSignatureMiddleware_OffMode(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "off"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-
-	handler := mw.VerifyOCMRequest(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("off mode should pass all requests, got status %d", w.Code)
-	}
-}
-
-func TestSignatureMiddleware_OffMode_RequireSignatureRejectsUnsigned(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "off"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-
-	handler := mw.VerifyOCMRequestRequireSignature(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("handler should not run when off+requireSignature and unsigned")
-	}))
-
-	req := httptest.NewRequest("POST", "/ocm/notifications", bytes.NewBufferString(`{"providerId":"abc"}`))
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("off mode must still enforce requireSignature, got status %d", w.Code)
-	}
-	if !strings.Contains(w.Body.String(), "signature required") {
-		t.Errorf("body = %q, want signature required", w.Body.String())
-	}
-}
-
 func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -93,27 +48,6 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("strict mode should reject unsigned requests, got status %d", w.Code)
-	}
-}
-
-func TestSignatureMiddleware_LenientMode_RequireSignatureRejectsUnsigned(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-
-	handler := mw.VerifyOCMRequestRequireSignature(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest("POST", "/ocm/notifications", bytes.NewBufferString(`{"providerId":"abc"}`))
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("lenient require-signature mode should reject unsigned requests, got status %d", w.Code)
 	}
 }
 
@@ -163,68 +97,6 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("strict mode should accept signed requests, got status %d, body: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestSignatureMiddleware_LenientMode_AcceptsUnsignedFromNonCapable(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	// Peer is NOT signing-capable
-	pd := &mockPeerDiscovery{
-		signingCapable: map[string]bool{"sender.example.com": false},
-	}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-
-	// Peer resolver returns the sender host from request body
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
-		return "sender.example.com", nil
-	}
-
-	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	body := []byte(`{"sender":"user@sender.example.com"}`)
-	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("lenient mode should accept unsigned from non-capable peer, got status %d", w.Code)
-	}
-}
-
-func TestSignatureMiddleware_LenientMode_RejectsUnsignedFromCapable(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	// Peer IS signing-capable
-	pd := &mockPeerDiscovery{
-		signingCapable: map[string]bool{"sender.example.com": true},
-	}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-
-	// Peer resolver returns the sender host
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
-		return "sender.example.com", nil
-	}
-
-	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	body := []byte(`{"sender":"user@sender.example.com"}`)
-	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("lenient mode should reject unsigned from signing-capable peer, got status %d", w.Code)
 	}
 }
 
@@ -329,15 +201,28 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 // "sender.example.com" authority. If the scheme were forced to "https", :443
 // would be stripped, changing the unverified peer's AuthorityForCompare.
 func TestSignatureMiddleware_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	// Non-capable peer so the unsigned request takes the unverified-peer path.
 	pd := &mockPeerDiscovery{
-		signingCapable: map[string]bool{"sender.example.com:443": false},
+		signingCapable: map[string]bool{"sender.example.com:443": true},
+	}
+	contract, err := peercompat.NewCompiledContract(
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                 "compat",
+				AllowUnsignedInbound: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "sender.example.com", Profile: "compat"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract: %v", err)
 	}
 
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "", logger)
+	mw := newTestSignatureMiddleware(cfg, contract, pd, "", logger)
 
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
 		return "sender.example.com:443", nil
@@ -879,7 +764,7 @@ func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSign
 }
 
 func TestSignatureMiddleware_DeclaredPeerResolverError_FailClosed(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
@@ -901,7 +786,7 @@ func TestSignatureMiddleware_DeclaredPeerResolverError_FailClosed(t *testing.T) 
 }
 
 func TestSignatureMiddleware_DeclaredPeerResolverEmpty_FailClosed(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
@@ -1113,11 +998,11 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
 			}}})
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"enabled":      true,
-				"apiVersion":   "1.2.2",
+				"apiVersion":   "1.4.0",
 				"endPoint":     srv.URL + "/ocm",
 				"capabilities": []string{"http-sig"},
 				"criteria":     []string{"must-use-http-sig"},
@@ -1275,179 +1160,6 @@ func TestSignatureMiddleware_IfPresent_StrictMode_AcceptsSigned(t *testing.T) {
 
 func TestSignatureMiddleware_IfPresent_RejectsInvalidSignature(t *testing.T) {
 	cfg := &config.SignatureConfig{InboundMode: "strict"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("handler should not run for invalid signature")
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri");created=1;keyid="https://nc.example.com#main-key"`)
-	req.Header.Set("Signature", "ocm=:invalid:")
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for invalid signature, got %d", w.Code)
-	}
-}
-
-func TestSignatureMiddleware_IfPresent_OffMode_AllowsUnsigned(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "off"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if sig.GetPeerIdentity(r.Context()) != nil {
-			t.Error("expected no peer identity for unsigned discovery request")
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for unsigned discovery request, got %d", w.Code)
-	}
-}
-
-func TestSignatureMiddleware_IfPresent_OffMode_AcceptsSigned(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://nc.example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	signer := crypto.NewRFC9421Signer(km)
-
-	cfg := &config.SignatureConfig{InboundMode: "off"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{
-		publicKeys: map[string]sigalg.ResolvedPublicKey{
-			km.GetKeyID(): resolvedKeyFromManager(km),
-		},
-	}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pi := sig.GetPeerIdentity(r.Context())
-		if pi == nil || !pi.Authenticated {
-			t.Fatal("expected authenticated peer identity")
-		}
-		if pi.AuthorityForCompare != "nc.example.com" {
-			t.Fatalf("AuthorityForCompare = %q, want nc.example.com", pi.AuthorityForCompare)
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "https://receiver.example.com/.well-known/ocm", nil)
-	req.Host = "receiver.example.com"
-	if err := signer.SignRequest(req, nil); err != nil {
-		t.Fatalf("SignRequest: %v", err)
-	}
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for signed discovery request, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestSignatureMiddleware_IfPresent_OffMode_RejectsInvalidSignature(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "off"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("handler should not run for invalid signature")
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri");created=1;keyid="https://nc.example.com#main-key"`)
-	req.Header.Set("Signature", "ocm=:invalid:")
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for invalid signature, got %d", w.Code)
-	}
-}
-
-func TestSignatureMiddleware_IfPresent_LenientMode_AllowsUnsigned(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if sig.GetPeerIdentity(r.Context()) != nil {
-			t.Error("expected no peer identity for unsigned discovery request")
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for unsigned discovery request, got %d", w.Code)
-	}
-}
-
-func TestSignatureMiddleware_IfPresent_LenientMode_AcceptsSigned(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://nc.example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	signer := crypto.NewRFC9421Signer(km)
-
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{
-		publicKeys: map[string]sigalg.ResolvedPublicKey{
-			km.GetKeyID(): resolvedKeyFromManager(km),
-		},
-	}
-
-	mw := newTestSignatureMiddleware(cfg, nil, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pi := sig.GetPeerIdentity(r.Context())
-		if pi == nil || !pi.Authenticated {
-			t.Fatal("expected authenticated peer identity")
-		}
-		if pi.AuthorityForCompare != "nc.example.com" {
-			t.Fatalf("AuthorityForCompare = %q, want nc.example.com", pi.AuthorityForCompare)
-		}
-		if pi.KeyID != km.GetKeyID() {
-			t.Fatalf("KeyID = %q, want %q", pi.KeyID, km.GetKeyID())
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "https://receiver.example.com/.well-known/ocm", nil)
-	req.Host = "receiver.example.com"
-	if err := signer.SignRequest(req, nil); err != nil {
-		t.Fatalf("SignRequest: %v", err)
-	}
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for signed discovery request, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestSignatureMiddleware_IfPresent_LenientMode_RejectsInvalidSignature(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 

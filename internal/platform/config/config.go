@@ -262,10 +262,10 @@ type BootstrapAdminConfig struct {
 
 // SignatureConfig holds HTTP signature settings.
 type SignatureConfig struct {
-	// InboundMode controls inbound signature enforcement: strict, lenient, off
+	// InboundMode controls inbound signature enforcement (strict only).
 	InboundMode string `toml:"inbound_mode"`
 
-	// OutboundMode controls outbound signing: strict, criteria-only, token-only, off
+	// OutboundMode controls outbound signing (strict only).
 	OutboundMode string `toml:"outbound_mode"`
 
 	// PeerProfileLevelOverride controls when peer profile relaxations apply:

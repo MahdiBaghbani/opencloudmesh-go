@@ -424,18 +424,6 @@ func TestService_APIVersionOverride_ThroughSignatureMiddleware(t *testing.T) {
 		unsignedAPIVersion string
 	}{
 		{
-			name:               "off",
-			inboundMode:        "off",
-			signedAPIVersion:   "1.1",
-			unsignedAPIVersion: "1.4.0",
-		},
-		{
-			name:               "lenient",
-			inboundMode:        "lenient",
-			signedAPIVersion:   "1.1",
-			unsignedAPIVersion: "1.4.0",
-		},
-		{
 			name:               "strict",
 			inboundMode:        "strict",
 			signedAPIVersion:   "1.1",

@@ -373,7 +373,8 @@ func extraDefinesPublicOrigin(extra string) bool {
 // generateTOMLConfig creates a TOML config for a test server.
 // Uses the Reva-aligned TOML shape. The mode preset (dev/compat/strict)
 // drives defaults via config.Load(), including token exchange settings.
-// When keepSigDefaults is false, signature mode is forced off for test simplicity.
+// When keepSigDefaults is false, the generated config writes an explicit
+// [signature] block with inbound_mode and outbound_mode set to strict.
 // When true, the [signature] block is omitted so the mode preset's defaults apply.
 //
 // For strict/scoped-like configurations (CompatibilityScope "none" or "scoped"),
@@ -422,6 +423,13 @@ listen_addr = ":%d"
 
 	if compatibilityScope != "" {
 		config += fmt.Sprintf("compatibility_scope = %q\n\n", compatibilityScope)
+	}
+
+	// Root-level ExtraConfig keys must appear before any [table]. Appending
+	// them after [outbound_http] would bind them to that table in TOML.
+	rootExtra, tableExtra := splitExtraConfigRootKeys(extra)
+	if rootExtra != "" {
+		config += rootExtra + "\n"
 	}
 
 	// Emit the preset-derived [tls] block unless the test supplies its own [tls]
@@ -487,16 +495,58 @@ insecure_skip_verify = true
 	if !keepSigDefaults {
 		config += `
 [signature]
-inbound_mode = "off"
-outbound_mode = "off"
+inbound_mode = "strict"
+outbound_mode = "strict"
 `
 	}
 
-	if extra != "" {
-		config += "\n# Extra config appended by test\n" + extra
+	if tableExtra != "" {
+		config += "\n# Extra config appended by test\n" + tableExtra
 	}
 
 	return config
+}
+
+// splitExtraConfigRootKeys separates leading root key/value lines from table
+// overrides in ExtraConfig. Comments and blank lines before the first [table]
+// stay with the root block.
+func splitExtraConfigRootKeys(extra string) (root string, tables string) {
+	extra = strings.TrimSpace(extra)
+	if extra == "" {
+		return "", ""
+	}
+
+	lines := strings.Split(extra, "\n")
+	rootLines := make([]string, 0, len(lines))
+	tableStart := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			rootLines = append(rootLines, line)
+			continue
+		}
+		if strings.HasPrefix(trimmed, "[") {
+			tableStart = i
+			break
+		}
+		rootLines = append(rootLines, line)
+	}
+
+	if tableStart < 0 {
+		return strings.TrimSpace(strings.Join(rootLines, "\n")), ""
+	}
+
+	// Drop trailing blank/comment-only padding from the root block.
+	for len(rootLines) > 0 {
+		trimmed := strings.TrimSpace(rootLines[len(rootLines)-1])
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			rootLines = rootLines[:len(rootLines)-1]
+			continue
+		}
+		break
+	}
+
+	return strings.TrimSpace(strings.Join(rootLines, "\n")), strings.TrimSpace(strings.Join(lines[tableStart:], "\n"))
 }
 
 // newInsecureHTTPSClient returns an http.Client that skips TLS verification.

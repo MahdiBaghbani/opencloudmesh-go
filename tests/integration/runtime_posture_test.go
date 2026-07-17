@@ -59,8 +59,8 @@ outbound_mode = "criteria-only"
 	}
 
 	outputText := string(output)
-	if !strings.Contains(outputText, "compatibility_scope=none requires signature.outbound_mode=strict") {
-		t.Fatalf("expected strict contradiction error in output, got: %s", outputText)
+	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
+		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
 	}
 }
 
@@ -108,8 +108,8 @@ outbound_mode = "token-only"
 	}
 
 	outputText := string(output)
-	if !strings.Contains(outputText, "compatibility_scope=none requires signature.outbound_mode=strict") {
-		t.Fatalf("expected strict token-only error in output, got: %s", outputText)
+	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
+		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
 	}
 }
 
@@ -143,8 +143,8 @@ max_response_bytes = 1048576
 insecure_skip_verify = true
 
 [signature]
-inbound_mode = "off"
-outbound_mode = "off"
+inbound_mode = "strict"
+outbound_mode = "strict"
 advertise_http_request_signatures = true
 `
 	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
@@ -273,9 +273,8 @@ global_enforce = false
 }
 
 // TestCompatModeTokenOnlyRejectedAtStartup verifies that compat mode rejects
-// signature.outbound_mode=token-only at startup. Scoped compatibility requires
-// strict outbound signing at the top level; token-only relaxation must come
-// from an explicit matched peer_profiles mapping.
+// retired signature.outbound_mode=token-only at startup (strict is the sole
+// loadable outbound value).
 func TestCompatModeTokenOnlyRejectedAtStartup(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -317,8 +316,8 @@ outbound_mode = "token-only"
 	}
 
 	outputText := string(output)
-	if !strings.Contains(outputText, "compatibility_scope=scoped requires signature.outbound_mode=strict") {
-		t.Fatalf("expected scoped token-only rejection error in output, got: %s", outputText)
+	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
+		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
 	}
 }
 
@@ -450,8 +449,8 @@ outbound_mode = "token-only"
 	}
 
 	outputText := string(output)
-	if !strings.Contains(outputText, "compatibility_scope=scoped requires signature.outbound_mode=strict") {
-		t.Fatalf("expected scoped token-only error in output, got: %s", outputText)
+	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
+		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
 	}
 }
 

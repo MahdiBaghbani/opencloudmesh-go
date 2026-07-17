@@ -38,8 +38,8 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
-	cfg.Signature.InboundMode = "off"
-	cfg.Signature.OutboundMode = "off"
+	cfg.Signature.InboundMode = "strict"
+	cfg.Signature.OutboundMode = "strict"
 	// DevConfig defaults RequireTokenExchange to true, which populates
 	// must-exchange-token and would make the empty-criteria assertion fail for
 	// an unrelated reason, so this test disables it to isolate base-path field
@@ -79,8 +79,8 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	if !ok || path != "/webdav/ocm/" {
 		t.Errorf("webdav protocol = %q, ok=%v", path, ok)
 	}
-	if len(disc.Criteria) != 0 {
-		t.Errorf("criteria = %v, want empty", disc.Criteria)
+	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+		t.Errorf("criteria = %v, want must-use-http-sig under strict inbound", disc.Criteria)
 	}
 }
 
@@ -88,8 +88,8 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = "/ocm"
-	cfg.Signature.InboundMode = "off"
-	cfg.Signature.OutboundMode = "off"
+	cfg.Signature.InboundMode = "strict"
+	cfg.Signature.OutboundMode = "strict"
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
@@ -123,8 +123,8 @@ func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
-	cfg.Signature.InboundMode = "off"
-	cfg.Signature.OutboundMode = "off"
+	cfg.Signature.InboundMode = "strict"
+	cfg.Signature.OutboundMode = "strict"
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)

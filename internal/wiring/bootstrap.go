@@ -44,9 +44,6 @@ type BuildOpts struct {
 	// regardless of cfg.PeerTrust.Enabled.
 	SkipPeerTrust bool
 
-	// SkipSignatureMiddleware disables SignatureMiddleware construction.
-	SkipSignatureMiddleware bool
-
 	// OutboundOverride replaces cfg.OutboundHTTP when non-nil.
 	OutboundOverride *config.OutboundHTTPConfig
 
@@ -104,24 +101,21 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	var keyManager *crypto.KeyManager
 	if !opts.SkipCrypto {
-		needsKeys := cfg.Signature.InboundMode != "off" || cfg.Signature.OutboundMode != "off"
-		if needsKeys {
-			keyDir := filepath.Dir(cfg.Signature.KeyPath)
-			if keyDir != "" && keyDir != "." {
-				if err := os.MkdirAll(keyDir, 0700); err != nil {
-					return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
-				}
+		keyDir := filepath.Dir(cfg.Signature.KeyPath)
+		if keyDir != "" && keyDir != "." {
+			if err := os.MkdirAll(keyDir, 0700); err != nil {
+				return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
 			}
-			keyManager = crypto.NewKeyManagerWithFragment(
-				cfg.Signature.KeyPath,
-				localIdentity.Origin,
-				cfg.Signature.KidFragment,
-			)
-			if err := keyManager.LoadOrGenerate(); err != nil {
-				return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
-			}
-			logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
 		}
+		keyManager = crypto.NewKeyManagerWithFragment(
+			cfg.Signature.KeyPath,
+			localIdentity.Origin,
+			cfg.Signature.KidFragment,
+		)
+		if err := keyManager.LoadOrGenerate(); err != nil {
+			return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
+		}
+		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
 	}
 
 	outboundCfg := &cfg.OutboundHTTP
@@ -214,19 +208,16 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		)
 	}
 
-	var signatureMiddleware *signature.SignatureMiddleware
-	if !opts.SkipSignatureMiddleware {
-		peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient, rawHTTPClient)
-		peerDiscoveryAdapter.SetPeerContract(peerContract)
-		signatureMiddleware = signature.NewSignatureMiddleware(
-			runtimePolicy,
-			peerContract,
-			peerDiscoveryAdapter,
-			localIdentity.Origin,
-			cfg.Signature,
-			logger,
-		)
-	}
+	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient, rawHTTPClient)
+	peerDiscoveryAdapter.SetPeerContract(peerContract)
+	signatureMiddleware := signature.NewSignatureMiddleware(
+		runtimePolicy,
+		peerContract,
+		peerDiscoveryAdapter,
+		localIdentity.Origin,
+		cfg.Signature,
+		logger,
+	)
 
 	tokenStore := token.NewMemoryTokenStore()
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)

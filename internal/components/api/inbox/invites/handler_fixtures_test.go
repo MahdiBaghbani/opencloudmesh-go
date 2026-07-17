@@ -100,11 +100,11 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(discovery.Discovery{
 				Enabled:      true,
-				APIVersion:   "1.2.2",
+				APIVersion:   "1.4.0",
 				EndPoint:     srv.URL + "/ocm",
 				Capabilities: []string{"exchange-token"},
 			})

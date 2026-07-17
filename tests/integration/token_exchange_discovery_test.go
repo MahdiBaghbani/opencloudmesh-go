@@ -139,8 +139,8 @@ mode = "off"
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			t.Fatalf("failed to decode error: %v", err)
 		}
-		if errResp.Error != "invalid_grant" {
-			t.Errorf("expected error=invalid_grant, got %q", errResp.Error)
+		if errResp.Error != "unsupported_grant_type" {
+			t.Errorf("expected error=unsupported_grant_type, got %q", errResp.Error)
 		}
 	})
 }

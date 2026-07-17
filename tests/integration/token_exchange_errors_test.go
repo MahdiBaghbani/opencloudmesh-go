@@ -14,7 +14,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-// TestTokenExchangeErrorResponses tests OAuth-style error responses from token endpoint.
+// TestTokenExchangeErrorResponses tests OAuth-style error responses from the
+// token endpoint under real strict inbound signature posture. Requests are
+// signed by a peer that advertises JWKS so middleware verification succeeds
+// before handler validation runs.
 func TestTokenExchangeErrorResponses(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -28,53 +31,83 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 	})
 	defer srv.Stop(t)
 
+	peer := startStrictCodeFlowReceiver(t)
+	defer peer.Close()
+
 	tests := []struct {
 		name           string
 		data           url.Values
 		expectedError  string
 		expectedStatus int
+		// middlewarePlain rejects before the OAuth handler (no JSON body).
+		middlewarePlain string
 	}{
 		{
 			name:           "MissingGrantType",
-			data:           url.Values{"client_id": {"test"}, "code": {"test"}},
+			data:           url.Values{"client_id": {peer.peerDomain}, "code": {"test"}},
 			expectedError:  "invalid_request",
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:           "MissingClientID",
-			data:           url.Values{"grant_type": {"ocm_share"}, "code": {"test"}},
-			expectedError:  "invalid_request",
-			expectedStatus: http.StatusBadRequest,
+			name:            "MissingClientID",
+			data:            url.Values{"grant_type": {"authorization_code"}, "code": {"test"}},
+			expectedStatus:  http.StatusBadRequest,
+			middlewarePlain: "invalid declared peer",
 		},
 		{
 			name:           "MissingCode",
-			data:           url.Values{"grant_type": {"ocm_share"}, "client_id": {"test"}},
+			data:           url.Values{"grant_type": {"authorization_code"}, "client_id": {peer.peerDomain}},
 			expectedError:  "invalid_request",
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:           "WrongGrantType",
-			data:           url.Values{"grant_type": {"password"}, "client_id": {"test"}, "code": {"test"}},
-			expectedError:  "invalid_grant",
+			name: "WrongGrantType",
+			data: url.Values{
+				"grant_type": {"password"},
+				"client_id":  {peer.peerDomain},
+				"code":       {"test"},
+			},
+			expectedError:  "unsupported_grant_type",
 			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := http.Post(
+			body := tt.data.Encode()
+			req, err := http.NewRequest(
+				http.MethodPost,
 				srv.BaseURL+"/ocm/token",
-				"application/x-www-form-urlencoded",
-				strings.NewReader(tt.data.Encode()),
+				strings.NewReader(body),
 			)
+			if err != nil {
+				t.Fatalf("failed to build token request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := peer.signer.Sign(req); err != nil {
+				t.Fatalf("failed to sign token request: %v", err)
+			}
+
+			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatalf("failed to call token endpoint: %v", err)
 			}
 			defer resp.Body.Close()
 
 			if resp.StatusCode != tt.expectedStatus {
-				body, _ := io.ReadAll(resp.Body)
-				t.Fatalf("expected status %d, got %d: %s", tt.expectedStatus, resp.StatusCode, body)
+				respBody, _ := io.ReadAll(resp.Body)
+				t.Fatalf("expected status %d, got %d: %s", tt.expectedStatus, resp.StatusCode, respBody)
+			}
+
+			if tt.middlewarePlain != "" {
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("failed to read middleware body: %v", err)
+				}
+				if got := strings.TrimSpace(string(respBody)); got != tt.middlewarePlain {
+					t.Fatalf("expected middleware body %q, got %q", tt.middlewarePlain, got)
+				}
+				return
 			}
 
 			var errResp struct {

@@ -86,7 +86,7 @@ func TestClientDiscover_NormalizesRelativeInviteAcceptDialog(t *testing.T) {
 		}
 		raw := map[string]any{
 			"enabled":            true,
-			"apiVersion":         "1.2.2",
+			"apiVersion":         "1.4.0",
 			"endPoint":           "https://peer.example.com/ocm",
 			"resourceTypes":      []any{},
 			"criteria":           []any{},
@@ -119,7 +119,7 @@ func TestClientDiscover_NormalizesRelativeInviteAcceptDialogWithoutEndPoint(t *t
 		}
 		raw := map[string]any{
 			"enabled":            true,
-			"apiVersion":         "1.2.2",
+			"apiVersion":         "1.4.0",
 			"resourceTypes":      []any{},
 			"criteria":           []any{},
 			"inviteAcceptDialog": "apps/ocm/invite-accept",
@@ -152,7 +152,7 @@ func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginB
 	baseURL := server.URL + "/tenant/instance"
 	raw := map[string]any{
 		"enabled":            true,
-		"apiVersion":         "1.2.2",
+		"apiVersion":         "1.4.0",
 		"resourceTypes":      []any{},
 		"criteria":           []any{},
 		"inviteAcceptDialog": "apps/ocm/invite-accept",
@@ -190,7 +190,7 @@ func TestClientDiscover_PreservesAbsoluteInviteAcceptDialog(t *testing.T) {
 		}
 		raw := map[string]any{
 			"enabled":            true,
-			"apiVersion":         "1.2.2",
+			"apiVersion":         "1.4.0",
 			"endPoint":           "https://peer.example.com/ocm",
 			"resourceTypes":      []any{},
 			"criteria":           []any{},
@@ -220,9 +220,10 @@ func TestClientDiscover_NoLegacyFallback(t *testing.T) {
 		case "/.well-known/ocm":
 			http.NotFound(w, r)
 		case "/ocm-provider":
+			// Remote peer still serving legacy /ocm-provider; client must not fall back.
 			raw := map[string]any{
 				"enabled":       true,
-				"apiVersion":    "1.2.2",
+				"apiVersion":    "1.2.2", // intentional remote legacy peer advertisement
 				"endPoint":      "https://peer.example.com/ocm",
 				"resourceTypes": []any{},
 				"criteria":      []any{},
@@ -297,7 +298,7 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 			}
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":       false,
-				"apiVersion":    "1.2.2",
+				"apiVersion":    "1.4.0",
 				"resourceTypes": []any{},
 				"criteria":      []any{},
 			})

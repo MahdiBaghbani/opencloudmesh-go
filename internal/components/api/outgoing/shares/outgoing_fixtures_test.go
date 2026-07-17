@@ -52,7 +52,7 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 			}
 			disc := spec.Discovery{
 				Enabled:       true,
-				APIVersion:    "1.2.2",
+				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
 				Capabilities:  capabilities,
 				Criteria:      criteria,
@@ -85,7 +85,7 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 			}
 			disc := spec.Discovery{
 				Enabled:       true,
-				APIVersion:    "1.2.2",
+				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
 				Capabilities:  capabilities,
 				Criteria:      criteria,
@@ -114,7 +114,7 @@ func makeMalformedCapableReceiverTLSServer(criteria []string) (*httptest.Server,
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := spec.Discovery{
 				Enabled:      true,
-				APIVersion:   "1.2.2",
+				APIVersion:   "1.4.0",
 				EndPoint:     srv.URL + "/ocm",
 				Capabilities: []string{"exchange-token"},
 				Criteria:     criteria,
@@ -150,7 +150,7 @@ func makeCountingReceiverTLSServer(capabilities, criteria []string) (*httptest.S
 			}
 			disc := spec.Discovery{
 				Enabled:       true,
-				APIVersion:    "1.2.2",
+				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
 				Capabilities:  capabilities,
 				Criteria:      criteria,

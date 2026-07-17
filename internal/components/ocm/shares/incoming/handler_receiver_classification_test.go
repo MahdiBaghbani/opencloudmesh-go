@@ -37,7 +37,7 @@ func fakeDiscoveryServer(capabilities, criteria []string) *httptest.Server {
 func fakeDiscoveryServerWithTokenEndPoint(capabilities, criteria []string, tokenEndPoint string) *httptest.Server {
 	disc := spec.Discovery{
 		Enabled:       true,
-		APIVersion:    "1.2.2",
+		APIVersion:    "1.4.0",
 		EndPoint:      "http://placeholder/ocm",
 		Capabilities:  capabilities,
 		Criteria:      criteria,

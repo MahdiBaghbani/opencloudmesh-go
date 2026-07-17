@@ -36,7 +36,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 		httpClient,
 		dummyDiscClient(),
 		&mockSigner{},
-		makePolicy("off", nil),
+		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 
@@ -83,7 +83,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 		httpClient,
 		dummyDiscClient(),
 		&mockSigner{},
-		makePolicy("off", nil),
+		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 
@@ -134,7 +134,7 @@ func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
 		httpClient,
 		dummyDiscClient(),
 		&mockSigner{},
-		makePolicy("criteria-only", profileRegistry),
+		makePolicy("strict", profileRegistry),
 		"my-instance.example.com",
 	)
 

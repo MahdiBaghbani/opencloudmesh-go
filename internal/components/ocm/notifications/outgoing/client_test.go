@@ -24,7 +24,7 @@ import (
 func newNotificationClients(t *testing.T) (*httpclient.ContextClient, *discovery.Client) {
 	t.Helper()
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:           "off",
+		DerivedSSRFMode:    "off",
 		InsecureSkipVerify: true,
 		MaxResponseBytes:   1 << 20,
 	}
@@ -41,11 +41,11 @@ func startNotificationReceiver(t *testing.T) (*httptest.Server, *atomic.Int32, *
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(discovery.Discovery{
 				Enabled:      true,
-				APIVersion:   "1.2.2",
+				APIVersion:   "1.4.0",
 				EndPoint:     srv.URL + "/ocm",
 				Capabilities: []string{"exchange-token"},
 			})
@@ -119,34 +119,5 @@ func TestClient_SendNotification_RequiresOutboundPolicy(t *testing.T) {
 	}
 	if notificationCalls.Load() != 0 {
 		t.Fatalf("expected notification endpoint not called, got %d calls", notificationCalls.Load())
-	}
-}
-
-func TestClient_SendNotification_TokenOnlyModeSkipsSigning(t *testing.T) {
-	receiver, notificationCalls, sawSignature := startNotificationReceiver(t)
-	defer receiver.Close()
-
-	requestClient, discoveryClient := newNotificationClients(t)
-	client := notificationsoutgoing.NewClient(
-		requestClient,
-		discoveryClient,
-		nil,
-		&outboundsigning.OutboundPolicy{OutboundMode: "token-only"},
-	)
-	targetHost := strings.TrimPrefix(receiver.URL, "https://")
-
-	err := client.SendNotification(context.Background(), targetHost, &notifications.NewNotification{
-		NotificationType: notifications.NotificationShareAccepted,
-		ResourceType:     "file",
-		ProviderID:       "provider-a",
-	})
-	if err != nil {
-		t.Fatalf("expected token-only mode to allow unsigned notification request, got %v", err)
-	}
-	if notificationCalls.Load() != 1 {
-		t.Fatalf("expected one notification request, got %d", notificationCalls.Load())
-	}
-	if sawSignature.Load() != 0 {
-		t.Fatal("did not expect Signature header in token-only notifications path")
 	}
 }

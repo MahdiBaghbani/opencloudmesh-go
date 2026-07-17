@@ -29,7 +29,12 @@ func TestTokenExchangeDisabled(t *testing.T) {
 		Mode:                  "dev",
 		KeepSignatureDefaults: true,
 		ExtraConfig: `
-# Disable token exchange globally for evaluator-owned capability/criteria derivation
+# Disable token exchange globally for evaluator-owned capability/criteria
+# derivation. require_token_exchange must be false when exchange is disabled,
+# and peer_policy must not stay strict (which requires exchange enabled).
+require_token_exchange = false
+peer_policy = "prefer-strict"
+
 [token_exchange]
 enabled = false
 
@@ -40,17 +45,28 @@ enabled = false
 	defer srv.Stop(t)
 
 	t.Run("EndpointReturns501", func(t *testing.T) {
-		// When disabled, POST to token endpoint should return 501 Not Implemented
+		peer := startStrictCodeFlowReceiver(t)
+		defer peer.Close()
+
 		data := url.Values{}
 		data.Set("grant_type", "ocm_share")
-		data.Set("client_id", "receiver.example.com")
+		data.Set("client_id", peer.peerDomain)
 		data.Set("code", "some-secret")
 
-		resp, err := http.Post(
+		req, err := http.NewRequest(
+			http.MethodPost,
 			srv.BaseURL+"/ocm/token",
-			"application/x-www-form-urlencoded",
 			strings.NewReader(data.Encode()),
 		)
+		if err != nil {
+			t.Fatalf("failed to build token request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if err := peer.signer.Sign(req); err != nil {
+			t.Fatalf("failed to sign token request: %v", err)
+		}
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("failed to call token endpoint: %v", err)
 		}

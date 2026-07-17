@@ -151,40 +151,6 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 		}
 	})
 
-	t.Run("lenient runtime posture omits criterion when not explicitly configured", func(t *testing.T) {
-		cfg := config.DevConfig()
-		cfg.Signature.InboundMode = "lenient"
-		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
-		c := &OCMProviderConfig{
-			Endpoint: "https://example.com",
-		}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("did not expect must-use-http-sig for lenient runtime posture")
-		}
-	})
-
-	t.Run("off runtime posture omits criterion when not explicitly configured", func(t *testing.T) {
-		cfg := config.DevConfig()
-		cfg.Signature.InboundMode = "off"
-		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
-		c := &OCMProviderConfig{
-			Endpoint: "https://example.com",
-		}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("did not expect must-use-http-sig for off runtime posture")
-		}
-	})
-
 	t.Run("removed service-local key does not override runtime policy", func(t *testing.T) {
 		cfg := config.DevConfig()
 		cfg.Signature.InboundMode = "strict"

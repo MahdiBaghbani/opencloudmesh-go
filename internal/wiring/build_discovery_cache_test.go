@@ -1,10 +1,10 @@
 package wiring_test
 
 import (
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
-	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -13,7 +13,7 @@ import (
 func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 	t.Run("SkipDiscoveryCache=true wires NoopCache to discovery client", func(t *testing.T) {
 		result, err := wiring.Build(
-			tscfg.DevConfigNoSignatures(),
+			config.DevConfig(),
 			tslog.DiscardLogger(),
 			harnessBuildOpts(),
 		)
@@ -33,7 +33,7 @@ func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 		opts := harnessBuildOpts()
 		opts.SkipDiscoveryCache = false
 		result, err := wiring.Build(
-			tscfg.DevConfigNoSignatures(),
+			config.DevConfig(),
 			tslog.DiscardLogger(),
 			opts,
 		)

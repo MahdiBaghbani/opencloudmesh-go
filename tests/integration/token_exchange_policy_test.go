@@ -118,7 +118,12 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	ts := harness.StartTestServerWithOutgoingSharePolicy(t, nil)
+	ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
+		// Local receive policy stays non-strict; outbound prefer-strict still
+		// stamps must-exchange-token toward capable non-strict peers.
+		cfg.RequireTokenExchange = false
+		cfg.PeerPolicy = "prefer-strict"
+	})
 	defer ts.Stop(t)
 
 	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
@@ -204,10 +209,10 @@ func startCapableNonStrictReceiver(t *testing.T) (*httptest.Server, *atomic.Int3
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			disc := spec.Discovery{
 				Enabled:       true,
-				APIVersion:    "1.2.2",
+				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
 				Capabilities:  []string{"exchange-token"},
 				Criteria:      []string{},
@@ -255,10 +260,10 @@ func startCanonicalStrictCapableReceiver(t *testing.T) (*httptest.Server, *atomi
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			disc := spec.Discovery{
 				Enabled:       true,
-				APIVersion:    "1.2.2",
+				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
 				Capabilities:  []string{"exchange-token"},
 				Criteria:      []string{spec.CriteriaMustExchangeToken},

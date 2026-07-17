@@ -27,7 +27,7 @@ func newTestDiscoveryServer() *httptest.Server {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   "https://" + r.Host + "/ocm",
 				ResourceTypes: []discovery.ResourceType{
 					{
@@ -201,7 +201,7 @@ func authLadderHandler(acceptAuth func(authHeader string) bool) http.HandlerFunc
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   scheme + "://" + r.Host + "/ocm",
 				ResourceTypes: []discovery.ResourceType{
 					{
@@ -327,7 +327,7 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   "http://" + r.Host + "/ocm",
 				ResourceTypes: []discovery.ResourceType{
 					{
@@ -491,7 +491,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
 				Enabled:       true,
-				APIVersion:    "1.2.2",
+				APIVersion:    "1.4.0",
 				EndPoint:      "http://" + r.Host + "/ocm",
 				Capabilities:  []string{"exchange-token"},
 				TokenEndPoint: "http://" + r.Host + "/ocm/token",
@@ -554,7 +554,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
 	}
 	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "off",
+		OutboundMode: "strict",
 		PeerContract: contract,
 	}
 	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, accessMockSigner{}, policy, "local.example.com")
@@ -594,7 +594,7 @@ func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   "http://" + r.Host + "/ocm",
 				ResourceTypes: []discovery.ResourceType{
 					{

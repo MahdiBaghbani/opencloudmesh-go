@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
@@ -13,7 +13,7 @@ import (
 )
 
 func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	cfg.ExternalBasePath = "/ocm"
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
@@ -36,7 +36,7 @@ func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
 func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 	const messyOrigin = "https://Cloud.Example.COM:443/"
 
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	cfg.PublicOrigin = messyOrigin
 	cfg.ExternalBasePath = "/ocm"
 	cfg.Signature.KeyPath = filepath.Join(t.TempDir(), "signing.pem")

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -130,8 +131,8 @@ func buildContract(
 	return contract
 }
 
-func TestSignatureMiddleware_LenientMode_AllowsCapablePeerByProfile(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "lenient"}
+func TestSignatureMiddleware_StrictMode_PeerProfile_AllowsCapablePeerByProfile(t *testing.T) {
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		signingCapable: map[string]bool{"sender.example.com": true},
@@ -165,9 +166,47 @@ func TestSignatureMiddleware_LenientMode_AllowsCapablePeerByProfile(t *testing.T
 	}
 }
 
-func TestSignatureMiddleware_LenientMode_AllowsDiscoveryFailureByProfile(t *testing.T) {
+func TestSignatureMiddleware_StrictMode_RejectsUnsignedFromUnmatchedSigningCapablePeer(t *testing.T) {
+	cfg := &config.SignatureConfig{InboundMode: "strict"}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{
+		signingCapable: map[string]bool{"sender.example.com": true},
+	}
+	contract := buildContract(
+		t,
+		map[string]*peercompat.Profile{
+			"compat": {
+				Name:                 "compat",
+				AllowUnsignedInbound: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "other.example.com", Profile: "compat"},
+		},
+	)
+
+	mw := newTestSignatureMiddleware(cfg, contract, pd, "https://receiver.example.com", logger)
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com", nil
+	}
+	handler := mw.VerifyOCMRequest(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"sender":"user@sender.example.com"}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unmatched signing-capable peer unsigned rejection, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "signature required") {
+		t.Fatalf("expected signature-required body, got %q", w.Body.String())
+	}
+}
+
+func TestSignatureMiddleware_StrictMode_PeerProfile_AllowsDiscoveryFailureByProfile(t *testing.T) {
 	cfg := &config.SignatureConfig{
-		InboundMode: "lenient",
+		InboundMode: "strict",
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
@@ -204,9 +243,9 @@ func TestSignatureMiddleware_LenientMode_AllowsDiscoveryFailureByProfile(t *test
 	}
 }
 
-func TestSignatureMiddleware_LenientMode_RejectsDiscoveryFailureWhenUnmatched(t *testing.T) {
+func TestSignatureMiddleware_StrictMode_PeerProfile_RejectsDiscoveryFailureWhenUnmatched(t *testing.T) {
 	cfg := &config.SignatureConfig{
-		InboundMode: "lenient",
+		InboundMode: "strict",
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
@@ -296,7 +335,7 @@ func TestSignatureMiddleware_StrictMode_MatchedProfileAllowsMismatch(t *testing.
 
 func TestSignatureMiddleware_LogsCompatibilityDecisionFields(t *testing.T) {
 	cfg := &config.SignatureConfig{
-		InboundMode: "lenient",
+		InboundMode: "strict",
 	}
 	logHandler := newCapturedLogHandler(slog.LevelWarn)
 	logger := slog.New(logHandler)

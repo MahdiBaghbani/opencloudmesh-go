@@ -42,20 +42,20 @@ func TestLoad_NoneScopeCompatibilityContradictions_FailFast(t *testing.T) {
 		wantError string
 	}{
 		{
-			name: "none scope requires inbound strict",
+			name: "none scope rejects retired inbound lenient at enum gate",
 			extra: `
 [signature]
 inbound_mode = "lenient"
 `,
-			wantError: "compatibility_scope=none requires signature.inbound_mode=strict",
+			wantError: "invalid signature.inbound_mode",
 		},
 		{
-			name: "none scope requires outbound strict",
+			name: "none scope rejects retired outbound criteria-only at enum gate",
 			extra: `
 [signature]
 outbound_mode = "criteria-only"
 `,
-			wantError: "compatibility_scope=none requires signature.outbound_mode=strict",
+			wantError: "invalid signature.outbound_mode",
 		},
 		{
 			name: "none scope requires peer override off",
@@ -326,20 +326,20 @@ func TestLoad_ScopedCompatibilityRejectsGlobalRelaxations(t *testing.T) {
 		wantError string
 	}{
 		{
-			name: "rejects inbound lenient",
+			name: "rejects retired inbound lenient at enum gate",
 			extra: `
 [signature]
 inbound_mode = "lenient"
 `,
-			wantError: "compatibility_scope=scoped requires signature.inbound_mode=strict",
+			wantError: "invalid signature.inbound_mode",
 		},
 		{
-			name: "rejects outbound token only",
+			name: "rejects retired outbound token-only at enum gate",
 			extra: `
 [signature]
 outbound_mode = "token-only"
 `,
-			wantError: "compatibility_scope=scoped requires signature.outbound_mode=strict",
+			wantError: "invalid signature.outbound_mode",
 		},
 		{
 			name: "rejects peer override all",

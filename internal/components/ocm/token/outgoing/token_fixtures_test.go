@@ -62,7 +62,7 @@ func newDiscoveryAwareTokenServer(tokenHandler http.HandlerFunc) *httptest.Serve
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(discovery.Discovery{
 				Enabled:       true,
-				APIVersion:    "1.2.2",
+				APIVersion:    "1.4.0",
 				EndPoint:      server.URL + "/ocm",
 				Capabilities:  []string{"exchange-token"},
 				TokenEndPoint: server.URL,

@@ -59,7 +59,6 @@ type PeerDiscovery interface {
 
 // SignatureMiddleware verifies HTTP request signatures.
 type SignatureMiddleware struct {
-	inboundMode        string
 	allowMismatch      bool
 	peerContract       *peercompat.CompiledContract
 	compatibilityScope string
@@ -82,15 +81,11 @@ func NewSignatureMiddleware(
 	logger = logutil.NoopIfNil(logger)
 
 	localScheme := config.SchemeFromOrigin(publicOrigin)
-	inboundMode := "off"
 	allowMismatch := false
 	compatibilityScope := "none"
 	if runtimePolicy != nil {
 		eval := runtimePolicy.Evaluate()
 		signature := eval.Signature
-		if signature.InboundMode != "" {
-			inboundMode = signature.InboundMode
-		}
 		allowMismatch = signature.AllowMismatch
 		if eval.CompatibilityScope != "" {
 			compatibilityScope = eval.CompatibilityScope
@@ -98,7 +93,6 @@ func NewSignatureMiddleware(
 	}
 
 	return &SignatureMiddleware{
-		inboundMode:        inboundMode,
 		allowMismatch:      allowMismatch,
 		peerContract:       peerContract,
 		compatibilityScope: compatibilityScope,
@@ -153,10 +147,10 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 	return m.verifyOCMRequest(declaredPeerResolver, false, false, false)
 }
 
-// VerifyOCMRequestRequireSignature enforces a verified signature even when
-// inbound mode is off or lenient. Routes that pass a nil declaredPeerResolver
-// (for example notifications) stay signature-only: trust is bound to keyId,
-// not a body-declared peer.
+// VerifyOCMRequestRequireSignature enforces a verified signature even when a
+// matched peer profile would otherwise allow unsigned inbound. Routes that pass
+// a nil declaredPeerResolver (for example notifications) stay signature-only:
+// trust is bound to keyId, not a body-declared peer.
 func (m *SignatureMiddleware) VerifyOCMRequestRequireSignature(
 	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
 ) func(http.Handler) http.Handler {
@@ -180,13 +174,6 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// off skips verification only when the route does not require a
-			// signature and does not use verify-if-present semantics.
-			if m.inboundMode == "off" && !requireSignature && !optionalSignature {
-				next.ServeHTTP(w, r)
-				return
-			}
-
 			// Read body for signature verification and peer resolution
 			body, err := crypto.ReadAndRestoreBody(r)
 			if err != nil {
@@ -297,77 +284,18 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 					return
 				}
 
-				if requireSignature || m.inboundMode == "strict" {
+				if requireSignature {
 					http.Error(w, "signature required", http.StatusUnauthorized)
 					return
 				}
 
-				// lenient mode - check if peer is signing-capable
-				if m.inboundMode == "lenient" && declaredPeer != "" {
-					isCapable, err := m.peerDiscovery.IsSigningCapable(r.Context(), declaredPeer)
-					if err != nil {
-						discoveryDecision := m.peerContract.ResolveDiscoveryFailure(declaredPeer)
-						logEntry := peercompat.CompatibilityDecisionLog{
-							PeerDomain:         discoveryDecision.PeerDomain,
-							Profile:            discoveryDecision.Profile,
-							Operation:          "unsigned_inbound_discovery",
-							ReasonCode:         discoveryDecision.ReasonCode,
-							CompatibilityScope: m.decisionCompatibilityScope(discoveryDecision.Profile),
-						}
-						if discoveryDecision.Allow {
-							logEntry.Decision = "allow"
-							m.logCompatibilityDecision(
-								r,
-								slog.LevelWarn,
-								"peer discovery failed, allowing unsigned",
-								logEntry,
-								"error", err,
-							)
-						} else {
-							logEntry.Decision = "reject"
-							m.logCompatibilityDecision(
-								r,
-								slog.LevelError,
-								"peer discovery failed",
-								logEntry,
-								"error", err,
-							)
-							http.Error(w, "peer discovery failed", http.StatusBadGateway)
-							return
-						}
-					} else if isCapable {
-						peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
-						logEntry := peercompat.CompatibilityDecisionLog{
-							PeerDomain:         peerDecision.PeerDomain,
-							Profile:            peerDecision.Profile,
-							Operation:          "unsigned_inbound_capability",
-							CompatibilityScope: m.decisionCompatibilityScope(peerDecision.Profile),
-						}
-						if !peerDecision.Matched || !peerDecision.AllowUnsignedInbound {
-							// Peer is signing-capable and no matched compatibility relaxation applies.
-							logEntry.Decision = "reject"
-							logEntry.ReasonCode = "signing_capable_peer_requires_signature"
-							m.logCompatibilityDecision(
-								r,
-								slog.LevelWarn,
-								"signing-capable peer sent unsigned request",
-								logEntry,
-							)
-							http.Error(w, "signature required from signing-capable peer", http.StatusUnauthorized)
-							return
-						}
-						logEntry.Decision = "allow"
-						logEntry.ReasonCode = "peer_allow_unsigned_inbound"
-						m.logCompatibilityDecision(
-							r,
-							slog.LevelWarn,
-							"signing-capable peer allowed unsigned by compatibility profile",
-							logEntry,
-						)
-					}
+				// Strict inbound: unsigned allowed only via matched peer-profile
+				// relaxations under scoped mappings.
+				if status, msg, ok := m.decideUnsignedInbound(r, declaredPeer); !ok {
+					http.Error(w, msg, status)
+					return
 				}
 
-				// Set unverified peer identity
 				var authorityForCompare string
 				if declaredPeer != "" {
 					normalized, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, m.localScheme)
@@ -399,6 +327,80 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// decideUnsignedInbound evaluates matched peer-profile relaxations for unsigned
+// requests under strict inbound mode. Global non-strict modes are retired.
+func (m *SignatureMiddleware) decideUnsignedInbound(
+	r *http.Request,
+	declaredPeer string,
+) (status int, msg string, allow bool) {
+	if declaredPeer == "" || m.peerContract == nil || m.peerDiscovery == nil {
+		return http.StatusUnauthorized, "signature required", false
+	}
+
+	isCapable, err := m.peerDiscovery.IsSigningCapable(r.Context(), declaredPeer)
+	if err != nil {
+		discoveryDecision := m.peerContract.ResolveDiscoveryFailure(declaredPeer)
+		logEntry := peercompat.CompatibilityDecisionLog{
+			PeerDomain:         discoveryDecision.PeerDomain,
+			Profile:            discoveryDecision.Profile,
+			Operation:          "unsigned_inbound_discovery",
+			ReasonCode:         discoveryDecision.ReasonCode,
+			CompatibilityScope: m.decisionCompatibilityScope(discoveryDecision.Profile),
+		}
+		if discoveryDecision.Allow {
+			logEntry.Decision = "allow"
+			m.logCompatibilityDecision(
+				r,
+				slog.LevelWarn,
+				"peer discovery failed, allowing unsigned",
+				logEntry,
+				"error", err,
+			)
+			return 0, "", true
+		}
+		logEntry.Decision = "reject"
+		m.logCompatibilityDecision(
+			r,
+			slog.LevelError,
+			"peer discovery failed",
+			logEntry,
+			"error", err,
+		)
+		return http.StatusBadGateway, "peer discovery failed", false
+	}
+
+	peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
+	logEntry := peercompat.CompatibilityDecisionLog{
+		PeerDomain:         peerDecision.PeerDomain,
+		Profile:            peerDecision.Profile,
+		Operation:          "unsigned_inbound_capability",
+		CompatibilityScope: m.decisionCompatibilityScope(peerDecision.Profile),
+	}
+	if peerDecision.Matched && peerDecision.AllowUnsignedInbound {
+		logEntry.Decision = "allow"
+		logEntry.ReasonCode = "peer_allow_unsigned_inbound"
+		m.logCompatibilityDecision(
+			r,
+			slog.LevelWarn,
+			"matched peer profile allows unsigned inbound under strict mode",
+			logEntry,
+		)
+		return 0, "", true
+	}
+	if isCapable {
+		logEntry.Decision = "reject"
+		logEntry.ReasonCode = "signing_capable_peer_requires_signature"
+		m.logCompatibilityDecision(
+			r,
+			slog.LevelWarn,
+			"signing-capable peer sent unsigned request",
+			logEntry,
+		)
+		return http.StatusUnauthorized, "signature required from signing-capable peer", false
+	}
+	return http.StatusUnauthorized, "signature required", false
 }
 
 func authorityForCompareFromKid(k keyid.Kid, scheme string) (string, error) {

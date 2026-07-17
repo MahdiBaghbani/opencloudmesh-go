@@ -21,7 +21,7 @@ import (
 func TestCriteriaAlwaysPresent(t *testing.T) {
 	disc := &discovery.Discovery{
 		Enabled:    true,
-		APIVersion: "1.2.2",
+		APIVersion: "1.4.0",
 		Criteria:   []string{},
 	}
 
@@ -83,7 +83,7 @@ func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
 func TestDiscovery_Helpers(t *testing.T) {
 	disc := &discovery.Discovery{
 		Enabled:    true,
-		APIVersion: "1.2.2",
+		APIVersion: "1.4.0",
 		EndPoint:   "https://example.com/ocm",
 		ResourceTypes: []discovery.ResourceType{
 			{
@@ -120,7 +120,7 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   "https://example.com/ocm",
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -178,6 +178,7 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 		shape      string
 		apiVersion string
 	}{
+		// Remote peer still advertising 1.2.2 (deferred peer compatibility).
 		{name: "singular_1.2.2", shape: "singular", apiVersion: "1.2.2"},
 		{name: "plural_1.2.2", shape: "plural", apiVersion: "1.2.2"},
 		{name: "singular_1.4.0", shape: "singular", apiVersion: "1.4.0"},

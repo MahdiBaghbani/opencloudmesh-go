@@ -17,48 +17,7 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
-func TestClient_Exchange_OutboundModeOff(t *testing.T) {
-	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Signature") == "" {
-			t.Error("expected Signature header even when outbound_mode=off")
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "signed-off-mode-token",
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		})
-	}))
-	defer server.Close()
-
-	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
-	}, nil))
-
-	client := tokenoutgoing.NewClient(
-		httpClient,
-		dummyDiscClient(),
-		&mockSigner{},
-		makePolicy("off", nil),
-		"my-instance.example.com",
-	)
-
-	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
-		TokenEndPoint: server.URL,
-		PeerDomain:    "peer.example.com",
-		SharedSecret:  "test-secret",
-	})
-
-	if err != nil {
-		t.Fatalf("Exchange failed: %v", err)
-	}
-	if result.AccessToken != "signed-off-mode-token" {
-		t.Errorf("expected 'signed-off-mode-token', got %s", result.AccessToken)
-	}
-}
-
-func TestClient_Exchange_OutboundModeOff_NoSignerRejected(t *testing.T) {
+func TestClient_Exchange_StrictMode_NoSignerRejected(t *testing.T) {
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		DerivedSSRFMode: "off",
 	}, nil))
@@ -67,7 +26,7 @@ func TestClient_Exchange_OutboundModeOff_NoSignerRejected(t *testing.T) {
 		httpClient,
 		dummyDiscClient(),
 		nil,
-		makePolicy("off", nil),
+		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 
@@ -128,88 +87,6 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_TokenOnlyMode(t *testing.T) {
-	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Signature") == "" {
-			t.Error("expected Signature header in token-only mode for token exchange")
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "token-only-signed",
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		})
-	}))
-	defer server.Close()
-
-	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
-	}, nil))
-
-	client := tokenoutgoing.NewClient(
-		httpClient,
-		dummyDiscClient(),
-		&mockSigner{},
-		makePolicy("token-only", nil),
-		"my-instance.example.com",
-	)
-
-	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
-		TokenEndPoint: server.URL,
-		PeerDomain:    "peer.example.com",
-		SharedSecret:  "test-secret",
-	})
-
-	if err != nil {
-		t.Fatalf("Exchange failed: %v", err)
-	}
-	if result.AccessToken != "token-only-signed" {
-		t.Errorf("expected 'token-only-signed', got %s", result.AccessToken)
-	}
-}
-
-func TestClient_Exchange_CriteriaOnlyMode(t *testing.T) {
-	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Signature") == "" {
-			t.Error("expected Signature header in criteria-only mode for token exchange")
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "criteria-only-signed",
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		})
-	}))
-	defer server.Close()
-
-	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
-	}, nil))
-
-	client := tokenoutgoing.NewClient(
-		httpClient,
-		dummyDiscClient(),
-		&mockSigner{},
-		makePolicy("criteria-only", nil),
-		"my-instance.example.com",
-	)
-
-	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
-		TokenEndPoint: server.URL,
-		PeerDomain:    "peer.example.com",
-		SharedSecret:  "test-secret",
-	})
-
-	if err != nil {
-		t.Fatalf("Exchange failed: %v", err)
-	}
-	if result.AccessToken != "criteria-only-signed" {
-		t.Errorf("expected 'criteria-only-signed', got %s", result.AccessToken)
-	}
-}
-
 func TestClient_Exchange_PeerProfileQuirkStillSigns(t *testing.T) {
 	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
@@ -238,7 +115,7 @@ func TestClient_Exchange_PeerProfileQuirkStillSigns(t *testing.T) {
 		httpClient,
 		dummyDiscClient(),
 		&mockSigner{},
-		makePolicy("criteria-only", profileRegistry),
+		makePolicy("strict", profileRegistry),
 		"my-instance.example.com",
 	)
 

@@ -287,18 +287,18 @@ func validateEnums(cfg *Config) error {
 
 	// signature.inbound_mode
 	switch cfg.Signature.InboundMode {
-	case "off", "lenient", "strict":
+	case "strict":
 		// valid
 	default:
-		return fmt.Errorf("invalid signature.inbound_mode %q: must be one of off, lenient, strict", cfg.Signature.InboundMode)
+		return fmt.Errorf("invalid signature.inbound_mode %q: must be strict", cfg.Signature.InboundMode)
 	}
 
 	// signature.outbound_mode
 	switch cfg.Signature.OutboundMode {
-	case "off", "token-only", "criteria-only", "strict":
+	case "strict":
 		// valid
 	default:
-		return fmt.Errorf("invalid signature.outbound_mode %q: must be one of off, token-only, criteria-only, strict", cfg.Signature.OutboundMode)
+		return fmt.Errorf("invalid signature.outbound_mode %q: must be strict", cfg.Signature.OutboundMode)
 	}
 
 	// signature.peer_profile_level_override

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -208,5 +209,59 @@ peer_profile_level_override = "non-strict"
 	}
 	if cfg.Signature.OutboundMode != "strict" {
 		t.Errorf("expected signature.outbound_mode strict, got %s", cfg.Signature.OutboundMode)
+	}
+}
+
+func TestLoad_RetiredSignatureInboundMode_FailsFast(t *testing.T) {
+	for _, mode := range []string{"off", "lenient"} {
+		t.Run(mode, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+			content := fmt.Sprintf(`
+mode = "dev"
+public_origin = "https://example.com"
+
+[signature]
+inbound_mode = %q
+outbound_mode = "strict"
+`, mode)
+			if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected error for retired signature.inbound_mode")
+			}
+			if !strings.Contains(err.Error(), "invalid signature.inbound_mode") {
+				t.Errorf("expected inbound_mode enum error, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestLoad_RetiredSignatureOutboundMode_FailsFast(t *testing.T) {
+	for _, mode := range []string{"off", "token-only", "criteria-only"} {
+		t.Run(mode, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
+			content := fmt.Sprintf(`
+mode = "dev"
+public_origin = "https://example.com"
+
+[signature]
+inbound_mode = "strict"
+outbound_mode = %q
+`, mode)
+			if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			if err == nil {
+				t.Fatal("expected error for retired signature.outbound_mode")
+			}
+			if !strings.Contains(err.Error(), "invalid signature.outbound_mode") {
+				t.Errorf("expected outbound_mode enum error, got: %v", err)
+			}
+		})
 	}
 }

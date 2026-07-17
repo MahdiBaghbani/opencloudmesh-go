@@ -25,7 +25,7 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
+				"apiVersion":         "1.4.0",
 				"endPoint":           "https://example.com/ocm",
 				"provider":           "TestProvider",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
@@ -62,7 +62,7 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
+				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
 				"resourceTypes":      []any{},
@@ -207,7 +207,7 @@ func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":       true,
-				"apiVersion":    "1.2.2",
+				"apiVersion":    "1.4.0",
 				"endPoint":      "https://example.com/ocm",
 				"resourceTypes": []any{},
 				"criteria":      []any{},

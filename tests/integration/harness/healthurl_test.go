@@ -234,9 +234,6 @@ func TestIETFIntegrationBuildOpts(t *testing.T) {
 	if opts.SkipCrypto {
 		t.Fatal("SkipCrypto must be false for IETF integration path")
 	}
-	if opts.SkipSignatureMiddleware {
-		t.Fatal("SkipSignatureMiddleware must be false for IETF integration path")
-	}
 
 	base := IntegrationBuildOpts()
 	if opts.FastAuth != base.FastAuth {
@@ -253,12 +250,11 @@ func TestIETFIntegrationBuildOpts(t *testing.T) {
 func TestIETFIntegrationBuildOpts_MatchesWiringBuildOpts(t *testing.T) {
 	got := IETFIntegrationBuildOpts()
 	want := wiring.BuildOpts{
-		FastAuth:                true,
-		SkipCrypto:              false,
-		SkipPeerTrust:           true,
-		SkipSignatureMiddleware: false,
-		OutboundOverride:        got.OutboundOverride,
-		SkipDiscoveryCache:      true,
+		FastAuth:           true,
+		SkipCrypto:         false,
+		SkipPeerTrust:      true,
+		OutboundOverride:   got.OutboundOverride,
+		SkipDiscoveryCache: true,
 	}
 	if got != want {
 		t.Fatalf("IETFIntegrationBuildOpts() = %+v, want %+v", got, want)

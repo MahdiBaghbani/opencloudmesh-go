@@ -131,16 +131,13 @@ mode = "strict"
 }
 
 func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
-	// compat's compatibility_scope=scoped guardrail requires
-	// signature.outbound_mode=strict, so outbound_mode stays strict here;
-	// inbound_mode stays lenient to exercise the flag override.
 	tomlContent := `
 mode = "compat"
 public_origin = "https://from-toml.com"
 listen_addr = ":9000"
 
 [signature]
-inbound_mode = "lenient"
+inbound_mode = "strict"
 outbound_mode = "strict"
 `
 	configPath := writeTempConfig(t, tomlContent)

@@ -109,21 +109,21 @@ export function buildBinary(): string {
 
 /**
  * Generates TOML config for a test server.
- * Strict mode enables full HTTP request signatures with auto-generated keys.
- * Strict mode sets compatibility_scope = "scoped" so dev-friendly transport
- * (outbound_http.ssrf.mode = "off", localhost public_origin) is permitted
- * while the strict global OCM posture remains in effect.
+ * All e2e modes use production-like signature posture (strict inbound/outbound,
+ * no mismatch, peer_profile_level_override off) with a per-instance signing.pem.
+ * compatibility_scope = "scoped" keeps localhost public_origin and SSRF off
+ * permitted without relaxing the global OCM signature axis.
  */
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
   // Root-level keys must all appear here, before any [table] header.
-  // compatibility_scope is a root key in strict mode; placing it inside
-  // [outbound_http.ssrf] would make TOML parse it as a nested key.
+  // compatibility_scope is a root key; placing it inside [outbound_http.ssrf]
+  // would make TOML parse it as a nested key.
   const rootKeys = [
     `mode = "${mode}"`,
     `listen_addr = ":${port}"`,
     `public_origin = "https://localhost:${port}"`,
     `external_base_path = ""`,
-    ...(mode === 'strict' ? [`compatibility_scope = "scoped"`] : []),
+    `compatibility_scope = "scoped"`,
   ].join('\n');
 
   let config = `${rootKeys}
@@ -152,12 +152,11 @@ tls_root_ca_file = "${CA_CERT}"
 mode = "off"
 
 [signature]
-${mode === 'strict' ? `inbound_mode = "strict"
+inbound_mode = "strict"
 outbound_mode = "strict"
 allow_mismatch = false
 peer_profile_level_override = "off"
-key_path = "${join(tempDir, 'signing.pem')}"` : `inbound_mode = "off"
-outbound_mode = "off"`}
+key_path = "${join(tempDir, 'signing.pem')}"
 `;
 
   if (extraConfig) {

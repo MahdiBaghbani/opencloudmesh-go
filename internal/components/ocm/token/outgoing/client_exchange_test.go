@@ -139,7 +139,7 @@ func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(discovery.Discovery{
 				Enabled:       true,
-				APIVersion:    "1.2.2",
+				APIVersion:    "1.4.0",
 				EndPoint:      server.URL + "/ocm",
 				Capabilities:  []string{"exchange-token"},
 				Criteria:      []string{spec.CriteriaMustExchangeToken},
@@ -441,7 +441,7 @@ func TestClient_Exchange_PeerMissingExchangeTokenCapability(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(discovery.Discovery{
 				Enabled:      true,
-				APIVersion:   "1.2.2",
+				APIVersion:   "1.4.0",
 				EndPoint:     server.URL + "/ocm",
 				Capabilities: []string{"http-sig"},
 				ResourceTypes: []discovery.ResourceType{
@@ -478,7 +478,7 @@ func TestClient_Exchange_PeerMissingExchangeTokenCapability(t *testing.T) {
 		httpClient,
 		discClient,
 		&mockSigner{},
-		makePolicy("off", nil),
+		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 

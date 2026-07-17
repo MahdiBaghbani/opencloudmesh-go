@@ -14,66 +14,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm"
 )
 
-func TestOutboundPolicy_Off(t *testing.T) {
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "off",
-	}
-
-	kinds := []outboundsigning.EndpointKind{
-		outboundsigning.EndpointShares,
-		outboundsigning.EndpointNotifications,
-		outboundsigning.EndpointInvites,
-		outboundsigning.EndpointTokenExchange,
-	}
-
-	for _, kind := range kinds {
-		decision := policy.ShouldSign(kind, "example.com", nil, true)
-		if kind == outboundsigning.EndpointTokenExchange || kind == outboundsigning.EndpointShares {
-			if !decision.ShouldSign {
-				t.Errorf("%s must be signed even when outbound_mode=off", kind)
-			}
-			if decision.Error != nil {
-				t.Errorf("%s with signer should not error when outbound_mode=off", kind)
-			}
-			continue
-		}
-		if decision.ShouldSign {
-			t.Errorf("outbound_mode=off should not sign %s", kind)
-		}
-		if decision.Error != nil {
-			t.Errorf("outbound_mode=off should not error for %s", kind)
-		}
-	}
-}
-
-func TestOutboundPolicy_Off_TokenExchangeRequiresSigner(t *testing.T) {
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "off",
-	}
-
-	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "example.com", nil, false)
-	if !decision.ShouldSign {
-		t.Error("token exchange must require signing even when outbound_mode=off")
-	}
-	if decision.Error == nil {
-		t.Error("token exchange without signer should error when outbound_mode=off")
-	}
-}
-
-func TestOutboundPolicy_Off_SharesRequireSigner(t *testing.T) {
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "off",
-	}
-
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, false)
-	if !decision.ShouldSign {
-		t.Error("share dispatch must require signing even when outbound_mode=off")
-	}
-	if decision.Error == nil {
-		t.Error("share dispatch without signer should error when outbound_mode=off")
-	}
-}
-
 func TestOutboundPolicy_Strict_AlwaysSigns(t *testing.T) {
 	policy := &outboundsigning.OutboundPolicy{
 		OutboundMode: "strict",
@@ -115,165 +55,6 @@ func TestOutboundPolicy_Strict_NoSigner_Errors(t *testing.T) {
 	}
 }
 
-func TestOutboundPolicy_TokenOnly_SignsTokenExchange(t *testing.T) {
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "token-only",
-	}
-
-	// Token exchange should sign
-	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "example.com", nil, true)
-	if !decision.ShouldSign {
-		t.Error("token-only should sign token exchange")
-	}
-
-	// Shares must always sign
-	decision = policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
-	if !decision.ShouldSign {
-		t.Error("token-only must still sign shares")
-	}
-
-	// Notifications should not sign
-	decision = policy.ShouldSign(outboundsigning.EndpointNotifications, "example.com", nil, true)
-	if decision.ShouldSign {
-		t.Error("token-only should not sign notifications")
-	}
-}
-
-func TestOutboundPolicy_CriteriaOnly_SignsWhenRequired(t *testing.T) {
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "criteria-only",
-	}
-
-	// Peer requires signatures
-	discRequires := &discovery.Discovery{
-		Capabilities: []string{"http-sig"},
-		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
-	}
-
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discRequires, true)
-	if !decision.ShouldSign {
-		t.Error("criteria-only should sign when peer requires signatures")
-	}
-
-	// Peer does not require signatures
-	discNoReq := &discovery.Discovery{
-		Capabilities: []string{"http-sig"},
-		Criteria:     []string{},
-	}
-
-	decision = policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discNoReq, true)
-	if !decision.ShouldSign {
-		t.Error("criteria-only must sign shares even when peer does not require signatures")
-	}
-}
-
-func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) {
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "criteria-only",
-	}
-
-	// Peer requires signatures but lacks http-sig capability.
-	discBroken := &discovery.Discovery{
-		Capabilities: []string{},
-		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
-	}
-
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discBroken, true)
-	if !decision.ShouldSign {
-		t.Error("share dispatch must sign even when peer lacks http-sig capability")
-	}
-	if decision.Error != nil {
-		t.Error("share dispatch should not error when signer is available")
-	}
-}
-
-func TestOutboundPolicy_CriteriaOnly_SignsWhenPeerRequiresSignatures(t *testing.T) {
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "criteria-only",
-	}
-
-	disc := &discovery.Discovery{
-		Capabilities: []string{"http-sig"},
-		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
-	}
-
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", disc, true)
-	if !decision.ShouldSign {
-		t.Fatalf("criteria-only should sign when the peer requires signatures: %+v", decision)
-	}
-	if decision.Error != nil {
-		t.Fatalf("criteria-only signing should not error when a signer is available: %v", decision.Error)
-	}
-}
-
-func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryRejectsByDefault(t *testing.T) {
-	// Compat's preset OutboundMode is strict, so set criteria-only explicitly
-	// here to exercise the criteria-only decision path this test targets.
-	cfg := config.CompatConfig()
-	cfg.Signature.OutboundMode = "criteria-only"
-	contract := ocm.MustCompileContract(t, nil, nil)
-	runtimePolicy := ocm.RuntimePolicy(t, cfg, contract)
-	policy := ocm.OutboundPolicy(t, runtimePolicy, contract)
-
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
-	if !decision.ShouldSign {
-		t.Fatalf("criteria-only must sign shares even when discovery is unavailable: %+v", decision)
-	}
-	if decision.Error != nil {
-		t.Fatalf("share dispatch with signer should not error when discovery is unavailable: %+v", decision)
-	}
-
-	decision = policy.ShouldSign(outboundsigning.EndpointNotifications, "example.com", nil, true)
-	if !decision.ShouldSign {
-		t.Fatalf("criteria-only should require signing when discovery is unavailable: %+v", decision)
-	}
-	if decision.Error == nil {
-		t.Fatalf("expected error when discovery is unavailable: %+v", decision)
-	}
-}
-
-func TestOutboundPolicy_CriteriaOnly_SharesAlwaysSignWithoutDiscovery(t *testing.T) {
-	cfg := config.DevConfig()
-	cfg.Signature.OutboundMode = "criteria-only"
-	contract := ocm.MustCompileContract(t, nil, nil)
-	runtimePolicy := ocm.RuntimePolicy(t, cfg, contract)
-	policy := ocm.OutboundPolicy(t, runtimePolicy, contract)
-
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", nil, true)
-	if !decision.ShouldSign {
-		t.Fatalf("criteria-only must still sign shares when discovery is unavailable: %+v", decision)
-	}
-	if decision.Error != nil {
-		t.Fatalf("criteria-only should not error for shares when discovery is unavailable: %+v", decision)
-	}
-}
-
-func TestOutboundPolicy_CriteriaOnly_MissingDiscoveryAllowsMatchedPeerOverride(t *testing.T) {
-	cfg := config.CompatConfig()
-	cfg.Signature.OutboundMode = "criteria-only"
-	contract := ocm.MustCompileContract(t,
-		map[string]*peercompat.Profile{
-			"compat": {
-				Name:                   "compat",
-				AllowUnsignedDiscovery: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "peer.example.com", Profile: "compat"},
-		},
-	)
-	runtimePolicy := ocm.RuntimePolicy(t, cfg, contract)
-	policy := ocm.OutboundPolicy(t, runtimePolicy, contract)
-
-	decision := policy.ShouldSign(outboundsigning.EndpointShares, "peer.example.com", nil, true)
-	if !decision.ShouldSign {
-		t.Fatalf("matched peer allow_unsigned_discovery must still sign shares: %+v", decision)
-	}
-	if decision.Error != nil {
-		t.Fatalf("expected no error for matched peer share signing: %+v", decision)
-	}
-}
-
 func TestOutboundPolicy_TokenExchange_PeerProfileQuirkStillSigns(t *testing.T) {
 	profiles := map[string]*peercompat.Profile{
 		"nextcloud": {
@@ -287,7 +68,7 @@ func TestOutboundPolicy_TokenExchange_PeerProfileQuirkStillSigns(t *testing.T) {
 	contract := ocm.MustCompileContract(t, profiles, mappings)
 
 	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "criteria-only",
+		OutboundMode: "strict",
 		PeerContract: contract,
 	}
 
@@ -426,7 +207,7 @@ func TestOutboundPolicy_Strict_MissingDiscoveryStillSigns(t *testing.T) {
 func TestNewOutboundPolicy(t *testing.T) {
 	cfg := &config.Config{
 		Signature: config.SignatureConfig{
-			OutboundMode:             "criteria-only",
+			OutboundMode:             "strict",
 			PeerProfileLevelOverride: "non-strict",
 		},
 	}
@@ -435,11 +216,11 @@ func TestNewOutboundPolicy(t *testing.T) {
 	runtimePolicy := ocm.RuntimePolicy(t, cfg, contract)
 	policy := ocm.OutboundPolicy(t, runtimePolicy, contract)
 
-	if policy.OutboundMode != "criteria-only" {
-		t.Errorf("expected outbound_mode=criteria-only, got %s", policy.OutboundMode)
+	if policy.OutboundMode != "strict" {
+		t.Errorf("expected outbound_mode=strict, got %s", policy.OutboundMode)
 	}
 	if policy.StrictNone {
-		t.Error("expected StrictNone=false for criteria-only with non-strict override")
+		t.Error("expected StrictNone=false for strict with non-strict override")
 	}
 }
 
