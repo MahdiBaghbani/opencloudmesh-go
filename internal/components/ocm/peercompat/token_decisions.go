@@ -4,14 +4,20 @@
 package peercompat
 
 // TokenExchangeDecision captures peer-scoped token-exchange compatibility
-// behavior used by outbound signing and token fallback consumers.
+// behavior. AcceptPlainToken, SendTokenInBody, and GrantType serve outbound
+// signing and token fallback consumers. AllowJSONTokenBody and
+// AllowOCMShareGrant serve the inbound token handler, which consults them to
+// decide whether a legacy interop request shape from the matched peer may be
+// accepted; unmatched peers keep both false.
 type TokenExchangeDecision struct {
-	PeerDomain       string
-	Profile          string
-	Matched          bool
-	AcceptPlainToken bool
-	SendTokenInBody  bool
-	GrantType        string
+	PeerDomain         string
+	Profile            string
+	Matched            bool
+	AcceptPlainToken   bool
+	SendTokenInBody    bool
+	GrantType          string
+	AllowJSONTokenBody bool
+	AllowOCMShareGrant bool
 }
 
 // TokenExchangeFallbackDecision is a typed fallback permission keyed by a
@@ -43,6 +49,8 @@ func (c *CompiledContract) TokenExchangeDecisionForPeer(peerDomain string) Token
 	decision.AcceptPlainToken = matched.Profile.TokenExchange.AcceptPlainToken
 	decision.SendTokenInBody = matched.Profile.TokenExchange.SendTokenInBody
 	decision.GrantType = matched.Profile.TokenExchange.GrantType
+	decision.AllowJSONTokenBody = matched.Profile.TokenExchange.AllowJSONTokenBody
+	decision.AllowOCMShareGrant = matched.Profile.TokenExchange.AllowOCMShareGrant
 	return decision
 }
 

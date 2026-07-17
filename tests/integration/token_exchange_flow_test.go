@@ -221,7 +221,7 @@ func TestIETFTwoInstance_JWKSRouteAndSignedTokenExchange(t *testing.T) {
 	}
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", clientHost)
 	form.Set("code", sharedSecret)
 	body := []byte(form.Encode())
@@ -323,7 +323,7 @@ func postTokenExchange(t *testing.T, providerBaseURL, clientHost, code string, s
 	t.Helper()
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", clientHost)
 	form.Set("code", code)
 	body := []byte(form.Encode())

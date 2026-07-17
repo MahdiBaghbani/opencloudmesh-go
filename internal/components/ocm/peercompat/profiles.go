@@ -39,7 +39,12 @@ type Profile struct {
 	// "multi" for matched peers only.
 	AllowLegacyProtocolName bool `json:"allow_legacy_protocol_name" toml:"allow_legacy_protocol_name"`
 
-	// TokenExchangeQuirks lists token exchange quirks to apply
+	// TokenExchangeQuirks lists token exchange quirks to apply. Outbound
+	// quirks ("accept_plain_token", "send_token_in_body") govern how this
+	// instance behaves as a token exchange client. Inbound quirks
+	// ("allow_json_token_body", "allow_ocm_share_grant") govern which legacy
+	// interop request shapes this instance accepts from the matched peer as
+	// a token exchange server; unmatched peers never receive these.
 	TokenExchangeQuirks []string `json:"token_exchange_quirks" toml:"token_exchange_quirks"`
 
 	// TokenExchangeGrantType overrides the grant_type sent in outbound token

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
@@ -25,11 +26,59 @@ func enabledSettings() *tokenincoming.TokenExchangeSettings {
 	return s
 }
 
+// legacyInteropDomain is the peer domain mapped to the matched profile built
+// by matchedInteropContract.
+const legacyInteropDomain = "legacy.example.com"
+
+// matchedInteropContract builds a compiled contract mapping legacyInteropDomain
+// to a profile carrying the given token exchange quirks, so tests can prove
+// the matched-peer gate grants relaxations only for that named profile.
+func matchedInteropContract(t *testing.T, quirks ...string) *peercompat.CompiledContract {
+	t.Helper()
+	contract, err := peercompat.NewCompiledContract(
+		map[string]*peercompat.Profile{
+			"legacy-interop": {
+				Name:                "legacy-interop",
+				TokenExchangeQuirks: quirks,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: legacyInteropDomain, Profile: "legacy-interop"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("peercompat.NewCompiledContract() unexpected error: %v", err)
+	}
+	return contract
+}
+
+// withAuthenticatedPeer attaches a verified peer identity to the request
+// context, mirroring what the signature middleware sets after a successful
+// signature verification.
+func withAuthenticatedPeer(req *http.Request, authorityForCompare string) *http.Request {
+	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
+		AuthorityForCompare: authorityForCompare,
+		Authenticated:       true,
+	})
+	return req.WithContext(ctx)
+}
+
+// withUnauthenticatedPeer attaches a declared-but-unverified peer identity to
+// the request context, used to prove the matched-peer gate ignores a matching
+// domain that was never cryptographically verified.
+func withUnauthenticatedPeer(req *http.Request, authorityForCompare string) *http.Request {
+	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
+		AuthorityForCompare: authorityForCompare,
+		Authenticated:       false,
+	})
+	return req.WithContext(ctx)
+}
+
 func TestHandler_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -41,9 +90,9 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	}
 	shareRepo.Create(context.Background(), share)
 
-	// Make token request
+	// Make token request using the canonical authorization_code grant.
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code-789")
 
@@ -82,27 +131,32 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	}
 }
 
+// TestHandler_JSON_NextcloudInterop proves the JSON body and ocm_share grant
+// (Nextcloud/ownCloud style) succeed only when the request comes from an
+// authenticated peer that a named matched profile grants both quirks to.
 func TestHandler_JSON_NextcloudInterop(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	contract := matchedInteropContract(t, "allow_json_token_body", "allow_ocm_share_grant")
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), contract, "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-nc",
 		WebDAVID:     "webdav-nc",
 		SharedSecret: "nc-secret",
-		ReceiverHost: "nextcloud.example.com",
+		ReceiverHost: legacyInteropDomain,
 		LocalPath:    "/tmp/test.txt",
 	}
 	shareRepo.Create(context.Background(), share)
 
 	// Make token request with JSON body (Nextcloud style)
-	body := `{"grant_type":"ocm_share","client_id":"nextcloud.example.com","code":"nc-secret"}`
+	body := `{"grant_type":"ocm_share","client_id":"` + legacyInteropDomain + `","code":"nc-secret"}`
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = withAuthenticatedPeer(req, legacyInteropDomain)
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -125,7 +179,7 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-ac",
@@ -163,24 +217,29 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 	}
 }
 
+// TestHandler_AuthorizationCode_JSON_Success proves a matched profile that
+// grants allow_json_token_body unlocks the JSON body even for the canonical
+// authorization_code grant.
 func TestHandler_AuthorizationCode_JSON_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	contract := matchedInteropContract(t, "allow_json_token_body")
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), contract, "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-ac-json",
 		WebDAVID:     "webdav-ac-json",
 		SharedSecret: "ac-json-secret",
-		ReceiverHost: "receiver.example.com",
+		ReceiverHost: legacyInteropDomain,
 		LocalPath:    "/tmp/test.txt",
 	}
 	shareRepo.Create(context.Background(), share)
 
-	body := `{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"ac-json-secret"}`
+	body := `{"grant_type":"authorization_code","client_id":"` + legacyInteropDomain + `","code":"ac-json-secret"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = withAuthenticatedPeer(req, legacyInteropDomain)
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -202,15 +261,15 @@ func TestHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
 
 	tests := []struct {
 		name string
 		form url.Values
 	}{
 		{"missing grant_type", url.Values{"client_id": {"x"}, "code": {"y"}}},
-		{"missing client_id", url.Values{"grant_type": {"ocm_share"}, "code": {"y"}}},
-		{"missing code", url.Values{"grant_type": {"ocm_share"}, "client_id": {"x"}}},
+		{"missing client_id", url.Values{"grant_type": {"authorization_code"}, "code": {"y"}}},
+		{"missing code", url.Values{"grant_type": {"authorization_code"}, "client_id": {"x"}}},
 	}
 
 	for _, tt := range tests {
@@ -238,7 +297,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "password")
@@ -257,8 +316,135 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 
 	var resp token.OAuthError
 	json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Error != token.ErrorInvalidGrant {
-		t.Errorf("expected error %q, got %q", token.ErrorInvalidGrant, resp.Error)
+	if resp.Error != token.ErrorUnsupportedGrantType {
+		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
+	}
+}
+
+// TestHandler_OCMShareGrant_UnmatchedPeer_FailsClosed proves the legacy
+// ocm_share grant is rejected with unsupported_grant_type when no matched
+// profile permits it, even though it is a recognized grant type.
+func TestHandler_OCMShareGrant_UnmatchedPeer_FailsClosed(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
+
+	form := url.Values{}
+	form.Set("grant_type", "ocm_share")
+	form.Set("client_id", "receiver.example.com")
+	form.Set("code", "secret-code")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Error != token.ErrorUnsupportedGrantType {
+		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
+	}
+}
+
+// TestHandler_OCMShareGrant_MatchedProfile_Succeeds proves ocm_share succeeds
+// once a named matched profile grants allow_ocm_share_grant to the
+// authenticated peer.
+func TestHandler_OCMShareGrant_MatchedProfile_Succeeds(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	contract := matchedInteropContract(t, "allow_ocm_share_grant")
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), contract, "https://local.example.com", logger)
+
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-ocm-share-matched",
+		WebDAVID:     "webdav-ocm-share-matched",
+		SharedSecret: "ocm-share-matched-secret",
+		ReceiverHost: legacyInteropDomain,
+		LocalPath:    "/tmp/test.txt",
+	}
+	shareRepo.Create(context.Background(), share)
+
+	form := url.Values{}
+	form.Set("grant_type", "ocm_share")
+	form.Set("client_id", legacyInteropDomain)
+	form.Set("code", "ocm-share-matched-secret")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = withAuthenticatedPeer(req, legacyInteropDomain)
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestHandler_OCMShareGrant_UnauthenticatedIdentity_FailsClosed proves that an
+// unverified declared identity cannot unlock a matched profile's relaxations:
+// the domain matches the mapping, but the request was never signed.
+func TestHandler_OCMShareGrant_UnauthenticatedIdentity_FailsClosed(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	contract := matchedInteropContract(t, "allow_ocm_share_grant")
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), contract, "https://local.example.com", logger)
+
+	form := url.Values{}
+	form.Set("grant_type", "ocm_share")
+	form.Set("client_id", legacyInteropDomain)
+	form.Set("code", "secret-code")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = withUnauthenticatedPeer(req, legacyInteropDomain)
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Error != token.ErrorUnsupportedGrantType {
+		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
+	}
+}
+
+// TestHandler_JSONBody_UnmatchedPeer_FailsClosed proves a JSON token request
+// body is rejected when no matched profile grants allow_json_token_body,
+// regardless of grant type.
+func TestHandler_JSONBody_UnmatchedPeer_FailsClosed(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
+
+	body := `{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"secret-code"}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Error != token.ErrorInvalidRequest {
+		t.Errorf("expected error %q, got %q", token.ErrorInvalidRequest, resp.Error)
 	}
 }
 
@@ -266,10 +452,10 @@ func TestHandler_InvalidCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "nonexistent-secret")
 
@@ -294,7 +480,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -307,7 +493,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	shareRepo.Create(context.Background(), share)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "wrong-receiver.example.com")
 	form.Set("code", "secret-mismatch")
 
@@ -427,7 +613,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), tt.publicOrigin, logger)
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, tt.publicOrigin, logger)
 
 			share := &sharesoutgoing.OutgoingShare{
 				ProviderID:   "provider-port-test",
@@ -439,7 +625,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 			shareRepo.Create(context.Background(), share)
 
 			form := url.Values{}
-			form.Set("grant_type", "ocm_share")
+			form.Set("grant_type", "authorization_code")
 			form.Set("client_id", tt.clientID)
 			form.Set("code", "port-test-secret-"+tt.name)
 
@@ -472,7 +658,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-empty-origin",
@@ -484,7 +670,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 	shareRepo.Create(context.Background(), share)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com:443")
 	form.Set("code", "empty-origin-secret")
 
@@ -507,7 +693,7 @@ func TestHandler_DisabledReturns501(t *testing.T) {
 	// Create handler with token exchange disabled
 	disabledSettings := &tokenincoming.TokenExchangeSettings{Enabled: false}
 	disabledSettings.ApplyDefaults()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, disabledSettings, "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, disabledSettings, nil, "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "ocm_share")
@@ -538,7 +724,7 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-match",
@@ -550,7 +736,7 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 	shareRepo.Create(context.Background(), share)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "identity-match-secret")
 
@@ -574,7 +760,7 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), nil, "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-mismatch",
@@ -586,7 +772,7 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 	shareRepo.Create(context.Background(), share)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "identity-mismatch-secret")
 

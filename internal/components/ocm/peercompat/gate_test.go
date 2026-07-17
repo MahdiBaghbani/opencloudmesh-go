@@ -9,12 +9,17 @@ import "testing"
 // leakage through the gate is observable as a non-strict decision field.
 func matchedPeerProfile() *Profile {
 	return &Profile{
-		Name:                     "compat",
-		AllowUnsignedInbound:     true,
-		AllowUnsignedOutbound:    true,
-		AllowMismatchedHost:      true,
-		AllowUnsignedDiscovery:   true,
-		TokenExchangeQuirks:      []string{"accept_plain_token", "send_token_in_body"},
+		Name:                   "compat",
+		AllowUnsignedInbound:   true,
+		AllowUnsignedOutbound:  true,
+		AllowMismatchedHost:    true,
+		AllowUnsignedDiscovery: true,
+		TokenExchangeQuirks: []string{
+			"accept_plain_token",
+			"send_token_in_body",
+			"allow_json_token_body",
+			"allow_ocm_share_grant",
+		},
 		TokenExchangeGrantType:   "ocm_share",
 		AllowedBasicAuthPatterns: []string{"token:"},
 	}
@@ -50,6 +55,9 @@ func assertStrictTokenDecision(t *testing.T, decision TokenExchangeDecision) {
 	}
 	if decision.AcceptPlainToken || decision.SendTokenInBody {
 		t.Fatalf("expected no token relaxations on closed gate: %+v", decision)
+	}
+	if decision.AllowJSONTokenBody || decision.AllowOCMShareGrant {
+		t.Fatalf("expected no inbound token relaxations on closed gate: %+v", decision)
 	}
 	if decision.GrantType != "authorization_code" {
 		t.Fatalf("expected default grant type, got %q", decision.GrantType)
@@ -209,6 +217,9 @@ func TestGate_MatchedScopedPeerAppliesRelaxations(t *testing.T) {
 	}
 	if !token.AcceptPlainToken || !token.SendTokenInBody {
 		t.Fatalf("expected token quirks applied: %+v", token)
+	}
+	if !token.AllowJSONTokenBody || !token.AllowOCMShareGrant {
+		t.Fatalf("expected inbound token relaxations applied: %+v", token)
 	}
 	if token.GrantType != "ocm_share" {
 		t.Fatalf("expected grant type ocm_share, got %q", token.GrantType)

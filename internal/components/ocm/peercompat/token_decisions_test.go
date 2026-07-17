@@ -34,6 +34,68 @@ func TestTokenExchangeDecisionForPeer_MatchedProfile(t *testing.T) {
 	}
 }
 
+func TestTokenExchangeDecisionForPeer_InboundQuirksMatchedProfile(t *testing.T) {
+	contract, err := NewCompiledContract(
+		map[string]*Profile{
+			"legacy-interop": {
+				Name: "legacy-interop",
+				TokenExchangeQuirks: []string{
+					"allow_json_token_body",
+					"allow_ocm_share_grant",
+				},
+			},
+		},
+		[]ProfileMapping{
+			{Pattern: "legacy.example", Profile: "legacy-interop"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
+	}
+
+	decision := contract.TokenExchangeDecisionForPeer("legacy.example")
+	if !decision.Matched {
+		t.Fatalf("expected matched token decision: %+v", decision)
+	}
+	if !decision.AllowJSONTokenBody {
+		t.Fatalf("expected AllowJSONTokenBody=true for matched profile: %+v", decision)
+	}
+	if !decision.AllowOCMShareGrant {
+		t.Fatalf("expected AllowOCMShareGrant=true for matched profile: %+v", decision)
+	}
+}
+
+func TestTokenExchangeDecisionForPeer_InboundQuirksUnmatchedFailClosed(t *testing.T) {
+	contract, err := NewCompiledContract(
+		map[string]*Profile{
+			"legacy-interop": {
+				Name: "legacy-interop",
+				TokenExchangeQuirks: []string{
+					"allow_json_token_body",
+					"allow_ocm_share_grant",
+				},
+			},
+		},
+		[]ProfileMapping{
+			{Pattern: "legacy.example", Profile: "legacy-interop"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
+	}
+
+	// other.example does not map to legacy-interop, so it must not inherit
+	// the inbound relaxations even though a matching profile exists in the
+	// registry for a different domain.
+	decision := contract.TokenExchangeDecisionForPeer("other.example")
+	if decision.Matched {
+		t.Fatalf("expected unmatched decision: %+v", decision)
+	}
+	if decision.AllowJSONTokenBody || decision.AllowOCMShareGrant {
+		t.Fatalf("expected unmatched peer to fail closed on inbound quirks: %+v", decision)
+	}
+}
+
 func TestTokenExchangeDecisionForPeer_UnmatchedUsesStrictDefaults(t *testing.T) {
 	contract, err := NewCompiledContract(nil, nil)
 	if err != nil {

@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	tokenQuirkAcceptPlainToken = "accept_plain_token"
-	tokenQuirkSendTokenInBody  = "send_token_in_body"
+	tokenQuirkAcceptPlainToken   = "accept_plain_token"
+	tokenQuirkSendTokenInBody    = "send_token_in_body"
+	tokenQuirkAllowJSONTokenBody = "allow_json_token_body"
+	tokenQuirkAllowOCMShareGrant = "allow_ocm_share_grant"
 )
 
 // CompatibilityScope is the typed exception-governance axis that the matched-peer
@@ -51,10 +53,17 @@ type TransportCompatibility struct {
 }
 
 // TokenExchangeCompatibility is the typed token exchange decision payload.
+// AcceptPlainToken, SendTokenInBody, and GrantType govern outbound token
+// exchange (this instance acting as the client). AllowJSONTokenBody and
+// AllowOCMShareGrant govern inbound token exchange (this instance acting as
+// the server receiving a peer's request) and are the matched-peer relaxations
+// for the legacy Nextcloud/ownCloud interop shapes.
 type TokenExchangeCompatibility struct {
-	AcceptPlainToken bool
-	SendTokenInBody  bool
-	GrantType        string
+	AcceptPlainToken   bool
+	SendTokenInBody    bool
+	GrantType          string
+	AllowJSONTokenBody bool
+	AllowOCMShareGrant bool
 }
 
 // BasicAuthCompatibility is the typed Basic auth compatibility decision payload.
@@ -315,6 +324,10 @@ func compileProfile(profile *Profile) (CompiledProfile, error) {
 			tokenCompat.AcceptPlainToken = true
 		case tokenQuirkSendTokenInBody:
 			tokenCompat.SendTokenInBody = true
+		case tokenQuirkAllowJSONTokenBody:
+			tokenCompat.AllowJSONTokenBody = true
+		case tokenQuirkAllowOCMShareGrant:
+			tokenCompat.AllowOCMShareGrant = true
 		default:
 			return CompiledProfile{}, fmt.Errorf(
 				"unsupported token_exchange_quirk %q",
@@ -369,6 +382,8 @@ func summarizeProfile(profile CompiledProfile) ProfileSummary {
 			profile.Protocol.AllowLegacyProtocolName ||
 			profile.TokenExchange.AcceptPlainToken ||
 			profile.TokenExchange.SendTokenInBody ||
+			profile.TokenExchange.AllowJSONTokenBody ||
+			profile.TokenExchange.AllowOCMShareGrant ||
 			(len(profile.BasicAuth.AllowedPatterns) > 0) ||
 			profile.TokenExchange.GrantType != "authorization_code",
 		AllowUnsignedDiscovery: profile.Signing.AllowUnsignedDiscovery,

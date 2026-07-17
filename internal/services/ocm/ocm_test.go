@@ -351,7 +351,7 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	form := "grant_type=ocm_share&client_id=" + clientHost + "&code=" + sharedSecret
+	form := "grant_type=authorization_code&client_id=" + clientHost + "&code=" + sharedSecret
 	body := []byte(form)
 	origin := config.DevConfig().PublicOrigin
 	req := httptest.NewRequest(http.MethodPost, origin+"/token", bytes.NewReader(body))

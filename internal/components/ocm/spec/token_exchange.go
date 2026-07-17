@@ -29,8 +29,9 @@ const (
 
 // OAuth error codes.
 const (
-	ErrorInvalidRequest = "invalid_request"
-	ErrorInvalidGrant   = "invalid_grant"
-	ErrorInvalidClient  = "invalid_client"
-	ErrorUnauthorized   = "unauthorized_client"
+	ErrorInvalidRequest       = "invalid_request"
+	ErrorInvalidGrant         = "invalid_grant"
+	ErrorInvalidClient        = "invalid_client"
+	ErrorUnauthorized         = "unauthorized_client"
+	ErrorUnsupportedGrantType = "unsupported_grant_type"
 )
