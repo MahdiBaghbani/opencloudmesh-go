@@ -9,6 +9,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 type EndpointKind string
@@ -111,7 +112,7 @@ func (p *OutboundPolicy) ShouldSign(
 
 func (p *OutboundPolicy) decideTokenExchange(peerDomain string, disc *discovery.Discovery, hasSigner bool) SigningDecision {
 	if disc != nil {
-		if disc.HasCriteria("token-exchange") || disc.HasCriteria("must-exchange-token") {
+		if disc.HasCriteria(spec.CriteriaMustExchangeToken) {
 			if !hasSigner {
 				return SigningDecision{
 					ShouldSign: true,

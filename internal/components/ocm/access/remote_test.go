@@ -106,8 +106,7 @@ func TestBuildWebDAVURL_AbsoluteURIMatchingHost(t *testing.T) {
 		Status:            "accepted",
 		SenderHost:        "sender.example.com",
 		SharedSecret:      "secret",
-		WebDAVID:          "relative-id",
-		WebDAVURIAbsolute: "https://sender.example.com/remote.php/webdav/file.txt",
+		WebDAVID:          "https://sender.example.com/remote.php/webdav/file.txt",
 		MustExchangeToken: false,
 	}
 	_, err := client.Access(context.Background(), access.AccessOptions{
@@ -135,8 +134,7 @@ func TestBuildWebDAVURL_AbsoluteURIMismatchedHost(t *testing.T) {
 		Status:            "accepted",
 		SenderHost:        discServer.Listener.Addr().String(),
 		SharedSecret:      "secret",
-		WebDAVID:          "file-id-123",
-		WebDAVURIAbsolute: "https://evil.example.com/webdav/file.txt",
+		WebDAVID:          "https://evil.example.com/webdav/file.txt",
 		MustExchangeToken: false,
 	}
 	_, err := client.Access(context.Background(), access.AccessOptions{
@@ -163,8 +161,7 @@ func TestBuildWebDAVURL_AbsoluteURIParseError(t *testing.T) {
 		Status:            "accepted",
 		SenderHost:        discServer.Listener.Addr().String(),
 		SharedSecret:      "secret",
-		WebDAVID:          "file-id-456",
-		WebDAVURIAbsolute: "://not-a-valid-url",
+		WebDAVID:          "://not-a-valid-url",
 		MustExchangeToken: false,
 	}
 
@@ -377,15 +374,13 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry))
 
 	senderHost := srv.Listener.Addr().String()
-	webdavAbsolute := srv.URL + "/webdav/ocm/" + webdavID + "/data.csv"
 
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
-			Status:            "accepted",
-			SenderHost:        senderHost,
-			SharedSecret:      token,
-			WebDAVID:          webdavID,
-			WebDAVURIAbsolute: webdavAbsolute,
+			Status:       "accepted",
+			SenderHost:   senderHost,
+			SharedSecret: token,
+			WebDAVID:     webdavID,
 		},
 		Method: "GET",
 	})
@@ -596,6 +591,23 @@ func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
 
 	var receivedAuths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			disc := discovery.Discovery{
+				Enabled:    true,
+				APIVersion: "1.2.2",
+				EndPoint:   "http://" + r.Host + "/ocm",
+				ResourceTypes: []discovery.ResourceType{
+					{
+						Name:       "file",
+						ShareTypes: []string{"user"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
+					},
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(disc)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
 			auth := r.Header.Get("Authorization")
 			receivedAuths = append(receivedAuths, auth)
@@ -636,12 +648,11 @@ func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
 	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry))
 	result, err := client.Access(context.Background(), access.AccessOptions{
 		Share: &access.ShareInfo{
-			Status:            "accepted",
-			SenderHost:        "sender.example.com",
-			OwnerHost:         ownerHost,
-			SharedSecret:      token,
-			WebDAVID:          webdavID,
-			WebDAVURIAbsolute: "http://" + ownerHost + "/webdav/ocm/" + webdavID + "/doc.txt",
+			Status:       "accepted",
+			SenderHost:   "sender.example.com",
+			OwnerHost:    ownerHost,
+			SharedSecret: token,
+			WebDAVID:     webdavID,
 		},
 		Method: "GET",
 	})

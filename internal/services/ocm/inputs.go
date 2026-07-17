@@ -23,7 +23,6 @@ type Inputs struct {
 	PolicyEngine        *peertrust.PolicyEngine
 	DiscoveryClient     *discovery.Client
 	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
-	RuntimePolicy       *policy.RuntimePolicy
 	PeerContract        *peercompat.CompiledContract
 	LocalIdentity       localidentity.Identity
 	TokenStore          token.TokenStore

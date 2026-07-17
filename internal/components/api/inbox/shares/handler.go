@@ -73,7 +73,7 @@ type InboxShareDetailView struct {
 	WebDAVID                 string              `json:"webdavId,omitempty"`
 	MustExchangeToken        bool                `json:"mustExchangeToken"`
 	SenderExchangeCapable    bool                `json:"senderExchangeCapable"`
-	WebDAVURIAbsolutePresent bool                `json:"webdavUriAbsolutePresent"`
+	AbsoluteWebDAVURIPresent bool                `json:"webdavUriAbsolutePresent"`
 	Protocol                 *ProtocolDetailView `json:"protocol"`
 }
 
@@ -90,12 +90,17 @@ type WebDAVDetailView struct {
 	SharedSecret string   `json:"sharedSecret"`
 }
 
+func isAbsoluteWebDAVURI(uri string) bool {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+	return u.IsAbs()
+}
+
 // NewInboxShareDetailView returns a detail view with SharedSecret masked as [REDACTED].
 func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView {
 	uri := s.WebDAVID
-	if s.WebDAVURIAbsolute != "" {
-		uri = s.WebDAVURIAbsolute
-	}
 
 	requirements := []string{}
 	if s.MustExchangeToken {
@@ -112,7 +117,7 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 		WebDAVID:                 s.WebDAVID,
 		MustExchangeToken:        s.MustExchangeToken,
 		SenderExchangeCapable:    s.SenderExchangeCapable,
-		WebDAVURIAbsolutePresent: s.WebDAVURIAbsolute != "",
+		AbsoluteWebDAVURIPresent: isAbsoluteWebDAVURI(s.WebDAVID),
 		Protocol: &ProtocolDetailView{
 			Name: "webdav",
 			WebDAV: &WebDAVDetailView{
@@ -394,7 +399,6 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		OwnerHost:             share.OwnerHost,
 		SharedSecret:          share.SharedSecret,
 		WebDAVID:              share.WebDAVID,
-		WebDAVURIAbsolute:     share.WebDAVURIAbsolute,
 		MustExchangeToken:     share.MustExchangeToken,
 		SenderExchangeCapable: share.SenderExchangeCapable,
 	}

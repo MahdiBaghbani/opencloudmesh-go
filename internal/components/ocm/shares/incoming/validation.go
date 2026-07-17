@@ -14,6 +14,11 @@ func ExtractSenderHost(sender string) string {
 	return strings.ToLower(provider)
 }
 
-func IsAbsoluteURI(uri string) bool {
-	return strings.Contains(uri, "://")
+func isCanonicalProtocolName(name string) bool {
+	switch name {
+	case "webdav", "webapp", "ssh":
+		return true
+	default:
+		return false
+	}
 }

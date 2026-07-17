@@ -78,7 +78,7 @@ mode = "off"
 		// discovery advertises the signature criterion.
 		hasHTTPReqSigs := false
 		for _, criterion := range disc.Criteria {
-			if criterion == spec.CriteriaMustUseHTTPSig || criterion == "http-request-signatures" {
+			if criterion == spec.CriteriaMustUseHTTPSig {
 				hasHTTPReqSigs = true
 				break
 			}
@@ -217,7 +217,7 @@ outbound_mode = "strict"
 
 			hasHTTPReqSigs := false
 			for _, criterion := range disc.Criteria {
-				if criterion == spec.CriteriaMustUseHTTPSig || criterion == "http-request-signatures" {
+				if criterion == spec.CriteriaMustUseHTTPSig {
 					hasHTTPReqSigs = true
 					break
 				}

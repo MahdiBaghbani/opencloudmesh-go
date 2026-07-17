@@ -520,6 +520,9 @@ func validateNoneScopePeerProfile(name string, p PeerProfile) error {
 	if p.AllowUnsignedDiscovery {
 		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_unsigned_discovery", name)
 	}
+	if p.AllowLegacyProtocolName {
+		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_legacy_protocol_name", name)
+	}
 	if p.TokenExchangeGrantType != "" {
 		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.token_exchange_grant_type", name)
 	}

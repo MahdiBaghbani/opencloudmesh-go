@@ -109,7 +109,6 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		PolicyEngine:        d.PolicyEngine,
 		DiscoveryClient:     d.DiscoveryClient,
 		OpenCloudMeshPolicy: d.OpenCloudMeshPolicy,
-		RuntimePolicy:       d.RuntimePolicy,
 		PeerContract:        d.PeerContract,
 		LocalIdentity:       d.LocalIdentity,
 		TokenStore:          d.TokenStore,

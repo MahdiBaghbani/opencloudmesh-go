@@ -61,7 +61,7 @@ func TestOutgoingSharePolicyDifferences(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// Each subtest needs its own server because policy is frozen at startup.
-			ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
 				cfg.PeerPolicy = tc.peerPolicy
 			})
 			defer ts.Stop(t)
@@ -118,7 +118,7 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	ts := harness.StartTestServer(t)
+	ts := harness.StartTestServerWithOutgoingSharePolicy(t, nil)
 	defer ts.Stop(t)
 
 	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
@@ -246,6 +246,140 @@ func startCapableNonStrictReceiver(t *testing.T) (*httptest.Server, *atomic.Int3
 	return srv, postCount, mustExchangeFlag
 }
 
+func startCanonicalStrictCapableReceiver(t *testing.T) (*httptest.Server, *atomic.Int32, *atomic.Int32) {
+	t.Helper()
+
+	postCount := &atomic.Int32{}
+	mustExchangeFlag := &atomic.Int32{}
+	mustExchangeFlag.Store(-1)
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/ocm", "/ocm-provider":
+			disc := spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.2.2",
+				EndPoint:      srv.URL + "/ocm",
+				Capabilities:  []string{"exchange-token"},
+				Criteria:      []string{spec.CriteriaMustExchangeToken},
+				TokenEndPoint: srv.URL + "/ocm/token",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(disc)
+			return
+		case "/ocm/shares":
+			if r.Method != http.MethodPost {
+				http.NotFound(w, r)
+				return
+			}
+			var req spec.NewShareRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid payload", http.StatusBadRequest)
+				return
+			}
+			postCount.Add(1)
+			mustExchange := req.Protocol.WebDAV != nil &&
+				req.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken)
+			if mustExchange {
+				mustExchangeFlag.Store(1)
+			} else {
+				mustExchangeFlag.Store(0)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"ok":true}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	return srv, postCount, mustExchangeFlag
+}
+
+func TestOutgoingSharePolicy_CanonicalStrictPeer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	trueVal := true
+	tests := []struct {
+		name                 string
+		tokenExchangeEnabled bool
+		wantStatus           int
+		wantPosts            int32
+		wantMustExch         *bool
+	}{
+		{
+			name:                 "requires exchange when local code flow enabled",
+			tokenExchangeEnabled: true,
+			wantStatus:           http.StatusCreated,
+			wantPosts:            1,
+			wantMustExch:         &trueVal,
+		},
+		{
+			name:                 "rejects when local code flow disabled",
+			tokenExchangeEnabled: false,
+			wantStatus:           reason.APIStatus(reason.PeerCapabilityMismatch),
+			wantPosts:            0,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
+				enabled := tc.tokenExchangeEnabled
+				cfg.TokenExchange.Enabled = &enabled
+				cfg.PeerPolicy = "legacy"
+			})
+			defer ts.Stop(t)
+
+			token := loginAdmin(t, ts.BaseURL, "admin", "admin")
+
+			shareFile, err := os.CreateTemp("/tmp", "policy-canonical-strict-*")
+			if err != nil {
+				t.Fatalf("failed to create temp share file: %v", err)
+			}
+			if _, err := shareFile.WriteString("canonical strict peer integration payload"); err != nil {
+				t.Fatalf("failed to seed temp share file: %v", err)
+			}
+			if err := shareFile.Close(); err != nil {
+				t.Fatalf("failed to close temp share file: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
+
+			receiver, postCount, mustExchangeFlag := startCanonicalStrictCapableReceiver(t)
+			defer receiver.Close()
+
+			receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
+			status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
+				"receiverDomain": receiverDomain,
+				"shareWith":      "bob@" + receiverDomain,
+				"localPath":      shareFile.Name(),
+				"permissions":    []string{"read"},
+			})
+
+			if status != tc.wantStatus {
+				t.Fatalf("expected status %d, got %d: %s", tc.wantStatus, status, body)
+			}
+			if got := postCount.Load(); got != tc.wantPosts {
+				t.Fatalf("expected receiver POST count %d, got %d", tc.wantPosts, got)
+			}
+			if tc.wantMustExch != nil {
+				gotFlag := mustExchangeFlag.Load()
+				if gotFlag == -1 {
+					t.Fatal("receiver did not capture must-exchange-token state")
+				}
+				gotMust := gotFlag == 1
+				if gotMust != *tc.wantMustExch {
+					t.Fatalf("must-exchange-token mismatch: got %v, want %v", gotMust, *tc.wantMustExch)
+				}
+			}
+		})
+	}
+}
+
 func TestOutgoingSharePolicyDifferences_MalformedDiscovery(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -278,7 +412,7 @@ func TestOutgoingSharePolicyDifferences_MalformedDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// Each subtest needs its own server because policy is frozen at startup.
-			ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
 				cfg.PeerPolicy = tc.peerPolicy
 			})
 			defer ts.Stop(t)

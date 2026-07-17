@@ -9,6 +9,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm"
 )
@@ -146,7 +147,7 @@ func TestOutboundPolicy_CriteriaOnly_SignsWhenRequired(t *testing.T) {
 	// Peer requires signatures
 	discRequires := &discovery.Discovery{
 		Capabilities: []string{"http-sig"},
-		Criteria:     []string{"http-request-signatures"},
+		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
 	}
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discRequires, true)
@@ -174,7 +175,7 @@ func TestOutboundPolicy_CriteriaOnly_FailsWhenPeerLacksCapability(t *testing.T) 
 	// Peer requires signatures but lacks http-sig capability.
 	discBroken := &discovery.Discovery{
 		Capabilities: []string{},
-		Criteria:     []string{"http-request-signatures"},
+		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
 	}
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", discBroken, true)
@@ -193,7 +194,7 @@ func TestOutboundPolicy_CriteriaOnly_SignsWhenPeerRequiresSignatures(t *testing.
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"http-sig"},
-		Criteria:     []string{"http-request-signatures"},
+		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
 	}
 
 	decision := policy.ShouldSign(outboundsigning.EndpointShares, "example.com", disc, true)
@@ -476,7 +477,7 @@ func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testin
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},
-		Criteria:     []string{"token-exchange"},
+		Criteria:     []string{spec.CriteriaMustExchangeToken},
 	}
 	decision := policy.ShouldSign(outboundsigning.EndpointTokenExchange, "cloud.nextcloud.com", disc, true)
 	if !decision.ShouldSign {

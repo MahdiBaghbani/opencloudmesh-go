@@ -171,7 +171,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	// Decide whether this share requires token exchange at the receiver.
 	// The decision combines the receiver's advertised capabilities with local policy.
 	peerTokenExchangeCapable := disc.SupportsTokenExchange()
-	peerIsStrict := disc.HasCriteria("token-exchange")
+	peerIsStrict := disc.HasCriteria(spec.CriteriaMustExchangeToken)
 
 	localCodeFlow := false
 	localPolicy := "legacy"
@@ -243,7 +243,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		ShareType:    "user",
 		ResourceType: resourceType,
 		Protocol: spec.Protocol{
-			Name:   "multi",
+			Name:   "webdav",
 			WebDAV: webdavProto,
 		},
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
@@ -30,7 +31,7 @@ func TestHandleCreate_StrictRejectsCapableNonStrictPeer_NoSend(t *testing.T) {
 
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
 		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
@@ -81,7 +82,7 @@ func TestHandleCreate_StrictRejectsLegacyPeer_NoSend(t *testing.T) {
 
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
 		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
@@ -122,7 +123,7 @@ func TestHandleCreate_StrictRejectsLegacyPeer_NoSend(t *testing.T) {
 }
 
 func TestHandleCreate_StrictRejectsMalformedStrictPeer_NoSend(t *testing.T) {
-	srv, postCount := makeMalformedCapableReceiverTLSServer([]string{"token-exchange"})
+	srv, postCount := makeMalformedCapableReceiverTLSServer([]string{spec.CriteriaMustExchangeToken})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -134,7 +135,7 @@ func TestHandleCreate_StrictRejectsMalformedStrictPeer_NoSend(t *testing.T) {
 
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
 		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
@@ -179,7 +180,7 @@ func TestHandleCreate_MalformedCapablePeerDegradesToLegacy(t *testing.T) {
 	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
 		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
@@ -227,7 +228,7 @@ func TestHandleCreate_SuccessStoresSentRowAndFederatedIDs(t *testing.T) {
 	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
 		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
@@ -285,7 +286,7 @@ func TestHandleCreate_SendReusesPreflightDiscovery(t *testing.T) {
 	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeNoCacheTLSClients()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
 		testProvider, testCurrentUser(user), testLogger,
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
@@ -389,7 +390,7 @@ func TestHandleCreate_NonStrictPolicyMatrix(t *testing.T) {
 			cfg.TokenExchange.Enabled = &enabled
 			discClient, ctxClient := makeTLSClients()
 			handler := outgoingshares.NewHandler(
-				repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, nil, nil,
+				repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
 				testProvider, testCurrentUser(user), testLogger,
 			)
 			handler.SetAllowedPaths([]string{"/tmp"})
@@ -425,5 +426,143 @@ func TestHandleCreate_NonStrictPolicyMatrix(t *testing.T) {
 				t.Fatalf("expected MustExchangeToken=%v, got %v", c.wantMust, all[0].MustExchangeToken)
 			}
 		})
+	}
+}
+
+func TestHandleCreate_CanonicalStrictPeerRequiresExchangeWhenCodeFlowEnabled(t *testing.T) {
+	srv, postCount, captured := makeCapturingReceiverTLSServer(
+		[]string{"exchange-token"},
+		[]string{spec.CriteriaMustExchangeToken},
+	)
+	defer srv.Close()
+
+	user := &identity.User{ID: "user-uuid", Username: "alice"}
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	cfg := config.DevConfig()
+	cfg.PeerPolicy = "legacy"
+	enabled := true
+	cfg.TokenExchange.Enabled = &enabled
+
+	discClient, ctxClient := makeTLSClients()
+	handler := outgoingshares.NewHandler(
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
+		testProvider, testCurrentUser(user), testLogger,
+	)
+	handler.SetAllowedPaths([]string{"/tmp"})
+
+	filePath := createTempShareFile(t, "outgoing-canonical-strict-enabled-*")
+	receiverHost := srv.Listener.Addr().String()
+	body := `{
+		"receiverDomain": "` + receiverHost + `",
+		"shareWith": "bob@` + receiverHost + `",
+		"localPath": "` + filePath + `",
+		"permissions": ["read"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.HandleCreate(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if postCount.Load() != 1 {
+		t.Fatalf("expected one remote POST, got %d", postCount.Load())
+	}
+	if captured.Protocol.Name != "webdav" {
+		t.Fatalf("expected protocol.name webdav, got %q", captured.Protocol.Name)
+	}
+	if captured.Protocol.WebDAV == nil || !captured.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
+		t.Fatal("expected outgoing share to require must-exchange-token for canonical strict peer")
+	}
+	all, err := repo.List(context.Background())
+	if err != nil {
+		t.Fatalf("failed to list shares: %v", err)
+	}
+	if len(all) != 1 || !all[0].MustExchangeToken {
+		t.Fatalf("expected stored MustExchangeToken=true, got %+v", all)
+	}
+}
+
+func TestHandleCreate_CanonicalStrictPeerRejectsWithoutCodeFlow(t *testing.T) {
+	srv, postCount := makeReceiverTLSServer(
+		[]string{"exchange-token"},
+		[]string{spec.CriteriaMustExchangeToken},
+	)
+	defer srv.Close()
+
+	user := &identity.User{ID: "user-uuid", Username: "alice"}
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	cfg := config.DevConfig()
+	cfg.PeerPolicy = "legacy"
+	enabled := false
+	cfg.TokenExchange.Enabled = &enabled
+
+	discClient, ctxClient := makeTLSClients()
+	handler := outgoingshares.NewHandler(
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
+		testProvider, testCurrentUser(user), testLogger,
+	)
+	handler.SetAllowedPaths([]string{"/tmp"})
+
+	filePath := createTempShareFile(t, "outgoing-canonical-strict-disabled-*")
+	receiverHost := srv.Listener.Addr().String()
+	body := `{
+		"receiverDomain": "` + receiverHost + `",
+		"shareWith": "bob@` + receiverHost + `",
+		"localPath": "` + filePath + `",
+		"permissions": ["read"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.HandleCreate(w, req)
+
+	if w.Code != reason.APIStatus(reason.PeerCapabilityMismatch) {
+		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerCapabilityMismatch), w.Code, w.Body.String())
+	}
+	if postCount.Load() != 0 {
+		t.Fatalf("expected no remote POST attempt, got %d", postCount.Load())
+	}
+}
+
+func TestHandleCreate_EmitsWebDAVProtocolName(t *testing.T) {
+	srv, postCount, captured := makeCapturingReceiverTLSServer([]string{"exchange-token"}, []string{})
+	defer srv.Close()
+
+	user := &identity.User{ID: "user-uuid", Username: "alice"}
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	cfg := config.DevConfig()
+	cfg.PeerPolicy = "legacy"
+	enabled := true
+	cfg.TokenExchange.Enabled = &enabled
+	discClient, ctxClient := makeTLSClients()
+	handler := outgoingshares.NewHandler(
+		repo, discClient, policy.NewOpenCloudMeshPolicy(cfg), ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
+		testProvider, testCurrentUser(user), testLogger,
+	)
+	handler.SetAllowedPaths([]string{"/tmp"})
+
+	filePath := createTempShareFile(t, "outgoing-proto-name-*")
+	receiverHost := srv.Listener.Addr().String()
+	body := `{
+		"receiverDomain": "` + receiverHost + `",
+		"shareWith": "bob@` + receiverHost + `",
+		"localPath": "` + filePath + `",
+		"permissions": ["read"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.HandleCreate(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if postCount.Load() != 1 {
+		t.Fatalf("expected one remote POST, got %d", postCount.Load())
+	}
+	if captured.Protocol.Name != "webdav" {
+		t.Fatalf("expected protocol.name webdav, got %q", captured.Protocol.Name)
 	}
 }

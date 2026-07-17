@@ -49,8 +49,74 @@ func TestSignatureDecisionForPeer_UnmatchedUsesStrictDefaults(t *testing.T) {
 		t.Fatalf("expected strict profile fallback, got %q", decision.Profile)
 	}
 	if decision.AllowUnsignedInbound || decision.AllowUnsignedOutbound ||
-		decision.AllowMismatchedHost || decision.AllowUnsignedDiscovery {
+		decision.AllowMismatchedHost || decision.AllowUnsignedDiscovery ||
+		decision.AllowLegacyProtocolName {
 		t.Fatalf("expected strict defaults for unmatched peer: %+v", decision)
+	}
+}
+
+func TestSignatureDecisionForPeer_AllowLegacyProtocolNameOnlyWhenMatched(t *testing.T) {
+	contract, err := NewCompiledContract(
+		map[string]*Profile{
+			"legacy-protocol": {
+				Name:                    "legacy-protocol",
+				AllowLegacyProtocolName: true,
+			},
+		},
+		[]ProfileMapping{{Pattern: "*.legacy.example", Profile: "legacy-protocol"}},
+	)
+	if err != nil {
+		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
+	}
+
+	decision := contract.SignatureDecisionForPeer("node.legacy.example")
+	if !decision.Matched {
+		t.Fatal("expected peer mapping match")
+	}
+	if !decision.AllowLegacyProtocolName {
+		t.Fatal("expected AllowLegacyProtocolName=true for matched profile")
+	}
+	if decision.AllowUnsignedInbound || decision.AllowUnsignedOutbound ||
+		decision.AllowMismatchedHost || decision.AllowUnsignedDiscovery {
+		t.Fatalf("expected only protocol-name relaxation: %+v", decision)
+	}
+}
+
+func TestSignatureDecisionForPeer_NoneScopeBlocksLegacyProtocolName(t *testing.T) {
+	registry := NewProfileRegistry(
+		map[string]*Profile{
+			"legacy-protocol": {
+				Name:                    "legacy-protocol",
+				AllowLegacyProtocolName: true,
+			},
+		},
+		[]ProfileMapping{{Pattern: "*.legacy.example", Profile: "legacy-protocol"}},
+	)
+	contract, err := BuildCompiledContractFromRegistryWithScope(registry, CompatibilityScopeNone)
+	if err != nil {
+		t.Fatalf("BuildCompiledContractFromRegistryWithScope() unexpected error: %v", err)
+	}
+
+	decision := contract.SignatureDecisionForPeer("node.legacy.example")
+	if decision.Matched {
+		t.Fatal("expected closed compatibility scope to block matched-peer relaxations")
+	}
+	if decision.AllowLegacyProtocolName {
+		t.Fatalf("expected AllowLegacyProtocolName=false under none scope: %+v", decision)
+	}
+}
+
+func TestCompileProfile_AllowLegacyProtocolNameCountsAsRelaxation(t *testing.T) {
+	compiled, err := compileProfile(&Profile{
+		Name:                    "legacy-protocol",
+		AllowLegacyProtocolName: true,
+	})
+	if err != nil {
+		t.Fatalf("compileProfile() unexpected error: %v", err)
+	}
+	summary := summarizeProfile(compiled)
+	if !summary.HasRelaxations {
+		t.Fatal("expected AllowLegacyProtocolName to count as a profile relaxation")
 	}
 }
 

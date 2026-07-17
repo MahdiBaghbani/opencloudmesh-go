@@ -142,7 +142,7 @@ func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
 				APIVersion:    "1.2.2",
 				EndPoint:      server.URL + "/ocm",
 				Capabilities:  []string{"exchange-token"},
-				Criteria:      []string{"token-exchange"},
+				Criteria:      []string{spec.CriteriaMustExchangeToken},
 				TokenEndPoint: server.URL + "/token-exchange/v2",
 				ResourceTypes: []discovery.ResourceType{
 					{

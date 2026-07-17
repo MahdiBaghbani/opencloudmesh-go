@@ -224,6 +224,10 @@ type PeerProfile struct {
 	// to fail open for this peer in the narrow retained call sites.
 	AllowUnsignedDiscovery bool `toml:"allow_unsigned_discovery"`
 
+	// AllowLegacyProtocolName allows deprecated protocol.name values such as
+	// "multi" for matched peers only.
+	AllowLegacyProtocolName bool `toml:"allow_legacy_protocol_name"`
+
 	// TokenExchangeQuirks lists quirks to apply for token exchange
 	TokenExchangeQuirks []string `toml:"token_exchange_quirks"`
 

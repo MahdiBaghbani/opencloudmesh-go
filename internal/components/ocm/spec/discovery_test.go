@@ -13,19 +13,22 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/webdav"
 )
 
-func TestHasCriteria_IETFAndLegacyAliases(t *testing.T) {
+func TestHasCriteria_CanonicalEqualityOnly(t *testing.T) {
 	disc := &spec.Discovery{
 		Criteria: []string{spec.CriteriaMustUseHTTPSig, spec.CriteriaMustExchangeToken},
 	}
 
 	for _, query := range []string{
 		spec.CriteriaMustUseHTTPSig,
-		"http-request-signatures",
 		spec.CriteriaMustExchangeToken,
-		"token-exchange",
 	} {
 		if !disc.HasCriteria(query) {
 			t.Errorf("HasCriteria(%q) = false, want true", query)
+		}
+	}
+	for _, legacy := range []string{"http-request-signatures", "token-exchange"} {
+		if disc.HasCriteria(legacy) {
+			t.Errorf("HasCriteria(%q) = true, want false (no legacy aliasing)", legacy)
 		}
 	}
 	if disc.HasCriteria("unknown") {

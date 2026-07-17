@@ -14,10 +14,8 @@ import (
 
 // Canonical OCM-API discovery criteria strings (IETF-RFC / OpenAPI).
 const (
-	CriteriaMustUseHTTPSig      = "must-use-http-sig"
-	CriteriaMustExchangeToken   = "must-exchange-token"
-	criteriaLegacyHTTPSig       = "http-request-signatures"
-	criteriaLegacyExchangeToken = "token-exchange"
+	CriteriaMustUseHTTPSig    = "must-use-http-sig"
+	CriteriaMustExchangeToken = "must-exchange-token"
 )
 
 type Discovery struct {
@@ -49,7 +47,7 @@ func (d *Discovery) HasCapability(cap string) bool {
 
 func (d *Discovery) HasCriteria(criterion string) bool {
 	for _, c := range d.Criteria {
-		if criteriaEquivalent(c, criterion) {
+		if c == criterion {
 			return true
 		}
 	}
@@ -57,7 +55,7 @@ func (d *Discovery) HasCriteria(criterion string) bool {
 }
 
 // RequiresHTTPSig reports whether the peer requires signed OCM requests per the
-// IETF must-use-http-sig criterion (including the legacy alias).
+// IETF must-use-http-sig criterion.
 func (d *Discovery) RequiresHTTPSig() bool {
 	if d == nil {
 		return false
@@ -71,20 +69,6 @@ func (d *Discovery) IsHTTPSigCapable() bool {
 		return false
 	}
 	return d.HasCapability("http-sig")
-}
-
-func criteriaEquivalent(stored, query string) bool {
-	if stored == query {
-		return true
-	}
-	switch query {
-	case CriteriaMustUseHTTPSig, criteriaLegacyHTTPSig:
-		return stored == CriteriaMustUseHTTPSig || stored == criteriaLegacyHTTPSig
-	case CriteriaMustExchangeToken, criteriaLegacyExchangeToken:
-		return stored == CriteriaMustExchangeToken || stored == criteriaLegacyExchangeToken
-	default:
-		return false
-	}
 }
 
 // DiscoveryPaths holds route-derived discovery path fields before policy overlays.

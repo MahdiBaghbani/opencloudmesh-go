@@ -63,6 +63,11 @@ type BasicAuthCompatibility struct {
 	AllowedPatterns  []string
 }
 
+// ProtocolCompatibility is the typed share protocol compatibility decision payload.
+type ProtocolCompatibility struct {
+	AllowLegacyProtocolName bool
+}
+
 // CompiledProfile is the immutable, typed compatibility shape for one profile.
 type CompiledProfile struct {
 	Name          string
@@ -70,6 +75,7 @@ type CompiledProfile struct {
 	Transport     TransportCompatibility
 	TokenExchange TokenExchangeCompatibility
 	BasicAuth     BasicAuthCompatibility
+	Protocol      ProtocolCompatibility
 }
 
 // ProfileSummary captures per-profile summary facts used by runtime posture.
@@ -346,6 +352,9 @@ func compileProfile(profile *Profile) (CompiledProfile, error) {
 		},
 		TokenExchange: tokenCompat,
 		BasicAuth:     basicAuth,
+		Protocol: ProtocolCompatibility{
+			AllowLegacyProtocolName: profile.AllowLegacyProtocolName,
+		},
 	}, nil
 }
 
@@ -357,6 +366,7 @@ func summarizeProfile(profile CompiledProfile) ProfileSummary {
 			profile.Signing.AllowMismatchedHost ||
 			profile.Signing.AllowUnsignedDiscovery ||
 			profile.Transport.AllowHTTP ||
+			profile.Protocol.AllowLegacyProtocolName ||
 			profile.TokenExchange.AcceptPlainToken ||
 			profile.TokenExchange.SendTokenInBody ||
 			(len(profile.BasicAuth.AllowedPatterns) > 0) ||

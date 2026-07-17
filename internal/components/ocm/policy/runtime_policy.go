@@ -143,22 +143,6 @@ func NewRuntimePolicy(cfg *config.Config, peerContract *peercompat.CompiledContr
 	return &RuntimePolicy{evaluation: evaluation}
 }
 
-// StrictIncomingSharePayloadValidation reports whether incoming share payload
-// validation should use the strict path for the current request.
-func (p *RuntimePolicy) StrictIncomingSharePayloadValidation(authenticated bool) bool {
-	if p == nil {
-		return false
-	}
-	switch p.evaluation.Signature.InboundMode {
-	case "strict":
-		return true
-	case "lenient":
-		return authenticated
-	default:
-		return false
-	}
-}
-
 // Evaluate returns the resolved runtime posture snapshot.
 func (p *RuntimePolicy) Evaluate() RuntimeEvaluation {
 	if p == nil {

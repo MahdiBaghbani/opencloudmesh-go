@@ -13,10 +13,15 @@ import (
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
@@ -66,6 +71,40 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 		http.NotFound(w, r)
 	}))
 	return srv, postCount
+}
+
+func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *atomic.Int32, *spec.NewShareRequest) {
+	postCount := &atomic.Int32{}
+	var captured spec.NewShareRequest
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			tokenEndPoint := ""
+			if hasCapability(capabilities, "exchange-token") {
+				tokenEndPoint = srv.URL + "/ocm/token"
+			}
+			disc := spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.2.2",
+				EndPoint:      srv.URL + "/ocm",
+				Capabilities:  capabilities,
+				Criteria:      criteria,
+				TokenEndPoint: tokenEndPoint,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(disc)
+			return
+		}
+		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
+			postCount.Add(1)
+			_ = json.NewDecoder(r.Body).Decode(&captured)
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"ok":true}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	return srv, postCount, &captured
 }
 
 func makeMalformedCapableReceiverTLSServer(criteria []string) (*httptest.Server, *atomic.Int32) {
@@ -175,6 +214,24 @@ func failCurrentUser() func(context.Context) (*identity.User, error) {
 	return func(ctx context.Context) (*identity.User, error) {
 		return nil, http.ErrNoCookie
 	}
+}
+
+func makeTestSigner(t *testing.T) *crypto.RFC9421Signer {
+	t.Helper()
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("failed to generate test signing key: %v", err)
+	}
+	return crypto.NewRFC9421Signer(km)
+}
+
+func makeTestOutboundPolicy(cfg *config.Config) *outboundsigning.OutboundPolicy {
+	contract, err := peercompat.NewCompiledContract(nil, nil)
+	if err != nil {
+		panic(err)
+	}
+	runtime := policy.NewRuntimePolicy(cfg, contract)
+	return outboundsigning.NewOutboundPolicy(outboundsigning.ResolveInputs(runtime), contract)
 }
 
 func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {

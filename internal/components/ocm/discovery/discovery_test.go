@@ -102,8 +102,8 @@ func TestDiscovery_Helpers(t *testing.T) {
 	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
 		t.Error("HasCriteria must-use-http-sig should be true")
 	}
-	if !disc.HasCriteria("http-request-signatures") {
-		t.Error("HasCriteria legacy alias should be true")
+	if disc.HasCriteria("http-request-signatures") {
+		t.Error("legacy http-request-signatures criterion must not alias canonical must-use-http-sig")
 	}
 
 	url, err := disc.BuildWebDAVURL("abc123")

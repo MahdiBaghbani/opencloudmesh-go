@@ -352,7 +352,7 @@ func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
 func createDetailedShareForUser(
 	repo *sharesinbox.MemoryIncomingShareRepo,
 	recipientUserID, providerID, senderHost string,
-	webdavID, webdavURIAbsolute, sharedSecret string,
+	webdavID, sharedSecret string,
 	mustExchangeToken bool,
 ) *sharesinbox.IncomingShare {
 	share := &sharesinbox.IncomingShare{
@@ -368,7 +368,6 @@ func createDetailedShareForUser(
 		ShareType:         "user",
 		Permissions:       []string{"read"},
 		WebDAVID:          webdavID,
-		WebDAVURIAbsolute: webdavURIAbsolute,
 		SharedSecret:      sharedSecret,
 		MustExchangeToken: mustExchangeToken,
 	}
@@ -379,7 +378,7 @@ func createDetailedShareForUser(
 func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, userAID, "prov-detail", "sender.example.com",
-		"webdav-id-123", "", "secret-value", true)
+		"webdav-id-123", "secret-value", true)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, nil, userA)
@@ -440,7 +439,7 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 func TestHandleGetDetail_CrossUserReturns404(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, userAID, "prov-cross-detail", "sender.example.com",
-		"wdid", "", "secret", false)
+		"wdid", "secret", false)
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(repo, nil, userB)
@@ -471,7 +470,7 @@ func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
 func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, userAID, "prov-redact", "sender.example.com",
-		"wdid", "", "real-secret-value", false)
+		"wdid", "real-secret-value", false)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, nil, userA)
@@ -506,7 +505,7 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, userAID, "prov-noleak", "sender.example.com",
-		"wdid", "", "secret", false)
+		"wdid", "secret", false)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, nil, userA)
@@ -530,7 +529,7 @@ func TestHandleGetDetail_RequirementsReflectsMustExchangeToken(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
 	shareA := createDetailedShareForUser(repo, userAID, "prov-met-true", "sender.example.com",
-		"wdid", "", "secret", true)
+		"wdid", "secret", true)
 
 	router := newTestRouter(repo, nil, userA)
 
@@ -551,7 +550,7 @@ func TestHandleGetDetail_RequirementsReflectsMustExchangeToken(t *testing.T) {
 	}
 
 	shareB := createDetailedShareForUser(repo, userAID, "prov-met-false", "sender.example.com",
-		"wdid2", "", "secret2", false)
+		"wdid2", "secret2", false)
 
 	reqB := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareB.ShareID, nil)
 	wB := httptest.NewRecorder()
@@ -626,13 +625,13 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	}
 }
 
-func TestHandleGetDetail_WebDAVURIAbsolutePresent(t *testing.T) {
+func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, nil, userA)
 
 	shareA := createDetailedShareForUser(repo, userAID, "prov-abs-yes", "sender.example.com",
-		"relative-id", "https://sender.example.com/webdav/file.txt", "secret", false)
+		"https://sender.example.com/webdav/file.txt", "secret", false)
 
 	reqA := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareA.ShareID, nil)
 	wA := httptest.NewRecorder()
@@ -651,7 +650,7 @@ func TestHandleGetDetail_WebDAVURIAbsolutePresent(t *testing.T) {
 	}
 
 	shareB := createDetailedShareForUser(repo, userAID, "prov-abs-no", "sender.example.com",
-		"relative-id-only", "", "secret2", false)
+		"relative-id-only", "secret2", false)
 
 	reqB := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareB.ShareID, nil)
 	wB := httptest.NewRecorder()

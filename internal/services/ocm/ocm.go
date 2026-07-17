@@ -2,7 +2,6 @@
 package ocm
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -40,10 +39,6 @@ type Service struct {
 func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
 	log = logutil.NoopIfNil(log)
 
-	if err := validateInputs(inputs); err != nil {
-		return nil, err
-	}
-
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
@@ -77,7 +72,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.PolicyEngine,
 		inputs.DiscoveryClient,
 		inputs.OpenCloudMeshPolicy,
-		inputs.RuntimePolicy,
 		inputs.PeerContract,
 		inputs.LocalIdentity.ProviderDomainCompare,
 		inputs.LocalIdentity.Scheme,
@@ -125,13 +119,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		conf:   &c,
 		log:    log,
 	}, nil
-}
-
-func validateInputs(in Inputs) error {
-	if in.RuntimePolicy == nil {
-		return errors.New("ocm: RuntimePolicy is required")
-	}
-	return nil
 }
 
 func (s *Service) Handler() http.Handler {

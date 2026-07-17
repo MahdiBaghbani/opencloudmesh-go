@@ -30,7 +30,6 @@ type Handler struct {
 	policyEngine                *peertrust.PolicyEngine
 	discoveryClient             *discovery.Client
 	canonicalPolicy             *policy.OpenCloudMeshPolicy
-	runtimePolicy               *policy.RuntimePolicy
 	peerContract                *peercompat.CompiledContract
 	localProviderFQDNForCompare string
 	localScheme                 string
@@ -43,7 +42,6 @@ func NewHandler(
 	policyEngine *peertrust.PolicyEngine,
 	discoveryClient *discovery.Client,
 	canonicalPolicy *policy.OpenCloudMeshPolicy,
-	runtimePolicy *policy.RuntimePolicy,
 	peerContract *peercompat.CompiledContract,
 	localProviderFQDNForCompare string,
 	localScheme string,
@@ -56,7 +54,6 @@ func NewHandler(
 		policyEngine:                policyEngine,
 		discoveryClient:             discoveryClient,
 		canonicalPolicy:             canonicalPolicy,
-		runtimePolicy:               runtimePolicy,
 		peerContract:                peerContract,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
@@ -79,15 +76,9 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 	peerIdentity := inboundsignature.GetPeerIdentity(r.Context())
 	authenticated := peerIdentity != nil && peerIdentity.Authenticated
-	strictPayloadValidation := false
-	if h.runtimePolicy != nil {
-		strictPayloadValidation = h.runtimePolicy.StrictIncomingSharePayloadValidation(authenticated)
-	}
 	validationErrs := spec.ValidateRequiredFields(&req)
-	if strictPayloadValidation {
-		if req.Protocol.Name == "" && (req.Protocol.WebDAV != nil || req.Protocol.WebApp != nil) {
-			validationErrs = append(validationErrs, spec.ValidationError{Name: "protocol.name", Message: "REQUIRED"})
-		}
+	if req.Protocol.Name == "" && (req.Protocol.WebDAV != nil || req.Protocol.WebApp != nil) {
+		validationErrs = append(validationErrs, spec.ValidationError{Name: "protocol.name", Message: "REQUIRED"})
 	}
 	if len(validationErrs) > 0 {
 		log.Warn("share validation failed", "errors", len(validationErrs))
@@ -111,18 +102,24 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		spec.WriteProtocolNotSupported(w)
 		return
 	}
-	effectiveProtocolName := req.Protocol.Name
-	if effectiveProtocolName == "" && !strictPayloadValidation {
-		effectiveProtocolName = "multi"
-	}
-	if effectiveProtocolName != "webdav" && effectiveProtocolName != "multi" {
-		log.Warn("share rejected: unsupported protocol name", "protocol_name", effectiveProtocolName)
-		spec.WriteProtocolNotSupported(w)
-		return
-	}
 	senderHost := ExtractSenderHost(req.Sender)
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		senderHost = peerIdentity.AuthorityForCompare
+	}
+	protocolName := req.Protocol.Name
+	allowLegacyProtocolName := false
+	if h.peerContract != nil {
+		peerDecision := h.peerContract.SignatureDecisionForPeer(senderHost)
+		allowLegacyProtocolName = peerDecision.Matched && peerDecision.AllowLegacyProtocolName
+	}
+	if !isCanonicalProtocolName(protocolName) {
+		if protocolName == "multi" && allowLegacyProtocolName {
+			// tolerated for matched legacy peers only
+		} else {
+			log.Warn("share rejected: unsupported protocol name", "protocol_name", protocolName)
+			spec.WriteProtocolNotSupported(w)
+			return
+		}
 	}
 	if h.policyEngine != nil {
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)
@@ -280,11 +277,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Protocol.WebDAV != nil {
 		webdav := req.Protocol.WebDAV
-		if IsAbsoluteURI(webdav.URI) {
-			share.WebDAVURIAbsolute = webdav.URI
-		} else {
-			share.WebDAVID = webdav.URI
-		}
+		share.WebDAVID = webdav.URI
 		share.SharedSecret = webdav.SharedSecret
 		share.Permissions = webdav.Permissions
 	}

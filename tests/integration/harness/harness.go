@@ -52,6 +52,13 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	return startTestServer(t, patch, IntegrationBuildOpts())
 }
 
+// StartTestServerWithOutgoingSharePolicy starts a test server with outbound
+// signing policy and keys wired for outgoing share consumer integration tests.
+func StartTestServerWithOutgoingSharePolicy(t *testing.T, patch func(*config.Config)) *TestServer {
+	t.Helper()
+	return startTestServer(t, patch, OutgoingSharePolicyBuildOpts())
+}
+
 // StartTestServerWithIETFConfig starts a test server with real signing keys and
 // inbound signature middleware enabled. Use for HTTP signature integration tests.
 func StartTestServerWithIETFConfig(t *testing.T, patch func(*config.Config)) *TestServer {

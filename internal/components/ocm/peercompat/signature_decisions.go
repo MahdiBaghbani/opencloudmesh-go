@@ -6,13 +6,14 @@ package peercompat
 // SignaturePeerDecision captures peer-scoped compatibility decisions used by
 // signature-capability call sites.
 type SignaturePeerDecision struct {
-	PeerDomain             string
-	Profile                string
-	Matched                bool
-	AllowUnsignedInbound   bool
-	AllowUnsignedOutbound  bool
-	AllowMismatchedHost    bool
-	AllowUnsignedDiscovery bool
+	PeerDomain              string
+	Profile                 string
+	Matched                 bool
+	AllowUnsignedInbound    bool
+	AllowUnsignedOutbound   bool
+	AllowMismatchedHost     bool
+	AllowUnsignedDiscovery  bool
+	AllowLegacyProtocolName bool
 }
 
 // DiscoveryFailureDecision resolves whether discovery errors may fail open.
@@ -43,6 +44,7 @@ func (c *CompiledContract) SignatureDecisionForPeer(peerDomain string) Signature
 	decision.AllowUnsignedOutbound = matched.Profile.Signing.AllowUnsignedOutbound
 	decision.AllowMismatchedHost = matched.Profile.Signing.AllowMismatchedHost
 	decision.AllowUnsignedDiscovery = matched.Profile.Signing.AllowUnsignedDiscovery
+	decision.AllowLegacyProtocolName = matched.Profile.Protocol.AllowLegacyProtocolName
 	return decision
 }
 

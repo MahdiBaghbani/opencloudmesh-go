@@ -95,7 +95,6 @@ func newHandlerWithDiscovery(
 		nil, // no policy engine
 		discClient,
 		canonicalPolicy,
-		runtimePolicyForMode("strict"),
 		newAllowHTTPPeerContract(t),
 		"localhost:9200",
 		"https",
@@ -144,12 +143,12 @@ func stripSchemeHost(rawURL string) string {
 }
 
 // TestReceiverClassification_StrictOwner verifies that when the owner's discovery
-// document includes "token-exchange" in criteria, owner strictness alone does not
+// document includes must-exchange-token in criteria, owner strictness alone does not
 // force must-exchange-token. Local receiver policy owns strictness.
 func TestReceiverClassification_StrictOwner(t *testing.T) {
 	fakeSrv := fakeDiscoveryServer(
 		[]string{"exchange-token"},
-		[]string{"token-exchange"},
+		[]string{spec.CriteriaMustExchangeToken},
 	)
 	defer fakeSrv.Close()
 
@@ -548,7 +547,6 @@ func TestReceiverClassification_RemoteDiscoveryUsesPeerOriginPolicy(t *testing.T
 		nil,
 		discClient,
 		nil,
-		runtimePolicyForMode("strict"),
 		newAllowHTTPPeerContract(t),
 		"localhost:9200",
 		"https",

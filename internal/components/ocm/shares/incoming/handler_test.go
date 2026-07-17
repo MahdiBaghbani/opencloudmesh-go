@@ -13,11 +13,10 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
@@ -44,12 +43,6 @@ func setupTestPartyRepo() identity.PartyRepo {
 	return repo
 }
 
-func runtimePolicyForMode(mode string) *policy.RuntimePolicy {
-	cfg := config.DevConfig()
-	cfg.Signature.InboundMode = mode
-	return policy.NewRuntimePolicy(cfg, nil)
-}
-
 // newTestHandler creates a handler wired for testing against localhost:9200 (https).
 func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
 	return incoming.NewHandler(
@@ -58,7 +51,6 @@ func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identit
 		nil, // no policy engine
 		nil, // no discovery client
 		nil, // no canonical policy
-		runtimePolicyForMode("strict"),
 		nil, // no peer contract
 		"localhost:9200",
 		"https",
@@ -614,5 +606,130 @@ func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Message != "RECIPIENT_NOT_FOUND" {
 		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
+	}
+}
+
+func shareBodyWithProtocolName(protocolName string) string {
+	return `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "proto-name-test",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {
+			"name": "` + protocolName + `",
+			"webdav": {
+				"uri": "abc123",
+				"sharedSecret": "secret123",
+				"permissions": ["read"]
+			}
+		}
+	}`
+}
+
+func newLegacyProtocolPeerContract(t *testing.T) *peercompat.CompiledContract {
+	t.Helper()
+	contract, err := peercompat.NewCompiledContract(
+		map[string]*peercompat.Profile{
+			"legacy-protocol": {
+				Name:                    "legacy-protocol",
+				AllowLegacyProtocolName: true,
+			},
+		},
+		[]peercompat.ProfileMapping{
+			{Pattern: "sender.com", Profile: "legacy-protocol"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to build legacy protocol peer contract: %v", err)
+	}
+	return contract
+}
+
+func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "empty-proto",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {
+			"webdav": {
+				"uri": "abc123",
+				"sharedSecret": "secret123",
+				"permissions": ["read"]
+			}
+		}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty protocol.name, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_RejectsMultiWithoutMatchedProfile(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 for unsupported protocol name multi, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_AcceptsMultiWithLegacyProfile(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := incoming.NewHandler(
+		repo,
+		partyRepo,
+		nil,
+		nil,
+		nil,
+		newLegacyProtocolPeerContract(t),
+		"localhost:9200",
+		"https",
+		testLogger(),
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for matched legacy protocol profile, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("webdav")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for canonical webdav protocol name, got %d: %s", w.Code, w.Body.String())
 	}
 }

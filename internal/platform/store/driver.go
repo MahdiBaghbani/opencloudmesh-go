@@ -106,8 +106,7 @@ type IncomingShare struct {
 	ShareId               string `json:"share_id" gorm:"primaryKey"`                                         // receiver-local id (UUIDv7)
 	SendingServer         string `json:"sending_server" gorm:"uniqueIndex:idx_incoming_shares_provider_key"` // sender's host
 	ProviderId            string `json:"provider_id" gorm:"uniqueIndex:idx_incoming_shares_provider_key"`    // sender's share id
-	WebDAVId              string `json:"webdav_id,omitempty"`                                                // relative webdav path
-	WebDAVUriAbs          string `json:"webdav_uri_absolute,omitempty"`                                      // absolute URI (deprecated)
+	WebDAVId              string `json:"webdav_id,omitempty"`                                                // relative or absolute webdav URI
 	SharedSecret          string `json:"shared_secret,omitempty"`                                            // omitempty for redaction
 	Owner                 string `json:"owner"`
 	Sender                string `json:"sender"`

@@ -35,6 +35,10 @@ type Profile struct {
 	// to fail open for this peer in the narrow retained call sites.
 	AllowUnsignedDiscovery bool `json:"allow_unsigned_discovery" toml:"allow_unsigned_discovery"`
 
+	// AllowLegacyProtocolName allows deprecated protocol.name values such as
+	// "multi" for matched peers only.
+	AllowLegacyProtocolName bool `json:"allow_legacy_protocol_name" toml:"allow_legacy_protocol_name"`
+
 	// TokenExchangeQuirks lists token exchange quirks to apply
 	TokenExchangeQuirks []string `json:"token_exchange_quirks" toml:"token_exchange_quirks"`
 
@@ -65,6 +69,7 @@ func profileFromConfig(name string, cfg platformconfig.PeerProfile) *Profile {
 		AllowMismatchedHost:      cfg.AllowMismatchedHost,
 		AllowHTTP:                cfg.AllowHTTP,
 		AllowUnsignedDiscovery:   cfg.AllowUnsignedDiscovery,
+		AllowLegacyProtocolName:  cfg.AllowLegacyProtocolName,
 		TokenExchangeQuirks:      slices.Clone(cfg.TokenExchangeQuirks),
 		TokenExchangeGrantType:   cfg.TokenExchangeGrantType,
 		AllowedBasicAuthPatterns: slices.Clone(cfg.AllowedBasicAuthPatterns),

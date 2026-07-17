@@ -17,6 +17,14 @@ func IntegrationBuildOpts() wiring.BuildOpts {
 	}
 }
 
+// OutgoingSharePolicyBuildOpts enables outbound signing keys and policy while
+// keeping the default integration harness transport and middleware shortcuts.
+func OutgoingSharePolicyBuildOpts() wiring.BuildOpts {
+	opts := IntegrationBuildOpts()
+	opts.SkipCrypto = false
+	return opts
+}
+
 // IETFIntegrationBuildOpts returns wiring.BuildOpts for HTTP signature integration
 // tests that exercise real crypto and inbound signature middleware.
 func IETFIntegrationBuildOpts() wiring.BuildOpts {

@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
@@ -37,7 +39,6 @@ type ShareInfo struct {
 	OwnerHost             string // resource-hosting server; falls back to SenderHost when empty
 	SharedSecret          string
 	WebDAVID              string
-	WebDAVURIAbsolute     string
 	MustExchangeToken     bool
 	SenderExchangeCapable bool
 }
@@ -237,8 +238,9 @@ func (c *Client) tryBasicPatterns(
 			continue
 		}
 
-		user := pat.username(accessToken, opts.Share.WebDAVID)
-		pass := pat.password(accessToken, opts.Share.WebDAVID)
+		shareID := relativeWebDAVShareID(opts.Share.WebDAVID)
+		user := pat.username(accessToken, shareID)
+		pass := pat.password(accessToken, shareID)
 		cred := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
 		req.Header.Set("Authorization", "Basic "+cred)
 
@@ -285,9 +287,9 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 // buildWebDAVURL returns the WebDAV URL; validates absolute URI host against owner to prevent SSRF.
 func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath string) (string, error) {
 	host := accessHostForDiscovery(share)
-	if share.WebDAVURIAbsolute != "" {
-		if c.isAbsoluteURIHostValid(share.WebDAVURIAbsolute, host) {
-			u := share.WebDAVURIAbsolute
+	if isAbsoluteWebDAVURI(share.WebDAVID) {
+		if c.isAbsoluteURIHostValid(share.WebDAVID, host) {
+			u := share.WebDAVID
 			if subPath != "" {
 				u += "/" + subPath
 			}
@@ -317,6 +319,26 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 	}
 
 	return webdavURL, nil
+}
+
+// relativeWebDAVShareID returns the relative share id for Basic auth username fields.
+func relativeWebDAVShareID(webdavID string) string {
+	u, err := url.Parse(webdavID)
+	if err != nil {
+		return webdavID
+	}
+	if u.IsAbs() && u.Path != "" {
+		return path.Base(u.Path)
+	}
+	return webdavID
+}
+
+func isAbsoluteWebDAVURI(uri string) bool {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+	return u.IsAbs()
 }
 
 // isAbsoluteURIHostValid compares absolute URI host to sender host via scheme-aware normalization.

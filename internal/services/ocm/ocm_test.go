@@ -88,7 +88,6 @@ func setupSignedTokenServiceInputs(
 	spyStore := &identityCapturingTokenStore{inner: innerStore}
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 
-	in.RuntimePolicy = runtimePolicy
 	in.OpenCloudMeshPolicy = policy.NewOpenCloudMeshPolicy(cfg)
 	in.OutgoingShareRepo = shareRepo
 	in.TokenStore = spyStore
@@ -110,7 +109,6 @@ func testInputs(cfg *config.Config) Inputs {
 	}
 	return Inputs{
 		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
 		LocalIdentity:       id,
 		TokenExchangePath:   "token",
 	}
@@ -136,19 +134,21 @@ func setupTestInputsWithSignature(t *testing.T) Inputs {
 		cfg.Signature,
 		logger,
 	)
-	in.RuntimePolicy = runtimePolicy
 	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
 	in.SignatureMiddleware = signatureMiddleware
 	return in
 }
 
-func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
+func TestNew_SucceedsWithEmptyInputs(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	_, err := New(Inputs{}, m, log)
-	if err == nil {
-		t.Fatal("expected error when required inputs are missing")
+	svc, err := New(Inputs{}, m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if svc == nil {
+		t.Fatal("expected non-nil service")
 	}
 }
 
@@ -551,7 +551,6 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 	}
 	in := Inputs{
 		LocalIdentity:     tslocalid.MustTestIdentity(t, cfg.PublicOrigin, cfg.ExternalBasePath),
-		RuntimePolicy:     policy.NewRuntimePolicy(cfg, nil),
 		TokenExchangePath: "token",
 	}
 
