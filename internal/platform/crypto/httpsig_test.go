@@ -354,6 +354,370 @@ func TestContentDigest(t *testing.T) {
 	}
 }
 
+func TestVerifyContentDigest_MultiDigest(t *testing.T) {
+	body := []byte(`{"test":"data"}`)
+	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
+	sha512Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA512(body))
+
+	req := httptest.NewRequest("POST", "/test", bytes.NewReader(body))
+	req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:, sha-512=:%s:", sha256Val, sha512Val))
+
+	if err := crypto.VerifyContentDigest(req, body); err != nil {
+		t.Fatalf("multi-digest verify failed: %v", err)
+	}
+}
+
+func TestVerifyContentDigest_MultiDigest_OneTampered(t *testing.T) {
+	body := []byte(`{"test":"data"}`)
+	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
+	tampered := base64.StdEncoding.EncodeToString(sigalg.SumSHA512([]byte("wrong")))
+
+	req := httptest.NewRequest("POST", "/test", bytes.NewReader(body))
+	req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:, sha-512=:%s:", sha256Val, tampered))
+
+	if err := crypto.VerifyContentDigest(req, body); err == nil {
+		t.Fatal("expected failure when one recognized digest is tampered")
+	}
+}
+
+func TestVerifyContentDigest_UnknownPlusRecognizedRejected(t *testing.T) {
+	body := []byte(`{"test":"data"}`)
+	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
+
+	req := httptest.NewRequest("POST", "/test", bytes.NewReader(body))
+	req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:, foo=:%s:", sha256Val, sha256Val))
+
+	if err := crypto.VerifyContentDigest(req, body); err == nil {
+		t.Fatal("expected rejection when an unrecognized digest algorithm is listed")
+	}
+}
+
+func TestVerifyContentDigest_OnlyUnknownAlgorithmsRejected(t *testing.T) {
+	body := []byte(`{"test":"data"}`)
+	val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
+
+	req := httptest.NewRequest("POST", "/test", bytes.NewReader(body))
+	req.Header.Set("Content-Digest", fmt.Sprintf("foo=:%s:, bar=:%s:", val, val))
+
+	if err := crypto.VerifyContentDigest(req, body); err == nil {
+		t.Fatal("expected rejection when no recognized digest is present")
+	}
+}
+
+func TestRequiredComponentsForRequest(t *testing.T) {
+	req := httptest.NewRequest("GET", "https://example.com/ocm/discovery", nil)
+	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+
+	empty := crypto.RequiredComponentsForRequest(req, nil)
+	wantEmpty := []string{"@method", "@target-uri", "date"}
+	if len(empty) != len(wantEmpty) {
+		t.Fatalf("empty body components = %v, want %v", empty, wantEmpty)
+	}
+	for i, c := range wantEmpty {
+		if empty[i] != c {
+			t.Fatalf("empty[%d] = %q, want %q", i, empty[i], c)
+		}
+	}
+
+	body := []byte(`{"x":1}`)
+	withBody := crypto.RequiredComponentsForRequest(req, body)
+	wantBody := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	if len(withBody) != len(wantBody) {
+		t.Fatalf("body components = %v, want %v", withBody, wantBody)
+	}
+	for i, c := range wantBody {
+		if withBody[i] != c {
+			t.Fatalf("body[%d] = %q, want %q", i, withBody[i], c)
+		}
+	}
+}
+
+func TestVerifyRequest_RejectsForeignLabel(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	now := time.Now().Unix()
+	body := []byte(`{"test":"data"}`)
+	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Digest", digest)
+	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`sig1=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		now, now,
+	))
+	req.Header.Set("Signature", "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:")
+
+	fetched := false
+	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
+		fetched = true
+		return sigalg.ResolvedPublicKey{}, nil
+	})
+	if result.Verified {
+		t.Fatal("expected foreign label rejection")
+	}
+	if result.Reason != crypto.ReasonMalformed {
+		t.Fatalf("Reason=%q want malformed", result.Reason)
+	}
+	if result.Error == nil || !strings.Contains(result.Error.Error(), "foreign signature label") {
+		t.Fatalf("error = %v, want foreign label", result.Error)
+	}
+	if fetched {
+		t.Fatal("key fetch must not run after foreign label rejection")
+	}
+}
+
+func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Host = "example.com"
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Del("Content-Digest")
+
+	fetched := false
+	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
+		fetched = true
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
+	})
+	if result.Verified {
+		t.Fatal("expected missing Content-Digest rejection")
+	}
+	if result.Reason != crypto.ReasonContentDigest {
+		t.Fatalf("Reason=%q want content_digest (err=%v)", result.Reason, result.Error)
+	}
+	if fetched {
+		t.Fatal("key fetch must not run after missing Content-Digest rejection")
+	}
+}
+
+func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Host = "example.com"
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Del("Content-Length")
+
+	fetched := false
+	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
+		fetched = true
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
+	})
+	if result.Verified {
+		t.Fatal("expected missing Content-Length rejection")
+	}
+	if result.Reason != crypto.ReasonContentDigest {
+		t.Fatalf("Reason=%q want content_digest (err=%v)", result.Reason, result.Error)
+	}
+	if fetched {
+		t.Fatal("key fetch must not run after missing Content-Length rejection")
+	}
+}
+
+func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	now := time.Now().Unix()
+	body := []byte(`{"test":"data"}`)
+
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		now,
+	))
+	req.Header.Set("Signature", "ocm=:AAAA:")
+
+	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
+	})
+	if result.Verified {
+		t.Fatal("expected missing component rejection")
+	}
+	if result.Reason != crypto.ReasonMissingComponent {
+		t.Fatalf("Reason=%q want missing_component", result.Reason)
+	}
+}
+
+func TestVerifyRequest_RejectsContentDigestMismatch(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Host = "example.com"
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+
+	tampered := []byte(`{"test":"xoxo"}`)
+	if len(tampered) != len(body) {
+		t.Fatalf("tampered len = %d, want %d", len(tampered), len(body))
+	}
+	if bytes.Equal(sigalg.SumSHA256(body), sigalg.SumSHA256(tampered)) {
+		t.Fatal("tampered body must produce a different digest")
+	}
+	result := verifier.VerifyRequest(req, tampered, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if result.Verified {
+		t.Fatal("expected digest mismatch rejection")
+	}
+	if result.Reason != crypto.ReasonContentDigest {
+		t.Fatalf("Reason=%q want content_digest", result.Reason)
+	}
+}
+
+func TestRFC9421_VerifyCreatedBoundaryAtMaxSkew(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	signTime := time.Unix(1_730_815_200, 0)
+	maxSkew := 60 * time.Second
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return signTime }
+	opts.CreatedMaxSkew = maxSkew
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	body := []byte(`{"test":"data"}`)
+	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Host = "example.com"
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+
+	atSkewVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
+		Label:              opts.Label,
+		CreatedMaxAge:      opts.CreatedMaxAge,
+		CreatedMaxSkew:     maxSkew,
+		AllowedAlgorithms:  opts.AllowedAlgorithms,
+		RequiredComponents: opts.RequiredComponents,
+		Now:                func() time.Time { return signTime.Add(-maxSkew) },
+	})
+	result := atSkewVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("created at max skew should verify: %v", result.Error)
+	}
+
+	pastSkewVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
+		Label:              opts.Label,
+		CreatedMaxAge:      opts.CreatedMaxAge,
+		CreatedMaxSkew:     maxSkew,
+		AllowedAlgorithms:  opts.AllowedAlgorithms,
+		RequiredComponents: opts.RequiredComponents,
+		Now:                func() time.Time { return signTime.Add(-maxSkew - time.Second) },
+	})
+	result = pastSkewVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if result.Verified {
+		t.Fatal("created past max skew should fail")
+	}
+	if result.Reason != crypto.ReasonFutureCreated {
+		t.Fatalf("Reason=%q want future_created", result.Reason)
+	}
+}
+
+func TestRFC9421_VerifyCreatedBoundaryAtMaxAge(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	signTime := time.Unix(1_730_815_200, 0)
+	maxAge := time.Minute
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return signTime }
+	opts.CreatedMaxAge = maxAge
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	body := []byte(`{"test":"data"}`)
+	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Host = "example.com"
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatal(err)
+	}
+
+	atAgeVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
+		Label:              opts.Label,
+		CreatedMaxAge:      maxAge,
+		CreatedMaxSkew:     opts.CreatedMaxSkew,
+		AllowedAlgorithms:  opts.AllowedAlgorithms,
+		RequiredComponents: opts.RequiredComponents,
+		Now:                func() time.Time { return signTime.Add(maxAge) },
+	})
+	result := atAgeVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("created at max age should verify: %v", result.Error)
+	}
+
+	staleVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
+		Label:              opts.Label,
+		CreatedMaxAge:      maxAge,
+		CreatedMaxSkew:     opts.CreatedMaxSkew,
+		AllowedAlgorithms:  opts.AllowedAlgorithms,
+		RequiredComponents: opts.RequiredComponents,
+		Now:                func() time.Time { return signTime.Add(maxAge + time.Second) },
+	})
+	result = staleVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if result.Verified {
+		t.Fatal("created past max age should fail")
+	}
+	if result.Reason != crypto.ReasonStaleCreated {
+		t.Fatalf("Reason=%q want stale_created", result.Reason)
+	}
+}
+
 func TestHasSignatureHeaders(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 

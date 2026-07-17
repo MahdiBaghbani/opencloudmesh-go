@@ -140,3 +140,69 @@ func TestCountDictionaryMembers_DuplicateLabel(t *testing.T) {
 		t.Fatalf("CountDictionaryMembers = %d, want 2", got)
 	}
 }
+
+func TestParseSignatureInput_RejectsDuplicateCoveredComponents(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{
+			name:   "duplicate derived @method",
+			header: `ocm=("@method" "@method" "@target-uri");created=1;keyid="a#1";alg="ed25519"`,
+		},
+		{
+			name:   "duplicate ordinary content-digest",
+			header: `ocm=("@method" "content-digest" "content-digest");created=1;keyid="a#1";alg="ed25519"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := sigparams.ParseSignatureInput(tt.header, "ocm")
+			if err == nil {
+				t.Fatal("expected duplicate covered component rejection")
+			}
+			if !strings.Contains(err.Error(), "duplicate covered component") {
+				t.Fatalf("error = %v, want duplicate covered component", err)
+			}
+		})
+	}
+}
+
+func TestValidateExactlyOneLabel(t *testing.T) {
+	t.Run("single_ocm", func(t *testing.T) {
+		header := `ocm=("@method");created=1;keyid="a#1"`
+		if err := sigparams.ValidateExactlyOneLabel(header, "ocm"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("foreign_label", func(t *testing.T) {
+		header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
+		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+		if err == nil {
+			t.Fatal("expected foreign label rejection")
+		}
+		if !strings.Contains(err.Error(), "foreign signature label") {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
+	t.Run("duplicate_ocm", func(t *testing.T) {
+		header := `ocm=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
+		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+		if err == nil {
+			t.Fatal("expected duplicate rejection")
+		}
+		if !strings.Contains(err.Error(), `multiple "ocm" signatures`) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
+	t.Run("only_foreign", func(t *testing.T) {
+		header := `sig1=("@method");created=1;keyid="a#1"`
+		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+		if err == nil {
+			t.Fatal("expected foreign label rejection")
+		}
+	})
+}

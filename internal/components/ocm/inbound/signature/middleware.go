@@ -420,6 +420,8 @@ func httpBodyForVerifyReason(reason string) string {
 		return "signature key lookup failed"
 	case crypto.ReasonAlgorithmRejected:
 		return "signature algorithm rejected"
+	case crypto.ReasonContentDigest:
+		return "content digest mismatch"
 	default:
 		return "signature verification failed"
 	}
@@ -429,6 +431,8 @@ func httpStatusForVerifyReason(reason string) int {
 	switch reason {
 	case crypto.ReasonKeyLookupFailed:
 		return http.StatusBadGateway
+	case crypto.ReasonContentDigest:
+		return http.StatusBadRequest
 	default:
 		return http.StatusUnauthorized
 	}
