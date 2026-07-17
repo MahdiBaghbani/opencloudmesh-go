@@ -15,7 +15,7 @@ const (
 )
 
 // NewNotification represents an incoming POST /ocm/notifications request.
-// See OCM-API spec v1.2.2 NewNotification schema.
+// See OCM-API spec v1.4.0 NewNotification schema.
 type NewNotification struct {
 	NotificationType       NotificationType `json:"notificationType"`
 	ResourceType           string           `json:"resourceType"`
@@ -25,14 +25,14 @@ type NewNotification struct {
 }
 
 type NotificationRecord struct {
-	ID                string           `json:"id"`
-	NotificationType  NotificationType `json:"notificationType"`
-	ResourceType      string           `json:"resourceType"`
-	ProviderID        string           `json:"providerId"`
-	SenderHost        string           `json:"senderHost"`
-	Notification      interface{}      `json:"notification,omitempty"`
-	ReceivedAt        time.Time        `json:"receivedAt"`
-	Processed         bool             `json:"processed"`
+	ID               string           `json:"id"`
+	NotificationType NotificationType `json:"notificationType"`
+	ResourceType     string           `json:"resourceType"`
+	ProviderID       string           `json:"providerId"`
+	SenderHost       string           `json:"senderHost"`
+	Notification     interface{}      `json:"notification,omitempty"`
+	ReceivedAt       time.Time        `json:"receivedAt"`
+	Processed        bool             `json:"processed"`
 }
 
 func IsValidNotificationType(t NotificationType) bool {
