@@ -15,6 +15,7 @@ import (
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -82,8 +83,7 @@ func setupSignedTokenServiceInputs(
 	cfg.Signature.AllowMismatch = false
 
 	in := testInputs(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	replaceSignatureMiddleware(&in, cfg, pd)
 	innerStore := token.NewMemoryTokenStore()
 	spyStore := &identityCapturingTokenStore{inner: innerStore}
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
@@ -91,26 +91,32 @@ func setupSignedTokenServiceInputs(
 	in.OpenCloudMeshPolicy = policy.NewOpenCloudMeshPolicy(cfg)
 	in.OutgoingShareRepo = shareRepo
 	in.TokenStore = spyStore
-	in.SignatureMiddleware = inboundsignature.NewSignatureMiddleware(
-		runtimePolicy,
-		nil,
-		pd,
-		in.LocalIdentity.Origin,
-		cfg.Signature,
-		logger,
-	)
 	return in, spyStore, shareRepo
 }
 
+// testInputs returns baseline Inputs with a default SignatureMiddleware
+// (unresolvable test peer discovery). New() now rejects a nil
+// SignatureMiddleware at startup, so every constructed Inputs needs one;
+// tests that exercise real signature verification override it explicitly.
 func testInputs(cfg *config.Config) Inputs {
 	id, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
 	if err != nil {
 		panic("testInputs: " + err.Error())
 	}
+	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	return Inputs{
 		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
 		LocalIdentity:       id,
 		TokenExchangePath:   "token",
+		SignatureMiddleware: inboundsignature.NewSignatureMiddleware(
+			runtimePolicy,
+			nil,
+			ocmTestPeerDiscovery{},
+			id.Origin,
+			cfg.Signature,
+			logger,
+		),
 	}
 }
 
@@ -119,36 +125,64 @@ func setupTestInputs() Inputs {
 	return testInputs(cfg)
 }
 
-func setupTestInputsWithSignature(t *testing.T) Inputs {
+func setupTestInputsWithOutgoingShareRepo(t *testing.T) Inputs {
 	t.Helper()
 
-	cfg := config.DevConfig()
-	in := testInputs(cfg)
+	in := testInputs(config.DevConfig())
+	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
+	return in
+}
+
+// hostSigningFixture returns an RFC9421 signer and peer discovery keyed to host.
+func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serviceTestPeerDiscovery) {
+	t.Helper()
+
+	km := crypto.NewKeyManager("", "https://"+host)
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("load key manager: %v", err)
+	}
+	signer := crypto.NewRFC9421Signer(km)
+	pd := &serviceTestPeerDiscovery{
+		publicKeys: map[string]sigalg.ResolvedPublicKey{
+			km.GetKeyID(): {
+				KeyID:     km.GetKeyID(),
+				Algorithm: sigalg.Ed25519,
+				PublicKey: km.GetSigningKey().PublicKey,
+				JWKKty:    "OKP",
+				JWKCrv:    "Ed25519",
+			},
+		},
+	}
+	return signer, pd
+}
+
+func replaceSignatureMiddleware(in *Inputs, cfg *config.Config, pd inboundsignature.PeerDiscovery) {
 	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	signatureMiddleware := inboundsignature.NewSignatureMiddleware(
+	in.SignatureMiddleware = inboundsignature.NewSignatureMiddleware(
 		runtimePolicy,
 		nil,
-		ocmTestPeerDiscovery{},
+		pd,
 		in.LocalIdentity.Origin,
 		cfg.Signature,
 		logger,
 	)
-	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
-	in.SignatureMiddleware = signatureMiddleware
-	return in
 }
 
-func TestNew_SucceedsWithEmptyInputs(t *testing.T) {
+func TestNew_RejectsNilSignatureMiddleware(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(Inputs{}, m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if svc != nil {
+		t.Fatal("expected nil service when validation fails")
 	}
-	if svc == nil {
-		t.Fatal("expected non-nil service")
+	const wantErr = "ocm: SignatureMiddleware is required"
+	if err == nil {
+		t.Fatalf("expected %q, got nil", wantErr)
+	}
+	if err.Error() != wantErr {
+		t.Fatalf("error = %q, want %q", err.Error(), wantErr)
 	}
 }
 
@@ -225,6 +259,7 @@ func TestService_RoutingSmoke(t *testing.T) {
 		{"notifications", "/notifications"},
 		{"invite-accepted", "/invite-accepted"},
 		{"token", "/token"},
+		{"request-share", "/request-share"},
 	}
 
 	for _, tt := range tests {
@@ -244,7 +279,7 @@ func TestService_NotificationsRequireVerifiedSignature(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -268,7 +303,7 @@ func TestService_SharesRequireVerifiedSignature(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -292,7 +327,7 @@ func TestService_InviteAcceptedRequireVerifiedSignature(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -316,23 +351,7 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 	const clientHost = "receiver.example.com"
 	const sharedSecret = "signed-token-secret"
 
-	km := crypto.NewKeyManager("", "https://"+clientHost)
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("load key manager: %v", err)
-	}
-	signer := crypto.NewRFC9421Signer(km)
-
-	pd := &serviceTestPeerDiscovery{
-		publicKeys: map[string]sigalg.ResolvedPublicKey{
-			km.GetKeyID(): {
-				KeyID:     km.GetKeyID(),
-				Algorithm: sigalg.Ed25519,
-				PublicKey: km.GetSigningKey().PublicKey,
-				JWKKty:    "OKP",
-				JWKCrv:    "Ed25519",
-			},
-		},
-	}
+	signer, pd := hostSigningFixture(t, clientHost)
 
 	inputs, spyStore, shareRepo := setupSignedTokenServiceInputs(t, pd)
 	if err := shareRepo.Create(context.Background(), &sharesoutgoing.OutgoingShare{
@@ -391,7 +410,7 @@ func TestService_TokenRequireVerifiedSignature(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -412,13 +431,14 @@ func TestService_TokenRequireVerifiedSignature(t *testing.T) {
 	}
 }
 
-// Shares, invite, and token routes require a declared peer (HTTP 400 when
-// missing). Signature-only routes return 401 for unsigned requests instead.
+// Shares, invite-accepted, token, and request-share routes require a declared
+// peer (HTTP 400 when missing). Signature-only routes return 401 for unsigned
+// requests instead.
 func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -447,6 +467,12 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 			contentType: "application/x-www-form-urlencoded",
 			body:        "grant_type=ocm_share&code=secret-code",
 		},
+		{
+			name:        "request-share",
+			path:        "/request-share",
+			contentType: "application/json",
+			body:        `{}`,
+		},
 	}
 
 	for _, tc := range cases {
@@ -472,7 +498,7 @@ func TestService_NotificationsStaySignatureOnly(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -488,6 +514,106 @@ func TestService_NotificationsStaySignatureOnly(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "signature required") {
 		t.Fatalf("body = %q, want signature required", w.Body.String())
+	}
+}
+
+func TestService_RequestShareRequiresVerifiedSignature(t *testing.T) {
+	m := map[string]any{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/request-share",
+		bytes.NewBufferString(`{"owner":"alice@owner.example","shareWith":"bob@remote.example","share":"1"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unsigned request-share to be rejected, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// requestShareSignedInputs builds Inputs whose SignatureMiddleware can verify
+// a request signed by a key owned by providerHost.
+func requestShareSignedInputs(t *testing.T, providerHost string) (Inputs, *crypto.RFC9421Signer) {
+	t.Helper()
+
+	signer, pd := hostSigningFixture(t, providerHost)
+	cfg := config.DevConfig()
+	in := testInputs(cfg)
+	replaceSignatureMiddleware(&in, cfg, pd)
+	return in, signer
+}
+
+func TestService_RequestShareAcceptsMatchedSignedPeerWithTyped501(t *testing.T) {
+	const providerHost = "provider.example.com"
+	in, signer := requestShareSignedInputs(t, providerHost)
+
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc, err := New(in, map[string]any{}, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	body := []byte(`{"owner":"527bd5b5d689e2c32ae974c6229ff785@apiwise.nl","shareWith":"51dc30ddc473d43a6011e9ebba6ca770@` + providerHost + `","share":"1234567890abcdef"}`)
+	req := httptest.NewRequest(http.MethodPost, "/request-share", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("sign request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected typed 501 for matched signed request-share, got %d: %s", w.Code, w.Body.String())
+	}
+	var errResp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if errResp.Message != "REQUEST_SHARE_NOT_SUPPORTED" {
+		t.Fatalf("message = %q, want REQUEST_SHARE_NOT_SUPPORTED", errResp.Message)
+	}
+}
+
+func TestService_RequestShareRejectsMismatchedSignatureAuthority(t *testing.T) {
+	const providerHost = "provider.example.com"
+	const impersonatedHost = "impersonated.example.com"
+	in, signer := requestShareSignedInputs(t, providerHost)
+
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc, err := New(in, map[string]any{}, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// shareWith declares impersonatedHost, but the request is signed by a key
+	// belonging to providerHost: the verified signature authority must match
+	// the resolved shareWith provider.
+	body := []byte(`{"owner":"527bd5b5d689e2c32ae974c6229ff785@apiwise.nl","shareWith":"51dc30ddc473d43a6011e9ebba6ca770@` + impersonatedHost + `","share":"1234567890abcdef"}`)
+	req := httptest.NewRequest(http.MethodPost, "/request-share", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("sign request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected peer identity mismatch, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "peer identity mismatch" {
+		t.Fatalf("body = %q, want %q", w.Body.String(), "peer identity mismatch")
 	}
 }
 
@@ -549,22 +675,38 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 			Path:    "token",
 		},
 	}
-	in := Inputs{
-		LocalIdentity:     tslocalid.MustTestIdentity(t, cfg.PublicOrigin, cfg.ExternalBasePath),
-		TokenExchangePath: "token",
-	}
+	id := tslocalid.MustTestIdentity(t, cfg.PublicOrigin, cfg.ExternalBasePath)
+
+	// The token route requires a verified signature; sign with a key bound
+	// to the client_id host so the request reaches the handler and exercises
+	// the enablement check under test, not the signature gate.
+	const clientHost = "raw-config-client.example.com"
+	signer, pd := hostSigningFixture(t, clientHost)
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	in := Inputs{
+		LocalIdentity:     id,
+		TokenExchangePath: "token",
+	}
+	replaceSignatureMiddleware(&in, cfg, pd)
+
 	svc, err := New(in, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/token", nil)
+	form := "grant_type=authorization_code&client_id=" + clientHost + "&code=raw-config-code"
+	body := []byte(form)
+	req := httptest.NewRequest(http.MethodPost, cfg.PublicOrigin+"/token", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("sign request: %v", err)
+	}
+
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected disabled token exchange without canonical policy, got %d", w.Code)
+		t.Fatalf("expected disabled token exchange without canonical policy, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

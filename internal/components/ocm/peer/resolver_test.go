@@ -70,6 +70,83 @@ func TestResolveSharesRequest_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestResolveRequestShareRequest_ExtractsFromShareWith(t *testing.T) {
+	body := []byte(`{"owner":"527bd5b5d689e2c32ae974c6229ff785@apiwise.nl","shareWith":"51dc30ddc473d43a6011e9ebba6ca770@geant.org","share":"1234567890abcdef"}`)
+	r := httptest.NewRequest("POST", "/ocm/request-share", nil)
+
+	resolver := NewResolver()
+	got, err := resolver.ResolveRequestShareRequest(r, body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "geant.org" {
+		t.Errorf("got %q, want %q", got, "geant.org")
+	}
+}
+
+func TestResolveRequestShareRequest_IgnoresOwnerField(t *testing.T) {
+	// The RequestShare schema has no sender; the resolver must key off
+	// shareWith even when owner (a different party) is also present.
+	body := []byte(`{"owner":"alice@owner.example","shareWith":"bob@shareWith.example","share":"1"}`)
+	r := httptest.NewRequest("POST", "/ocm/request-share", nil)
+
+	resolver := NewResolver()
+	got, err := resolver.ResolveRequestShareRequest(r, body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "shareWith.example" {
+		t.Errorf("got %q, want %q", got, "shareWith.example")
+	}
+}
+
+func TestResolveRequestShareRequest_LastAtSemantics(t *testing.T) {
+	body := []byte(`{"shareWith":"alice@university.edu@provider.net"}`)
+	r := httptest.NewRequest("POST", "/ocm/request-share", nil)
+
+	resolver := NewResolver()
+	got, err := resolver.ResolveRequestShareRequest(r, body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "provider.net" {
+		t.Errorf("got %q, want %q (last-@ semantics)", got, "provider.net")
+	}
+}
+
+func TestResolveRequestShareRequest_MissingShareWith(t *testing.T) {
+	body := []byte(`{"owner":"alice@owner.example","share":"1"}`)
+	r := httptest.NewRequest("POST", "/ocm/request-share", nil)
+
+	resolver := NewResolver()
+	_, err := resolver.ResolveRequestShareRequest(r, body)
+	if err == nil {
+		t.Error("expected error for missing shareWith")
+	}
+}
+
+func TestResolveRequestShareRequest_RejectsURLShapedShareWith(t *testing.T) {
+	body := []byte(`{"shareWith":"alice@https://provider.example"}`)
+	r := httptest.NewRequest("POST", "/ocm/request-share", nil)
+
+	resolver := NewResolver()
+	_, err := resolver.ResolveRequestShareRequest(r, body)
+	if err == nil {
+		t.Fatal("expected error for URL-shaped shareWith provider")
+	}
+}
+
+func TestResolveRequestShareRequest_InvalidJSON(t *testing.T) {
+	body := []byte(`{invalid}`)
+	r := httptest.NewRequest("POST", "/ocm/request-share", nil)
+
+	resolver := NewResolver()
+	_, err := resolver.ResolveRequestShareRequest(r, body)
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
 func TestResolveInviteAcceptedRequest(t *testing.T) {
 	body := []byte(`{"recipientProvider":"recipient.example:443","token":"abc","userID":"u"}`)
 	r := httptest.NewRequest("POST", "/ocm/invite-accepted", nil)

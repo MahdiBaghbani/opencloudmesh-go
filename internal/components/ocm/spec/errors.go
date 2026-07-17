@@ -68,6 +68,13 @@ func WriteProtocolNotSupported(w http.ResponseWriter) {
 	WriteOCMError(w, http.StatusNotImplemented, "PROTOCOL_NOT_SUPPORTED")
 }
 
+// WriteRequestShareNotSupported writes a 501 response for the request-share
+// placeholder route: signed and peer-bound, but accept handling is not
+// implemented yet.
+func WriteRequestShareNotSupported(w http.ResponseWriter) {
+	WriteOCMError(w, http.StatusNotImplemented, "REQUEST_SHARE_NOT_SUPPORTED")
+}
+
 // WriteOCMError writes a base Error schema response (no validationErrors).
 func WriteOCMError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")

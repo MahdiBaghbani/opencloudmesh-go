@@ -2,6 +2,7 @@
 package ocm
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -11,6 +12,7 @@ import (
 	notifincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -38,6 +40,10 @@ type Service struct {
 // New creates a new OCM protocol service from narrow injected inputs.
 func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, error) {
 	log = logutil.NoopIfNil(log)
+
+	if err := validateInputs(inputs); err != nil {
+		return nil, err
+	}
 
 	var c Config
 	unused, err := svccfg.DecodeWithUnused(m, &c)
@@ -98,28 +104,38 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	peerResolver := peer.NewResolver()
 	r := chi.NewRouter()
 
-	if inputs.SignatureMiddleware != nil {
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveSharesRequest)).
-			Post(RouteShares, sharesHandler.CreateShare)
-		// Notifications stay signature-only: no body-declared peer resolver.
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignature(nil)).
-			Post(RouteNotifications, notifHandler.HandleNotification)
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveInviteAcceptedRequest)).
-			Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveTokenRequest)).
-			Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
-	} else {
-		r.Post(RouteShares, sharesHandler.CreateShare)
-		r.Post(RouteNotifications, notifHandler.HandleNotification)
-		r.Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
-		r.Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
-	}
+	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveSharesRequest)).
+		Post(RouteShares, sharesHandler.CreateShare)
+	// Notifications stay signature-only: no body-declared peer resolver.
+	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignature(nil)).
+		Post(RouteNotifications, notifHandler.HandleNotification)
+	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveInviteAcceptedRequest)).
+		Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
+	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveTokenRequest)).
+		Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
+	// Request-share is a signed, peer-bound placeholder: accept handling is
+	// not implemented, so it always answers with a typed 501.
+	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveRequestShareRequest)).
+		Post(RouteRequestShare, requestShareNotSupportedHandler)
 
 	return &Service{
 		router: r,
 		conf:   &c,
 		log:    log,
 	}, nil
+}
+
+func validateInputs(in Inputs) error {
+	if in.SignatureMiddleware == nil {
+		return errors.New("ocm: SignatureMiddleware is required")
+	}
+	return nil
+}
+
+// requestShareNotSupportedHandler answers the signed request-share placeholder
+// route. Accept handling is not implemented, so every request gets a typed 501.
+func requestShareNotSupportedHandler(w http.ResponseWriter, r *http.Request) {
+	spec.WriteRequestShareNotSupported(w)
 }
 
 func (s *Service) Handler() http.Handler {

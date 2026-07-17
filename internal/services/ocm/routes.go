@@ -8,6 +8,7 @@ const (
 	RouteShares         = "/shares"
 	RouteNotifications  = "/notifications"
 	RouteInviteAccepted = "/invite-accepted"
+	RouteRequestShare   = "/request-share"
 )
 
 func init() {
@@ -50,6 +51,16 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 			Service:       "ocm",
 			Method:        "POST",
 			Pattern:       RouteInviteAccepted,
+			SessionPolicy: service.SessionPublic,
+			HandlerAuth:   service.HandlerAuthOptionalHTTPSig,
+			SurfaceClass:  service.SurfaceProtocol,
+			TrustClass:    service.TrustPeerRequired,
+		},
+		{
+			ID:            "ocm-request-share",
+			Service:       "ocm",
+			Method:        "POST",
+			Pattern:       RouteRequestShare,
 			SessionPolicy: service.SessionPublic,
 			HandlerAuth:   service.HandlerAuthOptionalHTTPSig,
 			SurfaceClass:  service.SurfaceProtocol,
