@@ -110,10 +110,9 @@ between them.
 
 The server resolves config in this order: preset bundle, TOML file, CLI flags.
 
-The shipped preset bundles are `strict`, `compat`, and `dev`. They are good
-starting points, but they are not the whole posture story. Effective behavior
-still depends on `compatibility_scope` and the signature, transport, trust, and
-peer-compat settings.
+The shipped preset bundles are `strict` and `dev`. They are good starting
+points; effective behavior also depends on `compatibility_scope` and the
+signature, transport, trust, and peer-compatibility settings.
 
 If you are getting oriented, start here:
 

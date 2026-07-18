@@ -63,7 +63,7 @@ requests to component APIs. Each service package maps to a route group
 `wiring.Build(cfg, logger, opts)` creates persistence repos, outbound HTTP
 clients, signature middleware, and returns `wiring.BuildResult`. Callers
 use `BuildResult` fields: `Deps` (dependency graph for route handlers),
-`RootCAPool`, `RuntimeEval`, and `Persistence`. Callers pass an
+`RootCAPool` and `Persistence`. Callers pass an
 already-loaded `*config.Config`.
 
 Persistence backends are selected from config and constructed in
