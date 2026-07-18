@@ -15,7 +15,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
@@ -230,8 +229,7 @@ func makeTestOutboundPolicy(cfg *config.Config) *outboundsigning.OutboundPolicy 
 	if err != nil {
 		panic(err)
 	}
-	runtime := policy.NewRuntimePolicy(cfg, contract)
-	return outboundsigning.NewOutboundPolicy(outboundsigning.ResolveInputs(runtime), contract)
+	return outboundsigning.NewOutboundPolicy(outboundsigning.ResolveInputs(), contract)
 }
 
 func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
@@ -239,7 +237,7 @@ func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *
 	discClient := makeDummyDiscoveryClient()
 
 	return outgoingshares.NewHandler(
-		repo, discClient, nil, nil, nil, nil,
+		repo, discClient, nil, "", nil, nil, nil,
 		testProvider,
 		currentUser,
 		testLogger,

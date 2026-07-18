@@ -10,8 +10,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	ocmpolicy "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 // MustAllowHTTPContract builds a CompiledContract that permits plain HTTP for
@@ -61,26 +59,15 @@ func MustCompileFromRegistry(
 	return contract
 }
 
-// RuntimePolicy builds a RuntimePolicy from cfg and contract.
-func RuntimePolicy(
-	t *testing.T,
-	cfg *config.Config,
-	contract *peercompat.CompiledContract,
-) *ocmpolicy.RuntimePolicy {
-	t.Helper()
-	return ocmpolicy.NewRuntimePolicy(cfg, contract)
-}
-
-// OutboundPolicy builds an OutboundPolicy by resolving inputs from the runtime
-// policy, then constructing via outboundsigning.NewOutboundPolicy.
+// OutboundPolicy builds an OutboundPolicy by resolving the fixed outbound
+// signing inputs, then constructing via outboundsigning.NewOutboundPolicy.
 func OutboundPolicy(
 	t *testing.T,
-	runtime *ocmpolicy.RuntimePolicy,
 	contract *peercompat.CompiledContract,
 ) *outboundsigning.OutboundPolicy {
 	t.Helper()
 	return outboundsigning.NewOutboundPolicy(
-		outboundsigning.ResolveInputs(runtime),
+		outboundsigning.ResolveInputs(),
 		contract,
 	)
 }

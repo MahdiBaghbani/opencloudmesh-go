@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
@@ -71,7 +70,6 @@ type SignatureMiddleware struct {
 // NewSignatureMiddleware creates a new signature verification middleware.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
 func NewSignatureMiddleware(
-	runtimePolicy *policy.RuntimePolicy,
 	peerContract *peercompat.CompiledContract,
 	pd PeerDiscovery,
 	publicOrigin string,
@@ -81,21 +79,11 @@ func NewSignatureMiddleware(
 	logger = logutil.NoopIfNil(logger)
 
 	localScheme := config.SchemeFromOrigin(publicOrigin)
-	allowMismatch := false
-	compatibilityScope := "none"
-	if runtimePolicy != nil {
-		eval := runtimePolicy.Evaluate()
-		signature := eval.Signature
-		allowMismatch = signature.AllowMismatch
-		if eval.CompatibilityScope != "" {
-			compatibilityScope = eval.CompatibilityScope
-		}
-	}
 
 	return &SignatureMiddleware{
-		allowMismatch:      allowMismatch,
+		allowMismatch:      sigCfg.AllowMismatch,
 		peerContract:       peerContract,
-		compatibilityScope: compatibilityScope,
+		compatibilityScope: "none",
 		verifier: crypto.NewRFC9421VerifierWithOptions(
 			crypto.RFC9421OptionsFromConfig(sigCfg),
 		),

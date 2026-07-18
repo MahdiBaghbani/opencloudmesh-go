@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
@@ -153,7 +152,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	// Posture guard parity with main.go: a compatibility_scope=none config that
 	// resolves to a non-strict runtime posture is an impossible production state
 	// and must not silently start in-process.
-	if err := checkStartupPosture(cfg, buildResult.RuntimeEval); err != nil {
+	if err := checkStartupPosture(cfg); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("startup posture rejected: %v", err)
 	}
@@ -267,15 +266,15 @@ func validatePreBootstrapStartup(cfg *config.Config) error {
 }
 
 // checkStartupPosture mirrors the main.go startup guard: when
-// compatibility_scope is "none", the resolved runtime posture must be strict.
+// compatibility_scope is "none", the resolved runtime mode must be strict.
 // Returning an error (rather than relying on cfg alone) keeps the in-process
 // harness from starting a production-impossible state that the real binary
-// would reject. eval comes from BootstrapResult.RuntimeEval.
-func checkStartupPosture(cfg *config.Config, eval policy.RuntimeEvaluation) error {
-	if cfg.CompatibilityScope == "none" && !eval.Strict.IsStrict {
+// would reject.
+func checkStartupPosture(cfg *config.Config) error {
+	if cfg.CompatibilityScope == "none" && cfg.Mode != "strict" {
 		return fmt.Errorf(
-			"compatibility_scope=none contradicts resolved runtime posture (tier=%s, scope=%s, reasons=%v)",
-			eval.DerivedTier, eval.CompatibilityScope, eval.Strict.ViolationReasons,
+			"compatibility_scope=none contradicts resolved runtime posture (mode=%s, scope=%s)",
+			cfg.Mode, cfg.CompatibilityScope,
 		)
 	}
 	return nil

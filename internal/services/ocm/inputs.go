@@ -23,7 +23,7 @@ type Inputs struct {
 	PartyRepo           identity.PartyRepo
 	PolicyEngine        *peertrust.PolicyEngine
 	DiscoveryClient     *discovery.Client
-	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
+	CodeFlow            *policy.CodeFlow
 	PeerContract        *peercompat.CompiledContract
 	PeerOrigin          *peerorigin.Resolver
 	LocalIdentity       localidentity.Identity

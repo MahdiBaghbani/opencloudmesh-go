@@ -40,9 +40,9 @@ type Deps struct {
 	HTTPClient      *httpclient.ContextClient
 	DiscoveryClient *discovery.Client
 
-	// Policy objects created once from frozen config at startup.
-	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
-	RuntimePolicy       *policy.RuntimePolicy
+	// CodeFlow is the fixed local code-flow policy, built once from frozen
+	// config at startup.
+	CodeFlow *policy.CodeFlow
 
 	// Crypto
 	KeyManager          *crypto.KeyManager

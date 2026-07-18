@@ -30,7 +30,7 @@ type Handler struct {
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
 	discoveryClient             *discovery.Client
-	canonicalPolicy             *policy.OpenCloudMeshPolicy
+	canonicalPolicy             *policy.CodeFlow
 	peerContract                *peercompat.CompiledContract
 	peerOrigin                  *peerorigin.Resolver
 	localProviderFQDNForCompare string
@@ -43,7 +43,7 @@ func NewHandler(
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
 	discoveryClient *discovery.Client,
-	canonicalPolicy *policy.OpenCloudMeshPolicy,
+	canonicalPolicy *policy.CodeFlow,
 	peerContract *peercompat.CompiledContract,
 	peerOrigin *peerorigin.Resolver,
 	localProviderFQDNForCompare string,

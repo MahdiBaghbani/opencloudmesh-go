@@ -61,9 +61,6 @@ type BuildResult struct {
 	// RootCAPool is the built root CA pool (nil = use system TLS defaults).
 	RootCAPool *x509.CertPool
 
-	// RuntimeEval is the pre-computed runtime posture snapshot.
-	RuntimeEval policy.RuntimeEvaluation
-
 	// Persistence holds the wired persistence repos. Callers must call
 	// Persistence.Close() on shutdown; Close is a no-op for the memory backend.
 	Persistence *repos.Repos
@@ -82,9 +79,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, fmt.Errorf("compile peer compatibility contract: %w", err)
 	}
 	peerOrigin := peerorigin.NewResolver(mappedPeerProfilesAllowHTTP(cfg, peerContract.Summary()))
-	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
-	runtimeEval := runtimePolicy.Evaluate()
+	codeFlow := policy.NewCodeFlow()
 
 	localIdentity, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
 	if err != nil {
@@ -159,8 +154,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
 		}
 
-		defaultVerificationPolicy := runtimePolicy.DirectoryServiceVerificationPolicy()
-		dirServiceClient := directoryservice.NewClient(rawHTTPClient, defaultVerificationPolicy, logger)
+		dirServiceClient := directoryservice.NewClient(rawHTTPClient, "required", logger)
 		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, localIdentity.Scheme, logger, refreshTimeout)
 
 		for _, cfgPath := range cfg.PeerTrust.ConfigPaths {
@@ -185,11 +179,10 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 			"config_paths", len(cfg.PeerTrust.ConfigPaths),
 			"global_enforce", policyCfg.GlobalEnforce,
 		)
-		if runtimeEval.Trust.Status == policy.TrustStatusFailOpen {
+		if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
 			logger.Warn(
 				"peer trust is enabled without global enforcement",
-				"trust_status", runtimeEval.Trust.Status,
-				"compatibility_scope", runtimeEval.CompatibilityScope,
+				"compatibility_scope", cfg.CompatibilityScope,
 			)
 		}
 	}
@@ -205,7 +198,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	var outboundPolicy *outboundsigning.OutboundPolicy
 	if !opts.SkipCrypto {
 		outboundPolicy = outboundsigning.NewOutboundPolicy(
-			outboundsigning.ResolveInputs(runtimePolicy),
+			outboundsigning.ResolveInputs(),
 			peerContract,
 		)
 	}
@@ -213,7 +206,6 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient, rawHTTPClient)
 	peerDiscoveryAdapter.SetPeerOrigin(peerOrigin)
 	signatureMiddleware := signature.NewSignatureMiddleware(
-		runtimePolicy,
 		peerContract,
 		peerDiscoveryAdapter,
 		localIdentity.Origin,
@@ -235,8 +227,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		TokenStore:          tokenStore,
 		HTTPClient:          httpClient,
 		DiscoveryClient:     discoveryClient,
-		OpenCloudMeshPolicy: openCloudMeshPolicy,
-		RuntimePolicy:       runtimePolicy,
+		CodeFlow:            codeFlow,
 		KeyManager:          keyManager,
 		Signer:              signer,
 		OutboundPolicy:      outboundPolicy,
@@ -254,7 +245,6 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	return BuildResult{
 		Deps:        built,
 		RootCAPool:  rootCAPool,
-		RuntimeEval: runtimeEval,
 		Persistence: persistence,
 	}, nil
 }
@@ -263,10 +253,9 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 // mapping resolves to a profile with dev-mode HTTP transport enabled. This is
 // the explicit dev transport signal for peerorigin.NewResolver: peerorigin
 // itself stays a single strict-default flag with no per-peer matching, so the
-// one-time mapped-profile lookup happens here at wiring time, using the same
-// compiled contract summary policy.hasMappedProfileRelaxations already reads
-// for runtime posture. An empty mapping list (the common case outside the
-// IETF harness and any operator-configured local dev/test peers) always
+// one-time mapped-profile lookup happens here at wiring time, using the
+// compiled contract summary. An empty mapping list (the common case outside
+// the IETF harness and any operator-configured local dev/test peers) always
 // resolves to false, so peer origin resolution stays HTTPS by default.
 func mappedPeerProfilesAllowHTTP(cfg *config.Config, summary peercompat.CompatibilitySummary) bool {
 	if len(cfg.PeerProfiles.Mappings) == 0 {

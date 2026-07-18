@@ -176,12 +176,10 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	}
 
 	// This test targets recipient identity resolution, not token-exchange
-	// policy. DevConfig defaults RequireTokenExchange to true, which would
-	// force a discovery round-trip against the remote owner domain.
-	// Disable it for this server instance only.
-	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
-		cfg.RequireTokenExchange = false
-	})
+	// policy. The receiver requires token exchange, so the request carries
+	// the must-exchange-token requirement and the peer is a discoverable,
+	// token-exchange-capable receiver.
+	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
 	peer := startStrictCodeFlowReceiver(t)
@@ -226,6 +224,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 				URI:          "federated-share-uri",
 				SharedSecret: "secret-abc",
 				Permissions:  []string{"read"},
+				Requirements: []string{spec.RequirementMustExchangeToken},
 			},
 		},
 	}
@@ -360,12 +359,10 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	}
 
 	// This test targets owner/sender address acceptance, not token-exchange
-	// policy. DevConfig defaults RequireTokenExchange to true, which would
-	// force a discovery round-trip against the remote owner domain.
-	// Disable it for this server instance only.
-	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
-		cfg.RequireTokenExchange = false
-	})
+	// policy. The receiver requires token exchange, so the request carries
+	// the must-exchange-token requirement and the peer is a discoverable,
+	// token-exchange-capable receiver.
+	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
 	peer := startStrictCodeFlowReceiver(t)
@@ -409,6 +406,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 				URI:          "reva-share-uri",
 				SharedSecret: "reva-secret",
 				Permissions:  []string{"read", "write"},
+				Requirements: []string{spec.RequirementMustExchangeToken},
 			},
 		},
 	}

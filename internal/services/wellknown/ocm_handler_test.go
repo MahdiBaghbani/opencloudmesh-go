@@ -10,7 +10,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 
@@ -116,13 +115,11 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 	})
 
 	t.Run("with HTTP signatures", func(t *testing.T) {
-		cfg := config.DevConfig()
-		cfg.Signature.InboundMode = "strict"
-		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		codeFlow := policy.NewCodeFlow()
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -133,28 +130,24 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 	})
 }
 
-func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
-	t.Run("derived from runtime policy when not explicitly configured", func(t *testing.T) {
-		cfg := config.DevConfig()
-		cfg.Signature.InboundMode = "strict"
-		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+func TestNewOCMHandler_CodeFlowDrivesHTTPSignatureCriteria(t *testing.T) {
+	t.Run("derived from code-flow policy when not explicitly configured", func(t *testing.T) {
+		codeFlow := policy.NewCodeFlow()
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("expected must-use-http-sig criteria from runtime policy")
+			t.Error("expected must-use-http-sig criteria from code-flow policy")
 		}
 	})
 
-	t.Run("removed service-local key does not override runtime policy", func(t *testing.T) {
-		cfg := config.DevConfig()
-		cfg.Signature.InboundMode = "strict"
-		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+	t.Run("unsupported service-local key does not override code-flow policy", func(t *testing.T) {
+		codeFlow := policy.NewCodeFlow()
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
@@ -162,27 +155,26 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 			"advertise_http_request_signatures": false,
 		}
 
-		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
+		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("expected must-use-http-sig to follow runtime policy")
+			t.Error("expected must-use-http-sig to follow code-flow policy")
 		}
 	})
 }
 
-func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
+func TestNewOCMHandler_CodeFlowDrivesAPIVersionOverrides(t *testing.T) {
 	// Scoped presets do not grant a global Nextcloud crawler apiVersion override.
 	// Per-peer overrides route through the peercompat gate.
 	t.Run("scoped compat preset grants no global crawler override", func(t *testing.T) {
-		cfg := config.CompatConfig()
-		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		codeFlow := policy.NewCodeFlow()
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -205,22 +197,11 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 	})
 
 	t.Run("strict runtime posture suppresses crawler override even on dev preset", func(t *testing.T) {
-		cfg := config.DevConfig()
-		cfg.RequireTokenExchange = true
-		cfg.PeerPolicy = "strict"
-		cfg.Signature.InboundMode = "strict"
-		cfg.Signature.OutboundMode = "strict"
-		cfg.Signature.PeerProfileLevelOverride = "off"
-		cfg.Signature.AllowMismatch = false
-		cfg.CompatibilityScope = "none"
-		cfg.TLS.Mode = "selfsigned"
-		cfg.OutboundHTTP.DerivedSSRFMode = "strict"
-		cfg.OutboundHTTP.InsecureSkipVerify = false
-		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+		codeFlow := policy.NewCodeFlow()
 		c := &OCMProviderConfig{
 			Endpoint: "https://example.com",
 		}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{RuntimePolicy: runtimePolicy}, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

@@ -30,7 +30,8 @@ type Inputs struct {
 	DiscoveryClient     *discovery.Client
 	Signer              *crypto.RFC9421Signer
 	OutboundPolicy      *outboundsigning.OutboundPolicy
-	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
+	CodeFlow            *policy.CodeFlow
+	PeerPolicy          string
 	PeerContract        *peercompat.CompiledContract
 	PeerOrigin          *peerorigin.Resolver
 	LocalIdentity       localidentity.Identity

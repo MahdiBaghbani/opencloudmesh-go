@@ -130,14 +130,15 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	advertiseHTTPSig := in.KeyManager != nil
 
 	var localEval localEvaluation
-	if in.OpenCloudMeshPolicy != nil {
-		ev := in.OpenCloudMeshPolicy.Evaluate()
-		localEval = localEvaluation{codeFlow: ev.TokenExchangeCapable, strict: ev.RequiresTokenExchange}
+	if in.CodeFlow != nil {
+		ev := in.CodeFlow.Evaluate()
+		localEval = localEvaluation{
+			codeFlow:               ev.TokenExchangeCapable,
+			strict:                 ev.RequiresTokenExchange,
+			requiresHTTPSignatures: ev.RequiresHTTPRequestSignatures,
+		}
 	} else {
 		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
-	}
-	if in.RuntimePolicy != nil {
-		localEval.requiresHTTPSignatures = in.RuntimePolicy.Evaluate().Signature.RequiresHTTPRequestSignatures
 	}
 
 	return BuildInputs{

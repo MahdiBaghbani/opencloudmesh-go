@@ -8,7 +8,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
@@ -40,21 +39,12 @@ type ResolvedInputs struct {
 	PeerProfileOverride string
 }
 
-func ResolveInputs(runtimePolicy *policy.RuntimePolicy) ResolvedInputs {
-	outboundMode := "strict"
-	peerProfileOverride := "off"
-	if runtimePolicy != nil {
-		signature := runtimePolicy.Evaluate().Signature
-		if signature.OutboundMode != "" {
-			outboundMode = signature.OutboundMode
-		}
-		if signature.PeerProfileLevelOverride != "" {
-			peerProfileOverride = signature.PeerProfileLevelOverride
-		}
-	}
+// ResolveInputs returns the fixed outbound signing inputs for the local code
+// flow: strict outbound mode with peer-profile overrides off.
+func ResolveInputs() ResolvedInputs {
 	return ResolvedInputs{
-		OutboundMode:        outboundMode,
-		PeerProfileOverride: peerProfileOverride,
+		OutboundMode:        "strict",
+		PeerProfileOverride: "off",
 	}
 }
 

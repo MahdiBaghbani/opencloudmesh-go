@@ -12,7 +12,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -380,7 +379,6 @@ func signatureMiddlewareWithInboundMode(
 	base.Signature = config.SignatureConfig{InboundMode: inboundMode}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	return inboundsignature.NewSignatureMiddleware(
-		policy.NewRuntimePolicy(base, nil),
 		contract,
 		pd,
 		"https://receiver.example.com",

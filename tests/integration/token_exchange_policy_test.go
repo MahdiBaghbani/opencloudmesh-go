@@ -119,20 +119,16 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 	}
 
 	ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
-		// Local receive policy stays non-strict; outbound prefer-strict still
-		// stamps must-exchange-token toward capable non-strict peers.
-		cfg.RequireTokenExchange = false
+		// Outbound prefer-strict stamps must-exchange-token toward capable
+		// non-strict peers regardless of local code-flow facts.
 		cfg.PeerPolicy = "prefer-strict"
 	})
 	defer ts.Stop(t)
 
 	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
 	d := ts.Deps
-	if d == nil || d.Config == nil || d.OpenCloudMeshPolicy == nil || d.OutgoingShareRepo == nil {
+	if d == nil || d.Config == nil || d.CodeFlow == nil || d.OutgoingShareRepo == nil {
 		t.Fatal("shared deps are not fully initialized")
-	}
-	if d.OpenCloudMeshPolicy.Evaluate().RequiresTokenExchange {
-		t.Fatal("test requires local policy strictness=false")
 	}
 
 	shareFile, err := os.CreateTemp("/tmp", "webdav-strict-share-*")
@@ -309,24 +305,16 @@ func TestOutgoingSharePolicy_CanonicalStrictPeer(t *testing.T) {
 
 	trueVal := true
 	tests := []struct {
-		name                 string
-		tokenExchangeEnabled bool
-		wantStatus           int
-		wantPosts            int32
-		wantMustExch         *bool
+		name         string
+		wantStatus   int
+		wantPosts    int32
+		wantMustExch *bool
 	}{
 		{
-			name:                 "requires exchange when local code flow enabled",
-			tokenExchangeEnabled: true,
-			wantStatus:           http.StatusCreated,
-			wantPosts:            1,
-			wantMustExch:         &trueVal,
-		},
-		{
-			name:                 "rejects when local code flow disabled",
-			tokenExchangeEnabled: false,
-			wantStatus:           reason.APIStatus(reason.PeerCapabilityMismatch),
-			wantPosts:            0,
+			name:         "requires exchange when local code flow enabled",
+			wantStatus:   http.StatusCreated,
+			wantPosts:    1,
+			wantMustExch: &trueVal,
 		},
 	}
 
@@ -334,8 +322,6 @@ func TestOutgoingSharePolicy_CanonicalStrictPeer(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
-				enabled := tc.tokenExchangeEnabled
-				cfg.TokenExchange.Enabled = &enabled
 				cfg.PeerPolicy = "legacy"
 			})
 			defer ts.Stop(t)

@@ -78,7 +78,7 @@ func newHandlerWithDiscovery(
 	repo *sharesinbox.MemoryIncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	fakeSrv *httptest.Server,
-	canonicalPolicy *policy.OpenCloudMeshPolicy,
+	canonicalPolicy *policy.CodeFlow,
 ) *incoming.Handler {
 	t.Helper()
 
@@ -506,13 +506,7 @@ func TestReceiverClassification_ReceiverStrictRequiresWireMustExchange(t *testin
 	ownerHost := stripSchemeHost(fakeSrv.URL)
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	tokenExchangeEnabled := true
-	cfg := &config.Config{
-		TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-		RequireTokenExchange: true,
-		PeerPolicy:           "legacy",
-	}
-	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, policy.NewOpenCloudMeshPolicy(cfg))
+	handler := newHandlerWithDiscovery(t, repo, partyRepo, fakeSrv, policy.NewCodeFlow())
 
 	body := shareBodyWithOwnerHost(ownerHost, false)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))

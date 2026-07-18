@@ -9,9 +9,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
@@ -50,34 +48,6 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 	if len(criteriaSlice) != 0 {
 		t.Errorf("expected empty criteria array, got %v", criteriaSlice)
 	}
-}
-
-func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
-	t.Run("require_token_exchange=true", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			RequireTokenExchange: true,
-			PeerPolicy:           "legacy",
-		}
-		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
-		if !eval.RequiresTokenExchange {
-			t.Error("expected RequiresTokenExchange true")
-		}
-	})
-
-	t.Run("require_token_exchange=false", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			RequireTokenExchange: false,
-			PeerPolicy:           "legacy",
-		}
-		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
-		if eval.RequiresTokenExchange {
-			t.Error("expected RequiresTokenExchange false")
-		}
-	})
 }
 
 func TestDiscovery_Helpers(t *testing.T) {

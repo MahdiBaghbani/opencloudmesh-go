@@ -106,33 +106,26 @@ func main() {
 	}
 
 	// Posture guard: compatibility_scope=none requires a resolved strict posture.
-	runtimeEval := result.RuntimeEval
-	if cfg.CompatibilityScope == "none" && !runtimeEval.Strict.IsStrict {
+	if cfg.CompatibilityScope == "none" && cfg.Mode != "strict" {
 		logger.Error(
 			"compatibility_scope=none contradicts resolved runtime posture",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"reasons", runtimeEval.Strict.ViolationReasons,
+			"mode", cfg.Mode,
+			"compatibility_scope", cfg.CompatibilityScope,
 		)
 		os.Exit(1)
 	}
 
-	if runtimeEval.Strict.IsStrict {
+	if cfg.Mode == "strict" {
 		logger.Info(
 			"resolved runtime posture",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"strict", runtimeEval.Strict.IsStrict,
-			"trust_status", runtimeEval.Trust.Status,
+			"mode", cfg.Mode,
+			"compatibility_scope", cfg.CompatibilityScope,
 		)
 	} else {
 		logger.Warn(
 			"resolved runtime posture is non-strict",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"strict", runtimeEval.Strict.IsStrict,
-			"reasons", runtimeEval.Strict.ViolationReasons,
-			"trust_status", runtimeEval.Trust.Status,
+			"mode", cfg.Mode,
+			"compatibility_scope", cfg.CompatibilityScope,
 		)
 	}
 

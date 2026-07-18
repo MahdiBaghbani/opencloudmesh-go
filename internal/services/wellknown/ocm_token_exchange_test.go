@@ -7,7 +7,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
 func TestNewOCMHandler_TokenExchangeDisabled(t *testing.T) {
@@ -80,19 +79,12 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 	}
 }
 
-func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
-	t.Run("evaluator TokenExchangeCapable=true adds exchange-token", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			RequireTokenExchange: true,
-			PeerPolicy:           "legacy",
-		}
+func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
+	t.Run("code-flow TokenExchangeCapable=true adds exchange-token", func(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -105,92 +97,32 @@ func TestNewOCMHandler_EvaluatorDrivesExchangeToken(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Error("expected exchange-token in capabilities when evaluator TokenExchangeCapable=true")
+			t.Error("expected exchange-token in capabilities when code-flow TokenExchangeCapable=true")
 		}
 		if h.data.TokenEndPoint == "" {
 			t.Error("expected non-empty tokenEndPoint")
 		}
 	})
-
-	t.Run("evaluator TokenExchangeCapable=false omits exchange-token", func(t *testing.T) {
-		tokenExchangeEnabled := false
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			RequireTokenExchange: false,
-			PeerPolicy:           "legacy",
-		}
-		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		c.TokenExchange.Enabled = false
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		for _, cap := range h.data.Capabilities {
-			if cap == "exchange-token" {
-				t.Error("expected exchange-token NOT in capabilities when evaluator TokenExchangeCapable=false")
-			}
-		}
-		if h.data.TokenEndPoint != "" {
-			t.Errorf("expected empty tokenEndPoint, got %q", h.data.TokenEndPoint)
-		}
-	})
 }
 
-func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
+func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("RequiresTokenExchange=true adds token-exchange criteria", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			RequireTokenExchange: true,
-			PeerPolicy:           "legacy",
-		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if !h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
-			t.Error("expected must-exchange-token in criteria when evaluator RequiresTokenExchange=true")
-		}
-	})
-
-	t.Run("RequiresTokenExchange=false omits token-exchange criteria", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			RequireTokenExchange: false,
-			PeerPolicy:           "legacy",
-		}
-		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		c.TokenExchange.Enabled = true
-		c.TokenExchange.Path = "token"
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
-			t.Error("expected must-exchange-token NOT in criteria when evaluator RequiresTokenExchange=false")
+			t.Error("expected must-exchange-token in criteria when code-flow RequiresTokenExchange=true")
 		}
 	})
 
 	t.Run("empty criteria serializes as []", func(t *testing.T) {
-		tokenExchangeEnabled := false
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			RequireTokenExchange: false,
-			PeerPolicy:           "legacy",
-		}
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -218,14 +150,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 		}
 	})
 
-	t.Run("per-service token_exchange override keeps evaluator strictness", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			RequireTokenExchange: true,
-			PeerPolicy:           "legacy",
-		}
+	t.Run("per-service token_exchange override keeps code-flow strictness", func(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		raw := map[string]any{
 			"token_exchange": map[string]any{
@@ -233,51 +158,17 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			},
 		}
 
-		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
+		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if !h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
-			t.Error("expected must-exchange-token criteria to follow evaluator strictness even with per-service override")
+			t.Error("expected must-exchange-token criteria to follow code-flow strictness even with per-service override")
 		}
 	})
 
-	t.Run("never emit token-exchange criteria without capability", func(t *testing.T) {
-		tokenExchangeEnabled := false
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			RequireTokenExchange: true,
-			PeerPolicy:           "legacy",
-		}
-		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		for _, cap := range h.data.Capabilities {
-			if cap == "exchange-token" {
-				t.Fatal("did not expect exchange-token capability when code flow is disabled")
-			}
-		}
-		if h.data.TokenEndPoint != "" {
-			t.Fatalf("expected empty tokenEndPoint when code flow is disabled, got %q", h.data.TokenEndPoint)
-		}
-		if h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
-			t.Fatal("did not expect must-exchange-token criteria without exchange-token capability")
-		}
-	})
-
-	t.Run("per-service override cannot diverge evaluator capability", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			PublicOrigin:         "https://example.com",
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled, Path: "token"},
-			RequireTokenExchange: false,
-			PeerPolicy:           "legacy",
-		}
+	t.Run("per-service override cannot diverge code-flow capability", func(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
 		raw := map[string]any{
 			"token_exchange": map[string]any{
@@ -285,7 +176,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			},
 		}
 
-		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg)}, testLogger())
+		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -298,7 +189,7 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 			}
 		}
 		if !foundCapability {
-			t.Fatal("expected exchange-token capability to follow evaluator despite per-service override")
+			t.Fatal("expected exchange-token capability to follow code-flow despite per-service override")
 		}
 		if h.data.TokenEndPoint == "" {
 			t.Fatal("expected tokenEndPoint to be present when exchange-token is advertised")
@@ -314,11 +205,11 @@ func TestNewOCMHandler_EvaluatorDrivesTokenExchangeCriteria(t *testing.T) {
 
 		for _, cap := range h.data.Capabilities {
 			if cap == "exchange-token" {
-				t.Fatal("did not expect exchange-token capability without canonical policy")
+				t.Fatal("did not expect exchange-token capability without a code-flow policy")
 			}
 		}
 		if h.data.TokenEndPoint != "" {
-			t.Fatalf("expected empty tokenEndPoint without canonical policy, got %q", h.data.TokenEndPoint)
+			t.Fatalf("expected empty tokenEndPoint without a code-flow policy, got %q", h.data.TokenEndPoint)
 		}
 	})
 }

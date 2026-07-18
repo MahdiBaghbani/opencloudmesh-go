@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 )
@@ -276,12 +275,12 @@ func TestCheckStartupPosture(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := &config.Config{CompatibilityScope: tc.scope}
-			eval := policy.RuntimeEvaluation{
-				CompatibilityScope: tc.scope,
-				Strict:             policy.StrictAssessment{IsStrict: tc.isStrict},
+			mode := "dev"
+			if tc.isStrict {
+				mode = "strict"
 			}
-			err := checkStartupPosture(cfg, eval)
+			cfg := &config.Config{CompatibilityScope: tc.scope, Mode: mode}
+			err := checkStartupPosture(cfg)
 			if tc.wantError && err == nil {
 				t.Fatalf("checkStartupPosture(scope=%q, strict=%v) = nil, want error", tc.scope, tc.isStrict)
 			}

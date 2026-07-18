@@ -10,7 +10,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm"
 )
 
@@ -204,40 +203,15 @@ func TestOutboundPolicy_Strict_MissingDiscoveryStillSigns(t *testing.T) {
 	}
 }
 
-func TestNewOutboundPolicy(t *testing.T) {
-	cfg := &config.Config{
-		Signature: config.SignatureConfig{
-			OutboundMode:             "strict",
-			PeerProfileLevelOverride: "non-strict",
-		},
-	}
-
+func TestNewOutboundPolicy_StrictNone(t *testing.T) {
 	contract := ocm.MustCompileContract(t, nil, nil)
-	runtimePolicy := ocm.RuntimePolicy(t, cfg, contract)
-	policy := ocm.OutboundPolicy(t, runtimePolicy, contract)
+	policy := ocm.OutboundPolicy(t, contract)
 
 	if policy.OutboundMode != "strict" {
 		t.Errorf("expected outbound_mode=strict, got %s", policy.OutboundMode)
 	}
-	if policy.StrictNone {
-		t.Error("expected StrictNone=false for strict with non-strict override")
-	}
-}
-
-func TestNewOutboundPolicy_StrictNone(t *testing.T) {
-	cfg := &config.Config{
-		Signature: config.SignatureConfig{
-			OutboundMode:             "strict",
-			PeerProfileLevelOverride: "off",
-		},
-	}
-
-	contract := ocm.MustCompileContract(t, nil, nil)
-	runtimePolicy := ocm.RuntimePolicy(t, cfg, contract)
-	policy := ocm.OutboundPolicy(t, runtimePolicy, contract)
-
 	if !policy.StrictNone {
-		t.Error("expected StrictNone=true for strict with peer_profile_level_override=off")
+		t.Error("expected StrictNone=true for the fixed local code-flow policy")
 	}
 }
 
@@ -251,10 +225,8 @@ func TestOutboundPolicy_TokenExchange_StrictPeerIgnoresPlainTokenQuirk(t *testin
 	mappings := []peercompat.ProfileMapping{
 		{Pattern: "cloud.nextcloud.com", Profile: "nextcloud"},
 	}
-	cfg := config.DevConfig()
 	contract := ocm.MustCompileContract(t, profiles, mappings)
-	runtimePolicy := ocm.RuntimePolicy(t, cfg, contract)
-	policy := ocm.OutboundPolicy(t, runtimePolicy, contract)
+	policy := ocm.OutboundPolicy(t, contract)
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},
@@ -361,13 +333,8 @@ func TestOutboundPolicy_StrictNone_TokenExchange_NoUnsignedFallback(t *testing.T
 }
 
 func TestOutboundPolicy_TokenExchange_StrictPolicyRequiresSigning(t *testing.T) {
-	cfg := config.DevConfig()
-	cfg.PeerPolicy = "strict"
-	enabled := true
-	cfg.TokenExchange.Enabled = &enabled
 	contract := ocm.MustCompileContract(t, nil, nil)
-	runtimePolicy := ocm.RuntimePolicy(t, cfg, contract)
-	policy := ocm.OutboundPolicy(t, runtimePolicy, contract)
+	policy := ocm.OutboundPolicy(t, contract)
 
 	disc := &discovery.Discovery{
 		Capabilities: []string{"exchange-token"},

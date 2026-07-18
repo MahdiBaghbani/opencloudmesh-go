@@ -39,9 +39,9 @@ func TestValidateInputs_ReportsMissingRequiredFields(t *testing.T) {
 			wantSub: "DiscoveryClient is required",
 		},
 		{
-			name:    "OpenCloudMeshPolicy",
-			mutate:  func(in *Inputs) { in.OpenCloudMeshPolicy = nil },
-			wantSub: "OpenCloudMeshPolicy is required",
+			name:    "CodeFlow",
+			mutate:  func(in *Inputs) { in.CodeFlow = nil },
+			wantSub: "CodeFlow is required",
 		},
 	}
 

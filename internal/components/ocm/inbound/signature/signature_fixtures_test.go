@@ -7,7 +7,6 @@ import (
 
 	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
@@ -47,12 +46,6 @@ func resolvedKeyFromManager(km *crypto.KeyManager) sigalg.ResolvedPublicKey {
 	}
 }
 
-func runtimePolicyFromSignature(cfg *config.SignatureConfig) *policy.RuntimePolicy {
-	base := config.DevConfig()
-	base.Signature = *cfg
-	return policy.NewRuntimePolicy(base, nil)
-}
-
 func newTestSignatureMiddleware(
 	cfg *config.SignatureConfig,
 	peerContract *peercompat.CompiledContract,
@@ -61,7 +54,6 @@ func newTestSignatureMiddleware(
 	logger *slog.Logger,
 ) *sig.SignatureMiddleware {
 	return sig.NewSignatureMiddleware(
-		runtimePolicyFromSignature(cfg),
 		peerContract,
 		pd,
 		publicOrigin,

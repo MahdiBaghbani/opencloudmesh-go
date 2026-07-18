@@ -111,15 +111,18 @@ func TestStrictPreset_FinalShape(t *testing.T) {
 		)
 	}
 
-	facts := policy.NewLocalCodeFlowPolicy(cfg).Evaluate()
+	facts := policy.NewCodeFlow().Evaluate()
 	if !facts.TokenExchangeCapable {
 		t.Error("expected TokenExchangeCapable true")
 	}
 	if !facts.RequiresTokenExchange {
 		t.Error("expected RequiresTokenExchange true")
 	}
-	if !facts.IncludesRequirement {
-		t.Error("expected IncludesRequirement true")
+	if !facts.IncludesTokenExchangeRequirement {
+		t.Error("expected IncludesTokenExchangeRequirement true")
+	}
+	if !facts.RequiresHTTPRequestSignatures {
+		t.Error("expected RequiresHTTPRequestSignatures true")
 	}
 }
 
@@ -157,26 +160,38 @@ func TestDevPreset_FinalShape(t *testing.T) {
 		)
 	}
 
-	facts := policy.NewLocalCodeFlowPolicy(cfg).Evaluate()
+	facts := policy.NewCodeFlow().Evaluate()
 	if !facts.TokenExchangeCapable {
 		t.Error("expected TokenExchangeCapable true under the dev preset")
 	}
 	if !facts.RequiresTokenExchange {
 		t.Error("expected RequiresTokenExchange true under the dev preset")
 	}
-	if !facts.IncludesRequirement {
-		t.Error("expected IncludesRequirement true under the dev preset")
+	if !facts.IncludesTokenExchangeRequirement {
+		t.Error("expected IncludesTokenExchangeRequirement true under the dev preset")
+	}
+	if !facts.RequiresHTTPRequestSignatures {
+		t.Error("expected RequiresHTTPRequestSignatures true under the dev preset")
 	}
 }
 
-// TestLocalCodeFlowPolicy_FixedFacts confirms the single local policy type
-// reports the three code-flow facts as constants regardless of input.
-func TestLocalCodeFlowPolicy_FixedFacts(t *testing.T) {
-	inputs := []*config.Config{config.StrictConfig(), config.DevConfig(), nil}
-	for _, cfg := range inputs {
-		facts := policy.NewLocalCodeFlowPolicy(cfg).Evaluate()
-		if !facts.TokenExchangeCapable || !facts.RequiresTokenExchange || !facts.IncludesRequirement {
-			t.Fatalf("expected fixed local code-flow facts regardless of input, got %+v for cfg=%v", facts, cfg)
-		}
+// TestCodeFlow_EvaluateReturnsFixedFacts confirms the single local policy
+// type reports the code-flow facts as fixed constants.
+func TestCodeFlow_EvaluateReturnsFixedFacts(t *testing.T) {
+	facts := policy.NewCodeFlow().Evaluate()
+	if !facts.TokenExchangeCapable || !facts.RequiresTokenExchange ||
+		!facts.IncludesTokenExchangeRequirement || !facts.RequiresHTTPRequestSignatures {
+		t.Fatalf("expected fixed local code-flow facts, got %+v", facts)
+	}
+}
+
+// TestCodeFlow_NilSafe confirms a nil *CodeFlow is safe to call and returns
+// the fixed facts.
+func TestCodeFlow_NilSafe(t *testing.T) {
+	var c *policy.CodeFlow
+	facts := c.Evaluate()
+	if !facts.TokenExchangeCapable || !facts.RequiresTokenExchange ||
+		!facts.IncludesTokenExchangeRequirement || !facts.RequiresHTTPRequestSignatures {
+		t.Fatalf("expected fixed facts from nil *CodeFlow, got %+v", facts)
 	}
 }

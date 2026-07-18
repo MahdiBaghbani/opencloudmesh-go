@@ -37,7 +37,8 @@ import (
 type Handler struct {
 	repo            sharesoutgoing.OutgoingShareRepo
 	discoveryClient *discovery.Client
-	canonicalPolicy *policy.OpenCloudMeshPolicy
+	canonicalPolicy *policy.CodeFlow
+	peerPolicy      string
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
@@ -52,7 +53,8 @@ type Handler struct {
 func NewHandler(
 	repo sharesoutgoing.OutgoingShareRepo,
 	discClient *discovery.Client,
-	canonicalPolicy *policy.OpenCloudMeshPolicy,
+	canonicalPolicy *policy.CodeFlow,
+	peerPolicy string,
 	httpClient httpclient.HTTPClient,
 	signer *crypto.RFC9421Signer,
 	outboundPolicy *outboundsigning.OutboundPolicy,
@@ -68,6 +70,7 @@ func NewHandler(
 		repo:            repo,
 		discoveryClient: discClient,
 		canonicalPolicy: canonicalPolicy,
+		peerPolicy:      peerPolicy,
 		httpClient:      httpClient,
 		signer:          signer,
 		outboundPolicy:  outboundPolicy,
@@ -173,13 +176,12 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	peerIsStrict := disc.HasCriteria(spec.CriteriaMustExchangeToken)
 
 	localCodeFlow := false
-	localPolicy := "legacy"
 	if h.canonicalPolicy != nil {
-		eval := h.canonicalPolicy.Evaluate()
-		localCodeFlow = eval.TokenExchangeCapable
-		if eval.PeerPolicy != "" {
-			localPolicy = eval.PeerPolicy
-		}
+		localCodeFlow = h.canonicalPolicy.Evaluate().TokenExchangeCapable
+	}
+	localPolicy := "legacy"
+	if h.peerPolicy != "" {
+		localPolicy = h.peerPolicy
 	}
 
 	mustExchangeToken := false

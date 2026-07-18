@@ -4,13 +4,11 @@
 package integration
 
 import (
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
@@ -452,80 +450,4 @@ outbound_mode = "token-only"
 	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
 		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
 	}
-}
-
-func TestScopedCompatibilityMappedGrantOverrideDemotesRuntimePosture(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping subprocess test in short mode")
-	}
-
-	binaryPath := harness.BuildBinary(t)
-	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "scoped-grant-override",
-		Mode:                  "strict",
-		CompatibilityScope:    "scoped",
-		KeepSignatureDefaults: true,
-		ExtraConfig: `
-[signature]
-peer_profile_level_override = "non-strict"
-
-[[peer_profiles.mappings]]
-pattern = "peer.example.com"
-profile = "grant-compat"
-
-[peer_profiles.custom_profiles.grant-compat]
-token_exchange_grant_type = "ocm_share"
-`,
-	})
-	defer srv.Stop(t)
-
-	// srv.Client() returns an insecure client to accept the self-signed cert
-	// used by selfsigned TLS mode; the server config itself enforces strict TLS.
-	resp, err := srv.Client().Get(srv.BaseURL + "/api/healthz")
-	if err != nil {
-		t.Fatalf("health check failed: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected healthz 200, got %d", resp.StatusCode)
-	}
-
-	logPath := filepath.Join(srv.TempDir, "server.log")
-	logs := waitForLogSubstrings(t, logPath,
-		"resolved runtime posture is non-strict",
-		"compatibility_scope",
-		"scoped",
-		"peer_profile_relaxations_active",
-	)
-	if logs == "" {
-		t.Fatalf("expected compiled-summary posture log for mapped grant override")
-	}
-}
-
-func waitForLogSubstrings(t *testing.T, logPath string, want ...string) string {
-	t.Helper()
-
-	var logs string
-	for i := 0; i < 20; i++ {
-		content, readErr := os.ReadFile(logPath)
-		if readErr != nil {
-			t.Fatalf("failed to read server log: %v", readErr)
-		}
-		logs = string(content)
-
-		allPresent := true
-		for _, needle := range want {
-			if !strings.Contains(logs, needle) {
-				allPresent = false
-				break
-			}
-		}
-		if allPresent {
-			return logs
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	t.Fatalf("expected log to contain %v, got logs:\n%s", want, logs)
-	return ""
 }

@@ -90,7 +90,7 @@ func setupSignedTokenServiceInputs(
 	spyStore := &identityCapturingTokenStore{inner: innerStore}
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 
-	in.OpenCloudMeshPolicy = policy.NewOpenCloudMeshPolicy(cfg)
+	in.CodeFlow = policy.NewCodeFlow()
 	in.OutgoingShareRepo = shareRepo
 	in.TokenStore = spyStore
 	return in, spyStore, shareRepo
@@ -105,14 +105,12 @@ func testInputs(cfg *config.Config) Inputs {
 	if err != nil {
 		panic("testInputs: " + err.Error())
 	}
-	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	return Inputs{
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		LocalIdentity:       id,
-		TokenExchangePath:   "token",
+		CodeFlow:          policy.NewCodeFlow(),
+		LocalIdentity:     id,
+		TokenExchangePath: "token",
 		SignatureMiddleware: inboundsignature.NewSignatureMiddleware(
-			runtimePolicy,
 			nil,
 			ocmTestPeerDiscovery{},
 			id.Origin,
@@ -159,10 +157,8 @@ func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serv
 }
 
 func replaceSignatureMiddleware(in *Inputs, cfg *config.Config, pd inboundsignature.PeerDiscovery) {
-	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	in.SignatureMiddleware = inboundsignature.NewSignatureMiddleware(
-		runtimePolicy,
 		nil,
 		pd,
 		in.LocalIdentity.Origin,

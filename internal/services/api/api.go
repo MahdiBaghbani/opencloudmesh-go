@@ -110,7 +110,8 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	outgoingHandler := outgoingshares.NewHandler(
 		inputs.OutgoingShareRepo,
 		inputs.DiscoveryClient,
-		inputs.OpenCloudMeshPolicy,
+		inputs.CodeFlow,
+		inputs.PeerPolicy,
 		inputs.HTTPClient,
 		inputs.Signer,
 		inputs.OutboundPolicy,
@@ -194,8 +195,8 @@ func validateInputs(in Inputs) error {
 		return errors.New("api: HTTPClient is required")
 	case in.DiscoveryClient == nil:
 		return errors.New("api: DiscoveryClient is required")
-	case in.OpenCloudMeshPolicy == nil:
-		return errors.New("api: OpenCloudMeshPolicy is required")
+	case in.CodeFlow == nil:
+		return errors.New("api: CodeFlow is required")
 	default:
 		return nil
 	}

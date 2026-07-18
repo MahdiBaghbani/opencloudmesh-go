@@ -26,11 +26,10 @@ func discoveryResolveInputs(cfg *config.Config) resolve.ResolveInputs {
 		panic("discoveryResolveInputs: " + err.Error())
 	}
 	return resolve.ResolveInputs{
-		LocalIdentity:       id,
-		RouteOpts:           service.RouteOptsFromConfig(cfg),
-		TokenExchangePath:   cfg.TokenExchange.Path,
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
+		LocalIdentity:     id,
+		RouteOpts:         service.RouteOptsFromConfig(cfg),
+		TokenExchangePath: cfg.TokenExchange.Path,
+		CodeFlow:          policy.NewCodeFlow(),
 	}
 }
 
@@ -40,11 +39,6 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	cfg.ExternalBasePath = ""
 	cfg.Signature.InboundMode = "strict"
 	cfg.Signature.OutboundMode = "strict"
-	// DevConfig defaults RequireTokenExchange to true, which populates
-	// must-exchange-token and would make the empty-criteria assertion fail for
-	// an unrelated reason, so this test disables it to isolate base-path field
-	// resolution.
-	cfg.RequireTokenExchange = false
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
