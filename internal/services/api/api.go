@@ -95,7 +95,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.HTTPClient,
 		inputs.DiscoveryClient,
 		tokenClient,
-		inputs.PeerContract,
 		inputs.PeerOrigin,
 	)
 

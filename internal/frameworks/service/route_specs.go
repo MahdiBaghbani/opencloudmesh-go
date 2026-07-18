@@ -17,7 +17,7 @@ const (
 	HandlerAuthCurrentUser     HandlerAuth = "current user"
 	HandlerAuthOptionalHTTPSig HandlerAuth = "optional HTTP signature"
 	HandlerAuthRequiredHTTPSig HandlerAuth = "required HTTP signature"
-	HandlerAuthBearerOrBasic   HandlerAuth = "bearer or basic"
+	HandlerAuthBearer          HandlerAuth = "bearer"
 	HandlerAuthRateLimitOnly   HandlerAuth = "rate limit only"
 )
 

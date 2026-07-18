@@ -154,7 +154,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 				Header:     http.Header{"Content-Type": []string{"text/plain"}},
 				Body:       io.NopCloser(bytes.NewBufferString(fileContent)),
 			},
-			TokenExchanged: false,
+			TokenExchanged: true,
 			MethodUsed:     "bearer",
 		}, nil
 	}}
@@ -176,6 +176,9 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 	}
 	if resp.MethodUsed != "bearer" {
 		t.Errorf("expected methodUsed bearer, got %s", resp.MethodUsed)
+	}
+	if !resp.TokenExchanged {
+		t.Error("expected tokenExchanged=true")
 	}
 	if resp.HTTPStatus != 200 {
 		t.Errorf("expected httpStatus 200, got %d", resp.HTTPStatus)

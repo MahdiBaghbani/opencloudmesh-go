@@ -20,7 +20,7 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 			Method:        "*",
 			Pattern:       RouteOCMWildcard,
 			SessionPolicy: service.SessionPublic,
-			HandlerAuth:   service.HandlerAuthBearerOrBasic,
+			HandlerAuth:   service.HandlerAuthBearer,
 			SurfaceClass:  service.SurfaceWebDAV,
 			TrustClass:    service.TrustPeerNone,
 		},

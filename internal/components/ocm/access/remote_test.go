@@ -1,17 +1,16 @@
-package access_test
+package access
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
@@ -48,8 +47,6 @@ func newTestDiscoveryServer() *httptest.Server {
 
 func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextClient) {
 	cfg := tshttp.PermissiveConfig()
-	// Some tests exercise a nil peer contract, which resolves to the canonical
-	// HTTPS scheme and needs an httptest.NewTLSServer self-signed cert accepted.
 	cfg.InsecureSkipVerify = true
 	rawClient := httpclient.New(cfg, nil)
 	discClient := discovery.NewClient(rawClient, nil)
@@ -57,16 +54,6 @@ func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextCli
 	return discClient, ctxClient
 }
 
-func buildContractFromRegistry(t *testing.T, registry *peercompat.ProfileRegistry) *peercompat.CompiledContract {
-	t.Helper()
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-	return contract
-}
-
-// accessMockSigner adds a Signature header for signed token exchange tests.
 type accessMockSigner struct{}
 
 func (accessMockSigner) Sign(req *http.Request) error {
@@ -93,33 +80,92 @@ func newHTTPTestContract(t *testing.T) *peercompat.CompiledContract {
 	return contract
 }
 
+func newExchangeAccessClient(
+	t *testing.T,
+	srv *httptest.Server,
+) (*Client, *httpclient.ContextClient) {
+	t.Helper()
+	discClient, ctxClient := newTestClients(srv.URL)
+	contract := newHTTPTestContract(t)
+	policy := &outboundsigning.OutboundPolicy{
+		OutboundMode: "strict",
+		PeerContract: contract,
+	}
+	tokenClient := tokenoutgoing.NewClient(
+		ctxClient,
+		discClient,
+		accessMockSigner{},
+		policy,
+		"local.example.com",
+	)
+	client := NewClient(
+		ctxClient,
+		discClient,
+		tokenClient,
+		peerorigin.NewResolver(true),
+	)
+	return client, ctxClient
+}
+
+func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToken string) bool {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+
+	if r.URL.Path == "/.well-known/ocm" {
+		disc := discovery.Discovery{
+			Enabled:       true,
+			APIVersion:    "1.4.0",
+			EndPoint:      scheme + "://" + r.Host + "/ocm",
+			Capabilities:  []string{"exchange-token"},
+			TokenEndPoint: scheme + "://" + r.Host + "/ocm/token",
+			ResourceTypes: []discovery.ResourceType{
+				{
+					Name:       "file",
+					ShareTypes: []string{"user"},
+					Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(disc)
+		return true
+	}
+	if r.URL.Path == "/ocm/token" {
+		if r.Header.Get("Signature") == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return true
+		}
+		_ = r.ParseForm()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"` + accessToken + `","token_type":"Bearer","expires_in":3600}`))
+		return true
+	}
+	return false
+}
+
 func TestBuildWebDAVURL_AbsoluteURIMatchingHost(t *testing.T) {
-	// When absolute URI host matches sender, the absolute URI is used directly.
-	// No discovery call needed, so we pass a nil-safe discovery server.
 	discServer := newTestDiscoveryServer()
 	defer discServer.Close()
 
 	discClient, ctxClient := newTestClients(discServer.URL)
-	client := access.NewClient(ctxClient, discClient, nil, nil, nil)
+	client := NewClient(ctxClient, discClient, nil, peerorigin.NewResolver(true))
 
-	share := &access.ShareInfo{
+	share := &ShareInfo{
 		Status:            "accepted",
 		SenderHost:        "sender.example.com",
 		SharedSecret:      "secret",
 		WebDAVID:          "https://sender.example.com/remote.php/webdav/file.txt",
 		MustExchangeToken: false,
 	}
-	_, err := client.Access(context.Background(), access.AccessOptions{
-		Share:   share,
-		Method:  "GET",
-		SubPath: "",
-	})
-	if err == nil {
-		t.Fatal("expected error (unreachable host), got nil")
+	got, err := client.buildWebDAVURL(context.Background(), share, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	errStr := err.Error()
-	if !containsStr(errStr, "sender.example.com") {
-		t.Errorf("expected error to reference sender.example.com, got: %s", errStr)
+	want := "https://sender.example.com/remote.php/webdav/file.txt"
+	if got != want {
+		t.Errorf("buildWebDAVURL() = %q, want %q", got, want)
 	}
 }
 
@@ -128,25 +174,33 @@ func TestBuildWebDAVURL_AbsoluteURIMismatchedHost(t *testing.T) {
 	defer discServer.Close()
 
 	discClient, ctxClient := newTestClients(discServer.URL)
-	client := access.NewClient(ctxClient, discClient, nil, nil, nil)
+	client := NewClient(ctxClient, discClient, nil, peerorigin.NewResolver(true))
+	senderHost := discServer.Listener.Addr().String()
 
-	share := &access.ShareInfo{
+	share := &ShareInfo{
 		Status:            "accepted",
-		SenderHost:        discServer.Listener.Addr().String(),
+		SenderHost:        senderHost,
 		SharedSecret:      "secret",
 		WebDAVID:          "https://evil.example.com/webdav/file.txt",
 		MustExchangeToken: false,
 	}
-	_, err := client.Access(context.Background(), access.AccessOptions{
-		Share:   share,
-		Method:  "GET",
-		SubPath: "",
-	})
+	got, err := client.buildWebDAVURL(context.Background(), share, "")
 	if err != nil {
 		errStr := err.Error()
 		if containsStr(errStr, "evil.example.com") {
 			t.Errorf("expected fallthrough to discovery, but error references evil host: %s", errStr)
 		}
+		return
+	}
+	parsed, parseErr := url.Parse(got)
+	if parseErr != nil {
+		t.Fatalf("parse discovery-derived URL: %v", parseErr)
+	}
+	if parsed.Host == "evil.example.com" {
+		t.Errorf("expected discovery-derived host, got evil host in URL: %s", got)
+	}
+	if parsed.Host != senderHost {
+		t.Errorf("expected discovery server host in URL, got %q (full URL: %s)", parsed.Host, got)
 	}
 }
 
@@ -155,26 +209,31 @@ func TestBuildWebDAVURL_AbsoluteURIParseError(t *testing.T) {
 	defer discServer.Close()
 
 	discClient, ctxClient := newTestClients(discServer.URL)
-	client := access.NewClient(ctxClient, discClient, nil, nil, nil)
+	client := NewClient(ctxClient, discClient, nil, peerorigin.NewResolver(true))
+	senderHost := discServer.Listener.Addr().String()
 
-	share := &access.ShareInfo{
+	share := &ShareInfo{
 		Status:            "accepted",
-		SenderHost:        discServer.Listener.Addr().String(),
+		SenderHost:        senderHost,
 		SharedSecret:      "secret",
 		WebDAVID:          "://not-a-valid-url",
 		MustExchangeToken: false,
 	}
 
-	_, err := client.Access(context.Background(), access.AccessOptions{
-		Share:   share,
-		Method:  "GET",
-		SubPath: "",
-	})
+	got, err := client.buildWebDAVURL(context.Background(), share, "")
 	if err != nil {
 		errStr := err.Error()
 		if containsStr(errStr, "not-a-valid-url") {
 			t.Errorf("expected fallthrough to discovery, but error references bad URI: %s", errStr)
 		}
+		return
+	}
+	parsed, parseErr := url.Parse(got)
+	if parseErr != nil {
+		t.Fatalf("parse discovery-derived URL: %v", parseErr)
+	}
+	if parsed.Host != senderHost {
+		t.Errorf("expected discovery server host in URL, got %q (full URL: %s)", parsed.Host, got)
 	}
 }
 
@@ -187,79 +246,35 @@ func containsStr(haystack, needle string) bool {
 	return false
 }
 
-// authLadderHandler builds the shared auth-ladder test handler. It derives
-// the discovery EndPoint scheme from the actual inbound connection (r.TLS)
-// so the same handler works for both httptest.NewServer (HTTP) and
-// httptest.NewTLSServer (HTTPS) callers.
-func authLadderHandler(acceptAuth func(authHeader string) bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
+func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
+	const exchangedToken = "exchanged-access-token"
+	var requestCount atomic.Int32
 
-		if r.URL.Path == "/.well-known/ocm" {
-			disc := discovery.Discovery{
-				Enabled:    true,
-				APIVersion: "1.4.0",
-				EndPoint:   scheme + "://" + r.Host + "/ocm",
-				ResourceTypes: []discovery.ResourceType{
-					{
-						Name:       "file",
-						ShareTypes: []string{"user"},
-						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
-					},
-				},
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if exchangeDiscoveryHandler(w, r, exchangedToken) {
 			return
 		}
-
 		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
-			authHeader := r.Header.Get("Authorization")
-			if acceptAuth(authHeader) {
-				w.Header().Set("Content-Type", "text/plain")
+			requestCount.Add(1)
+			if r.Header.Get("Authorization") == "Bearer "+exchangedToken {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("file content"))
+				_, _ = w.Write([]byte("file content"))
 				return
 			}
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-
 		http.NotFound(w, r)
-	}
-}
-
-func newAuthLadderServer(acceptAuth func(authHeader string) bool) *httptest.Server {
-	return httptest.NewServer(authLadderHandler(acceptAuth))
-}
-
-// newAuthLadderTLSServer is the HTTPS counterpart of newAuthLadderServer, for
-// tests that exercise a nil peer contract: a nil contract resolves to the
-// canonical HTTPS scheme and never preserves an http:// input, so discovery
-// against it must be served over TLS.
-func newAuthLadderTLSServer(acceptAuth func(authHeader string) bool) *httptest.Server {
-	return httptest.NewTLSServer(authLadderHandler(acceptAuth))
-}
-
-func TestAuthLadder_BearerSucceeds_NoBasicAttempts(t *testing.T) {
-	var requestCount atomic.Int32
-	srv := newAuthLadderServer(func(authHeader string) bool {
-		requestCount.Add(1)
-		return strings.HasPrefix(authHeader, "Bearer ")
-	})
+	}))
 	defer srv.Close()
 
-	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t), peerorigin.NewResolver(true))
+	client, _ := newExchangeAccessClient(t, srv)
 
-	result, err := client.Access(context.Background(), access.AccessOptions{
-		Share: &access.ShareInfo{
+	result, err := client.Access(context.Background(), AccessOptions{
+		Share: &ShareInfo{
 			Status:       "accepted",
 			SenderHost:   srv.URL,
-			SharedSecret: "my-token",
+			SharedSecret: "my-shared-secret",
 			WebDAVID:     "file-123",
 		},
 		Method:  "GET",
@@ -270,6 +285,9 @@ func TestAuthLadder_BearerSucceeds_NoBasicAttempts(t *testing.T) {
 	}
 	defer result.Response.Body.Close()
 
+	if !result.TokenExchanged {
+		t.Error("expected TokenExchanged=true")
+	}
 	if result.MethodUsed != "bearer" {
 		t.Errorf("MethodUsed = %q, want %q", result.MethodUsed, "bearer")
 	}
@@ -277,52 +295,11 @@ func TestAuthLadder_BearerSucceeds_NoBasicAttempts(t *testing.T) {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)
 	}
 	if got := requestCount.Load(); got != 1 {
-		t.Errorf("request count = %d, want 1 (only Bearer)", got)
+		t.Errorf("request count = %d, want 1 (single Bearer attempt)", got)
 	}
 }
 
-func TestAuthLadder_Bearer401_BasicTokenColonSucceeds(t *testing.T) {
-	token := "my-secret-token"
-	expectedCred := base64.StdEncoding.EncodeToString([]byte(token + ":"))
-
-	srv := newAuthLadderServer(func(authHeader string) bool {
-		return authHeader == "Basic "+expectedCred
-	})
-	defer srv.Close()
-
-	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t), peerorigin.NewResolver(true))
-
-	result, err := client.Access(context.Background(), access.AccessOptions{
-		Share: &access.ShareInfo{
-			Status:       "accepted",
-			SenderHost:   srv.URL,
-			SharedSecret: token,
-			WebDAVID:     "file-456",
-		},
-		Method:  "GET",
-		SubPath: "readme.md",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	defer result.Response.Body.Close()
-
-	if result.MethodUsed != "basic:token:" {
-		t.Errorf("MethodUsed = %q, want %q", result.MethodUsed, "basic:token:")
-	}
-	if result.Response.StatusCode != http.StatusOK {
-		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)
-	}
-}
-
-func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.T) {
-	// Profile only allows "id:token"; server accepts that pattern.
-	token := "exchanged-token"
-	webdavID := "share-id-789"
-	expectedCred := base64.StdEncoding.EncodeToString([]byte(webdavID + ":" + token))
-
-	var receivedAuths []string
+func TestAccess_ExchangeFailureFailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
@@ -338,49 +315,78 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc)
-			return
-		}
-		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
-			auth := r.Header.Get("Authorization")
-			receivedAuths = append(receivedAuths, auth)
-			if auth == "Basic "+expectedCred {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("ok"))
-				return
-			}
-			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(disc)
 			return
 		}
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
 
-	discClient, ctxClient := newTestClients(srv.URL)
+	client, _ := newExchangeAccessClient(t, srv)
 
-	// Custom profile that only allows "id:token"
-	customProfiles := map[string]*peercompat.Profile{
-		"restricted": {
-			Name:                     "restricted",
-			AllowHTTP:                true,
-			AllowedBasicAuthPatterns: []string{"id:token"},
-		},
-	}
-	mappings := []peercompat.ProfileMapping{
-		{Pattern: "*", Profile: "restricted"},
-	}
-	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
-
-	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry), peerorigin.NewResolver(true))
-
-	senderHost := srv.Listener.Addr().String()
-
-	result, err := client.Access(context.Background(), access.AccessOptions{
-		Share: &access.ShareInfo{
+	_, err := client.Access(context.Background(), AccessOptions{
+		Share: &ShareInfo{
 			Status:       "accepted",
-			SenderHost:   senderHost,
-			SharedSecret: token,
-			WebDAVID:     webdavID,
+			SenderHost:   srv.URL,
+			SharedSecret: "secret",
+			WebDAVID:     "file-id",
+		},
+		Method: "GET",
+	})
+	if err == nil {
+		t.Fatal("expected exchange failure, got nil")
+	}
+	if !strings.Contains(err.Error(), "exchange-token") {
+		t.Errorf("expected capability-missing error, got: %v", err)
+	}
+}
+
+func TestAccess_NilTokenClientFailsClosed(t *testing.T) {
+	discServer := newTestDiscoveryServer()
+	defer discServer.Close()
+
+	discClient, ctxClient := newTestClients(discServer.URL)
+	client := NewClient(ctxClient, discClient, nil, peerorigin.NewResolver(true))
+
+	_, err := client.Access(context.Background(), AccessOptions{
+		Share: &ShareInfo{
+			Status:       "accepted",
+			SenderHost:   discServer.URL,
+			SharedSecret: "secret",
+			WebDAVID:     "file-id",
+		},
+		Method: "GET",
+	})
+	if !errors.Is(err, ErrTokenExchangeRequired) {
+		t.Errorf("expected ErrTokenExchangeRequired, got: %v", err)
+	}
+}
+
+func TestAccess_Bearer401ReturnedAsIs(t *testing.T) {
+	const exchangedToken = "exchanged-access-token"
+	var requestCount atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if exchangeDiscoveryHandler(w, r, exchangedToken) {
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
+			requestCount.Add(1)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	client, _ := newExchangeAccessClient(t, srv)
+
+	result, err := client.Access(context.Background(), AccessOptions{
+		Share: &ShareInfo{
+			Status:       "accepted",
+			SenderHost:   srv.URL,
+			SharedSecret: "secret",
+			WebDAVID:     "file-id",
 		},
 		Method: "GET",
 	})
@@ -389,99 +395,58 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 	}
 	defer result.Response.Body.Close()
 
-	if result.MethodUsed != "basic:id:token" {
-		t.Errorf("MethodUsed = %q, want %q", result.MethodUsed, "basic:id:token")
+	if result.Response.StatusCode != http.StatusUnauthorized {
+		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusUnauthorized)
 	}
-	if len(receivedAuths) != 2 {
-		t.Errorf("received %d auth attempts, want 2 (Bearer + id:token); auths: %v", len(receivedAuths), receivedAuths)
-	}
-}
-
-func TestAuthLadder_AllPatternsFail(t *testing.T) {
-	srv := newAuthLadderServer(func(authHeader string) bool {
-		return false
-	})
-	defer srv.Close()
-
-	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t), peerorigin.NewResolver(true))
-
-	_, err := client.Access(context.Background(), access.AccessOptions{
-		Share: &access.ShareInfo{
-			Status:       "accepted",
-			SenderHost:   srv.URL,
-			SharedSecret: "token",
-			WebDAVID:     "file-id",
-		},
-		Method: "GET",
-	})
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !errors.Is(err, access.ErrRemoteAccessFailed) {
-		t.Errorf("error = %q, want wrapped ErrRemoteAccessFailed", err.Error())
-	}
-}
-
-func TestAuthLadder_NilPeerContract_BearerFailReturnsError(t *testing.T) {
-	var requestCount atomic.Int32
-	// A nil peer contract resolves to the canonical HTTPS scheme, so discovery
-	// must be served over TLS here for the request to reach the WebDAV auth
-	// ladder; newTestClients skips certificate verification for this server.
-	srv := newAuthLadderTLSServer(func(authHeader string) bool {
-		requestCount.Add(1)
-		return false // reject everything
-	})
-	defer srv.Close()
-
-	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, nil, nil)
-
-	_, err := client.Access(context.Background(), access.AccessOptions{
-		Share: &access.ShareInfo{
-			Status:       "accepted",
-			SenderHost:   srv.URL,
-			SharedSecret: "token",
-			WebDAVID:     "file-id",
-		},
-		Method: "GET",
-	})
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !errors.Is(err, access.ErrRemoteAccessFailed) {
-		t.Errorf("error = %q, want wrapped ErrRemoteAccessFailed", err.Error())
+	if result.MethodUsed != "bearer" {
+		t.Errorf("MethodUsed = %q, want %q", result.MethodUsed, "bearer")
 	}
 	if got := requestCount.Load(); got != 1 {
-		t.Errorf("request count = %d, want 1 (only Bearer)", got)
+		t.Errorf("request count = %d, want 1 (no Basic retry)", got)
 	}
 }
 
-func TestAuthLadder_ResponseBodiesClosed(t *testing.T) {
-	var requestCount atomic.Int32
-	srv := newAuthLadderServer(func(authHeader string) bool {
-		requestCount.Add(1)
-		return false
-	})
+func TestAccess_Bearer403ReturnedAsIs(t *testing.T) {
+	const exchangedToken = "exchanged-access-token"
+	var webdavRequestCount atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if exchangeDiscoveryHandler(w, r, exchangedToken) {
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
+			webdavRequestCount.Add(1)
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		http.NotFound(w, r)
+	}))
 	defer srv.Close()
 
-	discClient, ctxClient := newTestClients(srv.URL)
-	client := access.NewClient(ctxClient, discClient, nil, newHTTPTestContract(t), peerorigin.NewResolver(true))
+	client, _ := newExchangeAccessClient(t, srv)
 
-	_, err := client.Access(context.Background(), access.AccessOptions{
-		Share: &access.ShareInfo{
+	result, err := client.Access(context.Background(), AccessOptions{
+		Share: &ShareInfo{
 			Status:       "accepted",
 			SenderHost:   srv.URL,
-			SharedSecret: "token",
+			SharedSecret: "secret",
 			WebDAVID:     "file-id",
 		},
 		Method: "GET",
 	})
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if got := requestCount.Load(); got != 5 {
-		t.Errorf("request count = %d, want 5 (Bearer + 4 Basic patterns)", got)
+	defer result.Response.Body.Close()
+
+	if result.Response.StatusCode != http.StatusForbidden {
+		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusForbidden)
+	}
+	if result.MethodUsed != "bearer" {
+		t.Errorf("MethodUsed = %q, want %q", result.MethodUsed, "bearer")
+	}
+	if got := webdavRequestCount.Load(); got != 1 {
+		t.Errorf("webdav request count = %d, want 1 (no credential retry)", got)
 	}
 }
 
@@ -558,10 +523,10 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 		PeerContract: contract,
 	}
 	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, accessMockSigner{}, policy, "local.example.com")
-	client := access.NewClient(ctxClient, discClient, tokenClient, contract, peerorigin.NewResolver(true))
+	client := NewClient(ctxClient, discClient, tokenClient, peerorigin.NewResolver(true))
 
-	result, err := client.Access(context.Background(), access.AccessOptions{
-		Share: &access.ShareInfo{
+	result, err := client.Access(context.Background(), AccessOptions{
+		Share: &ShareInfo{
 			Status:            "accepted",
 			SenderHost:        "sender.example.com",
 			OwnerHost:         srv.URL,
@@ -582,92 +547,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	if result.Response.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", result.Response.StatusCode)
 	}
-}
-
-func TestAccess_UsesOwnerHostProfileForBasicFallback(t *testing.T) {
-	token := "my-shared-secret"
-	webdavID := "file-owner-basic-1"
-	ownerAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(webdavID+":"+token))
-
-	var receivedAuths []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/.well-known/ocm" {
-			disc := discovery.Discovery{
-				Enabled:    true,
-				APIVersion: "1.4.0",
-				EndPoint:   "http://" + r.Host + "/ocm",
-				ResourceTypes: []discovery.ResourceType{
-					{
-						Name:       "file",
-						ShareTypes: []string{"user"},
-						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
-					},
-				},
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc)
-			return
-		}
-		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
-			auth := r.Header.Get("Authorization")
-			receivedAuths = append(receivedAuths, auth)
-			if auth == ownerAuth {
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("ok"))
-				return
-			}
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer srv.Close()
-
-	discClient, ctxClient := newTestClients(srv.URL)
-
-	ownerHost := srv.Listener.Addr().String()
-	ownerDomain := strings.Split(ownerHost, ":")[0]
-	customProfiles := map[string]*peercompat.Profile{
-		"owner-only-id-token": {
-			Name:                     "owner-only-id-token",
-			AllowHTTP:                true,
-			AllowedBasicAuthPatterns: []string{"id:token"},
-		},
-		"sender-only-token-colon": {
-			Name:                     "sender-only-token-colon",
-			AllowHTTP:                true,
-			AllowedBasicAuthPatterns: []string{"token:"},
-		},
-	}
-	mappings := []peercompat.ProfileMapping{
-		{Pattern: ownerDomain, Profile: "owner-only-id-token"},
-		{Pattern: "sender.example.com", Profile: "sender-only-token-colon"},
-	}
-	registry := peercompat.NewProfileRegistry(customProfiles, mappings)
-
-	client := access.NewClient(ctxClient, discClient, nil, buildContractFromRegistry(t, registry), peerorigin.NewResolver(true))
-	result, err := client.Access(context.Background(), access.AccessOptions{
-		Share: &access.ShareInfo{
-			Status:       "accepted",
-			SenderHost:   "sender.example.com",
-			OwnerHost:    ownerHost,
-			SharedSecret: token,
-			WebDAVID:     webdavID,
-		},
-		Method: "GET",
-	})
-	if err != nil {
-		t.Fatalf("unexpected access error: %v", err)
-	}
-	defer result.Response.Body.Close()
-
-	if result.MethodUsed != "basic:id:token" {
-		t.Fatalf("expected owner-profile basic:id:token fallback, got %q", result.MethodUsed)
-	}
-	if result.Response.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", result.Response.StatusCode)
-	}
-	if len(receivedAuths) != 2 {
-		t.Fatalf("expected 2 auth attempts (Bearer, id:token), got %d: %v", len(receivedAuths), receivedAuths)
+	if result.MethodUsed != "bearer" {
+		t.Errorf("MethodUsed = %q, want bearer", result.MethodUsed)
 	}
 }

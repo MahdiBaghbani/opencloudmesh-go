@@ -15,8 +15,8 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 	if spec.Pattern != RouteOCMWildcard {
 		t.Errorf("pattern = %q, want %q", spec.Pattern, RouteOCMWildcard)
 	}
-	if spec.HandlerAuth != service.HandlerAuthBearerOrBasic {
-		t.Errorf("handler auth = %q, want bearer or basic", spec.HandlerAuth)
+	if spec.HandlerAuth != service.HandlerAuthBearer {
+		t.Errorf("handler auth = %q, want bearer", spec.HandlerAuth)
 	}
 	if spec.SurfaceClass != service.SurfaceWebDAV {
 		t.Errorf("surface = %q, want webdav", spec.SurfaceClass)

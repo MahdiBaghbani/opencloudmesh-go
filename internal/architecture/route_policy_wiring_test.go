@@ -186,8 +186,8 @@ func TestRoutePolicyWiring_WebDAVUsesHandlerAuthNotSession(t *testing.T) {
 		t.Fatal("expected webdav product routes")
 	}
 	for _, row := range rows {
-		if row.HandlerAuth != service.HandlerAuthBearerOrBasic {
-			t.Errorf("webdav route %q HandlerAuth = %q, want bearer or basic", row.ID, row.HandlerAuth)
+		if row.HandlerAuth != service.HandlerAuthBearer {
+			t.Errorf("webdav route %q HandlerAuth = %q, want bearer", row.ID, row.HandlerAuth)
 		}
 		if row.SessionPolicy != service.SessionPublic {
 			t.Errorf("webdav route %q SessionPolicy = %q, want public (handler-authenticated)", row.ID, row.SessionPolicy)
