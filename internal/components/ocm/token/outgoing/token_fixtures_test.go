@@ -21,7 +21,7 @@ import (
 func dummyDiscClient() *discovery.Client {
 	return discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
-		MaxResponseBytes: 1 << 20,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}, nil), nil)
 }
 

@@ -4,24 +4,22 @@
 package outgoing
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // Client performs OCM token exchange against peer token endpoints.
@@ -30,8 +28,7 @@ type Client struct {
 	discoveryClient *discovery.Client
 	signer          RequestSigner
 	outboundPolicy  *outboundsigning.OutboundPolicy
-	myClientID      string // This instance's FQDN for client_id
-	logger          *slog.Logger
+	myClientID      string // normalized Sending Server authority for client_id
 }
 
 // RequestSigner signs HTTP requests for RFC 9421.
@@ -41,9 +38,9 @@ type RequestSigner interface {
 
 // ExchangeRequest holds token exchange parameters.
 type ExchangeRequest struct {
-	TokenEndPoint string // The peer's tokenEndPoint from discovery
-	PeerDomain    string // The peer's domain (for profile lookup)
-	SharedSecret  string // The code/sharedSecret to exchange
+	TokenEndPoint string // receiver-advertised tokenEndPoint from discovery
+	PeerDomain    string // receiver authority for profile lookup
+	SharedSecret  string // authorization code (sharedSecret) to exchange
 }
 
 // ExchangeResult holds the exchange result.
@@ -51,17 +48,11 @@ type ExchangeResult struct {
 	AccessToken  string
 	TokenType    string
 	ExpiresIn    int
-	QuirkApplied string // Name of quirk applied, if any
+	QuirkApplied string // deprecated; strict contract never applies quirks
 }
 
-type bodyEncoding int
-
-const (
-	encodingForm bodyEncoding = iota
-	encodingJSON
-)
-
 // NewClient builds a token exchange client. Panics if discoveryClient is nil.
+// myClientID must be the normalized Sending Server authority used as client_id.
 func NewClient(
 	httpClient *httpclient.ContextClient,
 	discoveryClient *discovery.Client,
@@ -78,24 +69,11 @@ func NewClient(
 		signer:          signer,
 		outboundPolicy:  outboundPolicy,
 		myClientID:      myClientID,
-		logger:          logutil.NoopIfNil(nil),
 	}
 }
 
-// SetLogger sets the logger used for compatibility downgrade events.
-func (c *Client) SetLogger(logger *slog.Logger) {
-	c.logger = logutil.NoopIfNil(logger)
-}
-
-// Exchange performs token exchange with the peer; OutboundPolicy controls signing.
-//
-// Fallback order: form+signed, then optional JSON+signed (send_token_in_body),
-// then optional unsigned retry (accept_plain_token) using the encoding of the
-// last signed attempt. Unsigned retry is only offered for matched compat peers
-// via TokenExchangeFallbackForReason.
+// Exchange performs signed form-urlencoded token exchange with authorization_code.
 func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
-	var shouldSign bool
-
 	var disc *discovery.Discovery
 	if c.outboundPolicy != nil && c.discoveryClient != nil {
 		peerBaseURL, baseErr := instanceid.NormalizePublicOrigin(req.TokenEndPoint)
@@ -131,8 +109,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 				decision.Error,
 			)
 		}
-		shouldSign = decision.ShouldSign
-		if !shouldSign {
+		if !decision.ShouldSign {
 			reasonCode := reason.ReasonSignatureRequired
 			message := "token exchange requires signing"
 			cause := fmt.Errorf("unsigned token exchange is not supported")
@@ -145,119 +122,30 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeRe
 		}
 	}
 
-	tokenDecision := peercompat.TokenExchangeDecision{
-		PeerDomain: req.PeerDomain,
-		Profile:    "strict",
-		GrantType:  token.GrantTypeAuthorizationCode,
-	}
-	if c.outboundPolicy != nil {
-		tokenDecision = c.outboundPolicy.TokenExchangeDecisionForPeer(req.PeerDomain)
-	}
-	grantType := tokenDecision.GrantType
-
-	if !shouldSign {
+	if c.signer == nil {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonSignatureRequired,
 			"token exchange requires signing",
-			fmt.Errorf("unsigned token exchange is not supported"),
+			fmt.Errorf("no signer configured"),
 		)
 	}
 
-	// Form-urlencoded + signed.
-	result, err := c.attemptExchange(ctx, req, grantType, encodingForm, true)
-	if err == nil {
-		return result, nil
-	}
-
-	reasonCode := reason.ClassifyError(err)
-	encoding := encodingForm
-
-	if c.outboundPolicy != nil {
-		fallback := c.outboundPolicy.TokenExchangeFallbackForReason(req.PeerDomain, reasonCode)
-
-		// send_token_in_body: retry as JSON while still signing.
-		if fallback.AllowJSONBodyRetry {
-			result, err = c.attemptExchange(ctx, req, grantType, encodingJSON, true)
-			if err == nil {
-				result.QuirkApplied = fallback.Quirk
-				c.logDowngrade(req.PeerDomain, fallback, "json_body_retry")
-				return result, nil
-			}
-			reasonCode = reason.ClassifyError(err)
-			encoding = encodingJSON
-			fallback = c.outboundPolicy.TokenExchangeFallbackForReason(req.PeerDomain, reasonCode)
-		}
-
-		// accept_plain_token: retry unsigned with the encoding of the last signed attempt.
-		if fallback.AllowUnsignedRetry {
-			result, err = c.attemptExchange(ctx, req, grantType, encoding, false)
-			if err == nil {
-				result.QuirkApplied = fallback.Quirk
-				c.logDowngrade(req.PeerDomain, fallback, "unsigned_retry")
-				return result, nil
-			}
-			reasonCode = reason.ClassifyError(err)
-		}
-	}
-
-	return nil, reason.NewClassifiedError(reasonCode, "token exchange failed", err)
-}
-
-func (c *Client) logDowngrade(peerDomain string, fallback peercompat.TokenExchangeFallbackDecision, decision string) {
-	entry := peercompat.CompatibilityDecisionLog{
-		PeerDomain:         peerDomain,
-		Profile:            fallback.Profile,
-		Operation:          "token_exchange_fallback",
-		Decision:           decision,
-		ReasonCode:         fallback.ReasonCode,
-		CompatibilityScope: "scoped",
-		Quirk:              fallback.Quirk,
-	}
-	c.logger.Log(context.Background(), slog.LevelWarn, "token exchange compatibility downgrade", entry.SlogAttrs()...)
-}
-
-// attemptExchange sends one token exchange attempt with the given body encoding
-// and optional signature.
-func (c *Client) attemptExchange(
-	ctx context.Context,
-	req ExchangeRequest,
-	grantType string,
-	encoding bodyEncoding,
-	sign bool,
-) (*ExchangeResult, error) {
-	var httpReq *http.Request
-	var err error
-	switch encoding {
-	case encodingJSON:
-		httpReq, err = c.buildJSONRequest(ctx, req, grantType)
-	default:
-		httpReq, err = c.buildFormRequest(ctx, req, grantType)
-	}
+	httpReq, err := c.buildFormRequest(ctx, req, token.GrantTypeAuthorizationCode)
 	if err != nil {
 		return nil, err
 	}
-
-	if sign {
-		if c.signer == nil {
-			return nil, reason.NewClassifiedError(
-				reason.ReasonSignatureRequired,
-				"token exchange requires signing",
-				fmt.Errorf("no signer configured"),
-			)
-		}
-		if err := c.signer.Sign(httpReq); err != nil {
-			return nil, reason.NewClassifiedError(
-				reason.ReasonSignatureInvalid,
-				"failed to sign request",
-				err,
-			)
-		}
+	if err := c.signer.Sign(httpReq); err != nil {
+		return nil, reason.NewClassifiedError(
+			reason.ReasonSignatureInvalid,
+			"failed to sign request",
+			err,
+		)
 	}
 
 	return c.doRequest(ctx, httpReq)
 }
 
-// buildFormRequest builds a form-urlencoded POST.
+// buildFormRequest builds a form-urlencoded POST to the receiver tokenEndPoint.
 func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest, grantType string) (*http.Request, error) {
 	form := url.Values{}
 	form.Set("grant_type", grantType)
@@ -280,35 +168,6 @@ func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest, gran
 	return httpReq, nil
 }
 
-// buildJSONRequest builds a JSON-body POST (Nextcloud quirk).
-func (c *Client) buildJSONRequest(ctx context.Context, req ExchangeRequest, grantType string) (*http.Request, error) {
-	body := token.TokenRequest{
-		GrantType: grantType,
-		ClientID:  c.myClientID,
-		Code:      req.SharedSecret,
-	}
-
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		req.TokenEndPoint,
-		bytes.NewReader(bodyBytes),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "application/json")
-
-	return httpReq, nil
-}
-
 // doRequest sends the request and parses the token response.
 func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeResult, error) {
 	resp, err := c.httpClient.Do(ctx, req)
@@ -321,7 +180,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	maxBytes := int64(config.DefaultMaxResponseBytes)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonNetworkError,
@@ -329,13 +189,19 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 			err,
 		)
 	}
+	if int64(len(body)) > maxBytes {
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
+			"token response too large",
+			httpclient.ErrResponseTooLarge,
+		)
+	}
 
 	if resp.StatusCode >= 400 {
 		var oauthErr token.OAuthError
 		if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
-			return nil, c.classifyOAuthError(oauthErr, resp.StatusCode)
+			return nil, c.classifyOAuthError(oauthErr)
 		}
-		// Bare 401 after a signed attempt maps to signature_required.
 		if resp.StatusCode == http.StatusUnauthorized && req.Header.Get("Signature") != "" {
 			return nil, reason.NewClassifiedError(
 				reason.ReasonSignatureRequired,
@@ -350,12 +216,43 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		)
 	}
 
+	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
+			"token response must be application/json",
+			fmt.Errorf("content-type %q", resp.Header.Get("Content-Type")),
+		)
+	}
+
 	var tokenResp token.TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonTokenInvalidFormat,
 			"failed to parse token response",
 			err,
+		)
+	}
+
+	if tokenResp.AccessToken == "" {
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
+			"access_token is required",
+			nil,
+		)
+	}
+	if !strings.EqualFold(tokenResp.TokenType, "Bearer") {
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
+			"token_type must be Bearer",
+			fmt.Errorf("got %q", tokenResp.TokenType),
+		)
+	}
+	if tokenResp.ExpiresIn <= 0 {
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
+			"expires_in must be positive",
+			fmt.Errorf("got %d", tokenResp.ExpiresIn),
 		)
 	}
 
@@ -366,10 +263,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 	}, nil
 }
 
-// classifyOAuthError maps OAuth error codes to peercompat reason codes.
-// unauthorized_client maps to ReasonSignatureRequired so matched
-// accept_plain_token peers can retry unsigned after a signed rejection.
-func (c *Client) classifyOAuthError(oauthErr token.OAuthError, statusCode int) error {
+// classifyOAuthError maps OAuth error codes to reason codes.
+func (c *Client) classifyOAuthError(oauthErr token.OAuthError) error {
 	var reasonCode string
 	switch oauthErr.Error {
 	case token.ErrorInvalidGrant:

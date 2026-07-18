@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -22,6 +21,29 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
+func TestClient_Exchange_Success_LowercaseBearerTokenType(t *testing.T) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "test-access-token",
+			TokenType:   "bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	result, err := exchangeOnServer(t, server.URL, "test-secret")
+	if err != nil {
+		t.Fatalf("Exchange failed: %v", err)
+	}
+	if result.AccessToken != "test-access-token" {
+		t.Errorf("expected access_token 'test-access-token', got %s", result.AccessToken)
+	}
+	if result.TokenType != "bearer" {
+		t.Errorf("expected token_type 'bearer', got %s", result.TokenType)
+	}
+}
+
 func TestClient_Exchange_Success(t *testing.T) {
 	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -30,6 +52,19 @@ func TestClient_Exchange_Success(t *testing.T) {
 
 		if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
 			t.Errorf("expected form-urlencoded, got %s", r.Header.Get("Content-Type"))
+		}
+
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("ParseForm failed: %v", err)
+		}
+		if got := r.FormValue("grant_type"); got != "authorization_code" {
+			t.Errorf("grant_type = %q, want %q", got, "authorization_code")
+		}
+		if got := r.FormValue("client_id"); got != "my-instance.example.com" {
+			t.Errorf("client_id = %q, want %q", got, "my-instance.example.com")
+		}
+		if got := r.FormValue("code"); got != "test-secret" {
+			t.Errorf("code = %q, want %q", got, "test-secret")
 		}
 
 		// Verify signature header exists
@@ -169,11 +204,11 @@ func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
-		MaxResponseBytes: 1 << 20,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
-		MaxResponseBytes: 1 << 20,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}, nil), nil)
 
 	client := tokenoutgoing.NewClient(
@@ -227,11 +262,11 @@ func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
-		MaxResponseBytes: 1 << 20,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
-		MaxResponseBytes: 1 << 20,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}, nil), nil)
 
 	client := tokenoutgoing.NewClient(
@@ -263,25 +298,14 @@ func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T
 	}
 }
 
-func TestClient_Exchange_AcceptPlainTokenUnsignedRetry(t *testing.T) {
+func TestClient_Exchange_SignedRejection401EmptyBodyNoUnsignedRetry(t *testing.T) {
 	var tokenHits atomic.Int32
 	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenHits.Add(1)
-		if r.Header.Get("Signature") != "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(token.OAuthError{
-				Error:            token.ErrorUnauthorized,
-				ErrorDescription: "signature not accepted",
-			})
-			return
+		if r.URL.Path != "/ocm/token" {
+			t.Errorf("request path = %q, want %q", r.URL.Path, "/ocm/token")
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "plain-token",
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		})
+		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer server.Close()
 
@@ -289,113 +313,46 @@ func TestClient_Exchange_AcceptPlainTokenUnsignedRetry(t *testing.T) {
 		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"compat": {
-				Name:                "compat",
-				TokenExchangeQuirks: []string{"accept_plain_token"},
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "peer.example.com", Profile: "compat"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
-	policy := makePolicy("strict", nil)
-	policy.PeerContract = contract
-
 	client := tokenoutgoing.NewClient(
 		httpClient,
 		dummyDiscClient(),
 		&mockSigner{},
-		policy,
+		makePolicy("strict", nil),
 		"my-instance.example.com",
 	)
 
-	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
-		TokenEndPoint: server.URL,
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL + "/ocm/token",
 		PeerDomain:    "peer.example.com",
 		SharedSecret:  "test-secret",
 	})
-	if err != nil {
-		t.Fatalf("Exchange: %v", err)
+	if err == nil {
+		t.Fatal("expected failure for signed 401 with empty body")
 	}
-	if result.AccessToken != "plain-token" {
-		t.Fatalf("AccessToken = %q", result.AccessToken)
+	var ce *reason.ClassifiedError
+	if !isClassifiedError(err, &ce) {
+		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
-	if result.QuirkApplied != "accept_plain_token" {
-		t.Fatalf("QuirkApplied = %q, want accept_plain_token", result.QuirkApplied)
+	if ce.ReasonCode != reason.ReasonSignatureRequired {
+		t.Fatalf("expected reason %q, got %q", reason.ReasonSignatureRequired, ce.ReasonCode)
 	}
-	if got := tokenHits.Load(); got != 2 {
-		t.Fatalf("token endpoint hits = %d, want 2 (signed then unsigned)", got)
+	if tokenHits.Load() != 1 {
+		t.Fatalf("hits = %d, want 1 (no unsigned retry)", tokenHits.Load())
 	}
 }
 
-func TestClient_Exchange_AcceptPlainToken_Bare401AfterSigned(t *testing.T) {
-	var tokenHits atomic.Int32
+func TestClient_Exchange_RejectsMalformedJSONBody(t *testing.T) {
 	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tokenHits.Add(1)
-		if r.Header.Get("Signature") != "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "bare-401-plain",
-			TokenType:   "Bearer",
-			ExpiresIn:   60,
-		})
+		w.Write([]byte("{not valid json"))
 	}))
 	defer server.Close()
 
-	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{Mode: "off"},
-	}, nil))
-
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"compat": {
-				Name:                "compat",
-				TokenExchangeQuirks: []string{"accept_plain_token"},
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "peer.example.com", Profile: "compat"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
-	policy := makePolicy("strict", nil)
-	policy.PeerContract = contract
-
-	client := tokenoutgoing.NewClient(
-		httpClient,
-		dummyDiscClient(),
-		&mockSigner{},
-		policy,
-		"my-instance.example.com",
-	)
-
-	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
-		TokenEndPoint: server.URL,
-		PeerDomain:    "peer.example.com",
-		SharedSecret:  "test-secret",
-	})
-	if err != nil {
-		t.Fatalf("Exchange: %v", err)
-	}
-	if result.QuirkApplied != "accept_plain_token" {
-		t.Fatalf("QuirkApplied = %q", result.QuirkApplied)
-	}
-	if tokenHits.Load() != 2 {
-		t.Fatalf("hits = %d, want 2", tokenHits.Load())
-	}
+	_, err := exchangeOnServer(t, server.URL+"/ocm/token", "test-secret")
+	assertTokenInvalidFormat(t, err)
 }
 
-func TestClient_Exchange_AcceptPlainToken_UnmatchedPeerNoDowngrade(t *testing.T) {
+func TestClient_Exchange_SignedRejectionNoUnsignedRetry(t *testing.T) {
 	var tokenHits atomic.Int32
 	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenHits.Add(1)
@@ -426,10 +383,17 @@ func TestClient_Exchange_AcceptPlainToken_UnmatchedPeerNoDowngrade(t *testing.T)
 		SharedSecret:  "test-secret",
 	})
 	if err == nil {
-		t.Fatal("expected failure without accept_plain_token mapping")
+		t.Fatal("expected failure without unsigned retry")
 	}
 	if tokenHits.Load() != 1 {
 		t.Fatalf("hits = %d, want 1 (no unsigned retry)", tokenHits.Load())
+	}
+	var ce *reason.ClassifiedError
+	if !isClassifiedError(err, &ce) {
+		t.Fatalf("expected ClassifiedError, got %T", err)
+	}
+	if ce.ReasonCode != reason.ReasonSignatureRequired {
+		t.Fatalf("expected reason %q, got %q", reason.ReasonSignatureRequired, ce.ReasonCode)
 	}
 }
 
@@ -472,7 +436,7 @@ func TestClient_Exchange_PeerMissingExchangeTokenCapability(t *testing.T) {
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
-		MaxResponseBytes: 1 << 20,
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
 	}, nil), nil)
 
 	client := tokenoutgoing.NewClient(
@@ -501,5 +465,111 @@ func TestClient_Exchange_PeerMissingExchangeTokenCapability(t *testing.T) {
 	}
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when peer lacks exchange-token capability")
+	}
+}
+
+func TestClient_Exchange_RejectsOversizeResponse(t *testing.T) {
+	oversizeBody := make([]byte, config.DefaultMaxResponseBytes+1)
+	for i := range oversizeBody {
+		oversizeBody[i] = 'x'
+	}
+
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(oversizeBody)
+	}))
+	defer server.Close()
+
+	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	assertTokenInvalidFormat(t, err)
+}
+
+func TestClient_Exchange_RejectsNonJSONContentType(t *testing.T) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+
+	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	assertTokenInvalidFormat(t, err)
+}
+
+func TestClient_Exchange_RejectsEmptyAccessToken(t *testing.T) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	assertTokenInvalidFormat(t, err)
+}
+
+func TestClient_Exchange_RejectsNonBearerTokenType(t *testing.T) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "tok",
+			TokenType:   "MAC",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	assertTokenInvalidFormat(t, err)
+}
+
+func TestClient_Exchange_RejectsNonPositiveExpiresIn(t *testing.T) {
+	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "tok",
+			TokenType:   "Bearer",
+			ExpiresIn:   0,
+		})
+	}))
+	defer server.Close()
+
+	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	assertTokenInvalidFormat(t, err)
+}
+
+func exchangeOnServer(t *testing.T, serverURL, secret string) (*tokenoutgoing.ExchangeResult, error) {
+	t.Helper()
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRF: config.SSRFConfig{Mode: "off"},
+	}, nil))
+	client := tokenoutgoing.NewClient(
+		httpClient,
+		dummyDiscClient(),
+		&mockSigner{},
+		makePolicy("strict", nil),
+		"my-instance.example.com",
+	)
+	return client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: serverURL,
+		PeerDomain:    "peer.example.com",
+		SharedSecret:  secret,
+	})
+}
+
+func assertTokenInvalidFormat(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var ce *reason.ClassifiedError
+	if !isClassifiedError(err, &ce) {
+		t.Fatalf("expected ClassifiedError, got %T", err)
+	}
+	if ce.ReasonCode != reason.ReasonTokenInvalidFormat {
+		t.Fatalf("expected reason %q, got %q", reason.ReasonTokenInvalidFormat, ce.ReasonCode)
 	}
 }

@@ -3,12 +3,11 @@ package incoming
 import (
 	"encoding/json"
 	"log/slog"
+	"mime"
 	"net/http"
-	"strings"
 	"time"
 
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
@@ -23,16 +22,13 @@ type Handler struct {
 	tokenStore   token.TokenStore
 	tokenTTL     time.Duration
 	settings     *TokenExchangeSettings
-	peerContract *peercompat.CompiledContract
 	logger       *slog.Logger
 	localScheme  string // "http" or "https", derived from PublicOrigin
 }
 
 // NewHandler builds a token handler. Settings must have ApplyDefaults() called (done by cfg.Decode).
 // publicOrigin is used for scheme-aware client_id comparison (e.g. host vs host:443).
-// peerContract resolves the matched-peer gate for legacy interop request
-// shapes (JSON body, ocm_share grant); nil fails closed for every peer.
-func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, peerContract *peercompat.CompiledContract, publicOrigin string, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 
 	localScheme := config.PublicSchemeFromOrigin(publicOrigin)
@@ -42,7 +38,6 @@ func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenS
 		tokenStore:   tokenStore,
 		tokenTTL:     token.DefaultTokenTTL,
 		settings:     settings,
-		peerContract: peerContract,
 		logger:       logger,
 		localScheme:  localScheme,
 	}
@@ -65,49 +60,26 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	// Get request-scoped logger with request correlation fields
 	log := appctx.GetLogger(ctx)
 
-	// Resolve the matched-peer gate from the verified peer identity before
-	// parsing the body. Canonical form-urlencoded with authorization_code is
-	// always accepted; JSON bodies and the ocm_share grant are legacy interop
-	// shapes that require a named matched profile.
-	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
-	tokenDecision := h.peerContract.TokenExchangeDecisionForPeer(authenticatedPeerDomain(peerIdentity))
-
-	// Parse request - support both form-urlencoded (spec) and JSON (Nextcloud interop)
-	var req token.TokenRequest
-	ct := r.Header.Get("Content-Type")
-
-	if strings.HasPrefix(ct, "application/json") {
-		if !tokenDecision.AllowJSONTokenBody {
-			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "JSON token body is not permitted for this peer")
-			return
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse JSON body")
-			return
-		}
-	} else {
-		if err := r.ParseForm(); err != nil {
-			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse form body")
-			return
-		}
-		req.GrantType = r.FormValue("grant_type")
-		req.ClientID = r.FormValue("client_id")
-		req.Code = r.FormValue("code")
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/x-www-form-urlencoded" {
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "unsupported content type")
+		return
 	}
+
+	var req token.TokenRequest
+	if err := r.ParseForm(); err != nil {
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse form body")
+		return
+	}
+	req.GrantType = r.FormValue("grant_type")
+	req.ClientID = r.FormValue("client_id")
+	req.Code = r.FormValue("code")
 
 	if req.GrantType == "" {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "grant_type is required")
 		return
 	}
-	switch req.GrantType {
-	case token.GrantTypeAuthorizationCode:
-		// Canonical grant, always accepted.
-	case token.GrantTypeOCMShare:
-		if !tokenDecision.AllowOCMShareGrant {
-			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorUnsupportedGrantType, "unsupported grant_type")
-			return
-		}
-	default:
+	if req.GrantType != token.GrantTypeAuthorizationCode {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorUnsupportedGrantType, "unsupported grant_type")
 		return
 	}
@@ -156,6 +128,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		if peerIdentity.AuthorityForCompare != normalizedReceiver {
 			log.Warn("token exchange verified identity mismatch",
@@ -164,6 +137,12 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidClient, "client_id mismatch")
 			return
 		}
+	}
+
+	if h.tokenTTL <= 0 {
+		log.Error("token exchange misconfigured: non-positive token TTL")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token exchange not available")
+		return
 	}
 
 	accessToken, err := token.GenerateAccessToken()
@@ -203,18 +182,6 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	json.NewEncoder(w).Encode(resp)
-}
-
-// authenticatedPeerDomain returns the verified peer authority used to resolve
-// the matched-peer compatibility gate. Unauthenticated or absent identities
-// resolve to an empty domain, which fails the gate closed: a peer cannot
-// unlock legacy interop behavior by declaring an authority it did not sign
-// for.
-func authenticatedPeerDomain(peerIdentity *inboundsignature.PeerIdentity) string {
-	if peerIdentity == nil || !peerIdentity.Authenticated {
-		return ""
-	}
-	return peerIdentity.AuthorityForCompare
 }
 
 // sendOAuthError sends an OAuth-style error response.

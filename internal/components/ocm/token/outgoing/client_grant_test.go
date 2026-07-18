@@ -102,57 +102,6 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_NextcloudProfile_OCMShareGrantType(t *testing.T) {
-	// Nextcloud profile overrides grant_type to ocm_share.
-	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
-			t.Fatalf("failed to parse form: %v", err)
-		}
-		got := r.FormValue("grant_type")
-		if got != "ocm_share" {
-			t.Errorf("grant_type = %q, want %q", got, "ocm_share")
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{
-			AccessToken: "nc-compat-token",
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		})
-	}))
-	defer server.Close()
-
-	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		SSRF: config.SSRFConfig{Mode: "off"},
-	}, nil))
-
-	mappings := []peercompat.ProfileMapping{
-		{Pattern: "nextcloud.example.com", Profile: "nextcloud"},
-	}
-	profileRegistry := peercompat.NewProfileRegistry(nil, mappings)
-
-	client := tokenoutgoing.NewClient(
-		httpClient,
-		dummyDiscClient(),
-		&mockSigner{},
-		makePolicy("strict", profileRegistry),
-		"my-instance.example.com",
-	)
-
-	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
-		TokenEndPoint: server.URL,
-		PeerDomain:    "nextcloud.example.com",
-		SharedSecret:  "test-secret",
-	})
-
-	if err != nil {
-		t.Fatalf("Exchange failed: %v", err)
-	}
-	if result.AccessToken != "nc-compat-token" {
-		t.Errorf("expected 'nc-compat-token', got %s", result.AccessToken)
-	}
-}
-
 func TestClient_Exchange_StrictProfile_AuthorizationCode(t *testing.T) {
 	server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {

@@ -96,7 +96,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.OutgoingShareRepo,
 		inputs.TokenStore,
 		&c.TokenExchange,
-		inputs.PeerContract,
 		inputs.LocalIdentity.Origin,
 		log,
 	)

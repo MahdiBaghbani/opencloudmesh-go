@@ -19,7 +19,6 @@ type (
 
 const (
 	GrantTypeAuthorizationCode = spec.GrantTypeAuthorizationCode
-	GrantTypeOCMShare          = spec.GrantTypeOCMShare
 	ErrorInvalidRequest        = spec.ErrorInvalidRequest
 	ErrorInvalidGrant          = spec.ErrorInvalidGrant
 	ErrorInvalidClient         = spec.ErrorInvalidClient

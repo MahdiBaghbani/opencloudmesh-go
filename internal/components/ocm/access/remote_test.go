@@ -514,7 +514,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 			}
 			_ = r.ParseForm()
 			tokenGrantType = r.FormValue("grant_type")
-			if tokenGrantType != "ocm_share" {
+			if tokenGrantType != "authorization_code" {
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"wrong grant"}`))
 				return
@@ -576,8 +576,8 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	}
 	defer result.Response.Body.Close()
 
-	if tokenGrantType != "ocm_share" {
-		t.Fatalf("expected owner profile grant_type ocm_share, got %q", tokenGrantType)
+	if tokenGrantType != "authorization_code" {
+		t.Fatalf("expected strict authorization_code grant_type, got %q", tokenGrantType)
 	}
 	if result.Response.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", result.Response.StatusCode)

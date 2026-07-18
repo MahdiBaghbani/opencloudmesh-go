@@ -1,7 +1,6 @@
 package spec
 
-// TokenRequest represents an incoming token exchange request.
-// Supports both form-urlencoded (spec) and JSON (Nextcloud interop).
+// TokenRequest represents an incoming token exchange request (form-urlencoded).
 type TokenRequest struct {
 	GrantType string `json:"grant_type"`
 	ClientID  string `json:"client_id"`
@@ -24,7 +23,6 @@ type OAuthError struct {
 // GrantType constants.
 const (
 	GrantTypeAuthorizationCode = "authorization_code"
-	GrantTypeOCMShare          = "ocm_share"
 )
 
 // OAuth error codes.
