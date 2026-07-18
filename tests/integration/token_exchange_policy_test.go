@@ -21,48 +21,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-func TestOutgoingSharePolicyDifferences(t *testing.T) {
+func TestOutgoingShareStrictEmission(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	trueVal := true
-	falseVal := false
-	tests := []struct {
-		name         string
-		peerPolicy   string
-		wantStatus   int
-		wantPosts    int32
-		wantMustExch *bool
-	}{
-		{
-			name:       "strict rejects capable non-strict peer",
-			peerPolicy: "strict",
-			wantStatus: reason.APIStatus(reason.PeerPolicyUnsatisfied),
-			wantPosts:  0,
-		},
-		{
-			name:         "prefer-strict sends must-exchange-token",
-			peerPolicy:   "prefer-strict",
-			wantStatus:   http.StatusCreated,
-			wantPosts:    1,
-			wantMustExch: &trueVal,
-		},
-		{
-			name:         "legacy sends without must-exchange-token",
-			peerPolicy:   "legacy",
-			wantStatus:   http.StatusCreated,
-			wantPosts:    1,
-			wantMustExch: &falseVal,
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			// Each subtest needs its own server because policy is frozen at startup.
+	for _, peerPolicy := range []string{"strict", "prefer-strict", "legacy"} {
+		peerPolicy := peerPolicy
+		t.Run(peerPolicy+"_always_emits_must_exchange_token", func(t *testing.T) {
 			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
-				cfg.PeerPolicy = tc.peerPolicy
+				cfg.PeerPolicy = peerPolicy
 			})
 			defer ts.Stop(t)
 
@@ -91,23 +59,16 @@ func TestOutgoingSharePolicyDifferences(t *testing.T) {
 				"permissions":    []string{"read"},
 			})
 
-			if status != tc.wantStatus {
-				t.Fatalf("expected status %d, got %d: %s", tc.wantStatus, status, body)
+			if status != http.StatusCreated {
+				t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, status, body)
 			}
 
-			if got := postCount.Load(); got != tc.wantPosts {
-				t.Fatalf("expected receiver POST count %d, got %d", tc.wantPosts, got)
+			if got := postCount.Load(); got != 1 {
+				t.Fatalf("expected receiver POST count 1, got %d", got)
 			}
 
-			if tc.wantMustExch != nil {
-				gotFlag := mustExchangeFlag.Load()
-				if gotFlag == -1 {
-					t.Fatal("receiver did not capture must-exchange-token state")
-				}
-				gotMust := gotFlag == 1
-				if gotMust != *tc.wantMustExch {
-					t.Fatalf("must-exchange-token mismatch: got %v, want %v", gotMust, *tc.wantMustExch)
-				}
+			if mustExchangeFlag.Load() != 1 {
+				t.Fatalf("expected must-exchange-token on wire, got flag %d", mustExchangeFlag.Load())
 			}
 		})
 	}
@@ -171,9 +132,6 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 	share, err := d.OutgoingShareRepo.GetByProviderID(nil, created.ProviderID)
 	if err != nil {
 		t.Fatalf("failed to load created outgoing share: %v", err)
-	}
-	if !share.MustExchangeToken {
-		t.Fatal("expected created share MustExchangeToken=true for prefer-strict policy")
 	}
 
 	fileName := filepath.Base(shareFile.Name())
@@ -371,40 +329,16 @@ func TestOutgoingSharePolicy_CanonicalStrictPeer(t *testing.T) {
 	}
 }
 
-func TestOutgoingSharePolicyDifferences_MalformedDiscovery(t *testing.T) {
+func TestOutgoingShareRejectsMalformedTokenExchange(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	falseVal := false
-	tests := []struct {
-		name         string
-		peerPolicy   string
-		wantStatus   int
-		wantPosts    int32
-		wantMustExch *bool
-	}{
-		{
-			name:       "strict rejects malformed capable non-strict peer",
-			peerPolicy: "strict",
-			wantStatus: reason.APIStatus(reason.PeerPolicyUnsatisfied),
-			wantPosts:  0,
-		},
-		{
-			name:         "prefer-strict degrades malformed peer to legacy",
-			peerPolicy:   "prefer-strict",
-			wantStatus:   http.StatusCreated,
-			wantPosts:    1,
-			wantMustExch: &falseVal,
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			// Each subtest needs its own server because policy is frozen at startup.
+	for _, peerPolicy := range []string{"strict", "prefer-strict", "legacy"} {
+		peerPolicy := peerPolicy
+		t.Run(peerPolicy+"_rejects_malformed_exchange_token_capability", func(t *testing.T) {
 			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
-				cfg.PeerPolicy = tc.peerPolicy
+				cfg.PeerPolicy = peerPolicy
 			})
 			defer ts.Stop(t)
 
@@ -433,23 +367,17 @@ func TestOutgoingSharePolicyDifferences_MalformedDiscovery(t *testing.T) {
 				"permissions":    []string{"read"},
 			})
 
-			if status != tc.wantStatus {
-				t.Fatalf("expected status %d, got %d: %s", tc.wantStatus, status, body)
+			wantStatus := reason.APIStatus(reason.PeerCapabilityMismatch)
+			if status != wantStatus {
+				t.Fatalf("expected status %d, got %d: %s", wantStatus, status, body)
 			}
 
-			if got := postCount.Load(); got != tc.wantPosts {
-				t.Fatalf("expected receiver POST count %d, got %d", tc.wantPosts, got)
+			if got := postCount.Load(); got != 0 {
+				t.Fatalf("expected receiver POST count 0, got %d", got)
 			}
 
-			if tc.wantMustExch != nil {
-				gotFlag := mustExchangeFlag.Load()
-				if gotFlag == -1 {
-					t.Fatal("receiver did not capture must-exchange-token state")
-				}
-				gotMust := gotFlag == 1
-				if gotMust != *tc.wantMustExch {
-					t.Fatalf("must-exchange-token mismatch: got %v, want %v", gotMust, *tc.wantMustExch)
-				}
+			if mustExchangeFlag.Load() != -1 {
+				t.Fatalf("expected no share POST, got must-exchange flag %d", mustExchangeFlag.Load())
 			}
 		})
 	}

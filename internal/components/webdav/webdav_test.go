@@ -122,11 +122,10 @@ func unexpiredTestToken(accessToken, shareID string) *token.IssuedToken {
 
 func seedShare(repo *mockOutgoingShareRepo, shareID string) *sharesoutgoing.OutgoingShare {
 	share := &sharesoutgoing.OutgoingShare{
-		ShareID:           shareID,
-		SharedSecret:      "secret123",
-		WebDAVID:          testWebDAVID,
-		MustExchangeToken: true,
-		ReceiverHost:      "receiver.example.com",
+		ShareID:      shareID,
+		SharedSecret: "secret123",
+		WebDAVID:     testWebDAVID,
+		ReceiverHost: "receiver.example.com",
 	}
 	_ = repo.Create(context.Background(), share)
 	return share

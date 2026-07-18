@@ -71,8 +71,6 @@ type InboxShareDetailView struct {
 	InboxShareView
 
 	WebDAVID                 string              `json:"webdavId,omitempty"`
-	MustExchangeToken        bool                `json:"mustExchangeToken"`
-	SenderExchangeCapable    bool                `json:"senderExchangeCapable"`
 	AbsoluteWebDAVURIPresent bool                `json:"webdavUriAbsolutePresent"`
 	Protocol                 *ProtocolDetailView `json:"protocol"`
 }
@@ -102,9 +100,9 @@ func isAbsoluteWebDAVURI(uri string) bool {
 func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView {
 	uri := s.WebDAVID
 
-	requirements := []string{}
-	if s.MustExchangeToken {
-		requirements = []string{"must-exchange-token"}
+	requirements := s.Requirements
+	if requirements == nil {
+		requirements = []string{}
 	}
 
 	permissions := s.Permissions
@@ -115,8 +113,6 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 	return InboxShareDetailView{
 		InboxShareView:           NewInboxShareView(s),
 		WebDAVID:                 s.WebDAVID,
-		MustExchangeToken:        s.MustExchangeToken,
-		SenderExchangeCapable:    s.SenderExchangeCapable,
 		AbsoluteWebDAVURIPresent: isAbsoluteWebDAVURI(s.WebDAVID),
 		Protocol: &ProtocolDetailView{
 			Name: "webdav",
@@ -137,7 +133,6 @@ type InboxListResponse struct {
 // VerifyAccessResponse is the body of the verify-access endpoint.
 type VerifyAccessResponse struct {
 	OK                      bool   `json:"ok"`
-	TokenExchanged          bool   `json:"tokenExchanged,omitempty"`
 	HTTPStatus              int    `json:"httpStatus,omitempty"`
 	ContentType             string `json:"contentType,omitempty"`
 	ContentPreview          string `json:"contentPreview,omitempty"`
@@ -425,7 +420,6 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:                      true,
-		TokenExchanged:          result.TokenExchanged,
 		HTTPStatus:              result.Response.StatusCode,
 		ContentType:             result.Response.Header.Get("Content-Type"),
 		ContentPreview:          string(preview),

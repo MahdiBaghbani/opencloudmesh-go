@@ -83,8 +83,8 @@ mode = "off"
 	if captured.SharedSecret == "" {
 		t.Fatal("captured strict share is missing sharedSecret")
 	}
-	if !captured.MustExchangeToken {
-		t.Fatal("expected strict receiver to receive must-exchange-token share")
+	if len(captured.Requirements) != 1 || captured.Requirements[0] != spec.RequirementMustExchangeToken {
+		t.Fatalf("expected requirements [%s], got %v", spec.RequirementMustExchangeToken, captured.Requirements)
 	}
 	if !captured.SawSignature {
 		t.Fatal("expected outbound /ocm/shares request to be signed for strict receiver")

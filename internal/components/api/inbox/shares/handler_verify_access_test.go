@@ -154,7 +154,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 				Header:     http.Header{"Content-Type": []string{"text/plain"}},
 				Body:       io.NopCloser(bytes.NewBufferString(fileContent)),
 			},
-			TokenExchanged: true,
+			AccessToken: "token",
 		}, nil
 	}}
 	router := newTestRouterWithAccess(repo, nil, ac, userA)
@@ -172,9 +172,6 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 
 	if !resp.OK {
 		t.Error("expected ok=true")
-	}
-	if !resp.TokenExchanged {
-		t.Error("expected tokenExchanged=true")
 	}
 	if resp.HTTPStatus != 200 {
 		t.Errorf("expected httpStatus 200, got %d", resp.HTTPStatus)

@@ -6,26 +6,25 @@ import (
 )
 
 type OutgoingShare struct {
-	ShareID    string `json:"shareId"`
-	ProviderID string `json:"providerId"`
-	WebDAVID   string `json:"webdavId"`
-	SharedSecret string `json:"-"`
-	LocalPath  string `json:"localPath"`
-	ReceiverHost    string `json:"receiverHost"`
+	ShareID          string `json:"shareId"`
+	ProviderID       string `json:"providerId"`
+	WebDAVID         string `json:"webdavId"`
+	SharedSecret     string `json:"-"`
+	LocalPath        string `json:"localPath"`
+	ReceiverHost     string `json:"receiverHost"`
 	ReceiverEndPoint string `json:"receiverEndPoint"`
-	ShareWith  string `json:"shareWith"`
+	ShareWith        string `json:"shareWith"`
 
-	Name         string   `json:"name"`
-	ResourceType string   `json:"resourceType"`
-	ShareType    string   `json:"shareType"`
-	Permissions  []string `json:"permissions"`
-	Owner        string   `json:"owner"`
-	Sender       string   `json:"sender"`
-	Status       string   `json:"status"`
-	CreatedAt time.Time  `json:"createdAt"`
-	SentAt    *time.Time `json:"sentAt,omitempty"`
-	Error     string     `json:"error,omitempty"`
-	MustExchangeToken bool `json:"mustExchangeToken"`
+	Name         string     `json:"name"`
+	ResourceType string     `json:"resourceType"`
+	ShareType    string     `json:"shareType"`
+	Permissions  []string   `json:"permissions"`
+	Owner        string     `json:"owner"`
+	Sender       string     `json:"sender"`
+	Status       string     `json:"status"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	SentAt       *time.Time `json:"sentAt,omitempty"`
+	Error        string     `json:"error,omitempty"`
 }
 
 type OutgoingShareRequest struct {

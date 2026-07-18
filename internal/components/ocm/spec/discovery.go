@@ -224,6 +224,19 @@ func (d *Discovery) GetWebDAVPath() string {
 	return ""
 }
 
+// WebDAVReceiveURIKind reports the remote webdav-receive uri kind when advertised.
+func (d *Discovery) WebDAVReceiveURIKind() WebDAVReceiveURIKind {
+	if d == nil {
+		return ""
+	}
+	for _, rt := range d.ResourceTypes {
+		if wr, ok := rt.Protocols.WebDAVReceive(); ok {
+			return wr.URI
+		}
+	}
+	return ""
+}
+
 // BuildWebDAVURL constructs the full WebDAV URL for accessing a share.
 func (d *Discovery) BuildWebDAVURL(shareID string) (string, error) {
 	webdavPath := d.GetWebDAVPath()

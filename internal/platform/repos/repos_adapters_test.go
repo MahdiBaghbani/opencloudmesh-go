@@ -127,8 +127,7 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 }
 
 // TestDurable_OutgoingShare_NewFields_RoundTrip verifies that ReceiverEndPoint,
-// ShareType, Error, and MustExchangeToken survive a Create -> GetByID round-trip
-// through durable backends.
+// ShareType, and Error survive a Create -> GetByID round-trip through durable backends.
 func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	for _, backend := range tsrepos.DurableBackends() {
@@ -138,19 +137,18 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 			defer r.Close()
 
 			share := &sharesoutgoing.OutgoingShare{
-				ShareID:           "nf-out-" + backend,
-				ProviderID:        "nfp-" + backend,
-				SharedSecret:      "nfsec-" + backend,
-				ShareWith:         "bob@peer",
-				Name:              "new-fields-share",
-				ResourceType:      "file",
-				Permissions:       []string{"read"},
-				Status:            "sent",
-				ReceiverEndPoint:  "https://peer.example/ocm",
-				ShareType:         "user",
-				Error:             "some error",
-				MustExchangeToken: true,
-				CreatedAt:         time.Unix(time.Now().Unix(), 0).UTC(),
+				ShareID:          "nf-out-" + backend,
+				ProviderID:       "nfp-" + backend,
+				SharedSecret:     "nfsec-" + backend,
+				ShareWith:        "bob@peer",
+				Name:             "new-fields-share",
+				ResourceType:     "file",
+				Permissions:      []string{"read"},
+				Status:           "sent",
+				ReceiverEndPoint: "https://peer.example/ocm",
+				ShareType:        "user",
+				Error:            "some error",
+				CreatedAt:        time.Unix(time.Now().Unix(), 0).UTC(),
 			}
 			if err := r.OutgoingShares.Create(ctx, share); err != nil {
 				t.Fatalf("Create: %v", err)
@@ -168,9 +166,6 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 			}
 			if got.Error != share.Error {
 				t.Errorf("Error: got %q, want %q", got.Error, share.Error)
-			}
-			if got.MustExchangeToken != share.MustExchangeToken {
-				t.Errorf("MustExchangeToken: got %v, want %v", got.MustExchangeToken, share.MustExchangeToken)
 			}
 		})
 	}
@@ -204,6 +199,7 @@ func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 				OwnerDisplayName:  "Alice Owner",
 				SenderDisplayName: "Bob Sender",
 				Expiration:        &exp,
+				Requirements:      []string{"must-exchange-token"},
 				CreatedAt:         time.Unix(time.Now().Unix(), 0).UTC(),
 				UpdatedAt:         time.Unix(time.Now().Unix(), 0).UTC(),
 			}
@@ -231,6 +227,9 @@ func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 				t.Error("Expiration: got nil, want non-nil")
 			} else if *got.Expiration != exp {
 				t.Errorf("Expiration: got %d, want %d", *got.Expiration, exp)
+			}
+			if len(got.Requirements) != 1 || got.Requirements[0] != "must-exchange-token" {
+				t.Errorf("Requirements: got %v, want [must-exchange-token]", got.Requirements)
 			}
 		})
 	}

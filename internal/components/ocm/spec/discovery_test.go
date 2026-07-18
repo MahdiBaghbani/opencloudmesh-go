@@ -131,3 +131,47 @@ func TestDeriveDiscoveryPaths_RequiresOrigin(t *testing.T) {
 		t.Error("expected projection false without Origin")
 	}
 }
+
+func TestWebDAVReceiveURIKind(t *testing.T) {
+	absDisc := &spec.Discovery{
+		ResourceTypes: []spec.ResourceType{{
+			Name: "file",
+			Protocols: spec.Protocols{
+				"webdav-receive": spec.WebDAVReceiveRole(spec.WebDAVReceiveURIAbsolute),
+			},
+		}},
+	}
+	if got := absDisc.WebDAVReceiveURIKind(); got != spec.WebDAVReceiveURIAbsolute {
+		t.Fatalf("WebDAVReceiveURIKind() = %q, want %q", got, spec.WebDAVReceiveURIAbsolute)
+	}
+
+	relDisc := &spec.Discovery{
+		ResourceTypes: []spec.ResourceType{{
+			Name: "folder",
+			Protocols: spec.Protocols{
+				"webdav-receive": spec.WebDAVReceiveRole(spec.WebDAVReceiveURIRelative),
+			},
+		}},
+	}
+	if got := relDisc.WebDAVReceiveURIKind(); got != spec.WebDAVReceiveURIRelative {
+		t.Fatalf("WebDAVReceiveURIKind() = %q, want %q", got, spec.WebDAVReceiveURIRelative)
+	}
+
+	if got := (&spec.Discovery{}).WebDAVReceiveURIKind(); got != "" {
+		t.Fatalf("WebDAVReceiveURIKind() = %q, want empty", got)
+	}
+}
+
+func TestSupportedResourceTypes(t *testing.T) {
+	if len(spec.SupportedResourceTypes) != 2 {
+		t.Fatalf("SupportedResourceTypes = %v, want [file folder]", spec.SupportedResourceTypes)
+	}
+	for _, rt := range []string{"file", "folder"} {
+		if !spec.IsSupportedResourceType(rt) {
+			t.Errorf("IsSupportedResourceType(%q) = false, want true", rt)
+		}
+	}
+	if spec.IsSupportedResourceType("calendar") {
+		t.Error("IsSupportedResourceType(calendar) = true, want false")
+	}
+}

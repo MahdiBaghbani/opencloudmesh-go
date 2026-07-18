@@ -309,11 +309,16 @@ func TestBuildDiscovery_StrictDocument(t *testing.T) {
 	if !disc.HasCriteria(spec.CriteriaMustExchangeToken) {
 		t.Error("expected must-exchange-token criterion")
 	}
-	if len(disc.ResourceTypes) != 1 || disc.ResourceTypes[0].Name != "file" {
-		t.Fatalf("ResourceTypes = %+v, want one resourceType named file", disc.ResourceTypes)
+	if len(disc.ResourceTypes) != 2 {
+		t.Fatalf("ResourceTypes = %+v, want file and folder", disc.ResourceTypes)
 	}
-	if len(disc.ResourceTypes[0].ShareTypes) != 1 || disc.ResourceTypes[0].ShareTypes[0] != "user" {
-		t.Errorf("ShareTypes = %v, want [user]", disc.ResourceTypes[0].ShareTypes)
+	for i, wantName := range []string{"file", "folder"} {
+		if disc.ResourceTypes[i].Name != wantName {
+			t.Errorf("ResourceTypes[%d].Name = %q, want %q", i, disc.ResourceTypes[i].Name, wantName)
+		}
+		if len(disc.ResourceTypes[i].ShareTypes) != 1 || disc.ResourceTypes[i].ShareTypes[0] != "user" {
+			t.Errorf("ResourceTypes[%d].ShareTypes = %v, want [user]", i, disc.ResourceTypes[i].ShareTypes)
+		}
 	}
 
 	protocols := disc.ResourceTypes[0].Protocols

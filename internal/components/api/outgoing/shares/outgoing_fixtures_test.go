@@ -106,70 +106,6 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 	return srv, postCount, &captured
 }
 
-func makeMalformedCapableReceiverTLSServer(criteria []string) (*httptest.Server, *atomic.Int32) {
-	postCount := &atomic.Int32{}
-	var srv *httptest.Server
-	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/.well-known/ocm" {
-			disc := spec.Discovery{
-				Enabled:      true,
-				APIVersion:   "1.4.0",
-				EndPoint:     srv.URL + "/ocm",
-				Capabilities: []string{"exchange-token"},
-				Criteria:     criteria,
-				// Intentionally omit tokenEndPoint to simulate malformed discovery.
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
-			return
-		}
-		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
-			postCount.Add(1)
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`))
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	return srv, postCount
-}
-
-// makeCountingReceiverTLSServer counts discovery and shares-POST hits so tests
-// can assert the send path does not trigger a second discovery round trip.
-func makeCountingReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *atomic.Int32, *atomic.Int32) {
-	discoverCount := &atomic.Int32{}
-	postCount := &atomic.Int32{}
-	var srv *httptest.Server
-	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/.well-known/ocm" {
-			discoverCount.Add(1)
-			tokenEndPoint := ""
-			if hasCapability(capabilities, "exchange-token") {
-				tokenEndPoint = srv.URL + "/ocm/token"
-			}
-			disc := spec.Discovery{
-				Enabled:       true,
-				APIVersion:    "1.4.0",
-				EndPoint:      srv.URL + "/ocm",
-				Capabilities:  capabilities,
-				Criteria:      criteria,
-				TokenEndPoint: tokenEndPoint,
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
-			return
-		}
-		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
-			postCount.Add(1)
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`))
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	return srv, discoverCount, postCount
-}
-
 func hasCapability(capabilities []string, capability string) bool {
 	for _, c := range capabilities {
 		if c == capability {
@@ -235,7 +171,7 @@ func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *
 	discClient := makeDummyDiscoveryClient()
 
 	return outgoingshares.NewHandler(
-		repo, discClient, nil, "", nil, nil, nil,
+		repo, discClient, nil, nil, nil,
 		testProvider,
 		currentUser,
 		testLogger,

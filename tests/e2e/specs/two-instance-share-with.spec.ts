@@ -117,7 +117,6 @@ test.describe('Two-Instance Share With (API)', () => {
     const verifyBody = await verifyResponse.json();
     expect(verifyBody.ok).toBe(true);
     expect(verifyBody.httpStatus).toBe(200);
-    expect(verifyBody.methodUsed).toBeTruthy();
     expect(verifyBody.contentPreview).toContain('E2E test file content');
 
     // Verify WebDAV access via UI button (result visible in video artifact)

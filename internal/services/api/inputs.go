@@ -8,7 +8,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
@@ -30,8 +29,6 @@ type Inputs struct {
 	DiscoveryClient     *discovery.Client
 	Signer              *crypto.RFC9421Signer
 	OutboundPolicy      *outboundsigning.OutboundPolicy
-	CodeFlow            *policy.CodeFlow
-	PeerPolicy          string
 	PeerContract        *peercompat.CompiledContract
 	PeerOrigin          *peerorigin.Resolver
 	LocalIdentity       localidentity.Identity

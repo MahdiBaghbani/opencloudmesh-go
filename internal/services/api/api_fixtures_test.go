@@ -5,7 +5,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
@@ -37,8 +36,6 @@ func testAPIInputs() Inputs {
 		OutgoingInviteRepo: invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		HTTPClient:         httpclient.NewContextClient(rawHTTP),
 		DiscoveryClient:    discovery.NewClient(rawHTTP, nil),
-		CodeFlow:           policy.NewCodeFlow(),
-		PeerPolicy:         cfg.PeerPolicy,
 		LocalIdentity:      testLocalIdentity(),
 		Ratelimit: ratelimit.Inputs{
 			KeyFunc: realIP.GetClientIPString,

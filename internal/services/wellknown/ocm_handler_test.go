@@ -54,13 +54,15 @@ func TestNewOCMHandler_EnabledWithEndpoint(t *testing.T) {
 	}
 
 	// Check resource types
-	if len(h.data.ResourceTypes) != 1 {
-		t.Fatalf("expected 1 resource type, got %d", len(h.data.ResourceTypes))
+	if len(h.data.ResourceTypes) != 2 {
+		t.Fatalf("expected 2 resource types, got %d", len(h.data.ResourceTypes))
+	}
+	for i, wantName := range []string{"file", "folder"} {
+		if h.data.ResourceTypes[i].Name != wantName {
+			t.Errorf("resource type[%d] = %q, want %q", i, h.data.ResourceTypes[i].Name, wantName)
+		}
 	}
 	rt := h.data.ResourceTypes[0]
-	if rt.Name != "file" {
-		t.Errorf("expected resource type 'file', got %q", rt.Name)
-	}
 	path, ok := rt.Protocols.StringRole("webdav")
 	if !ok || path != "/webdav/ocm/" {
 		t.Errorf("expected webdav protocol '/webdav/ocm/', got %q ok=%v", path, ok)

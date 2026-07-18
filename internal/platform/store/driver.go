@@ -80,22 +80,21 @@ type OutgoingShare struct {
 	WebDAVId   string `json:"webdav_id" gorm:"uniqueIndex"`
 	// omitempty for redaction; partial unique index enforces non-empty secret
 	// uniqueness in SQL backends (empty shared secrets are allowed on many rows).
-	SharedSecret      string `json:"shared_secret,omitempty" gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''"`
-	LocalPath         string `json:"local_path"`
-	Owner             string `json:"owner"`
-	Sender            string `json:"sender"`
-	ShareWith         string `json:"share_with"`
-	ReceiverHost      string `json:"receiver_host"`
-	ReceiverEndPoint  string `json:"receiver_end_point"`
-	Name              string `json:"name"`
-	ResourceType      string `json:"resource_type"`
-	ShareType         string `json:"share_type"`
-	Permissions       string `json:"permissions"`
-	State             string `json:"state"` // sent, accepted, declined
-	Error             string `json:"error,omitempty"`
-	MustExchangeToken bool   `json:"must_exchange_token"`
-	CreatedAt         int64  `json:"created_at"`
-	UpdatedAt         int64  `json:"updated_at"`
+	SharedSecret     string `json:"shared_secret,omitempty" gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''"`
+	LocalPath        string `json:"local_path"`
+	Owner            string `json:"owner"`
+	Sender           string `json:"sender"`
+	ShareWith        string `json:"share_with"`
+	ReceiverHost     string `json:"receiver_host"`
+	ReceiverEndPoint string `json:"receiver_end_point"`
+	Name             string `json:"name"`
+	ResourceType     string `json:"resource_type"`
+	ShareType        string `json:"share_type"`
+	Permissions      string `json:"permissions"`
+	State            string `json:"state"` // sent, accepted, declined
+	Error            string `json:"error,omitempty"`
+	CreatedAt        int64  `json:"created_at"`
+	UpdatedAt        int64  `json:"updated_at"`
 }
 
 // IncomingShare represents a share received by this instance (receiver-side).
@@ -103,26 +102,25 @@ type OutgoingShare struct {
 // provider-key pair can be stored at most once, matching GetIncomingShareByProviderKey
 // singular semantics.
 type IncomingShare struct {
-	ShareId               string `json:"share_id" gorm:"primaryKey"`                                         // receiver-local id (UUIDv7)
-	SendingServer         string `json:"sending_server" gorm:"uniqueIndex:idx_incoming_shares_provider_key"` // sender's host
-	ProviderId            string `json:"provider_id" gorm:"uniqueIndex:idx_incoming_shares_provider_key"`    // sender's share id
-	WebDAVId              string `json:"webdav_id,omitempty"`                                                // relative or absolute webdav URI
-	SharedSecret          string `json:"shared_secret,omitempty"`                                            // omitempty for redaction
-	Owner                 string `json:"owner"`
-	Sender                string `json:"sender"`
-	ShareWith             string `json:"share_with"`
-	Name                  string `json:"name"`
-	Description           string `json:"description,omitempty"`
-	ResourceType          string `json:"resource_type"`
-	ShareType             string `json:"share_type"`
-	OwnerDisplayName      string `json:"owner_display_name,omitempty"`
-	SenderDisplayName     string `json:"sender_display_name,omitempty"`
-	Permissions           string `json:"permissions"`
-	State                 string `json:"state"` // pending, accepted, declined
-	UserId                string `json:"user_id" gorm:"index"`
-	OwnerHost             string `json:"owner_host"`
-	SenderExchangeCapable bool   `json:"sender_exchange_capable"`
-	MustExchangeToken     bool   `json:"must_exchange_token"`
+	ShareId           string   `json:"share_id" gorm:"primaryKey"`                                         // receiver-local id (UUIDv7)
+	SendingServer     string   `json:"sending_server" gorm:"uniqueIndex:idx_incoming_shares_provider_key"` // sender's host
+	ProviderId        string   `json:"provider_id" gorm:"uniqueIndex:idx_incoming_shares_provider_key"`    // sender's share id
+	WebDAVId          string   `json:"webdav_id,omitempty"`                                                // relative or absolute webdav URI
+	SharedSecret      string   `json:"shared_secret,omitempty"`                                            // omitempty for redaction
+	Owner             string   `json:"owner"`
+	Sender            string   `json:"sender"`
+	ShareWith         string   `json:"share_with"`
+	Name              string   `json:"name"`
+	Description       string   `json:"description,omitempty"`
+	ResourceType      string   `json:"resource_type"`
+	ShareType         string   `json:"share_type"`
+	OwnerDisplayName  string   `json:"owner_display_name,omitempty"`
+	SenderDisplayName string   `json:"sender_display_name,omitempty"`
+	Permissions       string   `json:"permissions"`
+	State             string   `json:"state"` // pending, accepted, declined
+	UserId            string   `json:"user_id" gorm:"index"`
+	OwnerHost         string   `json:"owner_host"`
+	Requirements      []string `json:"requirements,omitempty" gorm:"serializer:json"`
 	// Expiration is a Unix epoch; 0 means no expiration.
 	Expiration int64 `json:"expiration,omitempty"`
 	CreatedAt  int64 `json:"created_at"`

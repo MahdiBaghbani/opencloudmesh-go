@@ -78,9 +78,8 @@ type AccessOptions struct {
 }
 
 type AccessResult struct {
-	Response       *http.Response
-	TokenExchanged bool
-	AccessToken    string
+	Response    *http.Response
+	AccessToken string
 }
 
 // accessHostForDiscovery returns OwnerHost when set, falling back to SenderHost.
@@ -126,9 +125,8 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 	}
 
 	return &AccessResult{
-		Response:       resp,
-		TokenExchanged: true,
-		AccessToken:    accessToken,
+		Response:    resp,
+		AccessToken: accessToken,
 	}, nil
 }
 

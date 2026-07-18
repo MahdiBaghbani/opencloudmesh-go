@@ -48,9 +48,6 @@ func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identit
 		repo,
 		partyRepo,
 		nil, // no policy engine
-		nil, // no discovery client
-		nil, // no canonical policy
-		nil, // no peer origin resolver
 		"localhost:9200",
 		"https",
 		testLogger(),
@@ -58,12 +55,20 @@ func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identit
 }
 
 func validShareBody(shareWith string) string {
+	return validShareBodyWithHosts(shareWith, "sender.com")
+}
+
+func validShareBodyWithHosts(shareWith, ownerHost string) string {
+	return validShareBodyWithOwnerAndSenderHosts(shareWith, ownerHost, ownerHost, "abc123")
+}
+
+func validShareBodyWithOwnerAndSenderHosts(shareWith, ownerHost, senderHost, providerID string) string {
 	return `{
 		"shareWith": "` + shareWith + `",
 		"name": "test.txt",
-		"providerId": "abc123",
-		"owner": "owner@sender.com",
-		"sender": "sender@sender.com",
+		"providerId": "` + providerID + `",
+		"owner": "owner@` + ownerHost + `",
+		"sender": "sender@` + senderHost + `",
 		"shareType": "user",
 		"resourceType": "file",
 		"protocol": {
@@ -71,10 +76,20 @@ func validShareBody(shareWith string) string {
 			"webdav": {
 				"uri": "abc123",
 				"sharedSecret": "secret123",
-				"permissions": ["read"]
+				"permissions": ["read"],
+				"requirements": ["must-exchange-token"]
 			}
 		}
 	}`
+}
+
+func newAcceptedShareHandler(
+	t *testing.T,
+	repo *sharesinbox.MemoryIncomingShareRepo,
+	partyRepo identity.PartyRepo,
+) (*incoming.Handler, string) {
+	t.Helper()
+	return newTestHandler(repo, partyRepo), "sender.com"
 }
 
 func TestValidateRequiredFields_AllMissing(t *testing.T) {
@@ -139,10 +154,9 @@ func TestValidateRequiredFields_ProtocolWithOnlyWebDAV(t *testing.T) {
 func TestCreateShare_Success_ResolvesById(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	// shareWith uses user ID as identifier
-	body := validShareBody("user-a-uuid@localhost:9200")
+	body := validShareBodyWithHosts("user-a-uuid@localhost:9200", ownerHost)
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -164,9 +178,9 @@ func TestCreateShare_Success_ResolvesById(t *testing.T) {
 func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	body := validShareBody("alice@localhost:9200")
+	body := validShareBodyWithHosts("alice@localhost:9200", ownerHost)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -187,10 +201,9 @@ func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
 func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	// Email contains @, so shareWith uses last-@ semantics
-	body := validShareBody("alice@example.org@localhost:9200")
+	body := validShareBodyWithHosts("alice@example.org@localhost:9200", ownerHost)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -199,6 +212,44 @@ func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_Success_PersistsDistinctOwnerAndSenderHosts(t *testing.T) {
+	const ownerHost = "owner.example.com"
+	const senderHost = "relay.example.com"
+	const providerID = "owner-sender-split"
+
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := validShareBodyWithOwnerAndSenderHosts("alice@localhost:9200", ownerHost, senderHost, providerID)
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	stored, err := repo.GetByProviderID(context.Background(), senderHost, providerID)
+	if err != nil {
+		t.Fatalf("expected persisted share, got error: %v", err)
+	}
+	if stored.OwnerHost != ownerHost {
+		t.Fatalf("OwnerHost = %q, want %q", stored.OwnerHost, ownerHost)
+	}
+	if stored.SenderHost != senderHost {
+		t.Fatalf("SenderHost = %q, want %q", stored.SenderHost, senderHost)
+	}
+	if stored.OwnerHost == stored.SenderHost {
+		t.Fatalf("expected distinct owner and sender hosts, both %q", stored.OwnerHost)
+	}
+	if len(stored.Requirements) != 1 || stored.Requirements[0] != spec.RequirementMustExchangeToken {
+		t.Fatalf("Requirements = %v, want [%q]", stored.Requirements, spec.RequirementMustExchangeToken)
 	}
 }
 
@@ -241,7 +292,7 @@ func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
 		"sender": "sender@sender.com",
 		"shareType": "user",
 		"resourceType": "file",
-		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"]}}
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -306,7 +357,7 @@ func TestCreateShare_UnsupportedShareType_Returns501(t *testing.T) {
 		"sender": "sender@sender.com",
 		"shareType": "group",
 		"resourceType": "file",
-		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"]}}
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -365,13 +416,15 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
+
+	ownerHost := "sender.com"
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
 		"shareWith": "alice@localhost:9200",
 		"name": "test.txt",
 		"providerId": "` + providerID + `",
-		"owner": "owner@` + rawSenderHost + `",
+		"owner": "owner@` + ownerHost + `",
 		"sender": "user@` + rawSenderHost + `",
 		"shareType": "user",
 		"resourceType": "file",
@@ -380,7 +433,8 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 			"webdav": {
 				"uri": "abc123",
 				"sharedSecret": "secret123",
-				"permissions": ["read"]
+				"permissions": ["read"],
+				"requirements": ["must-exchange-token"]
 			}
 		}
 	}`
@@ -417,9 +471,9 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 func TestCreateShare_DuplicateReturns200(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	body := validShareBody("alice@localhost:9200")
+	body := validShareBodyWithHosts("alice@localhost:9200", ownerHost)
 
 	// First request: 201
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -448,8 +502,7 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 	}
 }
 
-func TestCreateShare_AcceptsAllResourceTypes(t *testing.T) {
-	// F7=A: accept all resourceType values, do not reject unknown types
+func TestCreateShare_RejectsUnsupportedResourceType(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -462,7 +515,33 @@ func TestCreateShare_AcceptsAllResourceTypes(t *testing.T) {
 		"sender": "sender@sender.com",
 		"shareType": "user",
 		"resourceType": "calendar",
-		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"]}}
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 for unsupported resourceType, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_AcceptsFolderResourceType(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "folder",
+		"providerId": "folder-test",
+		"owner": "owner@` + ownerHost + `",
+		"sender": "sender@` + ownerHost + `",
+		"shareType": "user",
+		"resourceType": "folder",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -471,7 +550,109 @@ func TestCreateShare_AcceptsAllResourceTypes(t *testing.T) {
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201 for custom resourceType, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 201 for folder resourceType, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing uri",
+			body: `{
+				"shareWith": "alice@localhost:9200",
+				"name": "test.txt",
+				"providerId": "wdav-empty-uri",
+				"owner": "owner@sender.com",
+				"sender": "sender@sender.com",
+				"shareType": "user",
+				"resourceType": "file",
+				"protocol": {"name": "webdav", "webdav": {"sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
+			}`,
+		},
+		{
+			name: "missing sharedSecret",
+			body: `{
+				"shareWith": "alice@localhost:9200",
+				"name": "test.txt",
+				"providerId": "wdav-empty-secret",
+				"owner": "owner@sender.com",
+				"sender": "sender@sender.com",
+				"shareType": "user",
+				"resourceType": "file",
+				"protocol": {"name": "webdav", "webdav": {"uri": "x", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
+			}`,
+		},
+		{
+			name: "missing permissions",
+			body: `{
+				"shareWith": "alice@localhost:9200",
+				"name": "test.txt",
+				"providerId": "wdav-empty-perms",
+				"owner": "owner@sender.com",
+				"sender": "sender@sender.com",
+				"shareType": "user",
+				"resourceType": "file",
+				"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "requirements": ["must-exchange-token"]}}
+			}`,
+		},
+		{
+			name: "empty requirements",
+			body: `{
+				"shareWith": "alice@localhost:9200",
+				"name": "test.txt",
+				"providerId": "wdav-empty-reqs",
+				"owner": "owner@sender.com",
+				"sender": "sender@sender.com",
+				"shareType": "user",
+				"resourceType": "file",
+				"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			handler.CreateShare(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "wdav-bad-req",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["an-unsupported-requirement"]}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 for unsupported webdav requirement, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -532,10 +713,10 @@ func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
 	// so triple resolution fails and the decode fallback fires.
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
 	encoded := base64.URLEncoding.EncodeToString([]byte("user-a-uuid@localhost:9200"))
-	body := validShareBody(encoded + "@localhost:9200")
+	body := validShareBodyWithHosts(encoded+"@localhost:9200", ownerHost)
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -608,13 +789,13 @@ func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
 	}
 }
 
-func shareBodyWithProtocolName(protocolName string) string {
+func shareBodyWithProtocolName(protocolName, ownerHost string) string {
 	return `{
 		"shareWith": "alice@localhost:9200",
 		"name": "test.txt",
 		"providerId": "proto-name-test",
-		"owner": "owner@sender.com",
-		"sender": "sender@sender.com",
+		"owner": "owner@` + ownerHost + `",
+		"sender": "sender@` + ownerHost + `",
 		"shareType": "user",
 		"resourceType": "file",
 		"protocol": {
@@ -622,7 +803,8 @@ func shareBodyWithProtocolName(protocolName string) string {
 			"webdav": {
 				"uri": "abc123",
 				"sharedSecret": "secret123",
-				"permissions": ["read"]
+				"permissions": ["read"],
+				"requirements": ["must-exchange-token"]
 			}
 		}
 	}`
@@ -664,7 +846,7 @@ func TestCreateShare_RejectsUnsupportedProtocolName(t *testing.T) {
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("ssh")))
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("ssh", "sender.com")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
@@ -677,9 +859,9 @@ func TestCreateShare_RejectsUnsupportedProtocolName(t *testing.T) {
 func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("webdav")))
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("webdav", ownerHost)))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)

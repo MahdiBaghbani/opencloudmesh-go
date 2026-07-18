@@ -70,10 +70,10 @@ func startMalformedCapableNonStrictReceiver(t *testing.T) (*httptest.Server, *at
 }
 
 type strictCodeFlowShareCapture struct {
-	ProviderID        string
-	SharedSecret      string
-	MustExchangeToken bool
-	SawSignature      bool
+	ProviderID   string
+	SharedSecret string
+	Requirements []string
+	SawSignature bool
 }
 
 type strictCodeFlowReceiver struct {
@@ -130,10 +130,10 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 				return
 			}
 			capture := strictCodeFlowShareCapture{
-				ProviderID:        req.ProviderID,
-				SharedSecret:      req.Protocol.WebDAV.SharedSecret,
-				MustExchangeToken: req.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken),
-				SawSignature:      r.Header.Get("Signature") != "",
+				ProviderID:   req.ProviderID,
+				SharedSecret: req.Protocol.WebDAV.SharedSecret,
+				Requirements: append([]string(nil), req.Protocol.WebDAV.Requirements...),
+				SawSignature: r.Header.Get("Signature") != "",
 			}
 			select {
 			case captures <- capture:

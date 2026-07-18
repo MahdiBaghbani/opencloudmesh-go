@@ -63,6 +63,11 @@ func WriteShareTypeNotSupported(w http.ResponseWriter) {
 	WriteOCMError(w, http.StatusNotImplemented, "SHARE_TYPE_NOT_SUPPORTED")
 }
 
+// WriteResourceTypeNotSupported writes a 501 response for unsupported resource types.
+func WriteResourceTypeNotSupported(w http.ResponseWriter) {
+	WriteOCMError(w, http.StatusNotImplemented, "RESOURCE_TYPE_NOT_SUPPORTED")
+}
+
 // WriteProtocolNotSupported writes a 501 response for unsupported protocols.
 func WriteProtocolNotSupported(w http.ResponseWriter) {
 	WriteOCMError(w, http.StatusNotImplemented, "PROTOCOL_NOT_SUPPORTED")

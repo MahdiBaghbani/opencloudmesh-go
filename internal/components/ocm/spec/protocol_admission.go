@@ -7,9 +7,22 @@ import (
 	"errors"
 )
 
+// SupportedResourceTypes are the OCM resource types accepted for share creation.
+var SupportedResourceTypes = []string{"file", "folder"}
+
 // SupportedWebDAVRequirements are the WebDAV protocol requirement values
 // this implementation currently recognizes.
 var SupportedWebDAVRequirements = []string{RequirementMustExchangeToken}
+
+// IsSupportedResourceType reports whether resourceType is accepted for share creation.
+func IsSupportedResourceType(resourceType string) bool {
+	for _, supported := range SupportedResourceTypes {
+		if resourceType == supported {
+			return true
+		}
+	}
+	return false
+}
 
 var errUnsupportedProtocolArm = errors.New("UNSUPPORTED")
 

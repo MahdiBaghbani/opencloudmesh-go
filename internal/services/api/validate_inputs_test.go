@@ -38,11 +38,6 @@ func TestValidateInputs_ReportsMissingRequiredFields(t *testing.T) {
 			mutate:  func(in *Inputs) { in.DiscoveryClient = nil },
 			wantSub: "DiscoveryClient is required",
 		},
-		{
-			name:    "CodeFlow",
-			mutate:  func(in *Inputs) { in.CodeFlow = nil },
-			wantSub: "CodeFlow is required",
-		},
 	}
 
 	for _, tt := range tests {

@@ -320,6 +320,7 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 				URI:          "mismatch-uri",
 				SharedSecret: "secret-xyz",
 				Permissions:  []string{"read"},
+				Requirements: []string{spec.RequirementMustExchangeToken},
 			},
 		},
 	}

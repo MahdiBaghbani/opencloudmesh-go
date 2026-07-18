@@ -75,11 +75,14 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 		protocols["talk"] = spec.StringProtocolRole(p.TalkPath)
 	}
 
-	disc.ResourceTypes = []ResourceType{{
-		Name:       "file",
-		ShareTypes: []string{"user"},
-		Protocols:  protocols,
-	}}
+	disc.ResourceTypes = make([]ResourceType, 0, len(spec.SupportedResourceTypes))
+	for _, rtName := range spec.SupportedResourceTypes {
+		disc.ResourceTypes = append(disc.ResourceTypes, ResourceType{
+			Name:       rtName,
+			ShareTypes: []string{"user"},
+			Protocols:  protocols,
+		})
+	}
 
 	capabilities := []string{}
 

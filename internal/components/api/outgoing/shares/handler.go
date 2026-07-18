@@ -24,7 +24,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -37,8 +36,6 @@ import (
 type Handler struct {
 	repo            sharesoutgoing.OutgoingShareRepo
 	discoveryClient *discovery.Client
-	canonicalPolicy *policy.CodeFlow
-	peerPolicy      string
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
 	outboundPolicy  *outboundsigning.OutboundPolicy
@@ -53,8 +50,6 @@ type Handler struct {
 func NewHandler(
 	repo sharesoutgoing.OutgoingShareRepo,
 	discClient *discovery.Client,
-	canonicalPolicy *policy.CodeFlow,
-	peerPolicy string,
 	httpClient httpclient.HTTPClient,
 	signer *crypto.RFC9421Signer,
 	outboundPolicy *outboundsigning.OutboundPolicy,
@@ -69,8 +64,6 @@ func NewHandler(
 	return &Handler{
 		repo:            repo,
 		discoveryClient: discClient,
-		canonicalPolicy: canonicalPolicy,
-		peerPolicy:      peerPolicy,
 		httpClient:      httpClient,
 		signer:          signer,
 		outboundPolicy:  outboundPolicy,
@@ -160,9 +153,13 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	owner := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 
-	// Discover the receiver's OCM capabilities before creating any local state.
-	// This prevents orphan rows when the receiver is unreachable or incompatible.
 	receiverOrigin := h.resolvePeerOrigin(req.ReceiverDomain)
+	if receiverOrigin.baseURL == "" || receiverOrigin.peerDomain == "" {
+		h.logger.Warn("receiver origin resolution failed", "receiver", req.ReceiverDomain)
+		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed,
+			"could not resolve receiver origin")
+		return
+	}
 	disc, err := h.discoveryClient.Discover(r.Context(), receiverOrigin.baseURL)
 	if err != nil {
 		h.logger.Warn("receiver discovery failed", "receiver", req.ReceiverDomain, "error", err)
@@ -170,69 +167,38 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decide whether this share requires token exchange at the receiver.
-	// The decision combines the receiver's advertised capabilities with local policy.
-	peerTokenExchangeCapable := disc.SupportsTokenExchange()
-	peerIsStrict := disc.HasCriteria(spec.CriteriaMustExchangeToken)
-
-	localCodeFlow := false
-	if h.canonicalPolicy != nil {
-		localCodeFlow = h.canonicalPolicy.Evaluate().TokenExchangeCapable
-	}
-	localPolicy := "legacy"
-	if h.peerPolicy != "" {
-		localPolicy = h.peerPolicy
-	}
-
-	mustExchangeToken := false
-	if peerIsStrict {
-		if !peerTokenExchangeCapable {
-			h.logger.Warn("strict peer advertised incomplete token-exchange metadata",
-				"receiver", req.ReceiverDomain)
-			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
-				"receiver advertises strict token exchange without tokenEndPoint")
-			return
-		}
-		if !localCodeFlow {
-			h.logger.Warn("strict peer requires token exchange but local capability is disabled",
-				"receiver", req.ReceiverDomain)
-			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
-				"receiver requires token exchange but local code flow is not enabled")
-			return
-		}
-		mustExchangeToken = true
-	} else if peerTokenExchangeCapable {
-		switch localPolicy {
-		case "prefer-strict":
-			mustExchangeToken = localCodeFlow
-		case "strict":
-			api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
-				"strict policy rejects capable non-strict peers")
-			return
-		default: // legacy
-			mustExchangeToken = false
-		}
-	} else if disc.HasCapability("exchange-token") && disc.TokenEndPoint == "" {
-		if localPolicy == "strict" {
-			api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
-				"strict policy rejects peers with malformed token-exchange discovery")
-			return
-		}
-		h.logger.Warn("peer advertises exchange-token without tokenEndPoint; treating as legacy peer",
+	if !disc.SupportsTokenExchange() {
+		h.logger.Warn("receiver lacks token-exchange capability",
 			"receiver", req.ReceiverDomain)
-	} else if localPolicy == "strict" {
-		api.WriteError(w, reason.APIStatus(reason.PeerPolicyUnsatisfied), reason.PeerPolicyUnsatisfied,
-			"strict policy rejects legacy peers")
+		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+			"receiver does not advertise exchange-token with tokenEndPoint")
 		return
 	}
 
+	webdavURI := webdavID.String()
+	if disc.WebDAVReceiveURIKind() == spec.WebDAVReceiveURIAbsolute {
+		absURI, buildErr := disc.BuildWebDAVURL(webdavID.String())
+		if buildErr != nil {
+			h.logger.Warn("failed to build absolute webdav uri", "receiver", req.ReceiverDomain, "error", buildErr)
+			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+				"receiver webdav-receive absolute uri could not be built")
+			return
+		}
+		if h.peerOrigin == nil || !h.peerOrigin.IsAbsoluteURIAllowed(absURI, req.ReceiverDomain) {
+			h.logger.Warn("absolute webdav uri failed peer authority check",
+				"receiver", req.ReceiverDomain, "uri", absURI)
+			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+				"receiver webdav-receive absolute uri failed authority check")
+			return
+		}
+		webdavURI = absURI
+	}
+
 	webdavProto := &spec.WebDAVProtocol{
-		URI:          webdavID.String(),
+		URI:          webdavURI,
 		SharedSecret: sharedSecret,
 		Permissions:  req.Permissions,
-	}
-	if mustExchangeToken {
-		webdavProto.Requirements = []string{spec.RequirementMustExchangeToken}
+		Requirements: []string{spec.RequirementMustExchangeToken},
 	}
 
 	payload := spec.NewShareRequest{
@@ -257,22 +223,21 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	share := &sharesoutgoing.OutgoingShare{
-		ProviderID:        providerID.String(),
-		WebDAVID:          webdavID.String(),
-		SharedSecret:      sharedSecret,
-		LocalPath:         cleanPath,
-		ReceiverHost:      req.ReceiverDomain,
-		ReceiverEndPoint:  disc.EndPoint,
-		ShareWith:         req.ShareWith,
-		Name:              name,
-		ResourceType:      resourceType,
-		ShareType:         "user",
-		Permissions:       req.Permissions,
-		Owner:             owner,
-		Sender:            sender,
-		Status:            "sent",
-		SentAt:            &now,
-		MustExchangeToken: mustExchangeToken,
+		ProviderID:       providerID.String(),
+		WebDAVID:         webdavID.String(),
+		SharedSecret:     sharedSecret,
+		LocalPath:        cleanPath,
+		ReceiverHost:     req.ReceiverDomain,
+		ReceiverEndPoint: disc.EndPoint,
+		ShareWith:        req.ShareWith,
+		Name:             name,
+		ResourceType:     resourceType,
+		ShareType:        "user",
+		Permissions:      req.Permissions,
+		Owner:            owner,
+		Sender:           sender,
+		Status:           "sent",
+		SentAt:           &now,
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {
@@ -323,8 +288,6 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	return cleanPath, nil
 }
 
-// sendShareToReceiver reuses the discovery and origin already fetched during
-// the compatibility/policy preflight so the send path does not discover again.
 func (h *Handler) sendShareToReceiver(
 	ctx context.Context,
 	origin resolvedPeerOrigin,
@@ -371,6 +334,9 @@ type resolvedPeerOrigin struct {
 }
 
 func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
+	if h.peerOrigin == nil {
+		return resolvedPeerOrigin{}
+	}
 	decision := h.peerOrigin.Resolve(peerDomain)
 	return resolvedPeerOrigin{
 		baseURL:    decision.BaseURL,

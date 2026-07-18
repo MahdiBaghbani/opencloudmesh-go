@@ -282,9 +282,6 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 	}
 	defer result.Response.Body.Close()
 
-	if !result.TokenExchanged {
-		t.Error("expected TokenExchanged=true")
-	}
 	if result.Response.StatusCode != http.StatusOK {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)
 	}

@@ -2,9 +2,8 @@ package json
 
 import "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 
-// Clone helpers return shallow copies at value boundaries.
-// All four domain structs are flat (no pointer fields, slices, or maps),
-// so a value copy is a full copy.
+// Clone helpers return copies at value boundaries. IncomingShare carries a
+// Requirements slice that must be cloned separately.
 
 func cloneOutgoingShare(s *store.OutgoingShare) *store.OutgoingShare {
 	c := *s
@@ -13,6 +12,9 @@ func cloneOutgoingShare(s *store.OutgoingShare) *store.OutgoingShare {
 
 func cloneIncomingShare(s *store.IncomingShare) *store.IncomingShare {
 	c := *s
+	if len(s.Requirements) > 0 {
+		c.Requirements = append([]string(nil), s.Requirements...)
+	}
 	return &c
 }
 
