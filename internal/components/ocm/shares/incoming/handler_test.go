@@ -13,7 +13,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -51,7 +50,6 @@ func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identit
 		nil, // no policy engine
 		nil, // no discovery client
 		nil, // no canonical policy
-		nil, // no peer contract
 		nil, // no peer origin resolver
 		"localhost:9200",
 		"https",
@@ -630,25 +628,6 @@ func shareBodyWithProtocolName(protocolName string) string {
 	}`
 }
 
-func newLegacyProtocolPeerContract(t *testing.T) *peercompat.CompiledContract {
-	t.Helper()
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"legacy-protocol": {
-				Name:                    "legacy-protocol",
-				AllowLegacyProtocolName: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "sender.com", Profile: "legacy-protocol"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("failed to build legacy protocol peer contract: %v", err)
-	}
-	return contract
-}
-
 func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
@@ -680,44 +659,18 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 	}
 }
 
-func TestCreateShare_RejectsMultiWithoutMatchedProfile(t *testing.T) {
+func TestCreateShare_RejectsUnsupportedProtocolName(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi")))
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("ssh")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501 for unsupported protocol name multi, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestCreateShare_AcceptsMultiWithLegacyProfile(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
-	handler := incoming.NewHandler(
-		repo,
-		partyRepo,
-		nil,
-		nil,
-		nil,
-		newLegacyProtocolPeerContract(t),
-		nil,
-		"localhost:9200",
-		"https",
-		testLogger(),
-	)
-
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi")))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	handler.CreateShare(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201 for matched legacy protocol profile, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 501 for unsupported protocol name ssh, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

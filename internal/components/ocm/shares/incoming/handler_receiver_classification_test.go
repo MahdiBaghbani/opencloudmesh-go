@@ -10,7 +10,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
@@ -53,26 +52,6 @@ func fakeDiscoveryServerWithTokenEndPoint(capabilities, criteria []string, token
 // newHandlerWithDiscovery creates a handler that uses a real discovery.Client
 // pointed at a fake server. The owner address in the share body must use
 // fakeSrv's host so discovery routes to the fake server.
-func newAllowHTTPPeerContract(t *testing.T) *peercompat.CompiledContract {
-	t.Helper()
-
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"allow-http-test": {
-				Name:      "allow-http-test",
-				AllowHTTP: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "*", Profile: "allow-http-test"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("failed to build test peer contract: %v", err)
-	}
-	return contract
-}
-
 func newHandlerWithDiscovery(
 	t *testing.T,
 	repo *sharesinbox.MemoryIncomingShareRepo,
@@ -96,7 +75,6 @@ func newHandlerWithDiscovery(
 		nil, // no policy engine
 		discClient,
 		canonicalPolicy,
-		newAllowHTTPPeerContract(t),
 		peerorigin.NewResolver(true),
 		"localhost:9200",
 		"https",
@@ -543,7 +521,6 @@ func TestReceiverClassification_RemoteDiscoveryUsesPeerOriginPolicy(t *testing.T
 		nil,
 		discClient,
 		nil,
-		newAllowHTTPPeerContract(t),
 		peerorigin.NewResolver(true),
 		"localhost:9200",
 		"https",

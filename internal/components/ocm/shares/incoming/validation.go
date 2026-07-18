@@ -15,10 +15,5 @@ func ExtractSenderHost(sender string) string {
 }
 
 func isCanonicalProtocolName(name string) bool {
-	switch name {
-	case "webdav", "webapp", "ssh":
-		return true
-	default:
-		return false
-	}
+	return name == "webdav" || name == "multi"
 }

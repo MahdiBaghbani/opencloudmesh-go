@@ -18,7 +18,6 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 		"InviteAcceptedRequest",
 		"InviteAcceptedResponse",
 		"WebDAVProtocol",
-		"WebAppProtocol",
 		"OCMErrorResponse",
 	}
 

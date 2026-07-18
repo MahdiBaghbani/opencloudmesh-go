@@ -97,7 +97,7 @@ func TestProtocolRejectsUnknownProtocolArm(t *testing.T) {
 }
 
 func TestWebDAVRequiresURI(t *testing.T) {
-	p := &WebDAVProtocol{SharedSecret: "s", Permissions: []string{"read"}}
+	p := &WebDAVProtocol{SharedSecret: "s", Permissions: []string{"read"}, Requirements: []string{RequirementMustExchangeToken}}
 	errs := ValidateWebDAVProtocol(p)
 	if !hasValidationError(errs, "protocol.webdav.uri") {
 		t.Fatalf("expected a uri validation error, got %v", errs)
@@ -105,7 +105,7 @@ func TestWebDAVRequiresURI(t *testing.T) {
 }
 
 func TestWebDAVRequiresSharedSecret(t *testing.T) {
-	p := &WebDAVProtocol{URI: "u", Permissions: []string{"read"}}
+	p := &WebDAVProtocol{URI: "u", Permissions: []string{"read"}, Requirements: []string{RequirementMustExchangeToken}}
 	errs := ValidateWebDAVProtocol(p)
 	if !hasValidationError(errs, "protocol.webdav.sharedSecret") {
 		t.Fatalf("expected a sharedSecret validation error, got %v", errs)
@@ -113,7 +113,7 @@ func TestWebDAVRequiresSharedSecret(t *testing.T) {
 }
 
 func TestWebDAVRequiresPermissions(t *testing.T) {
-	p := &WebDAVProtocol{URI: "u", SharedSecret: "s"}
+	p := &WebDAVProtocol{URI: "u", SharedSecret: "s", Requirements: []string{RequirementMustExchangeToken}}
 	errs := ValidateWebDAVProtocol(p)
 	if !hasValidationError(errs, "protocol.webdav.permissions") {
 		t.Fatalf("expected a permissions validation error, got %v", errs)
@@ -121,7 +121,7 @@ func TestWebDAVRequiresPermissions(t *testing.T) {
 }
 
 func TestWebDAVAcceptsAccessTypes(t *testing.T) {
-	const body = `{"uri":"u","sharedSecret":"s","permissions":["read"],"accessTypes":["read","write"]}`
+	const body = `{"uri":"u","sharedSecret":"s","permissions":["read"],"accessTypes":["read","write"],"requirements":["must-exchange-token"]}`
 	var p WebDAVProtocol
 	if err := json.Unmarshal([]byte(body), &p); err != nil {
 		t.Fatalf("unmarshal: %v", err)

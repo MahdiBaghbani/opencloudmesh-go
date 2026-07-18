@@ -78,7 +78,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.PolicyEngine,
 		inputs.DiscoveryClient,
 		inputs.CodeFlow,
-		inputs.PeerContract,
 		inputs.PeerOrigin,
 		inputs.LocalIdentity.ProviderDomainCompare,
 		inputs.LocalIdentity.Scheme,

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -31,7 +31,6 @@ type Handler struct {
 	policyEngine                *peertrust.PolicyEngine
 	discoveryClient             *discovery.Client
 	canonicalPolicy             *policy.CodeFlow
-	peerContract                *peercompat.CompiledContract
 	peerOrigin                  *peerorigin.Resolver
 	localProviderFQDNForCompare string
 	localScheme                 string
@@ -44,7 +43,6 @@ func NewHandler(
 	policyEngine *peertrust.PolicyEngine,
 	discoveryClient *discovery.Client,
 	canonicalPolicy *policy.CodeFlow,
-	peerContract *peercompat.CompiledContract,
 	peerOrigin *peerorigin.Resolver,
 	localProviderFQDNForCompare string,
 	localScheme string,
@@ -57,7 +55,6 @@ func NewHandler(
 		policyEngine:                policyEngine,
 		discoveryClient:             discoveryClient,
 		canonicalPolicy:             canonicalPolicy,
-		peerContract:                peerContract,
 		peerOrigin:                  peerOrigin,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
@@ -72,16 +69,38 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log := appctx.GetLogger(r.Context())
-	var req spec.NewShareRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Warn("failed to read share request body", "error", err)
+		spec.WriteOCMError(w, http.StatusBadRequest, "INVALID_JSON")
+		return
+	}
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &rawFields); err != nil {
 		log.Warn("failed to parse share request", "error", err)
+		spec.WriteOCMError(w, http.StatusBadRequest, "INVALID_JSON")
+		return
+	}
+	if protocolRaw, ok := rawFields["protocol"]; ok {
+		var protocolArms map[string]json.RawMessage
+		if err := json.Unmarshal(protocolRaw, &protocolArms); err == nil {
+			if err := spec.ValidateProtocolArms(protocolArms); err != nil {
+				log.Warn("share rejected: unsupported protocol arm")
+				spec.WriteProtocolNotSupported(w)
+				return
+			}
+		}
+	}
+	var req spec.NewShareRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		log.Warn("failed to decode share request", "error", err)
 		spec.WriteOCMError(w, http.StatusBadRequest, "INVALID_JSON")
 		return
 	}
 	peerIdentity := inboundsignature.GetPeerIdentity(r.Context())
 	authenticated := peerIdentity != nil && peerIdentity.Authenticated
 	validationErrs := spec.ValidateRequiredFields(&req)
-	if req.Protocol.Name == "" && (req.Protocol.WebDAV != nil || req.Protocol.WebApp != nil) {
+	if req.Protocol.Name == "" && req.Protocol.WebDAV != nil {
 		validationErrs = append(validationErrs, spec.ValidationError{Name: "protocol.name", Message: "REQUIRED"})
 	}
 	if len(validationErrs) > 0 {
@@ -110,20 +129,10 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		senderHost = peerIdentity.AuthorityForCompare
 	}
-	protocolName := req.Protocol.Name
-	allowLegacyProtocolName := false
-	if h.peerContract != nil {
-		peerDecision := h.peerContract.SignatureDecisionForPeer(senderHost)
-		allowLegacyProtocolName = peerDecision.Matched && peerDecision.AllowLegacyProtocolName
-	}
-	if !isCanonicalProtocolName(protocolName) {
-		if protocolName == "multi" && allowLegacyProtocolName {
-			// tolerated for matched legacy peers only
-		} else {
-			log.Warn("share rejected: unsupported protocol name", "protocol_name", protocolName)
-			spec.WriteProtocolNotSupported(w)
-			return
-		}
+	if !isCanonicalProtocolName(req.Protocol.Name) {
+		log.Warn("share rejected: unsupported protocol name", "protocol_name", req.Protocol.Name)
+		spec.WriteProtocolNotSupported(w)
+		return
 	}
 	if h.policyEngine != nil {
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)

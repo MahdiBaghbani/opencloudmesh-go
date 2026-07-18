@@ -20,7 +20,6 @@ type NewShareRequest struct {
 type Protocol struct {
 	Name   string          `json:"name,omitempty"`
 	WebDAV *WebDAVProtocol `json:"webdav,omitempty"`
-	WebApp *WebAppProtocol `json:"webapp,omitempty"`
 }
 
 type WebDAVProtocol struct {
@@ -40,12 +39,6 @@ func (p *WebDAVProtocol) HasRequirement(req string) bool {
 		}
 	}
 	return false
-}
-
-type WebAppProtocol struct {
-	URI          string `json:"uri"`
-	SharedSecret string `json:"sharedSecret,omitempty"`
-	ViewMode     string `json:"viewMode,omitempty"`
 }
 
 type CreateShareResponse struct {

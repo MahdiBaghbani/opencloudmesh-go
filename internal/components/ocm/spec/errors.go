@@ -42,7 +42,7 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 	if req.ResourceType == "" {
 		errs = append(errs, ValidationError{Name: "resourceType", Message: "REQUIRED"})
 	}
-	if req.Protocol.Name == "" && req.Protocol.WebDAV == nil && req.Protocol.WebApp == nil {
+	if req.Protocol.Name == "" && req.Protocol.WebDAV == nil {
 		errs = append(errs, ValidationError{Name: "protocol", Message: "REQUIRED"})
 	}
 
