@@ -110,7 +110,6 @@ func startStrictInvitePair(t *testing.T, enableWAYF bool) (*harness.SubprocessSe
 		// transport settings for this loopback-only two-instance proof.
 		// StrictInstanceExtraConfig needs SSRF off for localhost traffic.
 		CompatibilityScope:      "scoped",
-		KeepSignatureDefaults:   true,
 		DisableProxyEnvFallback: true,
 		TLSRootCAFile:           caCert,
 		BootstrapAdminPassword:  "testpassword123",

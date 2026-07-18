@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestPersistencePresetDefaults verifies that all three mode presets default
+// TestPersistencePresetDefaults verifies that both mode presets default
 // to the memory backend so that memory is a first-class choice, not a
 // hidden fallback.
 func TestPersistencePresetDefaults(t *testing.T) {
@@ -15,7 +15,6 @@ func TestPersistencePresetDefaults(t *testing.T) {
 		fn   func() *Config
 	}{
 		{"strict", StrictConfig},
-		{"compat", CompatConfig},
 		{"dev", DevConfig},
 	}
 

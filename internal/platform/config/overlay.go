@@ -47,18 +47,17 @@ type fileConfig struct {
 	ListenAddr         string `toml:"listen_addr"`
 	CompatibilityScope string `toml:"compatibility_scope"`
 
-	TLS                  *TLSConfig              `toml:"tls"`
-	OutboundHTTP         *outboundHTTPFileConfig `toml:"outbound_http"`
-	Signature            *SignatureConfig        `toml:"signature"`
-	PeerProfiles         *peerProfilesConfig     `toml:"peer_profiles"`
-	Cache                *cacheConfig            `toml:"cache"`
-	PeerTrust            *peerTrustConfig        `toml:"peer_trust"`
-	Logging              *loggingConfig          `toml:"logging"`
-	TokenExchange        *tokenExchangeConfig    `toml:"token_exchange"`
-	RequireTokenExchange *bool                   `toml:"require_token_exchange"`
-	PeerPolicy           string                  `toml:"peer_policy"`
-	HTTP                 *httpFileConfig         `toml:"http"`
-	Persistence          *persistenceFileConfig  `toml:"persistence"`
+	TLS           *TLSConfig              `toml:"tls"`
+	OutboundHTTP  *outboundHTTPFileConfig `toml:"outbound_http"`
+	Signature     *SignatureConfig        `toml:"signature"`
+	PeerProfiles  *peerProfilesConfig     `toml:"peer_profiles"`
+	Cache         *cacheConfig            `toml:"cache"`
+	PeerTrust     *peerTrustConfig        `toml:"peer_trust"`
+	Logging       *loggingConfig          `toml:"logging"`
+	TokenExchange *tokenExchangeConfig    `toml:"token_exchange"`
+	PeerPolicy    string                  `toml:"peer_policy"`
+	HTTP          *httpFileConfig         `toml:"http"`
+	Persistence   *persistenceFileConfig  `toml:"persistence"`
 }
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
@@ -227,15 +226,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 
 	if fc.Signature != nil {
-		if fc.Signature.InboundMode != "" {
-			cfg.Signature.InboundMode = fc.Signature.InboundMode
-		}
-		if fc.Signature.OutboundMode != "" {
-			cfg.Signature.OutboundMode = fc.Signature.OutboundMode
-		}
-		if fc.Signature.PeerProfileLevelOverride != "" {
-			cfg.Signature.PeerProfileLevelOverride = fc.Signature.PeerProfileLevelOverride
-		}
 		if fc.Signature.KeyPath != "" {
 			cfg.Signature.KeyPath = fc.Signature.KeyPath
 		}
@@ -254,8 +244,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if len(fc.Signature.AllowedAlgorithms) > 0 {
 			cfg.Signature.AllowedAlgorithms = fc.Signature.AllowedAlgorithms
 		}
-		// AllowMismatch is bool
-		cfg.Signature.AllowMismatch = fc.Signature.AllowMismatch
 	}
 
 	if fc.PeerProfiles != nil {
@@ -320,10 +308,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 	}
 
-	if fc.RequireTokenExchange != nil {
-		cfg.RequireTokenExchange = *fc.RequireTokenExchange
-	}
-
 	if fc.PeerPolicy != "" {
 		cfg.PeerPolicy = fc.PeerPolicy
 	}
@@ -377,15 +361,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.CompatibilityScope != nil && *f.CompatibilityScope != "" {
 		cfg.CompatibilityScope = *f.CompatibilityScope
 	}
-	if f.SignatureInboundMode != nil && *f.SignatureInboundMode != "" {
-		cfg.Signature.InboundMode = *f.SignatureInboundMode
-	}
-	if f.SignatureOutboundMode != nil && *f.SignatureOutboundMode != "" {
-		cfg.Signature.OutboundMode = *f.SignatureOutboundMode
-	}
-	if f.SignaturePeerProfileOverride != nil && *f.SignaturePeerProfileOverride != "" {
-		cfg.Signature.PeerProfileLevelOverride = *f.SignaturePeerProfileOverride
-	}
 	if f.AdminUsername != nil && *f.AdminUsername != "" {
 		cfg.Server.BootstrapAdmin.Username = *f.AdminUsername
 	}
@@ -406,9 +381,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.TokenExchangePath != nil && *f.TokenExchangePath != "" {
 		cfg.TokenExchange.Path = *f.TokenExchangePath
-	}
-	if f.RequireTokenExchange != nil && *f.RequireTokenExchange != "" {
-		cfg.RequireTokenExchange = *f.RequireTokenExchange == "true"
 	}
 	if f.PeerPolicy != nil && *f.PeerPolicy != "" {
 		cfg.PeerPolicy = *f.PeerPolicy

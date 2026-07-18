@@ -105,16 +105,6 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name: "none-scope allow_mismatch contradiction rejected before startup",
-			mutate: func(cfg *config.Config) {
-				// scope=none with signature.allow_mismatch=true is a static
-				// contradiction the posture-only validation does not catch.
-				cfg.CompatibilityScope = "none"
-				cfg.Signature.AllowMismatch = true
-			},
-			wantError: true,
-		},
-		{
 			name: "none-scope non-strict peer_policy rejected before startup",
 			mutate: func(cfg *config.Config) {
 				cfg.PeerPolicy = "prefer-strict"
@@ -158,20 +148,8 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 	cfg := config.DevConfig()
 	applyIETFConfigDefaults(cfg)
 
-	if cfg.Signature.InboundMode != "strict" {
-		t.Fatalf("Signature.InboundMode = %q, want strict", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Fatalf("Signature.OutboundMode = %q, want strict", cfg.Signature.OutboundMode)
-	}
 	if cfg.Signature.Label != config.DefaultSignatureLabel {
 		t.Fatalf("Signature.Label = %q, want %q", cfg.Signature.Label, config.DefaultSignatureLabel)
-	}
-	if cfg.Signature.AllowMismatch {
-		t.Fatal("Signature.AllowMismatch = true, want false")
-	}
-	if !cfg.RequireTokenExchange {
-		t.Fatal("RequireTokenExchange = false, want true")
 	}
 
 	assertIETFHarnessLocalhostPeerMappings(t, cfg.PeerProfiles.Mappings)
@@ -191,9 +169,6 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify != dev.OutboundHTTP.InsecureSkipVerify {
 		t.Fatalf("OutboundHTTP.InsecureSkipVerify = %v, want preserved %v", cfg.OutboundHTTP.InsecureSkipVerify, dev.OutboundHTTP.InsecureSkipVerify)
-	}
-	if cfg.Signature.PeerProfileLevelOverride != dev.Signature.PeerProfileLevelOverride {
-		t.Fatalf("Signature.PeerProfileLevelOverride = %q, want preserved %q", cfg.Signature.PeerProfileLevelOverride, dev.Signature.PeerProfileLevelOverride)
 	}
 	if cfg.PeerPolicy != dev.PeerPolicy {
 		t.Fatalf("PeerPolicy = %q, want preserved %q", cfg.PeerPolicy, dev.PeerPolicy)

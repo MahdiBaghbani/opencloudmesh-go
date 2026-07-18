@@ -42,38 +42,6 @@ func TestLoad_NoneScopeCompatibilityContradictions_FailFast(t *testing.T) {
 		wantError string
 	}{
 		{
-			name: "none scope rejects retired inbound lenient at enum gate",
-			extra: `
-[signature]
-inbound_mode = "lenient"
-`,
-			wantError: "invalid signature.inbound_mode",
-		},
-		{
-			name: "none scope rejects retired outbound criteria-only at enum gate",
-			extra: `
-[signature]
-outbound_mode = "criteria-only"
-`,
-			wantError: "invalid signature.outbound_mode",
-		},
-		{
-			name: "none scope requires peer override off",
-			extra: `
-[signature]
-peer_profile_level_override = "non-strict"
-`,
-			wantError: "compatibility_scope=none requires signature.peer_profile_level_override=off",
-		},
-		{
-			name: "none scope disallows mismatch",
-			extra: `
-[signature]
-allow_mismatch = true
-`,
-			wantError: "compatibility_scope=none requires signature.allow_mismatch=false",
-		},
-		{
 			name: "none scope requires peer policy strict",
 			extra: `
 peer_policy = "prefer-strict"
@@ -145,43 +113,14 @@ func TestLoad_StrictMode_WithHardenedDefaults_Succeeds(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Signature.InboundMode != "strict" {
-		t.Errorf("expected inbound strict, got %q", cfg.Signature.InboundMode)
+	if cfg.CompatibilityScope != "none" {
+		t.Errorf("expected compatibility_scope none, got %q", cfg.CompatibilityScope)
 	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Errorf("expected outbound strict, got %q", cfg.Signature.OutboundMode)
+	if cfg.PeerPolicy != "strict" {
+		t.Errorf("expected peer_policy strict, got %q", cfg.PeerPolicy)
 	}
-	if cfg.Signature.PeerProfileLevelOverride != "off" {
-		t.Errorf("expected peer_profile_level_override off, got %q", cfg.Signature.PeerProfileLevelOverride)
-	}
-	if cfg.Signature.AllowMismatch {
-		t.Error("expected allow_mismatch false")
-	}
-}
-
-func TestLoad_CrossField_PeerOverrideAllIncompatibleWithStrict(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
-mode = "strict"
-
-[signature]
-peer_profile_level_override = "all"
-
-[token_exchange]
-enabled = true
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for peer_profile_level_override=all with strict mode")
-	}
-	if !strings.Contains(err.Error(), "compatibility_scope=none requires signature.peer_profile_level_override=off") {
-		t.Errorf("unexpected error: %v", err)
+	if !cfg.TokenExchangeEnabled() {
+		t.Error("expected token exchange enabled")
 	}
 }
 
@@ -300,63 +239,12 @@ allowed_basic_auth_patterns = ["token:"]
 	}
 }
 
-func TestLoad_NoneScope_RequireTokenExchangeFalse_FailFast(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-	tomlContent := `mode = "strict"
-require_token_exchange = false
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for require_token_exchange=false under compatibility_scope=none")
-	}
-	if !strings.Contains(err.Error(), "compatibility_scope=none requires require_token_exchange=true") {
-		t.Fatalf("expected none-scope require_token_exchange error, got: %v", err)
-	}
-}
-
 func TestLoad_ScopedCompatibilityRejectsGlobalRelaxations(t *testing.T) {
 	tests := []struct {
 		name      string
 		extra     string
 		wantError string
 	}{
-		{
-			name: "rejects retired inbound lenient at enum gate",
-			extra: `
-[signature]
-inbound_mode = "lenient"
-`,
-			wantError: "invalid signature.inbound_mode",
-		},
-		{
-			name: "rejects retired outbound token-only at enum gate",
-			extra: `
-[signature]
-outbound_mode = "token-only"
-`,
-			wantError: "invalid signature.outbound_mode",
-		},
-		{
-			name: "rejects peer override all",
-			extra: `
-[signature]
-peer_profile_level_override = "all"
-`,
-			wantError: "compatibility_scope=scoped requires signature.peer_profile_level_override!=all",
-		},
-		{
-			name: "rejects mismatch allowance",
-			extra: `
-[signature]
-allow_mismatch = true
-`,
-			wantError: "compatibility_scope=scoped requires signature.allow_mismatch=false",
-		},
 		{
 			name: "rejects fail open peer trust",
 			extra: `
@@ -436,13 +324,6 @@ mode = "off"
 	if cfg.OutboundHTTP.SSRF.Mode != "off" {
 		t.Errorf("expected outbound_http.ssrf.mode off to survive under scoped, got %q", cfg.OutboundHTTP.SSRF.Mode)
 	}
-	// Global OCM posture must still be strict.
-	if cfg.Signature.InboundMode != "strict" {
-		t.Errorf("expected signature.inbound_mode strict, got %q", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Errorf("expected signature.outbound_mode strict, got %q", cfg.Signature.OutboundMode)
-	}
 }
 
 func TestLoad_ScopedCompatibilityAllowsPeerScopedRelaxationWiring(t *testing.T) {
@@ -452,9 +333,6 @@ func TestLoad_ScopedCompatibilityAllowsPeerScopedRelaxationWiring(t *testing.T) 
 	tomlContent := `
 mode = "strict"
 compatibility_scope = "scoped"
-
-[signature]
-peer_profile_level_override = "non-strict"
 
 [[peer_profiles.mappings]]
 pattern = "peer.example.com"
@@ -475,7 +353,7 @@ allow_mismatched_host = true
 	if cfg.CompatibilityScope != "scoped" {
 		t.Fatalf("expected compatibility_scope scoped, got %q", cfg.CompatibilityScope)
 	}
-	if cfg.Signature.PeerProfileLevelOverride != "non-strict" {
-		t.Fatalf("expected peer_profile_level_override non-strict, got %q", cfg.Signature.PeerProfileLevelOverride)
+	if len(cfg.PeerProfiles.Mappings) != 1 {
+		t.Fatalf("expected one peer profile mapping, got %d", len(cfg.PeerProfiles.Mappings))
 	}
 }

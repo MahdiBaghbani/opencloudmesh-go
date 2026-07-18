@@ -79,7 +79,7 @@ func TestNewCompiledContract_RejectsUnsupportedTokenExchangeQuirk(t *testing.T) 
 }
 
 func TestNewCompiledContractFromConfig_CopiesRetainedFields(t *testing.T) {
-	cfg := config.CompatConfig()
+	cfg := config.DevConfig()
 	cfg.PeerProfiles.Mappings = []config.PeerProfileMapping{
 		{Pattern: "peer.example.com", Profile: "compat-peer"},
 	}

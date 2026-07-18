@@ -56,7 +56,7 @@ func TestLoad_SSRF_NestedSchemaLoads(t *testing.T) {
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
-mode = "compat"
+mode = "dev"
 
 [outbound_http.ssrf]
 mode = "strict"

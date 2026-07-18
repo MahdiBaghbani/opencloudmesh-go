@@ -13,7 +13,7 @@ import * as https from 'https';
 
 export interface ServerConfig {
   name: string;
-  mode?: 'dev' | 'compat' | 'strict';
+  mode?: 'dev' | 'strict';
   extraConfig?: string;
 }
 
@@ -109,10 +109,9 @@ export function buildBinary(): string {
 
 /**
  * Generates TOML config for a test server.
- * All e2e modes use production-like signature posture (strict inbound/outbound,
- * no mismatch, peer_profile_level_override off) with a per-instance signing.pem.
- * compatibility_scope = "scoped" keeps localhost public_origin and SSRF off
- * permitted without relaxing the global OCM signature axis.
+ * All e2e modes use production-like signature posture with a per-instance
+ * signing.pem. compatibility_scope = "scoped" keeps localhost public_origin
+ * and SSRF off permitted without relaxing the global OCM signature axis.
  */
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
   // Root-level keys must all appear here, before any [table] header.
@@ -152,10 +151,6 @@ tls_root_ca_file = "${CA_CERT}"
 mode = "off"
 
 [signature]
-inbound_mode = "strict"
-outbound_mode = "strict"
-allow_mismatch = false
-peer_profile_level_override = "off"
 key_path = "${join(tempDir, 'signing.pem')}"
 `;
 
@@ -266,7 +261,7 @@ export async function startTwoServers(
   config?: {
     nameA?: string;
     nameB?: string;
-    mode?: 'dev' | 'compat' | 'strict';
+    mode?: 'dev' | 'strict';
     extraConfigA?: string;
     extraConfigB?: string;
   }

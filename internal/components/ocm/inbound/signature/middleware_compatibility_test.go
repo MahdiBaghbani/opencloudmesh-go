@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -132,7 +131,7 @@ func buildContract(
 }
 
 func TestSignatureMiddleware_StrictMode_PeerProfile_AllowsCapablePeerByProfile(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "strict"}
+	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		signingCapable: map[string]bool{"sender.example.com": true},
@@ -167,7 +166,7 @@ func TestSignatureMiddleware_StrictMode_PeerProfile_AllowsCapablePeerByProfile(t
 }
 
 func TestSignatureMiddleware_StrictMode_RejectsUnsignedFromUnmatchedSigningCapablePeer(t *testing.T) {
-	cfg := &config.SignatureConfig{InboundMode: "strict"}
+	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		signingCapable: map[string]bool{"sender.example.com": true},
@@ -205,9 +204,7 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsignedFromUnmatchedSigningCapab
 }
 
 func TestSignatureMiddleware_StrictMode_PeerProfile_AllowsDiscoveryFailureByProfile(t *testing.T) {
-	cfg := &config.SignatureConfig{
-		InboundMode: "strict",
-	}
+	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		signingErrors: map[string]error{
@@ -244,9 +241,7 @@ func TestSignatureMiddleware_StrictMode_PeerProfile_AllowsDiscoveryFailureByProf
 }
 
 func TestSignatureMiddleware_StrictMode_PeerProfile_RejectsDiscoveryFailureWhenUnmatched(t *testing.T) {
-	cfg := &config.SignatureConfig{
-		InboundMode: "strict",
-	}
+	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		signingErrors: map[string]error{
@@ -287,10 +282,7 @@ func TestSignatureMiddleware_StrictMode_MatchedProfileAllowsMismatch(t *testing.
 	km.LoadOrGenerate()
 	signer := crypto.NewRFC9421Signer(km)
 
-	cfg := &config.SignatureConfig{
-		InboundMode:   "strict",
-		AllowMismatch: false,
-	}
+	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{
 		publicKeys: map[string]sigalg.ResolvedPublicKey{
@@ -334,9 +326,7 @@ func TestSignatureMiddleware_StrictMode_MatchedProfileAllowsMismatch(t *testing.
 }
 
 func TestSignatureMiddleware_LogsCompatibilityDecisionFields(t *testing.T) {
-	cfg := &config.SignatureConfig{
-		InboundMode: "strict",
-	}
+	cfg := defaultSigTestConfig()
 	logHandler := newCapturedLogHandler(slog.LevelWarn)
 	logger := slog.New(logHandler)
 	pd := &mockPeerDiscovery{

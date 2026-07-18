@@ -149,13 +149,6 @@ func TestProxyEnvFallback_StrictPresetDefaultTrue(t *testing.T) {
 	}
 }
 
-func TestProxyEnvFallback_CompatPresetDefaultTrue(t *testing.T) {
-	cfg := CompatConfig()
-	if !cfg.OutboundHTTP.ProxyEnvFallback {
-		t.Error("compat preset must default proxy_env_fallback=true")
-	}
-}
-
 func TestProxyEnvFallback_DevPresetDefaultFalse(t *testing.T) {
 	cfg := DevConfig()
 	if cfg.OutboundHTTP.ProxyEnvFallback {

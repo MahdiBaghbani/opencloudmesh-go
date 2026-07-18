@@ -9,7 +9,7 @@ import (
 
 // Config holds the server configuration.
 type Config struct {
-	// Mode selects a preset bundle: strict, compat, or dev.
+	// Mode selects a preset bundle: strict or dev.
 	Mode string `toml:"mode"`
 
 	// CompatibilityScope is the supervising exception-governance axis.
@@ -58,10 +58,6 @@ type Config struct {
 
 	// TokenExchange configuration
 	TokenExchange TokenExchangeConfig `toml:"token_exchange"`
-
-	// RequireTokenExchange controls whether local receive policy requires
-	// must-exchange-token on WebDAV protocol requirements.
-	RequireTokenExchange bool `toml:"require_token_exchange"`
 
 	// PeerPolicy controls sender behavior toward non-strict peers.
 	// Values: "legacy", "prefer-strict" (default), "strict".
@@ -117,7 +113,7 @@ type HTTPConfig struct {
 // LoggingConfig holds logging settings.
 type LoggingConfig struct {
 	// Level is the minimum log level: trace, debug, info, warn, error.
-	// Default: info in strict/compat mode, debug in dev mode.
+	// Default: info in strict mode, debug in dev mode.
 	Level string `toml:"level"`
 
 	// AllowSensitive permits logging of sensitive values (tokens, secrets).
@@ -129,7 +125,7 @@ type LoggingConfig struct {
 type TokenExchangeConfig struct {
 	// Enabled controls whether token exchange is enabled.
 	// Pointer for presence detection; nil = use preset default.
-	// Default: preset-driven. Strict and dev enable it; compat inherits strict.
+	// Default: preset-driven. Strict and dev enable it.
 	Enabled *bool `toml:"enabled"`
 
 	// Path is the token exchange endpoint path (relative to /ocm/).
@@ -262,21 +258,8 @@ type BootstrapAdminConfig struct {
 
 // SignatureConfig holds HTTP signature settings.
 type SignatureConfig struct {
-	// InboundMode controls inbound signature enforcement (strict only).
-	InboundMode string `toml:"inbound_mode"`
-
-	// OutboundMode controls outbound signing (strict only).
-	OutboundMode string `toml:"outbound_mode"`
-
-	// PeerProfileLevelOverride controls when peer profile relaxations apply:
-	// all, non-strict, off (strict preset default: off)
-	PeerProfileLevelOverride string `toml:"peer_profile_level_override"`
-
 	// KeyPath is where the signing private key is stored
 	KeyPath string `toml:"key_path"`
-
-	// AllowMismatch allows declared peer vs keyId host mismatch (dev-only)
-	AllowMismatch bool `toml:"allow_mismatch"`
 
 	// Label is the RFC 9421 signature dictionary label (default: ocm).
 	Label string `toml:"label"`
@@ -414,7 +397,7 @@ type OutboundHTTPConfig struct {
 
 	// ProxyEnvFallback enables reading HTTP_PROXY/HTTPS_PROXY/NO_PROXY from
 	// the environment when proxy_url is not set.
-	// Default: true for strict and compat presets, false for dev preset.
+	// Default: true for strict preset, false for dev preset.
 	// Set to false to disable environment-based proxy discovery entirely.
 	ProxyEnvFallback bool `toml:"proxy_env_fallback"`
 }
@@ -495,11 +478,7 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    ProxyEnvFallback: %v,\n", c.OutboundHTTP.ProxyEnvFallback))
 	sb.WriteString("  },\n")
 	sb.WriteString("  Signature: {\n")
-	sb.WriteString(fmt.Sprintf("    InboundMode: %q,\n", c.Signature.InboundMode))
-	sb.WriteString(fmt.Sprintf("    OutboundMode: %q,\n", c.Signature.OutboundMode))
-	sb.WriteString(fmt.Sprintf("    PeerProfileLevelOverride: %q,\n", c.Signature.PeerProfileLevelOverride))
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
-	sb.WriteString(fmt.Sprintf("    AllowMismatch: %v,\n", c.Signature.AllowMismatch))
 	sb.WriteString(fmt.Sprintf("    Label: %q,\n", c.Signature.Label))
 	sb.WriteString(fmt.Sprintf("    KidFragment: %q,\n", c.Signature.KidFragment))
 	sb.WriteString(fmt.Sprintf("    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds))
@@ -522,7 +501,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    Enabled: %s,\n", enabledStr))
 	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
 	sb.WriteString("  },\n")
-	sb.WriteString(fmt.Sprintf("  RequireTokenExchange: %v,\n", c.RequireTokenExchange))
 	sb.WriteString(fmt.Sprintf("  PeerPolicy: %q,\n", c.PeerPolicy))
 	sb.WriteString("  HTTP: {\n")
 	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))

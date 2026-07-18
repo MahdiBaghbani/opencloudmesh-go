@@ -27,9 +27,8 @@ func TestTokenExchangeWithPerServiceConfig(t *testing.T) {
 
 	// Use per-service config instead of flat [token_exchange].
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "per-service-config",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "per-service-config",
+		Mode: "dev",
 		ExtraConfig: `
 # Per-service configuration (Reva-aligned shape)
 [http.services.wellknown]
@@ -126,9 +125,8 @@ func TestTokenExchangeNestedPath(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "token-nested-path",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "token-nested-path",
+		Mode: "dev",
 		ExtraConfig: `
 # Override per-service config for nested path
 [http.services.wellknown.ocmprovider.token_exchange]

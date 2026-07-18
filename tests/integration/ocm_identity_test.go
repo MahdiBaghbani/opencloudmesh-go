@@ -19,7 +19,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
@@ -281,9 +280,7 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
-		cfg.RequireTokenExchange = false
-	})
+	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
 	peer := startStrictCodeFlowReceiver(t)

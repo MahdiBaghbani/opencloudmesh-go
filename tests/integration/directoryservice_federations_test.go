@@ -79,9 +79,8 @@ max_stale_seconds = 600
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "ds-federations-test",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "ds-federations-test",
+		Mode: "dev",
 		ExtraFiles: map[string]string{
 			"trust-group.json": string(trustGroupJSON),
 		},

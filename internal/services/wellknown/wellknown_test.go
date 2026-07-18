@@ -368,21 +368,19 @@ func resolvedKeyFromManager(km *crypto.KeyManager) sigalg.ResolvedPublicKey {
 	}
 }
 
-func signatureMiddlewareWithInboundMode(
+func signatureMiddlewareForTest(
 	t *testing.T,
-	inboundMode string,
 	contract *peercompat.CompiledContract,
 	pd inboundsignature.PeerDiscovery,
 ) *inboundsignature.SignatureMiddleware {
 	t.Helper()
-	base := config.DevConfig()
-	base.Signature = config.SignatureConfig{InboundMode: inboundMode}
+	sigCfg := config.DefaultSignatureConfig()
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	return inboundsignature.NewSignatureMiddleware(
 		contract,
 		pd,
 		"https://receiver.example.com",
-		base.Signature,
+		sigCfg,
 		log,
 	)
 }
@@ -417,21 +415,18 @@ func TestService_APIVersionOverride_ThroughSignatureMiddleware(t *testing.T) {
 
 	for _, tc := range []struct {
 		name               string
-		inboundMode        string
 		signedAPIVersion   string
 		unsignedAPIVersion string
 	}{
 		{
 			name:               "strict",
-			inboundMode:        "strict",
 			signedAPIVersion:   "1.1",
 			unsignedAPIVersion: "1.4.0",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			mw := signatureMiddlewareWithInboundMode(
+			mw := signatureMiddlewareForTest(
 				t,
-				tc.inboundMode,
 				resolveInputs.PeerContract,
 				pd,
 			)
@@ -524,9 +519,8 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 		return captured.AuthorityForCompare
 	}
 
-	mw := signatureMiddlewareWithInboundMode(
+	mw := signatureMiddlewareForTest(
 		t,
-		"strict",
 		resolveInputs.PeerContract,
 		pd,
 	)

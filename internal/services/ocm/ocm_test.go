@@ -81,8 +81,6 @@ func setupSignedTokenServiceInputs(
 	t.Helper()
 
 	cfg := config.DevConfig()
-	cfg.Signature.InboundMode = "strict"
-	cfg.Signature.AllowMismatch = false
 
 	in := testInputs(cfg)
 	replaceSignatureMiddleware(&in, cfg, pd)

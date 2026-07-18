@@ -13,104 +13,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-func TestStrictModeRejectsSignatureContradictionsAtStartup(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping subprocess test in short mode")
-	}
-
-	binaryPath := harness.BuildBinary(t)
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "config.toml")
-	config := `mode = "strict"
-listen_addr = "127.0.0.1:0"
-public_origin = "http://localhost:9200"
-external_base_path = ""
-
-[tls]
-mode = "off"
-
-[server]
-trusted_proxies = ["127.0.0.0/8", "::1/128"]
-
-[server.bootstrap_admin]
-username = "admin"
-
-[outbound_http]
-timeout_ms = 5000
-connect_timeout_ms = 2000
-max_redirects = 1
-max_response_bytes = 1048576
-insecure_skip_verify = true
-
-[signature]
-outbound_mode = "criteria-only"
-`
-	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	cmd := exec.Command(binaryPath, "--config", configPath)
-	cmd.Dir = tempDir
-	output, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected startup failure for strict signature contradiction, got success: %s", output)
-	}
-
-	outputText := string(output)
-	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
-		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
-	}
-}
-
-func TestStrictModeRejectsTokenOnlyAtStartup(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping subprocess test in short mode")
-	}
-
-	binaryPath := harness.BuildBinary(t)
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "config.toml")
-	config := `mode = "strict"
-listen_addr = "127.0.0.1:0"
-public_origin = "http://localhost:9203"
-external_base_path = ""
-
-[tls]
-mode = "off"
-
-[server]
-trusted_proxies = ["127.0.0.0/8", "::1/128"]
-
-[server.bootstrap_admin]
-username = "admin"
-
-[outbound_http]
-timeout_ms = 5000
-connect_timeout_ms = 2000
-max_redirects = 1
-max_response_bytes = 1048576
-insecure_skip_verify = true
-
-[signature]
-outbound_mode = "token-only"
-`
-	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	cmd := exec.Command(binaryPath, "--config", configPath)
-	cmd.Dir = tempDir
-	output, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected startup failure for strict token-only posture, got success: %s", output)
-	}
-
-	outputText := string(output)
-	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
-		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
-	}
-}
-
 func TestRemovedSignatureAdvertiseRootKeyRejectedAtStartup(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -141,8 +43,6 @@ max_response_bytes = 1048576
 insecure_skip_verify = true
 
 [signature]
-inbound_mode = "strict"
-outbound_mode = "strict"
 advertise_http_request_signatures = true
 `
 	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
@@ -270,10 +170,8 @@ global_enforce = false
 	}
 }
 
-// TestCompatModeTokenOnlyRejectedAtStartup verifies that compat mode rejects
-// retired signature.outbound_mode=token-only at startup (strict is the sole
-// loadable outbound value).
-func TestCompatModeTokenOnlyRejectedAtStartup(t *testing.T) {
+// TestCompatModeRejectedAtStartup verifies that compat mode is no longer accepted.
+func TestCompatModeRejectedAtStartup(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -291,16 +189,6 @@ trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
 [server.bootstrap_admin]
 username = "admin"
-
-[outbound_http]
-timeout_ms = 5000
-connect_timeout_ms = 2000
-max_redirects = 1
-max_response_bytes = 1048576
-insecure_skip_verify = true
-
-[signature]
-outbound_mode = "token-only"
 `
 	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -310,12 +198,12 @@ outbound_mode = "token-only"
 	cmd.Dir = tempDir
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		t.Fatalf("expected startup failure for compat scoped token-only posture, got success: %s", output)
+		t.Fatalf("expected startup failure for compat mode, got success: %s", output)
 	}
 
 	outputText := string(output)
-	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
-		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
+	if !strings.Contains(outputText, "invalid mode") || !strings.Contains(outputText, "strict, dev") {
+		t.Fatalf("expected invalid mode strict/dev error in output, got: %s", outputText)
 	}
 }
 
@@ -359,95 +247,5 @@ profile = "some-compat"
 	outputText := string(output)
 	if !strings.Contains(outputText, "compatibility_scope=none forbids peer_profiles.mappings") {
 		t.Fatalf("expected peer_profiles.mappings rejection error in output, got: %s", outputText)
-	}
-}
-
-func TestNoneScopeRequireTokenExchangeFalseRejectedAtStartup(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping subprocess test in short mode")
-	}
-
-	binaryPath := harness.BuildBinary(t)
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "config.toml")
-	config := `mode = "strict"
-listen_addr = "127.0.0.1:0"
-public_origin = "https://localhost:9208"
-external_base_path = ""
-require_token_exchange = false
-
-[tls]
-mode = "selfsigned"
-
-[server]
-trusted_proxies = ["127.0.0.0/8", "::1/128"]
-
-[server.bootstrap_admin]
-username = "admin"
-
-[outbound_http]
-timeout_ms = 5000
-connect_timeout_ms = 2000
-max_redirects = 1
-max_response_bytes = 1048576
-insecure_skip_verify = false
-`
-	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	cmd := exec.Command(binaryPath, "--config", configPath)
-	cmd.Dir = tempDir
-	output, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected startup failure for require_token_exchange=false under none scope, got success: %s", output)
-	}
-
-	outputText := string(output)
-	if !strings.Contains(outputText, "compatibility_scope=none requires require_token_exchange=true") {
-		t.Fatalf("expected none-scope require_token_exchange error in output, got: %s", outputText)
-	}
-}
-
-func TestScopedCompatibilityRejectsTokenOnlyAtStartup(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping subprocess test in short mode")
-	}
-
-	binaryPath := harness.BuildBinary(t)
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "config.toml")
-	config := `mode = "strict"
-compatibility_scope = "scoped"
-listen_addr = "127.0.0.1:0"
-public_origin = "https://localhost:9206"
-external_base_path = ""
-
-[tls]
-mode = "selfsigned"
-
-[server]
-trusted_proxies = ["127.0.0.0/8", "::1/128"]
-
-[server.bootstrap_admin]
-username = "admin"
-
-[signature]
-outbound_mode = "token-only"
-`
-	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	cmd := exec.Command(binaryPath, "--config", configPath)
-	cmd.Dir = tempDir
-	output, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected startup failure for scoped token-only posture, got success: %s", output)
-	}
-
-	outputText := string(output)
-	if !strings.Contains(outputText, "invalid signature.outbound_mode") {
-		t.Fatalf("expected retired outbound_mode enum error in output, got: %s", outputText)
 	}
 }

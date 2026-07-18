@@ -17,15 +17,6 @@ func TestLoggingConfig_DefaultsPerMode(t *testing.T) {
 		t.Error("expected strict mode logging.allow_sensitive false")
 	}
 
-	// Compat mode defaults to info level
-	compatCfg := CompatConfig()
-	if compatCfg.Logging.Level != "info" {
-		t.Errorf("expected compat mode logging.level 'info', got %q", compatCfg.Logging.Level)
-	}
-	if compatCfg.Logging.AllowSensitive {
-		t.Error("expected compat mode logging.allow_sensitive false")
-	}
-
 	// Dev mode defaults to debug level
 	devCfg := DevConfig()
 	if devCfg.Logging.Level != "debug" {

@@ -37,9 +37,6 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
-	cfg.Signature.InboundMode = "strict"
-	cfg.Signature.OutboundMode = "strict"
-
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
@@ -82,9 +79,6 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = "/ocm"
-	cfg.Signature.InboundMode = "strict"
-	cfg.Signature.OutboundMode = "strict"
-
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
@@ -117,9 +111,6 @@ func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
-	cfg.Signature.InboundMode = "strict"
-	cfg.Signature.OutboundMode = "strict"
-
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {

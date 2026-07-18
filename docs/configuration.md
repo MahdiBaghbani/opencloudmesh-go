@@ -7,7 +7,7 @@ example TOML files.
 
 Effective configuration is resolved in this order (later wins):
 
-1. **Preset bundle** - selected by `mode` (`strict`, `compat`, or `dev`)
+1. **Preset bundle** - selected by `mode` (`strict` or `dev`)
 2. **TOML file** - path from `-config` or `CONFIG` env in containers
 3. **CLI flags** - overrides from `cmd/opencloudmesh-go/main.go`
 
@@ -21,18 +21,14 @@ The binary entrypoint is `cmd/opencloudmesh-go/main.go`. Notable CLI flags:
 | Flag | Purpose |
 | ---- | ------- |
 | `-config` | TOML file path |
-| `-mode` | Preset bundle (`strict`, `compat`, or `dev`) |
+| `-mode` | Preset bundle (`strict` or `dev`) |
 | `-listen` | Listen address |
 | `-public-origin` | Public origin URL |
 | `-external-base-path` | External base path prefix |
 | `-compatibility-scope` | `none` or `scoped` |
-| `-signature-inbound-mode` | `strict`, `lenient`, or `off` |
-| `-signature-outbound-mode` | `strict`, `criteria-only`, `token-only`, or `off` |
-| `-signature-peer-profile-level-override` | `all`, `non-strict`, or `off` |
 | `-peer-policy` | `legacy`, `prefer-strict`, or `strict` |
 | `-token-exchange-enabled` | Enable token exchange |
 | `-token-exchange-path` | Token exchange path under `/ocm/` |
-| `-require-token-exchange` | Require must-exchange-token on receive |
 | `-logging-level` | `trace`, `debug`, `info`, `warn`, `error` |
 | `-logging-allow-sensitive` | Allow sensitive values in logs |
 | `-admin-username` / `-admin-password` | Bootstrap admin credentials |
@@ -48,7 +44,6 @@ signature, transport, trust, and peer-compat axes.
 | Mode | Intent |
 | ---- | ------ |
 | `strict` | Production-safe defaults; `compatibility_scope=none` baseline |
-| `compat` | Strict defaults with bounded `scoped` peer mappings for interoperability testing |
 | `dev` | Local development; more permissive transport and logging |
 
 When `compatibility_scope=none`, the server exits at startup if the resolved
@@ -69,7 +64,7 @@ TOML sections map to `internal/platform/config.Config`:
 | `[outbound_http]` | Outbound client, SSRF, proxy, TLS roots (see [outbound-http-ssrf.md](outbound-http-ssrf.md)) |
 | `[http.services.ui.wayf]` | WAYF UI, invite accept route, discovery fields (see [invite-wayf-and-accept.md](invite-wayf-and-accept.md)) |
 | `[peer_trust]` | Directory Service trust groups, membership policy, and cache (see [directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md)) |
-| `[signature]` | HTTP signature inbound/outbound modes; `allowed_algorithms` gates inbound verify and outbound `SignRequest` (default: ed25519 plus ECDSA P-256/P-384 and RSA PKCS1-v1_5 SHA-256/384/512; JOSE aliases normalize at load) |
+| `[signature]` | HTTP signature key, label, timing, and algorithm settings; `allowed_algorithms` gates inbound verify and outbound `SignRequest` (default: ed25519 plus ECDSA P-256/P-384 and RSA PKCS1-v1_5 SHA-256/384/512; JOSE aliases normalize at load) |
 | `[peer_profiles]` | Peer compatibility mappings |
 | `[token_exchange]` | Token exchange endpoint settings |
 | `[logging]` | Log level and sensitivity |

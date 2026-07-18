@@ -58,7 +58,6 @@ type PeerDiscovery interface {
 
 // SignatureMiddleware verifies HTTP request signatures.
 type SignatureMiddleware struct {
-	allowMismatch      bool
 	peerContract       *peercompat.CompiledContract
 	compatibilityScope string
 	verifier           *crypto.RFC9421Verifier
@@ -81,7 +80,6 @@ func NewSignatureMiddleware(
 	localScheme := config.SchemeFromOrigin(publicOrigin)
 
 	return &SignatureMiddleware{
-		allowMismatch:      sigCfg.AllowMismatch,
 		peerContract:       peerContract,
 		compatibilityScope: "none",
 		verifier: crypto.NewRFC9421VerifierWithOptions(
@@ -226,7 +224,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 
 					// Check for mismatch between declared peer and keyId authority.
 					peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
-					allowMismatch := m.allowMismatch || (peerDecision.Matched && peerDecision.AllowMismatchedHost)
+					allowMismatch := peerDecision.Matched && peerDecision.AllowMismatchedHost
 					if declaredPeer != "" && !allowMismatch {
 						normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, compareScheme)
 						if err != nil {

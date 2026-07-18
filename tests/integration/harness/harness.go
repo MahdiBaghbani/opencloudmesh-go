@@ -70,27 +70,12 @@ func StartTestServerWithIETFConfig(t *testing.T, patch func(*config.Config)) *Te
 	}, IETFIntegrationBuildOpts())
 }
 
-// applyIETFConfigDefaults is a hybrid overlay on DevConfig(): it tightens only
-// the signature inbound/outbound modes, label, allow_mismatch, token exchange
-// requirement, and localhost peer-profile mappings needed for in-process HTTP
-// signature tests. Other DevConfig leniencies (TLS off, SSRF off,
-// insecure_skip_verify, and the bounded "scoped"
-// compatibility scope) are intentionally preserved; see
-// TestApplyIETFConfigDefaults.
-//
-// StartTestServerWithIETFConfig serves plain HTTP on ephemeral localhost
-// ports because the localhost and 127.0.0.1 mappings below resolve to the
-// "dev" profile, which bootstrap uses as the global peerorigin dev-transport
-// signal (mappedPeerProfilesAllowHTTP) to enable in-process plain-HTTP peer
-// calls; the same mappings also supply the peer-compatibility decisions (for
-// example provider verification of a client keyId during signed token
-// exchange) exercised by these tests.
+// applyIETFConfigDefaults is a hybrid overlay on DevConfig(): it sets the
+// localhost peer-profile mappings needed for in-process HTTP signature tests.
+// Other DevConfig leniencies (TLS off, SSRF off, insecure_skip_verify, and the
+// bounded "scoped" compatibility scope) are intentionally preserved.
 func applyIETFConfigDefaults(cfg *config.Config) {
-	cfg.Signature.InboundMode = "strict"
-	cfg.Signature.OutboundMode = "strict"
 	cfg.Signature.Label = config.DefaultSignatureLabel
-	cfg.Signature.AllowMismatch = false
-	cfg.RequireTokenExchange = true
 	cfg.PeerProfiles.Mappings = ietfHarnessLocalhostPeerMappings()
 }
 

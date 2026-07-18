@@ -25,9 +25,8 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "token-errors",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "token-errors",
+		Mode: "dev",
 	})
 	defer srv.Stop(t)
 

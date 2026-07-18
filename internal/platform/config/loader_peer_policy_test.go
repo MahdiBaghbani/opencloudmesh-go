@@ -16,7 +16,7 @@ func TestLoad_PeerPolicy_ValidValues(t *testing.T) {
 			configPath := filepath.Join(dir, "config.toml")
 
 			tomlContent := `
-mode = "compat"
+mode = "dev"
 peer_policy = "` + policy + `"
 
 [token_exchange]
@@ -80,37 +80,12 @@ non_strict_peer_outbound_policy = "prefer-strict"
 	}
 }
 
-func TestLoad_CrossField_RequireTokenExchangeRequiresTokenExchange(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
-mode = "strict"
-require_token_exchange = true
-
-[token_exchange]
-enabled = false
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for require_token_exchange without token exchange capability")
-	}
-	if !strings.Contains(err.Error(), "require_token_exchange=true requires token_exchange.enabled=true") {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
 func TestLoad_CrossField_StrictPeerPolicyRequiresTokenExchange(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
 	tomlContent := `
 mode = "strict"
-require_token_exchange = false
 peer_policy = "strict"
 
 [token_exchange]

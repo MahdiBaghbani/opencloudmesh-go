@@ -35,21 +35,17 @@ type LoaderOptions struct {
 
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
-	ListenAddr                   *string
-	PublicOrigin                 *string
-	ExternalBasePath             *string
-	CompatibilityScope           *string
-	SignatureInboundMode         *string
-	SignatureOutboundMode        *string
-	SignaturePeerProfileOverride *string
-	AdminUsername                *string
-	AdminPassword                *string
-	LoggingLevel                 *string
-	LoggingAllowSensitive        *string // "true", "false", or "" (unset)
-	TokenExchangeEnabled         *string // "true", "false", or "" (unset)
-	TokenExchangePath            *string
-	RequireTokenExchange         *string // "true", "false", or "" (unset)
-	PeerPolicy                   *string
+	ListenAddr            *string
+	PublicOrigin          *string
+	ExternalBasePath      *string
+	CompatibilityScope    *string
+	AdminUsername         *string
+	AdminPassword         *string
+	LoggingLevel          *string
+	LoggingAllowSensitive *string // "true", "false", or "" (unset)
+	TokenExchangeEnabled  *string // "true", "false", or "" (unset)
+	TokenExchangePath     *string
+	PeerPolicy            *string
 }
 
 // Load loads configuration with the following precedence:
@@ -285,30 +281,7 @@ func validateEnums(cfg *Config) error {
 		}
 	}
 
-	// signature.inbound_mode
-	switch cfg.Signature.InboundMode {
-	case "strict":
-		// valid
-	default:
-		return fmt.Errorf("invalid signature.inbound_mode %q: must be strict", cfg.Signature.InboundMode)
-	}
-
-	// signature.outbound_mode
-	switch cfg.Signature.OutboundMode {
-	case "strict":
-		// valid
-	default:
-		return fmt.Errorf("invalid signature.outbound_mode %q: must be strict", cfg.Signature.OutboundMode)
-	}
-
-	// signature.peer_profile_level_override
-	switch cfg.Signature.PeerProfileLevelOverride {
-	case "off", "non-strict", "all":
-		// valid
-	default:
-		return fmt.Errorf("invalid signature.peer_profile_level_override %q: must be one of off, non-strict, all", cfg.Signature.PeerProfileLevelOverride)
-	}
-
+	// signature.label and timing fields
 	if cfg.Signature.Label == "" {
 		return fmt.Errorf("signature.label must not be empty")
 	}
@@ -406,11 +379,6 @@ func validateEnums(cfg *Config) error {
 		}
 	}
 
-	// Cross-field: canonical receive strictness requires token exchange capability
-	if cfg.RequireTokenExchange && !cfg.TokenExchangeEnabled() {
-		return fmt.Errorf("require_token_exchange=true requires token_exchange.enabled=true")
-	}
-
 	// Cross-field: strict peer policy requires token exchange capability
 	if cfg.PeerPolicy == "strict" && !cfg.TokenExchangeEnabled() {
 		return fmt.Errorf("peer_policy=strict requires token_exchange.enabled=true")
@@ -458,21 +426,6 @@ func validateCompatibilityScopeGuardrails(cfg *Config) error {
 }
 
 func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
-	if cfg.Signature.InboundMode != "strict" {
-		return fmt.Errorf("compatibility_scope=none requires signature.inbound_mode=strict")
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		return fmt.Errorf("compatibility_scope=none requires signature.outbound_mode=strict")
-	}
-	if cfg.Signature.PeerProfileLevelOverride != "off" {
-		return fmt.Errorf("compatibility_scope=none requires signature.peer_profile_level_override=off")
-	}
-	if cfg.Signature.AllowMismatch {
-		return fmt.Errorf("compatibility_scope=none requires signature.allow_mismatch=false")
-	}
-	if !cfg.RequireTokenExchange {
-		return fmt.Errorf("compatibility_scope=none requires require_token_exchange=true")
-	}
 	if cfg.PeerPolicy != "strict" {
 		return fmt.Errorf("compatibility_scope=none requires peer_policy=strict")
 	}
@@ -543,18 +496,6 @@ func validateNoneScopePeerProfile(name string, p PeerProfile) error {
 // any OCM-level legacy behavior. Legacy peer behavior can only come from
 // explicit peer_profiles.mappings resolved through the peercompat gate.
 func validateScopedCompatibilityScopeGuardrails(cfg *Config) error {
-	if cfg.Signature.InboundMode != "strict" {
-		return fmt.Errorf("compatibility_scope=scoped requires signature.inbound_mode=strict")
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		return fmt.Errorf("compatibility_scope=scoped requires signature.outbound_mode=strict")
-	}
-	if cfg.Signature.PeerProfileLevelOverride == "all" {
-		return fmt.Errorf("compatibility_scope=scoped requires signature.peer_profile_level_override!=all")
-	}
-	if cfg.Signature.AllowMismatch {
-		return fmt.Errorf("compatibility_scope=scoped requires signature.allow_mismatch=false")
-	}
 	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
 		return fmt.Errorf("compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled")
 	}

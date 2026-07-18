@@ -41,9 +41,8 @@ func TestTokenExchangeFlow(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	sender := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "token-flow-sender",
-		Mode:                  "compat",
-		KeepSignatureDefaults: true,
+		Name: "token-flow-sender",
+		Mode: "dev",
 		ExtraConfig: `
 [outbound_http.ssrf]
 mode = "off"

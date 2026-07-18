@@ -45,18 +45,6 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode, scope strin
 			config.DefaultMaxResponseBytes,
 		)
 	}
-	if cfg.Signature.InboundMode != "strict" {
-		t.Errorf("signature inbound mode = %q, want strict", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Errorf("signature outbound mode = %q, want strict", cfg.Signature.OutboundMode)
-	}
-	if cfg.Signature.PeerProfileLevelOverride != "off" {
-		t.Errorf("signature peer profile override = %q, want off", cfg.Signature.PeerProfileLevelOverride)
-	}
-	if cfg.Signature.AllowMismatch {
-		t.Error("signature mismatch allowance must be false")
-	}
 	if cfg.Signature.Label != config.DefaultSignatureLabel {
 		t.Errorf("signature label = %q, want %q", cfg.Signature.Label, config.DefaultSignatureLabel)
 	}
@@ -68,9 +56,6 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode, scope strin
 	}
 	if cfg.TokenExchange.Path != "token" {
 		t.Errorf("token exchange path = %q, want token", cfg.TokenExchange.Path)
-	}
-	if !cfg.RequireTokenExchange {
-		t.Error("token exchange must be required")
 	}
 	if cfg.PeerPolicy != "strict" {
 		t.Errorf("peer policy = %q, want strict", cfg.PeerPolicy)

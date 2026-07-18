@@ -30,9 +30,8 @@ func TestSubprocessTransportFollowsExtraConfigTLS(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "tls-override",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "tls-override",
+		Mode: "dev",
 		// Override the preset HTTP transport with self-signed HTTPS. The "dev"
 		// preset resolves compatibility_scope=scoped, which does not constrain
 		// tls.mode, so selfsigned TLS is permitted by the loader compatibility
@@ -75,9 +74,8 @@ func TestSubprocessDiscoveryFollowsExtraConfigTLS(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "tls-override-discovery",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "tls-override-discovery",
+		Mode: "dev",
 		ExtraConfig: `
 [tls]
 mode = "selfsigned"

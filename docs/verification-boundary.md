@@ -73,10 +73,6 @@ and operator-managed validation.
     `future_created`, `stale_created`, `missing_component`,
     `crypto_fail`, ...) -> HTTP 401 `signature verification failed`
   Details remain in logs.
-- `signature.inbound_mode=off` skips verification only on routes that do
-  not require a signature. Routes mounted with
-  `VerifyOCMRequestRequireSignature*` still enforce signature (and digest)
-  checks when `off` is set.
 - When a declared-peer resolver is present, malformed or empty declared
   peers fail closed with HTTP 400. Shares, invite-accepted, and token
   routes also require a declared peer (`requireDeclaredPeer`).
@@ -84,7 +80,7 @@ and operator-managed validation.
   keyId, not a body-declared peer.
 - Peer identity mismatch between declared peer and keyId authority
   returns HTTP 403. Normalize errors on that path also fail closed with
-  403 unless mismatch is explicitly allowed.
+  403 unless a matched peer profile explicitly allows the mismatch.
 - Discovery caching stores raw response bytes and re-normalizes on cache
   read. The cache therefore preserves the fetched source bytes while
   letting the current peer contract control how legacy discovery fields

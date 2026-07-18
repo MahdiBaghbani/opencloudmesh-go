@@ -25,17 +25,15 @@ func TestOCMAuxDiscover_PastedPathNormalization(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "discover-target",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
-		ExtraConfig:           discoverTargetInviteDialogExtraConfig,
+		Name:        "discover-target",
+		Mode:        "dev",
+		ExtraConfig: discoverTargetInviteDialogExtraConfig,
 	})
 	defer target.Stop(t)
 
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "discover-source",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "discover-source",
+		Mode: "dev",
 	})
 	defer source.Stop(t)
 
@@ -73,17 +71,15 @@ func TestOCMAuxDiscover_BareHostNormalization(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "discover-target",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
-		ExtraConfig:           discoverTargetInviteDialogExtraConfig,
+		Name:        "discover-target",
+		Mode:        "dev",
+		ExtraConfig: discoverTargetInviteDialogExtraConfig,
 	})
 	defer target.Stop(t)
 
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "discover-source",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "discover-source",
+		Mode: "dev",
 	})
 	defer source.Stop(t)
 
@@ -122,14 +118,14 @@ func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "discover-ssrf",
-		Mode:                  "compat",
-		KeepSignatureDefaults: true,
+		Name:               "discover-ssrf",
+		Mode:               "strict",
+		CompatibilityScope: "scoped",
 	})
 	defer srv.Stop(t)
 
 	discoverURL := srv.BaseURL + "/ocm-aux/discover?base=http://10.0.0.1:8080"
-	resp, err := http.Get(discoverURL)
+	resp, err := srv.Client().Get(discoverURL)
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
@@ -170,16 +166,14 @@ func TestOCMAuxDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "discover-no-dialog-target",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "discover-no-dialog-target",
+		Mode: "dev",
 	})
 	defer target.Stop(t)
 
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "discover-no-dialog-source",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "discover-no-dialog-source",
+		Mode: "dev",
 	})
 	defer source.Stop(t)
 

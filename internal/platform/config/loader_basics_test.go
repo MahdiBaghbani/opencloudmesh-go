@@ -13,11 +13,11 @@ func TestParseMode(t *testing.T) {
 		wantErr bool
 	}{
 		{"strict", "strict", ModeStrict, false},
-		{"compat", "compat", ModeCompat, false},
+		{"compat rejected", "compat", "", true},
 		{"dev", "dev", ModeDev, false},
 		{"empty defaults to strict", "", ModeStrict, false},
 		{"uppercase", "STRICT", ModeStrict, false},
-		{"mixed case compat", "Compat", ModeCompat, false},
+		{"mixed case compat rejected", "Compat", "", true},
 		{"whitespace", "  dev  ", ModeDev, false},
 		{"invalid", "invalid", "", true},
 		{"interop rejected", "interop", "", true},
@@ -33,12 +33,14 @@ func TestParseMode(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("ParseMode(%q) = %v, want %v", tt.input, got, tt.want)
 			}
+			if tt.wantErr && tt.input == "compat" && !strings.Contains(err.Error(), "must be one of strict, dev") {
+				t.Errorf("ParseMode(compat) error = %v, want strict/dev allowed-values message", err)
+			}
 		})
 	}
 }
 
 func TestLoad_NoConfigFile(t *testing.T) {
-	// Without a config file, defaults to strict mode
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -50,16 +52,9 @@ func TestLoad_NoConfigFile(t *testing.T) {
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
-	if cfg.Signature.InboundMode != "strict" {
-		t.Errorf("expected signature inbound mode strict, got %s", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Errorf("expected signature outbound mode strict, got %s", cfg.Signature.OutboundMode)
-	}
 }
 
 func TestLoad_ModeFlag(t *testing.T) {
-	// Mode flag overrides default
 	cfg, err := Load(LoaderOptions{ModeFlag: "dev"})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -77,9 +72,8 @@ func TestLoad_ModeFlag(t *testing.T) {
 }
 
 func TestLoad_ConfigFile(t *testing.T) {
-	// Create a temp TOML config file
 	tomlContent := `
-mode = "compat"
+mode = "dev"
 public_origin = "https://example.com:8443"
 listen_addr = ":8443"
 
@@ -103,8 +97,8 @@ mode = "strict"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Mode != "compat" {
-		t.Errorf("expected mode compat, got %s", cfg.Mode)
+	if cfg.Mode != "dev" {
+		t.Errorf("expected mode dev, got %s", cfg.Mode)
 	}
 	if cfg.PublicOrigin != "https://example.com:8443" {
 		t.Errorf("expected origin https://example.com:8443, got %s", cfg.PublicOrigin)
@@ -121,7 +115,6 @@ mode = "strict"
 	if cfg.Server.BootstrapAdmin.Password != "secret123" {
 		t.Errorf("expected admin password secret123, got %s", cfg.Server.BootstrapAdmin.Password)
 	}
-	// TOML overrides mode preset
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected SSRF mode strict from TOML, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
@@ -132,24 +125,17 @@ mode = "strict"
 
 func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
 	tomlContent := `
-mode = "compat"
+mode = "dev"
 public_origin = "https://from-toml.com"
 listen_addr = ":9000"
-
-[signature]
-inbound_mode = "strict"
-outbound_mode = "strict"
 `
 	configPath := writeTempConfig(t, tomlContent)
 
-	// Flags should override TOML
 	origin := "https://from-flag.com"
-	sigInbound := "strict"
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
-			PublicOrigin:         &origin,
-			SignatureInboundMode: &sigInbound,
+			PublicOrigin: &origin,
 		},
 	})
 	if err != nil {
@@ -162,33 +148,27 @@ outbound_mode = "strict"
 	if cfg.ListenAddr != ":9000" {
 		t.Errorf("expected listen from TOML :9000, got %s", cfg.ListenAddr)
 	}
-	if cfg.Signature.InboundMode != "strict" {
-		t.Errorf("expected signature inbound mode from flag strict, got %s", cfg.Signature.InboundMode)
-	}
 }
 
 func TestLoad_ModeFlag_OverridesConfigFileMode(t *testing.T) {
-	// Create a TOML config file with mode
 	tomlContent := `
-mode = "compat"
+mode = "dev"
 `
 	configPath := writeTempConfig(t, tomlContent)
 
-	// Mode flag should override TOML mode
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
-		ModeFlag:   "dev",
+		ModeFlag:   "strict",
 	})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Mode != "dev" {
-		t.Errorf("expected mode dev from flag, got %s", cfg.Mode)
+	if cfg.Mode != "strict" {
+		t.Errorf("expected mode strict from flag, got %s", cfg.Mode)
 	}
-	// Dev preset defaults should apply
-	if cfg.OutboundHTTP.SSRF.Mode != "off" {
-		t.Errorf("expected SSRF mode off from dev preset, got %s", cfg.OutboundHTTP.SSRF.Mode)
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		t.Errorf("expected SSRF mode strict from strict preset, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
 }
 
@@ -203,7 +183,6 @@ func TestLoad_MissingConfigFile_FailsFast(t *testing.T) {
 }
 
 func TestLoad_InvalidTOML_FailsFast(t *testing.T) {
-	// Invalid TOML
 	configPath := writeTempConfig(t, "this is not valid toml [[[")
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
@@ -216,7 +195,7 @@ func TestLoad_InvalidTOML_FailsFast(t *testing.T) {
 }
 
 func TestLoad_InvalidMode_FailsFast(t *testing.T) {
-	invalidModes := []string{"invalid", "interop"}
+	invalidModes := []string{"invalid", "interop", "compat"}
 	for _, mode := range invalidModes {
 		_, err := Load(LoaderOptions{ModeFlag: mode})
 		if err == nil {
@@ -241,15 +220,6 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
-	if cfg.Signature.InboundMode != "strict" {
-		t.Errorf("expected signature inbound mode strict, got %s", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Errorf("expected signature outbound mode strict, got %s", cfg.Signature.OutboundMode)
-	}
-	if cfg.Signature.PeerProfileLevelOverride != "off" {
-		t.Errorf("expected peer_profile_level_override off, got %s", cfg.Signature.PeerProfileLevelOverride)
-	}
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify false in strict")
 	}
@@ -258,6 +228,9 @@ func TestStrictConfig(t *testing.T) {
 	}
 	if cfg.PeerPolicy != "strict" {
 		t.Errorf("expected peer_policy strict in strict config, got %q", cfg.PeerPolicy)
+	}
+	if !cfg.TokenExchangeEnabled() {
+		t.Error("expected token exchange enabled in strict config")
 	}
 }
 
@@ -279,66 +252,20 @@ func TestDevConfig(t *testing.T) {
 	if !cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify true in dev")
 	}
-	// Dev uses scoped governance with a strict global OCM posture; only
-	// transport settings differ from strict.
-	if cfg.Signature.InboundMode != "strict" {
-		t.Errorf("expected signature inbound mode strict in dev, got %s", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Errorf("expected signature outbound mode strict in dev, got %s", cfg.Signature.OutboundMode)
-	}
-	if !cfg.RequireTokenExchange {
-		t.Error("expected RequireTokenExchange true in dev")
-	}
 	if cfg.PeerPolicy != "strict" {
 		t.Errorf("expected peer_policy strict in dev, got %q", cfg.PeerPolicy)
 	}
-}
-
-func TestCompatConfig(t *testing.T) {
-	cfg := CompatConfig()
-
-	if cfg.Mode != "compat" {
-		t.Errorf("expected mode compat, got %s", cfg.Mode)
-	}
-	if cfg.CompatibilityScope != "scoped" {
-		t.Errorf("expected compatibility scope scoped, got %s", cfg.CompatibilityScope)
-	}
-	// Compat uses scoped governance with a strict global OCM posture; legacy
-	// peer behavior must come from explicit peer_profiles.mappings.
-	if cfg.Signature.InboundMode != "strict" {
-		t.Errorf("expected signature inbound mode strict in compat, got %s", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Errorf("expected signature outbound mode strict in compat, got %s", cfg.Signature.OutboundMode)
-	}
-	if cfg.Signature.PeerProfileLevelOverride != "off" {
-		t.Errorf("expected peer_profile_level_override off in compat, got %s", cfg.Signature.PeerProfileLevelOverride)
-	}
-	if cfg.Signature.AllowMismatch {
-		t.Error("expected allow_mismatch false in compat")
-	}
-	if !cfg.RequireTokenExchange {
-		t.Error("expected RequireTokenExchange true in compat")
-	}
-	if cfg.PeerPolicy != "strict" {
-		t.Errorf("expected peer_policy strict in compat, got %q", cfg.PeerPolicy)
-	}
-	// SSRF stays strict in compat
-	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
-		t.Errorf("expected SSRF mode strict in compat, got %s", cfg.OutboundHTTP.SSRF.Mode)
+	if !cfg.TokenExchangeEnabled() {
+		t.Error("expected token exchange enabled in dev")
 	}
 }
 
 // TestDevConfig_DerivesFromStrict pins the behavior-preserving contract for
-// DevConfig now that it overlays StrictConfig. It checks every dev-specific
-// delta, confirms shared defaults stay inherited from strict, and checks
-// against token-exchange pointer aliasing across separate preset calls.
+// DevConfig now that it overlays StrictConfig.
 func TestDevConfig_DerivesFromStrict(t *testing.T) {
 	dev := DevConfig()
 	strict := StrictConfig()
 
-	// Dev-specific deltas relative to strict.
 	deltas := []struct {
 		name string
 		got  any
@@ -362,7 +289,6 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		}
 	}
 
-	// Shared defaults must remain inherited from strict.
 	inherited := []struct {
 		name string
 		got  any
@@ -384,13 +310,6 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		{"PeerTrust.MembershipCache.MaxStaleSeconds", dev.PeerTrust.MembershipCache.MaxStaleSeconds, strict.PeerTrust.MembershipCache.MaxStaleSeconds},
 		{"Logging.AllowSensitive", dev.Logging.AllowSensitive, strict.Logging.AllowSensitive},
 		{"TokenExchange.Path", dev.TokenExchange.Path, strict.TokenExchange.Path},
-		// Dev keeps the same strict global OCM posture as strict; only transport
-		// differs (checked in the deltas above).
-		{"Signature.InboundMode", dev.Signature.InboundMode, strict.Signature.InboundMode},
-		{"Signature.OutboundMode", dev.Signature.OutboundMode, strict.Signature.OutboundMode},
-		{"Signature.PeerProfileLevelOverride", dev.Signature.PeerProfileLevelOverride, strict.Signature.PeerProfileLevelOverride},
-		{"Signature.AllowMismatch", dev.Signature.AllowMismatch, strict.Signature.AllowMismatch},
-		{"RequireTokenExchange", dev.RequireTokenExchange, strict.RequireTokenExchange},
 		{"PeerPolicy", dev.PeerPolicy, strict.PeerPolicy},
 	}
 	for _, i := range inherited {
@@ -403,13 +322,10 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		t.Errorf("dev TrustedProxies = %v, want strict value %v", dev.Server.TrustedProxies, strict.Server.TrustedProxies)
 	}
 
-	// Token-exchange enabled pointer value is preserved (true).
 	if dev.TokenExchange.Enabled == nil || !*dev.TokenExchange.Enabled {
 		t.Fatal("expected dev token_exchange.enabled pointer to be non-nil true")
 	}
 
-	// Prevent pointer aliasing: separate preset calls must own distinct
-	// pointers so mutating one config never leaks into another.
 	if dev.TokenExchange.Enabled == strict.TokenExchange.Enabled {
 		t.Error("dev and strict share the same token_exchange.enabled pointer")
 	}

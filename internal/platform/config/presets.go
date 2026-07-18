@@ -10,7 +10,6 @@ type Mode string
 
 const (
 	ModeStrict Mode = "strict"
-	ModeCompat Mode = "compat"
 	ModeDev    Mode = "dev"
 )
 
@@ -19,12 +18,10 @@ func ParseMode(s string) (Mode, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "strict", "":
 		return ModeStrict, nil
-	case "compat":
-		return ModeCompat, nil
 	case "dev":
 		return ModeDev, nil
 	default:
-		return "", fmt.Errorf("invalid mode %q: must be one of strict, compat, dev", s)
+		return "", fmt.Errorf("invalid mode %q: must be one of strict, dev", s)
 	}
 }
 
@@ -33,8 +30,6 @@ func presetForMode(mode Mode) *Config {
 	switch mode {
 	case ModeDev:
 		return DevConfig()
-	case ModeCompat:
-		return CompatConfig()
 	default:
 		return StrictConfig()
 	}
@@ -78,8 +73,7 @@ func StrictConfig() *Config {
 			Enabled: &tokenExchangeEnabled,
 			Path:    "token",
 		},
-		RequireTokenExchange: true,
-		PeerPolicy:           "strict",
+		PeerPolicy: "strict",
 		Persistence: PersistenceConfig{
 			Backend: BackendMemory,
 		},
@@ -91,34 +85,16 @@ func StrictConfig() *Config {
 	return cfg
 }
 
-// CompatConfig returns compatibility mode defaults. It is bounded scoped
-// governance with a strict global OCM posture: every strict-preset signature
-// and OCM field (inbound/outbound mode, peer_profile_level_override,
-// allow_mismatch, RequireTokenExchange, PeerPolicy) stays
-// inherited from StrictConfig unchanged. Only Mode and CompatibilityScope
-// differ. Any legacy behavior for specific peers must come from explicit
-// peer_profiles.mappings; compat grants no global relaxation by itself.
-func CompatConfig() *Config {
-	cfg := StrictConfig()
-	cfg.Mode = string(ModeCompat)
-	cfg.CompatibilityScope = "scoped"
-	return cfg
-}
-
 // DevConfig returns development mode defaults as an overlay on StrictConfig,
 // so the strict preset stays the single source of shared defaults. Each call
 // builds a fresh StrictConfig, so the token-exchange enabled pointer is unique
 // per DevConfig call and is not aliased across separate preset calls.
 //
-// DevConfig is bounded scoped governance with a strict global OCM posture,
-// same as CompatConfig: signature inbound/outbound modes, peer_profile_level_
-// override, allow_mismatch, RequireTokenExchange, and
-// PeerPolicy all stay inherited from StrictConfig. Only dev-only transport
-// and operational settings differ (TLS off, SSRF off, insecure skip verify,
-// ACME staging, debug logging); those settings never grant OCM legacy
-// decisions. Legacy behavior for local dev/test peers (for example the
-// integration harness localhost/127.0.0.1 mappings) comes only from explicit
-// peer_profiles.mappings resolved through the peercompat gate.
+// DevConfig is bounded scoped governance with a strict global OCM posture.
+// Only dev-only transport and operational settings differ (TLS off, SSRF off,
+// insecure skip verify, ACME staging, debug logging). Legacy behavior for
+// local dev/test peers comes only from explicit peer_profiles.mappings resolved
+// through the peercompat gate.
 func DevConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeDev)

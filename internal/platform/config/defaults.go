@@ -91,15 +91,11 @@ func DefaultPeerTrustMembershipCache() PeerTrustMembershipCacheConfig {
 // DefaultSignatureConfig returns RFC 9421 / OCM IETF signature defaults.
 func DefaultSignatureConfig() SignatureConfig {
 	return SignatureConfig{
-		InboundMode:              "strict",
-		OutboundMode:             "strict",
-		PeerProfileLevelOverride: "off",
-		KeyPath:                  ".ocm/keys/signing.pem",
-		AllowMismatch:            false,
-		Label:                    DefaultSignatureLabel,
-		KidFragment:              DefaultSignatureKidFragment,
-		CreatedMaxAgeSeconds:     DefaultSignatureCreatedMaxAge,
-		CreatedMaxSkewSeconds:    DefaultSignatureCreatedMaxSkew,
-		AllowedAlgorithms:        append([]string(nil), sigalg.DefaultAllowed()...),
+		KeyPath:               ".ocm/keys/signing.pem",
+		Label:                 DefaultSignatureLabel,
+		KidFragment:           DefaultSignatureKidFragment,
+		CreatedMaxAgeSeconds:  DefaultSignatureCreatedMaxAge,
+		CreatedMaxSkewSeconds: DefaultSignatureCreatedMaxSkew,
+		AllowedAlgorithms:     append([]string(nil), sigalg.DefaultAllowed()...),
 	}
 }
