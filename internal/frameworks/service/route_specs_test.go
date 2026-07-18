@@ -102,8 +102,8 @@ func TestRoutes_ProtocolRowsUseHTTPSigHandlerAuth(t *testing.T) {
 		if row.Synthetic || row.SurfaceClass != service.SurfaceProtocol {
 			continue
 		}
-		if row.HandlerAuth != service.HandlerAuthOptionalHTTPSig {
-			t.Errorf("protocol route %q HandlerAuth = %q, want optional HTTP signature", row.ID, row.HandlerAuth)
+		if row.HandlerAuth != service.HandlerAuthRequiredHTTPSig {
+			t.Errorf("protocol route %q HandlerAuth = %q, want required HTTP signature", row.ID, row.HandlerAuth)
 		}
 	}
 }

@@ -63,6 +63,20 @@ const (
 	OutboundAccess        OutboundProtocolKind = "access"
 )
 
+// PeerResolution names which inbound peer resolver an OCM protocol POST route uses.
+type PeerResolution string
+
+const (
+	PeerResolutionNone           PeerResolution = "none"
+	PeerResolutionShares         PeerResolution = "shares"
+	PeerResolutionInviteAccepted PeerResolution = "invite-accepted"
+	PeerResolutionToken          PeerResolution = "token"
+	PeerResolutionRequestShare   PeerResolution = "request-share"
+)
+
+// OCMProtocolBodyLimitBytes is the pre-verification request body limit for OCM POST routes.
+const OCMProtocolBodyLimitBytes int64 = 1 << 20
+
 // RouteSpec is a service-owned route policy declaration. Pattern is relative to
 // the service chi router (not the host external_base_path).
 type RouteSpec struct {
@@ -78,6 +92,8 @@ type RouteSpec struct {
 	OutboundProtocolKind OutboundProtocolKind
 	FeatureCondition     FeatureCondition
 	TrustClass           TrustClass
+	BodyLimitBytes       int64
+	PeerResolution       PeerResolution
 }
 
 // RouteOpts carries config-derived values that affect route registration and

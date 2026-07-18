@@ -85,18 +85,16 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 	paths := DiscoveryPaths{}
 
 	rows := service.Routes(opts)
-	for _, row := range rows {
-		if row.ID == service.SubtreeDefaultID("ocm") {
-			if id.Origin != "" {
-				paths.EndPoint = absolutePathFromHostRoot(id.Origin, row.FullPath)
-			}
-			break
-		}
-	}
-
 	inv := service.DerivedRouteInventory(opts)
-	if row, ok := rowByID(inv, service.RouteIDOCMToken); ok && id.Origin != "" {
-		paths.TokenEndPoint = absolutePathFromHostRoot(id.Origin, row.FullPath)
+
+	if id.Origin != "" {
+		for _, row := range rows {
+			if row.ID == service.SubtreeDefaultID("ocm") {
+				paths.EndPoint = absolutePathFromHostRoot(id.Origin, row.FullPath)
+				break
+			}
+		}
+		paths.TokenEndPoint = discoveryPathFromField(inv, "tokenEndPoint", id.Origin)
 	}
 
 	if row, ok := rowByID(inv, service.RouteIDWebDAVOCMWildcard); ok {
@@ -108,6 +106,17 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 	}
 
 	return paths, id.Origin != "" && paths.EndPoint != ""
+}
+
+func discoveryPathFromField(rows []service.RouteRow, field, origin string) string {
+	for _, row := range rows {
+		for _, f := range row.DiscoveryFields {
+			if f == field {
+				return absolutePathFromHostRoot(origin, row.FullPath)
+			}
+		}
+	}
+	return ""
 }
 
 // DeriveDiscoveryPathsFromEndpointBase projects EndPoint and TokenEndPoint from an
@@ -122,12 +131,25 @@ func DeriveDiscoveryPathsFromEndpointBase(endpointBase, ocmPrefix string, opts s
 	}
 
 	paths.EndPoint, _ = url.JoinPath(endpointBase, ocmPrefix)
+
+	tokenSegment := tokenDiscoverySegment(opts)
+	paths.TokenEndPoint, _ = url.JoinPath(endpointBase, ocmPrefix, tokenSegment)
+	return paths
+}
+
+func tokenDiscoverySegment(opts service.RouteOpts) string {
+	for _, row := range service.DerivedRouteInventory(opts) {
+		for _, field := range row.DiscoveryFields {
+			if field == "tokenEndPoint" {
+				return strings.TrimPrefix(row.Pattern, "/")
+			}
+		}
+	}
 	tokenPath := opts.TokenExchangePath
 	if tokenPath == "" {
 		tokenPath = "token"
 	}
-	paths.TokenEndPoint, _ = url.JoinPath(endpointBase, ocmPrefix, tokenPath)
-	return paths
+	return tokenPath
 }
 
 func rowByID(rows []service.RouteRow, id string) (service.RouteRow, bool) {

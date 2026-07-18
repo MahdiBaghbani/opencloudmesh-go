@@ -37,8 +37,39 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 	if requestShare.TrustClass != service.TrustPeerRequired {
 		t.Errorf("request-share trust = %q, want %q", requestShare.TrustClass, service.TrustPeerRequired)
 	}
-	if requestShare.HandlerAuth != service.HandlerAuthOptionalHTTPSig {
-		t.Errorf("request-share handler auth = %q, want %q", requestShare.HandlerAuth, service.HandlerAuthOptionalHTTPSig)
+	if requestShare.HandlerAuth != service.HandlerAuthRequiredHTTPSig {
+		t.Errorf("request-share handler auth = %q, want %q", requestShare.HandlerAuth, service.HandlerAuthRequiredHTTPSig)
+	}
+}
+
+func TestRegisteredRouteSpecs_ProtocolPostInvariants(t *testing.T) {
+	opts := service.DefaultRouteOpts()
+	var postRows []service.RouteSpec
+	for _, spec := range registeredRouteSpecs(opts) {
+		if spec.Service != "ocm" || spec.Method != "POST" ||
+			spec.SurfaceClass != service.SurfaceProtocol {
+			continue
+		}
+		postRows = append(postRows, spec)
+	}
+	if len(postRows) != 5 {
+		t.Fatalf("expected 5 OCM POST protocol route specs, got %d", len(postRows))
+	}
+	for _, spec := range postRows {
+		if spec.HandlerAuth != service.HandlerAuthRequiredHTTPSig {
+			t.Errorf("spec %q handler auth = %q, want %q",
+				spec.ID, spec.HandlerAuth, service.HandlerAuthRequiredHTTPSig)
+		}
+		if spec.BodyLimitBytes != service.OCMProtocolBodyLimitBytes {
+			t.Errorf("spec %q body limit = %d, want %d",
+				spec.ID, spec.BodyLimitBytes, service.OCMProtocolBodyLimitBytes)
+		}
+		if spec.BodyLimitBytes <= 0 {
+			t.Errorf("spec %q body limit = %d, want positive", spec.ID, spec.BodyLimitBytes)
+		}
+		if spec.PeerResolution == "" {
+			t.Errorf("spec %q peer resolution is empty", spec.ID)
+		}
 	}
 }
 

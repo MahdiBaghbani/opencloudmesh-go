@@ -104,19 +104,19 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	peerResolver := peer.NewResolver()
 	r := chi.NewRouter()
 
-	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveSharesRequest)).
-		Post(RouteShares, sharesHandler.CreateShare)
-	// Notifications stay signature-only: no body-declared peer resolver.
-	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignature(nil)).
-		Post(RouteNotifications, notifHandler.HandleNotification)
-	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveInviteAcceptedRequest)).
-		Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
-	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveTokenRequest)).
-		Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
-	// Request-share is a signed, peer-bound placeholder: accept handling is
-	// not implemented, so it always answers with a typed 501.
-	r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveRequestShareRequest)).
-		Post(RouteRequestShare, requestShareNotSupportedHandler)
+	routeOpts := service.RouteOpts{
+		ExternalBasePath:  inputs.LocalIdentity.ExternalBasePath,
+		TokenExchangePath: c.TokenExchange.Path,
+	}
+	if err := mountProtocolRoutes(r, routeOpts, inputs, routeHandlers{
+		shares:         sharesHandler.CreateShare,
+		notifications:  notifHandler.HandleNotification,
+		inviteAccepted: invitesHandler.HandleInviteAccepted,
+		token:          tokenHandler.HandleToken,
+		requestShare:   requestShareNotSupportedHandler,
+	}, peerResolver); err != nil {
+		return nil, err
+	}
 
 	return &Service{
 		router: r,

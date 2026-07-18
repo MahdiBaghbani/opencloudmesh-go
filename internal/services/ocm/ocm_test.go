@@ -195,7 +195,9 @@ func expectedOCMPostPaths(t *testing.T) []string {
 
 	paths := []string{
 		"/ocm" + RouteShares,
+		"/ocm" + RouteNotifications,
 		"/ocm" + RouteInviteAccepted,
+		"/ocm" + RouteRequestShare,
 		tokenPath,
 	}
 	slices.Sort(paths)
@@ -229,6 +231,8 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 			switch mountedPath {
 			case "/ocm" + RouteInviteAccepted:
 				body = []byte(`{"recipientProvider":"remote.example","token":"invite-token","userID":"user-1","email":"user@remote.example","name":"Remote User"}`)
+			case "/ocm" + RouteRequestShare:
+				body = []byte(`{"owner":"alice@owner.example","shareWith":"bob@remote.example","share":"1"}`)
 			case "/ocm" + RouteShares:
 			default:
 				contentType = "application/x-www-form-urlencoded"
