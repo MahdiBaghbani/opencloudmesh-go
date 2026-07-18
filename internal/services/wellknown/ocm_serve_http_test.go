@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
@@ -15,8 +16,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 		Endpoint: "https://example.com",
 		Provider: "TestProvider",
 	}
-	c.TokenExchange.Enabled = true
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -7,13 +7,11 @@ import (
 
 // TokenExchangeSettings holds token exchange config. Implements cfg.Setter for ApplyDefaults().
 type TokenExchangeSettings struct {
-	Enabled bool   `mapstructure:"enabled"`
-	Path    string `mapstructure:"path"`
+	Path string `mapstructure:"path"`
 }
 
 // ApplyDefaults sets default values. Called by cfg.Decode().
 func (s *TokenExchangeSettings) ApplyDefaults() {
-	// Enabled defaults come from config preset; bool zero value cannot distinguish unset vs false.
 	if s.Path == "" {
 		s.Path = "token"
 	}

@@ -35,16 +35,15 @@ type LoaderOptions struct {
 
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
-	ListenAddr           *string
-	PublicOrigin         *string
-	ExternalBasePath     *string
-	CompatibilityScope   *string
-	AdminUsername        *string
-	AdminPassword        *string
-	LoggingLevel         *string
-	TokenExchangeEnabled *string // "true", "false", or "" (unset)
-	TokenExchangePath    *string
-	PeerPolicy           *string
+	ListenAddr         *string
+	PublicOrigin       *string
+	ExternalBasePath   *string
+	CompatibilityScope *string
+	AdminUsername      *string
+	AdminPassword      *string
+	LoggingLevel       *string
+	TokenExchangePath  *string
+	PeerPolicy         *string
 }
 
 // Load loads configuration with the following precedence:
@@ -373,11 +372,6 @@ func validateEnums(cfg *Config) error {
 				scope,
 			)
 		}
-	}
-
-	// Cross-field: strict peer policy requires token exchange capability
-	if cfg.PeerPolicy == "strict" && !cfg.TokenExchangeEnabled() {
-		return fmt.Errorf("peer_policy=strict requires token_exchange.enabled=true")
 	}
 
 	// compatibility_scope=none is the supervising strictness contract. Reject

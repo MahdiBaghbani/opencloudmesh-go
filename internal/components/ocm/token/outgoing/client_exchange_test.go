@@ -108,9 +108,6 @@ func TestClient_Exchange_Success(t *testing.T) {
 	if result.TokenType != "Bearer" {
 		t.Errorf("expected token_type 'Bearer', got %s", result.TokenType)
 	}
-	if result.QuirkApplied != "" {
-		t.Errorf("expected no quirk applied, got %s", result.QuirkApplied)
-	}
 }
 
 func TestClient_Exchange_RediscoveryFailureIsReturned(t *testing.T) {

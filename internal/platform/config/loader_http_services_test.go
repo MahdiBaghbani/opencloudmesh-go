@@ -20,7 +20,6 @@ endpoint = "https://custom.example.com"
 
 [http.services.ocm]
 [http.services.ocm.token_exchange]
-enabled = true
 path = "auth/token"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {

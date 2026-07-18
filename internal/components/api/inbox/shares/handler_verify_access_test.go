@@ -155,7 +155,6 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(fileContent)),
 			},
 			TokenExchanged: true,
-			MethodUsed:     "bearer",
 		}, nil
 	}}
 	router := newTestRouterWithAccess(repo, nil, ac, userA)
@@ -173,9 +172,6 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 
 	if !resp.OK {
 		t.Error("expected ok=true")
-	}
-	if resp.MethodUsed != "bearer" {
-		t.Errorf("expected methodUsed bearer, got %s", resp.MethodUsed)
 	}
 	if !resp.TokenExchanged {
 		t.Error("expected tokenExchanged=true")
@@ -294,7 +290,6 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 				Header:     http.Header{"Content-Type": []string{"application/octet-stream"}},
 				Body:       io.NopCloser(bytes.NewBufferString(bigBody)),
 			},
-			MethodUsed: "bearer",
 		}, nil
 	}}
 	router := newTestRouterWithAccess(repo, nil, ac, userA)
@@ -334,7 +329,6 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 				Header:     http.Header{"Content-Type": []string{"text/plain"}},
 				Body:       io.NopCloser(bytes.NewBufferString("access denied")),
 			},
-			MethodUsed: "bearer",
 		}, nil
 	}}
 	router := newTestRouterWithAccess(repo, nil, ac, userA)

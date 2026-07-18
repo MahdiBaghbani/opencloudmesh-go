@@ -45,10 +45,9 @@ type ExchangeRequest struct {
 
 // ExchangeResult holds the exchange result.
 type ExchangeResult struct {
-	AccessToken  string
-	TokenType    string
-	ExpiresIn    int
-	QuirkApplied string // deprecated; strict contract never applies quirks
+	AccessToken string
+	TokenType   string
+	ExpiresIn   int
 }
 
 // NewClient builds a token exchange client. Panics if discoveryClient is nil.

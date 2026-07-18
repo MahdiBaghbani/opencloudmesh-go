@@ -73,28 +73,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, authMethod := h.validateCredential(r.Context(), share, cred.Token)
+	authorized := h.validateCredential(r.Context(), share, cred.Token)
 	if !authorized {
 		h.logger.Debug("WebDAV invalid credentials", "webdav_id", webdavID)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="OCM WebDAV"`)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
-	h.logger.Debug("WebDAV authorized", "webdav_id", webdavID, "auth_method", authMethod)
+	h.logger.Debug("WebDAV authorized", "webdav_id", webdavID)
 
 	h.serveFile(w, r, share)
 }
 
 // validateCredential validates the token via the token store.
-func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.OutgoingShare, token string) (bool, string) {
+func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.OutgoingShare, token string) bool {
 	if h.tokenStore == nil {
-		return false, ""
+		return false
 	}
 	issuedToken, err := h.tokenStore.Get(ctx, token)
 	if err != nil || issuedToken == nil || issuedToken.ShareID != share.ShareID {
-		return false, ""
+		return false
 	}
-	return true, "exchanged_token"
+	return true
 }
 
 // serveFile serves share.LocalPath via WebDAV.

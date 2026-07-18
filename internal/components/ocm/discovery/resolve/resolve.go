@@ -24,8 +24,7 @@ type ProviderConfig struct {
 	WebDAVRoot string `mapstructure:"webdav_root"` // WebDAV path
 
 	TokenExchange struct {
-		Enabled bool   `mapstructure:"enabled"`
-		Path    string `mapstructure:"path"`
+		Path string `mapstructure:"path"`
 	} `mapstructure:"token_exchange"`
 
 	// Invite accept dialog URL (absolute) for invite-accept UI
@@ -137,8 +136,6 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			strict:                 ev.RequiresTokenExchange,
 			requiresHTTPSignatures: ev.RequiresHTTPRequestSignatures,
 		}
-	} else {
-		localEval = localEvaluation{codeFlow: c.TokenExchange.Enabled}
 	}
 
 	return BuildInputs{

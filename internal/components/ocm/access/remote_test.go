@@ -153,11 +153,10 @@ func TestBuildWebDAVURL_AbsoluteURIMatchingHost(t *testing.T) {
 	client := NewClient(ctxClient, discClient, nil, peerorigin.NewResolver(true))
 
 	share := &ShareInfo{
-		Status:            "accepted",
-		SenderHost:        "sender.example.com",
-		SharedSecret:      "secret",
-		WebDAVID:          "https://sender.example.com/remote.php/webdav/file.txt",
-		MustExchangeToken: false,
+		Status:       "accepted",
+		SenderHost:   "sender.example.com",
+		SharedSecret: "secret",
+		WebDAVID:     "https://sender.example.com/remote.php/webdav/file.txt",
 	}
 	got, err := client.buildWebDAVURL(context.Background(), share, "")
 	if err != nil {
@@ -178,11 +177,10 @@ func TestBuildWebDAVURL_AbsoluteURIMismatchedHost(t *testing.T) {
 	senderHost := discServer.Listener.Addr().String()
 
 	share := &ShareInfo{
-		Status:            "accepted",
-		SenderHost:        senderHost,
-		SharedSecret:      "secret",
-		WebDAVID:          "https://evil.example.com/webdav/file.txt",
-		MustExchangeToken: false,
+		Status:       "accepted",
+		SenderHost:   senderHost,
+		SharedSecret: "secret",
+		WebDAVID:     "https://evil.example.com/webdav/file.txt",
 	}
 	got, err := client.buildWebDAVURL(context.Background(), share, "")
 	if err != nil {
@@ -213,11 +211,10 @@ func TestBuildWebDAVURL_AbsoluteURIParseError(t *testing.T) {
 	senderHost := discServer.Listener.Addr().String()
 
 	share := &ShareInfo{
-		Status:            "accepted",
-		SenderHost:        senderHost,
-		SharedSecret:      "secret",
-		WebDAVID:          "://not-a-valid-url",
-		MustExchangeToken: false,
+		Status:       "accepted",
+		SenderHost:   senderHost,
+		SharedSecret: "secret",
+		WebDAVID:     "://not-a-valid-url",
 	}
 
 	got, err := client.buildWebDAVURL(context.Background(), share, "")
@@ -287,9 +284,6 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 
 	if !result.TokenExchanged {
 		t.Error("expected TokenExchanged=true")
-	}
-	if result.MethodUsed != "bearer" {
-		t.Errorf("MethodUsed = %q, want %q", result.MethodUsed, "bearer")
 	}
 	if result.Response.StatusCode != http.StatusOK {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)
@@ -398,9 +392,6 @@ func TestAccess_Bearer401ReturnedAsIs(t *testing.T) {
 	if result.Response.StatusCode != http.StatusUnauthorized {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusUnauthorized)
 	}
-	if result.MethodUsed != "bearer" {
-		t.Errorf("MethodUsed = %q, want %q", result.MethodUsed, "bearer")
-	}
 	if got := requestCount.Load(); got != 1 {
 		t.Errorf("request count = %d, want 1 (no Basic retry)", got)
 	}
@@ -441,9 +432,6 @@ func TestAccess_Bearer403ReturnedAsIs(t *testing.T) {
 
 	if result.Response.StatusCode != http.StatusForbidden {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusForbidden)
-	}
-	if result.MethodUsed != "bearer" {
-		t.Errorf("MethodUsed = %q, want %q", result.MethodUsed, "bearer")
 	}
 	if got := webdavRequestCount.Load(); got != 1 {
 		t.Errorf("webdav request count = %d, want 1 (no credential retry)", got)
@@ -527,12 +515,11 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 
 	result, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{
-			Status:            "accepted",
-			SenderHost:        "sender.example.com",
-			OwnerHost:         srv.URL,
-			SharedSecret:      "secret",
-			WebDAVID:          "file-123",
-			MustExchangeToken: true,
+			Status:       "accepted",
+			SenderHost:   "sender.example.com",
+			OwnerHost:    srv.URL,
+			SharedSecret: "secret",
+			WebDAVID:     "file-123",
 		},
 		Method: "GET",
 	})
@@ -546,8 +533,5 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	}
 	if result.Response.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", result.Response.StatusCode)
-	}
-	if result.MethodUsed != "bearer" {
-		t.Errorf("MethodUsed = %q, want bearer", result.MethodUsed)
 	}
 }

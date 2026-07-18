@@ -37,7 +37,6 @@ func presetForMode(mode Mode) *Config {
 
 // StrictConfig returns production-safe strict defaults.
 func StrictConfig() *Config {
-	tokenExchangeEnabled := true
 	cfg := &Config{
 		Mode:               string(ModeStrict),
 		CompatibilityScope: "none",
@@ -69,8 +68,7 @@ func StrictConfig() *Config {
 			Level: "info",
 		},
 		TokenExchange: TokenExchangeConfig{
-			Enabled: &tokenExchangeEnabled,
-			Path:    "token",
+			Path: "token",
 		},
 		PeerPolicy: "strict",
 		Persistence: PersistenceConfig{
@@ -85,9 +83,7 @@ func StrictConfig() *Config {
 }
 
 // DevConfig returns development mode defaults as an overlay on StrictConfig,
-// so the strict preset stays the single source of shared defaults. Each call
-// builds a fresh StrictConfig, so the token-exchange enabled pointer is unique
-// per DevConfig call and is not aliased across separate preset calls.
+// so the strict preset stays the single source of shared defaults.
 //
 // DevConfig is bounded scoped governance with a strict global OCM posture.
 // Only dev-only transport and operational settings differ (TLS off, SSRF off,

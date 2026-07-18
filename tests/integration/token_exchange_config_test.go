@@ -36,12 +36,10 @@ func TestTokenExchangeWithPerServiceConfig(t *testing.T) {
 provider = "TestProvider"
 
 [http.services.wellknown.ocmprovider.token_exchange]
-enabled = true
 path = "auth/exchange"
 
 [http.services.ocm]
 [http.services.ocm.token_exchange]
-enabled = true
 path = "auth/exchange"
 `,
 	})
@@ -130,11 +128,9 @@ func TestTokenExchangeNestedPath(t *testing.T) {
 		ExtraConfig: `
 # Override per-service config for nested path
 [http.services.wellknown.ocmprovider.token_exchange]
-enabled = true
 path = "token/v2"
 
 [http.services.ocm.token_exchange]
-enabled = true
 path = "token/v2"
 `,
 	})

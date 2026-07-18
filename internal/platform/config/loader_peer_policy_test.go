@@ -18,9 +18,6 @@ func TestLoad_PeerPolicy_ValidValues(t *testing.T) {
 			tomlContent := `
 mode = "dev"
 peer_policy = "` + policy + `"
-
-[token_exchange]
-enabled = true
 `
 			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
@@ -77,30 +74,6 @@ non_strict_peer_outbound_policy = "prefer-strict"
 	}
 	if !strings.Contains(err.Error(), "non_strict_peer_outbound_policy") {
 		t.Errorf("expected error mentioning non_strict_peer_outbound_policy, got: %v", err)
-	}
-}
-
-func TestLoad_CrossField_StrictPeerPolicyRequiresTokenExchange(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
-mode = "strict"
-peer_policy = "strict"
-
-[token_exchange]
-enabled = false
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for strict peer policy without token exchange")
-	}
-	if !strings.Contains(err.Error(), "peer_policy=strict requires token_exchange.enabled=true") {
-		t.Errorf("unexpected error: %v", err)
 	}
 }
 

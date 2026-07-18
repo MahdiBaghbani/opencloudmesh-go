@@ -9,41 +9,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-func TestNewOCMHandler_TokenExchangeDisabled(t *testing.T) {
-	c := &OCMProviderConfig{
-		Endpoint: "https://example.com",
-	}
-	c.TokenExchange.Enabled = false
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Token exchange should NOT be in capabilities
-	for _, cap := range h.data.Capabilities {
-		if cap == "exchange-token" {
-			t.Error("expected 'exchange-token' to NOT be in capabilities when disabled")
-		}
-	}
-
-	// tokenEndPoint should be empty
-	if h.data.TokenEndPoint != "" {
-		t.Errorf("expected empty tokenEndPoint, got %q", h.data.TokenEndPoint)
-	}
-}
-
-func TestNewOCMHandler_TokenExchangeEnabled(t *testing.T) {
+func TestNewOCMHandler_TokenExchangePath(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "https://example.com/app",
 	}
-	c.TokenExchange.Enabled = true
 	c.TokenExchange.Path = "exchange"
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Token exchange should be in capabilities
 	found := false
 	for _, cap := range h.data.Capabilities {
 		if cap == "exchange-token" {
@@ -55,7 +30,6 @@ func TestNewOCMHandler_TokenExchangeEnabled(t *testing.T) {
 		t.Error("expected 'exchange-token' in capabilities")
 	}
 
-	// tokenEndPoint should be set
 	expected := "https://example.com/app/ocm/exchange"
 	if h.data.TokenEndPoint != expected {
 		t.Errorf("expected tokenEndPoint %q, got %q", expected, h.data.TokenEndPoint)
@@ -66,9 +40,7 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 	c := &OCMProviderConfig{
 		Endpoint: "https://example.com",
 	}
-	c.TokenExchange.Enabled = true
-	// Path is empty; handler code falls back to "token"
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
+	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -82,7 +54,6 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
 	t.Run("code-flow TokenExchangeCapable=true adds exchange-token", func(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
 		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 		if err != nil {
@@ -108,7 +79,6 @@ func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
 func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("RequiresTokenExchange=true adds token-exchange criteria", func(t *testing.T) {
 		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		c.TokenExchange.Enabled = true
 		c.TokenExchange.Path = "token"
 		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
 		if err != nil {
@@ -147,52 +117,6 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 		}
 		if len(criteriaSlice) != 0 {
 			t.Errorf("expected empty criteria array, got %v", criteriaSlice)
-		}
-	})
-
-	t.Run("per-service token_exchange override keeps code-flow strictness", func(t *testing.T) {
-		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		raw := map[string]any{
-			"token_exchange": map[string]any{
-				"enabled": true,
-			},
-		}
-
-		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if !h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
-			t.Error("expected must-exchange-token criteria to follow code-flow strictness even with per-service override")
-		}
-	})
-
-	t.Run("per-service override cannot diverge code-flow capability", func(t *testing.T) {
-		c := &OCMProviderConfig{Endpoint: "https://example.com"}
-		raw := map[string]any{
-			"token_exchange": map[string]any{
-				"enabled": false,
-			},
-		}
-
-		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		foundCapability := false
-		for _, cap := range h.data.Capabilities {
-			if cap == "exchange-token" {
-				foundCapability = true
-				break
-			}
-		}
-		if !foundCapability {
-			t.Fatal("expected exchange-token capability to follow code-flow despite per-service override")
-		}
-		if h.data.TokenEndPoint == "" {
-			t.Fatal("expected tokenEndPoint to be present when exchange-token is advertised")
 		}
 	})
 

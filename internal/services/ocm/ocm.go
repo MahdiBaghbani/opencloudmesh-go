@@ -54,9 +54,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		log.Warn("unused config keys", "service", "ocm", "unused_keys", unused)
 	}
 
-	if inputs.CodeFlow != nil {
-		c.TokenExchange.Enabled = inputs.CodeFlow.Evaluate().TokenExchangeCapable
-	}
 	var rawTE map[string]any
 	if te, ok := m["token_exchange"].(map[string]any); ok {
 		rawTE = te
@@ -96,6 +93,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.OutgoingShareRepo,
 		inputs.TokenStore,
 		&c.TokenExchange,
+		inputs.CodeFlow,
 		inputs.LocalIdentity.Origin,
 		log,
 	)

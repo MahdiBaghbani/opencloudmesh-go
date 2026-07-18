@@ -142,12 +142,9 @@ func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
 
 	handler := NewHandler(repo, tokenStore, nil)
 
-	authorized, method := handler.validateCredential(ctx, share, "exchanged-token-123")
+	authorized := handler.validateCredential(ctx, share, "exchanged-token-123")
 	if !authorized {
 		t.Error("expected authorization to succeed with valid exchanged token")
-	}
-	if method != "exchanged_token" {
-		t.Errorf("expected method 'exchanged_token', got %q", method)
 	}
 }
 
@@ -158,7 +155,7 @@ func TestValidateCredential_RejectsSharedSecret(t *testing.T) {
 
 	handler := NewHandler(repo, tokenStore, nil)
 
-	authorized, _ := handler.validateCredential(context.Background(), share, share.SharedSecret)
+	authorized := handler.validateCredential(context.Background(), share, share.SharedSecret)
 	if authorized {
 		t.Error("expected shared-secret authorization to fail")
 	}
@@ -174,7 +171,7 @@ func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
 
 	handler := NewHandler(repo, tokenStore, nil)
 
-	authorized, _ := handler.validateCredential(ctx, share, "bound-to-other-share")
+	authorized := handler.validateCredential(ctx, share, "bound-to-other-share")
 	if authorized {
 		t.Error("expected authorization to fail for wrong share binding")
 	}
@@ -187,7 +184,7 @@ func TestValidateCredential_RejectsUnknownToken(t *testing.T) {
 
 	handler := NewHandler(repo, tokenStore, nil)
 
-	authorized, _ := handler.validateCredential(context.Background(), share, "unknown-token")
+	authorized := handler.validateCredential(context.Background(), share, "unknown-token")
 	if authorized {
 		t.Error("expected authorization to fail for unknown token")
 	}
@@ -221,6 +218,17 @@ func TestExtractCredential_RejectsDigest(t *testing.T) {
 	}
 }
 
+func assertBearerWWWAuthenticate(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	challenge := w.Header().Get("WWW-Authenticate")
+	if challenge != `Bearer realm="OCM WebDAV"` {
+		t.Errorf("WWW-Authenticate = %q, want Bearer-only challenge", challenge)
+	}
+	if strings.Contains(challenge, "Basic") {
+		t.Errorf("WWW-Authenticate must not advertise Basic, got %q", challenge)
+	}
+}
+
 func TestServeHTTP_MissingAuthBearerOnlyChallenge(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	_ = seedShare(repo, "share-1")
@@ -233,13 +241,7 @@ func TestServeHTTP_MissingAuthBearerOnlyChallenge(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
-	challenge := w.Header().Get("WWW-Authenticate")
-	if challenge != `Bearer realm="OCM WebDAV"` {
-		t.Errorf("WWW-Authenticate = %q, want Bearer-only challenge", challenge)
-	}
-	if strings.Contains(challenge, "Basic") {
-		t.Errorf("WWW-Authenticate must not advertise Basic, got %q", challenge)
-	}
+	assertBearerWWWAuthenticate(t, w)
 }
 
 func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
@@ -281,6 +283,7 @@ func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
+	assertBearerWWWAuthenticate(t, w)
 }
 
 func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
@@ -302,6 +305,7 @@ func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for expired token, got %d", w.Code)
 	}
+	assertBearerWWWAuthenticate(t, w)
 }
 
 func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
@@ -319,4 +323,5 @@ func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for Basic auth, got %d", w.Code)
 	}
+	assertBearerWWWAuthenticate(t, w)
 }

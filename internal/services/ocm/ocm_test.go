@@ -747,12 +747,10 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 }
 
 func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
-	tokenExchangeEnabled := true
 	cfg := &config.Config{
 		PublicOrigin: "https://example.com",
 		TokenExchange: config.TokenExchangeConfig{
-			Enabled: &tokenExchangeEnabled,
-			Path:    "token",
+			Path: "token",
 		},
 	}
 	in := testInputs(cfg)
@@ -778,12 +776,10 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 }
 
 func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
-	tokenExchangeEnabled := true
 	cfg := &config.Config{
 		PublicOrigin: "https://example.com",
 		TokenExchange: config.TokenExchangeConfig{
-			Enabled: &tokenExchangeEnabled,
-			Path:    "token",
+			Path: "token",
 		},
 	}
 	id := tslocalid.MustTestIdentity(t, cfg.PublicOrigin, cfg.ExternalBasePath)

@@ -137,7 +137,6 @@ type InboxListResponse struct {
 // VerifyAccessResponse is the body of the verify-access endpoint.
 type VerifyAccessResponse struct {
 	OK                      bool   `json:"ok"`
-	MethodUsed              string `json:"methodUsed,omitempty"`
 	TokenExchanged          bool   `json:"tokenExchanged,omitempty"`
 	HTTPStatus              int    `json:"httpStatus,omitempty"`
 	ContentType             string `json:"contentType,omitempty"`
@@ -394,13 +393,11 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shareInfo := access.ShareInfo{
-		Status:                string(share.Status),
-		SenderHost:            share.SenderHost,
-		OwnerHost:             share.OwnerHost,
-		SharedSecret:          share.SharedSecret,
-		WebDAVID:              share.WebDAVID,
-		MustExchangeToken:     share.MustExchangeToken,
-		SenderExchangeCapable: share.SenderExchangeCapable,
+		Status:       string(share.Status),
+		SenderHost:   share.SenderHost,
+		OwnerHost:    share.OwnerHost,
+		SharedSecret: share.SharedSecret,
+		WebDAVID:     share.WebDAVID,
 	}
 
 	result, err := h.accessClient.Access(ctx, access.AccessOptions{
@@ -428,7 +425,6 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:                      true,
-		MethodUsed:              result.MethodUsed,
 		TokenExchanged:          result.TokenExchanged,
 		HTTPStatus:              result.Response.StatusCode,
 		ContentType:             result.Response.Header.Get("Content-Type"),

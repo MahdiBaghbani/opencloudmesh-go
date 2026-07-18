@@ -229,9 +229,6 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.PeerPolicy != "strict" {
 		t.Errorf("expected peer_policy strict in strict config, got %q", cfg.PeerPolicy)
 	}
-	if !cfg.TokenExchangeEnabled() {
-		t.Error("expected token exchange enabled in strict config")
-	}
 }
 
 func TestDevConfig(t *testing.T) {
@@ -254,9 +251,6 @@ func TestDevConfig(t *testing.T) {
 	}
 	if cfg.PeerPolicy != "strict" {
 		t.Errorf("expected peer_policy strict in dev, got %q", cfg.PeerPolicy)
-	}
-	if !cfg.TokenExchangeEnabled() {
-		t.Error("expected token exchange enabled in dev")
 	}
 }
 
@@ -318,21 +312,5 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 
 	if got := strings.Join(dev.Server.TrustedProxies, ","); got != strings.Join(strict.Server.TrustedProxies, ",") {
 		t.Errorf("dev TrustedProxies = %v, want strict value %v", dev.Server.TrustedProxies, strict.Server.TrustedProxies)
-	}
-
-	if dev.TokenExchange.Enabled == nil || !*dev.TokenExchange.Enabled {
-		t.Fatal("expected dev token_exchange.enabled pointer to be non-nil true")
-	}
-
-	if dev.TokenExchange.Enabled == strict.TokenExchange.Enabled {
-		t.Error("dev and strict share the same token_exchange.enabled pointer")
-	}
-	dev2 := DevConfig()
-	if dev.TokenExchange.Enabled == dev2.TokenExchange.Enabled {
-		t.Error("two DevConfig calls share the same token_exchange.enabled pointer")
-	}
-	*dev.TokenExchange.Enabled = false
-	if dev2.TokenExchange.Enabled == nil || !*dev2.TokenExchange.Enabled {
-		t.Error("mutating one DevConfig token_exchange.enabled affected another")
 	}
 }

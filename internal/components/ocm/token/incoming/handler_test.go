@@ -13,23 +13,28 @@ import (
 	"testing"
 
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 )
 
-// enabledSettings returns token exchange settings with enabled=true for testing.
+// enabledSettings returns token exchange path settings for testing.
 func enabledSettings() *tokenincoming.TokenExchangeSettings {
-	s := &tokenincoming.TokenExchangeSettings{Enabled: true}
+	s := &tokenincoming.TokenExchangeSettings{}
 	s.ApplyDefaults()
 	return s
+}
+
+func enabledCodeFlow() *policy.CodeFlow {
+	return policy.NewCodeFlow()
 }
 
 func TestHandler_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -95,7 +100,7 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-ac",
@@ -137,7 +142,7 @@ func TestHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	tests := []struct {
 		name string
@@ -173,7 +178,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "password")
@@ -203,7 +208,7 @@ func TestHandler_OCMShareGrant_Rejected(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "ocm_share")
@@ -232,7 +237,7 @@ func TestHandler_JSONBody_Rejected(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	body := `{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"secret-code"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
@@ -256,10 +261,10 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	tests := []struct {
-		name              string
-		contentType       string
-		omitContentType   bool
-		wantStatus        int
+		name               string
+		contentType        string
+		omitContentType    bool
+		wantStatus         int
 		wantInvalidRequest bool
 	}{
 		{
@@ -318,7 +323,7 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 			tokenStore := token.NewMemoryTokenStore()
-			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 			sharedSecret := "content-type-secret-" + tt.name
 			if tt.wantStatus == http.StatusOK {
@@ -379,7 +384,7 @@ func TestHandler_InvalidCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -407,7 +412,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -540,7 +545,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), tt.publicOrigin, logger)
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), tt.publicOrigin, logger)
 
 			share := &sharesoutgoing.OutgoingShare{
 				ProviderID:   "provider-port-test",
@@ -585,7 +590,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-empty-origin",
@@ -617,10 +622,10 @@ func TestHandler_DisabledReturns501(t *testing.T) {
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
-	// Create handler with token exchange disabled
-	disabledSettings := &tokenincoming.TokenExchangeSettings{Enabled: false}
+	// Create handler without code-flow capability.
+	disabledSettings := &tokenincoming.TokenExchangeSettings{}
 	disabledSettings.ApplyDefaults()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, disabledSettings, "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, disabledSettings, nil, "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "ocm_share")
@@ -651,7 +656,7 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-match",
@@ -687,7 +692,7 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-mismatch",

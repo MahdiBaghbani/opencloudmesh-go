@@ -73,8 +73,7 @@ type loggingConfig struct {
 
 // tokenExchangeConfig holds token exchange settings from TOML.
 type tokenExchangeConfig struct {
-	Enabled *bool  `toml:"enabled"`
-	Path    string `toml:"path"`
+	Path string `toml:"path"`
 }
 
 // cacheConfig holds cache settings from TOML.
@@ -297,9 +296,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 
 	if fc.TokenExchange != nil {
-		if fc.TokenExchange.Enabled != nil {
-			cfg.TokenExchange.Enabled = fc.TokenExchange.Enabled
-		}
 		if fc.TokenExchange.Path != "" {
 			cfg.TokenExchange.Path = fc.TokenExchange.Path
 		}
@@ -366,11 +362,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.LoggingLevel != nil && *f.LoggingLevel != "" {
 		cfg.Logging.Level = *f.LoggingLevel
-	}
-	if f.TokenExchangeEnabled != nil && *f.TokenExchangeEnabled != "" {
-		// Parse "true" or "false" string (only apply when explicitly set)
-		enabled := *f.TokenExchangeEnabled == "true"
-		cfg.TokenExchange.Enabled = &enabled
 	}
 	if f.TokenExchangePath != nil && *f.TokenExchangePath != "" {
 		cfg.TokenExchange.Path = *f.TokenExchangePath

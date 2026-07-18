@@ -26,9 +26,6 @@ func TestHandleCreate_StrictRejectsCapableNonStrictPeer_NoSend(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 	cfg.PeerPolicy = "strict"
-	enabled := true
-	cfg.TokenExchange.Enabled = &enabled
-
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
 		repo, discClient, policy.NewCodeFlow(), cfg.PeerPolicy, ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
@@ -130,9 +127,6 @@ func TestHandleCreate_StrictRejectsMalformedStrictPeer_NoSend(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 	cfg.PeerPolicy = "strict"
-	enabled := true
-	cfg.TokenExchange.Enabled = &enabled
-
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
 		repo, discClient, policy.NewCodeFlow(), cfg.PeerPolicy, ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
@@ -176,8 +170,6 @@ func TestHandleCreate_MalformedCapablePeerDegradesToLegacy(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 	cfg.PeerPolicy = "prefer-strict"
-	enabled := true
-	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
 		repo, discClient, policy.NewCodeFlow(), cfg.PeerPolicy, ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
@@ -224,8 +216,6 @@ func TestHandleCreate_SuccessStoresSentRowAndFederatedIDs(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 	cfg.PeerPolicy = "prefer-strict"
-	enabled := true
-	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
 		repo, discClient, policy.NewCodeFlow(), cfg.PeerPolicy, ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
@@ -282,8 +272,6 @@ func TestHandleCreate_SendReusesPreflightDiscovery(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 	cfg.PeerPolicy = "legacy"
-	enabled := true
-	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeNoCacheTLSClients()
 	handler := outgoingshares.NewHandler(
 		repo, discClient, policy.NewCodeFlow(), cfg.PeerPolicy, ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
@@ -386,8 +374,6 @@ func TestHandleCreate_NonStrictPolicyMatrix(t *testing.T) {
 			repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 			cfg := config.DevConfig()
 			cfg.PeerPolicy = c.policy
-			enabled := true
-			cfg.TokenExchange.Enabled = &enabled
 			discClient, ctxClient := makeTLSClients()
 			handler := outgoingshares.NewHandler(
 				repo, discClient, policy.NewCodeFlow(), cfg.PeerPolicy, ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
@@ -440,9 +426,6 @@ func TestHandleCreate_CanonicalStrictPeerRequiresExchangeWhenCodeFlowEnabled(t *
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 	cfg.PeerPolicy = "legacy"
-	enabled := true
-	cfg.TokenExchange.Enabled = &enabled
-
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
 		repo, discClient, policy.NewCodeFlow(), cfg.PeerPolicy, ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),
@@ -492,8 +475,6 @@ func TestHandleCreate_EmitsWebDAVProtocolName(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	cfg := config.DevConfig()
 	cfg.PeerPolicy = "legacy"
-	enabled := true
-	cfg.TokenExchange.Enabled = &enabled
 	discClient, ctxClient := makeTLSClients()
 	handler := outgoingshares.NewHandler(
 		repo, discClient, policy.NewCodeFlow(), cfg.PeerPolicy, ctxClient, makeTestSigner(t), makeTestOutboundPolicy(cfg),

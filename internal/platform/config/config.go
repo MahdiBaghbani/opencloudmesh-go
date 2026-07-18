@@ -119,11 +119,6 @@ type LoggingConfig struct {
 
 // TokenExchangeConfig holds token exchange settings.
 type TokenExchangeConfig struct {
-	// Enabled controls whether token exchange is enabled.
-	// Pointer for presence detection; nil = use preset default.
-	// Default: preset-driven. Strict and dev enable it.
-	Enabled *bool `toml:"enabled"`
-
 	// Path is the token exchange endpoint path (relative to /ocm/).
 	// Default: "token"
 	Path string `toml:"path"`
@@ -420,12 +415,6 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 	return result
 }
 
-// TokenExchangeEnabled returns whether token exchange is enabled.
-// Safe for nil pointer on the *bool field.
-func (c *Config) TokenExchangeEnabled() bool {
-	return c.TokenExchange.Enabled != nil && *c.TokenExchange.Enabled
-}
-
 // Redacted returns a string representation of the config with secrets redacted.
 func (c *Config) Redacted() string {
 	var sb strings.Builder
@@ -484,11 +473,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    Level: %q,\n", c.Logging.Level))
 	sb.WriteString("  },\n")
 	sb.WriteString("  TokenExchange: {\n")
-	enabledStr := "<nil>"
-	if c.TokenExchange.Enabled != nil {
-		enabledStr = fmt.Sprintf("%v", *c.TokenExchange.Enabled)
-	}
-	sb.WriteString(fmt.Sprintf("    Enabled: %s,\n", enabledStr))
 	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
 	sb.WriteString("  },\n")
 	sb.WriteString(fmt.Sprintf("  PeerPolicy: %q,\n", c.PeerPolicy))

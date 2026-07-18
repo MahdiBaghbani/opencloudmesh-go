@@ -51,9 +51,6 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode, scope strin
 	if cfg.Signature.KidFragment != config.DefaultSignatureKidFragment {
 		t.Errorf("signature key fragment = %q, want %q", cfg.Signature.KidFragment, config.DefaultSignatureKidFragment)
 	}
-	if cfg.TokenExchange.Enabled == nil || !*cfg.TokenExchange.Enabled {
-		t.Fatal("token exchange must be enabled")
-	}
 	if cfg.TokenExchange.Path != "token" {
 		t.Errorf("token exchange path = %q, want token", cfg.TokenExchange.Path)
 	}

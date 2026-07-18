@@ -119,9 +119,6 @@ func TestLoad_StrictMode_WithHardenedDefaults_Succeeds(t *testing.T) {
 	if cfg.PeerPolicy != "strict" {
 		t.Errorf("expected peer_policy strict, got %q", cfg.PeerPolicy)
 	}
-	if !cfg.TokenExchangeEnabled() {
-		t.Error("expected token exchange enabled")
-	}
 }
 
 func TestLoad_NoneScope_PeerProfileMappingsRejected(t *testing.T) {

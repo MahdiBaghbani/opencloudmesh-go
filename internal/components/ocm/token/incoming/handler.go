@@ -8,6 +8,7 @@ import (
 	"time"
 
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
@@ -22,13 +23,14 @@ type Handler struct {
 	tokenStore   token.TokenStore
 	tokenTTL     time.Duration
 	settings     *TokenExchangeSettings
+	codeFlow     *policy.CodeFlow
 	logger       *slog.Logger
 	localScheme  string // "http" or "https", derived from PublicOrigin
 }
 
 // NewHandler builds a token handler. Settings must have ApplyDefaults() called (done by cfg.Decode).
 // publicOrigin is used for scheme-aware client_id comparison (e.g. host vs host:443).
-func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, codeFlow *policy.CodeFlow, publicOrigin string, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 
 	localScheme := config.PublicSchemeFromOrigin(publicOrigin)
@@ -38,6 +40,7 @@ func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenS
 		tokenStore:   tokenStore,
 		tokenTTL:     token.DefaultTokenTTL,
 		settings:     settings,
+		codeFlow:     codeFlow,
 		logger:       logger,
 		localScheme:  localScheme,
 	}
@@ -50,7 +53,8 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.settings == nil || !h.settings.Enabled {
+	capable := h.codeFlow != nil && h.codeFlow.Evaluate().TokenExchangeCapable
+	if h.settings == nil || !capable {
 		h.sendOAuthError(w, http.StatusNotImplemented, "not_implemented", "token exchange is disabled")
 		return
 	}

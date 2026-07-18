@@ -23,8 +23,6 @@ const (
 	ShareStatusAccepted = "accepted"
 )
 
-const methodUsedBearer = "bearer"
-
 var (
 	ErrTokenExchangeRequired = errors.New("token exchange required but not performed")
 	ErrTokenExchangeFailed   = errors.New("token exchange failed")
@@ -34,13 +32,11 @@ var (
 
 // ShareInfo holds the minimal share fields needed for remote access (avoids import cycles).
 type ShareInfo struct {
-	Status                string
-	SenderHost            string
-	OwnerHost             string // resource-hosting server; falls back to SenderHost when empty
-	SharedSecret          string
-	WebDAVID              string
-	MustExchangeToken     bool
-	SenderExchangeCapable bool
+	Status       string
+	SenderHost   string
+	OwnerHost    string // resource-hosting server; falls back to SenderHost when empty
+	SharedSecret string
+	WebDAVID     string
 }
 
 // RemoteAccessor is the interface for remote share access; extracted for mocks.
@@ -85,7 +81,6 @@ type AccessResult struct {
 	Response       *http.Response
 	TokenExchanged bool
 	AccessToken    string
-	MethodUsed     string
 }
 
 // accessHostForDiscovery returns OwnerHost when set, falling back to SenderHost.
@@ -134,7 +129,6 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		Response:       resp,
 		TokenExchanged: true,
 		AccessToken:    accessToken,
-		MethodUsed:     methodUsedBearer,
 	}, nil
 }
 

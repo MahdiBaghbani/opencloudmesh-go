@@ -9,17 +9,11 @@ import (
 
 func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	strictCfg := StrictConfig()
-	if strictCfg.TokenExchange.Enabled == nil || !*strictCfg.TokenExchange.Enabled {
-		t.Error("expected strict mode token_exchange.enabled true")
-	}
 	if strictCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected strict mode token_exchange.path 'token', got %q", strictCfg.TokenExchange.Path)
 	}
 
 	devCfg := DevConfig()
-	if devCfg.TokenExchange.Enabled == nil || !*devCfg.TokenExchange.Enabled {
-		t.Error("expected dev mode token_exchange.enabled true")
-	}
 	if devCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected dev mode token_exchange.path 'token', got %q", devCfg.TokenExchange.Path)
 	}
@@ -34,7 +28,6 @@ mode = "dev"
 peer_policy = "prefer-strict"
 
 [token_exchange]
-enabled = false
 path = "token/v2"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
@@ -46,15 +39,12 @@ path = "token/v2"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.TokenExchange.Enabled == nil || *cfg.TokenExchange.Enabled {
-		t.Error("expected token_exchange.enabled false from TOML")
-	}
 	if cfg.TokenExchange.Path != "token/v2" {
 		t.Errorf("expected token_exchange.path 'token/v2', got %q", cfg.TokenExchange.Path)
 	}
 }
 
-func TestLoad_TokenExchangeConfig_FlagsOverrideTOML(t *testing.T) {
+func TestLoad_TokenExchangeConfig_FlagOverridesTOMLPath(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -62,29 +52,23 @@ func TestLoad_TokenExchangeConfig_FlagsOverrideTOML(t *testing.T) {
 mode = "strict"
 
 [token_exchange]
-enabled = false
 path = "token/v2"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	enabled := "true"
 	path := "exchange"
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
-			TokenExchangeEnabled: &enabled,
-			TokenExchangePath:    &path,
+			TokenExchangePath: &path,
 		},
 	})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.TokenExchange.Enabled == nil || !*cfg.TokenExchange.Enabled {
-		t.Error("expected token_exchange.enabled true from flag")
-	}
 	if cfg.TokenExchange.Path != "exchange" {
 		t.Errorf("expected token_exchange.path 'exchange' from flag, got %q", cfg.TokenExchange.Path)
 	}
@@ -167,15 +151,12 @@ webdav_token_exchange.mode = "strict"
 	}
 }
 
-func TestLoad_TokenExchangeConfig_DefaultEnabledWhenSectionMissing(t *testing.T) {
+func TestLoad_TokenExchangeConfig_DefaultPathWhenSectionMissing(t *testing.T) {
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.TokenExchange.Enabled == nil || !*cfg.TokenExchange.Enabled {
-		t.Error("expected token_exchange.enabled true by default")
-	}
 	if cfg.TokenExchange.Path != "token" {
 		t.Errorf("expected token_exchange.path 'token' by default, got %q", cfg.TokenExchange.Path)
 	}
