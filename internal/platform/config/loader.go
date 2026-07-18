@@ -35,17 +35,16 @@ type LoaderOptions struct {
 
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
-	ListenAddr            *string
-	PublicOrigin          *string
-	ExternalBasePath      *string
-	CompatibilityScope    *string
-	AdminUsername         *string
-	AdminPassword         *string
-	LoggingLevel          *string
-	LoggingAllowSensitive *string // "true", "false", or "" (unset)
-	TokenExchangeEnabled  *string // "true", "false", or "" (unset)
-	TokenExchangePath     *string
-	PeerPolicy            *string
+	ListenAddr           *string
+	PublicOrigin         *string
+	ExternalBasePath     *string
+	CompatibilityScope   *string
+	AdminUsername        *string
+	AdminPassword        *string
+	LoggingLevel         *string
+	TokenExchangeEnabled *string // "true", "false", or "" (unset)
+	TokenExchangePath    *string
+	PeerPolicy           *string
 }
 
 // Load loads configuration with the following precedence:
@@ -120,9 +119,6 @@ func Load(opts LoaderOptions) (*Config, error) {
 	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
 		return nil, err
 	}
-
-	// Populate DerivedSSRFMode from SSRF.Mode for programmatic caller compatibility.
-	cfg.OutboundHTTP.DerivedSSRFMode = cfg.OutboundHTTP.SSRF.Mode
 
 	// Validate tls_dir and derive related TLS paths when set.
 	if md.IsDefined("tls", "tls_dir") && strings.TrimSpace(cfg.TLS.TLSDir) == "" {

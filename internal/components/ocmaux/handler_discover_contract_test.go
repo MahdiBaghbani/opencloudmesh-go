@@ -72,7 +72,6 @@ func TestHandleDiscover_Success(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
@@ -125,7 +124,6 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
@@ -178,7 +176,6 @@ func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 

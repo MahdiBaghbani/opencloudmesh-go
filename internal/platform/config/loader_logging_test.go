@@ -13,17 +13,11 @@ func TestLoggingConfig_DefaultsPerMode(t *testing.T) {
 	if strictCfg.Logging.Level != "info" {
 		t.Errorf("expected strict mode logging.level 'info', got %q", strictCfg.Logging.Level)
 	}
-	if strictCfg.Logging.AllowSensitive {
-		t.Error("expected strict mode logging.allow_sensitive false")
-	}
 
 	// Dev mode defaults to debug level
 	devCfg := DevConfig()
 	if devCfg.Logging.Level != "debug" {
 		t.Errorf("expected dev mode logging.level 'debug', got %q", devCfg.Logging.Level)
-	}
-	if devCfg.Logging.AllowSensitive {
-		t.Error("expected dev mode logging.allow_sensitive false")
 	}
 }
 
@@ -36,7 +30,6 @@ mode = "strict"
 
 [logging]
 level = "warn"
-allow_sensitive = true
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
@@ -50,9 +43,6 @@ allow_sensitive = true
 	if cfg.Logging.Level != "warn" {
 		t.Errorf("expected logging.level 'warn', got %q", cfg.Logging.Level)
 	}
-	if !cfg.Logging.AllowSensitive {
-		t.Error("expected logging.allow_sensitive true from TOML")
-	}
 }
 
 func TestLoad_LoggingConfig_FlagsOverrideTOML(t *testing.T) {
@@ -64,19 +54,16 @@ mode = "strict"
 
 [logging]
 level = "warn"
-allow_sensitive = true
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
 	logLevel := "error"
-	allowSensitive := "false"
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
-			LoggingLevel:          &logLevel,
-			LoggingAllowSensitive: &allowSensitive,
+			LoggingLevel: &logLevel,
 		},
 	})
 	if err != nil {
@@ -85,9 +72,6 @@ allow_sensitive = true
 
 	if cfg.Logging.Level != "error" {
 		t.Errorf("expected logging.level 'error' from flag, got %q", cfg.Logging.Level)
-	}
-	if cfg.Logging.AllowSensitive {
-		t.Error("expected logging.allow_sensitive false from flag")
 	}
 }
 

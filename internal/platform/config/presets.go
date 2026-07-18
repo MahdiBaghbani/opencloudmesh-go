@@ -66,8 +66,7 @@ func StrictConfig() *Config {
 			MembershipCache: DefaultPeerTrustMembershipCache(),
 		},
 		Logging: LoggingConfig{
-			Level:          "info",
-			AllowSensitive: false,
+			Level: "info",
 		},
 		TokenExchange: TokenExchangeConfig{
 			Enabled: &tokenExchangeEnabled,
@@ -103,7 +102,6 @@ func DevConfig() *Config {
 	cfg.TLS.ACME.Directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
 	cfg.TLS.ACME.UseStaging = true
 	cfg.OutboundHTTP.SSRF.Mode = "off"
-	cfg.OutboundHTTP.DerivedSSRFMode = "off"
 	cfg.OutboundHTTP.MaxRedirects = 3
 	cfg.OutboundHTTP.InsecureSkipVerify = true
 	cfg.OutboundHTTP.ProxyEnvFallback = false

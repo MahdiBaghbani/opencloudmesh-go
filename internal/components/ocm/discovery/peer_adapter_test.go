@@ -65,7 +65,7 @@ func TestPeerDiscoveryAdapter_IsSigningCapableFollowsCriteria(t *testing.T) {
 			defer srv.Close()
 
 			outboundCfg := &config.OutboundHTTPConfig{
-				DerivedSSRFMode:    "off",
+				SSRF:               config.SSRFConfig{Mode: "off"},
 				MaxResponseBytes:   1 << 20,
 				InsecureSkipVerify: false,
 			}
@@ -112,7 +112,7 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 	}
 
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
@@ -183,7 +183,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 	keyID = authority + "#ec1"
 
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
@@ -232,7 +232,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	keyID = "https://" + authority + "#key1"
 
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
@@ -278,7 +278,7 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 	keyID := "http://" + authority + "#key1"
 
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
@@ -306,7 +306,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 	peerOrigin := peerorigin.NewResolver(true)
 
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}

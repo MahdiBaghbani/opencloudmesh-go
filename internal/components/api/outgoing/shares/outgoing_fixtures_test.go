@@ -181,7 +181,6 @@ func hasCapability(capabilities []string, capability string) bool {
 
 func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 	cfg := tshttp.PermissiveConfig()
-	cfg.DerivedSSRFMode = "off"
 	cfg.InsecureSkipVerify = true
 	raw := httpclient.New(cfg, nil)
 	return discovery.NewClient(raw, nil), httpclient.NewContextClient(raw)
@@ -191,7 +190,6 @@ func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 // any discovery call reaches the network, letting tests count discovery hits.
 func makeNoCacheTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 	cfg := tshttp.PermissiveConfig()
-	cfg.DerivedSSRFMode = "off"
 	cfg.InsecureSkipVerify = true
 	raw := httpclient.New(cfg, nil)
 	return discovery.NewClient(raw, cache.NewNoopCache()), httpclient.NewContextClient(raw)

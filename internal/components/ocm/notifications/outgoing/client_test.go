@@ -24,7 +24,7 @@ import (
 func newNotificationClients(t *testing.T) (*httpclient.ContextClient, *discovery.Client) {
 	t.Helper()
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		InsecureSkipVerify: true,
 		MaxResponseBytes:   1 << 20,
 	}

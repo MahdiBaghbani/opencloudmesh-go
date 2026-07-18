@@ -17,7 +17,6 @@ import (
 func strictSSRFCfg() *config.Config {
 	cfg := config.DevConfig()
 	cfg.OutboundHTTP.SSRF.Mode = "strict"
-	cfg.OutboundHTTP.DerivedSSRFMode = "strict"
 	return cfg
 }
 

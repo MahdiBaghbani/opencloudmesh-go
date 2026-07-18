@@ -47,7 +47,6 @@ func TestClientDiscover_DeserializesTypedReceiveRoles(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	disc, err := client.Discover(context.Background(), server.URL)
@@ -98,7 +97,6 @@ func TestClientDiscover_NormalizesRelativeInviteAcceptDialog(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	disc, err := client.Discover(context.Background(), server.URL)
@@ -130,7 +128,6 @@ func TestClientDiscover_NormalizesRelativeInviteAcceptDialogWithoutEndPoint(t *t
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	disc, err := client.Discover(context.Background(), server.URL)
@@ -169,7 +166,6 @@ func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginB
 	}
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), c)
 
 	disc, err := client.Discover(context.Background(), baseURL)
@@ -202,7 +198,6 @@ func TestClientDiscover_PreservesAbsoluteInviteAcceptDialog(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	disc, err := client.Discover(context.Background(), server.URL)
@@ -237,7 +232,6 @@ func TestClientDiscover_NoLegacyFallback(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	_, err := client.Discover(context.Background(), server.URL)
@@ -251,8 +245,6 @@ func TestClientDiscover_NoLegacyFallback(t *testing.T) {
 
 func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
-
 	t.Run("not found", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)

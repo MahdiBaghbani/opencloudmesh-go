@@ -30,7 +30,6 @@ The binary entrypoint is `cmd/opencloudmesh-go/main.go`. Notable CLI flags:
 | `-token-exchange-enabled` | Enable token exchange |
 | `-token-exchange-path` | Token exchange path under `/ocm/` |
 | `-logging-level` | `trace`, `debug`, `info`, `warn`, `error` |
-| `-logging-allow-sensitive` | Allow sensitive values in logs |
 | `-admin-username` / `-admin-password` | Bootstrap admin credentials |
 
 Implementation: `internal/platform/config/loader.go` and `presets.go`.
@@ -67,7 +66,7 @@ TOML sections map to `internal/platform/config.Config`:
 | `[signature]` | HTTP signature key, label, timing, and algorithm settings; `allowed_algorithms` gates inbound verify and outbound `SignRequest` (default: ed25519 plus ECDSA P-256/P-384 and RSA PKCS1-v1_5 SHA-256/384/512; JOSE aliases normalize at load) |
 | `[peer_profiles]` | Peer compatibility mappings |
 | `[token_exchange]` | Token exchange endpoint settings |
-| `[logging]` | Log level and sensitivity |
+| `[logging]` | Log level |
 | `[cache]` | Cache driver selection |
 | `[persistence]` | Store backend (memory, json, sqlite, mirror) |
 | `[http]` | Per-service HTTP limits |

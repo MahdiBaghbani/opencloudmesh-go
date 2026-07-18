@@ -115,10 +115,6 @@ type LoggingConfig struct {
 	// Level is the minimum log level: trace, debug, info, warn, error.
 	// Default: info in strict mode, debug in dev mode.
 	Level string `toml:"level"`
-
-	// AllowSensitive permits logging of sensitive values (tokens, secrets).
-	// Default: false. Use only for debugging.
-	AllowSensitive bool `toml:"allow_sensitive"`
 }
 
 // TokenExchangeConfig holds token exchange settings.
@@ -361,11 +357,6 @@ type OutboundHTTPConfig struct {
 	// Configure via [outbound_http.ssrf] in TOML.
 	SSRF SSRFConfig `toml:"ssrf"`
 
-	// DerivedSSRFMode is populated from SSRF.Mode by the config loader.
-	// It is not decoded from TOML; use [outbound_http.ssrf] instead.
-	// Retained for programmatic callers that set this field directly.
-	DerivedSSRFMode string `toml:"-"`
-
 	// TimeoutMS is the overall request timeout in milliseconds
 	TimeoutMS int `toml:"timeout_ms"`
 
@@ -491,7 +482,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  },\n")
 	sb.WriteString("  Logging: {\n")
 	sb.WriteString(fmt.Sprintf("    Level: %q,\n", c.Logging.Level))
-	sb.WriteString(fmt.Sprintf("    AllowSensitive: %v,\n", c.Logging.AllowSensitive))
 	sb.WriteString("  },\n")
 	sb.WriteString("  TokenExchange: {\n")
 	enabledStr := "<nil>"

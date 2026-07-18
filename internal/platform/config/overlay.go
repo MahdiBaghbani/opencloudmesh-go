@@ -68,8 +68,7 @@ type httpFileConfig struct {
 
 // loggingConfig holds logging settings from TOML.
 type loggingConfig struct {
-	Level          string `toml:"level"`
-	AllowSensitive bool   `toml:"allow_sensitive"`
+	Level string `toml:"level"`
 }
 
 // tokenExchangeConfig holds token exchange settings from TOML.
@@ -295,8 +294,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Logging.Level != "" {
 			cfg.Logging.Level = fc.Logging.Level
 		}
-		// AllowSensitive is a bool, overlay when section present
-		cfg.Logging.AllowSensitive = fc.Logging.AllowSensitive
 	}
 
 	if fc.TokenExchange != nil {
@@ -369,10 +366,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.LoggingLevel != nil && *f.LoggingLevel != "" {
 		cfg.Logging.Level = *f.LoggingLevel
-	}
-	if f.LoggingAllowSensitive != nil && *f.LoggingAllowSensitive != "" {
-		// Parse "true" or "false" string (only apply when explicitly set)
-		cfg.Logging.AllowSensitive = *f.LoggingAllowSensitive == "true"
 	}
 	if f.TokenExchangeEnabled != nil && *f.TokenExchangeEnabled != "" {
 		// Parse "true" or "false" string (only apply when explicitly set)

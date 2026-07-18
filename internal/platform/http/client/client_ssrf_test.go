@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	outboundtestutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
@@ -252,28 +251,5 @@ func TestContextAwareDNSCancellation(t *testing.T) {
 	// Should have an error (context deadline exceeded or canceled)
 	if err == nil {
 		t.Fatal("expected error when context is canceled")
-	}
-}
-
-// TestClient_DerivedSSRFModeCompatibility verifies that a caller that sets only
-// DerivedSSRFMode (and leaves SSRF.Mode empty) still gets strict-mode
-// enforcement. This covers programmatic callers that have not yet migrated to
-// the nested SSRF.Mode field.
-func TestClient_DerivedSSRFModeCompatibility(t *testing.T) {
-	cfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:  "strict", // shim only; SSRF.Mode intentionally empty
-		TimeoutMS:        500,
-		ConnectTimeoutMS: 200,
-		MaxRedirects:     1,
-		MaxResponseBytes: config.DefaultMaxResponseBytes,
-	}
-	c := httpclient.New(cfg, nil)
-
-	_, err := c.Get(context.Background(), "http://127.0.0.1/test")
-	if err == nil {
-		t.Fatal("expected SSRF error when DerivedSSRFMode=strict and SSRF.Mode is empty")
-	}
-	if !httpclient.IsSSRFError(err) {
-		t.Errorf("expected SSRF-classified error, got: %v", err)
 	}
 }

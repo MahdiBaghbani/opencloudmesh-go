@@ -47,7 +47,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -99,7 +99,7 @@ func TestClient_Exchange_RediscoveryFailureIsReturned(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -168,11 +168,11 @@ func TestClient_Exchange_RediscoveryUsesTokenEndpointOrigin(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:  "off",
+		SSRF:             config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes: 1 << 20,
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:  "off",
+		SSRF:             config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes: 1 << 20,
 	}, nil), nil)
 
@@ -226,11 +226,11 @@ func TestClient_Exchange_RediscoveryFailureWithNonOCMPathIsReturned(t *testing.T
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:  "off",
+		SSRF:             config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes: 1 << 20,
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:  "off",
+		SSRF:             config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes: 1 << 20,
 	}, nil), nil)
 
@@ -286,7 +286,7 @@ func TestClient_Exchange_AcceptPlainTokenUnsignedRetry(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
 	contract, err := peercompat.NewCompiledContract(
@@ -351,7 +351,7 @@ func TestClient_Exchange_AcceptPlainToken_Bare401AfterSigned(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
 	contract, err := peercompat.NewCompiledContract(
@@ -409,7 +409,7 @@ func TestClient_Exchange_AcceptPlainToken_UnmatchedPeerNoDowngrade(t *testing.T)
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -468,10 +468,10 @@ func TestClient_Exchange_PeerMissingExchangeTokenCapability(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 	discClient := discovery.NewClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:  "off",
+		SSRF:             config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes: 1 << 20,
 	}, nil), nil)
 

@@ -78,12 +78,8 @@ func TestStrictPreset_FinalShape(t *testing.T) {
 	if cfg.TLS.ACME.UseStaging {
 		t.Error("strict preset must not use ACME staging")
 	}
-	if cfg.OutboundHTTP.SSRF.Mode != "strict" || cfg.OutboundHTTP.DerivedSSRFMode != "strict" {
-		t.Errorf(
-			"outbound SSRF modes = (%q, %q), want (strict, strict)",
-			cfg.OutboundHTTP.SSRF.Mode,
-			cfg.OutboundHTTP.DerivedSSRFMode,
-		)
+	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
+		t.Errorf("outbound SSRF mode = %q, want strict", cfg.OutboundHTTP.SSRF.Mode)
 	}
 	if cfg.OutboundHTTP.MaxRedirects != config.DefaultOutboundMaxRedirects ||
 		cfg.OutboundHTTP.InsecureSkipVerify ||
@@ -127,12 +123,8 @@ func TestDevPreset_FinalShape(t *testing.T) {
 	if !cfg.TLS.ACME.UseStaging {
 		t.Error("dev preset must use ACME staging")
 	}
-	if cfg.OutboundHTTP.SSRF.Mode != "off" || cfg.OutboundHTTP.DerivedSSRFMode != "off" {
-		t.Errorf(
-			"outbound SSRF modes = (%q, %q), want (off, off)",
-			cfg.OutboundHTTP.SSRF.Mode,
-			cfg.OutboundHTTP.DerivedSSRFMode,
-		)
+	if cfg.OutboundHTTP.SSRF.Mode != "off" {
+		t.Errorf("outbound SSRF mode = %q, want off", cfg.OutboundHTTP.SSRF.Mode)
 	}
 	if cfg.OutboundHTTP.MaxRedirects != 3 ||
 		!cfg.OutboundHTTP.InsecureSkipVerify ||

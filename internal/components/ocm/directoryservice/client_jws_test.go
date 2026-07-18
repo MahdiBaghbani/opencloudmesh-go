@@ -14,7 +14,6 @@ import (
 
 func newTestHTTPClient() *httpclient.Client {
 	cfg := tshttp.PermissiveConfig()
-	cfg.DerivedSSRFMode = "off"
 	cfg.MaxRedirects = 0
 	return httpclient.New(cfg, nil)
 }

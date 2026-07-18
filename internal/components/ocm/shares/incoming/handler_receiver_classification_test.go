@@ -83,7 +83,7 @@ func newHandlerWithDiscovery(
 	t.Helper()
 
 	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		TimeoutMS:          tshttp.TestOutboundTimeoutMS,
 		ConnectTimeoutMS:   tshttp.TestOutboundConnectMS,
 		MaxResponseBytes:   config.DefaultMaxResponseBytes,
@@ -530,7 +530,7 @@ func TestReceiverClassification_RemoteDiscoveryUsesPeerOriginPolicy(t *testing.T
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	rawHTTP := httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		TimeoutMS:          tshttp.TestOutboundTimeoutMS,
 		ConnectTimeoutMS:   tshttp.TestOutboundConnectMS,
 		MaxResponseBytes:   config.DefaultMaxResponseBytes,

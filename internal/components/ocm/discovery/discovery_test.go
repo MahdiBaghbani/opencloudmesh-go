@@ -102,7 +102,6 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	httpClient := httpclient.New(httpCfg, nil)
 	client := discovery.NewClient(httpClient, nil)
 
@@ -167,7 +166,6 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 			defer server.Close()
 
 			httpCfg := tshttp.PermissiveConfig()
-			httpCfg.DerivedSSRFMode = "off"
 			client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 			disc, err := client.Discover(context.Background(), server.URL)
@@ -208,7 +206,6 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	if _, err := client.Discover(context.Background(), server.URL); err != nil {

@@ -48,7 +48,6 @@ func newTestDiscoveryServer() *httptest.Server {
 
 func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextClient) {
 	cfg := tshttp.PermissiveConfig()
-	cfg.DerivedSSRFMode = "off"
 	// Some tests exercise a nil peer contract, which resolves to the canonical
 	// HTTPS scheme and needs an httptest.NewTLSServer self-signed cert accepted.
 	cfg.InsecureSkipVerify = true

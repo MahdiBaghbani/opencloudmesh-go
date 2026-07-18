@@ -55,7 +55,6 @@ const DefaultTestShutdownWait = 5 * time.Second
 func TestHarnessOutboundHTTP() *OutboundHTTPConfig {
 	return &OutboundHTTPConfig{
 		SSRF:               SSRFConfig{Mode: "off"},
-		DerivedSSRFMode:    "off",
 		TimeoutMS:          TestOutboundTimeoutMS,
 		ConnectTimeoutMS:   TestOutboundConnectMS,
 		MaxRedirects:       DefaultOutboundMaxRedirects,
@@ -70,7 +69,6 @@ func TestHarnessOutboundHTTP() *OutboundHTTPConfig {
 func DefaultOutboundHTTP() OutboundHTTPConfig {
 	return OutboundHTTPConfig{
 		SSRF:               SSRFConfig{Mode: "strict"},
-		DerivedSSRFMode:    "strict",
 		TimeoutMS:          DefaultOutboundTimeoutMS,
 		ConnectTimeoutMS:   DefaultOutboundConnectTimeoutMS,
 		MaxRedirects:       DefaultOutboundMaxRedirects,

@@ -19,7 +19,7 @@ import (
 
 func TestClient_Exchange_StrictMode_NoSignerRejected(t *testing.T) {
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -62,7 +62,7 @@ func TestClient_Exchange_StrictModeWithSigner(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
 	client := tokenoutgoing.NewClient(
@@ -103,7 +103,7 @@ func TestClient_Exchange_PeerProfileQuirkStillSigns(t *testing.T) {
 	defer server.Close()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
-		DerivedSSRFMode: "off",
+		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 
 	mappings := []peercompat.ProfileMapping{

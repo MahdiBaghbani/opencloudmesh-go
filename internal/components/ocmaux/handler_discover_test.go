@@ -41,7 +41,6 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 	host := strings.TrimPrefix(discServer.URL, "https://")
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	httpCfg.InsecureSkipVerify = true
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
@@ -78,7 +77,6 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 	base := serverURL + "/apps/files/files/123"
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
@@ -178,7 +176,6 @@ func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
@@ -219,7 +216,6 @@ func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
