@@ -116,11 +116,9 @@ func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 		req.Header.Set("Date", s.opts.Now().UTC().Format(httpTimeFormat))
 	}
 
-	if len(body) > 0 {
-		digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
-		req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:", digest))
-		req.Header.Set("Content-Length", strconv.Itoa(len(body)))
-	}
+	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
+	req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:", digest))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	components := s.presentComponents(req, s.opts.RequiredComponents)
 	created := s.opts.Now().Unix()
@@ -182,23 +180,10 @@ func PresentComponents(req *http.Request, components []string) []string {
 }
 
 // RequiredComponentsForRequest returns the Appendix B covered set that must
-// appear in Signature-Input for this request. content-digest and content-length
-// are required only when the body is non-empty; empty bodies omit them per
-// RFC 9421 / OCM IETF Appendix B.
+// appear in Signature-Input for this request.
 func RequiredComponentsForRequest(req *http.Request, body []byte) []string {
-	_ = req
-	required := make([]string, 0, len(AppendixBCoveredComponents()))
-	for _, comp := range AppendixBCoveredComponents() {
-		comp = strings.ToLower(comp)
-		if comp == "content-digest" || comp == "content-length" {
-			if len(body) > 0 {
-				required = append(required, comp)
-			}
-			continue
-		}
-		required = append(required, comp)
-	}
-	return required
+	_, _ = req, body
+	return AppendixBCoveredComponents()
 }
 
 // RFC9421Verifier verifies HTTP request signatures per RFC 9421.
@@ -272,12 +257,6 @@ func (v *RFC9421Verifier) VerifyRequest(
 	if sigparams.CountDictionaryMembers(sigHeader, v.opts.Label) > 1 {
 		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple %q signatures", v.opts.Label)}
 	}
-	if err := sigparams.ValidateExactlyOneLabel(sigInputHeader, v.opts.Label); err != nil {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
-	}
-	if err := sigparams.ValidateExactlyOneLabel(sigHeader, v.opts.Label); err != nil {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
-	}
 
 	params, err := sigparams.ParseSignatureInput(sigInputHeader, v.opts.Label)
 	if err != nil {
@@ -287,6 +266,13 @@ func (v *RFC9421Verifier) VerifyRequest(
 	sig, err := sigparams.ParseSignature(sigHeader, v.opts.Label)
 	if err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMalformed, Error: err}
+	}
+
+	if err := sigparams.ValidateExactlyOneLabel(sigInputHeader, v.opts.Label); err != nil {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
+	}
+	if err := sigparams.ValidateExactlyOneLabel(sigHeader, v.opts.Label); err != nil {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
 	}
 
 	if params.Created == 0 {
@@ -379,7 +365,13 @@ func verifyRequiredBodyHeaders(req *http.Request, body []byte, requiredComponent
 	if _, ok := required["content-length"]; ok {
 		cl := req.Header.Get("Content-Length")
 		if cl == "" {
-			return fmt.Errorf("missing Content-Length header")
+			if len(body) > 0 {
+				return fmt.Errorf("missing Content-Length header")
+			}
+			if req.ContentLength != 0 {
+				return fmt.Errorf("content length mismatch")
+			}
+			return nil
 		}
 		n, err := strconv.Atoi(cl)
 		if err != nil {
@@ -464,7 +456,10 @@ func componentValue(req *http.Request, comp string, received bool) (string, erro
 	case "content-digest":
 		return req.Header.Get("content-digest"), nil
 	case "content-length":
-		return req.Header.Get("content-length"), nil
+		if v := req.Header.Get("content-length"); v != "" {
+			return v, nil
+		}
+		return strconv.FormatInt(req.ContentLength, 10), nil
 	case "date":
 		return req.Header.Get("date"), nil
 	default:

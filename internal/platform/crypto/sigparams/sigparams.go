@@ -168,21 +168,19 @@ func ListDictionaryMemberLabels(header string) []string {
 	return labels
 }
 
-// ValidateExactlyOneLabel rejects foreign dictionary labels and duplicate
-// members of allowedLabel.
+// ValidateExactlyOneLabel requires exactly one dictionary member named
+// allowedLabel. Foreign labels are ignored.
 func ValidateExactlyOneLabel(header, allowedLabel string) error {
-	labels := ListDictionaryMemberLabels(header)
-	if len(labels) == 0 {
-		return errors.New("sigparams: no dictionary members")
-	}
 	allowedCount := 0
-	for _, label := range labels {
-		if label != allowedLabel {
-			return fmt.Errorf("sigparams: foreign signature label %q", label)
+	for _, label := range ListDictionaryMemberLabels(header) {
+		if label == allowedLabel {
+			allowedCount++
 		}
-		allowedCount++
 	}
-	if allowedCount != 1 {
+	if allowedCount == 0 {
+		return fmt.Errorf("sigparams: missing %q dictionary member", allowedLabel)
+	}
+	if allowedCount > 1 {
 		return fmt.Errorf("sigparams: multiple %q signatures", allowedLabel)
 	}
 	return nil

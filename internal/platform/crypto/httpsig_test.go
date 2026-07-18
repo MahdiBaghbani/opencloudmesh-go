@@ -302,6 +302,9 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 	now := time.Now().Unix()
 	req := httptest.NewRequest("POST", "https://example.com/test", nil)
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	emptyDigest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))
+	req.Header.Set("Content-Digest", "sha-256=:"+emptyDigest+":")
+	req.Header.Set("Content-Length", "0")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="hmac-sha256"`,
 		now,
@@ -1726,4 +1729,83 @@ func padCoordTest(b []byte, size int) []byte {
 	out := make([]byte, size)
 	copy(out[size-len(b):], b)
 	return out
+}
+
+func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	req := httptest.NewRequest("GET", "https://example.com/ocm/discovery", nil)
+	req.Host = "example.com"
+	req.Header.Set("Date", opts.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+	emptyDigest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))
+	req.Header.Set("Content-Digest", "sha-256=:"+emptyDigest+":")
+	// Deliberately do NOT set Content-Length; req.ContentLength defaults to 0.
+
+	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	created := opts.Now().Unix()
+	sigInput := fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519"`,
+		created, km.GetKeyID(),
+	)
+	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+	sigBase, err := crypto.BuildSignatureBase(req, components)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullBase := sigBase + `"@signature-params": ` + paramsRaw
+	sig, err := km.Sign([]byte(fullBase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Signature-Input", sigInput)
+	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)))
+
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("expected empty-body verify OK with missing Content-Length header (canonical fallback), got verified=false reason=%s err=%v", result.Reason, result.Error)
+	}
+}
+
+func TestVerifyRequest_RejectsNonEmptyBodyMissingContentLengthHeader(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	now := time.Now().Unix()
+	body := []byte(`{"test":"data"}`)
+	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Digest", digest)
+	// Deliberately do NOT set Content-Length.
+	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		now,
+	))
+	req.Header.Set("Signature", "ocm=:AAAA:")
+
+	fetched := false
+	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
+		fetched = true
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
+	})
+	if result.Verified {
+		t.Fatal("expected missing Content-Length rejection on non-empty body")
+	}
+	if result.Reason != crypto.ReasonContentDigest {
+		t.Fatalf("Reason=%q want content_digest (err=%v)", result.Reason, result.Error)
+	}
+	if fetched {
+		t.Fatal("key fetch must not run after missing Content-Length rejection")
+	}
 }
