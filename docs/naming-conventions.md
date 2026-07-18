@@ -38,16 +38,6 @@ Do not parse OCM addresses with naive `strings.SplitN(..., "@", 2)`. Use the
 address helpers under `internal/components/ocm/address/`.
 `TestNoFirstAtOCMAddressParsing` enforces this under `internal/components/ocm/`.
 
-## Deleted and legacy paths
-
-The `internal/components/federation` package was removed. Do not reintroduce
-imports of that path. `TestNoFederationPackageImports` enforces this.
-
-Docs and comments should not refer to removed legacy package names or
-old test harness names. If you need federation behavior, use the current
-`peer_trust`, `directoryservice`, and `ocmaux` surfaces documented in
-[directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md).
-
 ## Structured logging
 
 Log keys follow conventions checked by

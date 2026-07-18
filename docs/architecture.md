@@ -101,7 +101,7 @@ Guard categories:
 | --------- | ---------------- |
 | `layering_test.go` | Package import boundaries between layers |
 | `testsupport_imports_test.go` | `internal/testsupport` only in `_test.go` |
-| `naming_conventions_test.go` | Banned abbreviations and legacy package names |
+| `naming_conventions_test.go` | Banned DS abbreviations, spec Directory Service JSON tags, and address parsing |
 | `production_loader_imports_test.go` | No loader blank imports in production |
 | `spec_pin_test.go` | Vendored OCM spec pin integrity |
 | `wire_dto_location_test.go` | Wire DTO placement rules |
