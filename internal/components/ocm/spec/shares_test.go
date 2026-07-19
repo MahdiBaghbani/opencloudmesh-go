@@ -120,17 +120,64 @@ func TestWebDAVRequiresPermissions(t *testing.T) {
 	}
 }
 
-func TestWebDAVAcceptsAccessTypes(t *testing.T) {
-	const body = `{"uri":"u","sharedSecret":"s","permissions":["read"],"accessTypes":["read","write"],"requirements":["must-exchange-token"]}`
+func TestWebDAVAcceptsRemoteAccessTypes(t *testing.T) {
+	const body = `{"uri":"u","sharedSecret":"s","permissions":["read"],"accessTypes":["remote"],"requirements":["must-exchange-token"]}`
 	var p WebDAVProtocol
 	if err := json.Unmarshal([]byte(body), &p); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(p.AccessTypes) != 2 || p.AccessTypes[0] != "read" || p.AccessTypes[1] != "write" {
-		t.Errorf("AccessTypes = %v, want [read write]", p.AccessTypes)
+	if len(p.AccessTypes) != 1 || p.AccessTypes[0] != "remote" {
+		t.Errorf("AccessTypes = %v, want [remote]", p.AccessTypes)
 	}
 	if errs := ValidateWebDAVProtocol(&p); len(errs) != 0 {
 		t.Errorf("unexpected validation errors: %v", errs)
+	}
+}
+
+func TestWebDAVRejectsUnsupportedAccessTypes(t *testing.T) {
+	const body = `{"uri":"u","sharedSecret":"s","permissions":["read"],"accessTypes":["datatx"],"requirements":["must-exchange-token"]}`
+	var p WebDAVProtocol
+	if err := json.Unmarshal([]byte(body), &p); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	errs := ValidateWebDAVProtocol(&p)
+	if !hasValidationError(errs, "protocol.webdav.accessTypes") {
+		t.Fatalf("expected accessTypes validation error, got %v", errs)
+	}
+	for _, e := range errs {
+		if e.Name == "protocol.webdav.accessTypes" && e.Message != "UNSUPPORTED" {
+			t.Fatalf("accessTypes error = %q, want UNSUPPORTED", e.Message)
+		}
+	}
+}
+
+func TestWebDAVAcceptsMissingAccessTypesAsRemote(t *testing.T) {
+	p := &WebDAVProtocol{
+		URI:          "u",
+		SharedSecret: "s",
+		Permissions:  []string{"read"},
+		Requirements: []string{RequirementMustExchangeToken},
+	}
+	if errs := ValidateWebDAVProtocol(p); len(errs) != 0 {
+		t.Errorf("unexpected validation errors: %v", errs)
+	}
+}
+
+func TestWebDAVRejectsUnsupportedPermissions(t *testing.T) {
+	p := &WebDAVProtocol{
+		URI:          "u",
+		SharedSecret: "s",
+		Permissions:  []string{"write"},
+		Requirements: []string{RequirementMustExchangeToken},
+	}
+	errs := ValidateWebDAVProtocol(p)
+	if !hasValidationError(errs, "protocol.webdav.permissions") {
+		t.Fatalf("expected permissions validation error, got %v", errs)
+	}
+	for _, e := range errs {
+		if e.Name == "protocol.webdav.permissions" && e.Message != "UNSUPPORTED" {
+			t.Fatalf("permissions error = %q, want UNSUPPORTED", e.Message)
+		}
 	}
 }
 

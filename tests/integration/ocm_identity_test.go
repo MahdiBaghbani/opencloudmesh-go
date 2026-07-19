@@ -403,7 +403,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 			WebDAV: &spec.WebDAVProtocol{
 				URI:          "reva-share-uri",
 				SharedSecret: "reva-secret",
-				Permissions:  []string{"read", "write"},
+				Permissions:  []string{"read"},
 				Requirements: []string{spec.RequirementMustExchangeToken},
 			},
 		},

@@ -656,6 +656,58 @@ func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 	}
 }
 
+func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "wdav-bad-perm",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["write"], "requirements": ["must-exchange-token"]}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 for unsupported webdav permissions, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "wdav-bad-access",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "accessTypes": ["datatx"], "requirements": ["must-exchange-token"]}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 for unsupported webdav accessTypes, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestCreateShare_NoWebDAV_Returns501(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()

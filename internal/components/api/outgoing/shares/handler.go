@@ -119,6 +119,19 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		api.WriteBadRequest(w, api.ReasonMissingField, "permissions is required")
 		return
 	}
+	for _, perm := range req.Permissions {
+		supported := false
+		for _, allowed := range spec.SupportedWebDAVPermissions {
+			if perm == allowed {
+				supported = true
+				break
+			}
+		}
+		if !supported {
+			api.WriteBadRequest(w, api.ReasonInvalidField, "permissions must be read-only")
+			return
+		}
+	}
 
 	cleanPath, err := h.validateLocalPath(req.LocalPath)
 	if err != nil {

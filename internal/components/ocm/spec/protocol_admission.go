@@ -14,6 +14,14 @@ var SupportedResourceTypes = []string{"file", "folder"}
 // this implementation currently recognizes.
 var SupportedWebDAVRequirements = []string{RequirementMustExchangeToken}
 
+// SupportedWebDAVAccessTypes are the WebDAV access type values this
+// implementation currently recognizes.
+var SupportedWebDAVAccessTypes = []string{"remote"}
+
+// SupportedWebDAVPermissions are the WebDAV permission values this
+// implementation currently honors.
+var SupportedWebDAVPermissions = []string{"read"}
+
 // IsSupportedResourceType reports whether resourceType is accepted for share creation.
 func IsSupportedResourceType(resourceType string) bool {
 	for _, supported := range SupportedResourceTypes {
@@ -52,8 +60,10 @@ func ValidateProtocolShape(p Protocol) *ValidationError {
 }
 
 // ValidateWebDAVProtocol checks the WebDAV protocol sub-fields required by
-// the OCM wire contract: uri, sharedSecret, and permissions are required,
-// and any requirements entry must be one this implementation recognizes.
+// the OCM wire contract: uri, sharedSecret, and permissions are required;
+// permissions and accessTypes (when present) must be in this
+// implementation's supported lists, and any requirements entry must be one
+// this implementation recognizes. Missing accessTypes means remote access.
 func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
 	var errs []ValidationError
 	if p == nil {
@@ -67,6 +77,21 @@ func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
 	}
 	if len(p.Permissions) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: "REQUIRED"})
+	} else {
+		for _, perm := range p.Permissions {
+			if !isSupportedWebDAVPermission(perm) {
+				errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: "UNSUPPORTED"})
+				break
+			}
+		}
+	}
+	if len(p.AccessTypes) > 0 {
+		for _, accessType := range p.AccessTypes {
+			if !isSupportedWebDAVAccessType(accessType) {
+				errs = append(errs, ValidationError{Name: "protocol.webdav.accessTypes", Message: "UNSUPPORTED"})
+				break
+			}
+		}
 	}
 	if len(p.Requirements) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: "REQUIRED"})
@@ -84,6 +109,24 @@ func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
 func isSupportedWebDAVRequirement(req string) bool {
 	for _, supported := range SupportedWebDAVRequirements {
 		if req == supported {
+			return true
+		}
+	}
+	return false
+}
+
+func isSupportedWebDAVAccessType(accessType string) bool {
+	for _, supported := range SupportedWebDAVAccessTypes {
+		if accessType == supported {
+			return true
+		}
+	}
+	return false
+}
+
+func isSupportedWebDAVPermission(perm string) bool {
+	for _, supported := range SupportedWebDAVPermissions {
+		if perm == supported {
 			return true
 		}
 	}
