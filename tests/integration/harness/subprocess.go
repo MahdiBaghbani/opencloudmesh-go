@@ -34,9 +34,7 @@ type SubprocessServer struct {
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
 	Name                    string
-	Mode                    string // dev or strict
-	CompatibilityScope      string
-	SSRFMode                string            // when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
+	Mode                    string            // dev or strict
 	DisableProxyEnvFallback bool              // when true, emits proxy_env_fallback = false in [outbound_http]
 	TLSRootCAFile           string            // when set, adds tls_root_ca_file under [outbound_http]
 	BootstrapAdminPassword  string            // when set, adds password under [server.bootstrap_admin]
@@ -141,7 +139,6 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		port,
 		tempDir,
 		cfg.Mode,
-		cfg.CompatibilityScope,
 		cfg.DisableProxyEnvFallback,
 		cfg.TLSRootCAFile,
 		cfg.BootstrapAdminPassword,
@@ -297,19 +294,10 @@ func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, 
 	return config.Load(config.LoaderOptions{ConfigPath: configPath})
 }
 
-// needsSecureTransport reports whether the mode+scope combination requires HTTPS.
-// The config loader rejects tls.mode=off for compatibility_scope "none" and "scoped".
-// An empty scope with strict (or default-empty) mode implies "none" via the preset.
-func needsSecureTransport(mode, compatibilityScope string) bool {
-	scope := strings.ToLower(strings.TrimSpace(compatibilityScope))
-	switch scope {
-	case "none", "scoped":
-		return true
-	case "":
-		m := strings.ToLower(strings.TrimSpace(mode))
-		return m == "strict" || m == ""
-	}
-	return false
+// needsSecureTransport reports whether the mode requires HTTPS listener transport.
+func needsSecureTransport(mode string) bool {
+	m := strings.ToLower(strings.TrimSpace(mode))
+	return m == "strict" || m == ""
 }
 
 // extraTLSMode scans ExtraConfig for a [tls] table and returns the tls.mode it
@@ -374,16 +362,16 @@ func extraDefinesPublicOrigin(extra string) bool {
 // Uses the Reva-aligned TOML shape. The mode preset (dev/strict)
 // drives defaults via config.Load(), including token exchange settings.
 //
-// For strict/scoped-like configurations (CompatibilityScope "none" or "scoped"),
-// the generated config uses HTTPS with a self-signed certificate instead of
-// plain HTTP, matching the transport requirements enforced by the loader.
+// For strict mode configurations, the generated config uses HTTPS with a
+// self-signed certificate instead of plain HTTP, matching the transport
+// requirements enforced by the loader.
 //
 // Per-service configuration ([http.services.*]) is NOT included in the base
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, disableProxyEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
-	secure := needsSecureTransport(mode, compatibilityScope)
+func generateTOMLConfig(name string, port int, dataDir, mode string, disableProxyEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
+	secure := needsSecureTransport(mode)
 
 	// Derive the scheme for the generated default public_origin from the FINAL
 	// effective TLS mode, not just the preset heuristic. ExtraConfig may override
@@ -422,10 +410,6 @@ listen_addr = ":%d"
 
 `, name, mode, port, publicOriginLine)
 
-	if compatibilityScope != "" {
-		config += fmt.Sprintf("compatibility_scope = %q\n\n", compatibilityScope)
-	}
-
 	// Root-level ExtraConfig keys must appear before any [table]. Appending
 	// them after [outbound_http] would bind them to that table in TOML.
 	rootExtra, tableExtra := splitExtraConfigRootKeys(extra)
@@ -461,7 +445,7 @@ mode = "off"
 	bootstrapAdmin += "\n"
 
 	if secure {
-		// insecure_skip_verify must be false for scoped/none scope guardrails to pass.
+		// insecure_skip_verify must be false for strict mode guardrails to pass.
 		config += `[server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 

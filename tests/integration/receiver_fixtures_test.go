@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -77,10 +78,11 @@ type strictCodeFlowShareCapture struct {
 }
 
 type strictCodeFlowReceiver struct {
-	server     *httptest.Server
-	peerDomain string
-	signer     *crypto.RFC9421Signer
-	captures   chan strictCodeFlowShareCapture
+	server      *httptest.Server
+	peerDomain  string
+	peerBaseURL string
+	signer      *crypto.RFC9421Signer
+	captures    chan strictCodeFlowShareCapture
 }
 
 func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
@@ -154,6 +156,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 		srv.Close()
 		t.Fatalf("failed to create strict receiver signing key: %v", err)
 	}
+	km.SetWireKeyID(srv.URL + "#key1")
 
 	parsedURL, err := url.Parse(srv.URL)
 	if err != nil {
@@ -162,11 +165,20 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 	}
 
 	return &strictCodeFlowReceiver{
-		server:     srv,
-		peerDomain: parsedURL.Host,
-		signer:     crypto.NewRFC9421Signer(km),
-		captures:   captures,
+		server:      srv,
+		peerDomain:  parsedURL.Host,
+		peerBaseURL: srv.URL,
+		signer:      crypto.NewRFC9421Signer(km),
+		captures:    captures,
 	}
+}
+
+func tlsPeerInput(peerURL string) (baseURL, host string) {
+	parsed, err := url.Parse(peerURL)
+	if err != nil {
+		return peerURL, strings.TrimPrefix(strings.TrimPrefix(peerURL, "https://"), "http://")
+	}
+	return peerURL, parsed.Host
 }
 
 func (r *strictCodeFlowReceiver) Close() {

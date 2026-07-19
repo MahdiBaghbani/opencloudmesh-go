@@ -90,26 +90,32 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 		wantSubstr string
 	}{
 		{
-			name:      "valid none-scope strict config passes",
+			name:      "valid strict config passes",
 			mutate:    func(*config.Config) {},
 			wantError: false,
 		},
 		{
-			// Scoped compatibility does not constrain transport settings;
-			// strict signature and peer posture from StrictConfig keep this valid.
-			name: "scoped config with tls.mode off allowed before startup",
+			name: "dev config with tls.mode off allowed before startup",
 			mutate: func(cfg *config.Config) {
-				cfg.CompatibilityScope = "scoped"
+				cfg.Mode = "dev"
 				cfg.TLS.Mode = "off"
+				cfg.OutboundHTTP.SSRF.Mode = "off"
+				cfg.OutboundHTTP.InsecureSkipVerify = true
 			},
 			wantError: false,
+		},
+		{
+			name: "strict config with tls.mode off rejected",
+			mutate: func(cfg *config.Config) {
+				cfg.TLS.Mode = "off"
+			},
+			wantError:  true,
+			wantSubstr: "mode=strict requires tls.mode!=off",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// StrictConfig is compatibility_scope=none and satisfies the
-			// none-scope compatibility requirements, giving each case a valid starting point.
 			cfg := config.StrictConfig()
 			tc.mutate(cfg)
 			err := validatePreBootstrapStartup(cfg)
@@ -135,14 +141,9 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 		t.Fatalf("Signature.Label = %q, want %q", cfg.Signature.Label, config.DefaultSignatureLabel)
 	}
 
-	assertIETFHarnessLocalhostPeerMappings(t, cfg.PeerProfiles.Mappings)
-
 	// Intentionally preserved DevConfig leniencies for in-process localhost tests.
 	if cfg.Mode != dev.Mode {
 		t.Fatalf("Mode = %q, want preserved %q", cfg.Mode, dev.Mode)
-	}
-	if cfg.CompatibilityScope != dev.CompatibilityScope {
-		t.Fatalf("CompatibilityScope = %q, want preserved %q", cfg.CompatibilityScope, dev.CompatibilityScope)
 	}
 	if cfg.TLS.Mode != dev.TLS.Mode {
 		t.Fatalf("TLS.Mode = %q, want preserved %q", cfg.TLS.Mode, dev.TLS.Mode)
@@ -152,34 +153,6 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify != dev.OutboundHTTP.InsecureSkipVerify {
 		t.Fatalf("OutboundHTTP.InsecureSkipVerify = %v, want preserved %v", cfg.OutboundHTTP.InsecureSkipVerify, dev.OutboundHTTP.InsecureSkipVerify)
-	}
-}
-
-func TestIETFHarnessLocalhostPeerMappings(t *testing.T) {
-	mappings := ietfHarnessLocalhostPeerMappings()
-	assertIETFHarnessLocalhostPeerMappings(t, mappings)
-}
-
-func assertIETFHarnessLocalhostPeerMappings(t *testing.T, mappings []config.PeerProfileMapping) {
-	t.Helper()
-
-	want := map[string]string{
-		"localhost": "dev",
-		"127.0.0.1": "dev",
-	}
-	if len(mappings) != len(want) {
-		t.Fatalf("peer profile mappings = %d, want %d", len(mappings), len(want))
-	}
-
-	got := make(map[string]string, len(mappings))
-	for _, mapping := range mappings {
-		got[mapping.Pattern] = mapping.Profile
-	}
-	for pattern, profile := range want {
-		if got[pattern] != profile {
-			t.Fatalf("mapping[%q] = %q, want profile %q (full mappings: %+v)",
-				pattern, got[pattern], profile, mappings)
-		}
 	}
 }
 
@@ -212,36 +185,5 @@ func TestIETFIntegrationBuildOpts_MatchesWiringBuildOpts(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("IETFIntegrationBuildOpts() = %+v, want %+v", got, want)
-	}
-}
-
-func TestCheckStartupPosture(t *testing.T) {
-	cases := []struct {
-		name      string
-		scope     string
-		isStrict  bool
-		wantError bool
-	}{
-		{name: "none with strict posture is allowed", scope: "none", isStrict: true, wantError: false},
-		{name: "none with non-strict posture is rejected", scope: "none", isStrict: false, wantError: true},
-		{name: "scoped with non-strict posture is allowed", scope: "scoped", isStrict: false, wantError: false},
-		{name: "empty scope with non-strict posture is allowed", scope: "", isStrict: false, wantError: false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			mode := "dev"
-			if tc.isStrict {
-				mode = "strict"
-			}
-			cfg := &config.Config{CompatibilityScope: tc.scope, Mode: mode}
-			err := checkStartupPosture(cfg)
-			if tc.wantError && err == nil {
-				t.Fatalf("checkStartupPosture(scope=%q, strict=%v) = nil, want error", tc.scope, tc.isStrict)
-			}
-			if !tc.wantError && err != nil {
-				t.Fatalf("checkStartupPosture(scope=%q, strict=%v) = %v, want nil", tc.scope, tc.isStrict, err)
-			}
-		})
 	}
 }
