@@ -105,7 +105,7 @@ Guard categories:
 | `production_loader_imports_test.go` | No loader blank imports in production |
 | `spec_pin_test.go` | Vendored OCM spec pin integrity |
 | `wire_dto_location_test.go` | Wire DTO placement rules |
-| `peercompat_boundaries_test.go` | Peer-compat package boundaries |
+| `internal/architecture` scheme guard | Peer-origin scheme boundary |
 | `static_construction_test.go` | Static construction constraints |
 | `forwarded_header_test.go` | Forwarded-header handling rules |
 | `slog_keys_test.go` | Structured log key conventions |
