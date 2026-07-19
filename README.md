@@ -26,8 +26,8 @@ interesting parts behind magic. That is what this repo is trying to be.
 
 It gives you a runnable OCM peer in Go, keeps the scope explicit instead of
 pretending to implement everything, and pins behavior to a specific OCM-API
-snapshot. It also tries to make the compatibility story legible: signatures,
-transport, trust, and peer-compat behavior are all deliberate knobs rather than
+snapshot. It also tries to make the security story legible: signatures,
+transport, and trust are deliberate knobs rather than
 silent fallbacks.
 
 Right now that means discovery, user-share flows on the WebDAV-centered path,
@@ -110,8 +110,8 @@ between them.
 The server resolves config in this order: preset bundle, TOML file, CLI flags.
 
 The shipped preset bundles are `strict` and `dev`. They are good starting
-points; effective behavior also depends on `compatibility_scope` and the
-signature, transport, trust, and peer-compatibility settings.
+points; effective behavior also depends on signature, transport, and trust
+settings.
 
 If you are getting oriented, start here:
 

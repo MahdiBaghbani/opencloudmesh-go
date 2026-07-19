@@ -164,7 +164,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 // internal/components/api/outgoing/shares/handler_test.go.
 //
 // Token exchange grant_type coverage lives in token_exchange_test.go
-// (authorization_code + ocm_share + invalid grant_type rejection).
+// (authorization_code + invalid grant_type rejection).
 
 // TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback verifies that
 // POST /ocm/shares with a Reva-style base64url-encoded shareWith identifier

@@ -110,19 +110,16 @@ export function buildBinary(): string {
 /**
  * Generates TOML config for a test server.
  * All e2e modes use production-like signature posture with a per-instance
- * signing.pem. compatibility_scope = "scoped" keeps localhost public_origin
- * and SSRF off permitted without relaxing the global OCM signature axis.
+ * signing.pem. mode=dev keeps localhost public_origin and SSRF off permitted
+ * without relaxing the global OCM signature axis.
  */
 function generateConfig(name: string, port: number, tempDir: string, mode: string, extraConfig?: string): string {
   // Root-level keys must all appear here, before any [table] header.
-  // compatibility_scope is a root key; placing it inside [outbound_http.ssrf]
-  // would make TOML parse it as a nested key.
   const rootKeys = [
     `mode = "${mode}"`,
     `listen_addr = ":${port}"`,
     `public_origin = "https://localhost:${port}"`,
     `external_base_path = ""`,
-    `compatibility_scope = "scoped"`,
   ].join('\n');
 
   let config = `${rootKeys}

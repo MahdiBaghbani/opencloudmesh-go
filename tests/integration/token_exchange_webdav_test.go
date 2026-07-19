@@ -26,7 +26,6 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
-	// Note: [shares] allowed_paths section was removed - it was a phantom knob (not decoded).
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "webdav-test",

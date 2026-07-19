@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -46,10 +45,10 @@ func TestOutgoingShareStrictEmission(t *testing.T) {
 		receiver, postCount, mustExchangeFlag := startCapableNonStrictReceiver(t)
 		defer receiver.Close()
 
-		receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
+		receiverBaseURL, receiverHost := tlsPeerInput(receiver.URL)
 		status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
-			"receiverDomain": receiverDomain,
-			"shareWith":      "bob@" + receiverDomain,
+			"receiverDomain": receiverBaseURL,
+			"shareWith":      "bob@" + receiverHost,
 			"localPath":      shareFile.Name(),
 			"permissions":    []string{"read"},
 		})
@@ -97,10 +96,10 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 	receiver, _, _ := startCapableNonStrictReceiver(t)
 	defer receiver.Close()
 
-	receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
+	receiverBaseURL, receiverHost := tlsPeerInput(receiver.URL)
 	status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
-		"receiverDomain": receiverDomain,
-		"shareWith":      "bob@" + receiverDomain,
+		"receiverDomain": receiverBaseURL,
+		"shareWith":      "bob@" + receiverHost,
 		"localPath":      shareFile.Name(),
 		"permissions":    []string{"read"},
 	})
@@ -289,10 +288,10 @@ func TestOutgoingSharePolicy_CanonicalStrictPeer(t *testing.T) {
 			receiver, postCount, mustExchangeFlag := startCanonicalStrictCapableReceiver(t)
 			defer receiver.Close()
 
-			receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
+			receiverBaseURL, receiverHost := tlsPeerInput(receiver.URL)
 			status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
-				"receiverDomain": receiverDomain,
-				"shareWith":      "bob@" + receiverDomain,
+				"receiverDomain": receiverBaseURL,
+				"shareWith":      "bob@" + receiverHost,
 				"localPath":      shareFile.Name(),
 				"permissions":    []string{"read"},
 			})
@@ -343,10 +342,10 @@ func TestOutgoingShareRejectsMalformedTokenExchange(t *testing.T) {
 		receiver, postCount, mustExchangeFlag := startMalformedCapableNonStrictReceiver(t)
 		defer receiver.Close()
 
-		receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
+		receiverBaseURL, receiverHost := tlsPeerInput(receiver.URL)
 		status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
-			"receiverDomain": receiverDomain,
-			"shareWith":      "bob@" + receiverDomain,
+			"receiverDomain": receiverBaseURL,
+			"shareWith":      "bob@" + receiverHost,
 			"localPath":      shareFile.Name(),
 			"permissions":    []string{"read"},
 		})

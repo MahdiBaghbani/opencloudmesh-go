@@ -32,10 +32,8 @@ func TestSubprocessTransportFollowsExtraConfigTLS(t *testing.T) {
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "tls-override",
 		Mode: "dev",
-		// Override the preset HTTP transport with self-signed HTTPS. The "dev"
-		// preset resolves compatibility_scope=scoped, which does not constrain
-		// tls.mode, so selfsigned TLS is permitted by the loader compatibility
-		// requirements.
+		// Override the preset HTTP transport with self-signed HTTPS. Dev mode
+		// does not constrain tls.mode, so selfsigned TLS is permitted.
 		ExtraConfig: `
 [tls]
 mode = "selfsigned"

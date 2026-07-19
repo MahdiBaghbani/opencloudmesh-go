@@ -144,7 +144,7 @@ func TestRoutePathMatrix_TokenEndpointMatchesAggregate(t *testing.T) {
 			}
 			tokenPath := tsrouting.ProbePathFromRow(tokenRow)
 
-			status := doProbe(t, ts.BaseURL, http.MethodPost, tokenPath, strings.NewReader("grant_type=ocm_share&client_id=test&code=test"))
+			status := doProbe(t, ts.BaseURL, http.MethodPost, tokenPath, strings.NewReader("grant_type=authorization_code&client_id=test&code=test"))
 			if status == http.StatusNotFound {
 				t.Fatalf("token endpoint %q not mounted; aggregate path %q", tokenPath, opts.TokenExchangePath)
 			}
@@ -158,7 +158,7 @@ func TestRoutePathMatrix_TokenEndpointMatchesAggregate(t *testing.T) {
 				if !ok {
 					t.Fatal("Routes(opts) missing default token endpoint row")
 				}
-				altStatus := doProbe(t, ts.BaseURL, http.MethodPost, defaultPath, strings.NewReader("grant_type=ocm_share&client_id=test&code=test"))
+				altStatus := doProbe(t, ts.BaseURL, http.MethodPost, defaultPath, strings.NewReader("grant_type=authorization_code&client_id=test&code=test"))
 				if altStatus != http.StatusNotFound {
 					t.Errorf("default token path %q should be unmounted when custom path is %q, got %d", defaultPath, tc.tokenPath, altStatus)
 				}
@@ -367,7 +367,7 @@ func TestRoutePathMatrix_OCMProtocolRoutesSessionPublic(t *testing.T) {
 
 		var body io.Reader
 		if row.Method == http.MethodPost {
-			body = strings.NewReader("grant_type=ocm_share&client_id=test&code=test")
+			body = strings.NewReader("grant_type=authorization_code&client_id=test&code=test")
 		}
 		status := doProbe(t, ts.BaseURL, tsrouting.ProbeMethodFromRow(row), probePath, body)
 		if status == http.StatusNotFound {

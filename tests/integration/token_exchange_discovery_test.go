@@ -16,7 +16,7 @@ import (
 )
 
 // TestDevModeCanonicalPolicy exercises canonical policy under dev mode:
-// bounded scoped governance with a strict global OCM posture.
+// bounded route-policy governance with a strict global OCM posture.
 func TestDevModeCanonicalPolicy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -150,22 +150,15 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	tests := []struct {
-		name               string
-		mode               string
-		compatibilityScope string
-		extraConfig        string
-		wantHTTPReqSigs    bool
+		name            string
+		mode            string
+		extraConfig     string
+		wantHTTPReqSigs bool
 	}{
 		{
 			name:            "strict advertises signature criterion",
 			mode:            "strict",
 			wantHTTPReqSigs: true,
-		},
-		{
-			name:               "scoped strict advertises signature criterion",
-			mode:               "strict",
-			compatibilityScope: "scoped",
-			wantHTTPReqSigs:    true,
 		},
 		{
 			name:            "dev advertises signature criterion",
@@ -178,10 +171,9 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-				Name:               "criteria-matrix-" + tt.mode,
-				Mode:               tt.mode,
-				CompatibilityScope: tt.compatibilityScope,
-				ExtraConfig:        tt.extraConfig,
+				Name:        "criteria-matrix-" + tt.mode,
+				Mode:        tt.mode,
+				ExtraConfig: tt.extraConfig,
 			})
 			defer srv.Stop(t)
 

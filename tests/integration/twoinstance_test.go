@@ -109,12 +109,11 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	// Start a single server with SSRF blocking enabled (strict mode with scoped governance).
+	// Start a single server with SSRF blocking enabled (strict mode with route-policy governance).
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:               "ssrf-test",
-		Mode:               "strict",
-		CompatibilityScope: "scoped",
+		Name: "ssrf-test",
+		Mode: "strict",
 	})
 	defer srv.Stop(t)
 
@@ -167,7 +166,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 // TestSSRFRoutePolicyAllowsExplicitCIDRDiscover proves the positive SSRF path: an
 // active route policy with explicit host suffix, CIDR, and port allowance permits
 // a private destination that strict mode would otherwise block. The source runs in
-// strict scoped mode, the target in dev mode. The discover helper
+// strict mode, the target in dev mode. The discover helper
 // may still return no_invite_accept_dialog after upstream discovery succeeds (T7a).
 func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 	if testing.Short() {
@@ -203,14 +202,13 @@ func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 	})
 	defer target.Stop(t)
 
-	// Source: strict scoped mode inherits SSRF strict by default. The route policy explicitly allows the
+	// Source: strict mode inherits SSRF strict by default. The route policy explicitly allows the
 	// local hostname, 127.0.0.0/8, and the target's port.
 	// proxy_env_fallback is disabled so ambient HTTP_PROXY/HTTPS_PROXY env vars
 	// cannot interfere with the loopback discovery request.
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:                    "ssrf-cidr-source",
 		Mode:                    "strict",
-		CompatibilityScope:      "scoped",
 		DisableProxyEnvFallback: true,
 		ExtraConfig: fmt.Sprintf(`
 [outbound_http.ssrf]
@@ -312,12 +310,11 @@ func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
 	})
 	defer target.Stop(t)
 
-	// Source: strict scoped mode, no route policy override. 127.0.0.1 stays blocked by
+	// Source: strict mode, no route policy override. 127.0.0.1 stays blocked by
 	// strict SSRF defaults. proxy_env_fallback disabled for a hermetic client call.
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:                    "ssrf-control-source",
 		Mode:                    "strict",
-		CompatibilityScope:      "scoped",
 		DisableProxyEnvFallback: true,
 	})
 	defer source.Stop(t)

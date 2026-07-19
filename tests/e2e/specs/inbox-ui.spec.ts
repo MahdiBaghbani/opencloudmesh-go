@@ -168,7 +168,7 @@ test.describe('Inbox UI', () => {
   test('invite data-test-invite-sender on accepted invite', async ({ page }) => {
     // Create invite on this server, import and accept on the same server.
     // Acceptance triggers a self-referential /ocm/invite-accepted call which
-    // works with scoped transport (SSRF off, same TLS CA) and instance signing.
+    // works with dev transport (SSRF off, same TLS CA) and instance signing.
     // Uses page.request (not the standalone request fixture) so session cookies
     // are shared with the logged-in page context.
 

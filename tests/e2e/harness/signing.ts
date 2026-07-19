@@ -247,7 +247,7 @@ export async function postSignedIncomingShare(
 /**
  * Builds a share payload whose sender/owner provider matches the instance
  * public_origin host so the declared peer matches the server/provider
- * authority unless a retained peer profile permits mismatch.
+ * authority.
  */
 export function localPeerShareFields(instance: ServerInstance): {
   provider: string;

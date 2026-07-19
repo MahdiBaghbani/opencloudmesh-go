@@ -55,7 +55,7 @@ mode = "off"
 
 	token := loginSubprocessAdmin(t, sender)
 	status, body := createOutgoingShare(t, sender.BaseURL, token, map[string]any{
-		"receiverDomain": receiver.peerDomain,
+		"receiverDomain": receiver.peerBaseURL,
 		"shareWith":      "bob@" + receiver.peerDomain,
 		"localPath":      testFile,
 		"permissions":    []string{"read"},

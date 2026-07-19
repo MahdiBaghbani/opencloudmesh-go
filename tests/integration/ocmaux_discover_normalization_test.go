@@ -120,9 +120,8 @@ func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:               "discover-ssrf",
-		Mode:               "strict",
-		CompatibilityScope: "scoped",
+		Name: "discover-ssrf",
+		Mode: "strict",
 	})
 	defer srv.Stop(t)
 

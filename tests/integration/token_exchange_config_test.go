@@ -89,7 +89,7 @@ path = "auth/exchange"
 
 		// POST to aggregate path should route to handler (not 404)
 		data := url.Values{}
-		data.Set("grant_type", "ocm_share")
+		data.Set("grant_type", "authorization_code")
 		data.Set("client_id", "receiver.example.com")
 		data.Set("code", "nonexistent-secret")
 
@@ -174,7 +174,7 @@ path = "token/v2"
 
 		// POST to aggregate path should route to handler (not 404)
 		data := url.Values{}
-		data.Set("grant_type", "ocm_share")
+		data.Set("grant_type", "authorization_code")
 		data.Set("client_id", "receiver.example.com")
 		data.Set("code", "nonexistent-secret")
 
@@ -207,7 +207,7 @@ path = "token/v2"
 
 		// POST to default aggregate path should return 404 when custom path is configured
 		data := url.Values{}
-		data.Set("grant_type", "ocm_share")
+		data.Set("grant_type", "authorization_code")
 		data.Set("client_id", "receiver.example.com")
 		data.Set("code", "some-secret")
 
