@@ -7,14 +7,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
-	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
 // contextKey is used for storing values in request context.
@@ -49,27 +47,21 @@ func GetPeerIdentity(ctx context.Context) *PeerIdentity {
 
 // PeerDiscovery provides peer discovery information for signature verification.
 type PeerDiscovery interface {
-	// IsSigningCapable returns true if peer discovery says unsigned OCM requests
-	// should be rejected on the signature axis.
-	IsSigningCapable(ctx context.Context, host string) (bool, error)
 	// ResolveVerificationKey fetches verification key material for a keyId.
 	ResolveVerificationKey(ctx context.Context, keyID string) (sigalg.ResolvedPublicKey, error)
 }
 
 // SignatureMiddleware verifies HTTP request signatures.
 type SignatureMiddleware struct {
-	peerContract       *peercompat.CompiledContract
-	compatibilityScope string
-	verifier           *crypto.RFC9421Verifier
-	peerDiscovery      PeerDiscovery
-	logger             *slog.Logger
-	localScheme        string // scheme from PublicOrigin for unverified peer normalization
+	verifier      *crypto.RFC9421Verifier
+	peerDiscovery PeerDiscovery
+	logger        *slog.Logger
+	localScheme   string // scheme from PublicOrigin for unverified peer normalization
 }
 
 // NewSignatureMiddleware creates a new signature verification middleware.
 // publicOrigin is the local instance's PublicOrigin (validated at config load).
 func NewSignatureMiddleware(
-	peerContract *peercompat.CompiledContract,
 	pd PeerDiscovery,
 	publicOrigin string,
 	sigCfg config.SignatureConfig,
@@ -80,8 +72,6 @@ func NewSignatureMiddleware(
 	localScheme := config.SchemeFromOrigin(publicOrigin)
 
 	return &SignatureMiddleware{
-		peerContract:       peerContract,
-		compatibilityScope: "none",
 		verifier: crypto.NewRFC9421VerifierWithOptions(
 			crypto.RFC9421OptionsFromConfig(sigCfg),
 		),
@@ -91,46 +81,11 @@ func NewSignatureMiddleware(
 	}
 }
 
-func (m *SignatureMiddleware) logCompatibilityDecision(
-	r *http.Request,
-	level slog.Level,
-	message string,
-	entry peercompat.CompatibilityDecisionLog,
-	extraAttrs ...any,
-) {
-	if reqID := chimw.GetReqID(r.Context()); reqID != "" {
-		entry.RequestID = reqID
-	}
-	attrs := entry.SlogAttrs()
-	if len(extraAttrs) > 0 {
-		attrs = append(attrs, extraAttrs...)
-	}
-	m.logger.Log(r.Context(), level, message, attrs...)
-}
-
-func (m *SignatureMiddleware) decisionCompatibilityScope(profile string) string {
-	if profile != "" && profile != "strict" {
-		return "scoped"
-	}
-	if m.compatibilityScope != "" {
-		return m.compatibilityScope
-	}
-	return "none"
-}
-
 // VerifyOCMRequestIfPresent verifies inbound signatures when present and
 // populates peer identity from a verified keyId. Unsigned requests pass through
 // without identity regardless of inbound mode. Invalid signatures are rejected.
 func (m *SignatureMiddleware) VerifyOCMRequestIfPresent() func(http.Handler) http.Handler {
 	return m.verifyOCMRequest(nil, false, false, true)
-}
-
-// VerifyOCMRequest is middleware for /ocm/* endpoints.
-// declaredPeerResolver extracts the declared peer from the request body.
-// When a resolver is present, malformed or missing declared peers return
-// HTTP 400.
-func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http.Request, body []byte) (string, error)) func(http.Handler) http.Handler {
-	return m.verifyOCMRequest(declaredPeerResolver, false, false, false)
 }
 
 // VerifyOCMRequestRequireSignatureAndPeer enforces a verified signature and a
@@ -212,10 +167,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 						return
 					}
 
-					// Check for mismatch between declared peer and keyId authority.
-					peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
-					allowMismatch := peerDecision.Matched && peerDecision.AllowMismatchedHost
-					if declaredPeer != "" && !allowMismatch {
+					if declaredPeer != "" {
 						normalizedDeclared, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, compareScheme)
 						if err != nil {
 							m.logger.Warn("failed to normalize declared peer for comparison",
@@ -265,30 +217,8 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 					return
 				}
 
-				// Strict inbound: unsigned allowed only via matched peer-profile
-				// relaxations under scoped mappings.
-				if status, msg, ok := m.decideUnsignedInbound(r, declaredPeer); !ok {
-					http.Error(w, msg, status)
-					return
-				}
-
-				var authorityForCompare string
-				if declaredPeer != "" {
-					normalized, err := keyid.AuthorityForCompareFromDeclaredPeer(declaredPeer, m.localScheme)
-					if err != nil {
-						m.logger.Warn("failed to normalize declared peer",
-							"declared_peer", declaredPeer, "error", err)
-						http.Error(w, "invalid declared peer", http.StatusBadRequest)
-						return
-					}
-					authorityForCompare = normalized
-				}
-
-				peerIdentity = &PeerIdentity{
-					Authority:           declaredPeer,
-					AuthorityForCompare: authorityForCompare,
-					Authenticated:       false,
-				}
+				http.Error(w, "signature required", http.StatusUnauthorized)
+				return
 			}
 
 			// Verify Content-Digest if present
@@ -303,80 +233,6 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-// decideUnsignedInbound evaluates matched peer-profile relaxations for unsigned
-// requests under strict inbound mode. Global non-strict modes are retired.
-func (m *SignatureMiddleware) decideUnsignedInbound(
-	r *http.Request,
-	declaredPeer string,
-) (status int, msg string, allow bool) {
-	if declaredPeer == "" || m.peerContract == nil || m.peerDiscovery == nil {
-		return http.StatusUnauthorized, "signature required", false
-	}
-
-	isCapable, err := m.peerDiscovery.IsSigningCapable(r.Context(), declaredPeer)
-	if err != nil {
-		discoveryDecision := m.peerContract.ResolveDiscoveryFailure(declaredPeer)
-		logEntry := peercompat.CompatibilityDecisionLog{
-			PeerDomain:         discoveryDecision.PeerDomain,
-			Profile:            discoveryDecision.Profile,
-			Operation:          "unsigned_inbound_discovery",
-			ReasonCode:         discoveryDecision.ReasonCode,
-			CompatibilityScope: m.decisionCompatibilityScope(discoveryDecision.Profile),
-		}
-		if discoveryDecision.Allow {
-			logEntry.Decision = "allow"
-			m.logCompatibilityDecision(
-				r,
-				slog.LevelWarn,
-				"peer discovery failed, allowing unsigned",
-				logEntry,
-				"error", err,
-			)
-			return 0, "", true
-		}
-		logEntry.Decision = "reject"
-		m.logCompatibilityDecision(
-			r,
-			slog.LevelError,
-			"peer discovery failed",
-			logEntry,
-			"error", err,
-		)
-		return http.StatusBadGateway, "peer discovery failed", false
-	}
-
-	peerDecision := m.peerContract.SignatureDecisionForPeer(declaredPeer)
-	logEntry := peercompat.CompatibilityDecisionLog{
-		PeerDomain:         peerDecision.PeerDomain,
-		Profile:            peerDecision.Profile,
-		Operation:          "unsigned_inbound_capability",
-		CompatibilityScope: m.decisionCompatibilityScope(peerDecision.Profile),
-	}
-	if peerDecision.Matched && peerDecision.AllowUnsignedInbound {
-		logEntry.Decision = "allow"
-		logEntry.ReasonCode = "peer_allow_unsigned_inbound"
-		m.logCompatibilityDecision(
-			r,
-			slog.LevelWarn,
-			"matched peer profile allows unsigned inbound under strict mode",
-			logEntry,
-		)
-		return 0, "", true
-	}
-	if isCapable {
-		logEntry.Decision = "reject"
-		logEntry.ReasonCode = "signing_capable_peer_requires_signature"
-		m.logCompatibilityDecision(
-			r,
-			slog.LevelWarn,
-			"signing-capable peer sent unsigned request",
-			logEntry,
-		)
-		return http.StatusUnauthorized, "signature required from signing-capable peer", false
-	}
-	return http.StatusUnauthorized, "signature required", false
 }
 
 func authorityForCompareFromKid(k keyid.Kid, scheme string) (string, error) {

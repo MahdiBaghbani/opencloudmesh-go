@@ -23,6 +23,21 @@ func TestResolve_StrictDefaultIsHTTPS(t *testing.T) {
 	}
 }
 
+func TestResolve_DevFlagHonorsExplicitHTTPSPeerInput(t *testing.T) {
+	r := NewResolver(true)
+
+	decision := r.Resolve("https://strict.example.com:8443")
+	if decision.Scheme != "https" {
+		t.Fatalf("scheme = %q, want https", decision.Scheme)
+	}
+	if decision.BaseURL != "https://strict.example.com:8443" {
+		t.Fatalf("baseURL = %q, want https://strict.example.com:8443", decision.BaseURL)
+	}
+	if decision.PeerDomain != "strict.example.com:8443" {
+		t.Fatalf("peerDomain = %q, want strict.example.com:8443", decision.PeerDomain)
+	}
+}
+
 func TestResolve_DevFlagAllowsHTTPForEveryPeer(t *testing.T) {
 	r := NewResolver(true)
 

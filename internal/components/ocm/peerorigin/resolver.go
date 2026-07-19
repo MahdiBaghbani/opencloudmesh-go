@@ -40,7 +40,7 @@ func NewResolver(devAllowHTTP bool) *Resolver {
 // Resolve resolves peer origin and scheme for peer-boundary callers. An
 // empty or unparsable peerInput resolves to a zero Decision.
 func (r *Resolver) Resolve(peerInput string) Decision {
-	peerDomain, _ := peerDomainFromInput(peerInput)
+	peerDomain, inputScheme := peerDomainFromInput(peerInput)
 	if peerDomain == "" {
 		return Decision{}
 	}
@@ -49,6 +49,14 @@ func (r *Resolver) Resolve(peerInput string) Decision {
 	scheme := "https"
 	if allowHTTP {
 		scheme = "http"
+	}
+	switch inputScheme {
+	case "https":
+		scheme = "https"
+	case "http":
+		if allowHTTP {
+			scheme = "http"
+		}
 	}
 
 	return Decision{
