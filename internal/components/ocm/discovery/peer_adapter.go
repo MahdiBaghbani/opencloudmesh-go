@@ -12,23 +12,17 @@ import (
 
 // PeerDiscoveryAdapter implements inbound signature PeerDiscovery using JWKS.
 type PeerDiscoveryAdapter struct {
-	client     *Client
 	peerOrigin *peerorigin.Resolver
 	jwks       *jwks.Resolver
 }
 
-func NewPeerDiscoveryAdapter(client *Client, httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
-	if client == nil {
-		return &PeerDiscoveryAdapter{}
-	}
+func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
 	resolver, err := jwks.NewResolver(httpClient)
 	if err != nil {
-		// Constructor rejected the HTTP client.
-		return &PeerDiscoveryAdapter{client: client}
+		return &PeerDiscoveryAdapter{}
 	}
 	return &PeerDiscoveryAdapter{
-		client: client,
-		jwks:   resolver,
+		jwks: resolver,
 	}
 }
 
@@ -36,19 +30,6 @@ func NewPeerDiscoveryAdapter(client *Client, httpClient jwks.HTTPDoer) *PeerDisc
 // dev-mode HTTP transport gate.
 func (p *PeerDiscoveryAdapter) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
 	p.peerOrigin = peerOrigin
-}
-
-func (p *PeerDiscoveryAdapter) IsSigningCapable(ctx context.Context, host string) (bool, error) {
-	if p.client == nil {
-		return false, fmt.Errorf("no discovery client configured")
-	}
-	baseURL := p.resolvePeerBaseURL(host)
-	disc, err := p.client.Discover(ctx, baseURL)
-	if err != nil {
-		return false, fmt.Errorf("discovery failed for %s: %w", host, err)
-	}
-
-	return disc.RequiresHTTPSig(), nil
 }
 
 // ResolveVerificationKey fetches the public key for a keyId via /.well-known/jwks.json.
@@ -74,13 +55,14 @@ func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID
 		}
 	}
 
-	// Prefer the transport scheme from the resolved peer origin (AllowHTTP).
-	baseURL := p.resolvePeerBaseURL(authority)
-	if s, host, authErr := jwks.AuthorityFromBaseURL(baseURL); authErr == nil {
-		scheme = s
-		authority = host
-	} else if decision := p.resolvePeerOrigin(authority); decision.Scheme != "" {
-		scheme = decision.Scheme
+	// Host#fragment kids follow the peer transport policy. Absolute-URI kids keep
+	// the scheme encoded in the keyId so strict TLS peers stay on HTTPS even when
+	// the local resolver is in dev-mode HTTP transport.
+	if parsed.Scheme == "" {
+		decision := p.resolvePeerOrigin(authority)
+		if decision.Scheme != "" {
+			scheme = decision.Scheme
+		}
 	}
 
 	resolved, err := p.jwks.Resolve(ctx, scheme, authority, keyID)
@@ -88,14 +70,6 @@ func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup for %q: %w", keyID, err)
 	}
 	return resolved, nil
-}
-
-func (p *PeerDiscoveryAdapter) resolvePeerBaseURL(host string) string {
-	if p.peerOrigin == nil {
-		return host
-	}
-	decision := p.peerOrigin.Resolve(host)
-	return decision.BaseURL
 }
 
 func (p *PeerDiscoveryAdapter) resolvePeerOrigin(host string) peerorigin.Decision {

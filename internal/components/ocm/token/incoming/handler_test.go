@@ -202,16 +202,16 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 	}
 }
 
-// TestHandler_OCMShareGrant_Rejected proves the strict token contract rejects
-// grant_type=ocm_share with unsupported_grant_type.
-func TestHandler_OCMShareGrant_Rejected(t *testing.T) {
+// TestHandler_UnsupportedGrantType_Rejected proves the strict token contract
+// rejects unknown grant types with unsupported_grant_type.
+func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "client_credentials")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code")
 
@@ -628,7 +628,7 @@ func TestHandler_DisabledReturns501(t *testing.T) {
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, disabledSettings, nil, "https://local.example.com", logger)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code")
 

@@ -21,69 +21,6 @@ import (
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
-func TestPeerDiscoveryAdapter_IsSigningCapableFollowsCriteria(t *testing.T) {
-	tests := []struct {
-		name     string
-		criteria []string
-		want     bool
-	}{
-		{
-			name:     "capability without criterion is not treated as required signing",
-			criteria: nil,
-			want:     false,
-		},
-		{
-			name:     "criterion marks peer as requiring signed requests",
-			criteria: []string{"must-use-http-sig"},
-			want:     true,
-		},
-		{
-			name:     "legacy criterion alone is not treated as requiring signed requests",
-			criteria: []string{"http-request-signatures"},
-			want:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var srv *httptest.Server
-			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				switch r.URL.Path {
-				case "/.well-known/ocm":
-					w.Header().Set("Content-Type", "application/json")
-					_ = json.NewEncoder(w).Encode(Discovery{
-						Enabled:      true,
-						APIVersion:   "1.4.0",
-						EndPoint:     srv.URL + "/ocm",
-						Capabilities: []string{"http-sig"},
-						Criteria:     tt.criteria,
-					})
-				default:
-					http.NotFound(w, r)
-				}
-			}))
-			defer srv.Close()
-
-			outboundCfg := &config.OutboundHTTPConfig{
-				SSRF:               config.SSRFConfig{Mode: "off"},
-				MaxResponseBytes:   1 << 20,
-				InsecureSkipVerify: false,
-			}
-			rawClient := httpclient.New(outboundCfg, nil)
-			client := NewClient(rawClient, nil)
-			adapter := NewPeerDiscoveryAdapter(client, rawClient)
-
-			got, err := adapter.IsSigningCapable(context.Background(), srv.URL)
-			if err != nil {
-				t.Fatalf("IsSigningCapable() unexpected error = %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("IsSigningCapable() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 	var srv *httptest.Server
 	var km *crypto.KeyManager
@@ -117,8 +54,7 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
-	adapter := NewPeerDiscoveryAdapter(client, rawClient)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	keyID := km.GetKeyID()
@@ -188,8 +124,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
-	adapter := NewPeerDiscoveryAdapter(client, rawClient)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
@@ -211,14 +146,16 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	}
 
 	var keyID string
-	var sawURL string
+	var sawScheme string
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != jwks.WellKnownPath {
 			http.NotFound(w, r)
 			return
 		}
-		sawURL = r.URL.String()
+		if r.TLS == nil {
+			sawScheme = "http"
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub))
 	}))
@@ -228,8 +165,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Kid claims https, but the dev-mode resolver rewrites fetch scheme to http.
-	keyID = "https://" + authority + "#key1"
+	// Host#fragment kids follow the dev-mode HTTP transport policy.
+	keyID = authority + "#key1"
 
 	outboundCfg := &config.OutboundHTTPConfig{
 		SSRF:               config.SSRFConfig{Mode: "off"},
@@ -237,8 +174,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
-	adapter := NewPeerDiscoveryAdapter(client, rawClient)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
@@ -248,8 +184,57 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	if resolved.Algorithm != sigalg.Ed25519 {
 		t.Fatalf("Algorithm = %q", resolved.Algorithm)
 	}
-	if sawURL == "" {
-		t.Fatal("expected JWKS fetch")
+	if sawScheme != "http" {
+		t.Fatalf("JWKS transport = %q, want http in dev mode for host#fragment kid", sawScheme)
+	}
+}
+
+func TestPeerDiscoveryAdapter_ResolveVerificationKey_PreservesExplicitHTTPSKid(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var keyID string
+	var sawScheme string
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != jwks.WellKnownPath {
+			http.NotFound(w, r)
+			return
+		}
+		if r.TLS != nil {
+			sawScheme = "https"
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub))
+	}))
+	defer srv.Close()
+
+	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyID = "https://" + authority + "#key1"
+
+	outboundCfg := &config.OutboundHTTPConfig{
+		SSRF:               config.SSRFConfig{Mode: "off"},
+		MaxResponseBytes:   1 << 20,
+		InsecureSkipVerify: true,
+	}
+	rawClient := httpclient.New(outboundCfg, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
+
+	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
+	if err != nil {
+		t.Fatalf("ResolveVerificationKey: %v", err)
+	}
+	if resolved.Algorithm != sigalg.Ed25519 {
+		t.Fatalf("Algorithm = %q", resolved.Algorithm)
+	}
+	if sawScheme != "https" {
+		t.Fatalf("JWKS transport = %q, want https for absolute https kid", sawScheme)
 	}
 }
 
@@ -283,8 +268,7 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
-	adapter := NewPeerDiscoveryAdapter(client, rawClient)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(false))
 
 	_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
@@ -311,7 +295,6 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
 
 	t.Run("jwks 404", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -328,7 +311,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(client, rawClient)
+		adapter := NewPeerDiscoveryAdapter(rawClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
@@ -353,7 +336,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(client, rawClient)
+		adapter := NewPeerDiscoveryAdapter(rawClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
@@ -384,7 +367,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(client, rawClient)
+		adapter := NewPeerDiscoveryAdapter(rawClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
