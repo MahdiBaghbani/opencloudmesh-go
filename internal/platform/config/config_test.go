@@ -9,7 +9,7 @@ import (
 
 // TestSchemeFromOrigin documents the empty-on-invalid contract used by call
 // sites that must leave localScheme empty when PublicOrigin is empty or
-// unparseable (invites, notifications, signature middleware).
+// unparseable (signature middleware).
 func TestSchemeFromOrigin(t *testing.T) {
 	tests := []struct {
 		name   string

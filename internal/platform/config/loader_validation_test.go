@@ -57,48 +57,6 @@ mode = "letsencrypt"
 	}
 }
 
-func TestLoad_UnsupportedAdvertiseHTTPSignaturesKey_Fails(t *testing.T) {
-	tests := []struct {
-		name   string
-		config string
-	}{
-		{
-			name: "nested in signature table",
-			config: `
-mode = "dev"
-[signature]
-advertise_http_request_signatures = true
-`,
-		},
-		{
-			name: "dotted root key",
-			config: `
-mode = "dev"
-signature.advertise_http_request_signatures = true
-`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			configPath := filepath.Join(dir, "config.toml")
-
-			if err := os.WriteFile(configPath, []byte(tt.config), 0644); err != nil {
-				t.Fatalf("failed to write config: %v", err)
-			}
-
-			_, err := Load(LoaderOptions{ConfigPath: configPath})
-			if err == nil {
-				t.Fatal("expected error for unsupported key")
-			}
-			if !strings.Contains(err.Error(), "advertise_http_request_signatures") {
-				t.Errorf("expected error mentioning advertise_http_request_signatures, got: %v", err)
-			}
-		})
-	}
-}
-
 func TestLoad_InvalidExternalBasePath_FailsFast(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -127,7 +85,6 @@ func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
 
 	tomlContent := `
 mode = "dev"
-compatibility_scope = "scoped"
 
 [tls]
 mode = "acme"

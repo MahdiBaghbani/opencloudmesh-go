@@ -109,47 +109,6 @@ path = "` + tt.path + `"
 	}
 }
 
-func TestLoad_WebDAVTokenExchangeSurface_UnsupportedFails(t *testing.T) {
-	tests := []struct {
-		name   string
-		config string
-	}{
-		{
-			name: "unsupported table",
-			config: `
-mode = "strict"
-[webdav_token_exchange]
-mode = "strict"
-`,
-		},
-		{
-			name: "unsupported dotted key",
-			config: `
-mode = "strict"
-webdav_token_exchange.mode = "strict"
-`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			configPath := filepath.Join(dir, "config.toml")
-			if err := os.WriteFile(configPath, []byte(tt.config), 0644); err != nil {
-				t.Fatalf("failed to write config: %v", err)
-			}
-
-			_, err := Load(LoaderOptions{ConfigPath: configPath})
-			if err == nil {
-				t.Fatal("expected unsupported webdav_token_exchange surface to fail")
-			}
-			if !strings.Contains(err.Error(), "webdav_token_exchange") {
-				t.Fatalf("expected error to mention webdav_token_exchange, got %v", err)
-			}
-		})
-	}
-}
-
 func TestLoad_TokenExchangeConfig_DefaultPathWhenSectionMissing(t *testing.T) {
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {

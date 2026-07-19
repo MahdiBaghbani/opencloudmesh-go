@@ -35,14 +35,13 @@ type LoaderOptions struct {
 
 // FlagOverrides holds CLI flag values that override config file values.
 type FlagOverrides struct {
-	ListenAddr         *string
-	PublicOrigin       *string
-	ExternalBasePath   *string
-	CompatibilityScope *string
-	AdminUsername      *string
-	AdminPassword      *string
-	LoggingLevel       *string
-	TokenExchangePath  *string
+	ListenAddr        *string
+	PublicOrigin      *string
+	ExternalBasePath  *string
+	AdminUsername     *string
+	AdminPassword     *string
+	LoggingLevel      *string
+	TokenExchangePath *string
 }
 
 // Load loads configuration with the following precedence:
@@ -241,13 +240,6 @@ func normalizeSignatureConfig(sig *SignatureConfig) error {
 func validateEnums(cfg *Config) error {
 	// mode is already validated by ParseMode before we get here
 
-	switch cfg.CompatibilityScope {
-	case "none", "scoped":
-		// valid
-	default:
-		return fmt.Errorf("invalid compatibility_scope %q: must be one of none, scoped", cfg.CompatibilityScope)
-	}
-
 	// tls.mode
 	switch cfg.TLS.Mode {
 	case "off", "static", "selfsigned", "acme":
@@ -353,9 +345,11 @@ func validateEnums(cfg *Config) error {
 		)
 	}
 
-	// compatibility_scope=none is the supervising strictness contract. Reject
-	// obvious contradictions here before runtime posture is derived.
-	if err := validateCompatibilityScopeGuardrails(cfg); err != nil {
+	if err := validateSSRFRoutePolicyGuardrails(cfg); err != nil {
+		return err
+	}
+
+	if err := validateStrictModeGuardrails(cfg); err != nil {
 		return err
 	}
 
@@ -367,109 +361,34 @@ func validateEnums(cfg *Config) error {
 	return nil
 }
 
-// ValidateCompatibilityScopeStartupGuardrails applies the same
-// compatibility-scope startup guardrails that Load enforces. It is exported so
-// in-memory config callers that build a Config without going through Load (for
-// example the in-process test harness) reject the same broader impossible
-// startup states the real binary rejects. Load reaches this logic via
-// validateEnums; both paths share validateCompatibilityScopeGuardrails.
-func ValidateCompatibilityScopeStartupGuardrails(cfg *Config) error {
-	return validateCompatibilityScopeGuardrails(cfg)
+// ValidateStrictModeStartupGuardrails applies the same strict-mode startup
+// guardrails that Load enforces. It is exported so in-memory config callers
+// that build a Config without going through Load (for example the in-process
+// test harness) reject the same impossible startup states the real binary
+// rejects. Load reaches this logic via validateEnums.
+func ValidateStrictModeStartupGuardrails(cfg *Config) error {
+	return validateStrictModeGuardrails(cfg)
 }
 
-func validateCompatibilityScopeGuardrails(cfg *Config) error {
-	if cfg == nil {
+func validateStrictModeGuardrails(cfg *Config) error {
+	if cfg == nil || cfg.Mode != "strict" {
 		return nil
 	}
-	switch cfg.CompatibilityScope {
-	case "none":
-		return validateNoneCompatibilityScopeGuardrails(cfg)
-	case "scoped":
-		return validateScopedCompatibilityScopeGuardrails(cfg)
-	default:
-		return fmt.Errorf(
-			"invalid compatibility_scope %q: must be one of none, scoped",
-			cfg.CompatibilityScope,
-		)
-	}
-}
-
-func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
 	if cfg.TLS.Mode == "off" {
-		return fmt.Errorf("compatibility_scope=none requires tls.mode!=off")
+		return fmt.Errorf("mode=strict requires tls.mode!=off")
 	}
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
-		return fmt.Errorf("compatibility_scope=none requires outbound_http.ssrf.mode=strict")
-	}
-	if err := validateSSRFRoutePolicyGuardrails(cfg, "none"); err != nil {
-		return err
+		return fmt.Errorf("mode=strict requires outbound_http.ssrf.mode=strict")
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify {
-		return fmt.Errorf("compatibility_scope=none requires outbound_http.insecure_skip_verify=false")
-	}
-	if len(cfg.PeerProfiles.Mappings) > 0 {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.mappings")
-	}
-	for name, profile := range cfg.PeerProfiles.CustomProfiles {
-		if err := validateNoneScopePeerProfile(name, profile); err != nil {
-			return err
-		}
+		return fmt.Errorf("mode=strict requires outbound_http.insecure_skip_verify=false")
 	}
 	return nil
 }
 
-// validateNoneScopePeerProfile rejects any relaxing field in a custom peer
-// profile when compatibility_scope=none is in effect.
-func validateNoneScopePeerProfile(name string, p PeerProfile) error {
-	if p.AllowUnsignedInbound {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_unsigned_inbound", name)
-	}
-	if p.AllowUnsignedOutbound {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_unsigned_outbound", name)
-	}
-	if p.AllowMismatchedHost {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_mismatched_host", name)
-	}
-	if p.AllowHTTP {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_http", name)
-	}
-	if p.AllowUnsignedDiscovery {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_unsigned_discovery", name)
-	}
-	if p.AllowLegacyProtocolName {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allow_legacy_protocol_name", name)
-	}
-	if p.TokenExchangeGrantType != "" {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.token_exchange_grant_type", name)
-	}
-	if len(p.TokenExchangeQuirks) > 0 {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.token_exchange_quirks", name)
-	}
-	if len(p.AllowedBasicAuthPatterns) > 0 {
-		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.custom_profiles.%s.allowed_basic_auth_patterns", name)
-	}
-	return nil
-}
-
-// validateScopedCompatibilityScopeGuardrails enforces the global OCM
-// posture for compatibility_scope=scoped. Unlike "none", "scoped" does not
-// constrain dev-only transport settings (tls.mode, outbound_http.ssrf.mode,
-// outbound_http.insecure_skip_verify): those remain operator-configurable so
-// presets like dev can keep local-only transport leniency without granting
-// any OCM-level legacy behavior. Legacy peer behavior can only come from
-// explicit peer_profiles.mappings resolved through the peercompat gate.
-func validateScopedCompatibilityScopeGuardrails(cfg *Config) error {
-	if err := validateSSRFRoutePolicyGuardrails(cfg, "scoped"); err != nil {
-		return err
-	}
-	return nil
-}
-
-// validateSSRFRoutePolicyGuardrails enforces strict guardrails on the active
-// route policy. validateNoneCompatibilityScopeGuardrails and
-// validateScopedCompatibilityScopeGuardrails call this for scope "none" and
-// "scoped" respectively. The scope parameter labels the caller in error messages.
-func validateSSRFRoutePolicyGuardrails(cfg *Config, scope string) error {
+// validateSSRFRoutePolicyGuardrails enforces guardrails on the active route
+// policy whenever route_policy is configured.
+func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 	activePolicy := cfg.OutboundHTTP.SSRF.RoutePolicy
 	if activePolicy == "" {
 		return nil
@@ -485,55 +404,55 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config, scope string) error {
 
 	if len(policy.AllowPrivateHostSuffixes) == 0 {
 		return fmt.Errorf(
-			"compatibility_scope=%s: active ssrf route policy %q requires non-empty %s.allow_private_host_suffixes",
-			scope, activePolicy, prefix,
+			"active ssrf route policy %q requires non-empty %s.allow_private_host_suffixes",
+			activePolicy, prefix,
 		)
 	}
 	for _, suffix := range policy.AllowPrivateHostSuffixes {
 		if strings.TrimSpace(suffix) == "" {
 			return fmt.Errorf(
-				"compatibility_scope=%s: active ssrf route policy %q has blank entry in %s.allow_private_host_suffixes",
-				scope, activePolicy, prefix,
+				"active ssrf route policy %q has blank entry in %s.allow_private_host_suffixes",
+				activePolicy, prefix,
 			)
 		}
 	}
 	if len(policy.AllowPrivateCIDRs) == 0 {
 		return fmt.Errorf(
-			"compatibility_scope=%s: active ssrf route policy %q requires non-empty %s.allow_private_cidrs",
-			scope, activePolicy, prefix,
+			"active ssrf route policy %q requires non-empty %s.allow_private_cidrs",
+			activePolicy, prefix,
 		)
 	}
 	if len(policy.AllowedPorts) == 0 {
 		return fmt.Errorf(
-			"compatibility_scope=%s: active ssrf route policy %q requires non-empty %s.allowed_ports",
-			scope, activePolicy, prefix,
+			"active ssrf route policy %q requires non-empty %s.allowed_ports",
+			activePolicy, prefix,
 		)
 	}
 	if policy.AllowIPLiterals {
 		return fmt.Errorf(
-			"compatibility_scope=%s: active ssrf route policy %q requires %s.allow_ip_literals=false",
-			scope, activePolicy, prefix,
+			"active ssrf route policy %q requires %s.allow_ip_literals=false",
+			activePolicy, prefix,
 		)
 	}
 	for _, cidr := range policy.AllowPrivateCIDRs {
 		if cidr == "0.0.0.0/0" || cidr == "::/0" {
 			return fmt.Errorf(
-				"compatibility_scope=%s: active ssrf route policy %q forbids catch-all CIDR %q in %s.allow_private_cidrs",
-				scope, activePolicy, cidr, prefix,
+				"active ssrf route policy %q forbids catch-all CIDR %q in %s.allow_private_cidrs",
+				activePolicy, cidr, prefix,
 			)
 		}
 		if _, _, err := net.ParseCIDR(cidr); err != nil {
 			return fmt.Errorf(
-				"compatibility_scope=%s: active ssrf route policy %q has invalid CIDR %q in %s.allow_private_cidrs: %w",
-				scope, activePolicy, cidr, prefix, err,
+				"active ssrf route policy %q has invalid CIDR %q in %s.allow_private_cidrs: %w",
+				activePolicy, cidr, prefix, err,
 			)
 		}
 	}
 	for _, port := range policy.AllowedPorts {
 		if port < 1 || port > 65535 {
 			return fmt.Errorf(
-				"compatibility_scope=%s: active ssrf route policy %q has invalid port %d in %s.allowed_ports: must be in range 1-65535",
-				scope, activePolicy, port, prefix,
+				"active ssrf route policy %q has invalid port %d in %s.allowed_ports: must be in range 1-65535",
+				activePolicy, port, prefix,
 			)
 		}
 	}

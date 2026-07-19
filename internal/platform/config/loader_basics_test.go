@@ -214,9 +214,6 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.Mode != "strict" {
 		t.Errorf("expected mode strict, got %s", cfg.Mode)
 	}
-	if cfg.CompatibilityScope != "none" {
-		t.Errorf("expected compatibility scope none, got %s", cfg.CompatibilityScope)
-	}
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
@@ -233,9 +230,6 @@ func TestDevConfig(t *testing.T) {
 
 	if cfg.Mode != "dev" {
 		t.Errorf("expected mode dev, got %s", cfg.Mode)
-	}
-	if cfg.CompatibilityScope != "scoped" {
-		t.Errorf("expected compatibility scope scoped, got %s", cfg.CompatibilityScope)
 	}
 	if cfg.OutboundHTTP.SSRF.Mode != "off" {
 		t.Errorf("expected SSRF mode off, got %s", cfg.OutboundHTTP.SSRF.Mode)
@@ -260,7 +254,6 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		want any
 	}{
 		{"Mode", dev.Mode, "dev"},
-		{"CompatibilityScope", dev.CompatibilityScope, "scoped"},
 		{"TLS.Mode", dev.TLS.Mode, "off"},
 		{"TLS.ACME.Directory", dev.TLS.ACME.Directory, "https://acme-staging-v02.api.letsencrypt.org/directory"},
 		{"TLS.ACME.UseStaging", dev.TLS.ACME.UseStaging, true},

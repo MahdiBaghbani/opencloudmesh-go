@@ -35,9 +35,6 @@ func TestConfig_Redacted(t *testing.T) {
 	if !strings.Contains(redacted, "TokenExchange:") {
 		t.Error("expected token exchange block in redacted output")
 	}
-	if strings.Contains(redacted, "WebDAVTokenExchange") {
-		t.Error("expected WebDAVTokenExchange block removed from redacted output")
-	}
 }
 
 func TestLoad_StrictModeSignatureIETFDefaults(t *testing.T) {

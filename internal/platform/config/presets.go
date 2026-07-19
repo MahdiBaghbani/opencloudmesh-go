@@ -38,11 +38,10 @@ func presetForMode(mode Mode) *Config {
 // StrictConfig returns production-safe strict defaults.
 func StrictConfig() *Config {
 	cfg := &Config{
-		Mode:               string(ModeStrict),
-		CompatibilityScope: "none",
-		PublicOrigin:       "https://localhost:9200",
-		ExternalBasePath:   "",
-		ListenAddr:         ":9200",
+		Mode:             string(ModeStrict),
+		PublicOrigin:     "https://localhost:9200",
+		ExternalBasePath: "",
+		ListenAddr:       ":9200",
 		Server: ServerConfig{
 			TrustedProxies: []string{"127.0.0.0/8", "::1/128"},
 		},
@@ -84,15 +83,11 @@ func StrictConfig() *Config {
 // DevConfig returns development mode defaults as an overlay on StrictConfig,
 // so the strict preset stays the single source of shared defaults.
 //
-// DevConfig is bounded scoped governance with a strict global OCM posture.
-// Only dev-only transport and operational settings differ (TLS off, SSRF off,
-// insecure skip verify, ACME staging, debug logging). Legacy behavior for
-// local dev/test peers comes only from explicit peer_profiles.mappings resolved
-// through the peercompat gate.
+// DevConfig relaxes dev-only transport and operational settings (TLS off, SSRF
+// off, insecure skip verify, ACME staging, debug logging).
 func DevConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeDev)
-	cfg.CompatibilityScope = "scoped"
 	cfg.TLS.Mode = "off"
 	cfg.TLS.ACME.Directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
 	cfg.TLS.ACME.UseStaging = true

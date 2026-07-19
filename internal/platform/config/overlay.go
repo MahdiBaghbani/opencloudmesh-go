@@ -35,15 +35,13 @@ type fileConfig struct {
 	Mode   string        `toml:"mode"`
 	Server *serverConfig `toml:"server"`
 
-	PublicOrigin       string `toml:"public_origin"`
-	ExternalBasePath   string `toml:"external_base_path"`
-	ListenAddr         string `toml:"listen_addr"`
-	CompatibilityScope string `toml:"compatibility_scope"`
+	PublicOrigin     string `toml:"public_origin"`
+	ExternalBasePath string `toml:"external_base_path"`
+	ListenAddr       string `toml:"listen_addr"`
 
 	TLS           *TLSConfig              `toml:"tls"`
 	OutboundHTTP  *outboundHTTPFileConfig `toml:"outbound_http"`
 	Signature     *SignatureConfig        `toml:"signature"`
-	PeerProfiles  *peerProfilesConfig     `toml:"peer_profiles"`
 	Cache         *cacheConfig            `toml:"cache"`
 	PeerTrust     *peerTrustConfig        `toml:"peer_trust"`
 	Logging       *loggingConfig          `toml:"logging"`
@@ -92,13 +90,7 @@ type peerTrustMembershipCacheConfig struct {
 	MaxStaleSeconds int `toml:"max_stale_seconds"`
 }
 
-// peerProfilesConfig holds peer profile settings from TOML.
-type peerProfilesConfig struct {
-	Mappings       []PeerProfileMapping   `toml:"mappings"`
-	CustomProfiles map[string]PeerProfile `toml:"custom_profiles"`
-}
-
-// serverConfig holds server-specific settings in TOML.
+// serverConfig holds server settings from TOML.
 type serverConfig struct {
 	TrustedProxies []string        `toml:"trusted_proxies"`
 	BootstrapAdmin *bootstrapAdmin `toml:"bootstrap_admin"`
@@ -120,9 +112,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 	if fc.ListenAddr != "" {
 		cfg.ListenAddr = fc.ListenAddr
-	}
-	if fc.CompatibilityScope != "" {
-		cfg.CompatibilityScope = fc.CompatibilityScope
 	}
 
 	if fc.Server != nil {
@@ -234,15 +223,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 	}
 
-	if fc.PeerProfiles != nil {
-		if len(fc.PeerProfiles.Mappings) > 0 {
-			cfg.PeerProfiles.Mappings = fc.PeerProfiles.Mappings
-		}
-		if len(fc.PeerProfiles.CustomProfiles) > 0 {
-			cfg.PeerProfiles.CustomProfiles = fc.PeerProfiles.CustomProfiles
-		}
-	}
-
 	if fc.Cache != nil {
 		if fc.Cache.Driver != "" {
 			cfg.Cache.Driver = fc.Cache.Driver
@@ -326,9 +306,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.ExternalBasePath != nil && *f.ExternalBasePath != "" {
 		cfg.ExternalBasePath = *f.ExternalBasePath
-	}
-	if f.CompatibilityScope != nil && *f.CompatibilityScope != "" {
-		cfg.CompatibilityScope = *f.CompatibilityScope
 	}
 	if f.AdminUsername != nil && *f.AdminUsername != "" {
 		cfg.Server.BootstrapAdmin.Username = *f.AdminUsername

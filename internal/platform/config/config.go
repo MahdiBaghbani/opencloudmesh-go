@@ -12,12 +12,6 @@ type Config struct {
 	// Mode selects a preset bundle: strict or dev.
 	Mode string `toml:"mode"`
 
-	// CompatibilityScope is the supervising exception-governance axis.
-	// Values: "none" (canonical strict, no mappings/relaxations), "scoped"
-	// (explicit named peer_profiles.mappings only; canonical without a peer
-	// match). Unknown values are rejected at startup.
-	CompatibilityScope string `toml:"compatibility_scope"`
-
 	// PublicOrigin is the public origin (scheme + host + port) for this instance.
 	// Example: "https://localhost:9200"
 	PublicOrigin string `toml:"public_origin"`
@@ -43,9 +37,6 @@ type Config struct {
 
 	// Signature configuration
 	Signature SignatureConfig `toml:"signature"`
-
-	// PeerProfiles configuration for compatibility with different OCM implementations
-	PeerProfiles PeerProfilesConfig `toml:"peer_profiles"`
 
 	// Cache configuration
 	Cache CacheConfig `toml:"cache"`
@@ -149,59 +140,6 @@ type PeerTrustMembershipCacheConfig struct {
 	MaxStaleSeconds int `toml:"max_stale_seconds"`
 }
 
-// PeerProfilesConfig holds peer compatibility profile settings.
-type PeerProfilesConfig struct {
-	// Mappings maps domain patterns to profile names
-	// Example: [{ pattern = "*.nextcloud.com", profile = "nextcloud" }]
-	Mappings []PeerProfileMapping `toml:"mappings"`
-
-	// CustomProfiles defines custom profile overrides
-	CustomProfiles map[string]PeerProfile `toml:"custom_profiles"`
-}
-
-// PeerProfileMapping maps a domain pattern to a profile name.
-type PeerProfileMapping struct {
-	// Pattern is a domain pattern (exact or glob like "*.example.com")
-	Pattern string `toml:"pattern"`
-
-	// Profile is the name of the profile to use
-	Profile string `toml:"profile"`
-}
-
-// PeerProfile defines compatibility behavior for a class of peers.
-type PeerProfile struct {
-	// AllowUnsignedInbound allows accepting unsigned requests
-	AllowUnsignedInbound bool `toml:"allow_unsigned_inbound"`
-
-	// AllowUnsignedOutbound allows sending unsigned requests
-	AllowUnsignedOutbound bool `toml:"allow_unsigned_outbound"`
-
-	// AllowMismatchedHost allows keyId host to differ from sender
-	AllowMismatchedHost bool `toml:"allow_mismatched_host"`
-
-	// AllowHTTP allows HTTP connections (dev-only)
-	AllowHTTP bool `toml:"allow_http"`
-
-	// AllowUnsignedDiscovery allows discovery-based signature capability checks
-	// to fail open for this peer in the narrow retained call sites.
-	AllowUnsignedDiscovery bool `toml:"allow_unsigned_discovery"`
-
-	// AllowLegacyProtocolName allows deprecated protocol.name values such as
-	// "multi" for matched peers only.
-	AllowLegacyProtocolName bool `toml:"allow_legacy_protocol_name"`
-
-	// TokenExchangeQuirks lists quirks to apply for token exchange
-	TokenExchangeQuirks []string `toml:"token_exchange_quirks"`
-
-	// TokenExchangeGrantType overrides the outbound token exchange grant_type.
-	// Empty means the protocol default ("authorization_code").
-	TokenExchangeGrantType string `toml:"token_exchange_grant_type"`
-
-	// AllowedBasicAuthPatterns whitelists specific Basic auth patterns.
-	// Empty means allow all implemented patterns.
-	AllowedBasicAuthPatterns []string `toml:"allowed_basic_auth_patterns"`
-}
-
 // ServerConfig holds server-level settings.
 type ServerConfig struct {
 	// TrustedProxies is a list of CIDR ranges for trusted reverse proxies.
@@ -297,14 +235,13 @@ type SSRFRoutePolicyConfig struct {
 	AllowPrivateHostSuffixes []string `toml:"allow_private_host_suffixes"`
 
 	// AllowPrivateCIDRs lists CIDR ranges permitted for private routing.
-	// Catch-all CIDRs (0.0.0.0/0, ::/0) are rejected under none/scoped scopes.
+	// Catch-all CIDRs (0.0.0.0/0, ::/0) are rejected by route-policy validation.
 	AllowPrivateCIDRs []string `toml:"allow_private_cidrs"`
 
 	// AllowedPorts restricts which destination ports are permitted.
 	AllowedPorts []int `toml:"allowed_ports"`
 
 	// AllowIPLiterals permits direct IP address targets when true.
-	// Must be false under compatibility_scope=none and scoped.
 	AllowIPLiterals bool `toml:"allow_ip_literals"`
 }
 
@@ -350,8 +287,8 @@ type OutboundHTTPConfig struct {
 
 	// ProxyURL is an optional HTTP/HTTPS proxy for all outbound requests.
 	// Must be an absolute http or https URL with no userinfo.
-	// When set under compatibility_scope=none the proxy host is
-	// operator-trusted; private and loopback addresses are permitted.
+	// When set, the proxy host is operator-trusted; private and loopback
+	// addresses are permitted.
 	// When set, proxy_url takes precedence over proxy_env_fallback; the
 	// explicit URL is used and environment variables are not consulted.
 	ProxyURL string `toml:"proxy_url"`
@@ -395,7 +332,6 @@ func (c *Config) Redacted() string {
 	var sb strings.Builder
 	sb.WriteString("Config{\n")
 	sb.WriteString(fmt.Sprintf("  Mode: %q,\n", c.Mode))
-	sb.WriteString(fmt.Sprintf("  CompatibilityScope: %q,\n", c.CompatibilityScope))
 	sb.WriteString(fmt.Sprintf("  PublicOrigin: %q,\n", c.PublicOrigin))
 	sb.WriteString(fmt.Sprintf("  ExternalBasePath: %q,\n", c.ExternalBasePath))
 	sb.WriteString(fmt.Sprintf("  ListenAddr: %q,\n", c.ListenAddr))
@@ -439,10 +375,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds))
 	sb.WriteString(fmt.Sprintf("    CreatedMaxSkewSeconds: %d,\n", c.Signature.CreatedMaxSkewSeconds))
 	sb.WriteString(fmt.Sprintf("    AllowedAlgorithms: %v,\n", c.Signature.AllowedAlgorithms))
-	sb.WriteString("  },\n")
-	sb.WriteString("  PeerProfiles: {\n")
-	sb.WriteString(fmt.Sprintf("    MappingsCount: %d,\n", len(c.PeerProfiles.Mappings)))
-	sb.WriteString(fmt.Sprintf("    CustomProfilesCount: %d,\n", len(c.PeerProfiles.CustomProfiles)))
 	sb.WriteString("  },\n")
 	sb.WriteString("  Logging: {\n")
 	sb.WriteString(fmt.Sprintf("    Level: %q,\n", c.Logging.Level))
