@@ -54,7 +54,7 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 			slog.SetDefault(capture.Logger)
 			t.Cleanup(func() { slog.SetDefault(prev) })
 
-			server := newDiscoveryAwareTokenServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != http.MethodPost {
 					t.Errorf("token exchange method = %s, want POST", r.Method)
 				}
@@ -80,17 +80,10 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 			httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 				SSRF: config.SSRFConfig{Mode: "off"},
 			}, nil))
-			client := tokenoutgoing.NewClient(
-				httpClient,
-				dummyDiscClient(),
-				logSentinelSigner{signature: tt.signature},
-				makePolicy("strict", nil),
-				"my-instance.example.com",
-			)
+			client := tokenoutgoing.NewClient(httpClient, logSentinelSigner{signature: tt.signature}, "local.example.com")
 
 			result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 				TokenEndPoint: server.URL,
-				PeerDomain:    "peer.example.com",
 				SharedSecret:  tt.sharedSecret,
 			})
 			if err != nil {

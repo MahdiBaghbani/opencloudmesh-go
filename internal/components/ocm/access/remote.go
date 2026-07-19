@@ -160,7 +160,6 @@ func (c *Client) doTokenExchange(ctx context.Context, share *ShareInfo, discover
 	}
 	return c.tokenClient.Exchange(ctx, tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: disc.TokenEndPoint,
-		PeerDomain:    origin.peerDomain,
 		SharedSecret:  share.SharedSecret,
 	})
 }
@@ -237,14 +236,12 @@ func (c *Client) isAbsoluteURIHostValid(absoluteURI, senderHost string) bool {
 }
 
 type resolvedPeerOrigin struct {
-	baseURL    string
-	peerDomain string
+	baseURL string
 }
 
 func (c *Client) resolvePeerOrigin(host string) resolvedPeerOrigin {
 	decision := c.peerOrigin.Resolve(host)
 	return resolvedPeerOrigin{
-		baseURL:    decision.BaseURL,
-		peerDomain: decision.PeerDomain,
+		baseURL: decision.BaseURL,
 	}
 }

@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
@@ -61,43 +59,13 @@ func (accessMockSigner) Sign(req *http.Request) error {
 	return nil
 }
 
-func newHTTPTestContract(t *testing.T) *peercompat.CompiledContract {
-	t.Helper()
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"http-test": {
-				Name:      "http-test",
-				AllowHTTP: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "*", Profile: "http-test"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
-	}
-	return contract
-}
-
 func newExchangeAccessClient(
 	t *testing.T,
 	srv *httptest.Server,
 ) (*Client, *httpclient.ContextClient) {
 	t.Helper()
 	discClient, ctxClient := newTestClients(srv.URL)
-	contract := newHTTPTestContract(t)
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "strict",
-		PeerContract: contract,
-	}
-	tokenClient := tokenoutgoing.NewClient(
-		ctxClient,
-		discClient,
-		accessMockSigner{},
-		policy,
-		"local.example.com",
-	)
+	tokenClient := tokenoutgoing.NewClient(ctxClient, accessMockSigner{}, "local.example.com")
 	client := NewClient(
 		ctxClient,
 		discClient,
@@ -487,27 +455,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	defer srv.Close()
 
 	discClient, ctxClient := newTestClients(srv.URL)
-	ownerDomain := strings.Split(srv.Listener.Addr().String(), ":")[0]
-	profiles := map[string]*peercompat.Profile{
-		"owner-grant": {
-			Name:                   "owner-grant",
-			AllowHTTP:              true,
-			TokenExchangeGrantType: "ocm_share",
-		},
-	}
-	mappings := []peercompat.ProfileMapping{
-		{Pattern: ownerDomain, Profile: "owner-grant"},
-	}
-	registry := peercompat.NewProfileRegistry(profiles, mappings)
-	contract, err := peercompat.BuildCompiledContractFromRegistry(registry)
-	if err != nil {
-		t.Fatalf("BuildCompiledContractFromRegistry() unexpected error: %v", err)
-	}
-	policy := &outboundsigning.OutboundPolicy{
-		OutboundMode: "strict",
-		PeerContract: contract,
-	}
-	tokenClient := tokenoutgoing.NewClient(ctxClient, discClient, accessMockSigner{}, policy, "local.example.com")
+	tokenClient := tokenoutgoing.NewClient(ctxClient, accessMockSigner{}, "local.example.com")
 	client := NewClient(ctxClient, discClient, tokenClient, peerorigin.NewResolver(true))
 
 	result, err := client.Access(context.Background(), AccessOptions{

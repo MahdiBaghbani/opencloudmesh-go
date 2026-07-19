@@ -13,22 +13,17 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/instanceid"
 )
 
 // Client performs OCM token exchange against peer token endpoints.
 type Client struct {
-	httpClient      *httpclient.ContextClient
-	discoveryClient *discovery.Client
-	signer          RequestSigner
-	outboundPolicy  *outboundsigning.OutboundPolicy
-	myClientID      string // normalized Sending Server authority for client_id
+	httpClient *httpclient.ContextClient
+	signer     RequestSigner
+	myClientID string // normalized Sending Server authority for client_id
 }
 
 // RequestSigner signs HTTP requests for RFC 9421.
@@ -39,7 +34,6 @@ type RequestSigner interface {
 // ExchangeRequest holds token exchange parameters.
 type ExchangeRequest struct {
 	TokenEndPoint string // receiver-advertised tokenEndPoint from discovery
-	PeerDomain    string // receiver authority for profile lookup
 	SharedSecret  string // authorization code (sharedSecret) to exchange
 }
 
@@ -50,77 +44,22 @@ type ExchangeResult struct {
 	ExpiresIn   int
 }
 
-// NewClient builds a token exchange client. Panics if discoveryClient is nil.
+// NewClient builds a token exchange client.
 // myClientID must be the normalized Sending Server authority used as client_id.
 func NewClient(
 	httpClient *httpclient.ContextClient,
-	discoveryClient *discovery.Client,
 	signer RequestSigner,
-	outboundPolicy *outboundsigning.OutboundPolicy,
 	myClientID string,
 ) *Client {
-	if discoveryClient == nil {
-		panic("tokenoutgoing.NewClient: discoveryClient must not be nil")
-	}
 	return &Client{
-		httpClient:      httpClient,
-		discoveryClient: discoveryClient,
-		signer:          signer,
-		outboundPolicy:  outboundPolicy,
-		myClientID:      myClientID,
+		httpClient: httpClient,
+		signer:     signer,
+		myClientID: myClientID,
 	}
 }
 
 // Exchange performs signed form-urlencoded token exchange with authorization_code.
 func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
-	var disc *discovery.Discovery
-	if c.outboundPolicy != nil && c.discoveryClient != nil {
-		peerBaseURL, baseErr := instanceid.NormalizePublicOrigin(req.TokenEndPoint)
-		if baseErr != nil {
-			return nil, reason.NewClassifiedError(
-				reason.ReasonDiscoveryFailed,
-				"failed to derive rediscovery origin for token exchange",
-				baseErr,
-			)
-		}
-		d, discErr := c.discoveryClient.Discover(ctx, peerBaseURL)
-		if discErr != nil {
-			return nil, reason.NewClassifiedError(
-				reason.ReasonDiscoveryFailed,
-				"failed to rediscover peer for token exchange",
-				discErr,
-			)
-		}
-		disc = d
-	}
-
-	if c.outboundPolicy != nil {
-		decision := c.outboundPolicy.ShouldSign(
-			outboundsigning.EndpointTokenExchange,
-			req.PeerDomain,
-			disc,
-			c.signer != nil,
-		)
-		if decision.Error != nil {
-			return nil, reason.NewClassifiedError(
-				reason.ReasonSignatureRequired,
-				decision.Reason,
-				decision.Error,
-			)
-		}
-		if !decision.ShouldSign {
-			reasonCode := reason.ReasonSignatureRequired
-			message := "token exchange requires signing"
-			cause := fmt.Errorf("unsigned token exchange is not supported")
-			if disc != nil && !disc.HasCapability("exchange-token") {
-				reasonCode = reason.ReasonPeerCapabilityMissing
-				message = decision.Reason
-				cause = fmt.Errorf("peer does not advertise exchange-token capability")
-			}
-			return nil, reason.NewClassifiedError(reasonCode, message, cause)
-		}
-	}
-
 	if c.signer == nil {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonSignatureRequired,

@@ -12,7 +12,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
@@ -45,8 +44,7 @@ func newTestSigner(t *testing.T) *crypto.RFC9421Signer {
 }
 
 // httpSigDiscovery returns a discovery document that advertises the http-sig
-// capability. This is exactly the shape that used to trigger the removed
-// capability-based signing fallback when no outbound policy was set.
+// capability.
 func httpSigDiscovery() *discovery.Discovery {
 	return &discovery.Discovery{
 		EndPoint:     "https://peer.example/ocm",
@@ -60,17 +58,19 @@ func httpSigDiscovery() *discovery.Discovery {
 // the POST targets the supplied discovery endpoint joined with the path.
 func TestSendResolved_DoesNotDiscover(t *testing.T) {
 	hc := &captureHTTPClient{}
-	poster := outbound.NewPoster(hc, nil, nil, nil, nil)
+	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
 
-	disc := &discovery.Discovery{EndPoint: "https://peer.example/ocm"}
+	disc := &discovery.Discovery{
+		EndPoint:     "https://peer.example/ocm",
+		Capabilities: []string{"http-sig"},
+	}
 	resp, err := poster.SendResolved(context.Background(), outbound.Request{
 		TargetHost:   "peer.example",
-		EndpointPath: "notifications",
-		Kind:         outboundsigning.EndpointNotifications,
+		EndpointPath: "shares",
+		Kind:         outbound.EndpointShares,
 		Body:         []byte(`{}`),
 	}, outbound.ResolvedPeer{
-		PeerDomain: "peer.example",
-		Discovery:  disc,
+		Discovery: disc,
 	})
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
@@ -80,72 +80,86 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
 	}
-	want := "https://peer.example/ocm/notifications"
+	want := "https://peer.example/ocm/shares"
 	if hc.gotURL != want {
 		t.Fatalf("expected POST to %q, got %q", want, hc.gotURL)
 	}
+	if hc.gotSignature == "" {
+		t.Fatal("expected signed share dispatch")
+	}
 }
 
-func TestSendResolved_NilPolicyRejectsShares(t *testing.T) {
+func TestSendResolved_NilSignerRejectsTokenExchange(t *testing.T) {
 	hc := &captureHTTPClient{}
-	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil, nil)
+	poster := outbound.NewPoster(hc, nil, nil, nil)
+
+	_, err := poster.SendResolved(context.Background(), outbound.Request{
+		TargetHost:   "peer.example",
+		EndpointPath: "token",
+		Kind:         outbound.EndpointTokenExchange,
+		Body:         []byte(`{}`),
+	}, outbound.ResolvedPeer{
+		Discovery: httpSigDiscovery(),
+	})
+	if err == nil {
+		t.Fatal("expected error when token-exchange dispatch has nil signer")
+	}
+	if hc.calls != 0 {
+		t.Fatalf("expected no HTTP send on signing error, got %d calls", hc.calls)
+	}
+}
+
+func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
+	hc := &captureHTTPClient{}
+	poster := outbound.NewPoster(hc, nil, nil, nil)
 
 	_, err := poster.SendResolved(context.Background(), outbound.Request{
 		TargetHost:   "peer.example",
 		EndpointPath: "shares",
-		Kind:         outboundsigning.EndpointShares,
+		Kind:         outbound.EndpointShares,
 		Body:         []byte(`{}`),
 	}, outbound.ResolvedPeer{
-		PeerDomain: "peer.example",
-		Discovery:  httpSigDiscovery(),
+		Discovery: httpSigDiscovery(),
 	})
 	if err == nil {
-		t.Fatal("expected error when share dispatch has nil outbound policy")
+		t.Fatal("expected error when share dispatch has nil signer")
 	}
 	if hc.calls != 0 {
-		t.Fatalf("expected no HTTP send on policy error, got %d calls", hc.calls)
+		t.Fatalf("expected no HTTP send on signing error, got %d calls", hc.calls)
 	}
 }
 
-func TestSendResolved_NilPolicyRejectsInvites(t *testing.T) {
+func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
 	hc := &captureHTTPClient{}
-	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil, nil)
+	poster := outbound.NewPoster(hc, nil, nil, nil)
 
 	_, err := poster.SendResolved(context.Background(), outbound.Request{
 		TargetHost:   "peer.example",
 		EndpointPath: "invite-accepted",
-		Kind:         outboundsigning.EndpointInvites,
+		Kind:         outbound.EndpointInvites,
 		Body:         []byte(`{}`),
 	}, outbound.ResolvedPeer{
-		PeerDomain: "peer.example",
-		Discovery:  httpSigDiscovery(),
+		Discovery: httpSigDiscovery(),
 	})
 	if err == nil {
-		t.Fatal("expected error when invite dispatch has nil outbound policy")
+		t.Fatal("expected error when invite dispatch has nil signer")
 	}
 	if hc.calls != 0 {
-		t.Fatalf("expected no HTTP send on policy error, got %d calls", hc.calls)
+		t.Fatalf("expected no HTTP send on signing error, got %d calls", hc.calls)
 	}
 }
 
-func TestSendResolved_StrictPolicySigns(t *testing.T) {
+func TestSendResolved_SignerSignsShares(t *testing.T) {
 	hc := &captureHTTPClient{}
-	poster := outbound.NewPoster(
-		hc,
-		nil,
-		newTestSigner(t),
-		&outboundsigning.OutboundPolicy{OutboundMode: "strict"},
-		nil,
-	)
+	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
 
 	resp, err := poster.SendResolved(context.Background(), outbound.Request{
 		TargetHost:   "peer.example",
 		EndpointPath: "shares",
-		Kind:         outboundsigning.EndpointShares,
+		Kind:         outbound.EndpointShares,
 		Body:         []byte(`{}`),
 	}, outbound.ResolvedPeer{
-		PeerDomain: "peer.example",
-		Discovery:  httpSigDiscovery(),
+		Discovery: httpSigDiscovery(),
 	})
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
@@ -156,6 +170,6 @@ func TestSendResolved_StrictPolicySigns(t *testing.T) {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
 	}
 	if hc.gotSignature == "" {
-		t.Fatal("expected signed request under strict policy with signer, got no Signature header")
+		t.Fatal("expected signed request with signer configured, got no Signature header")
 	}
 }
