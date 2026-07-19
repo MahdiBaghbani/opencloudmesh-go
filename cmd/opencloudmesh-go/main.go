@@ -28,7 +28,6 @@ func main() {
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
 	publicOrigin := flag.String("public-origin", "", "Public origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
-	compatibilityScope := flag.String("compatibility-scope", "", "Compatibility scope: none or scoped (overrides config)")
 	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
 	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
@@ -44,14 +43,13 @@ func main() {
 		ConfigPath: *configPath,
 		ModeFlag:   *modeFlag,
 		FlagOverrides: config.FlagOverrides{
-			ListenAddr:         listenAddr,
-			PublicOrigin:       publicOrigin,
-			ExternalBasePath:   externalBasePath,
-			CompatibilityScope: compatibilityScope,
-			AdminUsername:      adminUsername,
-			AdminPassword:      adminPassword,
-			LoggingLevel:       loggingLevel,
-			TokenExchangePath:  tokenExchangePath,
+			ListenAddr:        listenAddr,
+			PublicOrigin:      publicOrigin,
+			ExternalBasePath:  externalBasePath,
+			AdminUsername:     adminUsername,
+			AdminPassword:     adminPassword,
+			LoggingLevel:      loggingLevel,
+			TokenExchangePath: tokenExchangePath,
 		},
 		Logger: bootstrapLogger,
 	})
@@ -91,27 +89,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Posture guard: compatibility_scope=none requires a resolved strict posture.
-	if cfg.CompatibilityScope == "none" && cfg.Mode != "strict" {
-		logger.Error(
-			"compatibility_scope=none contradicts resolved runtime posture",
-			"mode", cfg.Mode,
-			"compatibility_scope", cfg.CompatibilityScope,
-		)
-		os.Exit(1)
-	}
-
 	if cfg.Mode == "strict" {
 		logger.Info(
 			"resolved runtime posture",
 			"mode", cfg.Mode,
-			"compatibility_scope", cfg.CompatibilityScope,
 		)
 	} else {
 		logger.Warn(
 			"resolved runtime posture is non-strict",
 			"mode", cfg.Mode,
-			"compatibility_scope", cfg.CompatibilityScope,
 		)
 	}
 

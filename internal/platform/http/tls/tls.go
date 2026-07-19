@@ -186,4 +186,3 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 
 	return cryptotls.X509KeyPair(certPEM, keyPEM)
 }
-

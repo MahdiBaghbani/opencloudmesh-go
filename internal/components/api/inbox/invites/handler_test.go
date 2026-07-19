@@ -17,7 +17,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -321,7 +320,6 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 		requestClient,
 		discoveryClient,
 		nil,
-		&outboundsigning.OutboundPolicy{OutboundMode: "strict"},
 	)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
@@ -399,7 +397,6 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 		requestClient,
 		discoveryClient,
 		signer,
-		&outboundsigning.OutboundPolicy{OutboundMode: "strict"},
 		wantProvider,
 		currentUserFunc(userA),
 		testLogger,

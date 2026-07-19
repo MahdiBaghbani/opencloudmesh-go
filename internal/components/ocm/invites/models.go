@@ -31,9 +31,9 @@ type CreateOutgoingRequest struct {
 
 // CreateOutgoingResponse is the body for POST /api/invites/outgoing response.
 type CreateOutgoingResponse struct {
-	InviteString string `json:"inviteString"`
-	Token        string `json:"token"`
-	ProviderFQDN string `json:"providerFqdn"`
+	InviteString string    `json:"inviteString"`
+	Token        string    `json:"token"`
+	ProviderFQDN string    `json:"providerFqdn"`
 	ExpiresAt    time.Time `json:"expiresAt"`
 }
 

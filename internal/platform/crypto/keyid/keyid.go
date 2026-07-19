@@ -96,7 +96,7 @@ func AuthorityForCompareFromKeyID(p Parsed) string {
 // determines which default port is stripped (:443 for https, :80 for http).
 //
 // This is a convenience wrapper around hostport.Normalize. Non-keyId call
-// sites (token handler, notifications, invites, shareWith provider match)
+// sites (token handler, invites, shareWith provider match)
 // should use hostport.Normalize directly instead of importing this package.
 //
 // On parse failure, an error is returned. Callers that enforce peer mismatch

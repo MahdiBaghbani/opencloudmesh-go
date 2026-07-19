@@ -513,4 +513,3 @@ func TestPublicKeyFromJWKFields_Negative(t *testing.T) {
 		t.Fatal("oversized e should error")
 	}
 }
-

@@ -31,9 +31,6 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 		if d.Signer != nil {
 			t.Error("Signer must be nil when SkipCrypto=true")
 		}
-		if d.OutboundPolicy != nil {
-			t.Error("OutboundPolicy must be nil when SkipCrypto=true")
-		}
 	})
 
 	t.Run("SkipCrypto=false with signature modes on produces non-nil Signer", func(t *testing.T) {
@@ -100,7 +97,7 @@ func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
 	if result.Deps.Signer == nil {
 		t.Fatal("Signer must be non-nil for IETF harness opts")
 	}
-	if result.Deps.OutboundPolicy == nil {
-		t.Fatal("OutboundPolicy must be non-nil for IETF harness opts")
+	if result.Deps.SignatureMiddleware == nil {
+		t.Fatal("SignatureMiddleware must be non-nil for IETF harness opts")
 	}
 }

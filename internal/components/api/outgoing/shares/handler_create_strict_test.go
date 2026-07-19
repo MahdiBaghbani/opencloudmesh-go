@@ -17,7 +17,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
@@ -29,13 +28,11 @@ func newStrictOutgoingHandler(
 	user *identity.User,
 ) *outgoingshares.Handler {
 	t.Helper()
-	cfg := config.DevConfig()
 	handler := outgoingshares.NewHandler(
 		repo,
 		discClient,
 		ctxClient,
 		makeTestSigner(t),
-		makeTestOutboundPolicy(cfg),
 		testProvider,
 		testCurrentUser(user),
 		testLogger,

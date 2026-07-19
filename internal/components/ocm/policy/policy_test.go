@@ -7,14 +7,11 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
-func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode, scope string) {
+func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode string) {
 	t.Helper()
 
 	if cfg.Mode != mode {
 		t.Errorf("mode = %q, want %q", cfg.Mode, mode)
-	}
-	if cfg.CompatibilityScope != scope {
-		t.Errorf("scope = %q, want %q", cfg.CompatibilityScope, scope)
 	}
 	if cfg.PublicOrigin != "https://localhost:9200" {
 		t.Errorf("public origin = %q, want https://localhost:9200", cfg.PublicOrigin)
@@ -62,7 +59,7 @@ func TestStrictPreset_FinalShape(t *testing.T) {
 		t.Fatal("expected StrictConfig to load a config")
 	}
 
-	assertCommonPresetShape(t, cfg, "strict", "none")
+	assertCommonPresetShape(t, cfg, "strict")
 	if cfg.TLS.Mode != "selfsigned" {
 		t.Errorf("TLS mode = %q, want selfsigned", cfg.TLS.Mode)
 	}
@@ -107,7 +104,7 @@ func TestDevPreset_FinalShape(t *testing.T) {
 		t.Fatal("expected DevConfig to load a config")
 	}
 
-	assertCommonPresetShape(t, cfg, "dev", "scoped")
+	assertCommonPresetShape(t, cfg, "dev")
 	if cfg.TLS.Mode != "off" {
 		t.Errorf("TLS mode = %q, want off", cfg.TLS.Mode)
 	}

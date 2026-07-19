@@ -12,8 +12,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -38,7 +36,7 @@ type BuildOpts struct {
 	// FastAuth uses low-cost argon2id parameters. Set true for tests.
 	FastAuth bool
 
-	// SkipCrypto disables KeyManager, Signer, and OutboundPolicy construction.
+	// SkipCrypto disables KeyManager and Signer construction.
 	SkipCrypto bool
 
 	// SkipPeerTrust disables TrustGroupManager and PolicyEngine construction
@@ -74,11 +72,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, fmt.Errorf("wire shared deps: persistence repos must be non-nil")
 	}
 
-	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
-	if err != nil {
-		return BuildResult{}, fmt.Errorf("compile peer compatibility contract: %w", err)
-	}
-	peerOrigin := peerorigin.NewResolver(mappedPeerProfilesAllowHTTP(cfg, peerContract.Summary()))
+	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == "off")
 	codeFlow := policy.NewCodeFlow()
 
 	localIdentity, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
@@ -183,18 +177,9 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		)
 	}
 
-	var outboundPolicy *outboundsigning.OutboundPolicy
-	if !opts.SkipCrypto {
-		outboundPolicy = outboundsigning.NewOutboundPolicy(
-			outboundsigning.ResolveInputs(),
-			peerContract,
-		)
-	}
-
-	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient, rawHTTPClient)
+	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(rawHTTPClient)
 	peerDiscoveryAdapter.SetPeerOrigin(peerOrigin)
 	signatureMiddleware := signature.NewSignatureMiddleware(
-		peerContract,
 		peerDiscoveryAdapter,
 		localIdentity.Origin,
 		cfg.Signature,
@@ -218,11 +203,9 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		CodeFlow:            codeFlow,
 		KeyManager:          keyManager,
 		Signer:              signer,
-		OutboundPolicy:      outboundPolicy,
 		SignatureMiddleware: signatureMiddleware,
 		TrustGroupMgr:       trustGroupMgr,
 		PolicyEngine:        policyEngine,
-		PeerContract:        peerContract,
 		PeerOrigin:          peerOrigin,
 		LocalIdentity:       localIdentity,
 		Config:              cfg,
@@ -235,32 +218,4 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		RootCAPool:  rootCAPool,
 		Persistence: persistence,
 	}, nil
-}
-
-// mappedPeerProfilesAllowHTTP reports whether any configured peer_profiles
-// mapping resolves to a profile with dev-mode HTTP transport enabled. This is
-// the explicit dev transport signal for peerorigin.NewResolver: peerorigin
-// itself stays a single strict-default flag with no per-peer matching, so the
-// one-time mapped-profile lookup happens here at wiring time, using the
-// compiled contract summary. An empty mapping list (the common case outside
-// the IETF harness and any operator-configured local dev/test peers) always
-// resolves to false, so peer origin resolution stays HTTPS by default.
-func mappedPeerProfilesAllowHTTP(cfg *config.Config, summary peercompat.CompatibilitySummary) bool {
-	if len(cfg.PeerProfiles.Mappings) == 0 {
-		return false
-	}
-	summaryByName := make(map[string]peercompat.ProfileSummary, len(summary.Profiles))
-	for _, profileSummary := range summary.Profiles {
-		summaryByName[profileSummary.Name] = profileSummary
-	}
-	for _, mapping := range cfg.PeerProfiles.Mappings {
-		profileSummary, ok := summaryByName[mapping.Profile]
-		if !ok {
-			continue
-		}
-		if profileSummary.AllowHTTP {
-			return true
-		}
-	}
-	return false
 }

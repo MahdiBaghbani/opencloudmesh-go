@@ -23,7 +23,7 @@ func ValidatePreBootstrap(cfg *config.Config) error {
 			)
 		}
 	}
-	if err := config.ValidateCompatibilityScopeStartupGuardrails(cfg); err != nil {
+	if err := config.ValidateStrictModeStartupGuardrails(cfg); err != nil {
 		return err
 	}
 	return nil

@@ -20,7 +20,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -58,7 +57,6 @@ type Handler struct {
 	httpClient      httpclient.HTTPClient
 	discoveryClient *discovery.Client
 	signer          *crypto.RFC9421Signer
-	outboundPolicy  *outboundsigning.OutboundPolicy
 	peerOrigin      *peerorigin.Resolver
 	localProvider   string // raw host[:port] for recipientProvider in invite-accepted
 	currentUser     func(context.Context) (*identity.User, error)
@@ -71,7 +69,6 @@ func NewHandler(
 	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
-	outboundPolicy *outboundsigning.OutboundPolicy,
 	localProvider string,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
@@ -82,7 +79,6 @@ func NewHandler(
 		httpClient:      httpClient,
 		discoveryClient: discoveryClient,
 		signer:          signer,
-		outboundPolicy:  outboundPolicy,
 		localProvider:   localProvider,
 		currentUser:     currentUser,
 		log:             log,
@@ -316,11 +312,11 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 		return fmt.Errorf("failed to encode request: %w", err)
 	}
 
-	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.outboundPolicy, h.peerOrigin)
+	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.peerOrigin)
 	resp, err := poster.Send(ctx, outbound.Request{
 		TargetHost:   invite.SenderFQDN,
 		EndpointPath: "invite-accepted",
-		Kind:         outboundsigning.EndpointInvites,
+		Kind:         outbound.EndpointInvites,
 		Body:         body,
 	})
 	if err != nil {

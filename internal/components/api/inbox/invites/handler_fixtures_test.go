@@ -19,7 +19,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -46,7 +45,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 // newTestRouter mounts the inbox invites handler; nil clients suffice for list/import/decline (accept needs outbound).
 func newTestRouter(t *testing.T, repo invitesinbox.IncomingInviteRepo, user *identity.User) http.Handler {
 	t.Helper()
-	return newTestRouterWithDeps(t, repo, user, nil, nil, nil, nil)
+	return newTestRouterWithDeps(t, repo, user, nil, nil, nil)
 }
 
 func newTestRouterWithDeps(
@@ -56,7 +55,6 @@ func newTestRouterWithDeps(
 	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
-	outboundPolicy *outboundsigning.OutboundPolicy,
 ) http.Handler {
 	t.Helper()
 	localProvider := tslocalid.MustTestIdentity(t, testPublicOrigin, "").ProviderDomain
@@ -65,7 +63,6 @@ func newTestRouterWithDeps(
 		httpClient,
 		discoveryClient,
 		signer,
-		outboundPolicy,
 		localProvider,
 		currentUserFunc(user),
 		testLogger,

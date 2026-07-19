@@ -29,20 +29,12 @@ import (
 
 type ocmTestPeerDiscovery struct{}
 
-func (ocmTestPeerDiscovery) IsSigningCapable(context.Context, string) (bool, error) {
-	return false, nil
-}
-
 func (ocmTestPeerDiscovery) ResolveVerificationKey(_ context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
 	return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup for %q: %w", keyID, jwks.ErrKeyNotFound)
 }
 
 type serviceTestPeerDiscovery struct {
 	publicKeys map[string]sigalg.ResolvedPublicKey
-}
-
-func (pd *serviceTestPeerDiscovery) IsSigningCapable(context.Context, string) (bool, error) {
-	return false, nil
 }
 
 func (pd *serviceTestPeerDiscovery) ResolveVerificationKey(_ context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
@@ -110,7 +102,6 @@ func testInputs(cfg *config.Config) Inputs {
 		LocalIdentity:     id,
 		TokenExchangePath: "token",
 		SignatureMiddleware: inboundsignature.NewSignatureMiddleware(
-			nil,
 			ocmTestPeerDiscovery{},
 			id.Origin,
 			cfg.Signature,
@@ -158,7 +149,6 @@ func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serv
 func replaceSignatureMiddleware(in *Inputs, cfg *config.Config, pd inboundsignature.PeerDiscovery) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	in.SignatureMiddleware = inboundsignature.NewSignatureMiddleware(
-		nil,
 		pd,
 		in.LocalIdentity.Origin,
 		cfg.Signature,
@@ -497,7 +487,7 @@ func TestService_TokenRequireVerifiedSignature(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	form := "grant_type=ocm_share&client_id=receiver.example.com&code=secret-code"
+	form := "grant_type=authorization_code&client_id=receiver.example.com&code=secret-code"
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/token",
@@ -546,7 +536,7 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 			name:        "token",
 			path:        "/token",
 			contentType: "application/x-www-form-urlencoded",
-			body:        "grant_type=ocm_share&code=secret-code",
+			body:        "grant_type=authorization_code&code=secret-code",
 		},
 	}
 

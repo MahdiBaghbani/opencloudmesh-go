@@ -13,13 +13,10 @@ import (
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
@@ -158,20 +155,12 @@ func makeTestSigner(t *testing.T) *crypto.RFC9421Signer {
 	return crypto.NewRFC9421Signer(km)
 }
 
-func makeTestOutboundPolicy(cfg *config.Config) *outboundsigning.OutboundPolicy {
-	contract, err := peercompat.NewCompiledContract(nil, nil)
-	if err != nil {
-		panic(err)
-	}
-	return outboundsigning.NewOutboundPolicy(outboundsigning.ResolveInputs(), contract)
-}
-
 func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	discClient := makeDummyDiscoveryClient()
 
 	return outgoingshares.NewHandler(
-		repo, discClient, nil, nil, nil,
+		repo, discClient, nil, nil,
 		testProvider,
 		currentUser,
 		testLogger,

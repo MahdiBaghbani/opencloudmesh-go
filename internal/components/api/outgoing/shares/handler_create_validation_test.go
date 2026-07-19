@@ -121,7 +121,7 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 
 	discClient := makeDummyDiscoveryClient()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, nil, nil, nil,
+		repo, discClient, nil, nil,
 		testProvider,
 		testCurrentUser(user),
 		testLogger,

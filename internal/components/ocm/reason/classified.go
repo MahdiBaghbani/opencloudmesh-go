@@ -12,8 +12,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
-// Reason codes for strict failures that may trigger quirk attempts.
-// These are stable identifiers for classifying why a strict attempt failed.
+// Reason codes for classified OCM failures.
+// These are stable identifiers for error reporting and orchestration.
 const (
 	// Signature-related failures
 	ReasonSignatureRequired = "signature_required"

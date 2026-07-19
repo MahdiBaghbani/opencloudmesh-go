@@ -77,9 +77,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	tokenClient := tokenoutgoing.NewClient(
 		inputs.HTTPClient,
-		inputs.DiscoveryClient,
 		inputs.Signer,
-		inputs.OutboundPolicy,
 		inputs.LocalIdentity.ProviderDomain,
 	)
 	accessClient := access.NewClient(
@@ -101,7 +99,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.DiscoveryClient,
 		inputs.HTTPClient,
 		inputs.Signer,
-		inputs.OutboundPolicy,
 		inputs.LocalIdentity.ProviderDomain,
 		currentUser,
 		log,
@@ -116,7 +113,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.HTTPClient,
 		inputs.DiscoveryClient,
 		inputs.Signer,
-		inputs.OutboundPolicy,
 		inputs.LocalIdentity.ProviderDomain,
 		currentUser,
 		log,

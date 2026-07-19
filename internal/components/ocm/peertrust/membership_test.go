@@ -46,7 +46,7 @@ func TestTrustGroupManager_IsMember(t *testing.T) {
 		{"member1.example.com", true},
 		{"member2.example.com:9200", true},
 		{"unknown.example.com", false},
-		{"MEMBER1.EXAMPLE.COM", true}, // case insensitive
+		{"MEMBER1.EXAMPLE.COM", true},     // case insensitive
 		{"member1.example.com:443", true}, // default port stripping
 	}
 

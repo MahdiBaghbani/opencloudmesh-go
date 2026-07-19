@@ -11,7 +11,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -50,7 +49,6 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 				discClient,
 				ctxClient,
 				makeTestSigner(t),
-				makeTestOutboundPolicy(config.DevConfig()),
 				testProvider,
 				testCurrentUser(user),
 				capture.Logger,

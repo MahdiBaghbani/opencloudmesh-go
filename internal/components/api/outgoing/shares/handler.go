@@ -22,7 +22,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
@@ -38,7 +37,6 @@ type Handler struct {
 	discoveryClient *discovery.Client
 	httpClient      httpclient.HTTPClient
 	signer          *crypto.RFC9421Signer
-	outboundPolicy  *outboundsigning.OutboundPolicy
 	peerOrigin      *peerorigin.Resolver
 	localProvider   string // raw host[:port] for owner/sender identity
 	currentUser     func(context.Context) (*identity.User, error)
@@ -52,7 +50,6 @@ func NewHandler(
 	discClient *discovery.Client,
 	httpClient httpclient.HTTPClient,
 	signer *crypto.RFC9421Signer,
-	outboundPolicy *outboundsigning.OutboundPolicy,
 	localProvider string,
 	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
@@ -66,7 +63,6 @@ func NewHandler(
 		discoveryClient: discClient,
 		httpClient:      httpClient,
 		signer:          signer,
-		outboundPolicy:  outboundPolicy,
 		localProvider:   localProvider,
 		currentUser:     currentUser,
 		logger:          logger,
@@ -240,7 +236,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		WebDAVID:         webdavID.String(),
 		SharedSecret:     sharedSecret,
 		LocalPath:        cleanPath,
-		ReceiverHost:     req.ReceiverDomain,
+		ReceiverHost:     receiverOrigin.peerDomain,
 		ReceiverEndPoint: disc.EndPoint,
 		ShareWith:        req.ShareWith,
 		Name:             name,
@@ -312,15 +308,14 @@ func (h *Handler) sendShareToReceiver(
 		return fmt.Errorf("failed to encode payload: %w", err)
 	}
 
-	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.outboundPolicy, h.peerOrigin)
+	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.peerOrigin)
 	resp, err := poster.SendResolved(ctx, outbound.Request{
 		TargetHost:   origin.peerDomain,
 		EndpointPath: "shares",
-		Kind:         outboundsigning.EndpointShares,
+		Kind:         outbound.EndpointShares,
 		Body:         body,
 	}, outbound.ResolvedPeer{
-		PeerDomain: origin.peerDomain,
-		Discovery:  disc,
+		Discovery: disc,
 	})
 	if err != nil {
 		return err

@@ -1,7 +1,6 @@
 package webdav
 
 import (
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
@@ -10,5 +9,4 @@ import (
 type Inputs struct {
 	OutgoingShareRepo sharesoutgoing.OutgoingShareRepo
 	TokenStore        token.TokenStore
-	PeerContract      *peercompat.CompiledContract
 }

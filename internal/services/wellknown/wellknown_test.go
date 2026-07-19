@@ -12,25 +12,26 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
-func nextcloudPeerContract(t *testing.T) *peercompat.CompiledContract {
+func signatureMiddlewareForTest(
+	t *testing.T,
+	pd inboundsignature.PeerDiscovery,
+) *inboundsignature.SignatureMiddleware {
 	t.Helper()
-	contract, err := peercompat.NewCompiledContract(
-		nil,
-		[]peercompat.ProfileMapping{{Pattern: "nc.example.com", Profile: "nextcloud"}},
+	sigCfg := config.DefaultSignatureConfig()
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	return inboundsignature.NewSignatureMiddleware(
+		pd,
+		"https://receiver.example.com",
+		sigCfg,
+		log,
 	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
-	}
-	return contract
 }
-
 func TestNew_SucceedsWithResolveInputs(t *testing.T) {
 	m := map[string]any{
 		"ocmprovider": map[string]any{},
@@ -195,10 +196,6 @@ type mockPeerDiscovery struct {
 	publicKeys map[string]sigalg.ResolvedPublicKey
 }
 
-func (m *mockPeerDiscovery) IsSigningCapable(ctx context.Context, host string) (bool, error) {
-	return false, nil
-}
-
 func (m *mockPeerDiscovery) ResolveVerificationKey(ctx context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
 	if key, ok := m.publicKeys[keyID]; ok {
 		return key, nil
@@ -216,23 +213,6 @@ func resolvedKeyFromManager(km *crypto.KeyManager) sigalg.ResolvedPublicKey {
 	}
 }
 
-func signatureMiddlewareForTest(
-	t *testing.T,
-	contract *peercompat.CompiledContract,
-	pd inboundsignature.PeerDiscovery,
-) *inboundsignature.SignatureMiddleware {
-	t.Helper()
-	sigCfg := config.DefaultSignatureConfig()
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	return inboundsignature.NewSignatureMiddleware(
-		contract,
-		pd,
-		"https://receiver.example.com",
-		sigCfg,
-		log,
-	)
-}
-
 func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 	km := crypto.NewKeyManager("", "https://nc.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
@@ -246,11 +226,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 			km.GetKeyID(): resolvedKeyFromManager(km),
 		},
 	}
-	mw := signatureMiddlewareForTest(
-		t,
-		nextcloudPeerContract(t),
-		pd,
-	)
+	mw := signatureMiddlewareForTest(t, pd)
 
 	var captured *inboundsignature.PeerIdentity
 	signedHandler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
