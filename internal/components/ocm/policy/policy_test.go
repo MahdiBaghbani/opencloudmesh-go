@@ -54,9 +54,6 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode, scope strin
 	if cfg.TokenExchange.Path != "token" {
 		t.Errorf("token exchange path = %q, want token", cfg.TokenExchange.Path)
 	}
-	if cfg.PeerPolicy != "strict" {
-		t.Errorf("peer policy = %q, want strict", cfg.PeerPolicy)
-	}
 }
 
 func TestStrictPreset_FinalShape(t *testing.T) {

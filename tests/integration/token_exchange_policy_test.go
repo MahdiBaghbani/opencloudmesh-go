@@ -17,7 +17,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -26,52 +25,47 @@ func TestOutgoingShareStrictEmission(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	for _, peerPolicy := range []string{"strict", "prefer-strict", "legacy"} {
-		peerPolicy := peerPolicy
-		t.Run(peerPolicy+"_always_emits_must_exchange_token", func(t *testing.T) {
-			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
-				cfg.PeerPolicy = peerPolicy
-			})
-			defer ts.Stop(t)
+	t.Run("always_emits_must_exchange_token", func(t *testing.T) {
+		ts := harness.StartTestServerWithOutgoingSharePolicy(t, nil)
+		defer ts.Stop(t)
 
-			token := loginAdmin(t, ts.BaseURL, "admin", "admin")
+		token := loginAdmin(t, ts.BaseURL, "admin", "admin")
 
-			shareFile, err := os.CreateTemp("/tmp", "policy-diff-share-*")
-			if err != nil {
-				t.Fatalf("failed to create temp share file: %v", err)
-			}
-			if _, err := shareFile.WriteString("policy diff integration payload"); err != nil {
-				t.Fatalf("failed to seed temp share file: %v", err)
-			}
-			if err := shareFile.Close(); err != nil {
-				t.Fatalf("failed to close temp share file: %v", err)
-			}
-			t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
+		shareFile, err := os.CreateTemp("/tmp", "policy-diff-share-*")
+		if err != nil {
+			t.Fatalf("failed to create temp share file: %v", err)
+		}
+		if _, err := shareFile.WriteString("policy diff integration payload"); err != nil {
+			t.Fatalf("failed to seed temp share file: %v", err)
+		}
+		if err := shareFile.Close(); err != nil {
+			t.Fatalf("failed to close temp share file: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
 
-			receiver, postCount, mustExchangeFlag := startCapableNonStrictReceiver(t)
-			defer receiver.Close()
+		receiver, postCount, mustExchangeFlag := startCapableNonStrictReceiver(t)
+		defer receiver.Close()
 
-			receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
-			status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
-				"receiverDomain": receiverDomain,
-				"shareWith":      "bob@" + receiverDomain,
-				"localPath":      shareFile.Name(),
-				"permissions":    []string{"read"},
-			})
-
-			if status != http.StatusCreated {
-				t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, status, body)
-			}
-
-			if got := postCount.Load(); got != 1 {
-				t.Fatalf("expected receiver POST count 1, got %d", got)
-			}
-
-			if mustExchangeFlag.Load() != 1 {
-				t.Fatalf("expected must-exchange-token on wire, got flag %d", mustExchangeFlag.Load())
-			}
+		receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
+		status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
+			"receiverDomain": receiverDomain,
+			"shareWith":      "bob@" + receiverDomain,
+			"localPath":      shareFile.Name(),
+			"permissions":    []string{"read"},
 		})
-	}
+
+		if status != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, status, body)
+		}
+
+		if got := postCount.Load(); got != 1 {
+			t.Fatalf("expected receiver POST count 1, got %d", got)
+		}
+
+		if mustExchangeFlag.Load() != 1 {
+			t.Fatalf("expected must-exchange-token on wire, got flag %d", mustExchangeFlag.Load())
+		}
+	})
 }
 
 func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
@@ -79,11 +73,7 @@ func TestWebDAVStrictShareRejectsSharedSecretWhenLocalNotStrict(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
-		// Outbound prefer-strict stamps must-exchange-token toward capable
-		// non-strict peers regardless of local code-flow facts.
-		cfg.PeerPolicy = "prefer-strict"
-	})
+	ts := harness.StartTestServerWithOutgoingSharePolicy(t, nil)
 	defer ts.Stop(t)
 
 	token := loginAdmin(t, ts.BaseURL, "admin", "admin")
@@ -279,9 +269,7 @@ func TestOutgoingSharePolicy_CanonicalStrictPeer(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
-				cfg.PeerPolicy = "legacy"
-			})
+			ts := harness.StartTestServerWithOutgoingSharePolicy(t, nil)
 			defer ts.Stop(t)
 
 			token := loginAdmin(t, ts.BaseURL, "admin", "admin")
@@ -334,51 +322,46 @@ func TestOutgoingShareRejectsMalformedTokenExchange(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	for _, peerPolicy := range []string{"strict", "prefer-strict", "legacy"} {
-		peerPolicy := peerPolicy
-		t.Run(peerPolicy+"_rejects_malformed_exchange_token_capability", func(t *testing.T) {
-			ts := harness.StartTestServerWithOutgoingSharePolicy(t, func(cfg *config.Config) {
-				cfg.PeerPolicy = peerPolicy
-			})
-			defer ts.Stop(t)
+	t.Run("rejects_malformed_exchange_token_capability", func(t *testing.T) {
+		ts := harness.StartTestServerWithOutgoingSharePolicy(t, nil)
+		defer ts.Stop(t)
 
-			token := loginAdmin(t, ts.BaseURL, "admin", "admin")
+		token := loginAdmin(t, ts.BaseURL, "admin", "admin")
 
-			shareFile, err := os.CreateTemp("/tmp", "policy-diff-malformed-*")
-			if err != nil {
-				t.Fatalf("failed to create temp share file: %v", err)
-			}
-			if _, err := shareFile.WriteString("policy diff malformed integration payload"); err != nil {
-				t.Fatalf("failed to seed temp share file: %v", err)
-			}
-			if err := shareFile.Close(); err != nil {
-				t.Fatalf("failed to close temp share file: %v", err)
-			}
-			t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
+		shareFile, err := os.CreateTemp("/tmp", "policy-diff-malformed-*")
+		if err != nil {
+			t.Fatalf("failed to create temp share file: %v", err)
+		}
+		if _, err := shareFile.WriteString("policy diff malformed integration payload"); err != nil {
+			t.Fatalf("failed to seed temp share file: %v", err)
+		}
+		if err := shareFile.Close(); err != nil {
+			t.Fatalf("failed to close temp share file: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Remove(shareFile.Name()) })
 
-			receiver, postCount, mustExchangeFlag := startMalformedCapableNonStrictReceiver(t)
-			defer receiver.Close()
+		receiver, postCount, mustExchangeFlag := startMalformedCapableNonStrictReceiver(t)
+		defer receiver.Close()
 
-			receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
-			status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
-				"receiverDomain": receiverDomain,
-				"shareWith":      "bob@" + receiverDomain,
-				"localPath":      shareFile.Name(),
-				"permissions":    []string{"read"},
-			})
-
-			wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
-			if status != wantStatus {
-				t.Fatalf("expected status %d, got %d: %s", wantStatus, status, body)
-			}
-
-			if got := postCount.Load(); got != 0 {
-				t.Fatalf("expected receiver POST count 0, got %d", got)
-			}
-
-			if mustExchangeFlag.Load() != -1 {
-				t.Fatalf("expected no share POST, got must-exchange flag %d", mustExchangeFlag.Load())
-			}
+		receiverDomain := strings.TrimPrefix(receiver.URL, "https://")
+		status, body := createOutgoingShare(t, ts.BaseURL, token, map[string]any{
+			"receiverDomain": receiverDomain,
+			"shareWith":      "bob@" + receiverDomain,
+			"localPath":      shareFile.Name(),
+			"permissions":    []string{"read"},
 		})
-	}
+
+		wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
+		if status != wantStatus {
+			t.Fatalf("expected status %d, got %d: %s", wantStatus, status, body)
+		}
+
+		if got := postCount.Load(); got != 0 {
+			t.Fatalf("expected receiver POST count 0, got %d", got)
+		}
+
+		if mustExchangeFlag.Load() != -1 {
+			t.Fatalf("expected no share POST, got must-exchange flag %d", mustExchangeFlag.Load())
+		}
+	})
 }

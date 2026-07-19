@@ -115,6 +115,23 @@ func TestFetchListing_Off_Accepted(t *testing.T) {
 	assertListing(t, listing)
 }
 
+// TestTrustMembershipGuardrail_RequiredRejectsUnsignedListing documents that
+// peer trust membership refresh uses required JWS verification (matching wiring
+// bootstrap). Unsigned directory listings must not satisfy membership refresh.
+func TestTrustMembershipGuardrail_RequiredRejectsUnsignedListing(t *testing.T) {
+	ts := serveJWS(t, testPayload())
+	defer ts.Close()
+
+	client := NewClient(newTestHTTPClient(), "required", nil)
+	kp := generateEd25519(t)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
+
+	_, err := client.FetchListing(t.Context(), ts.URL, keys, "required")
+	if err == nil {
+		t.Fatal("trust membership path requires JWS-verified listings; unsigned payload must fail")
+	}
+}
+
 func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
 	ts := serveJWS(t, testPayload())
 	defer ts.Close()
@@ -178,6 +195,32 @@ func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing
 		if !expectedURLs[s.URL] {
 			t.Errorf("unexpected server URL after filtering: %q", s.URL)
 		}
+	}
+}
+
+func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
+	unsignedTS := serveJWS(t, testPayload())
+	defer unsignedTS.Close()
+
+	trustClient := NewClient(newTestHTTPClient(), "required", nil)
+	kp := generateEd25519(t)
+	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
+
+	_, err := trustClient.FetchListing(t.Context(), unsignedTS.URL, keys, "")
+	if err == nil {
+		t.Fatal("unsigned listing must be rejected under required policy used for trust membership")
+	}
+
+	signedBody := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	signedTS := serveJWS(t, signedBody)
+	defer signedTS.Close()
+
+	listing, err := trustClient.FetchListing(t.Context(), signedTS.URL, keys, "")
+	if err != nil {
+		t.Fatalf("JWS-verified listing must be accepted: %v", err)
+	}
+	if !listing.Verified {
+		t.Fatal("trust membership consumes only JWS-verified directory listings")
 	}
 }
 

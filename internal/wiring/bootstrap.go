@@ -168,23 +168,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		}
 
 		policyCfg := &peertrust.PolicyConfig{
-			GlobalEnforce: cfg.PeerTrust.Policy.GlobalEnforce,
-			AllowList:     cfg.PeerTrust.Policy.AllowList,
-			DenyList:      cfg.PeerTrust.Policy.DenyList,
-			ExemptList:    cfg.PeerTrust.Policy.ExemptList,
+			AllowList: cfg.PeerTrust.Policy.AllowList,
+			DenyList:  cfg.PeerTrust.Policy.DenyList,
 		}
 		policyEngine = peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
-		logger.Info(
-			"peer trust enabled",
-			"config_paths", len(cfg.PeerTrust.ConfigPaths),
-			"global_enforce", policyCfg.GlobalEnforce,
-		)
-		if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
-			logger.Warn(
-				"peer trust is enabled without global enforcement",
-				"compatibility_scope", cfg.CompatibilityScope,
-			)
-		}
+		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths))
 	}
 
 	var signer *crypto.RFC9421Signer

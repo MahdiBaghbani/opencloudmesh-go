@@ -114,62 +114,6 @@ insecure_skip_verify = true
 	}
 }
 
-func TestStrictModePeerTrustFailOpenDemotesRuntimePosture(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping subprocess test in short mode")
-	}
-
-	binaryPath := harness.BuildBinary(t)
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "config.toml")
-	config := `mode = "strict"
-listen_addr = "127.0.0.1:0"
-public_origin = "https://localhost:9204"
-external_base_path = ""
-
-[tls]
-mode = "selfsigned"
-
-[server]
-trusted_proxies = ["127.0.0.0/8", "::1/128"]
-
-[server.bootstrap_admin]
-username = "admin"
-
-[outbound_http]
-timeout_ms = 5000
-connect_timeout_ms = 2000
-max_redirects = 1
-max_response_bytes = 1048576
-insecure_skip_verify = false
-
-[peer_trust]
-enabled = true
-config_paths = ["trust-group.json"]
-
-[peer_trust.policy]
-global_enforce = false
-`
-	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tempDir, "trust-group.json"), []byte("{}"), 0644); err != nil {
-		t.Fatalf("failed to write trust-group.json: %v", err)
-	}
-
-	cmd := exec.Command(binaryPath, "--config", configPath)
-	cmd.Dir = tempDir
-	output, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected startup failure for strict fail-open peer trust, got success: %s", output)
-	}
-
-	outputText := string(output)
-	if !strings.Contains(outputText, "compatibility_scope=none requires peer_trust.policy.global_enforce=true") {
-		t.Fatalf("expected strict peer-trust contradiction error in output, got: %s", outputText)
-	}
-}
-
 // TestCompatModeRejectedAtStartup verifies that compat mode is no longer accepted.
 func TestCompatModeRejectedAtStartup(t *testing.T) {
 	if testing.Short() {

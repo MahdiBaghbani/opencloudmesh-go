@@ -43,7 +43,6 @@ type FlagOverrides struct {
 	AdminPassword      *string
 	LoggingLevel       *string
 	TokenExchangePath  *string
-	PeerPolicy         *string
 }
 
 // Load loads configuration with the following precedence:
@@ -337,14 +336,6 @@ func validateEnums(cfg *Config) error {
 		}
 	}
 
-	// peer_policy validation
-	switch cfg.PeerPolicy {
-	case "legacy", "prefer-strict", "strict":
-		// valid
-	default:
-		return fmt.Errorf("invalid peer_policy %q: must be one of legacy, prefer-strict, strict", cfg.PeerPolicy)
-	}
-
 	// persistence.backend validation - unknown values are a hard error; no silent fallback.
 	switch cfg.Persistence.Backend {
 	case BackendMemory, BackendJSON, BackendSQLite, BackendMirror:
@@ -360,18 +351,6 @@ func validateEnums(cfg *Config) error {
 			"persistence.data_dir is required for backend %q",
 			cfg.Persistence.Backend,
 		)
-	}
-	// persistence.mirror.secrets_scope must only contain known values.
-	for _, scope := range cfg.Persistence.Mirror.SecretsScope {
-		switch scope {
-		case "webdav_shared_secrets", "session_tokens":
-			// valid
-		default:
-			return fmt.Errorf(
-				"invalid persistence.mirror.secrets_scope value %q: must be one of webdav_shared_secrets, session_tokens",
-				scope,
-			)
-		}
 	}
 
 	// compatibility_scope=none is the supervising strictness contract. Reject
@@ -416,9 +395,6 @@ func validateCompatibilityScopeGuardrails(cfg *Config) error {
 }
 
 func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
-	if cfg.PeerPolicy != "strict" {
-		return fmt.Errorf("compatibility_scope=none requires peer_policy=strict")
-	}
 	if cfg.TLS.Mode == "off" {
 		return fmt.Errorf("compatibility_scope=none requires tls.mode!=off")
 	}
@@ -430,9 +406,6 @@ func validateNoneCompatibilityScopeGuardrails(cfg *Config) error {
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		return fmt.Errorf("compatibility_scope=none requires outbound_http.insecure_skip_verify=false")
-	}
-	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
-		return fmt.Errorf("compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled")
 	}
 	if len(cfg.PeerProfiles.Mappings) > 0 {
 		return fmt.Errorf("compatibility_scope=none forbids peer_profiles.mappings")
@@ -486,9 +459,6 @@ func validateNoneScopePeerProfile(name string, p PeerProfile) error {
 // any OCM-level legacy behavior. Legacy peer behavior can only come from
 // explicit peer_profiles.mappings resolved through the peercompat gate.
 func validateScopedCompatibilityScopeGuardrails(cfg *Config) error {
-	if cfg.PeerTrust.Enabled && !cfg.PeerTrust.Policy.GlobalEnforce {
-		return fmt.Errorf("compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled")
-	}
 	if err := validateSSRFRoutePolicyGuardrails(cfg, "scoped"); err != nil {
 		return err
 	}

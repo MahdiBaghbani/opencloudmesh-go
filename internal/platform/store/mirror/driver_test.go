@@ -16,10 +16,6 @@ func TestMirrorDriver(t *testing.T) {
 	cfg := &store.DriverConfig{
 		Driver:  "mirror",
 		DataDir: tempDir,
-		Mirror: store.MirrorConfig{
-			IncludeSecrets: false,
-			SecretsScope:   []string{},
-		},
 	}
 
 	testutil.RunDriverTests(t, "mirror", cfg)

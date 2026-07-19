@@ -52,8 +52,6 @@ func LoadTrustGroupConfig(path string) (*TrustGroupConfig, error) {
 
 // PolicyConfig defines the trust policy settings.
 type PolicyConfig struct {
-	GlobalEnforce bool     `json:"global_enforce"`
-	AllowList     []string `json:"allow_list"`
-	DenyList      []string `json:"deny_list"`
-	ExemptList    []string `json:"exempt_list"`
+	AllowList []string `json:"allow_list"`
+	DenyList  []string `json:"deny_list"`
 }

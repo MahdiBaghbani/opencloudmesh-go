@@ -59,10 +59,6 @@ type Config struct {
 	// TokenExchange configuration
 	TokenExchange TokenExchangeConfig `toml:"token_exchange"`
 
-	// PeerPolicy controls sender behavior toward non-strict peers.
-	// Values: "legacy", "prefer-strict" (default), "strict".
-	PeerPolicy string `toml:"peer_policy"`
-
 	// HTTP holds per-service HTTP configuration (Reva-style).
 	HTTP HTTPConfig `toml:"http"`
 
@@ -79,21 +75,6 @@ type PersistenceConfig struct {
 	// DataDir is the data directory for durable backends (json, sqlite, mirror).
 	// Required when backend is json, sqlite, or mirror.
 	DataDir string `toml:"data_dir"`
-
-	// Mirror holds mirror-specific options.
-	// Only used when backend is mirror.
-	Mirror MirrorPersistenceConfig `toml:"mirror"`
-}
-
-// MirrorPersistenceConfig holds mirror-specific persistence options.
-type MirrorPersistenceConfig struct {
-	// IncludeSecrets controls whether secrets are exported to JSON.
-	// Default: false.
-	IncludeSecrets bool `toml:"include_secrets"`
-
-	// SecretsScope is the allowlist of secret types to export.
-	// Supported values: webdav_shared_secrets, session_tokens.
-	SecretsScope []string `toml:"secrets_scope"`
 }
 
 // HTTPConfig holds per-service HTTP configuration.
@@ -152,17 +133,11 @@ type PeerTrustConfig struct {
 
 // PeerTrustPolicyConfig holds peer trust policy settings.
 type PeerTrustPolicyConfig struct {
-	// GlobalEnforce enforces membership checks globally.
-	GlobalEnforce bool `toml:"global_enforce"`
-
 	// AllowList is a list of always-allowed hosts.
 	AllowList []string `toml:"allow_list"`
 
 	// DenyList is a list of always-denied hosts.
 	DenyList []string `toml:"deny_list"`
-
-	// ExemptList is a list of hosts exempt from membership checks.
-	ExemptList []string `toml:"exempt_list"`
 }
 
 // PeerTrustMembershipCacheConfig holds membership cache settings.
@@ -475,7 +450,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  TokenExchange: {\n")
 	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
 	sb.WriteString("  },\n")
-	sb.WriteString(fmt.Sprintf("  PeerPolicy: %q,\n", c.PeerPolicy))
 	sb.WriteString("  HTTP: {\n")
 	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))
 	if len(c.HTTP.Services) > 0 {
@@ -494,10 +468,8 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  PeerTrust: {\n")
 	sb.WriteString(fmt.Sprintf("    Enabled: %v,\n", c.PeerTrust.Enabled))
 	sb.WriteString(fmt.Sprintf("    ConfigPathsCount: %d,\n", len(c.PeerTrust.ConfigPaths)))
-	sb.WriteString(fmt.Sprintf("    Policy.GlobalEnforce: %v,\n", c.PeerTrust.Policy.GlobalEnforce))
 	sb.WriteString(fmt.Sprintf("    Policy.AllowListCount: %d,\n", len(c.PeerTrust.Policy.AllowList)))
 	sb.WriteString(fmt.Sprintf("    Policy.DenyListCount: %d,\n", len(c.PeerTrust.Policy.DenyList)))
-	sb.WriteString(fmt.Sprintf("    Policy.ExemptListCount: %d,\n", len(c.PeerTrust.Policy.ExemptList)))
 	sb.WriteString(fmt.Sprintf("    MembershipCache.TTLSeconds: %d,\n", c.PeerTrust.MembershipCache.TTLSeconds))
 	sb.WriteString(fmt.Sprintf("    MembershipCache.MaxStaleSeconds: %d,\n", c.PeerTrust.MembershipCache.MaxStaleSeconds))
 	sb.WriteString("  },\n")

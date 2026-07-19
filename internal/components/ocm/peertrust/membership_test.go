@@ -3,12 +3,17 @@ package peertrust_test
 import (
 	"context"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestTrustGroupManager_IsMember(t *testing.T) {
@@ -164,5 +169,174 @@ func TestTrustGroupManager_IsMember_RequireVerified(t *testing.T) {
 	}
 	if m.IsMember(context.Background(), "unverified.example.com", true) {
 		t.Error("expected unverified.example.com to NOT be a member with requireVerified=true")
+	}
+}
+
+func TestTrustGroupManager_IsMember_MaxStaleDenies(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cacheConfig := peertrust.CacheConfig{
+		TTL:      1 * time.Hour,
+		MaxStale: 2 * time.Hour,
+	}
+	m := peertrust.NewTrustGroupManager(cacheConfig, nil, "https", logger, 10*time.Second)
+
+	m.AddTrustGroup(&peertrust.TrustGroupConfig{
+		TrustGroupID: "test-tg",
+		Enabled:      true,
+	})
+
+	staleRefresh := time.Now().Add(-3 * time.Hour)
+	m.SetCacheForTesting("test-tg", []directoryservice.Listing{
+		{
+			Federation: "test",
+			Servers: []directoryservice.Server{
+				{URL: "https://member.example.com", DisplayName: "Member"},
+			},
+			Verified: true,
+		},
+	}, staleRefresh)
+
+	if m.IsMember(context.Background(), "member.example.com", false) {
+		t.Error("expected not a member when cache age exceeds MaxStale")
+	}
+}
+
+func TestTrustGroupManager_IsMember_WithinMaxStaleAllowsMember(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cacheConfig := peertrust.CacheConfig{
+		TTL:      1 * time.Hour,
+		MaxStale: 2 * time.Hour,
+	}
+	m := peertrust.NewTrustGroupManager(cacheConfig, nil, "https", logger, 10*time.Second)
+
+	m.AddTrustGroup(&peertrust.TrustGroupConfig{
+		TrustGroupID: "test-tg",
+		Enabled:      true,
+	})
+
+	freshRefresh := time.Now().Add(-90 * time.Minute)
+	m.SetCacheForTesting("test-tg", []directoryservice.Listing{
+		{
+			Federation: "test",
+			Servers: []directoryservice.Server{
+				{URL: "https://member.example.com", DisplayName: "Member"},
+			},
+			Verified: true,
+		},
+	}, freshRefresh)
+
+	if !m.IsMember(context.Background(), "member.example.com", false) {
+		t.Error("expected member when cache age is within MaxStale")
+	}
+}
+
+func TestTrustGroupManager_IsMember_TTLVersusMaxStaleBoundary(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cacheConfig := peertrust.CacheConfig{
+		TTL:      30 * time.Minute,
+		MaxStale: 2 * time.Hour,
+	}
+	m := peertrust.NewTrustGroupManager(cacheConfig, nil, "https", logger, 10*time.Second)
+
+	m.AddTrustGroup(&peertrust.TrustGroupConfig{
+		TrustGroupID: "test-tg",
+		Enabled:      true,
+	})
+
+	listings := []directoryservice.Listing{
+		{
+			Federation: "test",
+			Servers: []directoryservice.Server{
+				{URL: "https://member.example.com", DisplayName: "Member"},
+			},
+			Verified: true,
+		},
+	}
+
+	betweenAge := time.Now().Add(-45 * time.Minute)
+	m.SetCacheForTesting("test-tg", listings, betweenAge)
+	if !m.IsMember(context.Background(), "member.example.com", false) {
+		t.Error("expected member between TTL and MaxStale")
+	}
+
+	beyondMaxStale := time.Now().Add(-3 * time.Hour)
+	m.SetCacheForTesting("test-tg", listings, beyondMaxStale)
+	if m.IsMember(context.Background(), "member.example.com", false) {
+		t.Error("expected not a member beyond MaxStale")
+	}
+}
+
+func TestTrustGroupManager_IsMember_MaxStaleTriggersRefresh(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	var fetchCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetchCount.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	dirClient := directoryservice.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), "required", logger)
+	cacheConfig := peertrust.CacheConfig{
+		TTL:      30 * time.Minute,
+		MaxStale: 2 * time.Hour,
+	}
+	m := peertrust.NewTrustGroupManager(cacheConfig, dirClient, "https", logger, 10*time.Second)
+	m.AddTrustGroup(&peertrust.TrustGroupConfig{
+		TrustGroupID: "test-tg",
+		Enabled:      true,
+		DirectoryServices: []directoryservice.EndpointConfig{
+			{URL: ts.URL, Enabled: true, Verification: "required"},
+		},
+	})
+
+	staleRefresh := time.Now().Add(-3 * time.Hour)
+	m.SetCacheForTesting("test-tg", []directoryservice.Listing{
+		{
+			Federation: "test",
+			Servers: []directoryservice.Server{
+				{URL: "https://member.example.com", DisplayName: "Member"},
+			},
+			Verified: true,
+		},
+	}, staleRefresh)
+
+	_ = m.IsMember(context.Background(), "member.example.com", false)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if fetchCount.Load() > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Error("expected directory service refresh when cache age exceeds MaxStale")
+}
+
+func TestTrustGroupManager_MembershipRequiresVerifiedListings(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	m := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", logger, 10*time.Second)
+	m.AddTrustGroup(&peertrust.TrustGroupConfig{
+		TrustGroupID:      "test-tg",
+		Enabled:           true,
+		EnforceMembership: true,
+	})
+
+	m.SetCacheForTesting("test-tg", []directoryservice.Listing{
+		{
+			Federation: "unverified-fed",
+			Servers: []directoryservice.Server{
+				{URL: "https://unverified.example.com", DisplayName: "Unverified"},
+			},
+			Verified: false,
+		},
+	}, time.Now())
+
+	if m.IsMember(context.Background(), "unverified.example.com", true) {
+		t.Error("expected unverified directory listing to be ignored for membership")
 	}
 }

@@ -104,23 +104,6 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 			},
 			wantError: false,
 		},
-		{
-			name: "none-scope non-strict peer_policy rejected before startup",
-			mutate: func(cfg *config.Config) {
-				cfg.PeerPolicy = "prefer-strict"
-			},
-			wantError:  true,
-			wantSubstr: "compatibility_scope=none requires peer_policy=strict",
-		},
-		{
-			name: "none-scope peer trust without global_enforce rejected before startup",
-			mutate: func(cfg *config.Config) {
-				cfg.PeerTrust.Enabled = true
-				cfg.PeerTrust.Policy.GlobalEnforce = false
-			},
-			wantError:  true,
-			wantSubstr: "compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled",
-		},
 	}
 
 	for _, tc := range cases {
@@ -169,9 +152,6 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 	}
 	if cfg.OutboundHTTP.InsecureSkipVerify != dev.OutboundHTTP.InsecureSkipVerify {
 		t.Fatalf("OutboundHTTP.InsecureSkipVerify = %v, want preserved %v", cfg.OutboundHTTP.InsecureSkipVerify, dev.OutboundHTTP.InsecureSkipVerify)
-	}
-	if cfg.PeerPolicy != dev.PeerPolicy {
-		t.Fatalf("PeerPolicy = %q, want preserved %q", cfg.PeerPolicy, dev.PeerPolicy)
 	}
 }
 

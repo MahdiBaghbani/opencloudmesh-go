@@ -26,15 +26,8 @@ type outboundHTTPFileConfig struct {
 
 // persistenceFileConfig holds persistence settings from TOML.
 type persistenceFileConfig struct {
-	Backend string                       `toml:"backend"`
-	DataDir string                       `toml:"data_dir"`
-	Mirror  *mirrorPersistenceFileConfig `toml:"mirror"`
-}
-
-// mirrorPersistenceFileConfig holds mirror persistence settings from TOML.
-type mirrorPersistenceFileConfig struct {
-	IncludeSecrets bool     `toml:"include_secrets"`
-	SecretsScope   []string `toml:"secrets_scope"`
+	Backend string `toml:"backend"`
+	DataDir string `toml:"data_dir"`
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -55,7 +48,6 @@ type fileConfig struct {
 	PeerTrust     *peerTrustConfig        `toml:"peer_trust"`
 	Logging       *loggingConfig          `toml:"logging"`
 	TokenExchange *tokenExchangeConfig    `toml:"token_exchange"`
-	PeerPolicy    string                  `toml:"peer_policy"`
 	HTTP          *httpFileConfig         `toml:"http"`
 	Persistence   *persistenceFileConfig  `toml:"persistence"`
 }
@@ -91,10 +83,8 @@ type peerTrustConfig struct {
 }
 
 type peerTrustPolicyConfig struct {
-	GlobalEnforce bool     `toml:"global_enforce"`
-	AllowList     []string `toml:"allow_list"`
-	DenyList      []string `toml:"deny_list"`
-	ExemptList    []string `toml:"exempt_list"`
+	AllowList []string `toml:"allow_list"`
+	DenyList  []string `toml:"deny_list"`
 }
 
 type peerTrustMembershipCacheConfig struct {
@@ -268,15 +258,11 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			cfg.PeerTrust.ConfigPaths = fc.PeerTrust.ConfigPaths
 		}
 		if fc.PeerTrust.Policy != nil {
-			cfg.PeerTrust.Policy.GlobalEnforce = fc.PeerTrust.Policy.GlobalEnforce
 			if len(fc.PeerTrust.Policy.AllowList) > 0 {
 				cfg.PeerTrust.Policy.AllowList = fc.PeerTrust.Policy.AllowList
 			}
 			if len(fc.PeerTrust.Policy.DenyList) > 0 {
 				cfg.PeerTrust.Policy.DenyList = fc.PeerTrust.Policy.DenyList
-			}
-			if len(fc.PeerTrust.Policy.ExemptList) > 0 {
-				cfg.PeerTrust.Policy.ExemptList = fc.PeerTrust.Policy.ExemptList
 			}
 		}
 		if fc.PeerTrust.MembershipCache != nil {
@@ -299,10 +285,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.TokenExchange.Path != "" {
 			cfg.TokenExchange.Path = fc.TokenExchange.Path
 		}
-	}
-
-	if fc.PeerPolicy != "" {
-		cfg.PeerPolicy = fc.PeerPolicy
 	}
 
 	if fc.HTTP != nil {
@@ -330,12 +312,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 		if fc.Persistence.DataDir != "" {
 			cfg.Persistence.DataDir = fc.Persistence.DataDir
-		}
-		if fc.Persistence.Mirror != nil {
-			cfg.Persistence.Mirror.IncludeSecrets = fc.Persistence.Mirror.IncludeSecrets
-			if len(fc.Persistence.Mirror.SecretsScope) > 0 {
-				cfg.Persistence.Mirror.SecretsScope = fc.Persistence.Mirror.SecretsScope
-			}
 		}
 	}
 }
@@ -365,8 +341,5 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	}
 	if f.TokenExchangePath != nil && *f.TokenExchangePath != "" {
 		cfg.TokenExchange.Path = *f.TokenExchangePath
-	}
-	if f.PeerPolicy != nil && *f.PeerPolicy != "" {
-		cfg.PeerPolicy = *f.PeerPolicy
 	}
 }

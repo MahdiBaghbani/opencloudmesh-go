@@ -31,11 +31,9 @@ func init() {
 // It implements all four persistence surfaces: OutgoingShareStore,
 // IncomingShareStore, OutgoingInviteStore, and IncomingInviteStore.
 type Driver struct {
-	dataDir       string
-	core          *sqlitecore.Core
-	mirrorCfg     store.MirrorConfig
-	secretsLookup map[string]bool // quick lookup for allowed secret scopes
-	mu            sync.Mutex      // protects JSON export operations
+	dataDir string
+	core    *sqlitecore.Core
+	mu      sync.Mutex // protects JSON export operations
 }
 
 // NewDriver creates a new mirror driver instance.
@@ -44,15 +42,8 @@ func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 		return nil, fmt.Errorf("data_dir is required for mirror driver")
 	}
 
-	lookup := make(map[string]bool)
-	for _, scope := range cfg.Mirror.SecretsScope {
-		lookup[scope] = true
-	}
-
 	return &Driver{
-		dataDir:       cfg.DataDir,
-		mirrorCfg:     cfg.Mirror,
-		secretsLookup: lookup,
+		dataDir: cfg.DataDir,
 	}, nil
 }
 
@@ -330,64 +321,55 @@ func (d *Driver) lockedExport(ctx context.Context, fn func(context.Context) erro
 	return fn(ctx)
 }
 
-// shouldIncludeSecret reports whether the given secret scope passes the
-// redaction policy defined in the driver configuration.
-func (d *Driver) shouldIncludeSecret(scope string) bool {
-	if !d.mirrorCfg.IncludeSecrets {
-		return false
-	}
-	return d.secretsLookup[scope]
-}
-
-// exportOutgoingShares projects outgoing shares to JSON, redacting shared
-// secrets unless the webdav_shared_secrets scope is allowed.
+// exportOutgoingShares projects outgoing shares to JSON with shared secrets redacted.
 func (d *Driver) exportOutgoingShares(ctx context.Context) error {
 	shares, err := d.core.ListOutgoingShares(ctx)
 	if err != nil {
 		return err
 	}
 
-	if !d.shouldIncludeSecret("webdav_shared_secrets") {
-		for _, share := range shares {
-			share.SharedSecret = ""
-		}
+	for _, share := range shares {
+		share.SharedSecret = ""
 	}
 
 	return d.writeJSON("outgoing_shares.json", shares)
 }
 
-// exportIncomingShares projects all incoming shares to JSON, redacting shared
-// secrets unless the webdav_shared_secrets scope is allowed.
+// exportIncomingShares projects all incoming shares to JSON with shared secrets redacted.
 func (d *Driver) exportIncomingShares(ctx context.Context) error {
 	shares, err := d.core.ListAllIncomingShares(ctx)
 	if err != nil {
 		return err
 	}
 
-	if !d.shouldIncludeSecret("webdav_shared_secrets") {
-		for _, share := range shares {
-			share.SharedSecret = ""
-		}
+	for _, share := range shares {
+		share.SharedSecret = ""
 	}
 
 	return d.writeJSON("incoming_shares.json", shares)
 }
 
-// exportOutgoingInvites projects all outgoing invites to JSON (no redaction needed).
+// exportOutgoingInvites projects all outgoing invites to JSON with tokens redacted.
 func (d *Driver) exportOutgoingInvites(ctx context.Context) error {
 	// Empty userId means all invites; see sqlitecore.ListOutgoingInvites.
 	invites, err := d.core.ListOutgoingInvites(ctx, "")
 	if err != nil {
 		return err
 	}
+	for _, invite := range invites {
+		invite.Token = ""
+	}
 	return d.writeJSON("outgoing_invites.json", invites)
 }
 
-// exportIncomingInvites projects all incoming invites to JSON (no redaction needed).
+// exportIncomingInvites projects all incoming invites to JSON with tokens redacted.
 func (d *Driver) exportIncomingInvites(ctx context.Context) error {
 	invites, err := d.core.ListAllIncomingInvites(ctx)
 	if err != nil {
 		return err
+	}
+	for _, invite := range invites {
+		invite.Token = ""
 	}
 	return d.writeJSON("incoming_invites.json", invites)
 }

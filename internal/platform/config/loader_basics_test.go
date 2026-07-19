@@ -226,9 +226,6 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.OutboundHTTP.MaxRedirects != 1 {
 		t.Errorf("expected MaxRedirects 1 in strict, got %d", cfg.OutboundHTTP.MaxRedirects)
 	}
-	if cfg.PeerPolicy != "strict" {
-		t.Errorf("expected peer_policy strict in strict config, got %q", cfg.PeerPolicy)
-	}
 }
 
 func TestDevConfig(t *testing.T) {
@@ -248,9 +245,6 @@ func TestDevConfig(t *testing.T) {
 	}
 	if !cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify true in dev")
-	}
-	if cfg.PeerPolicy != "strict" {
-		t.Errorf("expected peer_policy strict in dev, got %q", cfg.PeerPolicy)
 	}
 }
 
@@ -302,7 +296,6 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		{"PeerTrust.MembershipCache.TTLSeconds", dev.PeerTrust.MembershipCache.TTLSeconds, strict.PeerTrust.MembershipCache.TTLSeconds},
 		{"PeerTrust.MembershipCache.MaxStaleSeconds", dev.PeerTrust.MembershipCache.MaxStaleSeconds, strict.PeerTrust.MembershipCache.MaxStaleSeconds},
 		{"TokenExchange.Path", dev.TokenExchange.Path, strict.TokenExchange.Path},
-		{"PeerPolicy", dev.PeerPolicy, strict.PeerPolicy},
 	}
 	for _, i := range inherited {
 		if i.got != i.want {

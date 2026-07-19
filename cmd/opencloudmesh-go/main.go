@@ -33,7 +33,6 @@ func main() {
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
 	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
 	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
-	peerPolicy := flag.String("peer-policy", "", "Peer policy: legacy, prefer-strict, or strict (overrides config)")
 	flag.Parse()
 
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -53,7 +52,6 @@ func main() {
 			AdminPassword:      adminPassword,
 			LoggingLevel:       loggingLevel,
 			TokenExchangePath:  tokenExchangePath,
-			PeerPolicy:         peerPolicy,
 		},
 		Logger: bootstrapLogger,
 	})

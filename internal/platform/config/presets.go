@@ -70,7 +70,6 @@ func StrictConfig() *Config {
 		TokenExchange: TokenExchangeConfig{
 			Path: "token",
 		},
-		PeerPolicy: "strict",
 		Persistence: PersistenceConfig{
 			Backend: BackendMemory,
 		},

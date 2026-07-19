@@ -25,7 +25,6 @@ func TestLoad_TokenExchangeConfig_FromTOML(t *testing.T) {
 
 	tomlContent := `
 mode = "dev"
-peer_policy = "prefer-strict"
 
 [token_exchange]
 path = "token/v2"

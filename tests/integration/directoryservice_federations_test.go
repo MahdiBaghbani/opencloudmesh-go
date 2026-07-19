@@ -59,18 +59,10 @@ func TestDirectoryServiceJWSFeedsFederations(t *testing.T) {
 		t.Fatalf("marshal trust group: %v", err)
 	}
 
-	// global_enforce=true satisfies the scoped guardrail (dev preset resolves
-	// compatibility_scope=scoped, which requires peer_trust.policy.global_enforce=true
-	// whenever peer trust is enabled).
-	// The trust group's own EnforceMembership=false above still controls
-	// whether membership is actually checked.
 	extraConfig := `
 [peer_trust]
 enabled = true
 config_paths = ["trust-group.json"]
-
-[peer_trust.policy]
-global_enforce = true
 
 [peer_trust.membership_cache]
 ttl_seconds = 0

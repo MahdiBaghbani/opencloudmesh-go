@@ -13,9 +13,8 @@ func TestPolicyEngine_DenylistWins(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
-		GlobalEnforce: true,
-		AllowList:     []string{"example.com"},
-		DenyList:      []string{"example.com"}, // same host in both lists
+		AllowList: []string{"example.com"},
+		DenyList:  []string{"example.com"},
 	}
 
 	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
@@ -33,9 +32,8 @@ func TestPolicyEngine_AllowlistOverridesFederation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
-		GlobalEnforce: true,
-		AllowList:     []string{"trusted.example.com"},
-		DenyList:      []string{},
+		AllowList: []string{"trusted.example.com"},
+		DenyList:  []string{},
 	}
 
 	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
@@ -49,44 +47,21 @@ func TestPolicyEngine_AllowlistOverridesFederation(t *testing.T) {
 	}
 }
 
-func TestPolicyEngine_ExemptListBypassesFederation(t *testing.T) {
+func TestPolicyEngine_DenylistEnforced(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
-		GlobalEnforce: true,
-		AllowList:     []string{},
-		DenyList:      []string{},
-		ExemptList:    []string{"exempt.example.com"},
+		DenyList: []string{"blocked.example.com"},
 	}
 
 	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
-	result := pe.Evaluate(context.Background(), "exempt.example.com", false)
-
-	if !result.Allowed {
-		t.Error("expected allowed: host is in exempt list")
-	}
-	if result.ReasonCode != "allowed_by_exempt" {
-		t.Errorf("expected reason_code 'allowed_by_exempt', got %q", result.ReasonCode)
-	}
-}
-
-func TestPolicyEngine_DisabledEnforcement(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	cfg := &peertrust.PolicyConfig{
-		GlobalEnforce: false,
-		DenyList:      []string{"blocked.example.com"},
-	}
-
-	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
-
 	result := pe.Evaluate(context.Background(), "blocked.example.com", false)
 
-	if !result.Allowed {
-		t.Error("expected allowed: enforcement is disabled")
+	if result.Allowed {
+		t.Error("expected denied: host is in denylist")
 	}
-	if result.ReasonCode != "policy_disabled" {
-		t.Errorf("expected reason_code 'policy_disabled', got %q", result.ReasonCode)
+	if result.ReasonCode != "denied_by_denylist" {
+		t.Errorf("expected reason_code 'denied_by_denylist', got %q", result.ReasonCode)
 	}
 }
 
@@ -94,8 +69,7 @@ func TestPolicyEngine_CaseInsensitive(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
-		GlobalEnforce: true,
-		AllowList:     []string{"Example.COM"},
+		AllowList: []string{"Example.COM"},
 	}
 
 	pe := peertrust.NewPolicyEngine(cfg, nil, logger)
@@ -110,9 +84,8 @@ func TestPolicyEngine_NotAllowed(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	cfg := &peertrust.PolicyConfig{
-		GlobalEnforce: true,
-		AllowList:     []string{},
-		DenyList:      []string{},
+		AllowList: []string{},
+		DenyList:  []string{},
 	}
 
 	pe := peertrust.NewPolicyEngine(cfg, nil, logger)

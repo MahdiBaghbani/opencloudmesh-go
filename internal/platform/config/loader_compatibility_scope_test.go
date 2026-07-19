@@ -42,13 +42,6 @@ func TestLoad_NoneScopeCompatibilityContradictions_FailFast(t *testing.T) {
 		wantError string
 	}{
 		{
-			name: "none scope requires peer policy strict",
-			extra: `
-peer_policy = "prefer-strict"
-`,
-			wantError: "compatibility_scope=none requires peer_policy=strict",
-		},
-		{
 			name: "none scope requires tls not off",
 			extra: `
 [tls]
@@ -63,18 +56,6 @@ mode = "off"
 insecure_skip_verify = true
 `,
 			wantError: "compatibility_scope=none requires outbound_http.insecure_skip_verify=false",
-		},
-		{
-			name: "none scope requires global enforce when peer trust enabled",
-			extra: `
-[peer_trust]
-enabled = true
-config_paths = ["trust-group.json"]
-
-[peer_trust.policy]
-global_enforce = false
-`,
-			wantError: "compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled",
 		},
 	}
 
@@ -115,9 +96,6 @@ func TestLoad_StrictMode_WithHardenedDefaults_Succeeds(t *testing.T) {
 
 	if cfg.CompatibilityScope != "none" {
 		t.Errorf("expected compatibility_scope none, got %q", cfg.CompatibilityScope)
-	}
-	if cfg.PeerPolicy != "strict" {
-		t.Errorf("expected peer_policy strict, got %q", cfg.PeerPolicy)
 	}
 }
 
@@ -228,53 +206,6 @@ allowed_basic_auth_patterns = ["token:"]
 			_, err := Load(LoaderOptions{ConfigPath: configPath})
 			if err == nil {
 				t.Fatalf("expected none-scope custom profile rejection: %s", tt.wantError)
-			}
-			if !strings.Contains(err.Error(), tt.wantError) {
-				t.Fatalf("expected %q, got %v", tt.wantError, err)
-			}
-		})
-	}
-}
-
-func TestLoad_ScopedCompatibilityRejectsGlobalRelaxations(t *testing.T) {
-	tests := []struct {
-		name      string
-		extra     string
-		wantError string
-	}{
-		{
-			name: "rejects fail open peer trust",
-			extra: `
-[peer_trust]
-enabled = true
-config_paths = ["trust-group.json"]
-
-[peer_trust.policy]
-global_enforce = false
-`,
-			wantError: "compatibility_scope=scoped requires peer_trust.policy.global_enforce=true when peer trust is enabled",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			configPath := filepath.Join(dir, "config.toml")
-			tomlContent := configfixture.ScopedScopeBase() + tt.extra
-			if strings.Contains(tt.extra, "[peer_trust]") {
-				trustGroupPath := filepath.Join(dir, "trust-group.json")
-				if err := os.WriteFile(trustGroupPath, []byte(`{}`), 0644); err != nil {
-					t.Fatalf("failed to write trust group fixture: %v", err)
-				}
-				tomlContent = strings.ReplaceAll(tomlContent, "trust-group.json", trustGroupPath)
-			}
-			if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-				t.Fatalf("failed to write config: %v", err)
-			}
-
-			_, err := Load(LoaderOptions{ConfigPath: configPath})
-			if err == nil {
-				t.Fatalf("expected scoped compatibility error: %s", tt.wantError)
 			}
 			if !strings.Contains(err.Error(), tt.wantError) {
 				t.Fatalf("expected %q, got %v", tt.wantError, err)

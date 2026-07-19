@@ -8,12 +8,14 @@ import (
 
 // Outbound HTTP defaults (production strict preset baseline).
 const (
-	DefaultOutboundTimeoutMS        = 10000
-	DefaultOutboundConnectTimeoutMS = 2000
-	DefaultOutboundMaxRedirects     = 1
-	DefaultMaxResponseBytes         = 1 << 20
-	DefaultOutboundMaxIdleConns     = 10
-	DefaultOutboundIdleConnTimeout  = 30 * time.Second
+	DefaultOutboundTimeoutMS             = 10000
+	DefaultOutboundConnectTimeoutMS      = 2000
+	DefaultOutboundMaxRedirects          = 1
+	DefaultMaxResponseBytes              = 1 << 20
+	DefaultOutboundMaxIdleConns          = 10
+	DefaultOutboundMaxConnsPerHost       = 10
+	DefaultOutboundIdleConnTimeout       = 30 * time.Second
+	DefaultOutboundResponseHeaderTimeout = 10 * time.Second
 )
 
 // Server HTTP listener defaults.

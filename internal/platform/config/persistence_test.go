@@ -75,8 +75,8 @@ data_dir = "/tmp/ocm-data"
 	}
 }
 
-// TestPersistenceLoad_MirrorOverlay verifies that mirror-specific config is
-// overlaid correctly.
+// TestPersistenceLoad_MirrorOverlay verifies mirror backend config loads without
+// a mirror subsection.
 func TestPersistenceLoad_MirrorOverlay(t *testing.T) {
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
@@ -88,10 +88,6 @@ public_origin = "http://localhost:9200"
 [persistence]
 backend = "mirror"
 data_dir = "/tmp/ocm-mirror"
-
-[persistence.mirror]
-include_secrets = true
-secrets_scope = ["webdav_shared_secrets"]
 `
 	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0600); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -105,11 +101,8 @@ secrets_scope = ["webdav_shared_secrets"]
 	if cfg.Persistence.Backend != BackendMirror {
 		t.Errorf("expected Backend=%q, got %q", BackendMirror, cfg.Persistence.Backend)
 	}
-	if !cfg.Persistence.Mirror.IncludeSecrets {
-		t.Error("expected Mirror.IncludeSecrets=true")
-	}
-	if len(cfg.Persistence.Mirror.SecretsScope) != 1 || cfg.Persistence.Mirror.SecretsScope[0] != "webdav_shared_secrets" {
-		t.Errorf("unexpected Mirror.SecretsScope: %v", cfg.Persistence.Mirror.SecretsScope)
+	if cfg.Persistence.DataDir != "/tmp/ocm-mirror" {
+		t.Errorf("expected DataDir=/tmp/ocm-mirror, got %q", cfg.Persistence.DataDir)
 	}
 }
 
@@ -212,34 +205,6 @@ backend = ""
 	}
 }
 
-// TestPersistenceLoad_InvalidSecretsScopeFails verifies that an unrecognized
-// value in persistence.mirror.secrets_scope fails validation with a clear error.
-func TestPersistenceLoad_InvalidSecretsScopeFails(t *testing.T) {
-	dir := t.TempDir()
-	tomlPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
-mode = "dev"
-public_origin = "http://localhost:9200"
-
-[persistence]
-backend = "mirror"
-data_dir = "/tmp/ocm-mirror"
-
-[persistence.mirror]
-include_secrets = true
-secrets_scope = ["webdav_shared_secrets", "bogus_scope"]
-`
-	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: tomlPath})
-	if err == nil {
-		t.Fatal("expected error for invalid secrets_scope value, got nil")
-	}
-}
-
 // TestPersistenceLoad_OverlayPreservesUnchangedFields verifies that a partial
 // persistence overlay does not reset unrelated preset fields.
 func TestPersistenceLoad_OverlayPreservesUnchangedFields(t *testing.T) {
@@ -264,12 +229,10 @@ data_dir = "/some/path"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	// Mirror section was absent; defaults should be zero values.
-	if cfg.Persistence.Mirror.IncludeSecrets {
-		t.Error("IncludeSecrets should remain false when mirror section absent")
+	if cfg.Persistence.Backend != BackendJSON {
+		t.Errorf("expected Backend=%q, got %q", BackendJSON, cfg.Persistence.Backend)
 	}
-	if len(cfg.Persistence.Mirror.SecretsScope) != 0 {
-		t.Errorf("SecretsScope should be empty when mirror section absent, got %v",
-			cfg.Persistence.Mirror.SecretsScope)
+	if cfg.Persistence.DataDir != "/some/path" {
+		t.Errorf("expected DataDir=/some/path, got %q", cfg.Persistence.DataDir)
 	}
 }
