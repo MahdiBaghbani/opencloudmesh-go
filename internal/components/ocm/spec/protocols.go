@@ -61,17 +61,6 @@ func WebDAVReceiveRole(uri WebDAVReceiveURIKind) ProtocolRole {
 	return role
 }
 
-// WebAppReceiveRole constructs a webapp-receive protocol role.
-func WebAppReceiveRole(targets []string) ProtocolRole {
-	role, _ := ObjectProtocolRole(WebAppReceive{Targets: targets})
-	return role
-}
-
-// EmptyObjectProtocolRole constructs an empty JSON object protocol role.
-func EmptyObjectProtocolRole() ProtocolRole {
-	return ProtocolRole{kind: protocolRoleObject, object: json.RawMessage("{}")}
-}
-
 func (p ProtocolRole) MarshalJSON() ([]byte, error) {
 	switch p.kind {
 	case protocolRoleString:

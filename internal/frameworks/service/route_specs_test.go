@@ -111,10 +111,9 @@ func TestRoutes_ProtocolRowsUseHTTPSigHandlerAuth(t *testing.T) {
 func TestRoutes_APIOutboundKindsDeclaredOnAPIRows(t *testing.T) {
 	opts := service.DefaultRouteOpts()
 	found := map[service.OutboundProtocolKind]bool{
-		service.OutboundNotifications: false,
-		service.OutboundShares:        false,
-		service.OutboundInvites:       false,
-		service.OutboundAccess:        false,
+		service.OutboundShares:  false,
+		service.OutboundInvites: false,
+		service.OutboundAccess:  false,
 	}
 	for _, row := range service.Routes(opts) {
 		if row.Synthetic || row.SurfaceClass != service.SurfaceAPI {
@@ -273,6 +272,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 				ExternalBasePath:    "/ocm",
 				WayfEnabled:         false,
 				InviteAcceptEnabled: false,
+				InvitesEnabled:      true,
 				TokenExchangePath:   "token",
 			},
 			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
@@ -296,7 +296,8 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			want: service.RouteOpts{
 				ExternalBasePath:    "",
 				WayfEnabled:         true,
-				InviteAcceptEnabled: true,
+				InviteAcceptEnabled: false,
+				InvitesEnabled:      true,
 				TokenExchangePath:   "token",
 			},
 			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
@@ -304,6 +305,28 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 				if service.SessionAuthRequiredForPath("/ui/wayf", opts) {
 					t.Error("expected /ui/wayf public when WAYF enabled")
 				}
+			},
+		},
+		{
+			name: "invite accept enabled via ui service config",
+			cfg: &config.Config{
+				HTTP: config.HTTPConfig{
+					Services: map[string]map[string]any{
+						"ui": {
+							"invite_accept": map[string]any{"enabled": true},
+						},
+					},
+				},
+			},
+			want: service.RouteOpts{
+				ExternalBasePath:    "",
+				WayfEnabled:         false,
+				InviteAcceptEnabled: true,
+				InvitesEnabled:      true,
+				TokenExchangePath:   "token",
+			},
+			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
+				t.Helper()
 				if !service.SessionAuthRequiredForPath("/ui/accept-invite", opts) {
 					t.Error("expected /ui/accept-invite protected when invite accept enabled")
 				}
@@ -325,6 +348,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 				ExternalBasePath:    "",
 				WayfEnabled:         false,
 				InviteAcceptEnabled: false,
+				InvitesEnabled:      true,
 				TokenExchangePath:   "custom-token",
 			},
 		},
@@ -337,6 +361,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 				ExternalBasePath:    "",
 				WayfEnabled:         false,
 				InviteAcceptEnabled: false,
+				InvitesEnabled:      true,
 				TokenExchangePath:   "fallback-token",
 			},
 		},

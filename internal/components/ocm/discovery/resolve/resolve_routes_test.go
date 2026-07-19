@@ -20,6 +20,7 @@ func TestResolve_ProjectsFromRouteInventory(t *testing.T) {
 		TokenExchangePath:   "auth/exchange",
 		WayfEnabled:         true,
 		InviteAcceptEnabled: true,
+		InvitesEnabled:      true,
 	}
 	in := resolve.ResolveInputs{
 		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
@@ -50,6 +51,7 @@ func TestResolve_InviteAcceptIndependentFromWAYF(t *testing.T) {
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",
 		InviteAcceptEnabled: true,
+		InvitesEnabled:      true,
 		WayfEnabled:         false,
 	}
 	in := resolve.ResolveInputs{
@@ -69,6 +71,9 @@ func TestResolve_InviteAcceptIndependentFromWAYF(t *testing.T) {
 	disc := discovery.BuildDiscovery(built.Params, nil)
 	if disc.InviteAcceptDialog == "" {
 		t.Error("expected inviteAcceptDialog in discovery document")
+	}
+	if !disc.HasCapability("invites") {
+		t.Error("expected invites capability when InvitesEnabled is true")
 	}
 	if disc.HasCapability("invite-wayf") {
 		t.Error("invite-wayf capability must not be added when WAYF route is inactive")

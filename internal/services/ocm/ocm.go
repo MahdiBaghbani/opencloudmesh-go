@@ -1,4 +1,3 @@
-// Package ocm provides the OCM protocol service for OpenCloudMesh.
 package ocm
 
 import (
@@ -9,10 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
-	notifincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -77,7 +74,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.LocalIdentity.Scheme,
 		log,
 	)
-	notifHandler := notifincoming.NewHandler(inputs.OutgoingShareRepo, inputs.LocalIdentity.Origin, log)
 	invitesHandler := invitesincoming.NewHandler(
 		inputs.OutgoingInviteRepo,
 		inputs.PartyRepo,
@@ -104,10 +100,8 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 	if err := mountProtocolRoutes(r, routeOpts, inputs, routeHandlers{
 		shares:         sharesHandler.CreateShare,
-		notifications:  notifHandler.HandleNotification,
 		inviteAccepted: invitesHandler.HandleInviteAccepted,
 		token:          tokenHandler.HandleToken,
-		requestShare:   requestShareNotSupportedHandler,
 	}, peerResolver); err != nil {
 		return nil, err
 	}
@@ -120,16 +114,14 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 }
 
 func validateInputs(in Inputs) error {
-	if in.SignatureMiddleware == nil {
+	switch {
+	case in.SignatureMiddleware == nil:
 		return errors.New("ocm: SignatureMiddleware is required")
+	case in.PartyRepo == nil:
+		return errors.New("ocm: PartyRepo is required")
+	default:
+		return nil
 	}
-	return nil
-}
-
-// requestShareNotSupportedHandler answers the signed request-share placeholder
-// route. Accept handling is not implemented, so every request gets a typed 501.
-func requestShareNotSupportedHandler(w http.ResponseWriter, r *http.Request) {
-	spec.WriteRequestShareNotSupported(w)
 }
 
 func (s *Service) Handler() http.Handler {

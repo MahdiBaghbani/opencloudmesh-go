@@ -16,6 +16,8 @@ const discoverTargetInviteDialogExtraConfig = `
 [http.services.ui]
 [http.services.ui.wayf]
 enabled = true
+[http.services.ui.invite_accept]
+enabled = true
 `
 
 func TestOCMAuxDiscover_PastedPathNormalization(t *testing.T) {

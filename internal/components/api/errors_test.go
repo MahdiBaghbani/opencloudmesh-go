@@ -44,13 +44,13 @@ func TestWriteError_EnvelopeShape(t *testing.T) {
 func TestWriteError_StableReasonCodes(t *testing.T) {
 	// Verify reason codes are stable (these should not change across versions)
 	codes := map[string]string{
-		"unauthenticated":     api.ReasonUnauthenticated,
-		"signature_required":  api.ReasonSignatureRequired,
-		"signature_invalid":   api.ReasonSignatureInvalid,
-		"ssrf_blocked":        api.ReasonSSRFBlocked,
-		"rate_limited":        api.ReasonRateLimited,
-		"not_found":           api.ReasonNotFound,
-		"internal_error":      api.ReasonInternalError,
+		"unauthenticated":    api.ReasonUnauthenticated,
+		"signature_required": api.ReasonSignatureRequired,
+		"signature_invalid":  api.ReasonSignatureInvalid,
+		"ssrf_blocked":       api.ReasonSSRFBlocked,
+		"rate_limited":       api.ReasonRateLimited,
+		"not_found":          api.ReasonNotFound,
+		"internal_error":     api.ReasonInternalError,
 	}
 
 	for expected, actual := range codes {
@@ -96,23 +96,5 @@ func TestWriteTooManyRequests(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&envelope)
 	if envelope.Error.ReasonCode != api.ReasonRateLimited {
 		t.Errorf("expected reason_code %q, got %q", api.ReasonRateLimited, envelope.Error.ReasonCode)
-	}
-}
-
-func TestWriteNotImplemented(t *testing.T) {
-	w := httptest.NewRecorder()
-	api.WriteNotImplemented(w, "WebDAV LOCK")
-
-	if w.Code != http.StatusNotImplemented {
-		t.Errorf("expected status 501, got %d", w.Code)
-	}
-
-	var envelope api.ErrorEnvelope
-	json.NewDecoder(w.Body).Decode(&envelope)
-	if envelope.Error.ReasonCode != api.ReasonNotImplemented {
-		t.Errorf("expected reason_code %q, got %q", api.ReasonNotImplemented, envelope.Error.ReasonCode)
-	}
-	if envelope.Error.Message != "WebDAV LOCK not implemented yet" {
-		t.Errorf("unexpected message: %q", envelope.Error.Message)
 	}
 }

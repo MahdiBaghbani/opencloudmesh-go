@@ -47,6 +47,9 @@ data_dir = "data"
 		cfg += `
 [http.services.ui.wayf]
 enabled = true
+
+[http.services.ui.invite_accept]
+enabled = true
 `
 	}
 

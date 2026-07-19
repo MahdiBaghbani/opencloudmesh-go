@@ -61,12 +61,10 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// CreatedByUserID feeds invite-accepted response; empty when unauthenticated
-	var createdByUserID string
-	if h.currentUser != nil {
-		if user, err := h.currentUser(ctx); err == nil {
-			createdByUserID = user.ID
-		}
+	user, err := h.currentUser(ctx)
+	if err != nil {
+		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+		return
 	}
 
 	token, err := generateToken()
@@ -83,7 +81,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 		ProviderFQDN:    h.localProvider,
 		InviteString:    inviteString,
 		RecipientEmail:  req.RecipientEmail,
-		CreatedByUserID: createdByUserID,
+		CreatedByUserID: user.ID,
 		ExpiresAt:       time.Now().Add(DefaultInviteTTL),
 		Status:          invites.InviteStatusPending,
 	}

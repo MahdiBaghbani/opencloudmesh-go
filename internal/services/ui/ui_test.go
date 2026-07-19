@@ -169,7 +169,7 @@ func TestService_WayfEndpoint_Enabled(t *testing.T) {
 
 func TestService_AcceptInvite_RendersTemplate(t *testing.T) {
 	m := map[string]any{
-		"wayf": map[string]any{"enabled": true},
+		"invite_accept": map[string]any{"enabled": true},
 	}
 	svc, err := New(Inputs{LocalIdentity: testIdentity(t, "/ocm")}, m, testLog())
 	if err != nil {

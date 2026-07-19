@@ -45,29 +45,6 @@ func (p *Resolver) ResolveSharesRequest(r *http.Request, body []byte) (string, e
 	return provider, nil
 }
 
-// ResolveRequestShareRequest extracts peer from POST /ocm/request-share. The
-// RequestShare schema has no sender field, so the peer comes from shareWith.
-func (p *Resolver) ResolveRequestShareRequest(r *http.Request, body []byte) (string, error) {
-	var req struct {
-		ShareWith string `json:"shareWith"`
-	}
-
-	if err := json.Unmarshal(body, &req); err != nil {
-		return "", fmt.Errorf("failed to parse request-share request: %w", err)
-	}
-
-	if req.ShareWith == "" {
-		return "", fmt.Errorf("no shareWith in request-share request")
-	}
-
-	_, provider, err := address.Parse(req.ShareWith)
-	if err != nil {
-		return "", err
-	}
-
-	return provider, nil
-}
-
 func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (string, error) {
 	var req struct {
 		RecipientProvider string `json:"recipientProvider"`
@@ -85,13 +62,6 @@ func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (s
 	}
 
 	return req.RecipientProvider, nil
-}
-
-// Notifications do not carry a sender FQDN in the pinned OCM-API schema.
-// The route therefore requires a verified signature when the signature axis is
-// active; providerId correlation happens later in the handler.
-func (p *Resolver) ResolveNotificationsRequest(r *http.Request, body []byte) (string, error) {
-	return "", nil
 }
 
 func (p *Resolver) ResolveTokenRequest(r *http.Request, body []byte) (string, error) {

@@ -37,9 +37,8 @@ const (
 type TrustClass string
 
 const (
-	TrustPeerNone             TrustClass = "peer-trust-none"
-	TrustPeerRequired         TrustClass = "peer-trust-required"
-	TrustNotificationsSpecial TrustClass = "notifications-special"
+	TrustPeerNone     TrustClass = "peer-trust-none"
+	TrustPeerRequired TrustClass = "peer-trust-required"
 )
 
 // FeatureCondition gates a route on optional product features.
@@ -55,23 +54,19 @@ const (
 type OutboundProtocolKind string
 
 const (
-	OutboundNone          OutboundProtocolKind = ""
-	OutboundNotifications OutboundProtocolKind = "notifications"
-	OutboundShares        OutboundProtocolKind = "shares"
-	OutboundInvites       OutboundProtocolKind = "invites"
-	OutboundTokenExchange OutboundProtocolKind = "token-exchange"
-	OutboundAccess        OutboundProtocolKind = "access"
+	OutboundNone    OutboundProtocolKind = ""
+	OutboundShares  OutboundProtocolKind = "shares"
+	OutboundInvites OutboundProtocolKind = "invites"
+	OutboundAccess  OutboundProtocolKind = "access"
 )
 
 // PeerResolution names which inbound peer resolver an OCM protocol POST route uses.
 type PeerResolution string
 
 const (
-	PeerResolutionNone           PeerResolution = "none"
 	PeerResolutionShares         PeerResolution = "shares"
 	PeerResolutionInviteAccepted PeerResolution = "invite-accepted"
 	PeerResolutionToken          PeerResolution = "token"
-	PeerResolutionRequestShare   PeerResolution = "request-share"
 )
 
 // OCMProtocolBodyLimitBytes is the pre-verification request body limit for OCM POST routes.
@@ -97,11 +92,12 @@ type RouteSpec struct {
 }
 
 // RouteOpts carries config-derived values that affect route registration and
-// aggregation. MVP sources InviteAcceptEnabled from the same WAYF config flag.
+// aggregation.
 type RouteOpts struct {
 	ExternalBasePath    string
 	WayfEnabled         bool
 	InviteAcceptEnabled bool
+	InvitesEnabled      bool
 	TokenExchangePath   string
 }
 

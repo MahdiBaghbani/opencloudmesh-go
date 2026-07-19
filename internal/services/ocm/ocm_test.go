@@ -13,10 +13,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -105,6 +105,7 @@ func testInputs(cfg *config.Config) Inputs {
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	return Inputs{
+		PartyRepo:         identity.NewMemoryPartyRepo(),
 		CodeFlow:          policy.NewCodeFlow(),
 		LocalIdentity:     id,
 		TokenExchangePath: "token",
@@ -195,9 +196,7 @@ func expectedOCMPostPaths(t *testing.T) []string {
 
 	paths := []string{
 		"/ocm" + RouteShares,
-		"/ocm" + RouteNotifications,
 		"/ocm" + RouteInviteAccepted,
-		"/ocm" + RouteRequestShare,
 		tokenPath,
 	}
 	slices.Sort(paths)
@@ -231,8 +230,6 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 			switch mountedPath {
 			case "/ocm" + RouteInviteAccepted:
 				body = []byte(`{"recipientProvider":"remote.example","token":"invite-token","userID":"user-1","email":"user@remote.example","name":"Remote User"}`)
-			case "/ocm" + RouteRequestShare:
-				body = []byte(`{"owner":"alice@owner.example","shareWith":"bob@remote.example","share":"1"}`)
 			case "/ocm" + RouteShares:
 			default:
 				contentType = "application/x-www-form-urlencoded"
@@ -367,10 +364,8 @@ func TestService_RoutingSmoke(t *testing.T) {
 		path string
 	}{
 		{"shares", "/shares"},
-		{"notifications", "/notifications"},
 		{"invite-accepted", "/invite-accepted"},
 		{"token", "/token"},
-		{"request-share", "/request-share"},
 	}
 
 	for _, tt := range tests {
@@ -383,30 +378,6 @@ func TestService_RoutingSmoke(t *testing.T) {
 				t.Errorf("GET %s: expected status 405, got %d", tt.path, w.Code)
 			}
 		})
-	}
-}
-
-func TestService_NotificationsRequireVerifiedSignature(t *testing.T) {
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/notifications",
-		bytes.NewBufferString(`{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-123"}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected unsigned notification to be rejected, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -542,9 +513,8 @@ func TestService_TokenRequireVerifiedSignature(t *testing.T) {
 	}
 }
 
-// Shares, invite-accepted, token, and request-share routes require a declared
-// peer (HTTP 400 when missing). Signature-only routes return 401 for unsigned
-// requests instead.
+// Shares, invite-accepted, and token routes require a declared peer (HTTP 400
+// when missing).
 func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -578,12 +548,6 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 			contentType: "application/x-www-form-urlencoded",
 			body:        "grant_type=ocm_share&code=secret-code",
 		},
-		{
-			name:        "request-share",
-			path:        "/request-share",
-			contentType: "application/json",
-			body:        `{}`,
-		},
 	}
 
 	for _, tc := range cases {
@@ -602,129 +566,6 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 				t.Fatalf("%s body = %q, want declared-peer error", tc.name, body)
 			}
 		})
-	}
-}
-
-func TestService_NotificationsStaySignatureOnly(t *testing.T) {
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Notifications use a nil declared-peer resolver (signature-only).
-	req := httptest.NewRequest(http.MethodPost, "/notifications", bytes.NewBufferString(`{}`))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("notifications must stay signature-only (401), got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "signature required") {
-		t.Fatalf("body = %q, want signature required", w.Body.String())
-	}
-}
-
-func TestService_RequestShareRequiresVerifiedSignature(t *testing.T) {
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/request-share",
-		bytes.NewBufferString(`{"owner":"alice@owner.example","shareWith":"bob@remote.example","share":"1"}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected unsigned request-share to be rejected, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-// requestShareSignedInputs builds Inputs whose SignatureMiddleware can verify
-// a request signed by a key owned by providerHost.
-func requestShareSignedInputs(t *testing.T, providerHost string) (Inputs, *crypto.RFC9421Signer) {
-	t.Helper()
-
-	signer, pd := hostSigningFixture(t, providerHost)
-	cfg := config.DevConfig()
-	in := testInputs(cfg)
-	replaceSignatureMiddleware(&in, cfg, pd)
-	return in, signer
-}
-
-func TestService_RequestShareAcceptsMatchedSignedPeerWithTyped501(t *testing.T) {
-	const providerHost = "provider.example.com"
-	in, signer := requestShareSignedInputs(t, providerHost)
-
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc, err := New(in, map[string]any{}, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	body := []byte(`{"owner":"527bd5b5d689e2c32ae974c6229ff785@apiwise.nl","shareWith":"51dc30ddc473d43a6011e9ebba6ca770@` + providerHost + `","share":"1234567890abcdef"}`)
-	req := httptest.NewRequest(http.MethodPost, "/request-share", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	if err := signer.SignRequest(req, body); err != nil {
-		t.Fatalf("sign request: %v", err)
-	}
-
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected typed 501 for matched signed request-share, got %d: %s", w.Code, w.Body.String())
-	}
-	var errResp spec.OCMErrorResponse
-	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
-		t.Fatalf("decode error response: %v", err)
-	}
-	if errResp.Message != "REQUEST_SHARE_NOT_SUPPORTED" {
-		t.Fatalf("message = %q, want REQUEST_SHARE_NOT_SUPPORTED", errResp.Message)
-	}
-}
-
-func TestService_RequestShareRejectsMismatchedSignatureAuthority(t *testing.T) {
-	const providerHost = "provider.example.com"
-	const impersonatedHost = "impersonated.example.com"
-	in, signer := requestShareSignedInputs(t, providerHost)
-
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc, err := New(in, map[string]any{}, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// shareWith declares impersonatedHost, but the request is signed by a key
-	// belonging to providerHost: the verified signature authority must match
-	// the resolved shareWith provider.
-	body := []byte(`{"owner":"527bd5b5d689e2c32ae974c6229ff785@apiwise.nl","shareWith":"51dc30ddc473d43a6011e9ebba6ca770@` + impersonatedHost + `","share":"1234567890abcdef"}`)
-	req := httptest.NewRequest(http.MethodPost, "/request-share", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	if err := signer.SignRequest(req, body); err != nil {
-		t.Fatalf("sign request: %v", err)
-	}
-
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected peer identity mismatch, got %d: %s", w.Code, w.Body.String())
-	}
-	if strings.TrimSpace(w.Body.String()) != "peer identity mismatch" {
-		t.Fatalf("body = %q, want %q", w.Body.String(), "peer identity mismatch")
 	}
 }
 
@@ -793,6 +634,7 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	in := Inputs{
 		LocalIdentity:     id,
+		PartyRepo:         identity.NewMemoryPartyRepo(),
 		TokenExchangePath: "token",
 	}
 	replaceSignatureMiddleware(&in, cfg, pd)

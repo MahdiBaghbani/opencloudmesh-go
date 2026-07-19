@@ -111,6 +111,18 @@ func TestBuildDiscovery_InviteAcceptIndependentFromWAYF(t *testing.T) {
 	}
 }
 
+func TestBuildDiscovery_InvitesCapabilityFromRouteFlag(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:       "https://example.com/ocm",
+		WebDAVRoot:     "/webdav/ocm/",
+		InvitesEnabled: true,
+	}, nil)
+
+	if !disc.HasCapability("invites") {
+		t.Error("expected invites capability when invites route is enabled")
+	}
+}
+
 func TestBuildDiscovery_InviteWAYFFromRouteFlag(t *testing.T) {
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
 		EndPoint:    "https://example.com/ocm",

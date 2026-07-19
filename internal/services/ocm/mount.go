@@ -12,10 +12,8 @@ import (
 
 type routeHandlers struct {
 	shares         http.HandlerFunc
-	notifications  http.HandlerFunc
 	inviteAccepted http.HandlerFunc
 	token          http.HandlerFunc
-	requestShare   http.HandlerFunc
 }
 
 func mountProtocolRoutes(
@@ -58,14 +56,10 @@ func handlerForRow(row service.RouteRow, handlers routeHandlers) (http.HandlerFu
 	switch row.ID {
 	case "ocm-shares":
 		return handlers.shares, nil
-	case "ocm-notifications":
-		return handlers.notifications, nil
 	case "ocm-invite-accepted":
 		return handlers.inviteAccepted, nil
 	case service.RouteIDOCMToken:
 		return handlers.token, nil
-	case "ocm-request-share":
-		return handlers.requestShare, nil
 	default:
 		return nil, fmt.Errorf("ocm: no handler for route row %q", row.ID)
 	}
@@ -85,16 +79,12 @@ func middlewaresForRow(
 
 	sig := inputs.SignatureMiddleware
 	switch row.PeerResolution {
-	case service.PeerResolutionNone:
-		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignature(nil))
 	case service.PeerResolutionShares:
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveSharesRequest))
 	case service.PeerResolutionInviteAccepted:
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveInviteAcceptedRequest))
 	case service.PeerResolutionToken:
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveTokenRequest))
-	case service.PeerResolutionRequestShare:
-		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveRequestShareRequest))
 	default:
 		return nil, fmt.Errorf("ocm: route %q missing peer resolution metadata", row.ID)
 	}

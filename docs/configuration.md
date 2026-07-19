@@ -61,7 +61,8 @@ TOML sections map to `internal/platform/config.Config`:
 | `[server]` | Trusted proxies |
 | `[tls]` | TLS mode (selfsigned, static, acme, ...) |
 | `[outbound_http]` | Outbound client, SSRF, proxy, TLS roots (see [outbound-http-ssrf.md](outbound-http-ssrf.md)) |
-| `[http.services.ui.wayf]` | WAYF UI, invite accept route, discovery fields (see [invite-wayf-and-accept.md](invite-wayf-and-accept.md)) |
+| `[http.services.ui.wayf]` | WAYF UI and `invite-wayf` discovery (see [invite-wayf-and-accept.md](invite-wayf-and-accept.md)) |
+| `[http.services.ui.invite_accept]` | Accept-invite UI route and invite discovery fields (see [invite-wayf-and-accept.md](invite-wayf-and-accept.md)) |
 | `[peer_trust]` | Directory Service trust groups, membership policy, and cache (see [directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md)) |
 | `[signature]` | HTTP signature key, label, timing, and algorithm settings; `allowed_algorithms` gates inbound verify and outbound `SignRequest` (default: ed25519 plus ECDSA P-256/P-384 and RSA PKCS1-v1_5 SHA-256/384/512; JOSE aliases normalize at load) |
 | `[peer_profiles]` | Peer compatibility mappings |

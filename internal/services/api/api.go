@@ -18,7 +18,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity/sessiongate"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	notifoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/outgoing"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -76,14 +75,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		return u, nil
 	}
 
-	notificationClient := notifoutgoing.NewClient(
-		inputs.HTTPClient,
-		inputs.DiscoveryClient,
-		inputs.Signer,
-		inputs.OutboundPolicy,
-	)
-	notificationClient.SetPeerOrigin(inputs.PeerOrigin)
-
 	tokenClient := tokenoutgoing.NewClient(
 		inputs.HTTPClient,
 		inputs.DiscoveryClient,
@@ -100,7 +91,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	inboxSharesHandler := inboxshares.NewHandler(
 		inputs.IncomingShareRepo,
-		notificationClient,
 		accessClient,
 		currentUser,
 		log,
@@ -175,7 +165,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	r.Post(RouteSharesOutgoing, outgoingHandler.HandleCreate)
 	r.Post(RouteInvitesOutgoing, outgoingInvitesHandler.HandleCreateOutgoing)
-	r.Get(RouteAdminFederations, notImplementedHandler("admin-federations"))
 
 	return &Service{router: r, conf: &c, log: log}, nil
 }
@@ -194,12 +183,6 @@ func validateInputs(in Inputs) error {
 		return errors.New("api: DiscoveryClient is required")
 	default:
 		return nil
-	}
-}
-
-func notImplementedHandler(name string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		api.WriteNotImplemented(w, name)
 	}
 }
 

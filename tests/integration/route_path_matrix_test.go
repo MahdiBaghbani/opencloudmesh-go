@@ -171,7 +171,8 @@ func TestRoutePathMatrix_WayfAndAcceptInviteUnderBasePath(t *testing.T) {
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.ExternalBasePath = "/ocm"
 		ensureServiceConfig(cfg, "ui", map[string]any{
-			"wayf": map[string]any{"enabled": true},
+			"wayf":          map[string]any{"enabled": true},
+			"invite_accept": map[string]any{"enabled": true},
 		})
 	})
 	opts := service.RouteOptsFromConfig(ts.Config)
@@ -218,6 +219,11 @@ func matrixConfigPatch(variant tsrouting.MatrixVariant) func(*config.Config) {
 		if variant.Opts.WayfEnabled {
 			ensureServiceConfig(cfg, "ui", map[string]any{
 				"wayf": map[string]any{"enabled": true},
+			})
+		}
+		if variant.Opts.InviteAcceptEnabled {
+			ensureServiceConfig(cfg, "ui", map[string]any{
+				"invite_accept": map[string]any{"enabled": true},
 			})
 		}
 

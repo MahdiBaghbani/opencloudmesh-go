@@ -279,7 +279,7 @@ func TestNewOCMHandler_TruthfulCapabilitySet(t *testing.T) {
 
 	got := append([]string(nil), h.data.Capabilities...)
 	sort.Strings(got)
-	want := []string{"exchange-token"}
+	want := []string{"exchange-token", "invites"}
 	if len(got) != len(want) {
 		t.Fatalf("capabilities = %v, want %v", got, want)
 	}

@@ -75,9 +75,7 @@ and operator-managed validation.
   Details remain in logs.
 - When a declared-peer resolver is present, malformed or empty declared
   peers fail closed with HTTP 400. Shares, invite-accepted, and token
-  routes also require a declared peer (`requireDeclaredPeer`).
-  Notifications stay signature-only (nil resolver): trust is bound to
-  keyId, not a body-declared peer.
+  routes require a declared peer (`requireDeclaredPeer`).
 - Peer identity mismatch between declared peer and keyId authority
   returns HTTP 403. Normalize errors on that path also fail closed with
   403 unless a matched peer profile explicitly allows the mismatch.

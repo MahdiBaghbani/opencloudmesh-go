@@ -133,16 +133,6 @@ func (m *SignatureMiddleware) VerifyOCMRequest(declaredPeerResolver func(r *http
 	return m.verifyOCMRequest(declaredPeerResolver, false, false, false)
 }
 
-// VerifyOCMRequestRequireSignature enforces a verified signature even when a
-// matched peer profile would otherwise allow unsigned inbound. Routes that pass
-// a nil declaredPeerResolver (for example notifications) stay signature-only:
-// trust is bound to keyId, not a body-declared peer.
-func (m *SignatureMiddleware) VerifyOCMRequestRequireSignature(
-	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
-) func(http.Handler) http.Handler {
-	return m.verifyOCMRequest(declaredPeerResolver, true, false, false)
-}
-
 // VerifyOCMRequestRequireSignatureAndPeer enforces a verified signature and a
 // non-empty declared peer from the request body. Use on shares, invites, and
 // token routes where keyId must bind to the body-declared peer.

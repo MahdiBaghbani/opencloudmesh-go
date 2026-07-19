@@ -16,7 +16,7 @@ Built by `internal/components/ocm/discovery` and served by
 | `endPoint` | Route-derived projection from local identity |
 | `tokenEndPoint` | Projected when token exchange is capable |
 | `resourceTypes[].protocols` | `webdav` path plus `webdav-receive` with `uri: relative` |
-| `capabilities` | `http-sig` when JWKS signing keys are published, `exchange-token` when token exchange is capable, `invite-wayf` only when the WAYF route is enabled |
+| `capabilities` | `http-sig` when JWKS signing keys are published, `exchange-token` when token exchange is capable, `invites` when `InvitesEnabled` is true (defaults true; OCM invite protocol routes are always mounted), `invite-wayf` only when the WAYF route is enabled |
 | `criteria` | Strictness requirements (HTTP sig, token exchange) |
 | `inviteAcceptDialog` | Derived when invite accept route is active |
 
@@ -42,10 +42,12 @@ are independent: each field follows its own route spec or explicit config
 override, so a handler can advertise accept without WAYF when only the
 accept-invite route is active.
 
-WAYF is off by default (`[http.services.ui.wayf] enabled = false`). When
-you set `enabled = true`, the default config wiring registers WAYF and
-accept-invite UI routes and their discovery fields together. See
-[routes-and-auth.md](routes-and-auth.md).
+WAYF is off by default (`[http.services.ui.wayf] enabled = false`). The
+`invite-wayf` capability and `/ui/wayf` route register only when that
+section is enabled. Invite accept UI routes and `inviteAcceptDialog`
+follow `[http.services.ui.invite_accept] enabled` independently of WAYF.
+The `invites` capability follows `RouteOpts.InvitesEnabled`, which
+defaults true. See [routes-and-auth.md](routes-and-auth.md).
 
 Proof: `internal/services/wellknown/ocm_handler_test.go`
 (`TestNewOCMHandler_InviteAcceptDialogFromRoutes`) and
@@ -92,7 +94,8 @@ the raw discovery field was relative.
 | `public_origin`, `external_base_path` | All endpoint and WebDAV paths |
 | `[token_exchange]` | Token endpoint and `exchange-token` capability |
 | Signature / peer policy axes | Criteria and capabilities |
-| `[http.services.ui.wayf] enabled` | WAYF capability and accept-invite route |
+| `[http.services.ui.wayf] enabled` | `invite-wayf` capability and WAYF UI route |
+| `[http.services.ui.invite_accept] enabled` | Accept-invite UI route and `inviteAcceptDialog` |
 
 Unknown keys under `[http.services.wellknown.ocmprovider]` fail at load time.
 

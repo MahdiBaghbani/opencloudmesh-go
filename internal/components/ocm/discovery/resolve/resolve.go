@@ -107,6 +107,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			WebDAVReceiveURI:       "relative",
 			TokenEndPoint:          tokenEndPoint,
 			InviteAcceptDialog:     inviteAcceptDialog,
+			InvitesEnabled:         routeOpts.InvitesEnabled,
 			WayfEnabled:            routeOpts.WayfEnabled,
 			AdvertiseHTTPSig:       advertiseHTTPSig,
 			TokenExchangeCapable:   localEval.codeFlow,

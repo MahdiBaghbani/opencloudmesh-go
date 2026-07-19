@@ -113,7 +113,6 @@ func TestNoAdHocPeerOriginSchemeInApprovedCallSites(t *testing.T) {
 		"internal/components/ocm/discovery/peer_adapter.go",
 		"internal/components/ocm/shares/incoming/handler.go",
 		"internal/components/api/outgoing/shares/handler.go",
-		"internal/components/ocm/notifications/outgoing/client.go",
 		"internal/components/api/inbox/invites/handler.go",
 	}
 

@@ -16,6 +16,7 @@ type BuildParams struct {
 	WebDAVReceiveURI   string
 	TokenEndPoint      string
 	InviteAcceptDialog string
+	InvitesEnabled     bool
 	WayfEnabled        bool
 
 	// AdvertiseHTTPSig adds the http-sig capability when local signing keys are
@@ -80,6 +81,9 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 
 	if p.InviteAcceptDialog != "" {
 		disc.InviteAcceptDialog = p.InviteAcceptDialog
+	}
+	if p.InvitesEnabled {
+		capabilities = append(capabilities, "invites")
 	}
 	if p.WayfEnabled {
 		capabilities = append(capabilities, "invite-wayf")

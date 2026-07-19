@@ -116,10 +116,9 @@ func TestRoutePolicyWiring_ProtocolRoutesHavePeerTrustClass(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProtocolRoutes(opts) {
 		switch row.TrustClass {
-		case service.TrustPeerRequired, service.TrustNotificationsSpecial:
-			// peer trust or notifications-special handling
+		case service.TrustPeerRequired:
 		default:
-			t.Errorf("protocol route %q TrustClass = %q, want peer-trust-required or notifications-special", row.ID, row.TrustClass)
+			t.Errorf("protocol route %q TrustClass = %q, want peer-trust-required", row.ID, row.TrustClass)
 		}
 	}
 }
@@ -199,7 +198,7 @@ func TestRoutePolicyWiring_WebDAVUsesHandlerAuthNotSession(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_InviteAcceptDialogDistinctFromInviteAccepted(t *testing.T) {
-	opts := tsrouting.WayfEnabledOpts()
+	opts := tsrouting.InviteAcceptEnabledOpts()
 	var uiAccept, ocmInvite *service.RouteRow
 	for _, row := range tsrouting.ProductRoutes(opts) {
 		switch row.ID {

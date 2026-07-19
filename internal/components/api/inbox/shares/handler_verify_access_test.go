@@ -30,11 +30,10 @@ func (m *mockAccessor) Access(ctx context.Context, opts access.AccessOptions) (*
 
 func newTestRouterWithAccess(
 	repo sharesinbox.IncomingShareRepo,
-	sender sharesinbox.NotificationSender,
 	ac access.RemoteAccessor,
 	user *identity.User,
 ) http.Handler {
-	h := inboxshares.NewHandler(repo, sender, ac, currentUserFunc(user), testLogger)
+	h := inboxshares.NewHandler(repo, ac, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
 	r.Route("/inbox/shares", func(r chi.Router) {
 		r.Get("/", h.HandleList)
@@ -78,7 +77,7 @@ func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 		t.Fatal("access client should not be called for cross-user request")
 		return nil, nil
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userB)
+	router := newTestRouterWithAccess(repo, ac, userB)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -98,7 +97,7 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 		t.Fatal("access client should not be called for non-accepted share")
 		return nil, nil
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userA)
+	router := newTestRouterWithAccess(repo, ac, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -124,7 +123,7 @@ func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
 		t.Fatal("access client should not be called for unsafe path")
 		return nil, nil
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userA)
+	router := newTestRouterWithAccess(repo, ac, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -157,7 +156,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 			AccessToken: "token",
 		}, nil
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userA)
+	router := newTestRouterWithAccess(repo, ac, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -199,7 +198,7 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 			fmt.Errorf("connection refused"),
 		)
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userA)
+	router := newTestRouterWithAccess(repo, ac, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -232,7 +231,7 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 			nil,
 		)
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userA)
+	router := newTestRouterWithAccess(repo, ac, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -257,7 +256,7 @@ func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
 		return nil, reason.New(reason.PeerDiscoveryDisabled, "discovery disabled", nil)
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userA)
+	router := newTestRouterWithAccess(repo, ac, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -289,7 +288,7 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 			},
 		}, nil
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userA)
+	router := newTestRouterWithAccess(repo, ac, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -328,7 +327,7 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 			},
 		}, nil
 	}}
-	router := newTestRouterWithAccess(repo, nil, ac, userA)
+	router := newTestRouterWithAccess(repo, ac, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
@@ -354,7 +353,7 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 
 func TestHandleVerifyAccess_Unauthenticated(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	router := newTestRouterWithAccess(repo, nil, nil, nil)
+	router := newTestRouterWithAccess(repo, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/some-id/verify-access", nil)
 	w := httptest.NewRecorder()

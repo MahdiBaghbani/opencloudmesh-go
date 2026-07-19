@@ -1,8 +1,8 @@
 # Protocol endpoints
 
 OCM provider protocol traffic lives under the `ocm` service mount. These
-endpoints implement the pinned OCM-API subset for shares, notifications,
-invites, and token exchange. Helper, UI, and first-party API routes are
+endpoints implement the pinned OCM-API subset for shares, invite
+acceptance, and token exchange. Helper, UI, and first-party API routes are
 documented separately.
 
 ## Mount shape
@@ -18,9 +18,9 @@ Full paths come from `service.Routes(opts)`; see
 
 Protocol traffic uses `SurfaceClass: protocol`, public session policy, and
 optional HTTP signature handler auth on the handler. Peer trust is enforced
-per route; notifications use a dedicated trust class.
+per route.
 
-The `ocm` service registers four protocol handlers in
+The `ocm` service registers three protocol handlers in
 `internal/services/ocm/routes.go`. Route ids, patterns, and trust metadata
 aggregate through `service.Routes(opts)` in
 `internal/frameworks/service/route_aggregate.go`. Projections such as
@@ -44,11 +44,6 @@ explains behavior; it is not a maintained route list. See
 `POST /ocm/shares` receives incoming share creation from a remote OCM
 provider. Handler auth expects an optional HTTP message signature when
 configured.
-
-### Notifications
-
-`POST /ocm/notifications` receives asynchronous notifications (for example
-share state changes). Uses a notifications-specific trust class.
 
 ### Invite accepted
 

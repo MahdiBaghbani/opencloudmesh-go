@@ -17,7 +17,8 @@ import (
 func TestAcceptInviteRedirectRoundTrip(t *testing.T) {
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		ensureServiceConfig(cfg, "ui", map[string]any{
-			"wayf": map[string]any{"enabled": true},
+			"wayf":          map[string]any{"enabled": true},
+			"invite_accept": map[string]any{"enabled": true},
 		})
 	})
 
@@ -90,7 +91,8 @@ func TestAcceptInviteRedirectRoundTrip_WithExternalBasePath(t *testing.T) {
 	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
 		cfg.ExternalBasePath = "/ocm"
 		ensureServiceConfig(cfg, "ui", map[string]any{
-			"wayf": map[string]any{"enabled": true},
+			"wayf":          map[string]any{"enabled": true},
+			"invite_accept": map[string]any{"enabled": true},
 		})
 	})
 

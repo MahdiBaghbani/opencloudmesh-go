@@ -9,10 +9,9 @@ import (
 func TestRegisteredRouteSpecs(t *testing.T) {
 	opts := service.DefaultRouteOpts()
 	specs := registeredRouteSpecs(opts)
-	if len(specs) != 5 {
-		t.Fatalf("expected 5 route specs, got %d", len(specs))
+	if len(specs) != 3 {
+		t.Fatalf("expected 3 route specs, got %d", len(specs))
 	}
-	var requestShare *service.RouteSpec
 	for i := range specs {
 		spec := specs[i]
 		if spec.SurfaceClass != service.SurfaceProtocol {
@@ -21,24 +20,12 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 		if spec.SessionPolicy != service.SessionPublic {
 			t.Errorf("spec %q session = %q, want public", spec.ID, spec.SessionPolicy)
 		}
-		if spec.ID == "ocm-request-share" {
-			requestShare = &specs[i]
+		if spec.TrustClass != service.TrustPeerRequired {
+			t.Errorf("spec %q trust = %q, want %q", spec.ID, spec.TrustClass, service.TrustPeerRequired)
 		}
-	}
-	if requestShare == nil {
-		t.Fatal("expected ocm-request-share route spec")
-	}
-	if requestShare.Method != "POST" {
-		t.Errorf("request-share method = %q, want POST", requestShare.Method)
-	}
-	if requestShare.Pattern != RouteRequestShare {
-		t.Errorf("request-share pattern = %q, want %q", requestShare.Pattern, RouteRequestShare)
-	}
-	if requestShare.TrustClass != service.TrustPeerRequired {
-		t.Errorf("request-share trust = %q, want %q", requestShare.TrustClass, service.TrustPeerRequired)
-	}
-	if requestShare.HandlerAuth != service.HandlerAuthRequiredHTTPSig {
-		t.Errorf("request-share handler auth = %q, want %q", requestShare.HandlerAuth, service.HandlerAuthRequiredHTTPSig)
+		if spec.HandlerAuth != service.HandlerAuthRequiredHTTPSig {
+			t.Errorf("spec %q handler auth = %q, want %q", spec.ID, spec.HandlerAuth, service.HandlerAuthRequiredHTTPSig)
+		}
 	}
 }
 
@@ -52,8 +39,8 @@ func TestRegisteredRouteSpecs_ProtocolPostInvariants(t *testing.T) {
 		}
 		postRows = append(postRows, spec)
 	}
-	if len(postRows) != 5 {
-		t.Fatalf("expected 5 OCM POST protocol route specs, got %d", len(postRows))
+	if len(postRows) != 3 {
+		t.Fatalf("expected 3 OCM POST protocol route specs, got %d", len(postRows))
 	}
 	for _, spec := range postRows {
 		if spec.HandlerAuth != service.HandlerAuthRequiredHTTPSig {

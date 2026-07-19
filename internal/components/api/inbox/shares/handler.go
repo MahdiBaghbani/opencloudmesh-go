@@ -146,7 +146,6 @@ const maxPreviewBytes = 4096
 // Handler serves list, detail, accept, decline, and verify-access for inbox shares.
 type Handler struct {
 	repo         sharesinbox.IncomingShareRepo
-	sender       sharesinbox.NotificationSender
 	accessClient access.RemoteAccessor
 	currentUser  func(context.Context) (*identity.User, error)
 	log          *slog.Logger
@@ -155,7 +154,6 @@ type Handler struct {
 // NewHandler returns a Handler with the given dependencies.
 func NewHandler(
 	repo sharesinbox.IncomingShareRepo,
-	sender sharesinbox.NotificationSender,
 	accessClient access.RemoteAccessor,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
@@ -163,7 +161,6 @@ func NewHandler(
 	log = logutil.NoopIfNil(log)
 	return &Handler{
 		repo:         repo,
-		sender:       sender,
 		accessClient: accessClient,
 		currentUser:  currentUser,
 		log:          log,
@@ -239,15 +236,6 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
 		return
-	}
-
-	if h.sender != nil {
-		if err := h.sender.SendShareAccepted(ctx, share.SenderHost, share.ProviderID, share.ResourceType); err != nil {
-			h.log.Warn("failed to send accept notification",
-				"share_id", shareID,
-				"sender_host", share.SenderHost,
-				"error", err)
-		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -332,15 +320,6 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
 		return
-	}
-
-	if h.sender != nil {
-		if err := h.sender.SendShareDeclined(ctx, share.SenderHost, share.ProviderID, share.ResourceType); err != nil {
-			h.log.Warn("failed to send decline notification",
-				"share_id", shareID,
-				"sender_host", share.SenderHost,
-				"error", err)
-		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
