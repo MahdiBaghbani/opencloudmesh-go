@@ -1,6 +1,7 @@
 package spec_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -103,25 +104,21 @@ func TestResolveInviteAcceptDialog_RelativePeerValue(t *testing.T) {
 	}
 }
 
-func TestDeriveDiscoveryPathsFromEndpointBase_ExplicitEndpoint(t *testing.T) {
-	opts := service.RouteOpts{
-		ExternalBasePath:    "/ocm",
-		InviteAcceptEnabled: true,
-		TokenExchangePath:   "token",
+func TestDeriveDiscoveryPaths_SameAuthorityEndpoints(t *testing.T) {
+	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
+	opts := service.RouteOpts{ExternalBasePath: "/ocm"}
+	paths, ok := spec.DeriveDiscoveryPaths(id, opts)
+	if !ok {
+		t.Fatal("expected projection ok")
 	}
-	paths := spec.DeriveDiscoveryPathsFromEndpointBase("https://cloud.example.com/ocm", "ocm", opts)
-
-	if paths.EndPoint != "https://cloud.example.com/ocm/ocm" {
-		t.Errorf("EndPoint = %q", paths.EndPoint)
+	if paths.EndPoint == "" || paths.TokenEndPoint == "" {
+		t.Fatal("expected non-empty projected endpoints")
 	}
-	if paths.TokenEndPoint != "https://cloud.example.com/ocm/ocm/token" {
-		t.Errorf("TokenEndPoint = %q", paths.TokenEndPoint)
+	if !strings.HasPrefix(paths.EndPoint, "https://cloud.example.com/") {
+		t.Errorf("EndPoint = %q, want same-authority projection", paths.EndPoint)
 	}
-	if paths.WebDAVRoot != "" {
-		t.Errorf("WebDAVRoot = %q, want empty (not projected from explicit endpoint base)", paths.WebDAVRoot)
-	}
-	if paths.InviteAcceptDialog != "" {
-		t.Errorf("InviteAcceptDialog = %q, want empty (not projected from explicit endpoint base)", paths.InviteAcceptDialog)
+	if !strings.HasPrefix(paths.TokenEndPoint, "https://cloud.example.com/") {
+		t.Errorf("TokenEndPoint = %q, want same-authority projection", paths.TokenEndPoint)
 	}
 }
 

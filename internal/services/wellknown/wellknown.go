@@ -1,6 +1,7 @@
 package wellknown
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -33,7 +34,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	log = logutil.NoopIfNil(log)
 
 	var c Config
-	unused, err := svccfg.DecodeWithUnused(m, &c)
+	topLevel := make(map[string]any, len(m))
+	for k, v := range m {
+		if k != "ocmprovider" {
+			topLevel[k] = v
+		}
+	}
+	unused, err := svccfg.DecodeWithUnused(topLevel, &c)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +51,11 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	var rawOCMProvider map[string]any
 	if om, ok := m["ocmprovider"].(map[string]any); ok {
 		rawOCMProvider = om
+		if err := svccfg.MustDecodeStrict(om, &c.OCMProvider); err != nil {
+			return nil, fmt.Errorf("ocmprovider: %w", err)
+		}
+	} else if m["ocmprovider"] != nil {
+		return nil, fmt.Errorf("ocmprovider must be a table")
 	}
 
 	r := chi.NewRouter()

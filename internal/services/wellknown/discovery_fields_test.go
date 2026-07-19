@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
@@ -141,14 +142,15 @@ func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 		t.Errorf("Provider = %q, want OpenCloudMesh", disc.Provider)
 	}
 
-	required := []string{"invites", "protocol-object", "notifications"}
-	capSet := make(map[string]bool, len(disc.Capabilities))
-	for _, cap := range disc.Capabilities {
-		capSet[cap] = true
+	got := append([]string(nil), disc.Capabilities...)
+	sort.Strings(got)
+	want := []string{"exchange-token"}
+	if len(got) != len(want) {
+		t.Fatalf("capabilities = %v, want %v", got, want)
 	}
-	for _, req := range required {
-		if !capSet[req] {
-			t.Errorf("expected unconditional capability %q in %v", req, disc.Capabilities)
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("capabilities = %v, want %v", got, want)
 		}
 	}
 }

@@ -40,6 +40,7 @@ type SubprocessConfig struct {
 	DisableProxyEnvFallback bool              // when true, emits proxy_env_fallback = false in [outbound_http]
 	TLSRootCAFile           string            // when set, adds tls_root_ca_file under [outbound_http]
 	BootstrapAdminPassword  string            // when set, adds password under [server.bootstrap_admin]
+	PublicOriginHost        string            // when set, overrides localhost in generated public_origin
 	ExtraConfig             string            // Additional TOML config to append
 	ExtraFiles              map[string]string // Extra files to write to tempDir: {relativePath: contents}
 }
@@ -144,6 +145,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		cfg.DisableProxyEnvFallback,
 		cfg.TLSRootCAFile,
 		cfg.BootstrapAdminPassword,
+		cfg.PublicOriginHost,
 		cfg.ExtraConfig,
 	)
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -380,7 +382,7 @@ func extraDefinesPublicOrigin(extra string) bool {
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, disableProxyEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword string, extra string) string {
+func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, disableProxyEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
 	secure := needsSecureTransport(mode, compatibilityScope)
 
 	// Derive the scheme for the generated default public_origin from the FINAL
@@ -396,10 +398,14 @@ func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope
 	}
 
 	var publicOrigin string
+	originHost := "localhost"
+	if strings.TrimSpace(publicOriginHost) != "" {
+		originHost = strings.TrimSpace(publicOriginHost)
+	}
 	if publicOriginSecure {
-		publicOrigin = fmt.Sprintf("https://localhost:%d", port)
+		publicOrigin = fmt.Sprintf("https://%s:%d", originHost, port)
 	} else {
-		publicOrigin = fmt.Sprintf("http://localhost:%d", port)
+		publicOrigin = fmt.Sprintf("http://%s:%d", originHost, port)
 	}
 
 	// Omit the generated public_origin when the test sets its own so the explicit

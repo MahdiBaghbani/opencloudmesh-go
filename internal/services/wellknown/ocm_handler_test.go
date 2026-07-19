@@ -1,9 +1,7 @@
 package wellknown
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"sort"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
@@ -36,24 +34,28 @@ func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 	}
 }
 
-func TestNewOCMHandler_EnabledWithEndpoint(t *testing.T) {
+func TestNewOCMHandler_EnabledWithProjectedPaths(t *testing.T) {
 	c := &OCMProviderConfig{
-		Endpoint:   "https://example.com/myapp",
 		WebDAVRoot: "/webdav/ocm/",
 	}
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
+	raw := map[string]any{"webdav_root": "/webdav/ocm/"}
+	h, err := newOCMHandler(
+		c,
+		raw,
+		handlerResolveInputs(t, "https://example.com", "/myapp"),
+		testLogger(),
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if !h.data.Enabled {
-		t.Error("expected Enabled=true when endpoint is set")
+		t.Error("expected Enabled=true when paths are projected")
 	}
 	if h.data.EndPoint != "https://example.com/myapp/ocm" {
 		t.Errorf("expected EndPoint 'https://example.com/myapp/ocm', got %q", h.data.EndPoint)
 	}
 
-	// Check resource types
 	if len(h.data.ResourceTypes) != 2 {
 		t.Fatalf("expected 2 resource types, got %d", len(h.data.ResourceTypes))
 	}
@@ -67,25 +69,27 @@ func TestNewOCMHandler_EnabledWithEndpoint(t *testing.T) {
 	if !ok || path != "/webdav/ocm/" {
 		t.Errorf("expected webdav protocol '/webdav/ocm/', got %q ok=%v", path, ok)
 	}
+	wr, ok := rt.Protocols.WebDAVReceive()
+	if !ok || wr.URI != spec.WebDAVReceiveURIRelative {
+		t.Fatalf("webdav-receive = %+v, ok=%v", wr, ok)
+	}
 }
 
 func TestNewOCMHandler_WithKeyManager(t *testing.T) {
-	c := &OCMProviderConfig{
-		Endpoint: "https://example.com",
-	}
+	c := &OCMProviderConfig{}
 
-	// Create a real KeyManager for testing
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("failed to generate key: %v", err)
 	}
 
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{KeyManager: km}, testLogger())
+	in := handlerResolveInputs(t, "https://example.com", "")
+	in.KeyManager = km
+	h, err := newOCMHandler(c, nil, in, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// http-sig capability should be present
 	found := false
 	for _, cap := range h.data.Capabilities {
 		if cap == "http-sig" {
@@ -99,29 +103,32 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 }
 
 func TestNewOCMHandler_Criteria(t *testing.T) {
-	t.Run("empty by default", func(t *testing.T) {
-		c := &OCMProviderConfig{
-			Endpoint: "https://example.com",
-		}
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
+	t.Run("default criteria include signing and token exchange", func(t *testing.T) {
+		c := &OCMProviderConfig{}
+		h, err := newOCMHandler(c, nil, handlerResolveInputs(t, "https://example.com", ""), testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if h.data.Criteria == nil {
-			t.Error("expected Criteria to be non-nil (empty slice)")
+			t.Error("expected Criteria to be non-nil")
 		}
-		if len(h.data.Criteria) != 0 {
-			t.Errorf("expected empty criteria, got %v", h.data.Criteria)
+		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+			t.Error("expected must-use-http-sig in default criteria")
+		}
+		if !h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
+			t.Error("expected must-exchange-token in default criteria")
 		}
 	})
 
 	t.Run("with HTTP signatures", func(t *testing.T) {
 		codeFlow := policy.NewCodeFlow()
-		c := &OCMProviderConfig{
-			Endpoint: "https://example.com",
-		}
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
+		c := &OCMProviderConfig{}
+		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{
+			LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
+			RouteOpts:     service.DefaultRouteOpts(),
+			CodeFlow:      codeFlow,
+		}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -135,10 +142,12 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 func TestNewOCMHandler_CodeFlowDrivesHTTPSignatureCriteria(t *testing.T) {
 	t.Run("derived from code-flow policy when not explicitly configured", func(t *testing.T) {
 		codeFlow := policy.NewCodeFlow()
-		c := &OCMProviderConfig{
-			Endpoint: "https://example.com",
-		}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
+		c := &OCMProviderConfig{}
+		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{
+			LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
+			RouteOpts:     service.DefaultRouteOpts(),
+			CodeFlow:      codeFlow,
+		}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -147,119 +156,21 @@ func TestNewOCMHandler_CodeFlowDrivesHTTPSignatureCriteria(t *testing.T) {
 			t.Error("expected must-use-http-sig criteria from code-flow policy")
 		}
 	})
-
-	t.Run("unsupported service-local key does not override code-flow policy", func(t *testing.T) {
-		codeFlow := policy.NewCodeFlow()
-		c := &OCMProviderConfig{
-			Endpoint: "https://example.com",
-		}
-		raw := map[string]any{
-			"advertise_http_request_signatures": false,
-		}
-
-		h, err := newOCMHandler(c, raw, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("expected must-use-http-sig to follow code-flow policy")
-		}
-	})
-}
-
-func TestNewOCMHandler_CodeFlowDrivesAPIVersionOverrides(t *testing.T) {
-	// Scoped presets do not grant a global Nextcloud crawler apiVersion override.
-	// Per-peer overrides route through the peercompat gate.
-	t.Run("scoped compat preset grants no global crawler override", func(t *testing.T) {
-		codeFlow := policy.NewCodeFlow()
-		c := &OCMProviderConfig{
-			Endpoint: "https://example.com",
-		}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(h.overrides) != 0 {
-			t.Fatalf("expected no crawler overrides, got %d", len(h.overrides))
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-		req.Header.Set("User-Agent", "Nextcloud Server Crawler")
-		rr := httptest.NewRecorder()
-		h.ServeHTTP(rr, req)
-
-		var disc spec.Discovery
-		if err := json.Unmarshal(rr.Body.Bytes(), &disc); err != nil {
-			t.Fatalf("failed to decode response: %v", err)
-		}
-		if disc.APIVersion != "1.4.0" {
-			t.Fatalf("expected default apiVersion 1.4.0 with no crawler override, got %q", disc.APIVersion)
-		}
-	})
-
-	t.Run("strict runtime posture suppresses crawler override even on dev preset", func(t *testing.T) {
-		codeFlow := policy.NewCodeFlow()
-		c := &OCMProviderConfig{
-			Endpoint: "https://example.com",
-		}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{CodeFlow: codeFlow}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(h.overrides) != 0 {
-			t.Fatalf("expected no crawler overrides for strict runtime posture, got %d", len(h.overrides))
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-		req.Header.Set("User-Agent", "Nextcloud Server Crawler")
-		rr := httptest.NewRecorder()
-		h.ServeHTTP(rr, req)
-
-		var disc spec.Discovery
-		if err := json.Unmarshal(rr.Body.Bytes(), &disc); err != nil {
-			t.Fatalf("failed to decode response: %v", err)
-		}
-		if disc.APIVersion != "1.4.0" {
-			t.Fatalf("expected default apiVersion 1.4.0, got %q", disc.APIVersion)
-		}
-	})
-}
-
-func TestNewOCMHandler_InvalidEndpointURL(t *testing.T) {
-	c := &OCMProviderConfig{
-		Endpoint: "://invalid-url",
-	}
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Should gracefully return disabled discovery
-	if h.data.Enabled {
-		t.Error("expected Enabled=false for invalid URL")
-	}
 }
 
 func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 	t.Run("derives inviteAcceptDialog when invite accept route active", func(t *testing.T) {
-		c := &OCMProviderConfig{
-			Endpoint: "https://cloud.example.com/ocm",
-		}
+		c := &OCMProviderConfig{}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 			RouteOpts: service.RouteOpts{
 				ExternalBasePath:    "/ocm",
 				InviteAcceptEnabled: true,
 			},
+			CodeFlow: policy.NewCodeFlow(),
 		}
 
-		// rawOCMProvider does NOT contain invite_accept_dialog
-		raw := map[string]any{
-			"endpoint": "https://cloud.example.com/ocm",
-		}
-
-		h, err := newOCMHandler(c, raw, resolveIn, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolveIn, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -271,7 +182,6 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 
 	t.Run("explicit invite_accept_dialog overrides auto-derivation", func(t *testing.T) {
 		c := &OCMProviderConfig{
-			Endpoint:           "https://cloud.example.com/ocm",
 			InviteAcceptDialog: "https://custom.example.com/accept",
 		}
 		resolveIn := resolve.ResolveInputs{
@@ -280,11 +190,10 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 				ExternalBasePath:    "/ocm",
 				InviteAcceptEnabled: true,
 			},
+			CodeFlow: policy.NewCodeFlow(),
 		}
 
-		// rawOCMProvider DOES contain invite_accept_dialog
 		raw := map[string]any{
-			"endpoint":             "https://cloud.example.com/ocm",
 			"invite_accept_dialog": "https://custom.example.com/accept",
 		}
 
@@ -299,19 +208,14 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 	})
 
 	t.Run("no derivation when invite accept route inactive", func(t *testing.T) {
-		c := &OCMProviderConfig{
-			Endpoint: "https://cloud.example.com/ocm",
-		}
+		c := &OCMProviderConfig{}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 			RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
+			CodeFlow:      policy.NewCodeFlow(),
 		}
 
-		raw := map[string]any{
-			"endpoint": "https://cloud.example.com/ocm",
-		}
-
-		h, err := newOCMHandler(c, raw, resolveIn, testLogger())
+		h, err := newOCMHandler(c, map[string]any{}, resolveIn, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -322,46 +226,66 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 	})
 }
 
-func TestNewOCMHandler_InviteWAYFCapability(t *testing.T) {
-	c := &OCMProviderConfig{
-		Endpoint:            "https://cloud.example.com/ocm",
-		InviteAcceptDialog:  "https://cloud.example.com/ocm/ui/accept-invite",
-		AdvertiseInviteWAYF: true,
-	}
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	found := false
-	for _, cap := range h.data.Capabilities {
-		if cap == "invite-wayf" {
-			found = true
-			break
+func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
+	t.Run("enabled when WAYF route active", func(t *testing.T) {
+		c := &OCMProviderConfig{}
+		in := resolve.ResolveInputs{
+			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+			RouteOpts: service.RouteOpts{
+				ExternalBasePath:    "/ocm",
+				WayfEnabled:         true,
+				InviteAcceptEnabled: true,
+			},
+			CodeFlow: policy.NewCodeFlow(),
 		}
-	}
-	if !found {
-		t.Error("expected 'invite-wayf' in capabilities when AdvertiseInviteWAYF=true")
-	}
+		h, err := newOCMHandler(c, nil, in, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !h.data.HasCapability("invite-wayf") {
+			t.Error("expected invite-wayf when WAYF route is enabled")
+		}
+	})
+
+	t.Run("absent when WAYF route inactive", func(t *testing.T) {
+		c := &OCMProviderConfig{}
+		in := resolve.ResolveInputs{
+			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+			RouteOpts: service.RouteOpts{
+				ExternalBasePath:    "/ocm",
+				InviteAcceptEnabled: true,
+			},
+			CodeFlow: policy.NewCodeFlow(),
+		}
+		h, err := newOCMHandler(c, nil, in, testLogger())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if h.data.HasCapability("invite-wayf") {
+			t.Error("did not expect invite-wayf when WAYF route is inactive")
+		}
+	})
 }
 
-func TestNewOCMHandler_UnconditionalCapabilities(t *testing.T) {
-	c := &OCMProviderConfig{
-		Endpoint: "https://example.com",
-	}
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
+func TestNewOCMHandler_TruthfulCapabilitySet(t *testing.T) {
+	c := &OCMProviderConfig{}
+	in := handlerResolveInputs(t, "https://example.com", "")
+	h, err := newOCMHandler(c, nil, in, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	required := []string{"invites", "protocol-object", "notifications"}
-	capSet := make(map[string]bool)
-	for _, cap := range h.data.Capabilities {
-		capSet[cap] = true
+	got := append([]string(nil), h.data.Capabilities...)
+	sort.Strings(got)
+	want := []string{"exchange-token"}
+	if len(got) != len(want) {
+		t.Fatalf("capabilities = %v, want %v", got, want)
 	}
-	for _, req := range required {
-		if !capSet[req] {
-			t.Errorf("expected unconditional capability %q in capabilities %v", req, h.data.Capabilities)
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("capabilities = %v, want %v", got, want)
 		}
 	}
 }

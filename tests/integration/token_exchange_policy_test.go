@@ -367,7 +367,7 @@ func TestOutgoingShareRejectsMalformedTokenExchange(t *testing.T) {
 				"permissions":    []string{"read"},
 			})
 
-			wantStatus := reason.APIStatus(reason.PeerCapabilityMismatch)
+			wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
 			if status != wantStatus {
 				t.Fatalf("expected status %d, got %d: %s", wantStatus, status, body)
 			}

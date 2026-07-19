@@ -119,39 +119,6 @@ func discoveryPathFromField(rows []service.RouteRow, field, origin string) strin
 	return ""
 }
 
-// DeriveDiscoveryPathsFromEndpointBase projects EndPoint and TokenEndPoint from an
-// explicit configured endpoint base (public origin plus external base path). The
-// endpoint base already encodes external_base_path, so token paths join the OCM
-// protocol mount and configured token segment rather than re-deriving host-root
-// route inventory paths.
-func DeriveDiscoveryPathsFromEndpointBase(endpointBase, ocmPrefix string, opts service.RouteOpts) DiscoveryPaths {
-	paths := DiscoveryPaths{}
-	if endpointBase == "" {
-		return paths
-	}
-
-	paths.EndPoint, _ = url.JoinPath(endpointBase, ocmPrefix)
-
-	tokenSegment := tokenDiscoverySegment(opts)
-	paths.TokenEndPoint, _ = url.JoinPath(endpointBase, ocmPrefix, tokenSegment)
-	return paths
-}
-
-func tokenDiscoverySegment(opts service.RouteOpts) string {
-	for _, row := range service.DerivedRouteInventory(opts) {
-		for _, field := range row.DiscoveryFields {
-			if field == "tokenEndPoint" {
-				return strings.TrimPrefix(row.Pattern, "/")
-			}
-		}
-	}
-	tokenPath := opts.TokenExchangePath
-	if tokenPath == "" {
-		tokenPath = "token"
-	}
-	return tokenPath
-}
-
 func rowByID(rows []service.RouteRow, id string) (service.RouteRow, bool) {
 	for _, row := range rows {
 		if row.ID == id {

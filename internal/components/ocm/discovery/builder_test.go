@@ -97,10 +97,10 @@ func TestBuildDiscovery_OmitsTokenExchangeWhenEndpointEmpty(t *testing.T) {
 
 func TestBuildDiscovery_InviteAcceptIndependentFromWAYF(t *testing.T) {
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
-		EndPoint:            "https://example.com/ocm",
-		WebDAVRoot:          "/webdav/ocm/",
-		InviteAcceptDialog:  "https://example.com/ui/accept-invite",
-		AdvertiseInviteWAYF: false,
+		EndPoint:           "https://example.com/ocm",
+		WebDAVRoot:         "/webdav/ocm/",
+		InviteAcceptDialog: "https://example.com/ui/accept-invite",
+		WayfEnabled:        false,
 	}, nil)
 
 	if disc.InviteAcceptDialog == "" {
@@ -111,15 +111,15 @@ func TestBuildDiscovery_InviteAcceptIndependentFromWAYF(t *testing.T) {
 	}
 }
 
-func TestBuildDiscovery_InviteWAYFFromAdvertiseFlag(t *testing.T) {
+func TestBuildDiscovery_InviteWAYFFromRouteFlag(t *testing.T) {
 	disc := discovery.BuildDiscovery(discovery.BuildParams{
-		EndPoint:            "https://example.com/ocm",
-		WebDAVRoot:          "/webdav/ocm/",
-		AdvertiseInviteWAYF: true,
+		EndPoint:    "https://example.com/ocm",
+		WebDAVRoot:  "/webdav/ocm/",
+		WayfEnabled: true,
 	}, nil)
 
 	if !disc.HasCapability("invite-wayf") {
-		t.Error("expected invite-wayf from advertise flag")
+		t.Error("expected invite-wayf when WAYF route is enabled")
 	}
 }
 
@@ -206,62 +206,6 @@ func TestBuildDiscovery_DisabledWhenNoHost(t *testing.T) {
 	if disc.Enabled {
 		t.Error("expected Enabled=false for endPoint without host")
 	}
-}
-
-func TestBuildDiscovery_ReceiveRolesFromParams(t *testing.T) {
-	disc := discovery.BuildDiscovery(discovery.BuildParams{
-		EndPoint:             "https://example.com/ocm",
-		WebDAVRoot:           "/webdav/ocm/",
-		WebDAVReceiveURI:     "absolute",
-		WebAppReceiveTargets: []string{"blank", "iframe"},
-		AdvertiseWebApp:      true,
-		AdvertiseSSHReceive:  true,
-	}, nil)
-
-	path, ok := disc.ResourceTypes[0].Protocols.StringRole("webdav")
-	if !ok || path != "/webdav/ocm/" {
-		t.Errorf("webdav = %q, ok=%v", path, ok)
-	}
-	wr, ok := disc.ResourceTypes[0].Protocols.WebDAVReceive()
-	if !ok || wr.URI != "absolute" {
-		t.Fatalf("webdav-receive = %+v, ok=%v", wr, ok)
-	}
-	war, ok := disc.ResourceTypes[0].Protocols.WebAppReceive()
-	if !ok || len(war.Targets) != 2 {
-		t.Fatalf("webapp-receive = %+v, ok=%v", war, ok)
-	}
-	if !disc.ResourceTypes[0].Protocols["webapp"].IsEmptyObject() {
-		t.Error("expected empty webapp object")
-	}
-	if !disc.ResourceTypes[0].Protocols["ssh-receive"].IsEmptyObject() {
-		t.Error("expected empty ssh-receive object")
-	}
-}
-
-func TestBuildDiscovery_TalkPathFromParams(t *testing.T) {
-	t.Run("non-empty", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			EndPoint:   "https://example.com/ocm",
-			WebDAVRoot: "/webdav/ocm/",
-			TalkPath:   "/apps/spreed/api/",
-		}, nil)
-
-		path, ok := disc.ResourceTypes[0].Protocols.StringRole("talk")
-		if !ok || path != "/apps/spreed/api/" {
-			t.Errorf("talk = %q, ok=%v", path, ok)
-		}
-	})
-
-	t.Run("empty omitted", func(t *testing.T) {
-		disc := discovery.BuildDiscovery(discovery.BuildParams{
-			EndPoint:   "https://example.com/ocm",
-			WebDAVRoot: "/webdav/ocm/",
-		}, nil)
-
-		if _, ok := disc.ResourceTypes[0].Protocols.StringRole("talk"); ok {
-			t.Error("expected no talk role when TalkPath is empty")
-		}
-	})
 }
 
 func TestBuildDiscovery_StrictDocument(t *testing.T) {

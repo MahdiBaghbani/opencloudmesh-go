@@ -7,16 +7,19 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 func TestOCMHandler_ServeHTTP(t *testing.T) {
 	c := &OCMProviderConfig{
-		Endpoint: "https://example.com",
 		Provider: "TestProvider",
 	}
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{CodeFlow: policy.NewCodeFlow()}, testLogger())
+	h, err := newOCMHandler(
+		c,
+		nil,
+		handlerResolveInputs(t, "https://example.com", ""),
+		testLogger(),
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,7 +55,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
-	c := &OCMProviderConfig{} // no endpoint
+	c := &OCMProviderConfig{}
 	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

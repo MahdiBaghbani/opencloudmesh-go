@@ -40,10 +40,13 @@ func TestResolve_ProjectsFromRouteInventory(t *testing.T) {
 	if built.Params.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
 		t.Errorf("InviteAcceptDialog = %q", built.Params.InviteAcceptDialog)
 	}
+	if !built.Params.WayfEnabled {
+		t.Fatal("expected WayfEnabled from route opts")
+	}
 }
 
-func TestResolve_InviteAcceptIndependentFromWAYFAdvertise(t *testing.T) {
-	c := &resolve.ProviderConfig{AdvertiseInviteWAYF: false}
+func TestResolve_InviteAcceptIndependentFromWAYF(t *testing.T) {
+	c := &resolve.ProviderConfig{}
 	opts := service.RouteOpts{
 		ExternalBasePath:    "/ocm",
 		InviteAcceptEnabled: true,
@@ -54,10 +57,10 @@ func TestResolve_InviteAcceptIndependentFromWAYFAdvertise(t *testing.T) {
 		RouteOpts:     opts,
 	}
 
-	built := resolve.Resolve(c, map[string]any{"endpoint": "https://cloud.example.com/ocm"}, in)
+	built := resolve.Resolve(c, map[string]any{}, in)
 
-	if built.Params.AdvertiseInviteWAYF {
-		t.Fatal("test precondition: AdvertiseInviteWAYF must be false")
+	if built.Params.WayfEnabled {
+		t.Fatal("test precondition: WayfEnabled must be false")
 	}
 	if built.Params.InviteAcceptDialog == "" {
 		t.Fatal("expected non-empty inviteAcceptDialog from ui-accept-invite route")
@@ -68,6 +71,6 @@ func TestResolve_InviteAcceptIndependentFromWAYFAdvertise(t *testing.T) {
 		t.Error("expected inviteAcceptDialog in discovery document")
 	}
 	if disc.HasCapability("invite-wayf") {
-		t.Error("invite-wayf capability must not be added when AdvertiseInviteWAYF is false")
+		t.Error("invite-wayf capability must not be added when WAYF route is inactive")
 	}
 }

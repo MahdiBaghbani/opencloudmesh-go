@@ -176,8 +176,8 @@ func TestHandleCreate_RejectsMismatchedAuthorityAbsoluteWebDAVReceiveURI(t *test
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
-	if w.Code != reason.APIStatus(reason.PeerCapabilityMismatch) {
-		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerCapabilityMismatch), w.Code, w.Body.String())
+	if w.Code != reason.APIStatus(reason.PeerDiscoveryFailed) {
+		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerDiscoveryFailed), w.Code, w.Body.String())
 	}
 	if postCount.Load() != 0 {
 		t.Fatalf("expected no remote POST, got %d", postCount.Load())

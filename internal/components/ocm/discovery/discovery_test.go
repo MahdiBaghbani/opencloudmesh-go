@@ -3,6 +3,7 @@ package discovery_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -86,12 +87,15 @@ func TestDiscovery_Helpers(t *testing.T) {
 }
 
 func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
-				Enabled:    true,
-				APIVersion: "1.4.0",
-				EndPoint:   "https://example.com/ocm",
+				Enabled:       true,
+				APIVersion:    "1.4.0",
+				EndPoint:      strings.TrimSuffix(server.URL, "/") + "/ocm",
+				ResourceTypes: []discovery.ResourceType{},
+				Criteria:      []string{},
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(disc)
@@ -117,11 +121,12 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 // inlineKeyDiscoveryPayload builds a raw discovery JSON document carrying
 // inline key material in either the singular publicKey wire shape or the
 // plural publicKeys wire shape.
-func inlineKeyDiscoveryPayload(shape, apiVersion string) map[string]any {
+func inlineKeyDiscoveryPayload(serverURL, shape, apiVersion string) map[string]any {
+	endpoint := strings.TrimSuffix(serverURL, "/") + "/ocm"
 	raw := map[string]any{
 		"enabled":       true,
 		"apiVersion":    apiVersion,
-		"endPoint":      "https://peer.example.com/ocm",
+		"endPoint":      endpoint,
 		"resourceTypes": []any{},
 		"criteria":      []any{},
 		"capabilities":  []string{"http-sig"},
@@ -146,22 +151,24 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 		name       string
 		shape      string
 		apiVersion string
+		wantErr    bool
 	}{
-		// Remote peer still advertising 1.2.2 (deferred peer compatibility).
-		{name: "singular_1.2.2", shape: "singular", apiVersion: "1.2.2"},
-		{name: "plural_1.2.2", shape: "plural", apiVersion: "1.2.2"},
-		{name: "singular_1.4.0", shape: "singular", apiVersion: "1.4.0"},
-		{name: "plural_1.4.0", shape: "plural", apiVersion: "1.4.0"},
+		{name: "singular_1.2.2", shape: "singular", apiVersion: "1.2.2", wantErr: true},
+		{name: "plural_1.2.2", shape: "plural", apiVersion: "1.2.2", wantErr: true},
+		{name: "singular_1.4.0", shape: "singular", apiVersion: "1.4.0", wantErr: false},
+		{name: "plural_1.4.0", shape: "plural", apiVersion: "1.4.0", wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var server *httptest.Server
+			server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path != "/.well-known/ocm" {
 					http.NotFound(w, r)
 					return
 				}
+				raw := inlineKeyDiscoveryPayload(server.URL, tt.shape, tt.apiVersion)
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(inlineKeyDiscoveryPayload(tt.shape, tt.apiVersion))
+				json.NewEncoder(w).Encode(raw)
 			}))
 			defer server.Close()
 
@@ -169,6 +176,15 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 			client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 			disc, err := client.Discover(context.Background(), server.URL)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
+					t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("Discover failed: %v", err)
 			}
@@ -186,7 +202,8 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 
 func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 	callCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
 			return
@@ -195,7 +212,7 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 		raw := map[string]any{
 			"enabled":       true,
 			"apiVersion":    "1.4.0",
-			"endPoint":      "https://peer.example.com/ocm",
+			"endPoint":      strings.TrimSuffix(server.URL, "/") + "/ocm",
 			"resourceTypes": []any{},
 			"criteria":      []any{},
 			"capabilities":  []string{"http-sig"},

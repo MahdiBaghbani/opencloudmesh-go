@@ -14,6 +14,5 @@ func resolveInputs(cfg *config.Config, d *Deps) resolve.ResolveInputs {
 		TokenExchangePath: tokenPath,
 		KeyManager:        d.KeyManager,
 		CodeFlow:          d.CodeFlow,
-		PeerContract:      d.PeerContract,
 	}
 }

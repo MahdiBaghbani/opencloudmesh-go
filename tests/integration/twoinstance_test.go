@@ -197,8 +197,9 @@ func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 
 	// Start the target first so its dynamic port is known before writing source config.
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name: "ssrf-cidr-target",
-		Mode: "dev",
+		Name:             "ssrf-cidr-target",
+		Mode:             "dev",
+		PublicOriginHost: loopbackHost,
 	})
 	defer target.Stop(t)
 
@@ -218,7 +219,7 @@ route_policy = "loopback"
 
 [outbound_http.ssrf.route_policies.loopback]
 allow_private_host_suffixes = [%q]
-allow_private_cidrs = ["127.0.0.0/8"]
+allow_private_cidrs = ["127.0.0.0/8", "::1/128"]
 allowed_ports = [%d]
 allow_ip_literals = false
 `, loopbackHost, target.Port),

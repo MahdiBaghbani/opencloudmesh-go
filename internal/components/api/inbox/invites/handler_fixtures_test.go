@@ -103,10 +103,11 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(discovery.Discovery{
-				Enabled:      true,
-				APIVersion:   "1.4.0",
-				EndPoint:     srv.URL + "/ocm",
-				Capabilities: []string{"exchange-token"},
+				Enabled:       true,
+				APIVersion:    "1.4.0",
+				EndPoint:      srv.URL + "/ocm",
+				Capabilities:  []string{"exchange-token"},
+				TokenEndPoint: srv.URL + "/ocm/token",
 			})
 		case "/ocm/invite-accepted":
 			inviteAcceptedCalls.Add(1)

@@ -58,12 +58,13 @@ func TestHandleFederations_EmptyTrustGroups(t *testing.T) {
 }
 
 func TestHandleFederations_WithServers(t *testing.T) {
+	var serverURL string
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
-				"endPoint":           "https://example.com/ocm",
+				"endPoint":           serverURL + "/ocm",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
 				"resourceTypes":      []any{},
 				"criteria":           []any{},
@@ -73,6 +74,7 @@ func TestHandleFederations_WithServers(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+	serverURL = discServer.URL
 
 	httpCfg := tshttp.PermissiveConfig()
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)

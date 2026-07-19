@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -21,7 +20,9 @@ var ErrDiscoveryDisabled = errors.New("discovery client not configured")
 // ErrDiscoveryNotFound is returned when the discovery endpoint responds with HTTP 404.
 var ErrDiscoveryNotFound = errors.New("discovery endpoint not found")
 
-// ErrInvalidDiscoveryJSON is returned when a discovery response body cannot be parsed.
+// ErrInvalidDiscoveryJSON is returned when a discovery document is malformed JSON
+// or fails semantic validation (for example non-1.4.0 apiVersion, non-absolute or
+// cross-authority endpoints, capability/endpoint inconsistency, malformed protocol roles).
 var ErrInvalidDiscoveryJSON = errors.New("invalid discovery json")
 
 // ErrOCMDisabled is returned when the remote discovery document reports enabled=false.
@@ -69,6 +70,7 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 		if err == nil {
 			return &disc, nil
 		}
+		_ = c.cache.Delete(ctx, cacheKey)
 	}
 
 	rawBytes, disc, err := c.fetchDiscovery(ctx, baseURL+"/.well-known/ocm")
@@ -78,14 +80,6 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	c.cache.Set(ctx, cacheKey, rawBytes, c.cacheTTL)
 
 	return disc, nil
-}
-
-func discoveryOriginFromURL(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return strings.TrimSuffix(rawURL, "/")
-	}
-	return u.Scheme + "://" + u.Host
 }
 
 func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *Discovery, error) {
@@ -113,7 +107,7 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 	return data, &disc, nil
 }
 
-func (c *Client) normalizeDiscovery(data []byte, baseURL string) (Discovery, error) {
+func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string) (Discovery, error) {
 	var disc Discovery
 	if err := json.Unmarshal(data, &disc); err != nil {
 		return Discovery{}, err
@@ -122,9 +116,15 @@ func (c *Client) normalizeDiscovery(data []byte, baseURL string) (Discovery, err
 	if disc.InviteAcceptDialog != "" {
 		resolveBase := disc.EndPoint
 		if resolveBase == "" {
-			resolveBase = baseURL
+			resolveBase = discoveryOrigin
 		}
 		disc.InviteAcceptDialog = spec.ResolveInviteAcceptDialog(resolveBase, disc.InviteAcceptDialog)
+	}
+
+	if disc.Enabled {
+		if err := validateDiscovery(&disc, discoveryOrigin); err != nil {
+			return Discovery{}, err
+		}
 	}
 
 	return disc, nil

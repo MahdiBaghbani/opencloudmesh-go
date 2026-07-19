@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD024 -->
 # Discovery
 
 The provider discovery document at `/.well-known/ocm` advertises capabilities,
@@ -11,11 +12,11 @@ Built by `internal/components/ocm/discovery` and served by
 
 | Field | Source |
 | ----- | ------ |
-| `enabled`, `apiVersion`, `provider` | Handler and spec pin |
-| `endPoint` | Local identity + OCM mount (`EndpointBase` + `/ocm`) |
+| `enabled`, `apiVersion`, `provider` | Handler and spec pin (`apiVersion` is `1.4.0`) |
+| `endPoint` | Route-derived projection from local identity |
 | `tokenEndPoint` | Projected when token exchange is capable |
-| `resourceTypes[].protocols` | Typed protocol roles (webdav path, plus receive roles when configured) |
-| `capabilities` | Policy flags (invites, protocol-object, notifications; adds `http-sig` when JWKS signing keys are published, `exchange-token` when token exchange is capable, `invite-wayf` when the WAYF route is active) |
+| `resourceTypes[].protocols` | `webdav` path plus `webdav-receive` with `uri: relative` |
+| `capabilities` | `http-sig` when JWKS signing keys are published, `exchange-token` when token exchange is capable, `invite-wayf` only when the WAYF route is enabled |
 | `criteria` | Strictness requirements (HTTP sig, token exchange) |
 | `inviteAcceptDialog` | Derived when invite accept route is active |
 
@@ -29,7 +30,7 @@ With `external_base_path = "/ocm"` on origin `http://fields.test`:
 
 Route specs declare `DiscoveryFields` on UI routes:
 
-- `/ui/wayf` advertises capability `invite-wayf`
+- `/ui/wayf` drives capability `invite-wayf` when `RouteOpts.WayfEnabled` is true
 - `/ui/accept-invite` advertises `inviteAcceptDialog`
 
 When the invite accept route is active, the wellknown handler derives an
@@ -54,16 +55,22 @@ Proof: `internal/services/wellknown/ocm_handler_test.go`
 ## Inbound peer discovery
 
 When this server discovers a remote peer (`internal/components/ocm/discovery`
-client), relative `inviteAcceptDialog` values from the peer document are
-normalized to absolute URLs:
+client), the client validates the document before returning it:
 
-- `/apps/ocm/invite-accept` against `https://peer.example.com` ->
-  `https://peer.example.com/apps/ocm/invite-accept`
-- `apps/ocm/invite-accept` (no leading slash) is also accepted
+- `apiVersion` must be exactly `1.4.0`
+- `endPoint` and `tokenEndPoint` (when present) must be absolute URLs on the
+  same authority as the discovered peer origin
+- `exchange-token` capability and `tokenEndPoint` must appear together
+- protocol roles must use supported value shapes (for example `webdav` as a
+  string path, `webdav-receive` as `{"uri":"relative"}` or
+  `{"uri":"absolute"}`)
 
-Proof: `internal/components/ocm/discovery/client_test.go`
-(`TestClientDiscover_NormalizesRelativeInviteAcceptDialog`,
-`TestClientDiscover_NormalizesRelativeInviteAcceptDialogWithoutEndPoint`).
+Relative `inviteAcceptDialog` values from the peer document are normalized to
+absolute URLs, then rejected when the resolved authority does not match the
+peer origin. This same-authority binding is an SSRF-defense product choice for
+outbound discovery consumption, not a protocol spec MUST.
+
+Proof: `internal/components/ocm/discovery/client_test.go`.
 
 ## OCM-API prose vs schema
 
@@ -71,8 +78,8 @@ The pinned OCM-API describes `inviteAcceptDialog` as a URL. Real peers often
 send a relative path. This server:
 
 - Publishes an absolute URL locally (derived from routes)
-- Accepts relative inbound values and resolves them against the discovered
-  peer origin
+- Accepts relative inbound values, resolves them against the discovered peer
+  origin, and fails closed on cross-authority results
 
 The helper `/ocm-aux/discover` adds `inviteAcceptDialogAbsolute` in its JSON
 response so WAYF UI code always receives a ready-to-navigate URL even when
@@ -87,10 +94,12 @@ the raw discovery field was relative.
 | Signature / peer policy axes | Criteria and capabilities |
 | `[http.services.ui.wayf] enabled` | WAYF capability and accept-invite route |
 
+Unknown keys under `[http.services.wellknown.ocmprovider]` fail at load time.
+
 ## Verification
 
 ```sh
-go test ./internal/services/wellknown/... -run 'DiscoveryFields|InviteAcceptDialogFromRoutes|InviteWAYFCapability|UnconditionalCapabilities'
+go test ./internal/services/wellknown/... -run 'DiscoveryFields|InviteAcceptDialogFromRoutes|InviteWAYFCapability|TruthfulCapabilitySet'
 go test ./internal/components/ocm/discovery/...
 go test ./tests/integration/... -run 'DiscoveryEndpoint|LegacyDiscovery|DiscoveryRemains|DiscoveryRoutesMatch'
 ```

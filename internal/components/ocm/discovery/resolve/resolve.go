@@ -1,6 +1,6 @@
 // Package resolve derives OCM discovery provider configuration from service-local
 // TOML plus narrow ResolveInputs supplied by wiring. Endpoint derivation requires
-// a non-empty PublicOrigin; per-service endpoint values in raw TOML always win.
+// a non-empty PublicOrigin in ResolveInputs.LocalIdentity.
 package resolve
 
 import (
@@ -8,38 +8,20 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-// APIVersionOverride applies a peer-profile-bound apiVersion when the matched
-// peer gate and User-Agent predicate both pass.
-type APIVersionOverride struct {
-	Profile           string `mapstructure:"profile"`
-	UserAgentContains string `mapstructure:"user_agent_contains"`
-	APIVersion        string `mapstructure:"api_version"`
-}
-
 // ProviderConfig holds OCM discovery configuration.
 type ProviderConfig struct {
-	Endpoint   string `mapstructure:"endpoint"`    // This host's full URL (origin + base path)
-	OCMPrefix  string `mapstructure:"ocm_prefix"`  // Deprecated: route inventory owns protocol mount
-	Provider   string `mapstructure:"provider"`    // Friendly name
-	WebDAVRoot string `mapstructure:"webdav_root"` // WebDAV path
+	Provider   string `mapstructure:"provider"`
+	WebDAVRoot string `mapstructure:"webdav_root"`
 
 	TokenExchange struct {
 		Path string `mapstructure:"path"`
 	} `mapstructure:"token_exchange"`
 
-	// Invite accept dialog URL (absolute) for invite-accept UI
-	InviteAcceptDialog  string `mapstructure:"invite_accept_dialog"`
-	AdvertiseInviteWAYF bool   `mapstructure:"advertise_invite_wayf"`
-
-	// APIVersionOverrides lists peer-profile-bound apiVersion overrides.
-	APIVersionOverrides []APIVersionOverride `mapstructure:"api_version_overrides"`
+	InviteAcceptDialog string `mapstructure:"invite_accept_dialog"`
 }
 
 // ApplyDefaults sets default values for service-local fields only.
 func (c *ProviderConfig) ApplyDefaults() {
-	if c.OCMPrefix == "" {
-		c.OCMPrefix = "ocm"
-	}
 	if c.Provider == "" {
 		c.Provider = "OpenCloudMesh"
 	}
@@ -51,17 +33,15 @@ type localEvaluation struct {
 	requiresHTTPSignatures bool
 }
 
-// BuildInputs bundles the resolved discovery build params with peer-profile-
-// bound apiVersion overrides that passed compile-time binding validation.
+// BuildInputs bundles the resolved discovery build params.
 type BuildInputs struct {
-	Params    discovery.BuildParams
-	Overrides []APIVersionOverride
+	Params discovery.BuildParams
 }
 
 // Resolve applies service-local defaults, derives cross-cutting values from
 // ResolveInputs and route inventory when not explicitly set in per-service TOML,
 // resolves policy-driven evaluation flags, and returns the resolved discovery
-// build params plus any apiVersion overrides.
+// build params.
 func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs) BuildInputs {
 	c.ApplyDefaults()
 
@@ -75,22 +55,10 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 
 	projected, hasProjection := spec.DeriveDiscoveryPaths(in.LocalIdentity, routeOpts)
 
-	endpointExplicit := false
-	if _, set := rawOCMProvider["endpoint"]; set {
-		endpointExplicit = true
-	}
-	if _, set := rawOCMProvider["endpoint"]; !set && in.LocalIdentity.Origin != "" {
-		c.Endpoint = in.LocalIdentity.EndpointBase
-	}
-
 	endPoint := projected.EndPoint
 	webdavRoot := projected.WebDAVRoot
 	tokenEndPoint := projected.TokenEndPoint
 	inviteAcceptDialog := projected.InviteAcceptDialog
-
-	if c.Endpoint != "" && (endpointExplicit || endPoint == "") {
-		endPoint = spec.DeriveDiscoveryPathsFromEndpointBase(c.Endpoint, c.OCMPrefix, routeOpts).EndPoint
-	}
 
 	if _, set := rawOCMProvider["webdav_root"]; set {
 		webdavRoot = c.WebDAVRoot
@@ -111,13 +79,6 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 		if reproj, ok := spec.DeriveDiscoveryPaths(in.LocalIdentity, routeOpts); ok {
 			tokenEndPoint = reproj.TokenEndPoint
 		}
-	}
-	if _, set := rawTE["path"]; set || c.TokenExchange.Path != "" {
-		if c.Endpoint != "" && (endpointExplicit || tokenEndPoint == "") {
-			tokenEndPoint = spec.DeriveDiscoveryPathsFromEndpointBase(c.Endpoint, c.OCMPrefix, routeOpts).TokenEndPoint
-		}
-	} else if tokenEndPoint == "" && c.Endpoint != "" {
-		tokenEndPoint = spec.DeriveDiscoveryPathsFromEndpointBase(c.Endpoint, c.OCMPrefix, routeOpts).TokenEndPoint
 	}
 
 	if _, set := rawOCMProvider["invite_accept_dialog"]; set {
@@ -143,14 +104,14 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			Provider:               c.Provider,
 			EndPoint:               endPoint,
 			WebDAVRoot:             webdavRoot,
+			WebDAVReceiveURI:       "relative",
 			TokenEndPoint:          tokenEndPoint,
 			InviteAcceptDialog:     inviteAcceptDialog,
-			AdvertiseInviteWAYF:    c.AdvertiseInviteWAYF,
+			WayfEnabled:            routeOpts.WayfEnabled,
 			AdvertiseHTTPSig:       advertiseHTTPSig,
 			TokenExchangeCapable:   localEval.codeFlow,
 			RequiresTokenExchange:  localEval.strict,
 			RequiresHTTPSignatures: localEval.requiresHTTPSignatures,
 		},
-		Overrides: filterAPIVersionOverrides(c.APIVersionOverrides, in.PeerContract),
 	}
 }

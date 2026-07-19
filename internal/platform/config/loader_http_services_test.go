@@ -16,7 +16,6 @@ mode = "strict"
 [http.services.wellknown]
 [http.services.wellknown.ocmprovider]
 provider = "CustomProvider"
-endpoint = "https://custom.example.com"
 
 [http.services.ocm]
 [http.services.ocm.token_exchange]

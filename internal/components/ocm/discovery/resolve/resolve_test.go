@@ -17,9 +17,6 @@ func TestResolve_AppliesServiceLocalDefaults(t *testing.T) {
 	c := &resolve.ProviderConfig{}
 	in := resolve.Resolve(c, nil, resolve.ResolveInputs{})
 
-	if c.OCMPrefix != "ocm" {
-		t.Errorf("expected OCMPrefix default 'ocm', got %q", c.OCMPrefix)
-	}
 	if in.Params.Provider != "OpenCloudMesh" {
 		t.Errorf("expected Provider default 'OpenCloudMesh', got %q", in.Params.Provider)
 	}
@@ -40,6 +37,9 @@ func TestResolve_DerivesEndPointAndWebDAVRoot(t *testing.T) {
 	if built.Params.WebDAVRoot != "/ocm/webdav/ocm/" {
 		t.Errorf("expected derived webdav_root, got %q", built.Params.WebDAVRoot)
 	}
+	if built.Params.WebDAVReceiveURI != "relative" {
+		t.Errorf("WebDAVReceiveURI = %q, want relative", built.Params.WebDAVReceiveURI)
+	}
 }
 
 func TestResolve_SkipsEndPointDerivationWithoutPublicOrigin(t *testing.T) {
@@ -59,9 +59,8 @@ func TestResolve_SkipsEndPointDerivationWithoutPublicOrigin(t *testing.T) {
 	}
 }
 
-func TestResolve_RawConfigWinsOverDerivation(t *testing.T) {
+func TestResolve_RawConfigWinsOverDerivationForWebDAVRoot(t *testing.T) {
 	c := &resolve.ProviderConfig{
-		Endpoint:   "https://explicit.example.com",
 		WebDAVRoot: "/explicit/dav/",
 	}
 	in := resolve.ResolveInputs{
@@ -69,14 +68,13 @@ func TestResolve_RawConfigWinsOverDerivation(t *testing.T) {
 		RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
 	}
 	raw := map[string]any{
-		"endpoint":    "https://explicit.example.com",
 		"webdav_root": "/explicit/dav/",
 	}
 
 	built := resolve.Resolve(c, raw, in)
 
-	if built.Params.EndPoint != "https://explicit.example.com/ocm" {
-		t.Errorf("expected explicit endPoint, got %q", built.Params.EndPoint)
+	if built.Params.EndPoint != "https://cloud.example.com/ocm/ocm" {
+		t.Errorf("expected derived endPoint, got %q", built.Params.EndPoint)
 	}
 	if built.Params.WebDAVRoot != "/explicit/dav/" {
 		t.Errorf("expected explicit webdav_root preserved, got %q", built.Params.WebDAVRoot)
@@ -106,9 +104,8 @@ func TestResolve_DerivesInviteAcceptDialogFromRouteInventory(t *testing.T) {
 			InviteAcceptEnabled: true,
 		},
 	}
-	raw := map[string]any{"endpoint": "https://cloud.example.com/ocm"}
 
-	built := resolve.Resolve(c, raw, in)
+	built := resolve.Resolve(c, map[string]any{}, in)
 
 	if built.Params.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
 		t.Errorf("expected derived inviteAcceptDialog, got %q", built.Params.InviteAcceptDialog)
