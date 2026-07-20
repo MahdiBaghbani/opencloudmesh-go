@@ -115,7 +115,8 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 		WebDAVID:                 s.WebDAVID,
 		AbsoluteWebDAVURIPresent: isAbsoluteWebDAVURI(s.WebDAVID),
 		Protocol: &ProtocolDetailView{
-			Name: "webdav",
+			// Normalized wire name: inbound protocol.name is not persisted.
+			Name: "multi",
 			WebDAV: &WebDAVDetailView{
 				URI:          uri,
 				Permissions:  permissions,

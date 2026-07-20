@@ -219,7 +219,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		ShareType:    "user",
 		ResourceType: resourceType,
 		Protocol: spec.Protocol{
-			Name:   "webdav",
+			Name:   "multi",
 			WebDAV: webdavProto,
 		},
 	}

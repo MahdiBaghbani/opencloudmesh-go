@@ -215,7 +215,7 @@ func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 	}
 }
 
-func TestCreateShare_Success_PersistsDistinctOwnerAndSenderHosts(t *testing.T) {
+func TestCreateShare_Authenticated_RejectsUntrustedOwnerProvider(t *testing.T) {
 	const ownerHost = "owner.example.com"
 	const senderHost = "relay.example.com"
 	const providerID = "owner-sender-split"
@@ -227,29 +227,30 @@ func TestCreateShare_Success_PersistsDistinctOwnerAndSenderHosts(t *testing.T) {
 	body := validShareBodyWithOwnerAndSenderHosts("alice@localhost:9200", ownerHost, senderHost, providerID)
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
+		Authority:           senderHost,
+		AuthorityForCompare: senderHost,
+		Authenticated:       true,
+	})
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
 	}
 
-	stored, err := repo.GetByProviderID(context.Background(), senderHost, providerID)
-	if err != nil {
-		t.Fatalf("expected persisted share, got error: %v", err)
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
 	}
-	if stored.OwnerHost != ownerHost {
-		t.Fatalf("OwnerHost = %q, want %q", stored.OwnerHost, ownerHost)
+	if resp.Message != "UNTRUSTED_PROVIDER" {
+		t.Errorf("expected UNTRUSTED_PROVIDER, got %q", resp.Message)
 	}
-	if stored.SenderHost != senderHost {
-		t.Fatalf("SenderHost = %q, want %q", stored.SenderHost, senderHost)
-	}
-	if stored.OwnerHost == stored.SenderHost {
-		t.Fatalf("expected distinct owner and sender hosts, both %q", stored.OwnerHost)
-	}
-	if len(stored.Requirements) != 1 || stored.Requirements[0] != spec.RequirementMustExchangeToken {
-		t.Fatalf("Requirements = %v, want [%q]", stored.Requirements, spec.RequirementMustExchangeToken)
+
+	if _, err := repo.GetByProviderID(context.Background(), senderHost, providerID); err == nil {
+		t.Fatal("expected no share persisted for untrusted owner provider")
 	}
 }
 
@@ -417,14 +418,13 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 
-	ownerHost := "sender.com"
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
 		"shareWith": "alice@localhost:9200",
 		"name": "test.txt",
 		"providerId": "` + providerID + `",
-		"owner": "owner@` + ownerHost + `",
+		"owner": "owner@` + authenticatedSender + `",
 		"sender": "user@` + rawSenderHost + `",
 		"shareType": "user",
 		"resourceType": "file",
@@ -465,6 +465,67 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 
 	if _, err := repo.GetByProviderID(context.Background(), rawSenderHost, providerID); err == nil {
 		t.Fatal("expected share not indexed under raw sender host")
+	}
+}
+
+func TestCreateShare_Authenticated_AcceptsDistinctOwnerAndSenderUserIDs(t *testing.T) {
+	const authority = "relay.example.com"
+	const providerID = "distinct-users-same-authority"
+
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "` + providerID + `",
+		"owner": "owner-user@` + authority + `",
+		"sender": "sender-user@` + authority + `",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {
+			"name": "webdav",
+			"webdav": {
+				"uri": "abc123",
+				"sharedSecret": "secret123",
+				"permissions": ["read"],
+				"requirements": ["must-exchange-token"]
+			}
+		}
+	}`
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
+		Authority:           authority,
+		AuthorityForCompare: authority,
+		Authenticated:       true,
+	})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	stored, err := repo.GetByProviderID(context.Background(), authority, providerID)
+	if err != nil {
+		t.Fatalf("expected persisted share, got error: %v", err)
+	}
+	if stored.OwnerHost != authority {
+		t.Fatalf("OwnerHost = %q, want %q", stored.OwnerHost, authority)
+	}
+	if stored.SenderHost != authority {
+		t.Fatalf("SenderHost = %q, want %q", stored.SenderHost, authority)
+	}
+	if stored.Owner == "sender-user@"+authority {
+		t.Fatalf("expected distinct owner and sender user IDs, both %q", stored.Owner)
+	}
+	if stored.Sender == stored.Owner {
+		t.Fatalf("expected distinct owner and sender addresses, both %q", stored.Owner)
 	}
 }
 
@@ -920,5 +981,20 @@ func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201 for canonical webdav protocol name, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_AcceptsMultiProtocolName(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi", ownerHost)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for multi protocol name, got %d: %s", w.Code, w.Body.String())
 	}
 }

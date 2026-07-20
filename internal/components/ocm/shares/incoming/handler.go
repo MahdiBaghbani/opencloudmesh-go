@@ -188,11 +188,30 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ownerHost := ""
-	if _, ownerProvider, err := address.Parse(req.Owner); err == nil {
+	ownerProvider := ""
+	if _, parsedOwnerProvider, err := address.Parse(req.Owner); err == nil {
+		ownerProvider = parsedOwnerProvider
 		ownerHost = ownerProvider
 	}
 	if ownerHost == "" {
 		ownerHost = senderHost
+	}
+
+	if peerIdentity != nil && peerIdentity.Authenticated {
+		normalizedOwnerProvider, err := hostport.Normalize(ownerProvider, h.localScheme)
+		if err != nil {
+			log.Warn("failed to normalize owner provider",
+				"owner_provider", ownerProvider, "error", err)
+			spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+			return
+		}
+		if peerIdentity.AuthorityForCompare != normalizedOwnerProvider {
+			log.Warn("share owner provider mismatch",
+				"signature_authority", peerIdentity.AuthorityForCompare,
+				"owner_provider", ownerProvider)
+			spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+			return
+		}
 	}
 
 	existing, err := h.repo.GetByProviderID(r.Context(), senderHost, req.ProviderID)

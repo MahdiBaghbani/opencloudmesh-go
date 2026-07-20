@@ -391,8 +391,8 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
 	}
-	if proto["name"] != "webdav" {
-		t.Errorf("expected protocol.name webdav, got %v", proto["name"])
+	if proto["name"] != "multi" {
+		t.Errorf("expected protocol.name multi, got %v", proto["name"])
 	}
 	webdav, ok := proto["webdav"].(map[string]any)
 	if !ok {

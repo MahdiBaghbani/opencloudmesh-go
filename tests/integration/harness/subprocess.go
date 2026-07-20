@@ -35,6 +35,7 @@ type SubprocessServer struct {
 type SubprocessConfig struct {
 	Name                    string
 	Mode                    string            // dev or strict
+	Port                    int               // when non-zero, binds listen_addr to this port
 	DisableProxyEnvFallback bool              // when true, emits proxy_env_fallback = false in [outbound_http]
 	TLSRootCAFile           string            // when set, adds tls_root_ca_file under [outbound_http]
 	BootstrapAdminPassword  string            // when set, adds password under [server.bootstrap_admin]
@@ -80,6 +81,11 @@ func BuildBinary(t *testing.T) string {
 
 // findProjectRoot finds the project root by looking for go.mod
 func findProjectRoot(t *testing.T) string {
+	return FindProjectRoot(t)
+}
+
+// FindProjectRoot finds the project root by looking for go.mod.
+func FindProjectRoot(t *testing.T) string {
 	t.Helper()
 
 	dir, err := os.Getwd()
@@ -109,11 +115,15 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 
-	// Get a free port
-	port, err := getFreePort()
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to get free port: %v", err)
+	// Get a free port unless the caller reserved one (strict pair fixtures).
+	port := cfg.Port
+	if port == 0 {
+		var err error
+		port, err = getFreePort()
+		if err != nil {
+			os.RemoveAll(tempDir)
+			t.Fatalf("failed to get free port: %v", err)
+		}
 	}
 
 	// Write extra files before config.toml (so config can reference them)
@@ -251,9 +261,53 @@ func (s *SubprocessServer) Stop(t *testing.T) {
 	}
 }
 
+// syncLog flushes the shared server.log file so reads observe stdout/stderr
+// redirected from the subprocess.
+func (s *SubprocessServer) syncLog() {
+	if s.logFile != nil {
+		_ = s.logFile.Sync()
+	}
+}
+
+// ReadLog returns the current server.log contents after syncing the shared log
+// file. stdout and stderr are redirected to the same file.
+func (s *SubprocessServer) ReadLog(t *testing.T) string {
+	t.Helper()
+
+	s.syncLog()
+
+	logPath := filepath.Join(s.TempDir, "server.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read logs for %s: %v", s.Name, err)
+	}
+	return string(content)
+}
+
+// LogContainsAny reports whether server.log contains any of the needles after
+// syncing the shared log file.
+func (s *SubprocessServer) LogContainsAny(needles ...string) bool {
+	s.syncLog()
+
+	logPath := filepath.Join(s.TempDir, "server.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		return false
+	}
+	logText := string(content)
+	for _, needle := range needles {
+		if needle != "" && strings.Contains(logText, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // DumpLogs outputs the server logs to the test log.
 func (s *SubprocessServer) DumpLogs(t *testing.T) {
 	t.Helper()
+
+	s.syncLog()
 
 	logPath := filepath.Join(s.TempDir, "server.log")
 	content, err := os.ReadFile(logPath)
