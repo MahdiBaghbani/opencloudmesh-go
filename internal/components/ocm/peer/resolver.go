@@ -65,7 +65,7 @@ func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (s
 }
 
 func (p *Resolver) ResolveTokenRequest(r *http.Request, body []byte) (string, error) {
-	clientID, err := parseTokenClientID(r, body)
+	clientID, err := parseTokenClientID(body)
 	if err != nil {
 		return "", err
 	}
@@ -75,22 +75,7 @@ func (p *Resolver) ResolveTokenRequest(r *http.Request, body []byte) (string, er
 	return clientID, nil
 }
 
-func parseTokenClientID(r *http.Request, body []byte) (string, error) {
-	ct := r.Header.Get("Content-Type")
-	if strings.HasPrefix(ct, "application/json") {
-		var req struct {
-			ClientID string `json:"client_id"`
-		}
-		if err := json.Unmarshal(body, &req); err != nil {
-			return "", fmt.Errorf("failed to parse token request: %w", err)
-		}
-		clientID := strings.TrimSpace(req.ClientID)
-		if clientID == "" {
-			return "", fmt.Errorf("no client_id in token request")
-		}
-		return clientID, nil
-	}
-
+func parseTokenClientID(body []byte) (string, error) {
 	values, err := url.ParseQuery(string(body))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse token request: %w", err)

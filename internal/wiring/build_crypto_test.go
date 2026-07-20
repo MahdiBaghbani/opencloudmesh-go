@@ -33,7 +33,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 		}
 	})
 
-	t.Run("SkipCrypto=false with signature modes on produces non-nil Signer", func(t *testing.T) {
+	t.Run("SkipCrypto=false with crypto enabled produces non-nil Signer", func(t *testing.T) {
 		cfg := config.DevConfig()
 
 		opts := harnessBuildOpts()
@@ -44,7 +44,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 		}
 		d := result.Deps
 		if d.KeyManager == nil {
-			t.Error("KeyManager must be non-nil when signature modes are on and SkipCrypto=false")
+			t.Error("KeyManager must be non-nil when crypto is enabled and SkipCrypto=false")
 		}
 		if d.Signer == nil {
 			t.Error("Signer must be non-nil when KeyManager is present")
@@ -64,7 +64,7 @@ func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
 		t.Fatalf("bootstrap failed: %v", err)
 	}
 	if result.Deps.Signer == nil {
-		t.Fatal("Signer must be non-nil when signature modes are on")
+		t.Fatal("Signer must be non-nil when crypto is enabled")
 	}
 
 	body := []byte(`{"test":"data"}`)

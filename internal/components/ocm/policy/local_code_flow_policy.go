@@ -1,8 +1,7 @@
 package policy
 
 // Facts are the fixed OCM code-flow facts for this implementation. There is
-// exactly one supported code flow, so these facts hold as constants; that
-// changes only in a later task.
+// exactly one supported code flow, so these facts hold as constants.
 type Facts struct {
 	TokenExchangeCapable             bool
 	RequiresTokenExchange            bool

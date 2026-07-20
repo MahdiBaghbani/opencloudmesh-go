@@ -31,7 +31,7 @@ type BuildParams struct {
 
 // BuildDiscovery constructs the static discovery document (Reva pattern:
 // computed once, not at request time). An empty or non-absolute endPoint yields
-// a disabled document, mirroring the prior service-layer behavior.
+// a disabled document.
 func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	log = logutil.NoopIfNil(log)
 
@@ -96,8 +96,6 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	}
 	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustExchangeToken)
-	} else if p.RequiresTokenExchange && !p.TokenExchangeCapable {
-		log.Warn("local evaluator requires token exchange but code flow is disabled; omitting token-exchange criteria")
 	}
 
 	return disc

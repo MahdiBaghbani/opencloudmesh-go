@@ -94,7 +94,7 @@ func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProductRoutes(opts) {
 		switch row.HandlerAuth {
-		case service.HandlerAuthOptionalHTTPSig, service.HandlerAuthRequiredHTTPSig:
+		case service.HandlerAuthRequiredHTTPSig:
 			if row.SurfaceClass != service.SurfaceProtocol {
 				t.Errorf("route %q HandlerAuth %q on surface %q, want protocol", row.ID, row.HandlerAuth, row.SurfaceClass)
 			}
@@ -106,7 +106,7 @@ func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 			}
 		default:
 			if row.SurfaceClass == service.SurfaceProtocol {
-				t.Errorf("protocol route %q HandlerAuth = %q, want optional HTTP signature", row.ID, row.HandlerAuth)
+				t.Errorf("protocol route %q HandlerAuth = %q, want required HTTP signature", row.ID, row.HandlerAuth)
 			}
 		}
 	}
@@ -130,8 +130,7 @@ func TestRoutePolicyWiring_AuxAndUIExcludedFromProtocolTrust(t *testing.T) {
 			if row.TrustClass != service.TrustPeerNone {
 				t.Errorf("%s route %q TrustClass = %q, want peer-trust-none", surface, row.ID, row.TrustClass)
 			}
-			if row.HandlerAuth == service.HandlerAuthOptionalHTTPSig ||
-				row.HandlerAuth == service.HandlerAuthRequiredHTTPSig {
+			if row.HandlerAuth == service.HandlerAuthRequiredHTTPSig {
 				t.Errorf("%s route %q uses HTTP signature handler auth", surface, row.ID)
 			}
 		}

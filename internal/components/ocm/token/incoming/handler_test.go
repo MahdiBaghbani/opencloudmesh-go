@@ -617,15 +617,14 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 	}
 }
 
-func TestHandler_DisabledReturns501(t *testing.T) {
+func TestHandler_NilCodeFlowReturns501(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
-	// Create handler without code-flow capability.
-	disabledSettings := &tokenincoming.TokenExchangeSettings{}
-	disabledSettings.ApplyDefaults()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, disabledSettings, nil, "https://local.example.com", logger)
+	nilCodeFlowSettings := &tokenincoming.TokenExchangeSettings{}
+	nilCodeFlowSettings.ApplyDefaults()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, nilCodeFlowSettings, nil, "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")

@@ -83,7 +83,7 @@ func NewSignatureMiddleware(
 
 // VerifyOCMRequestIfPresent verifies inbound signatures when present and
 // populates peer identity from a verified keyId. Unsigned requests pass through
-// without identity regardless of inbound mode. Invalid signatures are rejected.
+// without identity. Invalid signatures are rejected.
 func (m *SignatureMiddleware) VerifyOCMRequestIfPresent() func(http.Handler) http.Handler {
 	return m.verifyOCMRequest(nil, false, false, true)
 }

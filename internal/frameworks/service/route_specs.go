@@ -15,7 +15,6 @@ type HandlerAuth string
 const (
 	HandlerAuthNone            HandlerAuth = "none"
 	HandlerAuthCurrentUser     HandlerAuth = "current user"
-	HandlerAuthOptionalHTTPSig HandlerAuth = "optional HTTP signature"
 	HandlerAuthRequiredHTTPSig HandlerAuth = "required HTTP signature"
 	HandlerAuthBearer          HandlerAuth = "bearer"
 	HandlerAuthRateLimitOnly   HandlerAuth = "rate limit only"

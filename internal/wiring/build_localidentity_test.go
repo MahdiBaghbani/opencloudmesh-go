@@ -52,7 +52,7 @@ func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 		t.Fatal("Build must return Deps")
 	}
 	if result.Deps.KeyManager == nil {
-		t.Fatal("KeyManager must be non-nil when signature modes are on and SkipCrypto=false")
+		t.Fatal("KeyManager must be non-nil when crypto is enabled and SkipCrypto=false")
 	}
 
 	gotOrigin := result.Deps.LocalIdentity.Origin
