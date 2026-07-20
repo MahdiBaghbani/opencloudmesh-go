@@ -23,11 +23,11 @@ import (
 func newTestDiscoveryServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			disc := discovery.Discovery{
+			disc := spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   "https://" + r.Host + "/ocm",
-				ResourceTypes: []discovery.ResourceType{
+				ResourceTypes: []spec.ResourceType{
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
@@ -82,13 +82,13 @@ func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToke
 	}
 
 	if r.URL.Path == "/.well-known/ocm" {
-		disc := discovery.Discovery{
+		disc := spec.Discovery{
 			Enabled:       true,
 			APIVersion:    "1.4.0",
 			EndPoint:      scheme + "://" + r.Host + "/ocm",
 			Capabilities:  []string{"exchange-token"},
 			TokenEndPoint: scheme + "://" + r.Host + "/ocm/token",
-			ResourceTypes: []discovery.ResourceType{
+			ResourceTypes: []spec.ResourceType{
 				{
 					Name:       "file",
 					ShareTypes: []string{"user"},
@@ -261,11 +261,11 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 func TestAccess_ExchangeFailureFailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			disc := discovery.Discovery{
+			disc := spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   "http://" + r.Host + "/ocm",
-				ResourceTypes: []discovery.ResourceType{
+				ResourceTypes: []spec.ResourceType{
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
@@ -407,13 +407,13 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	var tokenGrantType string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			disc := discovery.Discovery{
+			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      "http://" + r.Host + "/ocm",
 				Capabilities:  []string{"exchange-token"},
 				TokenEndPoint: "http://" + r.Host + "/ocm/token",
-				ResourceTypes: []discovery.ResourceType{
+				ResourceTypes: []spec.ResourceType{
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},

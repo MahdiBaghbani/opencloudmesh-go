@@ -87,7 +87,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	if opts.FastAuth {
 		userAuth = identity.NewUserAuthFast()
 	} else {
-		userAuth = identity.NewUserAuth(3)
+		userAuth = identity.NewUserAuth()
 	}
 
 	var keyManager *crypto.KeyManager

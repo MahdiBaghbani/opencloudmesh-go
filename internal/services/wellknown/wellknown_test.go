@@ -79,7 +79,7 @@ func TestNew_RejectsUnknownOCMProviderKeys(t *testing.T) {
 	}
 }
 
-func TestNew_RejectsInvalidOCMProviderConfig(t *testing.T) {
+func TestNew_RejectsInvalidProviderConfig(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	m := map[string]any{
@@ -128,7 +128,7 @@ func TestService_Close(t *testing.T) {
 	}
 }
 
-func TestService_TrailingSlashAliases(t *testing.T) {
+func TestService_TrailingSlashPath(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
 		"ocmprovider": map[string]any{},

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 )
 
@@ -45,8 +45,8 @@ func newTestSigner(t *testing.T) *crypto.RFC9421Signer {
 
 // httpSigDiscovery returns a discovery document that advertises the http-sig
 // capability.
-func httpSigDiscovery() *discovery.Discovery {
-	return &discovery.Discovery{
+func httpSigDiscovery() *spec.Discovery {
+	return &spec.Discovery{
 		EndPoint:     "https://peer.example/ocm",
 		Capabilities: []string{"http-sig"},
 	}
@@ -60,7 +60,7 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
 
-	disc := &discovery.Discovery{
+	disc := &spec.Discovery{
 		EndPoint:     "https://peer.example/ocm",
 		Capabilities: []string{"http-sig"},
 	}

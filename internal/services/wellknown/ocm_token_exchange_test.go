@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewOCMHandler_TokenExchangePath(t *testing.T) {
-	c := &OCMProviderConfig{}
+	c := &resolve.ProviderConfig{}
 	c.TokenExchange.Path = "exchange"
 	raw := map[string]any{
 		"token_exchange": map[string]any{"path": "exchange"},
@@ -42,7 +42,7 @@ func TestNewOCMHandler_TokenExchangePath(t *testing.T) {
 }
 
 func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
-	c := &OCMProviderConfig{}
+	c := &resolve.ProviderConfig{}
 	h, err := newOCMHandler(c, nil, handlerResolveInputs(t, "https://example.com", ""), testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -56,7 +56,7 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 
 func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
 	t.Run("code-flow TokenExchangeCapable=true adds exchange-token", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		c.TokenExchange.Path = "token"
 		h, err := newOCMHandler(
 			c,
@@ -86,7 +86,7 @@ func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
 
 func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 	t.Run("RequiresTokenExchange=true adds token-exchange criteria", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		c.TokenExchange.Path = "token"
 		h, err := newOCMHandler(
 			c,
@@ -104,7 +104,7 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 	})
 
 	t.Run("empty criteria serializes as []", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -134,7 +134,7 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 	})
 
 	t.Run("raw config alone does not backfill capability", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		in := handlerResolveInputs(t, "https://example.com", "")
 		in.CodeFlow = nil
 		h, err := newOCMHandler(c, nil, in, testLogger())

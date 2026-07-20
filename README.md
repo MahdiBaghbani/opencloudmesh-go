@@ -8,7 +8,8 @@
 
 OpenCloudMesh Go is a Go server for Open Cloud Mesh (OCM). It focuses on a
 pinned, practical slice of the protocol: discovery, user shares, invite flows,
-token exchange, HTTP-signature-aware behavior, and WebDAV access on that path.
+the strict authorization-code flow, HTTP signatures and JWKS, and Bearer
+WebDAV access on that path.
 
 This repository is not the OCM specification itself, and it does not claim full
 OCM-API coverage or broad compatibility with arbitrary peers. What it does try
@@ -31,9 +32,9 @@ transport, and trust are deliberate knobs rather than
 silent fallbacks.
 
 Right now that means discovery, user-share flows on the WebDAV-centered path,
-invite handling, accept flows, optional WAYF support, token exchange on the
-documented OCM route surface, and a bundled UI and API for practical local and
-multi-instance workflows.
+invite handling, accept flows, optional WAYF support, the strict
+authorization-code flow on the documented OCM route surface, and a bundled UI
+and API for practical local and multi-instance workflows.
 
 For the exact route surface, start with
 [docs/protocol-endpoints.md](docs/protocol-endpoints.md) and

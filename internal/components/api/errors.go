@@ -11,7 +11,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 )
 
-// Deterministic reason codes for error classification; keep stable for client compatibility.
+// Deterministic reason codes for error classification; keep stable for clients.
 const (
 	// Authentication and authorization
 	ReasonUnauthenticated    = "unauthenticated"

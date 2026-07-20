@@ -1,9 +1,13 @@
 package wellknown
 
-import "testing"
+import (
+	"testing"
 
-func TestOCMProviderConfig_ApplyDefaults(t *testing.T) {
-	c := &OCMProviderConfig{}
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
+)
+
+func TestProviderConfig_ApplyDefaults(t *testing.T) {
+	c := &resolve.ProviderConfig{}
 	c.ApplyDefaults()
 
 	if c.Provider != "OpenCloudMesh" {
@@ -11,8 +15,8 @@ func TestOCMProviderConfig_ApplyDefaults(t *testing.T) {
 	}
 }
 
-func TestOCMProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
-	c := &OCMProviderConfig{
+func TestProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
+	c := &resolve.ProviderConfig{
 		Provider: "CustomProvider",
 	}
 	c.ApplyDefaults()

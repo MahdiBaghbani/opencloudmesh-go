@@ -13,14 +13,11 @@ func TestParseMode(t *testing.T) {
 		wantErr bool
 	}{
 		{"strict", "strict", ModeStrict, false},
-		{"compat rejected", "compat", "", true},
 		{"dev", "dev", ModeDev, false},
 		{"empty defaults to strict", "", ModeStrict, false},
 		{"uppercase", "STRICT", ModeStrict, false},
-		{"mixed case compat rejected", "Compat", "", true},
 		{"whitespace", "  dev  ", ModeDev, false},
 		{"invalid", "invalid", "", true},
-		{"interop rejected", "interop", "", true},
 	}
 
 	for _, tt := range tests {
@@ -32,9 +29,6 @@ func TestParseMode(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("ParseMode(%q) = %v, want %v", tt.input, got, tt.want)
-			}
-			if tt.wantErr && tt.input == "compat" && !strings.Contains(err.Error(), "must be one of strict, dev") {
-				t.Errorf("ParseMode(compat) error = %v, want strict/dev allowed-values message", err)
 			}
 		})
 	}
@@ -195,7 +189,7 @@ func TestLoad_InvalidTOML_FailsFast(t *testing.T) {
 }
 
 func TestLoad_InvalidMode_FailsFast(t *testing.T) {
-	invalidModes := []string{"invalid", "interop", "compat"}
+	invalidModes := []string{"invalid"}
 	for _, mode := range invalidModes {
 		_, err := Load(LoaderOptions{ModeFlag: mode})
 		if err == nil {

@@ -126,7 +126,7 @@ policy code.
 | Directory Service JWS (T7b) | [directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md) | `go test ./tests/integration/... -run TestDirectoryServiceJWSFeedsFederations` |
 | SSRF on discover | [outbound-http-ssrf.md](outbound-http-ssrf.md) | `go test ./tests/integration/... -run TestOCMAuxDiscover_SSRF` |
 | WAYF browser flows | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `make test-e2e` (specs `wayf.spec.ts`, `wayf-two-instance.spec.ts`) |
-| Live discovery from server | [discovery.md](discovery.md) | `go test ./tests/integration/... -run 'DiscoveryEndpoint\|LegacyDiscovery\|DiscoveryRemains\|DiscoveryRoutesMatch'` |
+| Live discovery from server | [discovery.md](discovery.md) | `go test ./tests/integration/... -run 'DiscoveryEndpoint\|DiscoveryRemains\|DiscoveryRoutesMatch'` |
 
 ## Verification boundary
 

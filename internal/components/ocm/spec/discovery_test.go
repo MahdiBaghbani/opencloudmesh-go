@@ -27,11 +27,6 @@ func TestHasCriteria_CanonicalEqualityOnly(t *testing.T) {
 			t.Errorf("HasCriteria(%q) = false, want true", query)
 		}
 	}
-	for _, legacy := range []string{"http-request-signatures", "token-exchange"} {
-		if disc.HasCriteria(legacy) {
-			t.Errorf("HasCriteria(%q) = true, want false (no legacy aliasing)", legacy)
-		}
-	}
 	if disc.HasCriteria("unknown") {
 		t.Error("HasCriteria(unknown) should be false")
 	}

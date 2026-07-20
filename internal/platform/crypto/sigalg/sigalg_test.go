@@ -38,7 +38,7 @@ func TestValidateAllowed_RejectsEmpty(t *testing.T) {
 	}
 }
 
-func TestNormalize_JOSEAliases(t *testing.T) {
+func TestNormalize_JOSENames(t *testing.T) {
 	cases := map[string]string{
 		"ed25519":           sigalg.Ed25519,
 		"EdDSA":             sigalg.Ed25519,
@@ -324,7 +324,7 @@ func TestNormalize_RejectsJOSESymmetric(t *testing.T) {
 	}
 }
 
-func TestIsSymmetric_JOSEAliases(t *testing.T) {
+func TestIsSymmetric_JOSENames(t *testing.T) {
 	for _, in := range []string{"hmac-sha256", "HS256", "hs256", "hs384", "hs512"} {
 		if !sigalg.IsSymmetric(in) {
 			t.Fatalf("IsSymmetric(%q) = false", in)

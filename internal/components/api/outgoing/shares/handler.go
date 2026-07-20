@@ -300,7 +300,7 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 func (h *Handler) sendShareToReceiver(
 	ctx context.Context,
 	origin resolvedPeerOrigin,
-	disc *discovery.Discovery,
+	disc *spec.Discovery,
 	payload spec.NewShareRequest,
 ) error {
 	body, err := json.Marshal(payload)

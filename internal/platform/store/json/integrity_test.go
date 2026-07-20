@@ -25,12 +25,12 @@ func writePersistedJSON(t *testing.T, dir, filename string, data interface{}) {
 	}
 }
 
-// TestJSONOutgoingShareUpdateAliasFixed verifies that UpdateOutgoingShare
-// correctly clears stale index entries and registers new ones when key fields
-// (WebDAVId, ShareId, SharedSecret) change. GetOutgoingShare now returns a
-// clone, so the mutated local copy does not affect the stored record before
-// Update is called; the driver must still derive and remove all old keys.
-func TestJSONOutgoingShareUpdateAliasFixed(t *testing.T) {
+// TestJSONOutgoingShareUpdateRefreshesIndexes verifies that UpdateOutgoingShare
+// clears stale index entries and registers new ones when key fields
+// (WebDAVId, ShareId, SharedSecret) change. GetOutgoingShare returns a clone,
+// so the mutated local copy does not affect the stored record before Update is
+// called; the driver must still derive and remove all old keys.
+func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	driver, _ := newJSONDriver(t)
 	defer driver.Close()
 	ctx := context.Background()

@@ -261,14 +261,14 @@ func TestDecodeFederatedOpaqueID(t *testing.T) {
 			wantOK:     true,
 		},
 		{
-			name:       "raw base64url (unpadded compat)",
+			name:       "raw base64url (unpadded)",
 			encoded:    base64.RawURLEncoding.EncodeToString([]byte("bob@provider.net")),
 			wantUserID: "bob",
 			wantIDP:    "provider.net",
 			wantOK:     true,
 		},
 		{
-			name:       "standard base64 (compat)",
+			name:       "standard base64",
 			encoded:    base64.StdEncoding.EncodeToString([]byte("carol@host.example")),
 			wantUserID: "carol",
 			wantIDP:    "host.example",

@@ -27,7 +27,7 @@ func BuildKid(authority, fragment string) string {
 	return authority + "#" + fragment
 }
 
-// ParseKid parses a host#fragment kid. A legacy absolute http(s) keyId URI is
+// ParseKid parses a host#fragment kid. An absolute http(s) keyId URI is
 // accepted and normalized to host#fragment by extracting authority and fragment.
 func ParseKid(kid string) (Kid, error) {
 	kid = strings.TrimSpace(kid)

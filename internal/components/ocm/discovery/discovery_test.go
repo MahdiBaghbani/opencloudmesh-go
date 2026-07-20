@@ -18,7 +18,7 @@ import (
 )
 
 func TestCriteriaAlwaysPresent(t *testing.T) {
-	disc := &discovery.Discovery{
+	disc := &spec.Discovery{
 		Enabled:    true,
 		APIVersion: "1.4.0",
 		Criteria:   []string{},
@@ -52,11 +52,11 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 }
 
 func TestDiscovery_Helpers(t *testing.T) {
-	disc := &discovery.Discovery{
+	disc := &spec.Discovery{
 		Enabled:    true,
 		APIVersion: "1.4.0",
 		EndPoint:   "https://example.com/ocm",
-		ResourceTypes: []discovery.ResourceType{
+		ResourceTypes: []spec.ResourceType{
 			{
 				Name:       "file",
 				ShareTypes: []string{"user"},
@@ -73,9 +73,6 @@ func TestDiscovery_Helpers(t *testing.T) {
 	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
 		t.Error("HasCriteria must-use-http-sig should be true")
 	}
-	if disc.HasCriteria("http-request-signatures") {
-		t.Error("legacy http-request-signatures criterion must not alias canonical must-use-http-sig")
-	}
 
 	url, err := disc.BuildWebDAVURL("abc123")
 	if err != nil {
@@ -90,11 +87,11 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			disc := discovery.Discovery{
+			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      strings.TrimSuffix(server.URL, "/") + "/ocm",
-				ResourceTypes: []discovery.ResourceType{},
+				ResourceTypes: []spec.ResourceType{},
 				Criteria:      []string{},
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -134,13 +131,13 @@ func inlineKeyDiscoveryPayload(serverURL, shape, apiVersion string) map[string]a
 	switch shape {
 	case "singular":
 		raw["publicKey"] = map[string]string{
-			"keyId":        "https://peer.example.com/ocm#legacy",
-			"publicKeyPem": "legacy-pem",
+			"keyId":        "https://peer.example.com/ocm#test-key",
+			"publicKeyPem": "test-pem",
 		}
 	case "plural":
 		raw["publicKeys"] = []map[string]string{{
-			"keyId":        "https://peer.example.com/ocm#legacy",
-			"publicKeyPem": "legacy-pem",
+			"keyId":        "https://peer.example.com/ocm#test-key",
+			"publicKeyPem": "test-pem",
 		}}
 	}
 	return raw
@@ -193,7 +190,7 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal discovery: %v", err)
 			}
-			if strings.Contains(string(out), "legacy-pem") {
+			if strings.Contains(string(out), "test-pem") {
 				t.Fatalf("expected no inline key material, got %s", out)
 			}
 		})

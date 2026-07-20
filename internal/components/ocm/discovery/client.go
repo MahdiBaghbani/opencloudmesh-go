@@ -62,7 +62,7 @@ func (c *Client) IsNoopCache() bool {
 // Discover fetches the discovery document for a remote OCM server. Uses cache when available.
 //
 // Raw response bytes are cached so normalization runs on every cache read.
-func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, error) {
+func (c *Client) Discover(ctx context.Context, baseURL string) (*spec.Discovery, error) {
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	cacheKey := "discovery:" + baseURL
 	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
@@ -82,7 +82,7 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	return disc, nil
 }
 
-func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *Discovery, error) {
+func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *spec.Discovery, error) {
 	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
 	if err != nil {
 		return nil, nil, err
@@ -107,10 +107,10 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 	return data, &disc, nil
 }
 
-func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string) (Discovery, error) {
-	var disc Discovery
+func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string) (spec.Discovery, error) {
+	var disc spec.Discovery
 	if err := json.Unmarshal(data, &disc); err != nil {
-		return Discovery{}, err
+		return spec.Discovery{}, err
 	}
 
 	if disc.InviteAcceptDialog != "" {
@@ -123,7 +123,7 @@ func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string) (Discov
 
 	if disc.Enabled {
 		if err := validateDiscovery(&disc, discoveryOrigin); err != nil {
-			return Discovery{}, err
+			return spec.Discovery{}, err
 		}
 	}
 

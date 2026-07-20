@@ -733,9 +733,7 @@ func writeNegativeShareFile(t *testing.T, label string) string {
 	return path
 }
 
-type crossAuthorityDiscoveryPeer = trustedProtocolPeer
-
-func startCrossAuthorityDiscoveryPeer(t *testing.T) *crossAuthorityDiscoveryPeer {
+func startCrossAuthorityDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 	t.Helper()
 
 	return startTrustedProtocolPeer(t, func(peer *trustedProtocolPeer, w http.ResponseWriter, r *http.Request) {
@@ -763,9 +761,7 @@ func startCrossAuthorityDiscoveryPeer(t *testing.T) *crossAuthorityDiscoveryPeer
 	})
 }
 
-type redirectSSRFDiscoveryPeer = trustedProtocolPeer
-
-func startRedirectSSRFDiscoveryPeer(t *testing.T) *redirectSSRFDiscoveryPeer {
+func startRedirectSSRFDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 	t.Helper()
 
 	return startTrustedProtocolPeer(t, func(peer *trustedProtocolPeer, w http.ResponseWriter, r *http.Request) {

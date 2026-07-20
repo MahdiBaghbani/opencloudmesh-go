@@ -303,7 +303,7 @@ func TestMemoryPartyRepo_DeleteRemovesEmailIndex(t *testing.T) {
 		t.Fatalf("Delete failed: %v", err)
 	}
 
-	// Email should no longer resolve
+	// Email lookup returns ErrUserNotFound after deletion.
 	_, err := repo.GetByEmail(ctx, "alice@example.com")
 	if err != identity.ErrUserNotFound {
 		t.Errorf("expected ErrUserNotFound after delete, got %v", err)

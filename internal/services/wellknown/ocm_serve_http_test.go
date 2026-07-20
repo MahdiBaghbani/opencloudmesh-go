@@ -11,7 +11,7 @@ import (
 )
 
 func TestOCMHandler_ServeHTTP(t *testing.T) {
-	c := &OCMProviderConfig{
+	c := &resolve.ProviderConfig{
 		Provider: "TestProvider",
 	}
 	h, err := newOCMHandler(
@@ -55,7 +55,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
-	c := &OCMProviderConfig{}
+	c := &resolve.ProviderConfig{}
 	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

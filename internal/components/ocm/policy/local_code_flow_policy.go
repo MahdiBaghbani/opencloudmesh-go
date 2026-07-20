@@ -10,8 +10,7 @@ type Facts struct {
 	RequiresHTTPRequestSignatures    bool
 }
 
-// CodeFlow reports the fixed local code-flow facts. It carries no
-// compatibility knobs on purpose: the current code flow is not configurable.
+// CodeFlow reports the fixed local code-flow facts. The code flow is not configurable.
 type CodeFlow struct{}
 
 // NewCodeFlow constructs the fixed local code-flow policy.

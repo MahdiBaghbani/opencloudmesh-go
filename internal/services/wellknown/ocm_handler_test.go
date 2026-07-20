@@ -17,7 +17,7 @@ import (
 )
 
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
-	c := &OCMProviderConfig{}
+	c := &resolve.ProviderConfig{}
 	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -35,7 +35,7 @@ func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 }
 
 func TestNewOCMHandler_EnabledWithProjectedPaths(t *testing.T) {
-	c := &OCMProviderConfig{
+	c := &resolve.ProviderConfig{
 		WebDAVRoot: "/webdav/ocm/",
 	}
 	raw := map[string]any{"webdav_root": "/webdav/ocm/"}
@@ -76,7 +76,7 @@ func TestNewOCMHandler_EnabledWithProjectedPaths(t *testing.T) {
 }
 
 func TestNewOCMHandler_WithKeyManager(t *testing.T) {
-	c := &OCMProviderConfig{}
+	c := &resolve.ProviderConfig{}
 
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
@@ -104,7 +104,7 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 
 func TestNewOCMHandler_Criteria(t *testing.T) {
 	t.Run("default criteria include signing and token exchange", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		h, err := newOCMHandler(c, nil, handlerResolveInputs(t, "https://example.com", ""), testLogger())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -123,7 +123,7 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 
 	t.Run("with HTTP signatures", func(t *testing.T) {
 		codeFlow := policy.NewCodeFlow()
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
 			RouteOpts:     service.DefaultRouteOpts(),
@@ -142,7 +142,7 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 func TestNewOCMHandler_CodeFlowDrivesHTTPSignatureCriteria(t *testing.T) {
 	t.Run("derived from code-flow policy when not explicitly configured", func(t *testing.T) {
 		codeFlow := policy.NewCodeFlow()
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
 			RouteOpts:     service.DefaultRouteOpts(),
@@ -160,7 +160,7 @@ func TestNewOCMHandler_CodeFlowDrivesHTTPSignatureCriteria(t *testing.T) {
 
 func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 	t.Run("derives inviteAcceptDialog when invite accept route active", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 			RouteOpts: service.RouteOpts{
@@ -181,7 +181,7 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 	})
 
 	t.Run("explicit invite_accept_dialog overrides auto-derivation", func(t *testing.T) {
-		c := &OCMProviderConfig{
+		c := &resolve.ProviderConfig{
 			InviteAcceptDialog: "https://custom.example.com/accept",
 		}
 		resolveIn := resolve.ResolveInputs{
@@ -208,7 +208,7 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 	})
 
 	t.Run("no derivation when invite accept route inactive", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		resolveIn := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 			RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
@@ -228,7 +228,7 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 
 func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
 	t.Run("enabled when WAYF route active", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		in := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 			RouteOpts: service.RouteOpts{
@@ -249,7 +249,7 @@ func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
 	})
 
 	t.Run("absent when WAYF route inactive", func(t *testing.T) {
-		c := &OCMProviderConfig{}
+		c := &resolve.ProviderConfig{}
 		in := resolve.ResolveInputs{
 			LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
 			RouteOpts: service.RouteOpts{
@@ -270,7 +270,7 @@ func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
 }
 
 func TestNewOCMHandler_TruthfulCapabilitySet(t *testing.T) {
-	c := &OCMProviderConfig{}
+	c := &resolve.ProviderConfig{}
 	in := handlerResolveInputs(t, "https://example.com", "")
 	h, err := newOCMHandler(c, nil, in, testLogger())
 	if err != nil {

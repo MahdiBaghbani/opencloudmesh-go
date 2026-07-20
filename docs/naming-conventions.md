@@ -28,8 +28,8 @@ banned abbreviations (with an exception for the architecture package itself
 where the test documents the ban).
 
 Directory Service JSON fields in `internal/components/ocm/directoryservice/`
-must follow the OCM spec (for example `url` and `displayName`, not legacy
-`domain` or `name` tags). The architecture test
+must follow the OCM spec, including fields such as `url` and `displayName`.
+The architecture test
 `TestNoNonSpecDirectoryServiceJSONTags` enforces this.
 
 ## OCM addresses

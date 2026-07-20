@@ -15,6 +15,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
@@ -62,7 +63,7 @@ type Request struct {
 // avoid a second discovery hop.
 type ResolvedPeer struct {
 	// Discovery is the already-fetched peer discovery document.
-	Discovery *discovery.Discovery
+	Discovery *spec.Discovery
 }
 
 // Send resolves the peer origin, discovers the endpoint, builds and optionally

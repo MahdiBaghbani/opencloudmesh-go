@@ -47,7 +47,7 @@ Key rules (see `internal/architecture/layering_test.go`):
 **Components** (`internal/components/`) hold domain logic:
 
 - `ocm/` - protocol implementations (discovery, shares, invites, token
-  exchange, directory service client, peer policy)
+  exchange, directory service client, and peer trust)
 - `api/` - first-party REST helpers for the bundled UI and operators
 - `identity/` - users, sessions, and bootstrap admin
 - `ocmaux/` - helper logic backing `/ocm-aux/*` UX endpoints

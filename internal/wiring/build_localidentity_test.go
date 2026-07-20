@@ -67,7 +67,7 @@ func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 
 	naiveKeyID := cfg.PublicOrigin + "/ocm#key-1"
 	if result.Deps.KeyManager.GetKeyID() == naiveKeyID {
-		t.Errorf("keyId must not equal legacy URI concat %q", naiveKeyID)
+		t.Errorf("keyId must not equal raw URI concat %q", naiveKeyID)
 	}
 
 	want, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)

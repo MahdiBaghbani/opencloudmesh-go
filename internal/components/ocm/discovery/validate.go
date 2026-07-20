@@ -11,7 +11,7 @@ import (
 
 const expectedAPIVersion = "1.4.0"
 
-func validateDiscovery(disc *Discovery, discoveryOrigin string) error {
+func validateDiscovery(disc *spec.Discovery, discoveryOrigin string) error {
 	if disc.APIVersion != expectedAPIVersion {
 		return fmt.Errorf("apiVersion %q is not supported (want %q)", disc.APIVersion, expectedAPIVersion)
 	}
@@ -60,7 +60,7 @@ func validateDiscovery(disc *Discovery, discoveryOrigin string) error {
 	return nil
 }
 
-func validateResourceType(rt ResourceType) error {
+func validateResourceType(rt spec.ResourceType) error {
 	if rt.Name == "" {
 		return fmt.Errorf("name is required")
 	}
@@ -74,7 +74,7 @@ func validateResourceType(rt ResourceType) error {
 
 func validateProtocolRole(name string, role spec.ProtocolRole) error {
 	switch name {
-	case "webdav", "talk":
+	case "webdav":
 		if _, ok := role.StringValue(); !ok {
 			return fmt.Errorf("must be a string path")
 		}
@@ -88,27 +88,7 @@ func validateProtocolRole(name string, role spec.ProtocolRole) error {
 		default:
 			return fmt.Errorf("uri must be absolute or relative")
 		}
-	case "webapp-receive":
-		if _, ok := role.WebAppReceive(); !ok {
-			return fmt.Errorf("must be an object with targets")
-		}
-	case "webapp", "ssh-receive":
-		if !role.IsEmptyObject() {
-			return fmt.Errorf("must be an empty object")
-		}
 	default:
-		if _, ok := role.StringValue(); ok {
-			return nil
-		}
-		if role.IsEmptyObject() {
-			return nil
-		}
-		if _, ok := role.WebDAVReceive(); ok {
-			return nil
-		}
-		if _, ok := role.WebAppReceive(); ok {
-			return nil
-		}
 		return fmt.Errorf("malformed protocol role")
 	}
 	return nil

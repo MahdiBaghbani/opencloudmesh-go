@@ -12,7 +12,7 @@ Each HTTP service registers `RouteSpec` values from its `routes.go` file
 
 - HTTP method and pattern (relative to the service chi router)
 - `SessionPolicy` (public, protected, or public when WAYF enabled)
-- `HandlerAuth` (none, session user, HTTP signature, bearer/basic, rate limit)
+- `HandlerAuth` (none, session user, HTTP signature, bearer, rate limit)
 - `SurfaceClass` (discovery, protocol, helper, ui, api, webdav)
 - `TrustClass` for protocol routes (peer trust required or none)
 - Optional `DiscoveryFields`, `FeatureCondition`, and
@@ -63,11 +63,11 @@ Routes group into product surfaces:
 | Surface | Typical services | Session / handler auth |
 | ------- | ---------------- | ---------------------- |
 | Discovery | `wellknown` | Public; no session |
-| Protocol | `ocm` | Public session; optional HTTP signature on handler |
+| Protocol | `ocm` | Public session; required HTTP signature on handler |
 | Helper | `ocmaux` | Public; rate limit on discover |
 | UI | `ui` | Mix of public login/WAYF and protected inbox |
 | API | `api` | Protected first-party session |
-| WebDAV | `webdav` | Public session; bearer or basic on handler |
+| WebDAV | `webdav` | Public session; Bearer on handler |
 
 Protocol routes (`SurfaceProtocol`) require peer trust classes and are the
 only routes that use HTTP signature handler auth. Helper and UI routes use

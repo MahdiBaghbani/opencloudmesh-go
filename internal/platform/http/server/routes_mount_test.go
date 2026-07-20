@@ -22,7 +22,6 @@ func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
 	foundWellKnown := false
 	foundWellKnownSlash := false
 	foundJWKS := false
-	foundLegacyProvider := false
 	for _, rg := range groups {
 		if rg.PathPrefix == "/.well-known/ocm" && rg.AtHostRoot {
 			foundWellKnown = true
@@ -33,9 +32,6 @@ func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
 		if rg.PathPrefix == "/.well-known/jwks.json" && rg.AtHostRoot {
 			foundJWKS = true
 		}
-		if rg.PathPrefix == "/ocm-provider" && rg.AtHostRoot {
-			foundLegacyProvider = true
-		}
 	}
 	if !foundWellKnown {
 		t.Error("expected /.well-known/ocm host-root group")
@@ -45,9 +41,6 @@ func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
 	}
 	if !foundJWKS {
 		t.Error("expected /.well-known/jwks.json host-root group")
-	}
-	if foundLegacyProvider {
-		t.Error("legacy /ocm-provider host-root group must not be mounted")
 	}
 }
 

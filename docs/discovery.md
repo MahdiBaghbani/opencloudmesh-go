@@ -93,7 +93,7 @@ the raw discovery field was relative.
 | ------ | ------ |
 | `public_origin`, `external_base_path` | All endpoint and WebDAV paths |
 | `[token_exchange]` | Token endpoint and `exchange-token` capability |
-| Signature / peer policy axes | Criteria and capabilities |
+| Signature and peer trust axes | Criteria and capabilities |
 | `[http.services.ui.wayf] enabled` | `invite-wayf` capability and WAYF UI route |
 | `[http.services.ui.invite_accept] enabled` | Accept-invite UI route and `inviteAcceptDialog` |
 
@@ -104,7 +104,7 @@ Unknown keys under `[http.services.wellknown.ocmprovider]` fail at load time.
 ```sh
 go test ./internal/services/wellknown/... -run 'DiscoveryFields|InviteAcceptDialogFromRoutes|InviteWAYFCapability|TruthfulCapabilitySet'
 go test ./internal/components/ocm/discovery/...
-go test ./tests/integration/... -run 'DiscoveryEndpoint|LegacyDiscovery|DiscoveryRemains|DiscoveryRoutesMatch'
+go test ./tests/integration/... -run 'DiscoveryEndpoint|DiscoveryRemains|DiscoveryRoutesMatch'
 ```
 
 - `internal/services/wellknown/discovery_fields_test.go` - endpoint and

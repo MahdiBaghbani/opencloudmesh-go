@@ -11,18 +11,13 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
-// OCMProviderConfig holds OCM discovery configuration. The type and its input
-// resolution live in the discovery/resolve helper; the service keeps these
-// aliases so config decoding and tests continue to use service-local names.
-type OCMProviderConfig = resolve.ProviderConfig
-
 type ocmHandler struct {
 	data *spec.Discovery
 	log  *slog.Logger
 }
 
 func newOCMHandler(
-	c *OCMProviderConfig,
+	c *resolve.ProviderConfig,
 	rawOCMProvider map[string]any,
 	in resolve.ResolveInputs,
 	log *slog.Logger,

@@ -32,10 +32,10 @@ type BuildParams struct {
 // BuildDiscovery constructs the static discovery document (Reva pattern:
 // computed once, not at request time). An empty or non-absolute endPoint yields
 // a disabled document, mirroring the prior service-layer behavior.
-func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
+func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	log = logutil.NoopIfNil(log)
 
-	disc := &Discovery{
+	disc := &spec.Discovery{
 		Enabled:    false,
 		APIVersion: "1.4.0",
 		Provider:   p.Provider,
@@ -57,9 +57,9 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 		protocols["webdav-receive"] = spec.WebDAVReceiveRole(spec.WebDAVReceiveURIKind(p.WebDAVReceiveURI))
 	}
 
-	disc.ResourceTypes = make([]ResourceType, 0, len(spec.SupportedResourceTypes))
+	disc.ResourceTypes = make([]spec.ResourceType, 0, len(spec.SupportedResourceTypes))
 	for _, rtName := range spec.SupportedResourceTypes {
-		disc.ResourceTypes = append(disc.ResourceTypes, ResourceType{
+		disc.ResourceTypes = append(disc.ResourceTypes, spec.ResourceType{
 			Name:       rtName,
 			ShareTypes: []string{"user"},
 			Protocols:  protocols,

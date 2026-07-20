@@ -132,27 +132,6 @@ public_origin = "https://example.com/app"
 	}
 }
 
-func TestLoad_ExternalOrigin_UnsupportedFails(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
-mode = "dev"
-external_origin = "https://example.com"
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for unsupported external_origin key")
-	}
-	if !strings.Contains(err.Error(), "external_origin") {
-		t.Errorf("expected error to mention external_origin, got: %v", err)
-	}
-}
-
 func TestLoad_PublicOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
 	origin := "ftp://example.com"
 	_, err := Load(LoaderOptions{

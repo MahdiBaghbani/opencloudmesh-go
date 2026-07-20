@@ -371,10 +371,10 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 
 	// Seed a local user (the share recipient)
 	shareUser := &identity.User{
-		ID:          "reva-compat-user-uuid",
-		Username:    "revacompat",
-		Email:       "revacompat@localhost",
-		DisplayName: "Reva Compat User",
+		ID:          "fed-opaque-user-uuid",
+		Username:    "fedopaque",
+		Email:       "fedopaque@localhost",
+		DisplayName: "Fed Opaque User",
 	}
 	if err := d.PartyRepo.Create(context.Background(), shareUser); err != nil {
 		t.Fatalf("failed to seed local user: %v", err)
@@ -390,8 +390,8 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 
 	reqBody := spec.NewShareRequest{
 		ShareWith:         shareWith,
-		Name:              "reva-compat-share.txt",
-		ProviderID:        "reva-compat-test-001",
+		Name:              "fed-opaque-share.txt",
+		ProviderID:        "fed-opaque-test-001",
 		Owner:             owner,
 		Sender:            sender,
 		OwnerDisplayName:  "Albert Einstein",

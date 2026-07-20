@@ -2,8 +2,8 @@
 
 OCM provider protocol traffic lives under the `ocm` service mount. These
 endpoints implement the pinned OCM-API subset for shares, invite
-acceptance, and token exchange. Helper, UI, and first-party API routes are
-documented separately.
+acceptance, and the strict authorization-code flow. Helper, UI, and
+first-party API routes are documented separately.
 
 ## Mount shape
 
@@ -17,8 +17,7 @@ Full paths come from `service.Routes(opts)`; see
 ## Endpoint categories
 
 Protocol traffic uses `SurfaceClass: protocol`, public session policy, and
-optional HTTP signature handler auth on the handler. Peer trust is enforced
-per route.
+required HTTP signature handler auth. Peer trust is enforced per route.
 
 The `ocm` service registers three protocol handlers in
 `internal/services/ocm/routes.go`. Route ids, patterns, and trust metadata
@@ -42,8 +41,20 @@ explains behavior; it is not a maintained route list. See
 ### Shares
 
 `POST /ocm/shares` receives incoming share creation from a remote OCM
-provider. Handler auth expects an optional HTTP message signature when
-configured.
+provider. The accepted share grammar is:
+
+- Required fields: `shareWith`, `name`, `providerId`, `owner`, `sender`,
+  `shareType`, `resourceType`, and `protocol`
+- `shareType`: `user`
+- `resourceType`: `file` or `folder`
+- `protocol.name`: `multi` or `webdav`
+- `protocol.webdav`: `uri`, `sharedSecret`, `permissions: ["read"]`, and
+  `requirements: ["must-exchange-token"]`
+- `protocol.webdav.accessTypes`: `["remote"]` when present; omission also
+  means remote access
+
+Optional share display fields and expiration remain part of the wire model.
+Additional protocol arms and values outside this grammar are rejected.
 
 ### Invite accepted
 
@@ -57,9 +68,11 @@ local landing page for humans. See
 
 ### Token exchange
 
-`POST /ocm/<token_exchange.path>` handles token exchange when enabled.
-Default path segment is `token`; override via `[token_exchange] path` or
-`-token-exchange-path`.
+`POST /ocm/<token_exchange.path>` handles the strict authorization-code
+exchange when the configured code-flow capability is active. Requests use
+`grant_type=authorization_code`, `client_id`, and `code`; successful
+responses contain a Bearer access token. The default path segment is `token`;
+override it with `[token_exchange] path` or `-token-exchange-path`.
 
 ## What is not protocol
 

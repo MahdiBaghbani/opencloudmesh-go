@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -16,7 +17,7 @@ import (
 
 // Config holds wellknown service configuration.
 type Config struct {
-	OCMProvider OCMProviderConfig `mapstructure:"ocmprovider"`
+	OCMProvider resolve.ProviderConfig `mapstructure:"ocmprovider"`
 }
 
 // ApplyDefaults implements cfg.Setter.

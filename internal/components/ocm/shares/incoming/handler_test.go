@@ -345,7 +345,7 @@ func TestCreateShare_ProviderMismatch(t *testing.T) {
 	}
 }
 
-func TestCreateShare_UnsupportedShareType_Returns501(t *testing.T) {
+func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -356,7 +356,7 @@ func TestCreateShare_UnsupportedShareType_Returns501(t *testing.T) {
 		"providerId": "p1",
 		"owner": "owner@sender.com",
 		"sender": "sender@sender.com",
-		"shareType": "group",
+		"shareType": "invalid",
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
 	}`
@@ -367,7 +367,7 @@ func TestCreateShare_UnsupportedShareType_Returns501(t *testing.T) {
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501 for unsupported shareType, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 501 for invalid shareType, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var resp spec.OCMErrorResponse
@@ -563,7 +563,7 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 	}
 }
 
-func TestCreateShare_RejectsUnsupportedResourceType(t *testing.T) {
+func TestCreateShare_InvalidResourceType_Returns501(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -575,7 +575,7 @@ func TestCreateShare_RejectsUnsupportedResourceType(t *testing.T) {
 		"owner": "owner@sender.com",
 		"sender": "sender@sender.com",
 		"shareType": "user",
-		"resourceType": "calendar",
+		"resourceType": "invalid",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
@@ -585,7 +585,7 @@ func TestCreateShare_RejectsUnsupportedResourceType(t *testing.T) {
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501 for unsupported resourceType, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 501 for invalid resourceType, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -769,7 +769,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 	}
 }
 
-func TestCreateShare_NoWebDAV_Returns501(t *testing.T) {
+func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -782,7 +782,7 @@ func TestCreateShare_NoWebDAV_Returns501(t *testing.T) {
 		"sender": "sender@sender.com",
 		"shareType": "user",
 		"resourceType": "file",
-		"protocol": {"name": "webapp"}
+		"protocol": {"name": "webdav"}
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -790,8 +790,8 @@ func TestCreateShare_NoWebDAV_Returns501(t *testing.T) {
 
 	handler.CreateShare(w, req)
 
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501 for missing webdav, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing webdav arm, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -954,18 +954,18 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 	}
 }
 
-func TestCreateShare_RejectsUnsupportedProtocolName(t *testing.T) {
+func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("ssh", "sender.com")))
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("invalid", "sender.com")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501 for unsupported protocol name ssh, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 501 for invalid protocol name, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

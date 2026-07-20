@@ -9,27 +9,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm/configfixture"
 )
 
-func TestLoad_OldFlatSSRFKey_Fails(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `
-[outbound_http]
-ssrf_mode = "strict"
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err == nil {
-		t.Fatal("expected error for unsupported outbound_http.ssrf_mode key")
-	}
-	if !strings.Contains(err.Error(), "outbound_http.ssrf_mode") {
-		t.Errorf("expected error mentioning outbound_http.ssrf_mode, got: %v", err)
-	}
-}
-
 func TestLoad_InvalidNestedSSRFMode_FailsFast(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")

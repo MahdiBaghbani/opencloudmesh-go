@@ -48,7 +48,7 @@ func TestKidMatches(t *testing.T) {
 	}
 }
 
-func TestParseKid_LegacyURI(t *testing.T) {
+func TestParseKid_AbsoluteURI(t *testing.T) {
 	parsed, err := keyid.ParseKid("https://example.com/ocm#key-1")
 	if err != nil {
 		t.Fatalf("ParseKid: %v", err)

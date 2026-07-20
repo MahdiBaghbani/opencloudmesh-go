@@ -56,9 +56,6 @@ func TestClientDiscover_DeserializesTypedReceiveRoles(t *testing.T) {
 					"protocols": map[string]any{
 						"webdav":         "/webdav/ocm/",
 						"webdav-receive": map[string]string{"uri": "absolute"},
-						"webapp-receive": map[string]any{"targets": []string{"blank", "iframe"}},
-						"webapp":         map[string]any{},
-						"ssh-receive":    map[string]any{},
 					},
 				},
 			},
@@ -83,16 +80,6 @@ func TestClientDiscover_DeserializesTypedReceiveRoles(t *testing.T) {
 	wr, ok := protocols.WebDAVReceive()
 	if !ok || wr.URI != "absolute" {
 		t.Fatalf("webdav-receive = %+v, ok=%v", wr, ok)
-	}
-	war, ok := protocols.WebAppReceive()
-	if !ok || len(war.Targets) != 2 {
-		t.Fatalf("webapp-receive = %+v, ok=%v", war, ok)
-	}
-	if !protocols["webapp"].IsEmptyObject() {
-		t.Error("expected empty webapp object")
-	}
-	if !protocols["ssh-receive"].IsEmptyObject() {
-		t.Error("expected empty ssh-receive object")
 	}
 }
 
@@ -469,7 +456,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 		}
 	})
 
-	t.Run("webapp-receive missing targets", func(t *testing.T) {
+	t.Run("unsupported protocol role name", func(t *testing.T) {
 		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 			raw := validDiscoveryPayload(serverURL, map[string]any{
 				"resourceTypes": []any{
@@ -477,7 +464,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 						"name":       "file",
 						"shareTypes": []string{"user"},
 						"protocols": map[string]any{
-							"webapp-receive": map[string]any{},
+							"custom-proto": "/custom/path",
 						},
 					},
 				},
@@ -489,118 +476,12 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 		_, err := client.Discover(context.Background(), server.URL)
 		if err == nil {
-			t.Fatal("expected error for webapp-receive missing targets")
+			t.Fatal("expected error for unsupported protocol role name")
 		}
 		if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
 			t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
 		}
 	})
-
-	t.Run("talk non-string", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
-			raw := validDiscoveryPayload(serverURL, map[string]any{
-				"resourceTypes": []any{
-					map[string]any{
-						"name":       "file",
-						"shareTypes": []string{"user"},
-						"protocols": map[string]any{
-							"talk": map[string]any{},
-						},
-					},
-				},
-			})
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw)
-		})
-
-		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
-		_, err := client.Discover(context.Background(), server.URL)
-		if err == nil {
-			t.Fatal("expected error for talk non-string type")
-		}
-		if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
-			t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
-		}
-	})
-
-	t.Run("webapp non-empty object", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
-			raw := validDiscoveryPayload(serverURL, map[string]any{
-				"resourceTypes": []any{
-					map[string]any{
-						"name":       "file",
-						"shareTypes": []string{"user"},
-						"protocols": map[string]any{
-							"webapp": map[string]any{"uri": "/apps/ocm"},
-						},
-					},
-				},
-			})
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw)
-		})
-
-		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
-		_, err := client.Discover(context.Background(), server.URL)
-		if err == nil {
-			t.Fatal("expected error for non-empty webapp object")
-		}
-		if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
-			t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
-		}
-	})
-
-	t.Run("ssh-receive non-empty object", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
-			raw := validDiscoveryPayload(serverURL, map[string]any{
-				"resourceTypes": []any{
-					map[string]any{
-						"name":       "file",
-						"shareTypes": []string{"user"},
-						"protocols": map[string]any{
-							"ssh-receive": map[string]any{"uri": "absolute"},
-						},
-					},
-				},
-			})
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw)
-		})
-
-		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
-		_, err := client.Discover(context.Background(), server.URL)
-		if err == nil {
-			t.Fatal("expected error for non-empty ssh-receive object")
-		}
-		if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
-			t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
-		}
-	})
-}
-
-func TestClientDiscover_NoLegacyFallback(t *testing.T) {
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/.well-known/ocm":
-			http.NotFound(w, r)
-		case "/ocm-provider":
-			raw := validDiscoveryPayload(serverURL, nil)
-			raw["apiVersion"] = "1.2.2"
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw)
-		default:
-			http.NotFound(w, r)
-		}
-	})
-
-	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
-	_, err := client.Discover(context.Background(), server.URL)
-	if err == nil {
-		t.Fatal("expected error when canonical discovery is missing")
-	}
-	if !errors.Is(err, discovery.ErrDiscoveryNotFound) {
-		t.Fatalf("errors.Is(err, ErrDiscoveryNotFound) = false, err = %v", err)
-	}
 }
 
 func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {

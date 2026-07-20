@@ -7,8 +7,7 @@ import (
 
 // TestAppServicesMatchCoreServicesMinusRoot verifies the root service plus app
 // services exactly reconstruct CoreServices in order. This prevents silent drift
-// between service construction and route mounting when a core service is added,
-// removed, or renamed.
+// when the core service set changes.
 func TestAppServicesMatchCoreServicesMinusRoot(t *testing.T) {
 	if !slices.Contains(CoreServices, RootService) {
 		t.Fatalf("RootService %q is not present in CoreServices %v", RootService, CoreServices)

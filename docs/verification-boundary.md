@@ -29,8 +29,8 @@ leaves broader interoperability to operator-managed validation.
   strict tier.
 - `ssrf.mode=off` is a real transport relaxation. It is outside the
   strict posture and remains distinct from the signing and trust settings.
-- In that lane, outbound signing stays strict across endpoint kinds.
-  Token exchange does not get a special outbound-signing exception.
+- In that lane, outbound signing stays strict across endpoint kinds,
+  including token exchange.
 - Inbound verification rejects malformed HTTP-signature material. The
   verified behavior is strict rejection, not degraded acceptance.
 - Strict inbound mode does **not** mean Ed25519-only peers. Default
