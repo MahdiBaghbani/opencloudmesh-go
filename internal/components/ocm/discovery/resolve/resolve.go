@@ -89,14 +89,11 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 
 	advertiseHTTPSig := in.KeyManager != nil
 
-	var localEval localEvaluation
-	if in.CodeFlow != nil {
-		ev := in.CodeFlow.Evaluate()
-		localEval = localEvaluation{
-			codeFlow:               ev.TokenExchangeCapable,
-			strict:                 ev.RequiresTokenExchange,
-			requiresHTTPSignatures: ev.RequiresHTTPRequestSignatures,
-		}
+	ev := in.CodeFlow.Evaluate()
+	localEval := localEvaluation{
+		codeFlow:               ev.TokenExchangeCapable,
+		strict:                 ev.RequiresTokenExchange,
+		requiresHTTPSignatures: ev.RequiresHTTPRequestSignatures,
 	}
 
 	return BuildInputs{

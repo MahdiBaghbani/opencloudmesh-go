@@ -23,6 +23,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -42,6 +43,7 @@ type Handler struct {
 	currentUser     func(context.Context) (*identity.User, error)
 	logger          *slog.Logger
 	allowedPaths    []string
+	codeFlow        *policy.CodeFlow
 }
 
 // NewHandler returns a Handler with the given dependencies. Panics if discoveryClient is nil.
@@ -78,6 +80,18 @@ func (h *Handler) SetAllowedPaths(paths []string) {
 // SetPeerOrigin wires the peer origin resolver used for receiver discovery.
 func (h *Handler) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
 	h.peerOrigin = peerOrigin
+}
+
+// SetCodeFlow wires the local code-flow policy used for outgoing share requirements.
+func (h *Handler) SetCodeFlow(cf *policy.CodeFlow) {
+	h.codeFlow = cf
+}
+
+func webdavRequirementsFromCodeFlow(cf *policy.CodeFlow) []string {
+	if cf.Evaluate().IncludesTokenExchangeRequirement {
+		return []string{spec.RequirementMustExchangeToken}
+	}
+	return nil
 }
 
 // HandleCreate handles POST /api/shares/outgoing.
@@ -207,7 +221,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		URI:          webdavURI,
 		SharedSecret: sharedSecret,
 		Permissions:  req.Permissions,
-		Requirements: []string{spec.RequirementMustExchangeToken},
+		Requirements: webdavRequirementsFromCodeFlow(h.codeFlow),
 	}
 
 	payload := spec.NewShareRequest{

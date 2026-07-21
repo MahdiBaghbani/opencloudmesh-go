@@ -104,6 +104,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		log,
 	)
 	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
+	outgoingHandler.SetCodeFlow(inputs.CodeFlow)
 	if len(c.AllowedPaths) > 0 {
 		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
 	}

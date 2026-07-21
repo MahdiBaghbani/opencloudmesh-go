@@ -38,8 +38,8 @@ type Deps struct {
 	HTTPClient      *httpclient.ContextClient
 	DiscoveryClient *discovery.Client
 
-	// CodeFlow is the fixed local code-flow policy, built once from frozen
-	// config at startup.
+	// CodeFlow is a fixed-true product profile with no config knobs,
+	// constructed by policy.NewCodeFlow().
 	CodeFlow *policy.CodeFlow
 
 	// Crypto

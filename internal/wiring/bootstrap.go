@@ -36,7 +36,9 @@ type BuildOpts struct {
 	// FastAuth uses low-cost argon2id parameters. Set true for tests.
 	FastAuth bool
 
-	// SkipCrypto disables KeyManager and Signer construction.
+	// SkipCrypto skips KeyManager and Signer construction. Build fails fast when
+	// the code flow requires HTTP request signatures but no signing key is
+	// configured (RequiresHTTPRequestSignatures && keyManager == nil).
 	SkipCrypto bool
 
 	// SkipPeerTrust disables TrustGroupManager and PolicyEngine construction
@@ -107,6 +109,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 			return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
 		}
 		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
+	}
+
+	facts := codeFlow.Evaluate()
+	if facts.RequiresHTTPRequestSignatures && keyManager == nil {
+		return BuildResult{}, fmt.Errorf("ocm: code flow requires HTTP request signatures but no signing key is configured")
 	}
 
 	outboundCfg := &cfg.OutboundHTTP

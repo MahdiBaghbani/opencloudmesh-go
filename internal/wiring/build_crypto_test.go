@@ -15,21 +15,18 @@ import (
 )
 
 func TestCryptoSkip_GatesDeps(t *testing.T) {
-	t.Run("SkipCrypto=true produces nil crypto deps", func(t *testing.T) {
+	t.Run("SkipCrypto=true fails when code flow requires HTTP signatures", func(t *testing.T) {
 		cfg := config.DevConfig()
 
 		opts := harnessBuildOpts()
 		opts.SkipCrypto = true
-		result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
-		if err != nil {
-			t.Fatalf("bootstrap failed: %v", err)
+		_, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
+		if err == nil {
+			t.Fatal("expected bootstrap to fail when SkipCrypto=true and code flow requires HTTP signatures")
 		}
-		d := result.Deps
-		if d.KeyManager != nil {
-			t.Error("KeyManager must be nil when SkipCrypto=true")
-		}
-		if d.Signer != nil {
-			t.Error("Signer must be nil when SkipCrypto=true")
+		want := "ocm: code flow requires HTTP request signatures but no signing key is configured"
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q, want substring %q", err.Error(), want)
 		}
 	})
 

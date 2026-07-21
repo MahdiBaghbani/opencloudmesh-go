@@ -145,6 +145,7 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		DiscoveryClient:     d.DiscoveryClient,
 		Signer:              d.Signer,
 		PeerOrigin:          d.PeerOrigin,
+		CodeFlow:            d.CodeFlow,
 		LocalIdentity:       d.LocalIdentity,
 		Ratelimit:           ratelimitInputs(d),
 		InterceptorProfiles: profiles,
