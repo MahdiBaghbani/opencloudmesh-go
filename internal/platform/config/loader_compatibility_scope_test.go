@@ -9,6 +9,32 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm/configfixture"
 )
 
+func TestLoad_InvalidCompatibilityScope_Fails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	tomlContent := `mode = "strict"
+compatibility_scope = "bogus"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error for invalid compatibility_scope")
+	}
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "invalid compatibility_scope") {
+		t.Fatalf("expected invalid compatibility_scope in error, got: %v", err)
+	}
+	if !strings.Contains(errMsg, "bogus") {
+		t.Fatalf("expected bogus in error, got: %v", err)
+	}
+	if !strings.Contains(errMsg, "must be one of none, scoped") {
+		t.Fatalf("expected allowed-values message in error, got: %v", err)
+	}
+}
+
 func TestLoad_NoneScopeCompatibilityContradictions_FailFast(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -38,14 +64,6 @@ outbound_mode = "criteria-only"
 peer_profile_level_override = "non-strict"
 `,
 			wantError: "compatibility_scope=none requires signature.peer_profile_level_override=off",
-		},
-		{
-			name: "none scope requires discovery errors rejected",
-			extra: `
-[signature]
-on_discovery_error = "allow"
-`,
-			wantError: "compatibility_scope=none requires signature.on_discovery_error=reject",
 		},
 		{
 			name: "none scope disallows mismatch",
@@ -135,9 +153,6 @@ func TestLoad_StrictMode_WithHardenedDefaults_Succeeds(t *testing.T) {
 	}
 	if cfg.Signature.PeerProfileLevelOverride != "off" {
 		t.Errorf("expected peer_profile_level_override off, got %q", cfg.Signature.PeerProfileLevelOverride)
-	}
-	if cfg.Signature.OnDiscoveryError != "reject" {
-		t.Errorf("expected on_discovery_error reject, got %q", cfg.Signature.OnDiscoveryError)
 	}
 	if cfg.Signature.AllowMismatch {
 		t.Error("expected allow_mismatch false")
@@ -239,14 +254,6 @@ allow_unsigned_discovery = true
 			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.allow_unsigned_discovery",
 		},
 		{
-			name: "rejects accept_legacy_discovery_public_key",
-			extra: `
-[peer_profiles.custom_profiles.peer-a]
-accept_legacy_discovery_public_key = true
-`,
-			wantError: "compatibility_scope=none forbids peer_profiles.custom_profiles.peer-a.accept_legacy_discovery_public_key",
-		},
-		{
 			name: "rejects token_exchange_grant_type",
 			extra: `
 [peer_profiles.custom_profiles.peer-a]
@@ -343,44 +350,12 @@ peer_profile_level_override = "all"
 			wantError: "compatibility_scope=scoped requires signature.peer_profile_level_override!=all",
 		},
 		{
-			name: "rejects discovery fail open",
-			extra: `
-[signature]
-on_discovery_error = "allow"
-`,
-			wantError: "compatibility_scope=scoped requires signature.on_discovery_error=reject",
-		},
-		{
 			name: "rejects mismatch allowance",
 			extra: `
 [signature]
 allow_mismatch = true
 `,
 			wantError: "compatibility_scope=scoped requires signature.allow_mismatch=false",
-		},
-		{
-			name: "rejects tls off",
-			extra: `
-[tls]
-mode = "off"
-`,
-			wantError: "compatibility_scope=scoped requires tls.mode!=off",
-		},
-		{
-			name: "rejects ssrf off",
-			extra: `
-[outbound_http.ssrf]
-mode = "off"
-`,
-			wantError: "compatibility_scope=scoped requires outbound_http.ssrf.mode=strict",
-		},
-		{
-			name: "rejects insecure skip verify",
-			extra: `
-[outbound_http]
-insecure_skip_verify = true
-`,
-			wantError: "compatibility_scope=scoped requires outbound_http.insecure_skip_verify=false",
 		},
 		{
 			name: "rejects fail open peer trust",
@@ -420,6 +395,53 @@ global_enforce = false
 				t.Fatalf("expected %q, got %v", tt.wantError, err)
 			}
 		})
+	}
+}
+
+// TestLoad_ScopedCompatibilityAllowsDevFriendlyTransport confirms scoped
+// compatibility enforces OCM global posture (signature and peer trust) but
+// not transport, so dev-friendly transport settings can coexist with scoped
+// compatibility.
+func TestLoad_ScopedCompatibilityAllowsDevFriendlyTransport(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	tomlContent := configfixture.ScopedScopeBase() + `
+[tls]
+mode = "off"
+
+[outbound_http]
+insecure_skip_verify = true
+
+[outbound_http.ssrf]
+mode = "off"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Load() unexpected error = %v", err)
+	}
+
+	if cfg.CompatibilityScope != "scoped" {
+		t.Fatalf("expected compatibility_scope scoped, got %q", cfg.CompatibilityScope)
+	}
+	if cfg.TLS.Mode != "off" {
+		t.Errorf("expected tls.mode off to survive under scoped, got %q", cfg.TLS.Mode)
+	}
+	if !cfg.OutboundHTTP.InsecureSkipVerify {
+		t.Error("expected insecure_skip_verify=true to survive under scoped")
+	}
+	if cfg.OutboundHTTP.SSRF.Mode != "off" {
+		t.Errorf("expected outbound_http.ssrf.mode off to survive under scoped, got %q", cfg.OutboundHTTP.SSRF.Mode)
+	}
+	// Global OCM posture must still be strict.
+	if cfg.Signature.InboundMode != "strict" {
+		t.Errorf("expected signature.inbound_mode strict, got %q", cfg.Signature.InboundMode)
+	}
+	if cfg.Signature.OutboundMode != "strict" {
+		t.Errorf("expected signature.outbound_mode strict, got %q", cfg.Signature.OutboundMode)
 	}
 }
 

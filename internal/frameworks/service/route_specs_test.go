@@ -459,8 +459,7 @@ func hasPrefix(path, prefix string) bool {
 func isRootOnlyDiscoveryPath(path string) bool {
 	return path == "/.well-known/ocm" ||
 		path == "/.well-known/ocm/" ||
-		path == "/ocm-provider" ||
-		path == "/ocm-provider/"
+		path == "/.well-known/jwks.json"
 }
 
 func publicPathsUnderBase(opts service.RouteOpts) []string {

@@ -1,5 +1,5 @@
 // Package spec defines OCM wire-format types (discovery, shares, invites, errors).
-// See https://github.com/cs3org/OCM-API/blob/a2b8bacd4590ff201a06883330b67636e99c4f5b/IETF-RFC.md?plain=1#ocm-api-discovery
+// See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#ocm-api-discovery
 package spec
 
 import (
@@ -27,22 +27,15 @@ type Discovery struct {
 	Provider           string         `json:"provider,omitempty"`
 	ResourceTypes      []ResourceType `json:"resourceTypes"`
 	Capabilities       []string       `json:"capabilities,omitempty"`
-	Criteria           []string       `json:"criteria"` // Always present, serializes as [] when empty
-	PublicKeys         []PublicKey    `json:"publicKeys,omitempty"`
+	Criteria           []string       `json:"criteria"`                     // Always present, serializes as [] when empty
 	TokenEndPoint      string         `json:"tokenEndPoint,omitempty"`      // Required when exchange-token capability is advertised
 	InviteAcceptDialog string         `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
 }
 
 type ResourceType struct {
-	Name       string            `json:"name"`
-	ShareTypes []string          `json:"shareTypes"`
-	Protocols  map[string]string `json:"protocols"`
-}
-
-type PublicKey struct {
-	KeyID        string `json:"keyId"`
-	PublicKeyPem string `json:"publicKeyPem"`
-	Algorithm    string `json:"algorithm,omitempty"`
+	Name       string    `json:"name"`
+	ShareTypes []string  `json:"shareTypes"`
+	Protocols  Protocols `json:"protocols"`
 }
 
 func (d *Discovery) HasCapability(cap string) bool {
@@ -217,21 +210,12 @@ func (d *Discovery) GetEndpoint() string {
 func (d *Discovery) GetWebDAVPath() string {
 	for _, rt := range d.ResourceTypes {
 		if rt.Name == "file" {
-			if p, ok := rt.Protocols["webdav"]; ok {
+			if p, ok := rt.Protocols.StringRole("webdav"); ok {
 				return p
 			}
 		}
 	}
 	return ""
-}
-
-func (d *Discovery) GetPublicKey(keyID string) *PublicKey {
-	for i := range d.PublicKeys {
-		if d.PublicKeys[i].KeyID == keyID {
-			return &d.PublicKeys[i]
-		}
-	}
-	return nil
 }
 
 // BuildWebDAVURL constructs the full WebDAV URL for accessing a share.

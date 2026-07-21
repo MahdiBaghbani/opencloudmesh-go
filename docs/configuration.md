@@ -25,7 +25,7 @@ The binary entrypoint is `cmd/opencloudmesh-go/main.go`. Notable CLI flags:
 | `-listen` | Listen address |
 | `-public-origin` | Public origin URL |
 | `-external-base-path` | External base path prefix |
-| `-compatibility-scope` | `none`, `scoped`, or `unbounded` |
+| `-compatibility-scope` | `none` or `scoped` |
 | `-signature-inbound-mode` | `strict`, `lenient`, or `off` |
 | `-signature-outbound-mode` | `strict`, `criteria-only`, `token-only`, or `off` |
 | `-signature-peer-profile-level-override` | `all`, `non-strict`, or `off` |
@@ -48,7 +48,7 @@ signature, transport, trust, and peer-compat axes.
 | Mode | Intent |
 | ---- | ------ |
 | `strict` | Production-safe defaults; `compatibility_scope=none` baseline |
-| `compat` | Relaxed defaults for interoperability testing |
+| `compat` | Strict defaults with bounded `scoped` peer mappings for interoperability testing |
 | `dev` | Local development; more permissive transport and logging |
 
 When `compatibility_scope=none`, the server exits at startup if the resolved

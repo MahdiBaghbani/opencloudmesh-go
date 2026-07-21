@@ -20,20 +20,34 @@ func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
 	}
 
 	foundWellKnown := false
-	foundOcmProvider := false
+	foundWellKnownSlash := false
+	foundJWKS := false
+	foundLegacyProvider := false
 	for _, rg := range groups {
 		if rg.PathPrefix == "/.well-known/ocm" && rg.AtHostRoot {
 			foundWellKnown = true
 		}
+		if rg.PathPrefix == "/.well-known/ocm/" && rg.AtHostRoot {
+			foundWellKnownSlash = true
+		}
+		if rg.PathPrefix == "/.well-known/jwks.json" && rg.AtHostRoot {
+			foundJWKS = true
+		}
 		if rg.PathPrefix == "/ocm-provider" && rg.AtHostRoot {
-			foundOcmProvider = true
+			foundLegacyProvider = true
 		}
 	}
 	if !foundWellKnown {
 		t.Error("expected /.well-known/ocm host-root group")
 	}
-	if !foundOcmProvider {
-		t.Error("expected /ocm-provider host-root group")
+	if !foundWellKnownSlash {
+		t.Error("expected /.well-known/ocm/ host-root group")
+	}
+	if !foundJWKS {
+		t.Error("expected /.well-known/jwks.json host-root group")
+	}
+	if foundLegacyProvider {
+		t.Error("legacy /ocm-provider host-root group must not be mounted")
 	}
 }
 

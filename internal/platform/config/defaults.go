@@ -95,7 +95,6 @@ func DefaultSignatureConfig() SignatureConfig {
 		OutboundMode:             "strict",
 		PeerProfileLevelOverride: "off",
 		KeyPath:                  ".ocm/keys/signing.pem",
-		OnDiscoveryError:         "reject",
 		AllowMismatch:            false,
 		Label:                    DefaultSignatureLabel,
 		KidFragment:              DefaultSignatureKidFragment,

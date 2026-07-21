@@ -8,5 +8,4 @@ import (
 type (
 	Discovery    = spec.Discovery
 	ResourceType = spec.ResourceType
-	PublicKey    = spec.PublicKey
 )

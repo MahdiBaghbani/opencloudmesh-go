@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -32,7 +33,7 @@ func newTestDiscoveryServer() *httptest.Server {
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			}
@@ -47,6 +48,9 @@ func newTestDiscoveryServer() *httptest.Server {
 func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextClient) {
 	cfg := tshttp.PermissiveConfig()
 	cfg.DerivedSSRFMode = "off"
+	// Some tests exercise a nil peer contract, which resolves to the canonical
+	// HTTPS scheme and needs an httptest.NewTLSServer self-signed cert accepted.
+	cfg.InsecureSkipVerify = true
 	rawClient := httpclient.New(cfg, nil)
 	discClient := discovery.NewClient(rawClient, nil)
 	ctxClient := httpclient.NewContextClient(rawClient)
@@ -186,18 +190,27 @@ func containsStr(haystack, needle string) bool {
 	return false
 }
 
-func newAuthLadderServer(acceptAuth func(authHeader string) bool) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// authLadderHandler builds the shared auth-ladder test handler. It derives
+// the discovery EndPoint scheme from the actual inbound connection (r.TLS)
+// so the same handler works for both httptest.NewServer (HTTP) and
+// httptest.NewTLSServer (HTTPS) callers.
+func authLadderHandler(acceptAuth func(authHeader string) bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := discovery.Discovery{
 				Enabled:    true,
 				APIVersion: "1.2.2",
-				EndPoint:   "http://" + r.Host + "/ocm",
+				EndPoint:   scheme + "://" + r.Host + "/ocm",
 				ResourceTypes: []discovery.ResourceType{
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			}
@@ -219,7 +232,19 @@ func newAuthLadderServer(acceptAuth func(authHeader string) bool) *httptest.Serv
 		}
 
 		http.NotFound(w, r)
-	}))
+	}
+}
+
+func newAuthLadderServer(acceptAuth func(authHeader string) bool) *httptest.Server {
+	return httptest.NewServer(authLadderHandler(acceptAuth))
+}
+
+// newAuthLadderTLSServer is the HTTPS counterpart of newAuthLadderServer, for
+// tests that exercise a nil peer contract: a nil contract resolves to the
+// canonical HTTPS scheme and never preserves an http:// input, so discovery
+// against it must be served over TLS.
+func newAuthLadderTLSServer(acceptAuth func(authHeader string) bool) *httptest.Server {
+	return httptest.NewTLSServer(authLadderHandler(acceptAuth))
 }
 
 func TestAuthLadder_BearerSucceeds_NoBasicAttempts(t *testing.T) {
@@ -311,7 +336,7 @@ func TestAuthLadder_Bearer403_ProfileSkipsDisallowed_IDTokenSucceeds(t *testing.
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			}
@@ -405,7 +430,10 @@ func TestAuthLadder_AllPatternsFail(t *testing.T) {
 
 func TestAuthLadder_NilPeerContract_BearerFailReturnsError(t *testing.T) {
 	var requestCount atomic.Int32
-	srv := newAuthLadderServer(func(authHeader string) bool {
+	// A nil peer contract resolves to the canonical HTTPS scheme, so discovery
+	// must be served over TLS here for the request to reach the WebDAV auth
+	// ladder; newTestClients skips certificate verification for this server.
+	srv := newAuthLadderTLSServer(func(authHeader string) bool {
 		requestCount.Add(1)
 		return false // reject everything
 	})
@@ -476,7 +504,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 					{
 						Name:       "file",
 						ShareTypes: []string{"user"},
-						Protocols:  map[string]string{"webdav": "/webdav/ocm"},
+						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
 					},
 				},
 			}

@@ -18,4 +18,4 @@ Thumbs.db
 *.test
 coverage.out
 
-opencloudmesh-go
+/opencloudmesh-go

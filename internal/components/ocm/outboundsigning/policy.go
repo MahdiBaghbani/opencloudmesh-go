@@ -30,21 +30,18 @@ type OutboundPolicy struct {
 	OutboundMode string
 	// StrictNone is true for strict outbound mode with peer_profile_level_override=off
 	// (compatibility_scope=none). All endpoint kinds sign uniformly in this lane.
-	StrictNone       bool
-	OnDiscoveryError string
-	PeerContract     *peercompat.CompiledContract
+	StrictNone   bool
+	PeerContract *peercompat.CompiledContract
 }
 
 type ResolvedInputs struct {
 	OutboundMode        string
 	PeerProfileOverride string
-	OnDiscoveryError    string
 }
 
 func ResolveInputs(runtimePolicy *policy.RuntimePolicy) ResolvedInputs {
 	outboundMode := "off"
 	peerProfileOverride := "off"
-	onDiscoveryError := "reject"
 	if runtimePolicy != nil {
 		signature := runtimePolicy.Evaluate().Signature
 		if signature.OutboundMode != "" {
@@ -53,14 +50,10 @@ func ResolveInputs(runtimePolicy *policy.RuntimePolicy) ResolvedInputs {
 		if signature.PeerProfileLevelOverride != "" {
 			peerProfileOverride = signature.PeerProfileLevelOverride
 		}
-		if signature.OnDiscoveryError != "" {
-			onDiscoveryError = signature.OnDiscoveryError
-		}
 	}
 	return ResolvedInputs{
 		OutboundMode:        outboundMode,
 		PeerProfileOverride: peerProfileOverride,
-		OnDiscoveryError:    onDiscoveryError,
 	}
 }
 
@@ -72,8 +65,7 @@ func NewOutboundPolicy(
 		OutboundMode: inputs.OutboundMode,
 		StrictNone: inputs.OutboundMode == "strict" &&
 			inputs.PeerProfileOverride == "off",
-		OnDiscoveryError: inputs.OnDiscoveryError,
-		PeerContract:     peerContract,
+		PeerContract: peerContract,
 	}
 }
 
@@ -263,15 +255,7 @@ func (p *OutboundPolicy) decideCriteriaOnly(
 
 func (p *OutboundPolicy) resolveDiscoveryFailure(peerDomain string) peercompat.DiscoveryFailureDecision {
 	if p.PeerContract != nil {
-		return p.PeerContract.ResolveDiscoveryFailure(peerDomain, p.OnDiscoveryError)
-	}
-
-	if p.OnDiscoveryError == "allow" {
-		return peercompat.DiscoveryFailureDecision{
-			PeerDomain: peerDomain,
-			Allow:      true,
-			ReasonCode: "global_on_discovery_error_allow",
-		}
+		return p.PeerContract.ResolveDiscoveryFailure(peerDomain)
 	}
 
 	return peercompat.DiscoveryFailureDecision{

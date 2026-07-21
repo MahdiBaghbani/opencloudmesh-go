@@ -91,17 +91,17 @@ func StrictConfig() *Config {
 	return cfg
 }
 
-// CompatConfig returns compatibility mode defaults.
+// CompatConfig returns compatibility mode defaults. It is bounded scoped
+// governance with a strict global OCM posture: every strict-preset signature
+// and OCM field (inbound/outbound mode, peer_profile_level_override,
+// allow_mismatch, RequireTokenExchange, PeerPolicy) stays
+// inherited from StrictConfig unchanged. Only Mode and CompatibilityScope
+// differ. Any legacy behavior for specific peers must come from explicit
+// peer_profiles.mappings; compat grants no global relaxation by itself.
 func CompatConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeCompat)
-	cfg.CompatibilityScope = "unbounded"
-	cfg.Signature.InboundMode = "lenient"
-	cfg.Signature.OutboundMode = "criteria-only"
-	cfg.Signature.PeerProfileLevelOverride = "non-strict"
-	cfg.RequireTokenExchange = false
-	cfg.PeerPolicy = "prefer-strict"
-	// InsecureSkipVerify stays configurable (default false)
+	cfg.CompatibilityScope = "scoped"
 	return cfg
 }
 
@@ -109,10 +109,20 @@ func CompatConfig() *Config {
 // so the strict preset stays the single source of shared defaults. Each call
 // builds a fresh StrictConfig, so the token-exchange enabled pointer is unique
 // per DevConfig call and is not aliased across separate preset calls.
+//
+// DevConfig is bounded scoped governance with a strict global OCM posture,
+// same as CompatConfig: signature inbound/outbound modes, peer_profile_level_
+// override, allow_mismatch, RequireTokenExchange, and
+// PeerPolicy all stay inherited from StrictConfig. Only dev-only transport
+// and operational settings differ (TLS off, SSRF off, insecure skip verify,
+// ACME staging, debug logging); those settings never grant OCM legacy
+// decisions. Legacy behavior for local dev/test peers (for example the
+// integration harness localhost/127.0.0.1 mappings) comes only from explicit
+// peer_profiles.mappings resolved through the peercompat gate.
 func DevConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeDev)
-	cfg.CompatibilityScope = "unbounded"
+	cfg.CompatibilityScope = "scoped"
 	cfg.TLS.Mode = "off"
 	cfg.TLS.ACME.Directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
 	cfg.TLS.ACME.UseStaging = true
@@ -121,13 +131,6 @@ func DevConfig() *Config {
 	cfg.OutboundHTTP.MaxRedirects = 3
 	cfg.OutboundHTTP.InsecureSkipVerify = true
 	cfg.OutboundHTTP.ProxyEnvFallback = false
-	cfg.Signature.InboundMode = "lenient"
-	cfg.Signature.OutboundMode = "criteria-only"
-	cfg.Signature.PeerProfileLevelOverride = "non-strict"
-	cfg.Signature.OnDiscoveryError = "allow"
-	cfg.Signature.AllowMismatch = true
 	cfg.Logging.Level = "debug"
-	cfg.RequireTokenExchange = false
-	cfg.PeerPolicy = "prefer-strict"
 	return cfg
 }

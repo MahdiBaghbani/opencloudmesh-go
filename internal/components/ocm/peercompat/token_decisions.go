@@ -28,32 +28,21 @@ type TokenExchangeFallbackDecision struct {
 // TokenExchangeDecisionForPeer returns compiled token-exchange compatibility
 // decisions. Relaxations apply only when a peer mapping matched.
 func (c *CompiledContract) TokenExchangeDecisionForPeer(peerDomain string) TokenExchangeDecision {
-	domain := signatureDecisionPeerDomain(peerDomain)
+	matched := c.resolveMatchedPeer(peerDomain)
 	decision := TokenExchangeDecision{
-		PeerDomain: domain,
+		PeerDomain: matched.PeerDomain,
 		Profile:    "strict",
 		GrantType:  "authorization_code",
 	}
-	if domain == "" || c == nil || c.registry == nil {
+	if !matched.Matched {
 		return decision
 	}
 
-	for _, mapping := range c.registry.mappings {
-		if !matchPattern(mapping.Pattern, domain) {
-			continue
-		}
-		profile, ok := c.profiles[mapping.Profile]
-		if !ok {
-			return decision
-		}
-		decision.Profile = profile.Name
-		decision.Matched = true
-		decision.AcceptPlainToken = profile.TokenExchange.AcceptPlainToken
-		decision.SendTokenInBody = profile.TokenExchange.SendTokenInBody
-		decision.GrantType = profile.TokenExchange.GrantType
-		return decision
-	}
-
+	decision.Profile = matched.Profile.Name
+	decision.Matched = true
+	decision.AcceptPlainToken = matched.Profile.TokenExchange.AcceptPlainToken
+	decision.SendTokenInBody = matched.Profile.TokenExchange.SendTokenInBody
+	decision.GrantType = matched.Profile.TokenExchange.GrantType
 	return decision
 }
 

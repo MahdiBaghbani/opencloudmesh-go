@@ -29,8 +29,8 @@ func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 	if h.data.Enabled {
 		t.Error("expected Enabled=false when endpoint is empty")
 	}
-	if h.data.APIVersion != "1.2.2" {
-		t.Errorf("expected APIVersion '1.2.2', got %q", h.data.APIVersion)
+	if h.data.APIVersion != "1.4.0" {
+		t.Errorf("expected APIVersion '1.4.0', got %q", h.data.APIVersion)
 	}
 	if h.data.Provider != "OpenCloudMesh" {
 		t.Errorf("expected Provider 'OpenCloudMesh', got %q", h.data.Provider)
@@ -62,8 +62,9 @@ func TestNewOCMHandler_EnabledWithEndpoint(t *testing.T) {
 	if rt.Name != "file" {
 		t.Errorf("expected resource type 'file', got %q", rt.Name)
 	}
-	if rt.Protocols["webdav"] != "/webdav/ocm/" {
-		t.Errorf("expected webdav protocol '/webdav/ocm/', got %q", rt.Protocols["webdav"])
+	path, ok := rt.Protocols.StringRole("webdav")
+	if !ok || path != "/webdav/ocm/" {
+		t.Errorf("expected webdav protocol '/webdav/ocm/', got %q ok=%v", path, ok)
 	}
 }
 
@@ -81,11 +82,6 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{KeyManager: km}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// JWKS-first advertisement: http-sig without inline publicKeys PEM.
-	if len(h.data.PublicKeys) != 0 {
-		t.Fatalf("expected no inline publicKeys, got %d", len(h.data.PublicKeys))
 	}
 
 	// http-sig capability should be present
@@ -212,7 +208,9 @@ func TestNewOCMHandler_RuntimePolicyDrivesHTTPSignatureCriteria(t *testing.T) {
 }
 
 func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
-	t.Run("unbounded compatibility adds crawler override", func(t *testing.T) {
+	// Scoped presets do not grant a global Nextcloud crawler apiVersion override.
+	// Per-peer overrides route through the peercompat gate.
+	t.Run("scoped compat preset grants no global crawler override", func(t *testing.T) {
 		cfg := config.CompatConfig()
 		runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
 		c := &OCMProviderConfig{
@@ -222,8 +220,8 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(h.overrides) != 1 {
-			t.Fatalf("expected one crawler override, got %d", len(h.overrides))
+		if len(h.overrides) != 0 {
+			t.Fatalf("expected no crawler overrides, got %d", len(h.overrides))
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
@@ -235,8 +233,8 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 		if err := json.Unmarshal(rr.Body.Bytes(), &disc); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
-		if disc.APIVersion != "1.1" {
-			t.Fatalf("expected apiVersion 1.1 for crawler override, got %q", disc.APIVersion)
+		if disc.APIVersion != "1.4.0" {
+			t.Fatalf("expected default apiVersion 1.4.0 with no crawler override, got %q", disc.APIVersion)
 		}
 	})
 
@@ -247,7 +245,6 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 		cfg.Signature.InboundMode = "strict"
 		cfg.Signature.OutboundMode = "strict"
 		cfg.Signature.PeerProfileLevelOverride = "off"
-		cfg.Signature.OnDiscoveryError = "reject"
 		cfg.Signature.AllowMismatch = false
 		cfg.CompatibilityScope = "none"
 		cfg.TLS.Mode = "selfsigned"
@@ -274,8 +271,8 @@ func TestNewOCMHandler_RuntimePolicyDrivesAPIVersionOverrides(t *testing.T) {
 		if err := json.Unmarshal(rr.Body.Bytes(), &disc); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
-		if disc.APIVersion != "1.2.2" {
-			t.Fatalf("expected default apiVersion 1.2.2, got %q", disc.APIVersion)
+		if disc.APIVersion != "1.4.0" {
+			t.Fatalf("expected default apiVersion 1.4.0, got %q", disc.APIVersion)
 		}
 	})
 }
@@ -408,7 +405,7 @@ func TestNewOCMHandler_UnconditionalCapabilities(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	required := []string{"invites", "webdav-uri", "protocol-object", "notifications"}
+	required := []string{"invites", "protocol-object", "notifications"}
 	capSet := make(map[string]bool)
 	for _, cap := range h.data.Capabilities {
 		capSet[cap] = true

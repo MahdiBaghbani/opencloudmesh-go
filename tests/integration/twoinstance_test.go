@@ -6,7 +6,9 @@ package integration
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -165,15 +167,32 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 }
 
 // TestSSRFRoutePolicyAllowsExplicitCIDRDiscover proves the positive SSRF path: an
-// active route policy with explicit CIDR and port allowance permits a private
-// destination that strict mode would otherwise block. The source runs in compat
-// mode (SSRF strict by preset), the target in dev mode. The route policy uses
-// allow_ip_literals=true with 127.0.0.0/8 and the target's dynamic port so that
-// 127.0.0.1:<port> passes all three SSRF checks. The discover helper may still
-// return no_invite_accept_dialog after upstream discovery succeeds (T7a).
+// active route policy with explicit host suffix, CIDR, and port allowance permits
+// a private destination that strict mode would otherwise block. The source runs in
+// compat mode (SSRF strict by preset), the target in dev mode. The discover helper
+// may still return no_invite_accept_dialog after upstream discovery succeeds (T7a).
 func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
+	}
+
+	loopbackHost, err := os.Hostname()
+	if err != nil {
+		t.Fatalf("hostname: %v", err)
+	}
+	ips, err := net.LookupIP(loopbackHost)
+	if err != nil {
+		t.Fatalf("lookup %q: %v", loopbackHost, err)
+	}
+	resolvesLoopback := false
+	for _, ip := range ips {
+		if v4 := ip.To4(); v4 != nil && v4[0] == 127 {
+			resolvesLoopback = true
+			break
+		}
+	}
+	if !resolvesLoopback {
+		t.Skipf("hostname %q does not resolve to an IPv4 address in 127.0.0.0/8", loopbackHost)
 	}
 
 	binaryPath := harness.BuildBinary(t)
@@ -187,8 +206,8 @@ func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 	defer target.Stop(t)
 
 	// Source: compat mode inherits SSRF strict by default (same baseline as
-	// TestSSRFBlockingWithIPLiterals). The route policy explicitly allows
-	// 127.0.0.0/8 and the target's port with IP literals enabled.
+	// TestSSRFBlockingWithIPLiterals). The route policy explicitly allows the
+	// local hostname, 127.0.0.0/8, and the target's port.
 	// proxy_env_fallback is disabled so ambient HTTP_PROXY/HTTPS_PROXY env vars
 	// cannot interfere with the loopback discovery request.
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
@@ -202,14 +221,15 @@ mode = "strict"
 route_policy = "loopback"
 
 [outbound_http.ssrf.route_policies.loopback]
+allow_private_host_suffixes = [%q]
 allow_private_cidrs = ["127.0.0.0/8"]
 allowed_ports = [%d]
-allow_ip_literals = true
-`, target.Port),
+allow_ip_literals = false
+`, loopbackHost, target.Port),
 	})
 	defer source.Stop(t)
 
-	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://127.0.0.1:%d", source.BaseURL, target.Port)
+	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://%s:%d", source.BaseURL, loopbackHost, target.Port)
 	resp, err := noProxyLocalhostClient(30 * time.Second).Get(discoverURL)
 	if err != nil {
 		source.DumpLogs(t)
@@ -221,7 +241,7 @@ allow_ip_literals = true
 	if resp.StatusCode == http.StatusForbidden {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
-		t.Fatalf("route policy should allow 127.0.0.1:%d, got 403 Forbidden", target.Port)
+		t.Fatalf("route policy should allow %s:%d, got 403 Forbidden", loopbackHost, target.Port)
 	}
 	if resp.StatusCode != http.StatusBadGateway {
 		source.DumpLogs(t)
@@ -247,7 +267,7 @@ allow_ip_literals = true
 	if discoverResp.Error == "" {
 		t.Fatal("expected friendly error message")
 	}
-	t.Logf("SSRF route policy allowed 127.0.0.1:%d; discover helper failed as expected: %s", target.Port, discoverResp.Error)
+	t.Logf("SSRF route policy allowed %s:%d; discover helper failed as expected: %s", loopbackHost, target.Port, discoverResp.Error)
 }
 
 // noProxyLocalhostClient returns an HTTP client with the ambient proxy disabled.

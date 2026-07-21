@@ -104,9 +104,12 @@ func startStrictInvitePair(t *testing.T, enableWAYF bool) (*harness.SubprocessSe
 	})
 
 	cfg := harness.SubprocessConfig{
-		Name:                    "",
-		Mode:                    "strict",
-		CompatibilityScope:      "unbounded",
+		Name: "",
+		Mode: "strict",
+		// "scoped" keeps strict OCM posture while allowing dev-friendly
+		// transport settings for this loopback-only two-instance proof.
+		// StrictInstanceExtraConfig needs SSRF off for localhost traffic.
+		CompatibilityScope:      "scoped",
 		KeepSignatureDefaults:   true,
 		DisableProxyEnvFallback: true,
 		TLSRootCAFile:           caCert,

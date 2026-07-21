@@ -16,7 +16,8 @@ import (
 )
 
 // TestCompatModeCanonicalPolicy exercises canonical policy under compat mode,
-// which is the repo's compatibility preset with lenient inbound verification.
+// the repo's compatibility preset: bounded scoped governance with a
+// strict-inherited OCM posture and explicit per-peer mappings.
 func TestCompatModeCanonicalPolicy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -72,16 +73,19 @@ mode = "off"
 		if disc.TokenEndPoint == "" {
 			t.Error("compat mode should advertise tokenEndPoint")
 		}
-			hasHTTPReqSigs := false
-			for _, criterion := range disc.Criteria {
-				if criterion == spec.CriteriaMustUseHTTPSig || criterion == "http-request-signatures" {
-					hasHTTPReqSigs = true
-					break
-				}
+		// Compat uses scoped governance with a strict global OCM posture, so
+		// signature.inbound_mode/outbound_mode stay strict at the top level and
+		// discovery advertises the signature criterion.
+		hasHTTPReqSigs := false
+		for _, criterion := range disc.Criteria {
+			if criterion == spec.CriteriaMustUseHTTPSig || criterion == "http-request-signatures" {
+				hasHTTPReqSigs = true
+				break
 			}
-			if hasHTTPReqSigs {
-				t.Error("compat mode should not advertise signature criterion")
-			}
+		}
+		if !hasHTTPReqSigs {
+			t.Error("compat mode should advertise signature criterion")
+		}
 	})
 
 	t.Run("HealthEndpoint", func(t *testing.T) {
@@ -141,6 +145,10 @@ mode = "off"
 	})
 }
 
+// TestDiscoverySignatureCriteriaMatrixByPosture verifies the discovery
+// signature criterion tracks the resolved signature posture across modes.
+// Every valid mode advertises the signature criterion when inbound signing
+// is strict at the top level.
 func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -164,14 +172,14 @@ outbound_mode = "strict"
 			wantHTTPReqSigs: true,
 		},
 		{
-			name:            "compat omits signature criterion",
+			name:            "compat advertises signature criterion",
 			mode:            "compat",
-			wantHTTPReqSigs: false,
+			wantHTTPReqSigs: true,
 		},
 		{
-			name:            "dev omits signature criterion",
+			name:            "dev advertises signature criterion",
 			mode:            "dev",
-			wantHTTPReqSigs: false,
+			wantHTTPReqSigs: true,
 		},
 	}
 

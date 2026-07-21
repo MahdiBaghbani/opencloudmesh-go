@@ -40,6 +40,11 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	cfg.ExternalBasePath = ""
 	cfg.Signature.InboundMode = "off"
 	cfg.Signature.OutboundMode = "off"
+	// DevConfig defaults RequireTokenExchange to true, which populates
+	// must-exchange-token and would make the empty-criteria assertion fail for
+	// an unrelated reason, so this test disables it to isolate base-path field
+	// resolution.
+	cfg.RequireTokenExchange = false
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
@@ -70,8 +75,9 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	if disc.TokenEndPoint != "http://fields.test/ocm/token" {
 		t.Errorf("TokenEndPoint = %q", disc.TokenEndPoint)
 	}
-	if disc.ResourceTypes[0].Protocols["webdav"] != "/webdav/ocm/" {
-		t.Errorf("webdav protocol = %q", disc.ResourceTypes[0].Protocols["webdav"])
+	path, ok := disc.ResourceTypes[0].Protocols.StringRole("webdav")
+	if !ok || path != "/webdav/ocm/" {
+		t.Errorf("webdav protocol = %q, ok=%v", path, ok)
 	}
 	if len(disc.Criteria) != 0 {
 		t.Errorf("criteria = %v, want empty", disc.Criteria)
@@ -107,8 +113,9 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 	if disc.TokenEndPoint != "http://fields.test/ocm/ocm/token" {
 		t.Errorf("TokenEndPoint = %q", disc.TokenEndPoint)
 	}
-	if disc.ResourceTypes[0].Protocols["webdav"] != "/ocm/webdav/ocm/" {
-		t.Errorf("webdav protocol = %q", disc.ResourceTypes[0].Protocols["webdav"])
+	path, ok := disc.ResourceTypes[0].Protocols.StringRole("webdav")
+	if !ok || path != "/ocm/webdav/ocm/" {
+		t.Errorf("webdav protocol = %q, ok=%v", path, ok)
 	}
 }
 
@@ -142,14 +149,14 @@ func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 	if !disc.Enabled {
 		t.Fatal("expected enabled discovery")
 	}
-	if disc.APIVersion != "1.2.2" {
-		t.Errorf("APIVersion = %q, want 1.2.2", disc.APIVersion)
+	if disc.APIVersion != "1.4.0" {
+		t.Errorf("APIVersion = %q, want 1.4.0", disc.APIVersion)
 	}
 	if disc.Provider != "OpenCloudMesh" {
 		t.Errorf("Provider = %q, want OpenCloudMesh", disc.Provider)
 	}
 
-	required := []string{"invites", "webdav-uri", "protocol-object", "notifications"}
+	required := []string{"invites", "protocol-object", "notifications"}
 	capSet := make(map[string]bool, len(disc.Capabilities))
 	for _, cap := range disc.Capabilities {
 		capSet[cap] = true

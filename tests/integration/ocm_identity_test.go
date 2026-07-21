@@ -19,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -155,7 +156,14 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 		t.Skip("skipping integration test in short mode")
 	}
 
-	ts := harness.StartTestServer(t)
+	// This test targets recipient identity resolution, not token-exchange
+	// policy, and posts from a fictitious remote owner/sender domain that has
+	// no live discovery endpoint. DevConfig defaults RequireTokenExchange to
+	// true, which would force a discovery round-trip against that domain.
+	// Disable it for this server instance only.
+	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+		cfg.RequireTokenExchange = false
+	})
 	defer ts.Stop(t)
 
 	d := ts.Deps
@@ -332,7 +340,14 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	ts := harness.StartTestServer(t)
+	// This test targets Reva-style address parsing, not token-exchange
+	// policy, and posts from a fictitious remote owner/sender domain that has
+	// no live discovery endpoint. DevConfig defaults RequireTokenExchange to
+	// true, which would force a discovery round-trip against that domain.
+	// Disable it for this server instance only.
+	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
+		cfg.RequireTokenExchange = false
+	})
 	defer ts.Stop(t)
 
 	d := ts.Deps

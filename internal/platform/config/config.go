@@ -13,7 +13,9 @@ type Config struct {
 	Mode string `toml:"mode"`
 
 	// CompatibilityScope is the supervising exception-governance axis.
-	// Values: "none", "scoped", "unbounded".
+	// Values: "none" (canonical strict, no mappings/relaxations), "scoped"
+	// (explicit named peer_profiles.mappings only; canonical without a peer
+	// match). Unknown values are rejected at startup.
 	CompatibilityScope string `toml:"compatibility_scope"`
 
 	// PublicOrigin is the public origin (scheme + host + port) for this instance.
@@ -21,7 +23,8 @@ type Config struct {
 	PublicOrigin string `toml:"public_origin"`
 
 	// ExternalBasePath is the optional path prefix for app endpoints.
-	// Root-only endpoints (/.well-known/ocm, /ocm-provider) are never under this path.
+	// Root-only well-known endpoints (/.well-known/ocm and /.well-known/jwks.json)
+	// are never under this path.
 	// Example: "/ocm" or empty string
 	ExternalBasePath string `toml:"external_base_path"`
 
@@ -221,10 +224,6 @@ type PeerProfile struct {
 	// to fail open for this peer in the narrow retained call sites.
 	AllowUnsignedDiscovery bool `toml:"allow_unsigned_discovery"`
 
-	// AcceptLegacyDiscoveryPublicKey allows this peer to fall back from legacy
-	// discovery publicKey into canonical publicKeys during normalization.
-	AcceptLegacyDiscoveryPublicKey bool `toml:"accept_legacy_discovery_public_key"`
-
 	// TokenExchangeQuirks lists quirks to apply for token exchange
 	TokenExchangeQuirks []string `toml:"token_exchange_quirks"`
 
@@ -271,10 +270,6 @@ type SignatureConfig struct {
 
 	// KeyPath is where the signing private key is stored
 	KeyPath string `toml:"key_path"`
-
-	// OnDiscoveryError determines behavior when peer discovery fails:
-	// "reject" (default) or "allow" (dev-only)
-	OnDiscoveryError string `toml:"on_discovery_error"`
 
 	// AllowMismatch allows declared peer vs keyId host mismatch (dev-only)
 	AllowMismatch bool `toml:"allow_mismatch"`
@@ -500,7 +495,6 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    OutboundMode: %q,\n", c.Signature.OutboundMode))
 	sb.WriteString(fmt.Sprintf("    PeerProfileLevelOverride: %q,\n", c.Signature.PeerProfileLevelOverride))
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
-	sb.WriteString(fmt.Sprintf("    OnDiscoveryError: %q,\n", c.Signature.OnDiscoveryError))
 	sb.WriteString(fmt.Sprintf("    AllowMismatch: %v,\n", c.Signature.AllowMismatch))
 	sb.WriteString(fmt.Sprintf("    Label: %q,\n", c.Signature.Label))
 	sb.WriteString(fmt.Sprintf("    KidFragment: %q,\n", c.Signature.KidFragment))

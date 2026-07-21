@@ -15,5 +15,6 @@ func resolveInputs(cfg *config.Config, d *Deps) resolve.ResolveInputs {
 		KeyManager:          d.KeyManager,
 		OpenCloudMeshPolicy: d.OpenCloudMeshPolicy,
 		RuntimePolicy:       d.RuntimePolicy,
+		PeerContract:        d.PeerContract,
 	}
 }

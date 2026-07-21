@@ -28,17 +28,19 @@ func TestOpenCloudMeshPolicyEvaluate_AllEnabled(t *testing.T) {
 }
 
 func TestOpenCloudMeshPolicyEvaluate_AllDefaults(t *testing.T) {
+	// Dev uses scoped governance with a strict global OCM posture, so
+	// RequiresTokenExchange and PeerPolicy stay inherited from StrictConfig.
 	cfg := config.DevConfig()
 	eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
 
 	if !eval.TokenExchangeCapable {
 		t.Error("expected TokenExchangeCapable true by default")
 	}
-	if eval.RequiresTokenExchange {
-		t.Error("expected RequiresTokenExchange false in dev preset")
+	if !eval.RequiresTokenExchange {
+		t.Error("expected RequiresTokenExchange true in dev preset")
 	}
-	if eval.PeerPolicy != "prefer-strict" {
-		t.Errorf("expected PeerPolicy prefer-strict, got %q", eval.PeerPolicy)
+	if eval.PeerPolicy != "strict" {
+		t.Errorf("expected PeerPolicy strict, got %q", eval.PeerPolicy)
 	}
 }
 

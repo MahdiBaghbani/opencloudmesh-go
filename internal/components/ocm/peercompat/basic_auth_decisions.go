@@ -31,31 +31,20 @@ func (d BasicAuthDecision) IsPatternAllowed(pattern string) bool {
 // BasicAuthDecisionForPeer returns peer-scoped Basic auth compatibility
 // decisions. Pattern restrictions apply only when a peer mapping matched.
 func (c *CompiledContract) BasicAuthDecisionForPeer(peerDomain string) BasicAuthDecision {
-	domain := signatureDecisionPeerDomain(peerDomain)
+	matched := c.resolveMatchedPeer(peerDomain)
 	decision := BasicAuthDecision{
-		PeerDomain:       domain,
+		PeerDomain:       matched.PeerDomain,
 		Profile:          "strict",
 		AllowAllPatterns: true,
 	}
-	if domain == "" || c == nil || c.registry == nil {
+	if !matched.Matched {
 		return decision
 	}
 
-	for _, mapping := range c.registry.mappings {
-		if !matchPattern(mapping.Pattern, domain) {
-			continue
-		}
-		profile, ok := c.profiles[mapping.Profile]
-		if !ok {
-			return decision
-		}
-		decision.Profile = profile.Name
-		decision.Matched = true
-		decision.AllowAllPatterns = profile.BasicAuth.AllowAllPatterns
-		decision.AllowedPatterns = slices.Clone(profile.BasicAuth.AllowedPatterns)
-		return decision
-	}
-
+	decision.Profile = matched.Profile.Name
+	decision.Matched = true
+	decision.AllowAllPatterns = matched.Profile.BasicAuth.AllowAllPatterns
+	decision.AllowedPatterns = slices.Clone(matched.Profile.BasicAuth.AllowedPatterns)
 	return decision
 }
 

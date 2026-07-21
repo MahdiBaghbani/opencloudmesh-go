@@ -94,7 +94,6 @@ func ProbeMethodFromRow(row service.RouteRow) string {
 func HostRootDiscoveryPaths() []string {
 	return []string{
 		"/.well-known/ocm",
-		"/ocm-provider",
 	}
 }
 

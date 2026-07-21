@@ -20,7 +20,8 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 		t.Error("expected strict mode require_token_exchange true")
 	}
 
-	// Compat mode: enabled=true, path=token, require_token_exchange=false
+	// Compat and dev use scoped governance with a strict global OCM posture, so
+	// require_token_exchange stays true like strict.
 	compatCfg := CompatConfig()
 	if compatCfg.TokenExchange.Enabled == nil || !*compatCfg.TokenExchange.Enabled {
 		t.Error("expected compat mode token_exchange.enabled true")
@@ -28,11 +29,10 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if compatCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected compat mode token_exchange.path 'token', got %q", compatCfg.TokenExchange.Path)
 	}
-	if compatCfg.RequireTokenExchange {
-		t.Error("expected compat mode require_token_exchange false")
+	if !compatCfg.RequireTokenExchange {
+		t.Error("expected compat mode require_token_exchange true")
 	}
 
-	// Dev mode: enabled=true, path=token, require_token_exchange=false
 	devCfg := DevConfig()
 	if devCfg.TokenExchange.Enabled == nil || !*devCfg.TokenExchange.Enabled {
 		t.Error("expected dev mode token_exchange.enabled true")
@@ -40,8 +40,8 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 	if devCfg.TokenExchange.Path != "token" {
 		t.Errorf("expected dev mode token_exchange.path 'token', got %q", devCfg.TokenExchange.Path)
 	}
-	if devCfg.RequireTokenExchange {
-		t.Error("expected dev mode require_token_exchange false")
+	if !devCfg.RequireTokenExchange {
+		t.Error("expected dev mode require_token_exchange true")
 	}
 }
 
@@ -49,9 +49,13 @@ func TestLoad_TokenExchangeConfig_FromTOML(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
+	// compat defaults to peer_policy=strict, which requires
+	// token_exchange.enabled=true; override to prefer-strict here so this
+	// test can exercise token_exchange.enabled=false in isolation.
 	tomlContent := `
 mode = "compat"
 require_token_exchange = false
+peer_policy = "prefer-strict"
 
 [token_exchange]
 enabled = false

@@ -28,7 +28,7 @@ func main() {
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
 	publicOrigin := flag.String("public-origin", "", "Public origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
-	compatibilityScope := flag.String("compatibility-scope", "", "Compatibility scope: none, scoped, or unbounded (overrides config)")
+	compatibilityScope := flag.String("compatibility-scope", "", "Compatibility scope: none or scoped (overrides config)")
 	signatureInboundMode := flag.String("signature-inbound-mode", "", "Signature inbound mode: strict, lenient, or off (overrides config)")
 	signatureOutboundMode := flag.String("signature-outbound-mode", "", "Signature outbound mode: strict, criteria-only, token-only, or off (overrides config)")
 	signaturePeerOverride := flag.String("signature-peer-profile-level-override", "", "Peer profile override level: all, non-strict, or off (overrides config)")

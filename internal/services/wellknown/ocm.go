@@ -8,6 +8,8 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
+	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -17,13 +19,15 @@ import (
 // aliases so config decoding and tests continue to use service-local names.
 type OCMProviderConfig = resolve.ProviderConfig
 
-// APIVersionOverride allows overriding apiVersion based on User-Agent.
+// APIVersionOverride applies a peer-profile-bound apiVersion override.
 type APIVersionOverride = resolve.APIVersionOverride
 
 type ocmHandler struct {
-	data      *spec.Discovery
-	overrides []APIVersionOverride
-	log       *slog.Logger
+	data         *spec.Discovery
+	overrides    []APIVersionOverride
+	peerContract *peercompat.CompiledContract
+	peerIdentity resolve.RequestPeerIdentity
+	log          *slog.Logger
 }
 
 func newOCMHandler(
@@ -37,21 +41,48 @@ func newOCMHandler(
 	built := resolve.Resolve(c, rawOCMProvider, in)
 	disc := discovery.BuildDiscovery(built.Params, log)
 
-	return &ocmHandler{data: disc, overrides: built.Overrides, log: log}, nil
+	peerIdentity := in.PeerIdentity
+	if peerIdentity == nil {
+		peerIdentity = requestPeerIdentityFromContext
+	}
+
+	return &ocmHandler{
+		data:         disc,
+		overrides:    built.Overrides,
+		peerContract: in.PeerContract,
+		peerIdentity: peerIdentity,
+		log:          log,
+	}, nil
+}
+
+func requestPeerIdentityFromContext(r *http.Request) string {
+	pi := inboundsignature.GetPeerIdentity(r.Context())
+	if pi == nil {
+		return ""
+	}
+	if peer := strings.TrimSpace(pi.AuthorityForCompare); peer != "" {
+		return peer
+	}
+	return strings.TrimSpace(pi.Authority)
 }
 
 func (h *ocmHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := h.data
 
 	if len(h.overrides) > 0 {
-		ua := r.Header.Get("User-Agent")
-		for _, override := range h.overrides {
-			if override.UserAgentContains != "" && strings.Contains(ua, override.UserAgentContains) {
-				clone := *data
-				clone.APIVersion = override.APIVersion
-				data = &clone
-				break
-			}
+		peer := ""
+		if h.peerIdentity != nil {
+			peer = h.peerIdentity(r)
+		}
+		if version, ok := resolve.SelectAPIVersionOverride(
+			h.overrides,
+			h.peerContract,
+			peer,
+			r.Header.Get("User-Agent"),
+		); ok {
+			clone := *data
+			clone.APIVersion = version
+			data = &clone
 		}
 	}
 

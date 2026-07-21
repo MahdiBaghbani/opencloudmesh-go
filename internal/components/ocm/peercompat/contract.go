@@ -16,6 +16,20 @@ const (
 	tokenQuirkSendTokenInBody  = "send_token_in_body"
 )
 
+// CompatibilityScope is the typed exception-governance axis that the matched-peer
+// gate consults at decision time. It mirrors platform/config values so the gate
+// can reject unknown scopes without relying on startup validation.
+type CompatibilityScope string
+
+const (
+	// CompatibilityScopeScoped permits peer-scoped relaxations for named matched
+	// mappings. This is the only scope under which the gate grants relaxations.
+	CompatibilityScopeScoped CompatibilityScope = "scoped"
+	// CompatibilityScopeNone forbids compatibility exceptions; the gate stays
+	// closed even if a mapping were present.
+	CompatibilityScopeNone CompatibilityScope = "none"
+)
+
 var supportedBasicAuthPatterns = map[string]struct{}{
 	"token:":      {},
 	"token:token": {},
@@ -25,11 +39,10 @@ var supportedBasicAuthPatterns = map[string]struct{}{
 
 // SigningCompatibility is the typed signing compatibility decision payload.
 type SigningCompatibility struct {
-	AllowUnsignedInbound           bool
-	AllowUnsignedOutbound          bool
-	AllowMismatchedHost            bool
-	AllowUnsignedDiscovery         bool
-	AcceptLegacyDiscoveryPublicKey bool
+	AllowUnsignedInbound   bool
+	AllowUnsignedOutbound  bool
+	AllowMismatchedHost    bool
+	AllowUnsignedDiscovery bool
 }
 
 // TransportCompatibility is the typed transport compatibility decision payload.
@@ -61,13 +74,12 @@ type CompiledProfile struct {
 
 // ProfileSummary captures per-profile summary facts used by runtime posture.
 type ProfileSummary struct {
-	Name                           string
-	HasRelaxations                 bool
-	AllowUnsignedDiscovery         bool
-	AcceptLegacyDiscoveryPublicKey bool
-	AllowHTTP                      bool
-	HasBasicAuthAllowlist          bool
-	NonDefaultGrantType            bool
+	Name                   string
+	HasRelaxations         bool
+	AllowUnsignedDiscovery bool
+	AllowHTTP              bool
+	HasBasicAuthAllowlist  bool
+	NonDefaultGrantType    bool
 }
 
 // CompatibilitySummary captures the compiled contract summary for runtime policy.
@@ -86,6 +98,7 @@ type CompiledContract struct {
 	registry *ProfileRegistry
 	profiles map[string]CompiledProfile
 	summary  CompatibilitySummary
+	scope    CompatibilityScope
 }
 
 // NewCompiledContract builds a compiled contract from profiles and mappings.
@@ -97,7 +110,9 @@ func NewCompiledContract(
 	return BuildCompiledContractFromRegistry(registry)
 }
 
-// NewCompiledContractFromConfig builds the compiled contract from config.
+// NewCompiledContractFromConfig builds the compiled contract from config,
+// wiring the configured compatibility_scope into the compiled contract so
+// the matched-peer gate enforces the operator's configured compatibility_scope.
 func NewCompiledContractFromConfig(
 	cfg *platformconfig.Config,
 ) (*CompiledContract, error) {
@@ -111,13 +126,40 @@ func NewCompiledContractFromConfig(
 	}
 
 	mappings := slices.Clone(cfg.PeerProfiles.Mappings)
+	registry := NewProfileRegistry(customProfiles, mappings)
+	scope := compatibilityScopeFromConfig(cfg.CompatibilityScope)
+	return BuildCompiledContractFromRegistryWithScope(registry, scope)
+}
 
-	return NewCompiledContract(customProfiles, mappings)
+// compatibilityScopeFromConfig maps a raw config compatibility_scope value to
+// the typed CompatibilityScope the gate consults at decision time. It
+// preserves unknown raw values as-is rather than normalizing them to a known
+// constant: the loader rejects unknown values at startup (see
+// internal/platform/config/loader.go validateEnums), but
+// scopeAllowsPeerRelaxations only grants relaxations for CompatibilityScopeScoped,
+// so any value that is not exactly "scoped" (including an empty string, "none",
+// or any other unrecognized value) fails closed here as a defense-in-depth
+// measure independent of startup validation.
+func compatibilityScopeFromConfig(raw string) CompatibilityScope {
+	return CompatibilityScope(raw)
 }
 
 // BuildCompiledContractFromRegistry compiles typed compatibility decisions.
+// The contract defaults to the scoped compatibility scope, so matched peers
+// receive relaxations while unmatched and closed-scope peers stay strict.
 func BuildCompiledContractFromRegistry(
 	registry *ProfileRegistry,
+) (*CompiledContract, error) {
+	return BuildCompiledContractFromRegistryWithScope(registry, CompatibilityScopeScoped)
+}
+
+// BuildCompiledContractFromRegistryWithScope compiles typed compatibility
+// decisions under an explicit compatibility scope. The scope is consulted by the
+// matched-peer gate at decision time; only CompatibilityScopeScoped permits
+// peer-scoped relaxations.
+func BuildCompiledContractFromRegistryWithScope(
+	registry *ProfileRegistry,
+	scope CompatibilityScope,
 ) (*CompiledContract, error) {
 	if registry == nil {
 		return nil, fmt.Errorf("profile registry is nil")
@@ -168,6 +210,7 @@ func BuildCompiledContractFromRegistry(
 		registry: registry,
 		profiles: compiledProfiles,
 		summary:  summary,
+		scope:    scope,
 	}, nil
 }
 
@@ -203,6 +246,51 @@ func (c *CompiledContract) Summary() CompatibilitySummary {
 	out := c.summary
 	out.Profiles = slices.Clone(c.summary.Profiles)
 	return out
+}
+
+// matchedPeerResult is the canonical matched-peer gate result. A zero value
+// (Matched=false, zero Profile) means the gate failed closed.
+type matchedPeerResult struct {
+	PeerDomain string
+	Profile    CompiledProfile
+	Matched    bool
+}
+
+// resolveMatchedPeer is the canonical matched-peer gate. Every peer-scoped
+// relaxation decision routes through it. It grants relaxations only when the
+// compatibility scope is scoped and a named mapping matched the normalized
+// peer domain. Empty/nil peers, nil contract or registry, any non-scoped or
+// unknown scope, and unmatched peers all fail closed with Matched=false and a
+// zero Profile, so callers never copy relaxation fields from a strict fallback.
+func (c *CompiledContract) resolveMatchedPeer(peerInput string) matchedPeerResult {
+	domain := signatureDecisionPeerDomain(peerInput)
+	if domain == "" || c == nil || c.registry == nil || !c.scopeAllowsPeerRelaxations() {
+		return matchedPeerResult{PeerDomain: domain}
+	}
+
+	for _, mapping := range c.registry.mappings {
+		if !matchPattern(mapping.Pattern, domain) {
+			continue
+		}
+		profile, ok := c.profiles[mapping.Profile]
+		if !ok {
+			return matchedPeerResult{PeerDomain: domain}
+		}
+		return matchedPeerResult{
+			PeerDomain: domain,
+			Profile:    profile,
+			Matched:    true,
+		}
+	}
+
+	return matchedPeerResult{PeerDomain: domain}
+}
+
+// scopeAllowsPeerRelaxations reports whether the contract scope permits
+// peer-scoped relaxations. Only the scoped scope does; none and any unknown
+// value fail closed at decision time without relying on startup validation.
+func (c *CompiledContract) scopeAllowsPeerRelaxations() bool {
+	return c != nil && c.scope == CompatibilityScopeScoped
 }
 
 func compileProfile(profile *Profile) (CompiledProfile, error) {
@@ -248,11 +336,10 @@ func compileProfile(profile *Profile) (CompiledProfile, error) {
 	return CompiledProfile{
 		Name: profile.Name,
 		Signing: SigningCompatibility{
-			AllowUnsignedInbound:           profile.AllowUnsignedInbound,
-			AllowUnsignedOutbound:          profile.AllowUnsignedOutbound,
-			AllowMismatchedHost:            profile.AllowMismatchedHost,
-			AllowUnsignedDiscovery:         profile.AllowUnsignedDiscovery,
-			AcceptLegacyDiscoveryPublicKey: profile.AcceptLegacyDiscoveryPublicKey,
+			AllowUnsignedInbound:   profile.AllowUnsignedInbound,
+			AllowUnsignedOutbound:  profile.AllowUnsignedOutbound,
+			AllowMismatchedHost:    profile.AllowMismatchedHost,
+			AllowUnsignedDiscovery: profile.AllowUnsignedDiscovery,
 		},
 		Transport: TransportCompatibility{
 			AllowHTTP: profile.AllowHTTP,
@@ -269,17 +356,15 @@ func summarizeProfile(profile CompiledProfile) ProfileSummary {
 			profile.Signing.AllowUnsignedOutbound ||
 			profile.Signing.AllowMismatchedHost ||
 			profile.Signing.AllowUnsignedDiscovery ||
-			profile.Signing.AcceptLegacyDiscoveryPublicKey ||
 			profile.Transport.AllowHTTP ||
 			profile.TokenExchange.AcceptPlainToken ||
 			profile.TokenExchange.SendTokenInBody ||
 			(len(profile.BasicAuth.AllowedPatterns) > 0) ||
 			profile.TokenExchange.GrantType != "authorization_code",
-		AllowUnsignedDiscovery:         profile.Signing.AllowUnsignedDiscovery,
-		AcceptLegacyDiscoveryPublicKey: profile.Signing.AcceptLegacyDiscoveryPublicKey,
-		AllowHTTP:                      profile.Transport.AllowHTTP,
-		HasBasicAuthAllowlist:          len(profile.BasicAuth.AllowedPatterns) > 0,
-		NonDefaultGrantType:            profile.TokenExchange.GrantType != "authorization_code",
+		AllowUnsignedDiscovery: profile.Signing.AllowUnsignedDiscovery,
+		AllowHTTP:              profile.Transport.AllowHTTP,
+		HasBasicAuthAllowlist:  len(profile.BasicAuth.AllowedPatterns) > 0,
+		NonDefaultGrantType:    profile.TokenExchange.GrantType != "authorization_code",
 	}
 }
 
