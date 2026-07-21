@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -21,7 +21,10 @@ var ErrDiscoveryDisabled = errors.New("discovery client not configured")
 // ErrDiscoveryNotFound is returned when the discovery endpoint responds with HTTP 404.
 var ErrDiscoveryNotFound = errors.New("discovery endpoint not found")
 
-// ErrInvalidDiscoveryJSON is returned when a discovery response body cannot be parsed.
+// ErrInvalidDiscoveryJSON is returned when a discovery document is malformed JSON
+// or fails semantic validation (for example unsupported apiVersion under policy,
+// non-absolute or cross-authority endpoints, capability/endpoint inconsistency,
+// malformed protocol roles).
 var ErrInvalidDiscoveryJSON = errors.New("invalid discovery json")
 
 // ErrOCMDisabled is returned when the remote discovery document reports enabled=false.
@@ -29,9 +32,11 @@ var ErrOCMDisabled = errors.New("ocm disabled at provider")
 
 // Client fetches and caches remote OCM discovery documents via /.well-known/ocm.
 type Client struct {
-	httpClient *httpclient.Client
-	cache      cache.Cache
-	cacheTTL   time.Duration
+	httpClient    *httpclient.Client
+	cache         cache.Cache
+	cacheTTL      time.Duration
+	versionPolicy *VersionPolicy
+	logger        *slog.Logger
 }
 
 // NewClient creates a discovery client. Nil cache is replaced with default in-memory cache.
@@ -44,6 +49,22 @@ func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
 		cache:      c,
 		cacheTTL:   cache.TTLDiscovery,
 	}
+}
+
+// SetVersionPolicy configures inbound peer apiVersion accept/reject policy.
+func (c *Client) SetVersionPolicy(p *VersionPolicy) {
+	if c == nil {
+		return
+	}
+	c.versionPolicy = p
+}
+
+// SetLogger configures the logger used for fresh-fetch discovery warnings.
+func (c *Client) SetLogger(l *slog.Logger) {
+	if c == nil {
+		return
+	}
+	c.logger = l
 }
 
 // IsNoopCache reports whether the cache wired into this client is a *cache.NoopCache.
@@ -61,14 +82,15 @@ func (c *Client) IsNoopCache() bool {
 // Discover fetches the discovery document for a remote OCM server. Uses cache when available.
 //
 // Raw response bytes are cached so normalization runs on every cache read.
-func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, error) {
+func (c *Client) Discover(ctx context.Context, baseURL string) (*spec.Discovery, error) {
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	cacheKey := "discovery:" + baseURL
 	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
-		disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(baseURL))
+		disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(baseURL), false)
 		if err == nil {
 			return &disc, nil
 		}
+		_ = c.cache.Delete(ctx, cacheKey)
 	}
 
 	rawBytes, disc, err := c.fetchDiscovery(ctx, baseURL+"/.well-known/ocm")
@@ -80,15 +102,7 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*Discovery, erro
 	return disc, nil
 }
 
-func discoveryOriginFromURL(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return strings.TrimSuffix(rawURL, "/")
-	}
-	return u.Scheme + "://" + u.Host
-}
-
-func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *Discovery, error) {
+func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *spec.Discovery, error) {
 	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
 	if err != nil {
 		return nil, nil, err
@@ -101,7 +115,7 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 		return nil, nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
 	}
 
-	disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(discoveryURL))
+	disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(discoveryURL), true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %w", ErrInvalidDiscoveryJSON, err)
 	}
@@ -113,18 +127,37 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 	return data, &disc, nil
 }
 
-func (c *Client) normalizeDiscovery(data []byte, baseURL string) (Discovery, error) {
-	var disc Discovery
+func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string, freshFetch bool) (spec.Discovery, error) {
+	var disc spec.Discovery
 	if err := json.Unmarshal(data, &disc); err != nil {
-		return Discovery{}, err
+		return spec.Discovery{}, err
 	}
 
 	if disc.InviteAcceptDialog != "" {
 		resolveBase := disc.EndPoint
 		if resolveBase == "" {
-			resolveBase = baseURL
+			resolveBase = discoveryOrigin
 		}
 		disc.InviteAcceptDialog = spec.ResolveInviteAcceptDialog(resolveBase, disc.InviteAcceptDialog)
+	}
+
+	if disc.Enabled {
+		policy := c.versionPolicy
+		if policy == nil {
+			policy = NewVersionPolicy()
+		}
+		if err := validateDiscovery(&disc, discoveryOrigin, policy); err != nil {
+			return spec.Discovery{}, err
+		}
+		if freshFetch {
+			logger := c.logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			for _, w := range disc.Warnings {
+				logger.Warn("discovery warning", "warning", w)
+			}
+		}
 	}
 
 	return disc, nil

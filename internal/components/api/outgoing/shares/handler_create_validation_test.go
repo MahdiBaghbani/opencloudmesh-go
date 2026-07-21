@@ -82,13 +82,46 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 	}
 }
 
+func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
+	user := &identity.User{ID: "user-uuid", Username: "alice"}
+	handler := newTestHandler(testCurrentUser(user))
+	handler.SetAllowedPaths([]string{"/tmp"})
+
+	tmpFile, err := os.CreateTemp("/tmp", "outgoing-perm-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	body := `{
+		"receiverDomain": "example.com",
+		"shareWith": "user@example.com",
+		"localPath": "` + tmpFile.Name() + `",
+		"permissions": ["write"]
+	}`
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.HandleCreate(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("permissions must be read-only")) {
+		t.Fatalf("expected read-only permissions error, got: %s", w.Body.String())
+	}
+}
+
 func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	user := &identity.User{ID: "user-uuid-123", Username: "alice", Email: "alice@example.org"}
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 
 	discClient := makeDummyDiscoveryClient()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, nil, nil, nil, nil,
+		repo, discClient, nil, nil,
 		testProvider,
 		testCurrentUser(user),
 		testLogger,

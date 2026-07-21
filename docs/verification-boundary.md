@@ -1,17 +1,14 @@
 # Verification boundary
 
 This repo verifies a narrow strict contract. A green strict run does not
-claim broad peer compatibility. It proves the behaviors listed here and
-leaves broader interoperability to explicit compatibility configuration
-and operator-managed validation.
+claim broad peer interoperability. It proves the behaviors listed here and
+leaves broader interoperability to operator-managed validation.
 
 ## What this repo does prove
 
-- `compatibility_scope=none` is the no-exceptions lane. It forbids
-  `peer_profiles.mappings` and peer-scoped relaxations, and it requires
-  the strict signature, transport, token-exchange, and trust settings
-  that keep the runtime inside the current WebDAV-centered strict
-  target.
+- The strict lane requires the strict signature, transport, token-exchange,
+  and trust settings that keep the runtime inside the current
+  WebDAV-centered strict target.
 - The transport axis uses a nested SSRF subsystem. The strict preset is
   deny-by-default there: `ssrf.mode=strict`, no active route policy, and
   no private-route exceptions unless an operator-declared route policy is
@@ -19,31 +16,21 @@ and operator-managed validation.
 - Private-route exceptions stay narrow. They require an active route
   policy, and the verified positive path is an operator-declared
   host-suffix/CIDR/port allowlist for matching private hostname
-  destinations only. Under `compatibility_scope=none` with an active
-  strict or scoped SSRF route policy, `allow_ip_literals=true` is
-  rejected at config load, so IP-literal targets stay forbidden in that
-  lane. Transport allowlisting stays separate from peer compatibility.
+  destinations only. Under an active SSRF route policy,
+  `allow_ip_literals=true` is rejected at config load, so IP-literal
+  targets stay forbidden in the strict lane. Transport allowlisting stays
+  separate from peer identity.
 - The explicit-CIDR integration proof is intentionally narrow: it covers a
   matching operator-declared allowlist and the paired blocked case
   without that allowance. It does not prove arbitrary private-network
   interoperability.
 - A strict route policy does not by itself demote the runtime to dev
-  posture. Under `compatibility_scope=none`, strict SSRF plus a named
-  route policy can still resolve to the strict tier. Under broader
-  compatibility scope, the non-strict result comes from the compatibility
-  axis, not from the route policy itself.
+  posture. Strict SSRF plus a named route policy can still resolve to the
+  strict tier.
 - `ssrf.mode=off` is a real transport relaxation. It is outside the
-  strict posture and remains distinct from peer-compatibility settings.
-- In that lane, outbound signing stays strict across endpoint kinds.
-  Token exchange does not get a special outbound-signing exception when
-  `compatibility_scope=none` is in effect.
-- Outbound token exchange may apply matched peer-profile quirks only after
-  a signed primary attempt fails. `accept_plain_token` allows one unsigned
-  retry when the failure classifies as `signature_required`,
-  `signature_invalid`, or `key_not_found`. `send_token_in_body` allows one
-  signed JSON-body retry when the failure classifies as
-  `token_exchange_failed` or `protocol_mismatch`. Unmatched peers never
-  get these downgrades.
+  strict posture and remains distinct from the signing and trust settings.
+- In that lane, outbound signing stays strict across endpoint kinds,
+  including token exchange.
 - Inbound verification rejects malformed HTTP-signature material. The
   verified behavior is strict rejection, not degraded acceptance.
 - Strict inbound mode does **not** mean Ed25519-only peers. Default
@@ -73,30 +60,22 @@ and operator-managed validation.
     `future_created`, `stale_created`, `missing_component`,
     `crypto_fail`, ...) -> HTTP 401 `signature verification failed`
   Details remain in logs.
-- `signature.inbound_mode=off` skips verification only on routes that do
-  not require a signature. Routes mounted with
-  `VerifyOCMRequestRequireSignature*` still enforce signature (and digest)
-  checks when `off` is set.
 - When a declared-peer resolver is present, malformed or empty declared
   peers fail closed with HTTP 400. Shares, invite-accepted, and token
-  routes also require a declared peer (`requireDeclaredPeer`).
-  Notifications stay signature-only (nil resolver): trust is bound to
-  keyId, not a body-declared peer.
+  routes require a declared peer (`requireDeclaredPeer`).
 - Peer identity mismatch between declared peer and keyId authority
   returns HTTP 403. Normalize errors on that path also fail closed with
-  403 unless mismatch is explicitly allowed.
+  403.
 - Discovery caching stores raw response bytes and re-normalizes on cache
-  read. The cache therefore preserves the fetched source bytes while
-  letting the current peer contract control how legacy discovery fields
-  are interpreted.
+  read. The cache preserves the fetched source bytes while applying current
+  discovery normalization on cache reads.
 - Outbound proxy behavior is intentionally split:
   - `proxy_url` is an explicit operator choice and takes precedence over
     environment fallback.
   - `proxy_env_fallback` reads `HTTP_PROXY`, `HTTPS_PROXY`, and
     `NO_PROXY` only when `proxy_url` is not set.
-  - Under `compatibility_scope=none`, the proxy host is treated as an
-    operator-trusted hop, so private and loopback proxy addresses are
-    allowed.
+  - Under the strict lane, the proxy host is treated as an operator-trusted
+    hop, so private and loopback proxy addresses are allowed.
 - Destination SSRF checks remain the hard boundary. Proxy routing and
   `NO_PROXY` can change how a request is sent, but they do not permit
   blocked destinations.
@@ -108,16 +87,16 @@ behavior and operator-facing error shapes.
 
 - A green strict run here does not claim broad interoperability with
   arbitrary peers.
-- Peer-specific relaxations, compatibility mappings, and deployment-specific
-  behavior remain outside the strict contract of this repo.
+- Deployment-specific behavior remains outside the strict contract of this
+  repo.
 - External end-to-end or wire-level interoperability suites may still be
   useful as downstream proof surfaces, but they are not the product contract
   of `opencloudmesh-go`.
 
 ## What remains operator-gated
 
-Broader peer compatibility, peer-specific relaxations, and containerized
-proof remain explicit operator choices.
+Broader peer interoperability and containerized proof remain explicit
+operator choices.
 
 This repo does not automatically build, tag, or publish a container
 image as part of strict verification. Using a container image as part of

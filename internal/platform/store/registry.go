@@ -12,19 +12,6 @@ type DriverConfig struct {
 
 	// DataDir is the directory for data files (json files, sqlite db)
 	DataDir string `json:"data_dir"`
-
-	// Mirror configuration (only used when Driver == "mirror")
-	Mirror MirrorConfig `json:"mirror"`
-}
-
-// MirrorConfig holds configuration for the sqlite+json mirror driver.
-type MirrorConfig struct {
-	// IncludeSecrets controls whether secrets are exported to JSON (default false)
-	IncludeSecrets bool `json:"include_secrets"`
-
-	// SecretsScope is the allowlist of secret types to export
-	// Supported values: webdav_shared_secrets, session_tokens
-	SecretsScope []string `json:"secrets_scope"`
 }
 
 // DriverFactory is a function that creates a driver instance.

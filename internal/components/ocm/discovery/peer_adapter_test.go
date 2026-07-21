@@ -12,7 +12,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
@@ -20,69 +21,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
-
-func TestPeerDiscoveryAdapter_IsSigningCapableFollowsCriteria(t *testing.T) {
-	tests := []struct {
-		name     string
-		criteria []string
-		want     bool
-	}{
-		{
-			name:     "capability without criterion is not treated as required signing",
-			criteria: nil,
-			want:     false,
-		},
-		{
-			name:     "criterion marks peer as requiring signed requests",
-			criteria: []string{"must-use-http-sig"},
-			want:     true,
-		},
-		{
-			name:     "legacy criterion alias still marks peer as signing-capable",
-			criteria: []string{"http-request-signatures"},
-			want:     true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var srv *httptest.Server
-			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				switch r.URL.Path {
-				case "/.well-known/ocm", "/ocm-provider":
-					w.Header().Set("Content-Type", "application/json")
-					_ = json.NewEncoder(w).Encode(Discovery{
-						Enabled:      true,
-						APIVersion:   "1.2.2",
-						EndPoint:     srv.URL + "/ocm",
-						Capabilities: []string{"http-sig"},
-						Criteria:     tt.criteria,
-					})
-				default:
-					http.NotFound(w, r)
-				}
-			}))
-			defer srv.Close()
-
-			outboundCfg := &config.OutboundHTTPConfig{
-				DerivedSSRFMode:    "off",
-				MaxResponseBytes:   1 << 20,
-				InsecureSkipVerify: false,
-			}
-			rawClient := httpclient.New(outboundCfg, nil)
-			client := NewClient(rawClient, nil)
-			adapter := NewPeerDiscoveryAdapter(client, rawClient)
-
-			got, err := adapter.IsSigningCapable(context.Background(), srv.URL)
-			if err != nil {
-				t.Fatalf("IsSigningCapable() unexpected error = %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("IsSigningCapable() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 	var srv *httptest.Server
@@ -93,11 +31,11 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		case jwks.WellKnownPath:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(km.JWKS())
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(Discovery{
+			_ = json.NewEncoder(w).Encode(spec.Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
 			})
 		default:
@@ -111,30 +49,14 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"local-http": {
-				Name:      "local-http",
-				AllowHTTP: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "*", Profile: "local-http"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
-
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
-	adapter := NewPeerDiscoveryAdapter(client, rawClient)
-	adapter.SetPeerContract(contract)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	keyID := km.GetKeyID()
 	parsed, err := keyid.ParseKid(keyID)
@@ -178,11 +100,11 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
 			}}})
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(Discovery{
+			_ = json.NewEncoder(w).Encode(spec.Discovery{
 				Enabled:    true,
-				APIVersion: "1.2.2",
+				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
 			})
 		default:
@@ -197,25 +119,14 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 	}
 	keyID = authority + "#ec1"
 
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"local-http": {Name: "local-http", AllowHTTP: true},
-		},
-		[]peercompat.ProfileMapping{{Pattern: "*", Profile: "local-http"}},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
-
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
-	adapter := NewPeerDiscoveryAdapter(client, rawClient)
-	adapter.SetPeerContract(contract)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
 	if err != nil {
@@ -236,14 +147,16 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	}
 
 	var keyID string
-	var sawURL string
+	var sawScheme string
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != jwks.WellKnownPath {
 			http.NotFound(w, r)
 			return
 		}
-		sawURL = r.URL.String()
+		if r.TLS == nil {
+			sawScheme = "http"
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub))
 	}))
@@ -253,28 +166,17 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Kid claims https, but AllowHTTP peer contract rewrites fetch scheme to http.
-	keyID = "https://" + authority + "#key1"
-
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"local-http": {Name: "local-http", AllowHTTP: true},
-		},
-		[]peercompat.ProfileMapping{{Pattern: "*", Profile: "local-http"}},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
+	// Host#fragment kids follow the dev-mode HTTP transport policy.
+	keyID = authority + "#key1"
 
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
-	adapter := NewPeerDiscoveryAdapter(client, rawClient)
-	adapter.SetPeerContract(contract)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
 	if err != nil {
@@ -283,8 +185,57 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 	if resolved.Algorithm != sigalg.Ed25519 {
 		t.Fatalf("Algorithm = %q", resolved.Algorithm)
 	}
-	if sawURL == "" {
-		t.Fatal("expected JWKS fetch")
+	if sawScheme != "http" {
+		t.Fatalf("JWKS transport = %q, want http in dev mode for host#fragment kid", sawScheme)
+	}
+}
+
+func TestPeerDiscoveryAdapter_ResolveVerificationKey_PreservesExplicitHTTPSKid(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var keyID string
+	var sawScheme string
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != jwks.WellKnownPath {
+			http.NotFound(w, r)
+			return
+		}
+		if r.TLS != nil {
+			sawScheme = "https"
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub))
+	}))
+	defer srv.Close()
+
+	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyID = "https://" + authority + "#key1"
+
+	outboundCfg := &config.OutboundHTTPConfig{
+		SSRF:               config.SSRFConfig{Mode: "off"},
+		MaxResponseBytes:   1 << 20,
+		InsecureSkipVerify: true,
+	}
+	rawClient := httpclient.New(outboundCfg, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
+
+	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
+	if err != nil {
+		t.Fatalf("ResolveVerificationKey: %v", err)
+	}
+	if resolved.Algorithm != sigalg.Ed25519 {
+		t.Fatalf("Algorithm = %q", resolved.Algorithm)
+	}
+	if sawScheme != "https" {
+		t.Fatalf("JWKS transport = %q, want https for absolute https kid", sawScheme)
 	}
 }
 
@@ -309,28 +260,17 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// http absolute kid while peer profile forbids HTTP.
+	// http absolute kid while the resolver has no dev-mode HTTP gate.
 	keyID := "http://" + authority + "#key1"
 
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"strict-https": {Name: "strict-https", AllowHTTP: false},
-		},
-		[]peercompat.ProfileMapping{{Pattern: "*", Profile: "strict-https"}},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
-
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
-	adapter := NewPeerDiscoveryAdapter(client, rawClient)
-	adapter.SetPeerContract(contract)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(false))
 
 	_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
 	if err == nil {
@@ -348,28 +288,14 @@ func padCoord(b []byte, size int) []byte {
 }
 
 func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
-	contract, err := peercompat.NewCompiledContract(
-		map[string]*peercompat.Profile{
-			"local-http": {
-				Name:      "local-http",
-				AllowHTTP: true,
-			},
-		},
-		[]peercompat.ProfileMapping{
-			{Pattern: "*", Profile: "local-http"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract: %v", err)
-	}
+	peerOrigin := peerorigin.NewResolver(true)
 
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		MaxResponseBytes:   1 << 20,
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	client := NewClient(rawClient, nil)
 
 	t.Run("jwks 404", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -386,8 +312,8 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(client, rawClient)
-		adapter.SetPeerContract(contract)
+		adapter := NewPeerDiscoveryAdapter(rawClient)
+		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
 		if err == nil {
@@ -411,8 +337,8 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(client, rawClient)
-		adapter.SetPeerContract(contract)
+		adapter := NewPeerDiscoveryAdapter(rawClient)
+		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
 		if err == nil {
@@ -442,8 +368,8 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(client, rawClient)
-		adapter.SetPeerContract(contract)
+		adapter := NewPeerDiscoveryAdapter(rawClient)
+		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
 		if err == nil {

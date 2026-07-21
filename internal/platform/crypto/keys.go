@@ -143,6 +143,16 @@ func (km *KeyManager) saveKey() error {
 	return os.WriteFile(km.keyPath, data, 0600)
 }
 
+// SetWireKeyID updates the keyId used for signatures and JWKS after
+// LoadOrGenerate. It does not rotate keys or change the on-disk key path.
+func (km *KeyManager) SetWireKeyID(keyID string) {
+	km.mu.Lock()
+	defer km.mu.Unlock()
+	if km.signingKey != nil {
+		km.signingKey.KeyID = keyID
+	}
+}
+
 // GetSigningKey returns the current signing key.
 func (km *KeyManager) GetSigningKey() *SigningKey {
 	km.mu.RLock()

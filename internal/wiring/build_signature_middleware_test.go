@@ -1,37 +1,22 @@
 package wiring_test
 
 import (
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
-	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
-	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
+	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func TestSignatureMiddlewareSkip_GatesConstruction(t *testing.T) {
-	t.Run("SkipSignatureMiddleware=true produces nil middleware", func(t *testing.T) {
-		result, err := wiring.Build(
-			tscfg.DevConfigNoSignatures(),
-			tslog.DiscardLogger(),
-			harnessBuildOpts(),
-		)
-		if err != nil {
-			t.Fatalf("bootstrap failed: %v", err)
-		}
-		if result.Deps.SignatureMiddleware != nil {
-			t.Error("SignatureMiddleware must be nil when SkipSignatureMiddleware=true")
-		}
-	})
-
-	t.Run("SkipSignatureMiddleware=false produces non-nil middleware", func(t *testing.T) {
+func TestSignatureMiddleware_AlwaysConstructed(t *testing.T) {
+	t.Run("harness opts produce non-nil middleware", func(t *testing.T) {
 		opts := harnessBuildOpts()
-		opts.SkipSignatureMiddleware = false
 		opts.SkipCrypto = false
 		result, err := wiring.Build(
-			tscfg.DevConfigNoSignatures(),
+			config.DevConfig(),
 			tslog.DiscardLogger(),
 			opts,
 		)
@@ -39,13 +24,13 @@ func TestSignatureMiddlewareSkip_GatesConstruction(t *testing.T) {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
 		if result.Deps.SignatureMiddleware == nil {
-			t.Error("SignatureMiddleware must be non-nil when SkipSignatureMiddleware=false")
+			t.Error("SignatureMiddleware must be non-nil")
 		}
 	})
 
 	t.Run("IETF harness opts produce non-nil middleware with signing keys", func(t *testing.T) {
 		result, err := wiring.Build(
-			tscfg.DevConfigHarness(),
+			config.DevConfig(),
 			tslog.DiscardLogger(),
 			toBuildOpts(tswiring.IETFWireOptions),
 		)

@@ -450,6 +450,12 @@ func SumSHA256(data []byte) []byte {
 	return sum[:]
 }
 
+// SumSHA512 returns a SHA-512 digest helper for content-digest construction.
+func SumSHA512(data []byte) []byte {
+	sum := sha512.Sum512(data)
+	return sum[:]
+}
+
 // EncodeECDSARawRS encodes ECDSA r||s for RFC 9421 wire form.
 func EncodeECDSARawRS(r, s *big.Int, coordSize int) ([]byte, error) {
 	if r == nil || s == nil || coordSize <= 0 {

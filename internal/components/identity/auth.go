@@ -28,8 +28,7 @@ type UserAuth struct {
 }
 
 // NewUserAuth creates a new UserAuth with OWASP-recommended Argon2id parameters.
-// The cost parameter is ignored (kept for API compatibility) - Argon2id uses fixed secure defaults.
-func NewUserAuth(cost int) *UserAuth {
+func NewUserAuth() *UserAuth {
 	return &UserAuth{
 		time:    argon2Time,
 		memory:  argon2Memory,

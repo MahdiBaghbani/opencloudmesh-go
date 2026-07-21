@@ -26,15 +26,8 @@ type outboundHTTPFileConfig struct {
 
 // persistenceFileConfig holds persistence settings from TOML.
 type persistenceFileConfig struct {
-	Backend string                       `toml:"backend"`
-	DataDir string                       `toml:"data_dir"`
-	Mirror  *mirrorPersistenceFileConfig `toml:"mirror"`
-}
-
-// mirrorPersistenceFileConfig holds mirror persistence settings from TOML.
-type mirrorPersistenceFileConfig struct {
-	IncludeSecrets bool     `toml:"include_secrets"`
-	SecretsScope   []string `toml:"secrets_scope"`
+	Backend string `toml:"backend"`
+	DataDir string `toml:"data_dir"`
 }
 
 // fileConfig mirrors Config but with pointer fields to detect presence.
@@ -42,23 +35,31 @@ type fileConfig struct {
 	Mode   string        `toml:"mode"`
 	Server *serverConfig `toml:"server"`
 
-	PublicOrigin       string `toml:"public_origin"`
-	ExternalBasePath   string `toml:"external_base_path"`
-	ListenAddr         string `toml:"listen_addr"`
-	CompatibilityScope string `toml:"compatibility_scope"`
+	PublicOrigin     string `toml:"public_origin"`
+	ExternalBasePath string `toml:"external_base_path"`
+	ListenAddr       string `toml:"listen_addr"`
 
-	TLS                  *TLSConfig              `toml:"tls"`
-	OutboundHTTP         *outboundHTTPFileConfig `toml:"outbound_http"`
-	Signature            *SignatureConfig        `toml:"signature"`
-	PeerProfiles         *peerProfilesConfig     `toml:"peer_profiles"`
-	Cache                *cacheConfig            `toml:"cache"`
-	PeerTrust            *peerTrustConfig        `toml:"peer_trust"`
-	Logging              *loggingConfig          `toml:"logging"`
-	TokenExchange        *tokenExchangeConfig    `toml:"token_exchange"`
-	RequireTokenExchange *bool                   `toml:"require_token_exchange"`
-	PeerPolicy           string                  `toml:"peer_policy"`
-	HTTP                 *httpFileConfig         `toml:"http"`
-	Persistence          *persistenceFileConfig  `toml:"persistence"`
+	TLS           *TLSConfig              `toml:"tls"`
+	OutboundHTTP  *outboundHTTPFileConfig `toml:"outbound_http"`
+	Signature     *SignatureConfig        `toml:"signature"`
+	Cache         *cacheConfig            `toml:"cache"`
+	PeerTrust     *peerTrustConfig        `toml:"peer_trust"`
+	Logging       *loggingConfig          `toml:"logging"`
+	TokenExchange *tokenExchangeConfig    `toml:"token_exchange"`
+	HTTP          *httpFileConfig         `toml:"http"`
+	Persistence   *persistenceFileConfig  `toml:"persistence"`
+	OCM           *ocmFileConfig          `toml:"ocm"`
+}
+
+// ocmFileConfig holds OCM settings from TOML.
+type ocmFileConfig struct {
+	Discovery *discoveryFileConfig `toml:"discovery"`
+}
+
+// discoveryFileConfig holds inbound peer discovery settings from TOML.
+type discoveryFileConfig struct {
+	PeerAPIVersionPolicy string `toml:"peer_api_version_policy"`
+	PeerAPIVersionWarn   string `toml:"peer_api_version_warn"`
 }
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
@@ -69,14 +70,12 @@ type httpFileConfig struct {
 
 // loggingConfig holds logging settings from TOML.
 type loggingConfig struct {
-	Level          string `toml:"level"`
-	AllowSensitive bool   `toml:"allow_sensitive"`
+	Level string `toml:"level"`
 }
 
 // tokenExchangeConfig holds token exchange settings from TOML.
 type tokenExchangeConfig struct {
-	Enabled *bool  `toml:"enabled"`
-	Path    string `toml:"path"`
+	Path string `toml:"path"`
 }
 
 // cacheConfig holds cache settings from TOML.
@@ -94,10 +93,8 @@ type peerTrustConfig struct {
 }
 
 type peerTrustPolicyConfig struct {
-	GlobalEnforce bool     `toml:"global_enforce"`
-	AllowList     []string `toml:"allow_list"`
-	DenyList      []string `toml:"deny_list"`
-	ExemptList    []string `toml:"exempt_list"`
+	AllowList []string `toml:"allow_list"`
+	DenyList  []string `toml:"deny_list"`
 }
 
 type peerTrustMembershipCacheConfig struct {
@@ -105,13 +102,7 @@ type peerTrustMembershipCacheConfig struct {
 	MaxStaleSeconds int `toml:"max_stale_seconds"`
 }
 
-// peerProfilesConfig holds peer profile settings from TOML.
-type peerProfilesConfig struct {
-	Mappings       []PeerProfileMapping   `toml:"mappings"`
-	CustomProfiles map[string]PeerProfile `toml:"custom_profiles"`
-}
-
-// serverConfig holds server-specific settings in TOML.
+// serverConfig holds server settings from TOML.
 type serverConfig struct {
 	TrustedProxies []string        `toml:"trusted_proxies"`
 	BootstrapAdmin *bootstrapAdmin `toml:"bootstrap_admin"`
@@ -133,9 +124,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 	if fc.ListenAddr != "" {
 		cfg.ListenAddr = fc.ListenAddr
-	}
-	if fc.CompatibilityScope != "" {
-		cfg.CompatibilityScope = fc.CompatibilityScope
 	}
 
 	if fc.Server != nil {
@@ -227,15 +215,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	}
 
 	if fc.Signature != nil {
-		if fc.Signature.InboundMode != "" {
-			cfg.Signature.InboundMode = fc.Signature.InboundMode
-		}
-		if fc.Signature.OutboundMode != "" {
-			cfg.Signature.OutboundMode = fc.Signature.OutboundMode
-		}
-		if fc.Signature.PeerProfileLevelOverride != "" {
-			cfg.Signature.PeerProfileLevelOverride = fc.Signature.PeerProfileLevelOverride
-		}
 		if fc.Signature.KeyPath != "" {
 			cfg.Signature.KeyPath = fc.Signature.KeyPath
 		}
@@ -254,17 +233,6 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if len(fc.Signature.AllowedAlgorithms) > 0 {
 			cfg.Signature.AllowedAlgorithms = fc.Signature.AllowedAlgorithms
 		}
-		// AllowMismatch is bool
-		cfg.Signature.AllowMismatch = fc.Signature.AllowMismatch
-	}
-
-	if fc.PeerProfiles != nil {
-		if len(fc.PeerProfiles.Mappings) > 0 {
-			cfg.PeerProfiles.Mappings = fc.PeerProfiles.Mappings
-		}
-		if len(fc.PeerProfiles.CustomProfiles) > 0 {
-			cfg.PeerProfiles.CustomProfiles = fc.PeerProfiles.CustomProfiles
-		}
 	}
 
 	if fc.Cache != nil {
@@ -282,15 +250,11 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			cfg.PeerTrust.ConfigPaths = fc.PeerTrust.ConfigPaths
 		}
 		if fc.PeerTrust.Policy != nil {
-			cfg.PeerTrust.Policy.GlobalEnforce = fc.PeerTrust.Policy.GlobalEnforce
 			if len(fc.PeerTrust.Policy.AllowList) > 0 {
 				cfg.PeerTrust.Policy.AllowList = fc.PeerTrust.Policy.AllowList
 			}
 			if len(fc.PeerTrust.Policy.DenyList) > 0 {
 				cfg.PeerTrust.Policy.DenyList = fc.PeerTrust.Policy.DenyList
-			}
-			if len(fc.PeerTrust.Policy.ExemptList) > 0 {
-				cfg.PeerTrust.Policy.ExemptList = fc.PeerTrust.Policy.ExemptList
 			}
 		}
 		if fc.PeerTrust.MembershipCache != nil {
@@ -307,25 +271,12 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Logging.Level != "" {
 			cfg.Logging.Level = fc.Logging.Level
 		}
-		// AllowSensitive is a bool, overlay when section present
-		cfg.Logging.AllowSensitive = fc.Logging.AllowSensitive
 	}
 
 	if fc.TokenExchange != nil {
-		if fc.TokenExchange.Enabled != nil {
-			cfg.TokenExchange.Enabled = fc.TokenExchange.Enabled
-		}
 		if fc.TokenExchange.Path != "" {
 			cfg.TokenExchange.Path = fc.TokenExchange.Path
 		}
-	}
-
-	if fc.RequireTokenExchange != nil {
-		cfg.RequireTokenExchange = *fc.RequireTokenExchange
-	}
-
-	if fc.PeerPolicy != "" {
-		cfg.PeerPolicy = fc.PeerPolicy
 	}
 
 	if fc.HTTP != nil {
@@ -354,11 +305,14 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Persistence.DataDir != "" {
 			cfg.Persistence.DataDir = fc.Persistence.DataDir
 		}
-		if fc.Persistence.Mirror != nil {
-			cfg.Persistence.Mirror.IncludeSecrets = fc.Persistence.Mirror.IncludeSecrets
-			if len(fc.Persistence.Mirror.SecretsScope) > 0 {
-				cfg.Persistence.Mirror.SecretsScope = fc.Persistence.Mirror.SecretsScope
-			}
+	}
+
+	if fc.OCM != nil && fc.OCM.Discovery != nil {
+		if fc.OCM.Discovery.PeerAPIVersionPolicy != "" {
+			cfg.OCM.Discovery.PeerAPIVersionPolicy = fc.OCM.Discovery.PeerAPIVersionPolicy
+		}
+		if fc.OCM.Discovery.PeerAPIVersionWarn != "" {
+			cfg.OCM.Discovery.PeerAPIVersionWarn = fc.OCM.Discovery.PeerAPIVersionWarn
 		}
 	}
 }
@@ -374,18 +328,6 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.ExternalBasePath != nil && *f.ExternalBasePath != "" {
 		cfg.ExternalBasePath = *f.ExternalBasePath
 	}
-	if f.CompatibilityScope != nil && *f.CompatibilityScope != "" {
-		cfg.CompatibilityScope = *f.CompatibilityScope
-	}
-	if f.SignatureInboundMode != nil && *f.SignatureInboundMode != "" {
-		cfg.Signature.InboundMode = *f.SignatureInboundMode
-	}
-	if f.SignatureOutboundMode != nil && *f.SignatureOutboundMode != "" {
-		cfg.Signature.OutboundMode = *f.SignatureOutboundMode
-	}
-	if f.SignaturePeerProfileOverride != nil && *f.SignaturePeerProfileOverride != "" {
-		cfg.Signature.PeerProfileLevelOverride = *f.SignaturePeerProfileOverride
-	}
 	if f.AdminUsername != nil && *f.AdminUsername != "" {
 		cfg.Server.BootstrapAdmin.Username = *f.AdminUsername
 	}
@@ -395,22 +337,7 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.LoggingLevel != nil && *f.LoggingLevel != "" {
 		cfg.Logging.Level = *f.LoggingLevel
 	}
-	if f.LoggingAllowSensitive != nil && *f.LoggingAllowSensitive != "" {
-		// Parse "true" or "false" string (only apply when explicitly set)
-		cfg.Logging.AllowSensitive = *f.LoggingAllowSensitive == "true"
-	}
-	if f.TokenExchangeEnabled != nil && *f.TokenExchangeEnabled != "" {
-		// Parse "true" or "false" string (only apply when explicitly set)
-		enabled := *f.TokenExchangeEnabled == "true"
-		cfg.TokenExchange.Enabled = &enabled
-	}
 	if f.TokenExchangePath != nil && *f.TokenExchangePath != "" {
 		cfg.TokenExchange.Path = *f.TokenExchangePath
-	}
-	if f.RequireTokenExchange != nil && *f.RequireTokenExchange != "" {
-		cfg.RequireTokenExchange = *f.RequireTokenExchange == "true"
-	}
-	if f.PeerPolicy != nil && *f.PeerPolicy != "" {
-		cfg.PeerPolicy = *f.PeerPolicy
 	}
 }

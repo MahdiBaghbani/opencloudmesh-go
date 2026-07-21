@@ -22,8 +22,8 @@ func TestTwoInstanceDiscovery(t *testing.T) {
 	}
 
 	h := harness.StartTwoInstances(t,
-		harness.SubprocessConfig{Name: "instance1", Mode: "dev", KeepSignatureDefaults: true},
-		harness.SubprocessConfig{Name: "instance2", Mode: "dev", KeepSignatureDefaults: true},
+		harness.SubprocessConfig{Name: "instance1", Mode: "dev"},
+		harness.SubprocessConfig{Name: "instance2", Mode: "dev"},
 	)
 	defer h.Stop(t)
 
@@ -63,8 +63,8 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	}
 
 	h := harness.StartTwoInstances(t,
-		harness.SubprocessConfig{Name: "instance1", Mode: "dev", KeepSignatureDefaults: true},
-		harness.SubprocessConfig{Name: "instance2", Mode: "dev", KeepSignatureDefaults: true},
+		harness.SubprocessConfig{Name: "instance1", Mode: "dev"},
+		harness.SubprocessConfig{Name: "instance2", Mode: "dev"},
 	)
 	defer h.Stop(t)
 
@@ -109,14 +109,11 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	// Start a single server with SSRF blocking enabled.
-	// The compat preset keeps SSRF strict while still fitting the plain-HTTP harness.
+	// Start a single server with SSRF blocking enabled (strict mode with route-policy governance).
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "ssrf-test",
-		Mode:                  "compat",
-		KeepSignatureDefaults: true,
-		// ExtraConfig is intentionally empty - compat mode enables SSRF blocking by default.
+		Name: "ssrf-test",
+		Mode: "strict",
 	})
 	defer srv.Stop(t)
 
@@ -134,7 +131,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 		t.Run(privateIP, func(t *testing.T) {
 			// Use base= parameter (not peer=)
 			discoverURL := srv.BaseURL + "/ocm-aux/discover?base=" + privateIP
-			resp, err := http.Get(discoverURL)
+			resp, err := srv.Client().Get(discoverURL)
 			if err != nil {
 				t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 			}
@@ -169,7 +166,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 // TestSSRFRoutePolicyAllowsExplicitCIDRDiscover proves the positive SSRF path: an
 // active route policy with explicit host suffix, CIDR, and port allowance permits
 // a private destination that strict mode would otherwise block. The source runs in
-// compat mode (SSRF strict by preset), the target in dev mode. The discover helper
+// strict mode, the target in dev mode. The discover helper
 // may still return no_invite_accept_dialog after upstream discovery succeeds (T7a).
 func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 	if testing.Short() {
@@ -199,21 +196,19 @@ func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 
 	// Start the target first so its dynamic port is known before writing source config.
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "ssrf-cidr-target",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name:             "ssrf-cidr-target",
+		Mode:             "dev",
+		PublicOriginHost: loopbackHost,
 	})
 	defer target.Stop(t)
 
-	// Source: compat mode inherits SSRF strict by default (same baseline as
-	// TestSSRFBlockingWithIPLiterals). The route policy explicitly allows the
+	// Source: strict mode inherits SSRF strict by default. The route policy explicitly allows the
 	// local hostname, 127.0.0.0/8, and the target's port.
 	// proxy_env_fallback is disabled so ambient HTTP_PROXY/HTTPS_PROXY env vars
 	// cannot interfere with the loopback discovery request.
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:                    "ssrf-cidr-source",
-		Mode:                    "compat",
-		KeepSignatureDefaults:   true,
+		Mode:                    "strict",
 		DisableProxyEnvFallback: true,
 		ExtraConfig: fmt.Sprintf(`
 [outbound_http.ssrf]
@@ -222,7 +217,7 @@ route_policy = "loopback"
 
 [outbound_http.ssrf.route_policies.loopback]
 allow_private_host_suffixes = [%q]
-allow_private_cidrs = ["127.0.0.0/8"]
+allow_private_cidrs = ["127.0.0.0/8", "::1/128"]
 allowed_ports = [%d]
 allow_ip_literals = false
 `, loopbackHost, target.Port),
@@ -230,7 +225,7 @@ allow_ip_literals = false
 	defer source.Stop(t)
 
 	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://%s:%d", source.BaseURL, loopbackHost, target.Port)
-	resp, err := noProxyLocalhostClient(30 * time.Second).Get(discoverURL)
+	resp, err := noProxyClient(source.Client()).Get(discoverURL)
 	if err != nil {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
@@ -270,18 +265,32 @@ allow_ip_literals = false
 	t.Logf("SSRF route policy allowed %s:%d; discover helper failed as expected: %s", loopbackHost, target.Port, discoverResp.Error)
 }
 
-// noProxyLocalhostClient returns an HTTP client with the ambient proxy disabled.
+// noProxyClient returns a copy of client with the ambient proxy disabled.
 // Without this, HTTP_PROXY/HTTPS_PROXY env vars in the test environment could
-// intercept calls to 127.0.0.1 and break the hermetic proof.
-func noProxyLocalhostClient(timeout time.Duration) *http.Client {
-	var t *http.Transport
-	if base, ok := http.DefaultTransport.(*http.Transport); ok {
-		t = base.Clone()
-	} else {
-		t = &http.Transport{}
+// intercept calls to loopback and break hermetic SSRF proofs.
+func noProxyClient(client *http.Client) *http.Client {
+	if client == nil {
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
-	t.Proxy = nil
-	return &http.Client{Timeout: timeout, Transport: t}
+	clone := *client
+	var transport *http.Transport
+	if base, ok := client.Transport.(*http.Transport); ok {
+		transport = base.Clone()
+	} else if client.Transport == nil {
+		if base, ok := http.DefaultTransport.(*http.Transport); ok {
+			transport = base.Clone()
+		} else {
+			transport = &http.Transport{}
+		}
+	} else {
+		transport = &http.Transport{}
+	}
+	transport.Proxy = nil
+	clone.Transport = transport
+	if clone.Timeout == 0 {
+		clone.Timeout = 30 * time.Second
+	}
+	return &clone
 }
 
 // TestSSRFRoutePolicyBlocksWithoutAllowance is the control proof for
@@ -296,24 +305,22 @@ func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
 	binaryPath := harness.BuildBinary(t)
 
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "ssrf-control-target",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "ssrf-control-target",
+		Mode: "dev",
 	})
 	defer target.Stop(t)
 
-	// Source: compat mode, no route policy override. 127.0.0.1 stays blocked by
+	// Source: strict mode, no route policy override. 127.0.0.1 stays blocked by
 	// strict SSRF defaults. proxy_env_fallback disabled for a hermetic client call.
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:                    "ssrf-control-source",
-		Mode:                    "compat",
-		KeepSignatureDefaults:   true,
+		Mode:                    "strict",
 		DisableProxyEnvFallback: true,
 	})
 	defer source.Stop(t)
 
 	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://127.0.0.1:%d", source.BaseURL, target.Port)
-	resp, err := noProxyLocalhostClient(30 * time.Second).Get(discoverURL)
+	resp, err := noProxyClient(source.Client()).Get(discoverURL)
 	if err != nil {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
@@ -349,9 +356,8 @@ func TestHealthEndpointSubprocess(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "health-test",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "health-test",
+		Mode: "dev",
 	})
 	defer srv.Stop(t)
 

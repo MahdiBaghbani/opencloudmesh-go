@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
@@ -26,11 +27,10 @@ func discoveryResolveInputs(cfg *config.Config) resolve.ResolveInputs {
 		panic("discoveryResolveInputs: " + err.Error())
 	}
 	return resolve.ResolveInputs{
-		LocalIdentity:       id,
-		RouteOpts:           service.RouteOptsFromConfig(cfg),
-		TokenExchangePath:   cfg.TokenExchange.Path,
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
+		LocalIdentity:     id,
+		RouteOpts:         service.RouteOptsFromConfig(cfg),
+		TokenExchangePath: cfg.TokenExchange.Path,
+		CodeFlow:          policy.NewCodeFlow(),
 	}
 }
 
@@ -38,14 +38,6 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
-	cfg.Signature.InboundMode = "off"
-	cfg.Signature.OutboundMode = "off"
-	// DevConfig defaults RequireTokenExchange to true, which populates
-	// must-exchange-token and would make the empty-criteria assertion fail for
-	// an unrelated reason, so this test disables it to isolate base-path field
-	// resolution.
-	cfg.RequireTokenExchange = false
-
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
@@ -79,8 +71,8 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	if !ok || path != "/webdav/ocm/" {
 		t.Errorf("webdav protocol = %q, ok=%v", path, ok)
 	}
-	if len(disc.Criteria) != 0 {
-		t.Errorf("criteria = %v, want empty", disc.Criteria)
+	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+		t.Errorf("criteria = %v, want must-use-http-sig under strict inbound", disc.Criteria)
 	}
 }
 
@@ -88,9 +80,6 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = "/ocm"
-	cfg.Signature.InboundMode = "off"
-	cfg.Signature.OutboundMode = "off"
-
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
@@ -123,9 +112,6 @@ func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 	cfg := config.DevConfig()
 	cfg.PublicOrigin = "http://fields.test"
 	cfg.ExternalBasePath = ""
-	cfg.Signature.InboundMode = "off"
-	cfg.Signature.OutboundMode = "off"
-
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	svc, err := New(Inputs{Resolve: discoveryResolveInputs(cfg)}, map[string]any{}, log)
 	if err != nil {
@@ -156,14 +142,15 @@ func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 		t.Errorf("Provider = %q, want OpenCloudMesh", disc.Provider)
 	}
 
-	required := []string{"invites", "protocol-object", "notifications"}
-	capSet := make(map[string]bool, len(disc.Capabilities))
-	for _, cap := range disc.Capabilities {
-		capSet[cap] = true
+	got := append([]string(nil), disc.Capabilities...)
+	sort.Strings(got)
+	want := []string{"exchange-token", "invites"}
+	if len(got) != len(want) {
+		t.Fatalf("capabilities = %v, want %v", got, want)
 	}
-	for _, req := range required {
-		if !capSet[req] {
-			t.Errorf("expected unconditional capability %q in %v", req, disc.Capabilities)
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("capabilities = %v, want %v", got, want)
 		}
 	}
 }

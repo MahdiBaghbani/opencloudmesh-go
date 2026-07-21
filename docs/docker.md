@@ -65,7 +65,7 @@ Mode:
 
 | Variable    | Default | Description |
 | ----------- | ------- | ----------- |
-| OCM_GO_MODE | (none)  | Override the preset bundle: `strict`, `compat`, or `dev`. |
+| OCM_GO_MODE | (none)  | Override the preset bundle: `strict` or `dev`. |
 
 Config:
 

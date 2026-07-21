@@ -32,7 +32,7 @@ Core logic: `internal/platform/http/client/ssrf.go`.
 1. **Public destinations** pass when hostname resolves to public addresses.
 2. **Private destinations** require an active named route policy where
    hostname suffix, resolved IP/CIDR, and destination port all match.
-3. **IP literals** are blocked under active strict/scoped route policies
+3. **IP literals** are blocked under active route policies
    (`allow_ip_literals=true` is rejected at config load in that lane).
    Outside that lane, IP literals still need `allow_ip_literals=true`
    plus matching CIDR and port rules.
@@ -72,9 +72,9 @@ All share the same HTTP client configuration from wiring.
 ## Proxy interaction
 
 When `proxy_url` is set it takes precedence over environment proxy variables.
-Under `compatibility_scope=none`, the proxy host is treated as
-operator-trusted (private/loopback proxy addresses allowed). Destination SSRF
-checks still apply to the final target.
+Under the strict lane, the proxy host is treated as operator-trusted
+(private/loopback proxy addresses allowed). Destination SSRF checks still
+apply to the final target.
 
 ## Verification
 

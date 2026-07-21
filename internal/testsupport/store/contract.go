@@ -132,9 +132,6 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 }
 
 // cloneConfig returns a shallow copy of cfg with DataDir replaced by dir.
-// MirrorConfig is copied by value; the SecretsScope slice header is copied but
-// the underlying array is shared (neither the test code nor any driver mutates
-// it, so this is safe).
 func cloneConfig(cfg *store.DriverConfig, dir string) *store.DriverConfig {
 	c := *cfg
 	c.DataDir = dir

@@ -39,7 +39,7 @@ of `make test-go`. See [architecture.md](architecture.md).
 
 Composition root. `Build` wires persistence, outbound HTTP, signature
 middleware, and returns `wiring.BuildResult`, which includes `Deps` plus
-other built values (`RootCAPool`, `RuntimeEval`, `Persistence`).
+other built values (`RootCAPool`, `Persistence`).
 
 ### internal/frameworks/
 

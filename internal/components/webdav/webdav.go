@@ -1,9 +1,8 @@
-// Package webdav provides WebDAV file serving with OCM auth (Bearer/Basic) and read-only behavior.
+// Package webdav provides WebDAV file serving with OCM Bearer auth and read-only behavior.
 package webdav
 
 import (
 	"context"
-	"encoding/base64"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -24,17 +22,15 @@ import (
 type Handler struct {
 	outgoingRepo sharesoutgoing.OutgoingShareRepo
 	tokenStore   token.TokenStore
-	peerContract *peercompat.CompiledContract
 	logger       *slog.Logger
 }
 
 // NewHandler builds a WebDAV handler.
-func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, peerContract *peercompat.CompiledContract, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		tokenStore:   tokenStore,
-		peerContract: peerContract,
 		logger:       logger,
 	}
 }
@@ -63,15 +59,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cred := extractCredential(r)
 	if cred == nil {
 		h.logger.Debug("WebDAV request missing authorization", "webdav_id", webdavID)
-		w.Header().Set("WWW-Authenticate", `Bearer, Basic realm="OCM WebDAV"`)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="OCM WebDAV"`)
 		http.Error(w, "authorization required", http.StatusUnauthorized)
 		return
 	}
 
-	// Log auth source only - NEVER log the actual token
-	h.logger.Debug("WebDAV auth attempt", "webdav_id", webdavID, "auth_source", cred.Source)
+	h.logger.Debug("WebDAV auth attempt", "webdav_id", webdavID)
 
-	// Look up share by webdavId
 	share, err := h.outgoingRepo.GetByWebDAVID(r.Context(), webdavID)
 	if err != nil {
 		h.logger.Debug("WebDAV share not found", "webdav_id", webdavID)
@@ -79,55 +73,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, authMethod := h.validateCredential(r.Context(), share, cred.Token, cred.Source)
+	authorized := h.validateCredential(r.Context(), share, cred.Token)
 	if !authorized {
 		h.logger.Debug("WebDAV invalid credentials", "webdav_id", webdavID)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="OCM WebDAV"`)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
-	h.logger.Debug("WebDAV authorized", "webdav_id", webdavID, "auth_method", authMethod)
+	h.logger.Debug("WebDAV authorized", "webdav_id", webdavID)
 
-	// Serve the file using webdav package
 	h.serveFile(w, r, share)
 }
 
-// validateCredential validates the token; returns (authorized, method) with method "exchanged_token" or "shared_secret".
-func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.OutgoingShare, token string, authSource string) (bool, string) {
-	if h.tokenStore != nil {
-		issuedToken, err := h.tokenStore.Get(ctx, token)
-		if err == nil && issuedToken != nil && issuedToken.ShareID == share.ShareID {
-			return true, "exchanged_token"
-		}
+// validateCredential validates the token via the token store.
+func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.OutgoingShare, token string) bool {
+	if h.tokenStore == nil {
+		return false
 	}
-
-	if strings.HasPrefix(authSource, "basic:") {
-		patternKey := strings.TrimPrefix(authSource, "basic:")
-		if !h.isBasicPatternAllowedForShare(share, patternKey) {
-			return false, ""
-		}
+	issuedToken, err := h.tokenStore.Get(ctx, token)
+	if err != nil || issuedToken == nil || issuedToken.ShareID != share.ShareID {
+		return false
 	}
-
-	// A share marked must-exchange-token must never allow raw shared-secret
-	// fallback, regardless of local compatibility mode.
-	if share.MustExchangeToken {
-		return false, ""
-	}
-
-	if share.SharedSecret == token {
-		return true, "shared_secret"
-	}
-
-	return false, ""
-}
-
-func (h *Handler) isBasicPatternAllowedForShare(share *sharesoutgoing.OutgoingShare, pattern string) bool {
-	if h.peerContract == nil {
-		// Keep the explicit nil-dependency fallback behavior without routing
-		// through raw profile helper methods outside peercompat.
-		return true
-	}
-	return h.peerContract.IsBasicAuthPatternAllowedForPeer(share.ReceiverHost, pattern)
+	return true
 }
 
 // serveFile serves share.LocalPath via WebDAV.
@@ -215,13 +183,12 @@ func isWriteMethod(method string) bool {
 	return false
 }
 
-// credentialResult holds extracted auth credentials.
+// credentialResult holds extracted Bearer credentials.
 type credentialResult struct {
-	Token  string
-	Source string // auth source for logging only (bearer, basic:*, etc)
+	Token string
 }
 
-// extractCredential extracts auth from Bearer or Basic header. Returns nil if absent or invalid.
+// extractCredential extracts auth from a Bearer Authorization header.
 func extractCredential(r *http.Request) *credentialResult {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
@@ -231,41 +198,8 @@ func extractCredential(r *http.Request) *credentialResult {
 	if strings.HasPrefix(auth, "Bearer ") {
 		token := strings.TrimPrefix(auth, "Bearer ")
 		if token != "" {
-			return &credentialResult{Token: token, Source: "bearer"}
+			return &credentialResult{Token: token}
 		}
-		return nil
-	}
-
-	if strings.HasPrefix(auth, "Basic ") {
-		encoded := strings.TrimPrefix(auth, "Basic ")
-		decoded, err := base64.StdEncoding.DecodeString(encoded)
-		if err != nil {
-			return nil
-		}
-		parts := strings.SplitN(string(decoded), ":", 2)
-		if len(parts) != 2 {
-			return nil
-		}
-		username, password := parts[0], parts[1]
-
-		if password == "" && username != "" {
-			return &credentialResult{Token: username, Source: "basic:token:"}
-		}
-
-		if username != "" && username == password {
-			return &credentialResult{Token: username, Source: "basic:token:token"}
-		}
-
-		if username == "" && password != "" {
-			return &credentialResult{Token: password, Source: "basic::token"}
-		}
-
-		if username != "" && password != "" {
-			token := strings.TrimSuffix(password, ":")
-			return &credentialResult{Token: token, Source: "basic:id:token"}
-		}
-
-		return nil
 	}
 
 	return nil

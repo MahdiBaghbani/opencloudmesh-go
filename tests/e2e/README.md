@@ -47,7 +47,7 @@ bun run test:debug        # Playwright inspector
 - Temp data directory per instance
 - Static TLS using `testdata/tls/` and the DockyPody CA from
   `tests/ca_pool/testdata/certificate-authority/`
-- Optional `mode` (`dev`, `compat`, `strict`) and extra TOML snippets
+- Optional `mode` (`dev`, `strict`) and extra TOML snippets
 
 Playwright config sets `workers: 1` and `fullyParallel: false` so subprocess
 servers do not collide on ports.

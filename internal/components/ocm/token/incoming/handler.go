@@ -3,11 +3,12 @@ package incoming
 import (
 	"encoding/json"
 	"log/slog"
+	"mime"
 	"net/http"
-	"strings"
 	"time"
 
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
@@ -22,13 +23,14 @@ type Handler struct {
 	tokenStore   token.TokenStore
 	tokenTTL     time.Duration
 	settings     *TokenExchangeSettings
+	codeFlow     *policy.CodeFlow
 	logger       *slog.Logger
 	localScheme  string // "http" or "https", derived from PublicOrigin
 }
 
 // NewHandler builds a token handler. Settings must have ApplyDefaults() called (done by cfg.Decode).
 // publicOrigin is used for scheme-aware client_id comparison (e.g. host vs host:443).
-func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, publicOrigin string, logger *slog.Logger) *Handler {
+func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, codeFlow *policy.CodeFlow, publicOrigin string, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
 
 	localScheme := config.PublicSchemeFromOrigin(publicOrigin)
@@ -38,6 +40,7 @@ func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenS
 		tokenStore:   tokenStore,
 		tokenTTL:     token.DefaultTokenTTL,
 		settings:     settings,
+		codeFlow:     codeFlow,
 		logger:       logger,
 		localScheme:  localScheme,
 	}
@@ -50,39 +53,38 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.settings == nil || !h.settings.Enabled {
+	capable := h.codeFlow != nil && h.codeFlow.Evaluate().TokenExchangeCapable
+	if h.settings == nil || !capable {
 		h.sendOAuthError(w, http.StatusNotImplemented, "not_implemented", "token exchange is disabled")
 		return
 	}
 
+	ctx := r.Context()
+
 	// Get request-scoped logger with request correlation fields
-	log := appctx.GetLogger(r.Context())
+	log := appctx.GetLogger(ctx)
 
-	// Parse request - support both form-urlencoded (spec) and JSON (Nextcloud interop)
-	var req token.TokenRequest
-	ct := r.Header.Get("Content-Type")
-
-	if strings.HasPrefix(ct, "application/json") {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse JSON body")
-			return
-		}
-	} else {
-		if err := r.ParseForm(); err != nil {
-			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse form body")
-			return
-		}
-		req.GrantType = r.FormValue("grant_type")
-		req.ClientID = r.FormValue("client_id")
-		req.Code = r.FormValue("code")
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/x-www-form-urlencoded" {
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "unsupported content type")
+		return
 	}
+
+	var req token.TokenRequest
+	if err := r.ParseForm(); err != nil {
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse form body")
+		return
+	}
+	req.GrantType = r.FormValue("grant_type")
+	req.ClientID = r.FormValue("client_id")
+	req.Code = r.FormValue("code")
 
 	if req.GrantType == "" {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "grant_type is required")
 		return
 	}
-	if req.GrantType != token.GrantTypeAuthorizationCode && req.GrantType != token.GrantTypeOCMShare {
-		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidGrant, "unsupported grant_type")
+	if req.GrantType != token.GrantTypeAuthorizationCode {
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorUnsupportedGrantType, "unsupported grant_type")
 		return
 	}
 	if req.ClientID == "" {
@@ -93,9 +95,6 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "code is required")
 		return
 	}
-
-	ctx := r.Context()
-	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
 
 	if h.outgoingRepo == nil {
 		log.Error("token exchange attempted but outgoing share repo not configured")
@@ -133,6 +132,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		if peerIdentity.AuthorityForCompare != normalizedReceiver {
 			log.Warn("token exchange verified identity mismatch",
@@ -141,6 +141,12 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidClient, "client_id mismatch")
 			return
 		}
+	}
+
+	if h.tokenTTL <= 0 {
+		log.Error("token exchange misconfigured: non-positive token TTL")
+		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token exchange not available")
+		return
 	}
 
 	accessToken, err := token.GenerateAccessToken()

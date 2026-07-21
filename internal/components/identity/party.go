@@ -12,14 +12,14 @@ import (
 )
 
 var (
-	ErrUserNotFound           = errors.New("user not found")
-	ErrUserExists             = errors.New("user already exists")
-	ErrEmailExists            = errors.New("email already in use")
-	ErrInvalidPassword        = errors.New("invalid password")
-	ErrSessionExpired         = errors.New("session expired")
-	ErrSessionNotFound        = errors.New("session not found")
-	ErrSuperAdminProtected    = errors.New("super admin cannot be deleted or demoted")
-	ErrSuperAdminRoleChange   = errors.New("super admin role cannot be changed")
+	ErrUserNotFound         = errors.New("user not found")
+	ErrUserExists           = errors.New("user already exists")
+	ErrEmailExists          = errors.New("email already in use")
+	ErrInvalidPassword      = errors.New("invalid password")
+	ErrSessionExpired       = errors.New("session expired")
+	ErrSessionNotFound      = errors.New("session not found")
+	ErrSuperAdminProtected  = errors.New("super admin cannot be deleted or demoted")
+	ErrSuperAdminRoleChange = errors.New("super admin role cannot be changed")
 )
 
 const (
@@ -31,15 +31,15 @@ const (
 
 // User represents a party in the system.
 type User struct {
-	ID           string    `json:"id"`            // UUIDv7
-	Username     string    `json:"username"`      // Unique login name
-	Email        string    `json:"email"`         // Optional email
-	DisplayName  string    `json:"display_name"`  // Human-readable name
-	PasswordHash string    `json:"-"`             // bcrypt hash, never serialized
-	Role         string    `json:"role"`          // admin, user, probe
-	Realm        string    `json:"realm"`         // Isolation realm for probe users
-	StorageRoot  string    `json:"storage_root"`  // User's storage root path
-	CreatedAt    time.Time `json:"created_at"`
+	ID           string     `json:"id"`           // UUIDv7
+	Username     string     `json:"username"`     // Unique login name
+	Email        string     `json:"email"`        // Optional email
+	DisplayName  string     `json:"display_name"` // Human-readable name
+	PasswordHash string     `json:"-"`            // bcrypt hash, never serialized
+	Role         string     `json:"role"`         // admin, user, probe
+	Realm        string     `json:"realm"`        // Isolation realm for probe users
+	StorageRoot  string     `json:"storage_root"` // User's storage root path
+	CreatedAt    time.Time  `json:"created_at"`
 	ExpiresAt    *time.Time `json:"expires_at,omitempty"` // For probe users
 }
 
@@ -128,9 +128,9 @@ func normalizeEmail(email string) string {
 
 // MemoryPartyRepo stores users in memory with username and email indexes.
 type MemoryPartyRepo struct {
-	mu          sync.RWMutex
-	users       map[string]*User // by ID
-	byUsername  map[string]string // username -> ID
+	mu         sync.RWMutex
+	users      map[string]*User  // by ID
+	byUsername map[string]string // username -> ID
 	byEmail    map[string]string // normalized email -> ID (only non-empty emails)
 }
 
@@ -138,7 +138,7 @@ func NewMemoryPartyRepo() *MemoryPartyRepo {
 	return &MemoryPartyRepo{
 		users:      make(map[string]*User),
 		byUsername: make(map[string]string),
-		byEmail:   make(map[string]string),
+		byEmail:    make(map[string]string),
 	}
 }
 

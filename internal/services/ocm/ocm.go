@@ -1,4 +1,3 @@
-// Package ocm provides the OCM protocol service for OpenCloudMesh.
 package ocm
 
 import (
@@ -9,7 +8,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
-	notifincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
@@ -53,9 +51,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		log.Warn("unused config keys", "service", "ocm", "unused_keys", unused)
 	}
 
-	if inputs.OpenCloudMeshPolicy != nil {
-		c.TokenExchange.Enabled = inputs.OpenCloudMeshPolicy.Evaluate().TokenExchangeCapable
-	}
 	var rawTE map[string]any
 	if te, ok := m["token_exchange"].(map[string]any); ok {
 		rawTE = te
@@ -75,15 +70,10 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.IncomingShareRepo,
 		inputs.PartyRepo,
 		inputs.PolicyEngine,
-		inputs.DiscoveryClient,
-		inputs.OpenCloudMeshPolicy,
-		inputs.RuntimePolicy,
-		inputs.PeerContract,
 		inputs.LocalIdentity.ProviderDomainCompare,
 		inputs.LocalIdentity.Scheme,
 		log,
 	)
-	notifHandler := notifincoming.NewHandler(inputs.OutgoingShareRepo, inputs.LocalIdentity.Origin, log)
 	invitesHandler := invitesincoming.NewHandler(
 		inputs.OutgoingInviteRepo,
 		inputs.PartyRepo,
@@ -96,6 +86,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.OutgoingShareRepo,
 		inputs.TokenStore,
 		&c.TokenExchange,
+		inputs.CodeFlow,
 		inputs.LocalIdentity.Origin,
 		log,
 	)
@@ -103,21 +94,16 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	peerResolver := peer.NewResolver()
 	r := chi.NewRouter()
 
-	if inputs.SignatureMiddleware != nil {
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveSharesRequest)).
-			Post(RouteShares, sharesHandler.CreateShare)
-		// Notifications stay signature-only: no body-declared peer resolver.
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignature(nil)).
-			Post(RouteNotifications, notifHandler.HandleNotification)
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveInviteAcceptedRequest)).
-			Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
-		r.With(inputs.SignatureMiddleware.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveTokenRequest)).
-			Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
-	} else {
-		r.Post(RouteShares, sharesHandler.CreateShare)
-		r.Post(RouteNotifications, notifHandler.HandleNotification)
-		r.Post(RouteInviteAccepted, invitesHandler.HandleInviteAccepted)
-		r.Post(c.TokenExchange.RoutePath(), tokenHandler.HandleToken)
+	routeOpts := service.RouteOpts{
+		ExternalBasePath:  inputs.LocalIdentity.ExternalBasePath,
+		TokenExchangePath: c.TokenExchange.Path,
+	}
+	if err := mountProtocolRoutes(r, routeOpts, inputs, routeHandlers{
+		shares:         sharesHandler.CreateShare,
+		inviteAccepted: invitesHandler.HandleInviteAccepted,
+		token:          tokenHandler.HandleToken,
+	}, peerResolver); err != nil {
+		return nil, err
 	}
 
 	return &Service{
@@ -128,10 +114,14 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 }
 
 func validateInputs(in Inputs) error {
-	if in.RuntimePolicy == nil {
-		return errors.New("ocm: RuntimePolicy is required")
+	switch {
+	case in.SignatureMiddleware == nil:
+		return errors.New("ocm: SignatureMiddleware is required")
+	case in.PartyRepo == nil:
+		return errors.New("ocm: PartyRepo is required")
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (s *Service) Handler() http.Handler {

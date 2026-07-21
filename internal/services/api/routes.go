@@ -20,7 +20,6 @@ const (
 	RouteInboxInviteDecline     = "/inbox/invites/{inviteId}/decline"
 	RouteSharesOutgoing         = "/shares/outgoing"
 	RouteInvitesOutgoing        = "/invites/outgoing"
-	RouteAdminFederations       = "/admin/federations"
 )
 
 func init() {
@@ -91,26 +90,24 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 			TrustClass:    service.TrustPeerNone,
 		},
 		{
-			ID:                   "api-inbox-share-accept",
-			Service:              "api",
-			Method:               "POST",
-			Pattern:              RouteInboxShareAccept,
-			SessionPolicy:        service.SessionProtected,
-			HandlerAuth:          service.HandlerAuthCurrentUser,
-			SurfaceClass:         service.SurfaceAPI,
-			OutboundProtocolKind: service.OutboundNotifications,
-			TrustClass:           service.TrustPeerNone,
+			ID:            "api-inbox-share-accept",
+			Service:       "api",
+			Method:        "POST",
+			Pattern:       RouteInboxShareAccept,
+			SessionPolicy: service.SessionProtected,
+			HandlerAuth:   service.HandlerAuthCurrentUser,
+			SurfaceClass:  service.SurfaceAPI,
+			TrustClass:    service.TrustPeerNone,
 		},
 		{
-			ID:                   "api-inbox-share-decline",
-			Service:              "api",
-			Method:               "POST",
-			Pattern:              RouteInboxShareDecline,
-			SessionPolicy:        service.SessionProtected,
-			HandlerAuth:          service.HandlerAuthCurrentUser,
-			SurfaceClass:         service.SurfaceAPI,
-			OutboundProtocolKind: service.OutboundNotifications,
-			TrustClass:           service.TrustPeerNone,
+			ID:            "api-inbox-share-decline",
+			Service:       "api",
+			Method:        "POST",
+			Pattern:       RouteInboxShareDecline,
+			SessionPolicy: service.SessionProtected,
+			HandlerAuth:   service.HandlerAuthCurrentUser,
+			SurfaceClass:  service.SurfaceAPI,
+			TrustClass:    service.TrustPeerNone,
 		},
 		{
 			ID:                   "api-inbox-share-verify-access",
@@ -182,16 +179,6 @@ func registeredRouteSpecs(service.RouteOpts) []service.RouteSpec {
 			Service:       "api",
 			Method:        "POST",
 			Pattern:       RouteInvitesOutgoing,
-			SessionPolicy: service.SessionProtected,
-			HandlerAuth:   service.HandlerAuthCurrentUser,
-			SurfaceClass:  service.SurfaceAPI,
-			TrustClass:    service.TrustPeerNone,
-		},
-		{
-			ID:            "api-admin-federations",
-			Service:       "api",
-			Method:        "GET",
-			Pattern:       RouteAdminFederations,
 			SessionPolicy: service.SessionProtected,
 			HandlerAuth:   service.HandlerAuthCurrentUser,
 			SurfaceClass:  service.SurfaceAPI,

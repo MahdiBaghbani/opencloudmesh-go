@@ -59,18 +59,10 @@ func TestDirectoryServiceJWSFeedsFederations(t *testing.T) {
 		t.Fatalf("marshal trust group: %v", err)
 	}
 
-	// global_enforce=true satisfies the scoped guardrail (dev preset resolves
-	// compatibility_scope=scoped, which requires peer_trust.policy.global_enforce=true
-	// whenever peer trust is enabled).
-	// The trust group's own EnforceMembership=false above still controls
-	// whether membership is actually checked.
 	extraConfig := `
 [peer_trust]
 enabled = true
 config_paths = ["trust-group.json"]
-
-[peer_trust.policy]
-global_enforce = true
 
 [peer_trust.membership_cache]
 ttl_seconds = 0
@@ -79,9 +71,8 @@ max_stale_seconds = 600
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "ds-federations-test",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "ds-federations-test",
+		Mode: "dev",
 		ExtraFiles: map[string]string{
 			"trust-group.json": string(trustGroupJSON),
 		},
@@ -185,13 +176,13 @@ func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 	t.Helper()
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/.well-known/ocm" && r.URL.Path != "/ocm-provider" {
+		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"enabled":            true,
-			"apiVersion":         "1.2.2",
+			"apiVersion":         "1.4.0",
 			"endPoint":           srv.URL + "/ocm",
 			"inviteAcceptDialog": "/apps/ocm/invite-accept",
 			"resourceTypes":      []any{},
@@ -204,7 +195,7 @@ func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 func startBrokenOCMPeer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/.well-known/ocm" || r.URL.Path == "/ocm-provider" {
+		if r.URL.Path == "/.well-known/ocm" {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}

@@ -8,7 +8,7 @@
 
 OpenCloudMesh Go is a Go server for Open Cloud Mesh (OCM). It focuses on a
 pinned, practical slice of the protocol: discovery, user shares, invite flows,
-token exchange, a notification subset, HTTP-signature-aware behavior, and
+the strict authorization-code flow, HTTP signatures and JWKS, and Bearer
 WebDAV access on that path.
 
 This repository is not the OCM specification itself, and it does not claim full
@@ -27,13 +27,13 @@ interesting parts behind magic. That is what this repo is trying to be.
 
 It gives you a runnable OCM peer in Go, keeps the scope explicit instead of
 pretending to implement everything, and pins behavior to a specific OCM-API
-snapshot. It also tries to make the compatibility story legible: signatures,
-transport, trust, and peer-compat behavior are all deliberate knobs rather than
+snapshot. It also tries to make the security story legible: signatures,
+transport, and trust are deliberate knobs rather than
 silent fallbacks.
 
 Right now that means discovery, user-share flows on the WebDAV-centered path,
-invite handling, accept flows, optional WAYF support, token exchange on the
-documented OCM route surface, the current notification subset, and a bundled UI
+invite handling, accept flows, optional WAYF support, the strict
+authorization-code flow on the documented OCM route surface, and a bundled UI
 and API for practical local and multi-instance workflows.
 
 For the exact route surface, start with
@@ -110,10 +110,9 @@ between them.
 
 The server resolves config in this order: preset bundle, TOML file, CLI flags.
 
-The shipped preset bundles are `strict`, `compat`, and `dev`. They are good
-starting points, but they are not the whole posture story. Effective behavior
-still depends on `compatibility_scope` and the signature, transport, trust, and
-peer-compat settings.
+The shipped preset bundles are `strict` and `dev`. They are good starting
+points; effective behavior also depends on signature, transport, and trust
+settings.
 
 If you are getting oriented, start here:
 

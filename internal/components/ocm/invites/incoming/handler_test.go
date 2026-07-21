@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +28,10 @@ const (
 	testScheme   = "https"
 )
 
-func newTestHandler(repo *invitesoutgoing.MemoryOutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+func newTestHandler(repo invitesoutgoing.OutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+	if partyRepo == nil {
+		partyRepo = identity.NewMemoryPartyRepo()
+	}
 	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testScheme, testLogger)
 }
 
@@ -138,12 +142,21 @@ func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
 
 func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := newTestHandler(repo, nil)
+	partyRepo := identity.NewMemoryPartyRepo()
+	localUser := &identity.User{
+		ID:       "user-empty-email",
+		Username: "empty-email-user",
+		Email:    "",
+	}
+	if err := partyRepo.Create(context.Background(), localUser); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	handler := newTestHandler(repo, partyRepo)
 
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-email-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // no creator user id
+		CreatedByUserID: localUser.ID,
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
@@ -158,12 +171,21 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 
 func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := newTestHandler(repo, nil)
+	partyRepo := identity.NewMemoryPartyRepo()
+	localUser := &identity.User{
+		ID:          "user-empty-name",
+		Username:    "empty-name-user",
+		DisplayName: "",
+	}
+	if err := partyRepo.Create(context.Background(), localUser); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	handler := newTestHandler(repo, partyRepo)
 
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-name-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // no creator user id
+		CreatedByUserID: localUser.ID,
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
@@ -357,14 +379,88 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 	}
 }
 
-func TestHandleInviteAccepted_EmptyCreator_PlaceholderIdentity(t *testing.T) {
+type outgoingRepoSpy struct {
+	*invitesoutgoing.MemoryOutgoingInviteRepo
+	updateStatusCalled bool
+}
+
+func (s *outgoingRepoSpy) UpdateStatus(ctx context.Context, id string, status invites.InviteStatus, acceptedBy string) error {
+	s.updateStatusCalled = true
+	return s.MemoryOutgoingInviteRepo.UpdateStatus(ctx, id, status, acceptedBy)
+}
+
+type partyRepoGetFail struct {
+	failID string
+}
+
+func (r *partyRepoGetFail) Create(context.Context, *identity.User) error { return nil }
+
+func (r *partyRepoGetFail) Get(_ context.Context, id string) (*identity.User, error) {
+	if id == r.failID {
+		return nil, errors.New("party lookup failed")
+	}
+	return nil, identity.ErrUserNotFound
+}
+
+func (r *partyRepoGetFail) GetByUsername(context.Context, string) (*identity.User, error) {
+	return nil, identity.ErrUserNotFound
+}
+
+func (r *partyRepoGetFail) GetByEmail(context.Context, string) (*identity.User, error) {
+	return nil, identity.ErrUserNotFound
+}
+
+func (r *partyRepoGetFail) Update(context.Context, *identity.User) error { return nil }
+
+func (r *partyRepoGetFail) Delete(context.Context, string) error { return nil }
+
+func (r *partyRepoGetFail) List(context.Context, string) ([]*identity.User, error) {
+	return nil, nil
+}
+
+func (r *partyRepoGetFail) DeleteExpired(context.Context) (int, error) { return 0, nil }
+
+func TestHandleInviteAccepted_PartyRepoGetFails_InviterIdentityUnavailable(t *testing.T) {
+	memoryRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := &outgoingRepoSpy{MemoryOutgoingInviteRepo: memoryRepo}
+	creatorID := "missing-creator-user"
+	partyRepo := &partyRepoGetFail{failID: creatorID}
+	handler := newTestHandler(repo, partyRepo)
+
+	invite := &invitesoutgoing.OutgoingInvite{
+		Token:           "party-get-fail-token",
+		ProviderFQDN:    testProvider,
+		CreatedByUserID: creatorID,
+		ExpiresAt:       time.Now().Add(24 * time.Hour),
+		Status:          invites.InviteStatusPending,
+	}
+	repo.Create(context.Background(), invite)
+
+	w := postInviteAccepted(handler, `{"token":"party-get-fail-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for party repo get failure, got %d: %s", w.Code, w.Body.String())
+	}
+	if msg := decodeOCMError(t, w); msg != "INVITER_IDENTITY_UNAVAILABLE" {
+		t.Errorf("expected INVITER_IDENTITY_UNAVAILABLE, got %q", msg)
+	}
+	if repo.updateStatusCalled {
+		t.Error("UpdateStatus should not have been called")
+	}
+	updated, _ := memoryRepo.GetByToken(context.Background(), "party-get-fail-token")
+	if updated.Status != invites.InviteStatusPending {
+		t.Errorf("expected status %s (no mutation), got %s", invites.InviteStatusPending, updated.Status)
+	}
+}
+
+func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-creator-token",
 		ProviderFQDN:    testProvider,
-		CreatedByUserID: "", // no creator user id
+		CreatedByUserID: "",
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
@@ -372,21 +468,15 @@ func TestHandleInviteAccepted_EmptyCreator_PlaceholderIdentity(t *testing.T) {
 
 	w := postInviteAccepted(handler, `{"token":"empty-creator-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for empty-creator placeholder identity, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for empty creator, got %d: %s", w.Code, w.Body.String())
 	}
-
-	var resp spec.InviteAcceptedResponse
-	json.NewDecoder(w.Body).Decode(&resp)
-	expectedUserID := address.EncodeFederatedOpaqueID("unknown", testProvider)
-	if resp.UserID != expectedUserID {
-		t.Errorf("userID = %q, want %q (placeholder for empty creator)", resp.UserID, expectedUserID)
+	if msg := decodeOCMError(t, w); msg != "INVITER_IDENTITY_UNAVAILABLE" {
+		t.Errorf("expected INVITER_IDENTITY_UNAVAILABLE, got %q", msg)
 	}
-	if resp.Email != "" {
-		t.Errorf("email = %q, want empty (empty-creator placeholder)", resp.Email)
-	}
-	if resp.Name != "" {
-		t.Errorf("name = %q, want empty (empty-creator placeholder)", resp.Name)
+	updated, _ := repo.GetByToken(context.Background(), "empty-creator-token")
+	if updated.Status != invites.InviteStatusPending {
+		t.Errorf("expected status %s (no mutation), got %s", invites.InviteStatusPending, updated.Status)
 	}
 }
 
@@ -399,7 +489,7 @@ func TestHandleInviteAccepted_EmptyCreator_PlaceholderIdentity(t *testing.T) {
 // incorrectly match.
 func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := incoming.NewHandler(repo, nil, nil, testProvider, "", testLogger)
+	handler := incoming.NewHandler(repo, identity.NewMemoryPartyRepo(), nil, testProvider, "", testLogger)
 
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:        "empty-origin-token",

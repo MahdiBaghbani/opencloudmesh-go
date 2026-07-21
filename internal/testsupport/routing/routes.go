@@ -25,10 +25,16 @@ func DevOpts() service.RouteOpts {
 	return service.DefaultRouteOpts()
 }
 
-// WayfEnabledOpts returns route opts with WAYF and invite accept enabled.
+// WayfEnabledOpts returns route opts with WAYF enabled.
 func WayfEnabledOpts() service.RouteOpts {
 	opts := DevOpts()
 	opts.WayfEnabled = true
+	return opts
+}
+
+// InviteAcceptEnabledOpts returns route opts with invite accept UI enabled.
+func InviteAcceptEnabledOpts() service.RouteOpts {
+	opts := DevOpts()
 	opts.InviteAcceptEnabled = true
 	return opts
 }
@@ -79,7 +85,6 @@ func ProtocolRoutes(opts service.RouteOpts) []service.RouteRow {
 // KnownOutboundKinds lists outbound protocol kinds used on API route specs.
 func KnownOutboundKinds() []service.OutboundProtocolKind {
 	return []service.OutboundProtocolKind{
-		service.OutboundNotifications,
 		service.OutboundShares,
 		service.OutboundInvites,
 		service.OutboundAccess,

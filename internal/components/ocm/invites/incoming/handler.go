@@ -25,14 +25,15 @@ import (
 
 type Handler struct {
 	outgoingRepo invitesoutgoing.OutgoingInviteRepo
-	partyRepo    identity.PartyRepo      // for invite-accepted (look up local inviting user)
+	partyRepo    identity.PartyRepo
 	policyEngine *peertrust.PolicyEngine // may be nil when peer trust is disabled
 	providerFQDN string
 	logger       *slog.Logger
 	localScheme  string // scheme from PublicOrigin for comparison normalization
 }
 
-// NewHandler creates the invite-accepted handler. partyRepo looks up local inviting user (may be nil). policyEngine may be nil.
+// NewHandler creates the invite-accepted handler. partyRepo is required.
+// policyEngine may be nil when peer trust is disabled.
 func NewHandler(
 	outgoingRepo invitesoutgoing.OutgoingInviteRepo,
 	partyRepo identity.PartyRepo,
@@ -41,6 +42,9 @@ func NewHandler(
 	localScheme string,
 	logger *slog.Logger,
 ) *Handler {
+	if partyRepo == nil {
+		panic("incoming invite handler: partyRepo is required")
+	}
 	logger = logutil.NoopIfNil(logger)
 
 	return &Handler{
@@ -155,6 +159,13 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	response, ok := h.buildInviteAcceptedResponse(ctx, invite, log)
+	if !ok {
+		h.sendOCMError(w, http.StatusInternalServerError, "INVITER_IDENTITY_UNAVAILABLE")
+		return
+	}
+
 	if err := h.outgoingRepo.UpdateStatus(ctx, invite.ID, invites.InviteStatusAccepted, req.RecipientProvider); err != nil {
 		log.Error("failed to update invite status", "id", invite.ID, "error", err)
 		h.sendOCMError(w, http.StatusInternalServerError, "UPDATE_FAILED")
@@ -164,47 +175,33 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	log.Info("invite accepted",
 		"recipient_provider", req.RecipientProvider,
 		"user_id", req.UserID)
-	response := h.buildInviteAcceptedResponse(ctx, invite, log)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-// buildInviteAcceptedResponse returns local inviting user identity.
-// When CreatedByUserID is empty, a placeholder federated opaque ID is returned.
-func (h *Handler) buildInviteAcceptedResponse(ctx context.Context, invite *invitesoutgoing.OutgoingInvite, log *slog.Logger) spec.InviteAcceptedResponse {
+func (h *Handler) buildInviteAcceptedResponse(
+	ctx context.Context,
+	invite *invitesoutgoing.OutgoingInvite,
+	log *slog.Logger,
+) (spec.InviteAcceptedResponse, bool) {
 	if invite.CreatedByUserID == "" {
-		return spec.InviteAcceptedResponse{
-			UserID: address.EncodeFederatedOpaqueID("unknown", h.providerFQDN),
-			Email:  "",
-			Name:   "",
-		}
-	}
-	if h.partyRepo == nil {
-		log.Error("partyRepo not available for invite-accepted local user lookup")
-		return spec.InviteAcceptedResponse{
-			UserID: address.EncodeFederatedOpaqueID("unknown", h.providerFQDN),
-			Email:  "",
-			Name:   "",
-		}
+		log.Error("invite-accepted missing local inviting user id", "invite_id", invite.ID)
+		return spec.InviteAcceptedResponse{}, false
 	}
 
 	localUser, err := h.partyRepo.Get(ctx, invite.CreatedByUserID)
 	if err != nil {
 		log.Error("failed to look up local inviting user",
 			"created_by_user_id", invite.CreatedByUserID, "error", err)
-		return spec.InviteAcceptedResponse{
-			UserID: address.EncodeFederatedOpaqueID("unknown", h.providerFQDN),
-			Email:  "",
-			Name:   "",
-		}
+		return spec.InviteAcceptedResponse{}, false
 	}
 
 	return spec.InviteAcceptedResponse{
 		UserID: address.EncodeFederatedOpaqueID(localUser.ID, h.providerFQDN),
 		Email:  localUser.Email,
 		Name:   localUser.DisplayName,
-	}
+	}, true
 }
 
 func (h *Handler) sendOCMError(w http.ResponseWriter, status int, message string) {

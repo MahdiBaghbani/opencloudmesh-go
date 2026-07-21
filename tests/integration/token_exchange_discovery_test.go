@@ -15,19 +15,17 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-// TestCompatModeCanonicalPolicy exercises canonical policy under compat mode,
-// the repo's compatibility preset: bounded scoped governance with a
-// strict-inherited OCM posture and explicit per-peer mappings.
-func TestCompatModeCanonicalPolicy(t *testing.T) {
+// TestDevModeCanonicalPolicy exercises canonical policy under dev mode:
+// bounded route-policy governance with a strict global OCM posture.
+func TestDevModeCanonicalPolicy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "compat-policy",
-		Mode:                  "compat",
-		KeepSignatureDefaults: true,
+		Name: "dev-policy",
+		Mode: "dev",
 		ExtraConfig: `
 [outbound_http.ssrf]
 mode = "off"
@@ -36,7 +34,7 @@ mode = "off"
 	defer srv.Stop(t)
 
 	t.Run("DiscoveryAdvertisesExchangeToken", func(t *testing.T) {
-		resp, err := http.Get(srv.BaseURL + "/.well-known/ocm")
+		resp, err := srv.Client().Get(srv.BaseURL + "/.well-known/ocm")
 		if err != nil {
 			srv.DumpLogs(t)
 			t.Fatalf("failed to get discovery: %v", err)
@@ -58,7 +56,7 @@ mode = "off"
 		}
 
 		if !disc.Enabled {
-			t.Fatal("discovery should be enabled in compat mode")
+			t.Fatal("discovery should be enabled in dev mode")
 		}
 
 		hasExchangeToken := false
@@ -68,28 +66,26 @@ mode = "off"
 			}
 		}
 		if !hasExchangeToken {
-			t.Error("compat mode should advertise exchange-token capability")
+			t.Error("dev mode should advertise exchange-token capability")
 		}
 		if disc.TokenEndPoint == "" {
-			t.Error("compat mode should advertise tokenEndPoint")
+			t.Error("dev mode should advertise tokenEndPoint")
 		}
-		// Compat uses scoped governance with a strict global OCM posture, so
-		// signature.inbound_mode/outbound_mode stay strict at the top level and
-		// discovery advertises the signature criterion.
+
 		hasHTTPReqSigs := false
 		for _, criterion := range disc.Criteria {
-			if criterion == spec.CriteriaMustUseHTTPSig || criterion == "http-request-signatures" {
+			if criterion == spec.CriteriaMustUseHTTPSig {
 				hasHTTPReqSigs = true
 				break
 			}
 		}
 		if !hasHTTPReqSigs {
-			t.Error("compat mode should advertise signature criterion")
+			t.Error("dev mode should advertise signature criterion")
 		}
 	})
 
 	t.Run("HealthEndpoint", func(t *testing.T) {
-		resp, err := http.Get(srv.BaseURL + "/api/healthz")
+		resp, err := srv.Client().Get(srv.BaseURL + "/api/healthz")
 		if err != nil {
 			t.Fatalf("health check failed: %v", err)
 		}
@@ -139,16 +135,14 @@ mode = "off"
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			t.Fatalf("failed to decode error: %v", err)
 		}
-		if errResp.Error != "invalid_grant" {
-			t.Errorf("expected error=invalid_grant, got %q", errResp.Error)
+		if errResp.Error != "unsupported_grant_type" {
+			t.Errorf("expected error=unsupported_grant_type, got %q", errResp.Error)
 		}
 	})
 }
 
 // TestDiscoverySignatureCriteriaMatrixByPosture verifies the discovery
 // signature criterion tracks the resolved signature posture across modes.
-// Every valid mode advertises the signature criterion when inbound signing
-// is strict at the top level.
 func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -162,18 +156,8 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 		wantHTTPReqSigs bool
 	}{
 		{
-			name: "strict signature posture advertises signature criterion",
-			mode: "compat",
-			extraConfig: `
-[signature]
-inbound_mode = "strict"
-outbound_mode = "strict"
-`,
-			wantHTTPReqSigs: true,
-		},
-		{
-			name:            "compat advertises signature criterion",
-			mode:            "compat",
+			name:            "strict advertises signature criterion",
+			mode:            "strict",
 			wantHTTPReqSigs: true,
 		},
 		{
@@ -187,14 +171,13 @@ outbound_mode = "strict"
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-				Name:                  "criteria-matrix-" + tt.mode,
-				Mode:                  tt.mode,
-				KeepSignatureDefaults: true,
-				ExtraConfig:           tt.extraConfig,
+				Name:        "criteria-matrix-" + tt.mode,
+				Mode:        tt.mode,
+				ExtraConfig: tt.extraConfig,
 			})
 			defer srv.Stop(t)
 
-			resp, err := http.Get(srv.BaseURL + "/.well-known/ocm")
+			resp, err := srv.Client().Get(srv.BaseURL + "/.well-known/ocm")
 			if err != nil {
 				srv.DumpLogs(t)
 				t.Fatalf("failed to get discovery: %v", err)
@@ -217,7 +200,7 @@ outbound_mode = "strict"
 
 			hasHTTPReqSigs := false
 			for _, criterion := range disc.Criteria {
-				if criterion == spec.CriteriaMustUseHTTPSig || criterion == "http-request-signatures" {
+				if criterion == spec.CriteriaMustUseHTTPSig {
 					hasHTTPReqSigs = true
 					break
 				}

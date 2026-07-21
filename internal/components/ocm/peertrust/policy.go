@@ -38,15 +38,6 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 
 	peerHost = strings.ToLower(peerHost)
 
-	if !pe.cfg.GlobalEnforce {
-		return &PolicyDecision{
-			Allowed:       true,
-			Reason:        "policy enforcement disabled",
-			ReasonCode:    "policy_disabled",
-			Authenticated: authenticated,
-		}
-	}
-
 	if pe.isInList(peerHost, pe.cfg.DenyList) {
 		pe.logger.Warn("peer denied by denylist", "peer", peerHost)
 		return &PolicyDecision{
@@ -62,15 +53,6 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 			Allowed:       true,
 			Reason:        "peer in allowlist",
 			ReasonCode:    "allowed_by_allowlist",
-			Authenticated: authenticated,
-		}
-	}
-
-	if pe.isInList(peerHost, pe.cfg.ExemptList) {
-		return &PolicyDecision{
-			Allowed:       true,
-			Reason:        "peer in exempt list",
-			ReasonCode:    "allowed_by_exempt",
 			Authenticated: authenticated,
 		}
 	}

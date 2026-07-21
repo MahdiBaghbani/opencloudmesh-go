@@ -128,6 +128,64 @@ func FormatSignature(label string, signature []byte) string {
 	return fmt.Sprintf("%s=:%s:", label, encodeBase64(signature))
 }
 
+// ListDictionaryMemberLabels returns top-level dictionary member keys in order.
+func ListDictionaryMemberLabels(header string) []string {
+	var labels []string
+	for memberStart := 0; memberStart < len(header); {
+		for memberStart < len(header) {
+			ch := header[memberStart]
+			if ch == ' ' || ch == '\t' || ch == ',' {
+				memberStart++
+				continue
+			}
+			break
+		}
+		if memberStart >= len(header) {
+			break
+		}
+		memberEnd := scanTopLevelMemberEnd(header, memberStart)
+		keyStart := memberStart
+		for keyStart < memberEnd {
+			ch := header[keyStart]
+			if ch == ' ' || ch == '\t' {
+				keyStart++
+				continue
+			}
+			break
+		}
+		eq := keyStart
+		for eq < memberEnd && header[eq] != '=' {
+			eq++
+		}
+		if eq < memberEnd {
+			labels = append(labels, strings.TrimSpace(header[keyStart:eq]))
+		}
+		memberStart = memberEnd
+		if memberStart < len(header) && header[memberStart] == ',' {
+			memberStart++
+		}
+	}
+	return labels
+}
+
+// ValidateExactlyOneLabel requires exactly one dictionary member named
+// allowedLabel. Foreign labels are ignored.
+func ValidateExactlyOneLabel(header, allowedLabel string) error {
+	allowedCount := 0
+	for _, label := range ListDictionaryMemberLabels(header) {
+		if label == allowedLabel {
+			allowedCount++
+		}
+	}
+	if allowedCount == 0 {
+		return fmt.Errorf("sigparams: missing %q dictionary member", allowedLabel)
+	}
+	if allowedCount > 1 {
+		return fmt.Errorf("sigparams: multiple %q signatures", allowedLabel)
+	}
+	return nil
+}
+
 // CountDictionaryMembers counts RFC 8941 dictionary members named label.
 // Matches only at top-level member keys so values like keyid="x, ocm=spoof"
 // do not count.
@@ -283,13 +341,21 @@ func parseInnerList(entry string) ([]string, string, error) {
 	}
 
 	var components []string
+	seen := make(map[string]struct{})
 	if inner != "" {
 		for _, part := range strings.Fields(inner) {
 			part = strings.Trim(part, `"`)
 			if part == "" {
 				continue
 			}
-			components = append(components, strings.ToLower(part))
+			c := strings.ToLower(part)
+			if _, dup := seen[c]; dup {
+				// RFC 9421 section 2.3: covered components are ordered-but-distinct;
+				// duplicate identifiers are not meaningful.
+				return nil, "", errors.New("duplicate covered component")
+			}
+			seen[c] = struct{}{}
+			components = append(components, c)
 		}
 	}
 

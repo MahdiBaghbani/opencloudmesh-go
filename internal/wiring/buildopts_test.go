@@ -11,11 +11,10 @@ func harnessBuildOpts() wiring.BuildOpts {
 
 func toBuildOpts(f tswiring.FixtureBuildOpts) wiring.BuildOpts {
 	return wiring.BuildOpts{
-		FastAuth:                f.FastAuth,
-		SkipCrypto:              f.SkipCrypto,
-		SkipPeerTrust:           f.SkipPeerTrust,
-		SkipSignatureMiddleware: f.SkipSignatureMiddleware,
-		OutboundOverride:        f.OutboundOverride,
-		SkipDiscoveryCache:      f.SkipDiscoveryCache,
+		FastAuth:           f.FastAuth,
+		SkipCrypto:         f.SkipCrypto,
+		SkipPeerTrust:      f.SkipPeerTrust,
+		OutboundOverride:   f.OutboundOverride,
+		SkipDiscoveryCache: f.SkipDiscoveryCache,
 	}
 }

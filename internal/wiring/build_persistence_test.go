@@ -1,12 +1,11 @@
 package wiring_test
 
 import (
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
-	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -23,7 +22,7 @@ func assertMemoryBackedTokenStore(t *testing.T, d *wiring.Deps) {
 }
 
 func TestPersistence_MemoryBackend(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
@@ -53,7 +52,7 @@ func TestPersistence_MemoryBackend(t *testing.T) {
 }
 
 func TestPersistence_JSONBackend(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	cfg.Persistence.Backend = config.BackendJSON
 	cfg.Persistence.DataDir = t.TempDir()
 
@@ -85,7 +84,7 @@ func TestPersistence_JSONBackend(t *testing.T) {
 }
 
 func TestPersistence_RejectsUnknownBackend(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	cfg.Persistence.Backend = "bogus-not-a-backend"
 
 	_, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())

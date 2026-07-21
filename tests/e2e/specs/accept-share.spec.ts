@@ -5,6 +5,10 @@
 
 import { test, expect } from '@playwright/test';
 import { buildBinary, startServer, stopServer, ServerInstance } from '../harness/server';
+import {
+  localPeerShareFields,
+  postSignedIncomingShare,
+} from '../harness/signing';
 
 let binaryPath: string;
 
@@ -37,27 +41,22 @@ test.describe('Accept Share Flow', () => {
   }
 
   /**
-   * Helper to create a test share via API.
-   * This simulates receiving a share from another server.
-   * shareWith provider part must match the server's public_origin host:port.
+   * Helper to create a test share via signed POST /ocm/shares.
+   * shareWith and sender/owner providers must match the server public_origin host.
    */
   async function createTestShare(request: import('@playwright/test').APIRequestContext, options: {
     name: string;
     sender?: string;
     status?: string;
   }) {
-    // Derive provider from the running server's base URL so the shareWith
-    // provider part matches the public_origin host:port used for provider matching.
-    const serverURL = new URL(server.baseURL);
-    const provider = serverURL.host; // includes port when non-default
+    const { provider, owner, sender } = localPeerShareFields(server);
 
-    // The /ocm/shares endpoint accepts incoming shares from other servers
     const sharePayload = {
       shareWith: `admin@${provider}`,
       name: options.name,
       providerId: `provider-${Date.now()}`,
-      owner: options.sender || 'sender@remote.example.com',
-      sender: options.sender || 'sender@remote.example.com',
+      owner: options.sender || owner,
+      sender: options.sender || sender,
       shareType: 'user',
       resourceType: 'file',
       protocol: {
@@ -66,15 +65,13 @@ test.describe('Accept Share Flow', () => {
           uri: `https://remote.example.com/webdav/${Date.now()}`,
           sharedSecret: `secret-${Date.now()}`,
           permissions: ['read'],
+          requirements: ['must-exchange-token'],
         },
       },
     };
 
-    const response = await request.post(`${server.baseURL}/ocm/shares`, {
-      headers: { 'Content-Type': 'application/json' },
-      data: sharePayload,
-    });
-
+    const response = await postSignedIncomingShare(request, server, sharePayload);
+    expect(response.status()).toBe(201);
     return response;
   }
 

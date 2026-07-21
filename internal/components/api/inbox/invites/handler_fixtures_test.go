@@ -19,7 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -46,7 +46,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 // newTestRouter mounts the inbox invites handler; nil clients suffice for list/import/decline (accept needs outbound).
 func newTestRouter(t *testing.T, repo invitesinbox.IncomingInviteRepo, user *identity.User) http.Handler {
 	t.Helper()
-	return newTestRouterWithDeps(t, repo, user, nil, nil, nil, nil)
+	return newTestRouterWithDeps(t, repo, user, nil, nil, nil)
 }
 
 func newTestRouterWithDeps(
@@ -56,7 +56,6 @@ func newTestRouterWithDeps(
 	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
 	signer *crypto.RFC9421Signer,
-	outboundPolicy *outboundsigning.OutboundPolicy,
 ) http.Handler {
 	t.Helper()
 	localProvider := tslocalid.MustTestIdentity(t, testPublicOrigin, "").ProviderDomain
@@ -65,7 +64,6 @@ func newTestRouterWithDeps(
 		httpClient,
 		discoveryClient,
 		signer,
-		outboundPolicy,
 		localProvider,
 		currentUserFunc(user),
 		testLogger,
@@ -83,7 +81,7 @@ func newTestRouterWithDeps(
 func newTestOutboundClients(t *testing.T) (httpclient.HTTPClient, *discovery.Client) {
 	t.Helper()
 	outboundCfg := &config.OutboundHTTPConfig{
-		DerivedSSRFMode:    "off",
+		SSRF:               config.SSRFConfig{Mode: "off"},
 		InsecureSkipVerify: true,
 		MaxResponseBytes:   1 << 20,
 	}
@@ -100,13 +98,14 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(discovery.Discovery{
-				Enabled:      true,
-				APIVersion:   "1.2.2",
-				EndPoint:     srv.URL + "/ocm",
-				Capabilities: []string{"exchange-token"},
+			_ = json.NewEncoder(w).Encode(spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.4.0",
+				EndPoint:      srv.URL + "/ocm",
+				Capabilities:  []string{"exchange-token"},
+				TokenEndPoint: srv.URL + "/ocm/token",
 			})
 		case "/ocm/invite-accepted":
 			inviteAcceptedCalls.Add(1)

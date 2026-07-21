@@ -83,9 +83,6 @@ mode = "strict"
 [peer_trust]
 enabled = true
 config_paths = ["` + tgPath + `"]
-
-[peer_trust.policy]
-global_enforce = true
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)

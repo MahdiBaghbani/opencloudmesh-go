@@ -18,11 +18,6 @@ type WebDAVReceive struct {
 	URI WebDAVReceiveURIKind `json:"uri"`
 }
 
-// WebAppReceive is the structured webapp-receive protocol role.
-type WebAppReceive struct {
-	Targets []string `json:"targets"`
-}
-
 // ProtocolRole is either a string path/address or a structured JSON object.
 type ProtocolRole struct {
 	kind   protocolRoleKind
@@ -59,17 +54,6 @@ func ObjectProtocolRole(v any) (ProtocolRole, error) {
 func WebDAVReceiveRole(uri WebDAVReceiveURIKind) ProtocolRole {
 	role, _ := ObjectProtocolRole(WebDAVReceive{URI: uri})
 	return role
-}
-
-// WebAppReceiveRole constructs a webapp-receive protocol role.
-func WebAppReceiveRole(targets []string) ProtocolRole {
-	role, _ := ObjectProtocolRole(WebAppReceive{Targets: targets})
-	return role
-}
-
-// EmptyObjectProtocolRole constructs an empty JSON object protocol role.
-func EmptyObjectProtocolRole() ProtocolRole {
-	return ProtocolRole{kind: protocolRoleObject, object: json.RawMessage("{}")}
 }
 
 func (p ProtocolRole) MarshalJSON() ([]byte, error) {
@@ -129,26 +113,6 @@ func (p ProtocolRole) WebDAVReceive() (*WebDAVReceive, bool) {
 	return &wr, true
 }
 
-// WebAppReceive decodes a webapp-receive object role.
-func (p ProtocolRole) WebAppReceive() (*WebAppReceive, bool) {
-	if p.kind != protocolRoleObject {
-		return nil, false
-	}
-	var wr WebAppReceive
-	if err := json.Unmarshal(p.object, &wr); err != nil || len(wr.Targets) == 0 {
-		return nil, false
-	}
-	return &wr, true
-}
-
-// IsEmptyObject reports whether the role is an empty JSON object.
-func (p ProtocolRole) IsEmptyObject() bool {
-	if p.kind != protocolRoleObject {
-		return false
-	}
-	return string(p.object) == "{}"
-}
-
 // Protocols maps OCM protocol role names to string or object values.
 type Protocols map[string]ProtocolRole
 
@@ -168,13 +132,4 @@ func (p Protocols) WebDAVReceive() (*WebDAVReceive, bool) {
 		return nil, false
 	}
 	return role.WebDAVReceive()
-}
-
-// WebAppReceive returns a webapp-receive role when present.
-func (p Protocols) WebAppReceive() (*WebAppReceive, bool) {
-	role, ok := p["webapp-receive"]
-	if !ok {
-		return nil, false
-	}
-	return role.WebAppReceive()
 }

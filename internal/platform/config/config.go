@@ -9,14 +9,8 @@ import (
 
 // Config holds the server configuration.
 type Config struct {
-	// Mode selects a preset bundle: strict, compat, or dev.
+	// Mode selects a preset bundle: strict or dev.
 	Mode string `toml:"mode"`
-
-	// CompatibilityScope is the supervising exception-governance axis.
-	// Values: "none" (canonical strict, no mappings/relaxations), "scoped"
-	// (explicit named peer_profiles.mappings only; canonical without a peer
-	// match). Unknown values are rejected at startup.
-	CompatibilityScope string `toml:"compatibility_scope"`
 
 	// PublicOrigin is the public origin (scheme + host + port) for this instance.
 	// Example: "https://localhost:9200"
@@ -44,9 +38,6 @@ type Config struct {
 	// Signature configuration
 	Signature SignatureConfig `toml:"signature"`
 
-	// PeerProfiles configuration for compatibility with different OCM implementations
-	PeerProfiles PeerProfilesConfig `toml:"peer_profiles"`
-
 	// Cache configuration
 	Cache CacheConfig `toml:"cache"`
 
@@ -59,19 +50,28 @@ type Config struct {
 	// TokenExchange configuration
 	TokenExchange TokenExchangeConfig `toml:"token_exchange"`
 
-	// RequireTokenExchange controls whether local receive policy requires
-	// must-exchange-token on WebDAV protocol requirements.
-	RequireTokenExchange bool `toml:"require_token_exchange"`
-
-	// PeerPolicy controls sender behavior toward non-strict peers.
-	// Values: "legacy", "prefer-strict" (default), "strict".
-	PeerPolicy string `toml:"peer_policy"`
-
 	// HTTP holds per-service HTTP configuration (Reva-style).
 	HTTP HTTPConfig `toml:"http"`
 
 	// Persistence holds persistence backend settings.
 	Persistence PersistenceConfig `toml:"persistence"`
+
+	// OCM holds OCM-specific settings.
+	OCM OCMConfig `toml:"ocm"`
+}
+
+// OCMConfig holds OCM-specific settings.
+type OCMConfig struct {
+	Discovery DiscoveryConfig `toml:"discovery"`
+}
+
+// DiscoveryConfig holds inbound peer discovery validation settings.
+type DiscoveryConfig struct {
+	// PeerAPIVersionPolicy selects accept policy: accept-any, exact, at-least-1.4.
+	PeerAPIVersionPolicy string `toml:"peer_api_version_policy"`
+
+	// PeerAPIVersionWarn selects warning behavior: any-diff, lower-only, none.
+	PeerAPIVersionWarn string `toml:"peer_api_version_warn"`
 }
 
 // PersistenceConfig holds persistence backend settings.
@@ -83,21 +83,6 @@ type PersistenceConfig struct {
 	// DataDir is the data directory for durable backends (json, sqlite, mirror).
 	// Required when backend is json, sqlite, or mirror.
 	DataDir string `toml:"data_dir"`
-
-	// Mirror holds mirror-specific options.
-	// Only used when backend is mirror.
-	Mirror MirrorPersistenceConfig `toml:"mirror"`
-}
-
-// MirrorPersistenceConfig holds mirror-specific persistence options.
-type MirrorPersistenceConfig struct {
-	// IncludeSecrets controls whether secrets are exported to JSON.
-	// Default: false.
-	IncludeSecrets bool `toml:"include_secrets"`
-
-	// SecretsScope is the allowlist of secret types to export.
-	// Supported values: webdav_shared_secrets, session_tokens.
-	SecretsScope []string `toml:"secrets_scope"`
 }
 
 // HTTPConfig holds per-service HTTP configuration.
@@ -117,21 +102,12 @@ type HTTPConfig struct {
 // LoggingConfig holds logging settings.
 type LoggingConfig struct {
 	// Level is the minimum log level: trace, debug, info, warn, error.
-	// Default: info in strict/compat mode, debug in dev mode.
+	// Default: info in strict mode, debug in dev mode.
 	Level string `toml:"level"`
-
-	// AllowSensitive permits logging of sensitive values (tokens, secrets).
-	// Default: false. Use only for debugging.
-	AllowSensitive bool `toml:"allow_sensitive"`
 }
 
 // TokenExchangeConfig holds token exchange settings.
 type TokenExchangeConfig struct {
-	// Enabled controls whether token exchange is enabled.
-	// Pointer for presence detection; nil = use preset default.
-	// Default: preset-driven. Strict and dev enable it; compat inherits strict.
-	Enabled *bool `toml:"enabled"`
-
 	// Path is the token exchange endpoint path (relative to /ocm/).
 	// Default: "token"
 	Path string `toml:"path"`
@@ -165,17 +141,11 @@ type PeerTrustConfig struct {
 
 // PeerTrustPolicyConfig holds peer trust policy settings.
 type PeerTrustPolicyConfig struct {
-	// GlobalEnforce enforces membership checks globally.
-	GlobalEnforce bool `toml:"global_enforce"`
-
 	// AllowList is a list of always-allowed hosts.
 	AllowList []string `toml:"allow_list"`
 
 	// DenyList is a list of always-denied hosts.
 	DenyList []string `toml:"deny_list"`
-
-	// ExemptList is a list of hosts exempt from membership checks.
-	ExemptList []string `toml:"exempt_list"`
 }
 
 // PeerTrustMembershipCacheConfig holds membership cache settings.
@@ -185,55 +155,6 @@ type PeerTrustMembershipCacheConfig struct {
 
 	// MaxStaleSeconds is the max staleness before treating as unavailable. Default: 604800 (7 days).
 	MaxStaleSeconds int `toml:"max_stale_seconds"`
-}
-
-// PeerProfilesConfig holds peer compatibility profile settings.
-type PeerProfilesConfig struct {
-	// Mappings maps domain patterns to profile names
-	// Example: [{ pattern = "*.nextcloud.com", profile = "nextcloud" }]
-	Mappings []PeerProfileMapping `toml:"mappings"`
-
-	// CustomProfiles defines custom profile overrides
-	CustomProfiles map[string]PeerProfile `toml:"custom_profiles"`
-}
-
-// PeerProfileMapping maps a domain pattern to a profile name.
-type PeerProfileMapping struct {
-	// Pattern is a domain pattern (exact or glob like "*.example.com")
-	Pattern string `toml:"pattern"`
-
-	// Profile is the name of the profile to use
-	Profile string `toml:"profile"`
-}
-
-// PeerProfile defines compatibility behavior for a class of peers.
-type PeerProfile struct {
-	// AllowUnsignedInbound allows accepting unsigned requests
-	AllowUnsignedInbound bool `toml:"allow_unsigned_inbound"`
-
-	// AllowUnsignedOutbound allows sending unsigned requests
-	AllowUnsignedOutbound bool `toml:"allow_unsigned_outbound"`
-
-	// AllowMismatchedHost allows keyId host to differ from sender
-	AllowMismatchedHost bool `toml:"allow_mismatched_host"`
-
-	// AllowHTTP allows HTTP connections (dev-only)
-	AllowHTTP bool `toml:"allow_http"`
-
-	// AllowUnsignedDiscovery allows discovery-based signature capability checks
-	// to fail open for this peer in the narrow retained call sites.
-	AllowUnsignedDiscovery bool `toml:"allow_unsigned_discovery"`
-
-	// TokenExchangeQuirks lists quirks to apply for token exchange
-	TokenExchangeQuirks []string `toml:"token_exchange_quirks"`
-
-	// TokenExchangeGrantType overrides the outbound token exchange grant_type.
-	// Empty means the protocol default ("authorization_code").
-	TokenExchangeGrantType string `toml:"token_exchange_grant_type"`
-
-	// AllowedBasicAuthPatterns whitelists specific Basic auth patterns.
-	// Empty means allow all implemented patterns.
-	AllowedBasicAuthPatterns []string `toml:"allowed_basic_auth_patterns"`
 }
 
 // ServerConfig holds server-level settings.
@@ -258,21 +179,8 @@ type BootstrapAdminConfig struct {
 
 // SignatureConfig holds HTTP signature settings.
 type SignatureConfig struct {
-	// InboundMode controls inbound signature enforcement: strict, lenient, off
-	InboundMode string `toml:"inbound_mode"`
-
-	// OutboundMode controls outbound signing: strict, criteria-only, token-only, off
-	OutboundMode string `toml:"outbound_mode"`
-
-	// PeerProfileLevelOverride controls when peer profile relaxations apply:
-	// all, non-strict, off (strict preset default: off)
-	PeerProfileLevelOverride string `toml:"peer_profile_level_override"`
-
 	// KeyPath is where the signing private key is stored
 	KeyPath string `toml:"key_path"`
-
-	// AllowMismatch allows declared peer vs keyId host mismatch (dev-only)
-	AllowMismatch bool `toml:"allow_mismatch"`
 
 	// Label is the RFC 9421 signature dictionary label (default: ocm).
 	Label string `toml:"label"`
@@ -344,14 +252,13 @@ type SSRFRoutePolicyConfig struct {
 	AllowPrivateHostSuffixes []string `toml:"allow_private_host_suffixes"`
 
 	// AllowPrivateCIDRs lists CIDR ranges permitted for private routing.
-	// Catch-all CIDRs (0.0.0.0/0, ::/0) are rejected under none/scoped scopes.
+	// Catch-all CIDRs (0.0.0.0/0, ::/0) are rejected by route-policy validation.
 	AllowPrivateCIDRs []string `toml:"allow_private_cidrs"`
 
 	// AllowedPorts restricts which destination ports are permitted.
 	AllowedPorts []int `toml:"allowed_ports"`
 
 	// AllowIPLiterals permits direct IP address targets when true.
-	// Must be false under compatibility_scope=none and scoped.
 	AllowIPLiterals bool `toml:"allow_ip_literals"`
 }
 
@@ -373,11 +280,6 @@ type OutboundHTTPConfig struct {
 	// SSRF holds SSRF protection settings.
 	// Configure via [outbound_http.ssrf] in TOML.
 	SSRF SSRFConfig `toml:"ssrf"`
-
-	// DerivedSSRFMode is populated from SSRF.Mode by the config loader.
-	// It is not decoded from TOML; use [outbound_http.ssrf] instead.
-	// Retained for programmatic callers that set this field directly.
-	DerivedSSRFMode string `toml:"-"`
 
 	// TimeoutMS is the overall request timeout in milliseconds
 	TimeoutMS int `toml:"timeout_ms"`
@@ -402,15 +304,15 @@ type OutboundHTTPConfig struct {
 
 	// ProxyURL is an optional HTTP/HTTPS proxy for all outbound requests.
 	// Must be an absolute http or https URL with no userinfo.
-	// When set under compatibility_scope=none the proxy host is
-	// operator-trusted; private and loopback addresses are permitted.
+	// When set, the proxy host is operator-trusted; private and loopback
+	// addresses are permitted.
 	// When set, proxy_url takes precedence over proxy_env_fallback; the
 	// explicit URL is used and environment variables are not consulted.
 	ProxyURL string `toml:"proxy_url"`
 
 	// ProxyEnvFallback enables reading HTTP_PROXY/HTTPS_PROXY/NO_PROXY from
 	// the environment when proxy_url is not set.
-	// Default: true for strict and compat presets, false for dev preset.
+	// Default: true for strict preset, false for dev preset.
 	// Set to false to disable environment-based proxy discovery entirely.
 	ProxyEnvFallback bool `toml:"proxy_env_fallback"`
 }
@@ -442,18 +344,11 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 	return result
 }
 
-// TokenExchangeEnabled returns whether token exchange is enabled.
-// Safe for nil pointer on the *bool field.
-func (c *Config) TokenExchangeEnabled() bool {
-	return c.TokenExchange.Enabled != nil && *c.TokenExchange.Enabled
-}
-
 // Redacted returns a string representation of the config with secrets redacted.
 func (c *Config) Redacted() string {
 	var sb strings.Builder
 	sb.WriteString("Config{\n")
 	sb.WriteString(fmt.Sprintf("  Mode: %q,\n", c.Mode))
-	sb.WriteString(fmt.Sprintf("  CompatibilityScope: %q,\n", c.CompatibilityScope))
 	sb.WriteString(fmt.Sprintf("  PublicOrigin: %q,\n", c.PublicOrigin))
 	sb.WriteString(fmt.Sprintf("  ExternalBasePath: %q,\n", c.ExternalBasePath))
 	sb.WriteString(fmt.Sprintf("  ListenAddr: %q,\n", c.ListenAddr))
@@ -491,35 +386,19 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    ProxyEnvFallback: %v,\n", c.OutboundHTTP.ProxyEnvFallback))
 	sb.WriteString("  },\n")
 	sb.WriteString("  Signature: {\n")
-	sb.WriteString(fmt.Sprintf("    InboundMode: %q,\n", c.Signature.InboundMode))
-	sb.WriteString(fmt.Sprintf("    OutboundMode: %q,\n", c.Signature.OutboundMode))
-	sb.WriteString(fmt.Sprintf("    PeerProfileLevelOverride: %q,\n", c.Signature.PeerProfileLevelOverride))
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
-	sb.WriteString(fmt.Sprintf("    AllowMismatch: %v,\n", c.Signature.AllowMismatch))
 	sb.WriteString(fmt.Sprintf("    Label: %q,\n", c.Signature.Label))
 	sb.WriteString(fmt.Sprintf("    KidFragment: %q,\n", c.Signature.KidFragment))
 	sb.WriteString(fmt.Sprintf("    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds))
 	sb.WriteString(fmt.Sprintf("    CreatedMaxSkewSeconds: %d,\n", c.Signature.CreatedMaxSkewSeconds))
 	sb.WriteString(fmt.Sprintf("    AllowedAlgorithms: %v,\n", c.Signature.AllowedAlgorithms))
 	sb.WriteString("  },\n")
-	sb.WriteString("  PeerProfiles: {\n")
-	sb.WriteString(fmt.Sprintf("    MappingsCount: %d,\n", len(c.PeerProfiles.Mappings)))
-	sb.WriteString(fmt.Sprintf("    CustomProfilesCount: %d,\n", len(c.PeerProfiles.CustomProfiles)))
-	sb.WriteString("  },\n")
 	sb.WriteString("  Logging: {\n")
 	sb.WriteString(fmt.Sprintf("    Level: %q,\n", c.Logging.Level))
-	sb.WriteString(fmt.Sprintf("    AllowSensitive: %v,\n", c.Logging.AllowSensitive))
 	sb.WriteString("  },\n")
 	sb.WriteString("  TokenExchange: {\n")
-	enabledStr := "<nil>"
-	if c.TokenExchange.Enabled != nil {
-		enabledStr = fmt.Sprintf("%v", *c.TokenExchange.Enabled)
-	}
-	sb.WriteString(fmt.Sprintf("    Enabled: %s,\n", enabledStr))
 	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
 	sb.WriteString("  },\n")
-	sb.WriteString(fmt.Sprintf("  RequireTokenExchange: %v,\n", c.RequireTokenExchange))
-	sb.WriteString(fmt.Sprintf("  PeerPolicy: %q,\n", c.PeerPolicy))
 	sb.WriteString("  HTTP: {\n")
 	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))
 	if len(c.HTTP.Services) > 0 {
@@ -538,10 +417,8 @@ func (c *Config) Redacted() string {
 	sb.WriteString("  PeerTrust: {\n")
 	sb.WriteString(fmt.Sprintf("    Enabled: %v,\n", c.PeerTrust.Enabled))
 	sb.WriteString(fmt.Sprintf("    ConfigPathsCount: %d,\n", len(c.PeerTrust.ConfigPaths)))
-	sb.WriteString(fmt.Sprintf("    Policy.GlobalEnforce: %v,\n", c.PeerTrust.Policy.GlobalEnforce))
 	sb.WriteString(fmt.Sprintf("    Policy.AllowListCount: %d,\n", len(c.PeerTrust.Policy.AllowList)))
 	sb.WriteString(fmt.Sprintf("    Policy.DenyListCount: %d,\n", len(c.PeerTrust.Policy.DenyList)))
-	sb.WriteString(fmt.Sprintf("    Policy.ExemptListCount: %d,\n", len(c.PeerTrust.Policy.ExemptList)))
 	sb.WriteString(fmt.Sprintf("    MembershipCache.TTLSeconds: %d,\n", c.PeerTrust.MembershipCache.TTLSeconds))
 	sb.WriteString(fmt.Sprintf("    MembershipCache.MaxStaleSeconds: %d,\n", c.PeerTrust.MembershipCache.MaxStaleSeconds))
 	sb.WriteString("  },\n")

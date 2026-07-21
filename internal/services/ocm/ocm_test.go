@@ -9,13 +9,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
@@ -26,20 +29,12 @@ import (
 
 type ocmTestPeerDiscovery struct{}
 
-func (ocmTestPeerDiscovery) IsSigningCapable(context.Context, string) (bool, error) {
-	return false, nil
-}
-
 func (ocmTestPeerDiscovery) ResolveVerificationKey(_ context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
 	return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup for %q: %w", keyID, jwks.ErrKeyNotFound)
 }
 
 type serviceTestPeerDiscovery struct {
 	publicKeys map[string]sigalg.ResolvedPublicKey
-}
-
-func (pd *serviceTestPeerDiscovery) IsSigningCapable(context.Context, string) (bool, error) {
-	return false, nil
 }
 
 func (pd *serviceTestPeerDiscovery) ResolveVerificationKey(_ context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
@@ -78,41 +73,40 @@ func setupSignedTokenServiceInputs(
 	t.Helper()
 
 	cfg := config.DevConfig()
-	cfg.Signature.InboundMode = "strict"
-	cfg.Signature.AllowMismatch = false
 
 	in := testInputs(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	replaceSignatureMiddleware(&in, cfg, pd)
 	innerStore := token.NewMemoryTokenStore()
 	spyStore := &identityCapturingTokenStore{inner: innerStore}
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 
-	in.RuntimePolicy = runtimePolicy
-	in.OpenCloudMeshPolicy = policy.NewOpenCloudMeshPolicy(cfg)
+	in.CodeFlow = policy.NewCodeFlow()
 	in.OutgoingShareRepo = shareRepo
 	in.TokenStore = spyStore
-	in.SignatureMiddleware = inboundsignature.NewSignatureMiddleware(
-		runtimePolicy,
-		nil,
-		pd,
-		in.LocalIdentity.Origin,
-		cfg.Signature,
-		logger,
-	)
 	return in, spyStore, shareRepo
 }
 
+// testInputs returns baseline Inputs with a default SignatureMiddleware
+// (unresolvable test peer discovery). New() now rejects a nil
+// SignatureMiddleware at startup, so every constructed Inputs needs one;
+// tests that exercise real signature verification override it explicitly.
 func testInputs(cfg *config.Config) Inputs {
 	id, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
 	if err != nil {
 		panic("testInputs: " + err.Error())
 	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	return Inputs{
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		RuntimePolicy:       policy.NewRuntimePolicy(cfg, nil),
-		LocalIdentity:       id,
-		TokenExchangePath:   "token",
+		PartyRepo:         identity.NewMemoryPartyRepo(),
+		CodeFlow:          policy.NewCodeFlow(),
+		LocalIdentity:     id,
+		TokenExchangePath: "token",
+		SignatureMiddleware: inboundsignature.NewSignatureMiddleware(
+			ocmTestPeerDiscovery{},
+			id.Origin,
+			cfg.Signature,
+			logger,
+		),
 	}
 }
 
@@ -121,34 +115,172 @@ func setupTestInputs() Inputs {
 	return testInputs(cfg)
 }
 
-func setupTestInputsWithSignature(t *testing.T) Inputs {
+func setupTestInputsWithOutgoingShareRepo(t *testing.T) Inputs {
 	t.Helper()
 
-	cfg := config.DevConfig()
-	in := testInputs(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, nil)
+	in := testInputs(config.DevConfig())
+	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
+	return in
+}
+
+// hostSigningFixture returns an RFC9421 signer and peer discovery keyed to host.
+func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serviceTestPeerDiscovery) {
+	t.Helper()
+
+	km := crypto.NewKeyManager("", "https://"+host)
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("load key manager: %v", err)
+	}
+	signer := crypto.NewRFC9421Signer(km)
+	pd := &serviceTestPeerDiscovery{
+		publicKeys: map[string]sigalg.ResolvedPublicKey{
+			km.GetKeyID(): {
+				KeyID:     km.GetKeyID(),
+				Algorithm: sigalg.Ed25519,
+				PublicKey: km.GetSigningKey().PublicKey,
+				JWKKty:    "OKP",
+				JWKCrv:    "Ed25519",
+			},
+		},
+	}
+	return signer, pd
+}
+
+func replaceSignatureMiddleware(in *Inputs, cfg *config.Config, pd inboundsignature.PeerDiscovery) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	signatureMiddleware := inboundsignature.NewSignatureMiddleware(
-		runtimePolicy,
-		nil,
-		ocmTestPeerDiscovery{},
+	in.SignatureMiddleware = inboundsignature.NewSignatureMiddleware(
+		pd,
 		in.LocalIdentity.Origin,
 		cfg.Signature,
 		logger,
 	)
-	in.RuntimePolicy = runtimePolicy
-	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
-	in.SignatureMiddleware = signatureMiddleware
-	return in
 }
 
-func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
+func activeOCMPostRouteRows(t *testing.T) []service.RouteRow {
+	t.Helper()
+
+	cfg := config.DevConfig()
+	rows := service.DerivedRouteInventory(service.RouteOptsFromConfig(cfg))
+	out := make([]service.RouteRow, 0, len(rows))
+	for _, row := range rows {
+		if row.Service == "ocm" && row.Method == http.MethodPost {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func expectedOCMPostPaths(t *testing.T) []string {
+	t.Helper()
+
+	tokenPath := ""
+	for _, row := range activeOCMPostRouteRows(t) {
+		if row.ID == service.RouteIDOCMToken {
+			tokenPath = row.FullPath
+			break
+		}
+	}
+	if tokenPath == "" {
+		t.Fatal("configured token route is missing")
+	}
+
+	paths := []string{
+		"/ocm" + RouteShares,
+		"/ocm" + RouteInviteAccepted,
+		tokenPath,
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+func TestActiveOCMRoutes(t *testing.T) {
+	got := make([]string, 0)
+	for _, row := range activeOCMPostRouteRows(t) {
+		got = append(got, row.FullPath)
+	}
+	slices.Sort(got)
+
+	want := expectedOCMPostPaths(t)
+	if !slices.Equal(got, want) {
+		t.Fatalf("active OCM POST routes = %v, want %v", got, want)
+	}
+}
+
+func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), map[string]any{}, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, mountedPath := range expectedOCMPostPaths(t) {
+		t.Run(mountedPath, func(t *testing.T) {
+			contentType := "application/json"
+			body := []byte(`{"shareWith":"user@remote.example","name":"test","providerId":"provider-123","owner":"owner@local.example","sender":"sender@remote.example","shareType":"user","resourceType":"file","protocol":{"name":"webdav"}}`)
+			switch mountedPath {
+			case "/ocm" + RouteInviteAccepted:
+				body = []byte(`{"recipientProvider":"remote.example","token":"invite-token","userID":"user-1","email":"user@remote.example","name":"Remote User"}`)
+			case "/ocm" + RouteShares:
+			default:
+				contentType = "application/x-www-form-urlencoded"
+				body = []byte("grant_type=authorization_code&client_id=remote.example&code=secret-code")
+			}
+
+			req := httptest.NewRequest(
+				http.MethodPost,
+				strings.TrimPrefix(mountedPath, "/ocm"),
+				bytes.NewReader(body),
+			)
+			req.Header.Set("Content-Type", contentType)
+			w := httptest.NewRecorder()
+			svc.Handler().ServeHTTP(w, req)
+
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("unsigned POST %s returned %d: %s", mountedPath, w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestOCMRequestBodyLimit(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), map[string]any{}, log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	body := []byte(`{"sender":"sender@remote.example","padding":"` + strings.Repeat("x", 1<<20) + `"}`)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		strings.TrimPrefix("/ocm"+RouteShares, "/ocm"),
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(w, req)
+
+	if w.Code == http.StatusUnauthorized {
+		t.Fatalf("body over 1 MiB returned %d: signature verification happened before required body-limit rejection", w.Code)
+	}
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("body over 1 MiB returned %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestNew_RejectsNilSignatureMiddleware(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	_, err := New(Inputs{}, m, log)
+	svc, err := New(Inputs{}, m, log)
+	if svc != nil {
+		t.Fatal("expected nil service when validation fails")
+	}
+	const wantErr = "ocm: SignatureMiddleware is required"
 	if err == nil {
-		t.Fatal("expected error when required inputs are missing")
+		t.Fatalf("expected %q, got nil", wantErr)
+	}
+	if err.Error() != wantErr {
+		t.Fatalf("error = %q, want %q", err.Error(), wantErr)
 	}
 }
 
@@ -222,7 +354,6 @@ func TestService_RoutingSmoke(t *testing.T) {
 		path string
 	}{
 		{"shares", "/shares"},
-		{"notifications", "/notifications"},
 		{"invite-accepted", "/invite-accepted"},
 		{"token", "/token"},
 	}
@@ -240,35 +371,11 @@ func TestService_RoutingSmoke(t *testing.T) {
 	}
 }
 
-func TestService_NotificationsRequireVerifiedSignature(t *testing.T) {
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/notifications",
-		bytes.NewBufferString(`{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"provider-123"}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected unsigned notification to be rejected, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
 func TestService_SharesRequireVerifiedSignature(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -292,7 +399,7 @@ func TestService_InviteAcceptedRequireVerifiedSignature(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -316,23 +423,7 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 	const clientHost = "receiver.example.com"
 	const sharedSecret = "signed-token-secret"
 
-	km := crypto.NewKeyManager("", "https://"+clientHost)
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("load key manager: %v", err)
-	}
-	signer := crypto.NewRFC9421Signer(km)
-
-	pd := &serviceTestPeerDiscovery{
-		publicKeys: map[string]sigalg.ResolvedPublicKey{
-			km.GetKeyID(): {
-				KeyID:     km.GetKeyID(),
-				Algorithm: sigalg.Ed25519,
-				PublicKey: km.GetSigningKey().PublicKey,
-				JWKKty:    "OKP",
-				JWKCrv:    "Ed25519",
-			},
-		},
-	}
+	signer, pd := hostSigningFixture(t, clientHost)
 
 	inputs, spyStore, shareRepo := setupSignedTokenServiceInputs(t, pd)
 	if err := shareRepo.Create(context.Background(), &sharesoutgoing.OutgoingShare{
@@ -351,7 +442,7 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	form := "grant_type=ocm_share&client_id=" + clientHost + "&code=" + sharedSecret
+	form := "grant_type=authorization_code&client_id=" + clientHost + "&code=" + sharedSecret
 	body := []byte(form)
 	origin := config.DevConfig().PublicOrigin
 	req := httptest.NewRequest(http.MethodPost, origin+"/token", bytes.NewReader(body))
@@ -391,12 +482,12 @@ func TestService_TokenRequireVerifiedSignature(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	form := "grant_type=ocm_share&client_id=receiver.example.com&code=secret-code"
+	form := "grant_type=authorization_code&client_id=receiver.example.com&code=secret-code"
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/token",
@@ -412,13 +503,13 @@ func TestService_TokenRequireVerifiedSignature(t *testing.T) {
 	}
 }
 
-// Shares, invite, and token routes require a declared peer (HTTP 400 when
-// missing). Signature-only routes return 401 for unsigned requests instead.
+// Shares, invite-accepted, and token routes require a declared peer (HTTP 400
+// when missing).
 func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
+	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -445,7 +536,7 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 			name:        "token",
 			path:        "/token",
 			contentType: "application/x-www-form-urlencoded",
-			body:        "grant_type=ocm_share&code=secret-code",
+			body:        "grant_type=authorization_code&code=secret-code",
 		},
 	}
 
@@ -468,29 +559,6 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 	}
 }
 
-func TestService_NotificationsStaySignatureOnly(t *testing.T) {
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(setupTestInputsWithSignature(t), m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Notifications use a nil declared-peer resolver (signature-only).
-	req := httptest.NewRequest(http.MethodPost, "/notifications", bytes.NewBufferString(`{}`))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("notifications must stay signature-only (401), got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "signature required") {
-		t.Fatalf("body = %q, want signature required", w.Body.String())
-	}
-}
-
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	var logBuf testLogBuffer
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -510,12 +578,10 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 }
 
 func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
-	tokenExchangeEnabled := true
 	cfg := &config.Config{
 		PublicOrigin: "https://example.com",
 		TokenExchange: config.TokenExchangeConfig{
-			Enabled: &tokenExchangeEnabled,
-			Path:    "token",
+			Path: "token",
 		},
 	}
 	in := testInputs(cfg)
@@ -541,31 +607,45 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 }
 
 func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
-	tokenExchangeEnabled := true
 	cfg := &config.Config{
 		PublicOrigin: "https://example.com",
 		TokenExchange: config.TokenExchangeConfig{
-			Enabled: &tokenExchangeEnabled,
-			Path:    "token",
+			Path: "token",
 		},
 	}
-	in := Inputs{
-		LocalIdentity:     tslocalid.MustTestIdentity(t, cfg.PublicOrigin, cfg.ExternalBasePath),
-		RuntimePolicy:     policy.NewRuntimePolicy(cfg, nil),
-		TokenExchangePath: "token",
-	}
+	id := tslocalid.MustTestIdentity(t, cfg.PublicOrigin, cfg.ExternalBasePath)
+
+	// The token route requires a verified signature; sign with a key bound
+	// to the client_id host so the request reaches the handler and exercises
+	// the enablement check under test, not the signature gate.
+	const clientHost = "raw-config-client.example.com"
+	signer, pd := hostSigningFixture(t, clientHost)
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	in := Inputs{
+		LocalIdentity:     id,
+		PartyRepo:         identity.NewMemoryPartyRepo(),
+		TokenExchangePath: "token",
+	}
+	replaceSignatureMiddleware(&in, cfg, pd)
+
 	svc, err := New(in, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/token", nil)
+	form := "grant_type=authorization_code&client_id=" + clientHost + "&code=raw-config-code"
+	body := []byte(form)
+	req := httptest.NewRequest(http.MethodPost, cfg.PublicOrigin+"/token", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("sign request: %v", err)
+	}
+
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected disabled token exchange without canonical policy, got %d", w.Code)
+		t.Fatalf("expected disabled token exchange without canonical policy, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

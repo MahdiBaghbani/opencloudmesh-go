@@ -140,3 +140,101 @@ func TestCountDictionaryMembers_DuplicateLabel(t *testing.T) {
 		t.Fatalf("CountDictionaryMembers = %d, want 2", got)
 	}
 }
+
+func TestParseSignatureInput_RejectsDuplicateCoveredComponents(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{
+			name:   "duplicate derived @method",
+			header: `ocm=("@method" "@method" "@target-uri");created=1;keyid="a#1";alg="ed25519"`,
+		},
+		{
+			name:   "duplicate ordinary content-digest",
+			header: `ocm=("@method" "content-digest" "content-digest");created=1;keyid="a#1";alg="ed25519"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := sigparams.ParseSignatureInput(tt.header, "ocm")
+			if err == nil {
+				t.Fatal("expected duplicate covered component rejection")
+			}
+			if !strings.Contains(err.Error(), "duplicate covered component") {
+				t.Fatalf("error = %v, want duplicate covered component", err)
+			}
+		})
+	}
+}
+
+func TestValidateExactlyOneLabel(t *testing.T) {
+	t.Run("single_ocm", func(t *testing.T) {
+		header := `ocm=("@method");created=1;keyid="a#1"`
+		if err := sigparams.ValidateExactlyOneLabel(header, "ocm"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("foreign_label", func(t *testing.T) {
+		header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
+		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("duplicate_ocm", func(t *testing.T) {
+		header := `ocm=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
+		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+		if err == nil {
+			t.Fatal("expected duplicate rejection")
+		}
+		if !strings.Contains(err.Error(), `multiple "ocm" signatures`) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
+	t.Run("only_foreign", func(t *testing.T) {
+		header := `sig1=("@method");created=1;keyid="a#1"`
+		err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+		if err == nil {
+			t.Fatal("expected rejection when no ocm member is present")
+		}
+		if !strings.Contains(err.Error(), "ocm") {
+			t.Fatalf("error = %v, want missing ocm member", err)
+		}
+	})
+}
+
+// TestValidateExactlyOneLabel_AcceptsForeignLabelsWithOneOCM pins the target
+// v1.4 parser contract: a foreign dictionary label alongside exactly one ocm
+// member must be accepted, since only the ocm member is meaningful.
+func TestValidateExactlyOneLabel_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
+	header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1"`
+	if err := sigparams.ValidateExactlyOneLabel(header, "ocm"); err != nil {
+		t.Fatalf("expected foreign labels alongside exactly one ocm member to be accepted, got: %v", err)
+	}
+}
+
+func TestValidateExactlyOneLabel_RejectsDuplicateOCMAlongsideForeignLabel(t *testing.T) {
+	header := `sig1=("@method");created=1;keyid="a#1", ocm=("@method");created=2;keyid="b#1", ocm=("@method");created=3;keyid="c#1"`
+	err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+	if err == nil {
+		t.Fatal("expected duplicate ocm member rejection alongside a foreign label")
+	}
+	if !strings.Contains(err.Error(), `multiple "ocm" signatures`) {
+		t.Fatalf("error = %v, want duplicate ocm member error", err)
+	}
+}
+
+func TestValidateExactlyOneLabel_RejectsMissingOCMAmongForeignLabels(t *testing.T) {
+	header := `sig1=("@method");created=1;keyid="a#1", sig2=("@method");created=2;keyid="b#1"`
+	err := sigparams.ValidateExactlyOneLabel(header, "ocm")
+	if err == nil {
+		t.Fatal("expected rejection when no ocm member is present among foreign labels")
+	}
+	if !strings.Contains(err.Error(), "ocm") {
+		t.Fatalf("error = %v, want missing ocm member", err)
+	}
+}

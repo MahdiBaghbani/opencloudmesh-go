@@ -7,16 +7,16 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 // DiscoverResponse mirrors GET /ocm-aux/discover success payload fields used by tests.
 type DiscoverResponse struct {
-	Success                    bool                 `json:"success"`
-	Error                      string               `json:"error,omitempty"`
-	ReasonCode                 string               `json:"reasonCode,omitempty"`
-	Discovery                  *discovery.Discovery `json:"discovery,omitempty"`
-	InviteAcceptDialogAbsolute string               `json:"inviteAcceptDialogAbsolute,omitempty"`
+	Success                    bool            `json:"success"`
+	Error                      string          `json:"error,omitempty"`
+	ReasonCode                 string          `json:"reasonCode,omitempty"`
+	Discovery                  *spec.Discovery `json:"discovery,omitempty"`
+	InviteAcceptDialogAbsolute string          `json:"inviteAcceptDialogAbsolute,omitempty"`
 }
 
 // DiscoverProvider calls GET /ocm-aux/discover?base=<providerBaseURL>.

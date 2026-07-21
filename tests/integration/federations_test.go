@@ -29,18 +29,10 @@ func TestFederationsEndpoint(t *testing.T) {
 		"keys": []
 	}`
 
-	// global_enforce=true satisfies the scoped guardrail (dev preset resolves
-	// compatibility_scope=scoped, which requires peer_trust.policy.global_enforce=true
-	// whenever peer trust is enabled).
-	// The trust group's own enforce_membership=false still controls whether
-	// membership is actually checked for this endpoint.
 	extraConfig := `
 [peer_trust]
 enabled = true
 config_paths = ["trust-group.json"]
-
-[peer_trust.policy]
-global_enforce = true
 
 [peer_trust.membership_cache]
 ttl_seconds = 300
@@ -49,9 +41,8 @@ max_stale_seconds = 600
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "federation-test",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "federation-test",
+		Mode: "dev",
 		ExtraFiles: map[string]string{
 			"trust-group.json": trustGroupJSON,
 		},
@@ -91,9 +82,8 @@ func TestFederationsEndpointWithoutFederation(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "no-federation-test",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
+		Name: "no-federation-test",
+		Mode: "dev",
 	})
 	defer srv.Stop(t)
 

@@ -108,7 +108,7 @@ proxy_url = "` + tt.proxyURL + `"
 }
 
 func TestLoad_ProxyURL_StrictModeAllowsLoopback(t *testing.T) {
-	// Under compatibility_scope=none the proxy host is operator-trusted;
+	// The proxy host is operator-trusted; loopback must be allowed.
 	// loopback and private addresses must be accepted for proxy_url.
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -124,7 +124,7 @@ proxy_url = "http://127.0.0.1:8080"
 
 	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err != nil {
-		t.Fatalf("Load() error = %v (loopback must be allowed for proxy under compatibility_scope=none)", err)
+		t.Fatalf("Load() error = %v (loopback must be allowed for proxy)", err)
 	}
 	if cfg.OutboundHTTP.ProxyURL != "http://127.0.0.1:8080" {
 		t.Errorf("expected ProxyURL http://127.0.0.1:8080, got %q", cfg.OutboundHTTP.ProxyURL)
@@ -146,13 +146,6 @@ func TestProxyEnvFallback_StrictPresetDefaultTrue(t *testing.T) {
 	cfg := StrictConfig()
 	if !cfg.OutboundHTTP.ProxyEnvFallback {
 		t.Error("strict preset must default proxy_env_fallback=true")
-	}
-}
-
-func TestProxyEnvFallback_CompatPresetDefaultTrue(t *testing.T) {
-	cfg := CompatConfig()
-	if !cfg.OutboundHTTP.ProxyEnvFallback {
-		t.Error("compat preset must default proxy_env_fallback=true")
 	}
 }
 

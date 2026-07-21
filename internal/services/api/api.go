@@ -18,7 +18,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity/sessiongate"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	notifoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/notifications/outgoing"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -76,31 +75,20 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		return u, nil
 	}
 
-	notificationClient := notifoutgoing.NewClient(
-		inputs.HTTPClient,
-		inputs.DiscoveryClient,
-		inputs.Signer,
-		inputs.OutboundPolicy,
-	)
-	notificationClient.SetPeerContract(inputs.PeerContract)
-
 	tokenClient := tokenoutgoing.NewClient(
 		inputs.HTTPClient,
-		inputs.DiscoveryClient,
 		inputs.Signer,
-		inputs.OutboundPolicy,
 		inputs.LocalIdentity.ProviderDomain,
 	)
 	accessClient := access.NewClient(
 		inputs.HTTPClient,
 		inputs.DiscoveryClient,
 		tokenClient,
-		inputs.PeerContract,
+		inputs.PeerOrigin,
 	)
 
 	inboxSharesHandler := inboxshares.NewHandler(
 		inputs.IncomingShareRepo,
-		notificationClient,
 		accessClient,
 		currentUser,
 		log,
@@ -109,15 +97,14 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	outgoingHandler := outgoingshares.NewHandler(
 		inputs.OutgoingShareRepo,
 		inputs.DiscoveryClient,
-		inputs.OpenCloudMeshPolicy,
 		inputs.HTTPClient,
 		inputs.Signer,
-		inputs.OutboundPolicy,
 		inputs.LocalIdentity.ProviderDomain,
 		currentUser,
 		log,
 	)
-	outgoingHandler.SetPeerContract(inputs.PeerContract)
+	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
+	outgoingHandler.SetCodeFlow(inputs.CodeFlow)
 	if len(c.AllowedPaths) > 0 {
 		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
 	}
@@ -127,12 +114,11 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.HTTPClient,
 		inputs.DiscoveryClient,
 		inputs.Signer,
-		inputs.OutboundPolicy,
 		inputs.LocalIdentity.ProviderDomain,
 		currentUser,
 		log,
 	)
-	inboxInvitesHandler.SetPeerContract(inputs.PeerContract)
+	inboxInvitesHandler.SetPeerOrigin(inputs.PeerOrigin)
 
 	outgoingInvitesHandler := outgoinginvites.NewHandler(
 		inputs.OutgoingInviteRepo,
@@ -176,7 +162,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	r.Post(RouteSharesOutgoing, outgoingHandler.HandleCreate)
 	r.Post(RouteInvitesOutgoing, outgoingInvitesHandler.HandleCreateOutgoing)
-	r.Get(RouteAdminFederations, notImplementedHandler("admin-federations"))
 
 	return &Service{router: r, conf: &c, log: log}, nil
 }
@@ -193,16 +178,8 @@ func validateInputs(in Inputs) error {
 		return errors.New("api: HTTPClient is required")
 	case in.DiscoveryClient == nil:
 		return errors.New("api: DiscoveryClient is required")
-	case in.OpenCloudMeshPolicy == nil:
-		return errors.New("api: OpenCloudMeshPolicy is required")
 	default:
 		return nil
-	}
-}
-
-func notImplementedHandler(name string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		api.WriteNotImplemented(w, name)
 	}
 }
 

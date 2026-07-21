@@ -2,23 +2,21 @@ package wiring_test
 
 import (
 	"context"
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
-	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func strictSSRFCfg() *config.Config {
-	cfg := tscfg.DevConfigNoSignatures()
+	cfg := config.DevConfig()
 	cfg.OutboundHTTP.SSRF.Mode = "strict"
-	cfg.OutboundHTTP.DerivedSSRFMode = "strict"
 	return cfg
 }
 
@@ -66,7 +64,7 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 }
 
 func TestOutboundOverride_HonorsTLSRoots(t *testing.T) {
-	cfg := tscfg.DevConfigNoSignatures()
+	cfg := config.DevConfig()
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
 	_, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
@@ -76,7 +74,7 @@ func TestOutboundOverride_HonorsTLSRoots(t *testing.T) {
 }
 
 func TestOutbound_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
-	cfg := tscfg.DevConfigNoSignatures()
+	cfg := config.DevConfig()
 	cfg.OutboundHTTP.TLSRootCAFile = "/nonexistent/fake-ca.pem"
 
 	opts := harnessBuildOpts()

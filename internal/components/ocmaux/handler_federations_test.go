@@ -58,12 +58,13 @@ func TestHandleFederations_EmptyTrustGroups(t *testing.T) {
 }
 
 func TestHandleFederations_WithServers(t *testing.T) {
+	var serverURL string
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
-				"endPoint":           "https://example.com/ocm",
+				"apiVersion":         "1.4.0",
+				"endPoint":           serverURL + "/ocm",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
 				"resourceTypes":      []any{},
 				"criteria":           []any{},
@@ -73,9 +74,9 @@ func TestHandleFederations_WithServers(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+	serverURL = discServer.URL
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
@@ -155,7 +156,6 @@ func TestHandleFederations_DiscoveryFailureKeepsServerWithStatus(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)

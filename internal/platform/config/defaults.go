@@ -8,12 +8,14 @@ import (
 
 // Outbound HTTP defaults (production strict preset baseline).
 const (
-	DefaultOutboundTimeoutMS        = 10000
-	DefaultOutboundConnectTimeoutMS = 2000
-	DefaultOutboundMaxRedirects     = 1
-	DefaultMaxResponseBytes         = 1 << 20
-	DefaultOutboundMaxIdleConns     = 10
-	DefaultOutboundIdleConnTimeout  = 30 * time.Second
+	DefaultOutboundTimeoutMS             = 10000
+	DefaultOutboundConnectTimeoutMS      = 2000
+	DefaultOutboundMaxRedirects          = 1
+	DefaultMaxResponseBytes              = 1 << 20
+	DefaultOutboundMaxIdleConns          = 10
+	DefaultOutboundMaxConnsPerHost       = 10
+	DefaultOutboundIdleConnTimeout       = 30 * time.Second
+	DefaultOutboundResponseHeaderTimeout = 10 * time.Second
 )
 
 // Server HTTP listener defaults.
@@ -55,7 +57,6 @@ const DefaultTestShutdownWait = 5 * time.Second
 func TestHarnessOutboundHTTP() *OutboundHTTPConfig {
 	return &OutboundHTTPConfig{
 		SSRF:               SSRFConfig{Mode: "off"},
-		DerivedSSRFMode:    "off",
 		TimeoutMS:          TestOutboundTimeoutMS,
 		ConnectTimeoutMS:   TestOutboundConnectMS,
 		MaxRedirects:       DefaultOutboundMaxRedirects,
@@ -70,7 +71,6 @@ func TestHarnessOutboundHTTP() *OutboundHTTPConfig {
 func DefaultOutboundHTTP() OutboundHTTPConfig {
 	return OutboundHTTPConfig{
 		SSRF:               SSRFConfig{Mode: "strict"},
-		DerivedSSRFMode:    "strict",
 		TimeoutMS:          DefaultOutboundTimeoutMS,
 		ConnectTimeoutMS:   DefaultOutboundConnectTimeoutMS,
 		MaxRedirects:       DefaultOutboundMaxRedirects,
@@ -88,18 +88,22 @@ func DefaultPeerTrustMembershipCache() PeerTrustMembershipCacheConfig {
 	}
 }
 
+// DefaultDiscoveryConfig returns inbound peer discovery validation defaults.
+func DefaultDiscoveryConfig() DiscoveryConfig {
+	return DiscoveryConfig{
+		PeerAPIVersionPolicy: "accept-any",
+		PeerAPIVersionWarn:   "any-diff",
+	}
+}
+
 // DefaultSignatureConfig returns RFC 9421 / OCM IETF signature defaults.
 func DefaultSignatureConfig() SignatureConfig {
 	return SignatureConfig{
-		InboundMode:              "strict",
-		OutboundMode:             "strict",
-		PeerProfileLevelOverride: "off",
-		KeyPath:                  ".ocm/keys/signing.pem",
-		AllowMismatch:            false,
-		Label:                    DefaultSignatureLabel,
-		KidFragment:              DefaultSignatureKidFragment,
-		CreatedMaxAgeSeconds:     DefaultSignatureCreatedMaxAge,
-		CreatedMaxSkewSeconds:    DefaultSignatureCreatedMaxSkew,
-		AllowedAlgorithms:        append([]string(nil), sigalg.DefaultAllowed()...),
+		KeyPath:               ".ocm/keys/signing.pem",
+		Label:                 DefaultSignatureLabel,
+		KidFragment:           DefaultSignatureKidFragment,
+		CreatedMaxAgeSeconds:  DefaultSignatureCreatedMaxAge,
+		CreatedMaxSkewSeconds: DefaultSignatureCreatedMaxSkew,
+		AllowedAlgorithms:     append([]string(nil), sigalg.DefaultAllowed()...),
 	}
 }

@@ -99,6 +99,11 @@ func (m *TrustGroupManager) IsMember(ctx context.Context, host string, requireVe
 			continue
 		}
 
+		if !tg.lastRefresh.IsZero() && time.Since(tg.lastRefresh) > m.cacheConfig.MaxStale {
+			m.triggerRefreshIfNeeded(ctx, tg)
+			continue
+		}
+
 		m.triggerRefreshIfNeeded(ctx, tg)
 
 		if m.isMemberOf(tg, host, requireVerified) {

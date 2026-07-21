@@ -21,12 +21,13 @@ func discoverTestLogger() *slog.Logger {
 }
 
 func TestHandleDiscover_BareHostSuccess(t *testing.T) {
+	var serverURL string
 	discServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
-				"endPoint":           "https://example.com/ocm",
+				"apiVersion":         "1.4.0",
+				"endPoint":           serverURL + "/ocm",
 				"provider":           "TestProvider",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
 				"resourceTypes":      []any{},
@@ -37,11 +38,11 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+	serverURL = discServer.URL
 
 	host := strings.TrimPrefix(discServer.URL, "https://")
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	httpCfg.InsecureSkipVerify = true
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
@@ -62,7 +63,7 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
+				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
 				"resourceTypes":      []any{},
@@ -78,7 +79,6 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 	base := serverURL + "/apps/files/files/123"
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
@@ -178,7 +178,6 @@ func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
@@ -203,12 +202,13 @@ func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
 }
 
 func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
+	var serverURL string
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":       true,
-				"apiVersion":    "1.2.2",
-				"endPoint":      "https://example.com/ocm",
+				"apiVersion":    "1.4.0",
+				"endPoint":      serverURL + "/ocm",
 				"resourceTypes": []any{},
 				"criteria":      []any{},
 			})
@@ -217,9 +217,9 @@ func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+	serverURL = discServer.URL
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 

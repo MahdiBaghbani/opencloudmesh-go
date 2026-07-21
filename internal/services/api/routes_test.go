@@ -21,10 +21,9 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 func TestRegisteredRouteSpecs_OutboundProtocolKinds(t *testing.T) {
 	specs := registeredRouteSpecs(service.DefaultRouteOpts())
 	found := map[service.OutboundProtocolKind]bool{
-		service.OutboundNotifications: false,
-		service.OutboundShares:        false,
-		service.OutboundInvites:       false,
-		service.OutboundAccess:        false,
+		service.OutboundShares:  false,
+		service.OutboundInvites: false,
+		service.OutboundAccess:  false,
 	}
 	for _, spec := range specs {
 		if spec.OutboundProtocolKind != "" {

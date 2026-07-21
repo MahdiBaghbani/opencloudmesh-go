@@ -19,11 +19,11 @@ type (
 
 const (
 	GrantTypeAuthorizationCode = spec.GrantTypeAuthorizationCode
-	GrantTypeOCMShare          = spec.GrantTypeOCMShare
-	ErrorInvalidRequest = spec.ErrorInvalidRequest
-	ErrorInvalidGrant   = spec.ErrorInvalidGrant
-	ErrorInvalidClient  = spec.ErrorInvalidClient
-	ErrorUnauthorized   = spec.ErrorUnauthorized
+	ErrorInvalidRequest        = spec.ErrorInvalidRequest
+	ErrorInvalidGrant          = spec.ErrorInvalidGrant
+	ErrorInvalidClient         = spec.ErrorInvalidClient
+	ErrorUnauthorized          = spec.ErrorUnauthorized
+	ErrorUnsupportedGrantType  = spec.ErrorUnsupportedGrantType
 )
 
 type IssuedToken struct {

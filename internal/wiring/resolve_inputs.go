@@ -9,12 +9,10 @@ import (
 func resolveInputs(cfg *config.Config, d *Deps) resolve.ResolveInputs {
 	tokenPath := cfg.TokenExchange.Path
 	return resolve.ResolveInputs{
-		LocalIdentity:       d.LocalIdentity,
-		RouteOpts:           service.RouteOptsFromConfig(cfg),
-		TokenExchangePath:   tokenPath,
-		KeyManager:          d.KeyManager,
-		OpenCloudMeshPolicy: d.OpenCloudMeshPolicy,
-		RuntimePolicy:       d.RuntimePolicy,
-		PeerContract:        d.PeerContract,
+		LocalIdentity:     d.LocalIdentity,
+		RouteOpts:         service.RouteOptsFromConfig(cfg),
+		TokenExchangePath: tokenPath,
+		KeyManager:        d.KeyManager,
+		CodeFlow:          d.CodeFlow,
 	}
 }

@@ -91,10 +91,12 @@ func (c *Client) newTransport(rootCAs *x509.CertPool, proxyFunc func(*http.Reque
 			InsecureSkipVerify: c.cfg.InsecureSkipVerify,
 			RootCAs:            rootCAs,
 		},
-		MaxIdleConns:       config.DefaultOutboundMaxIdleConns,
-		IdleConnTimeout:    config.DefaultOutboundIdleConnTimeout,
-		DisableCompression: false,
-		DisableKeepAlives:  false,
+		MaxIdleConns:          config.DefaultOutboundMaxIdleConns,
+		MaxConnsPerHost:       config.DefaultOutboundMaxConnsPerHost,
+		IdleConnTimeout:       config.DefaultOutboundIdleConnTimeout,
+		ResponseHeaderTimeout: config.DefaultOutboundResponseHeaderTimeout,
+		DisableCompression:    false,
+		DisableKeepAlives:     false,
 	}
 }
 

@@ -70,7 +70,10 @@ func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error
 
 	lowerHost := strings.ToLower(host)
 	if lowerHost == "localhost" || lowerHost == "localhost.localdomain" {
-		return fmt.Errorf("%w: localhost is blocked", ErrSSRFBlocked)
+		policy := c.activeRoutePolicy()
+		if policy == nil || !hostMatchesSuffix(lowerHost, policy) {
+			return fmt.Errorf("%w: localhost is blocked", ErrSSRFBlocked)
+		}
 	}
 
 	policy := c.activeRoutePolicy()

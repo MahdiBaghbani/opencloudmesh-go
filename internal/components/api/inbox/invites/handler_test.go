@@ -14,12 +14,11 @@ import (
 
 	inboxinvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
@@ -320,7 +319,6 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 		requestClient,
 		discoveryClient,
 		nil,
-		&outboundsigning.OutboundPolicy{OutboundMode: "strict"},
 	)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
@@ -343,48 +341,6 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 	}
 }
 
-func TestHandleAccept_TokenOnlyModeSendsUnsignedInviteAccepted(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
-	senderServer, inviteAcceptedCalls, sawSignature := startInviteSenderServer(t)
-	defer senderServer.Close()
-
-	senderFQDN := strings.TrimPrefix(senderServer.URL, "https://")
-	invite := createInviteForUser(repo, userAID, "token-only-accept-token", senderFQDN)
-
-	requestClient, discoveryClient := newTestOutboundClients(t)
-	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouterWithDeps(t,
-		repo,
-		userA,
-		requestClient,
-		discoveryClient,
-		nil,
-		&outboundsigning.OutboundPolicy{OutboundMode: "token-only"},
-	)
-
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for token-only invite accept path, got %d: %s", w.Code, w.Body.String())
-	}
-	if inviteAcceptedCalls.Load() != 1 {
-		t.Fatalf("expected invite-accepted endpoint to be called once, got %d", inviteAcceptedCalls.Load())
-	}
-	if sawSignature.Load() != 0 {
-		t.Fatal("did not expect Signature header in token-only invite-accepted path")
-	}
-
-	stored, err := repo.GetByIDForRecipientUserID(context.Background(), invite.ID, userAID)
-	if err != nil {
-		t.Fatalf("expected accepted invite to remain in repo: %v", err)
-	}
-	if stored.Status != invites.InviteStatusAccepted {
-		t.Fatalf("expected invite status accepted, got %s", stored.Status)
-	}
-}
-
 func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 	const originWithDefaultPort = "https://example.com:443"
 	wantProvider := tslocalid.MustTestIdentity(t, originWithDefaultPort, "").ProviderDomain
@@ -399,13 +355,14 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/.well-known/ocm", "/ocm-provider":
+		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(discovery.Discovery{
-				Enabled:      true,
-				APIVersion:   "1.2.2",
-				EndPoint:     srv.URL + "/ocm",
-				Capabilities: []string{"exchange-token"},
+			_ = json.NewEncoder(w).Encode(spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.4.0",
+				EndPoint:      srv.URL + "/ocm",
+				Capabilities:  []string{"exchange-token"},
+				TokenEndPoint: srv.URL + "/ocm/token",
 			})
 		case "/ocm/invite-accepted":
 			inviteAcceptedCalls.Add(1)
@@ -429,12 +386,16 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
+	km := crypto.NewKeyManager("", testPublicOrigin)
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+	signer := crypto.NewRFC9421Signer(km)
 	h := inboxinvites.NewHandler(
 		repo,
 		requestClient,
 		discoveryClient,
-		nil,
-		&outboundsigning.OutboundPolicy{OutboundMode: "token-only"},
+		signer,
 		wantProvider,
 		currentUserFunc(userA),
 		testLogger,

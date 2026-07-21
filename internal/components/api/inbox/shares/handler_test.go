@@ -17,21 +17,6 @@ import (
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 )
 
-type mockNotificationSender struct {
-	acceptCalls  []string
-	declineCalls []string
-}
-
-func (m *mockNotificationSender) SendShareAccepted(ctx context.Context, targetHost, providerID, resourceType string) error {
-	m.acceptCalls = append(m.acceptCalls, providerID)
-	return nil
-}
-
-func (m *mockNotificationSender) SendShareDeclined(ctx context.Context, targetHost, providerID, resourceType string) error {
-	m.declineCalls = append(m.declineCalls, providerID)
-	return nil
-}
-
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 const (
@@ -49,8 +34,8 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 }
 
 // newTestRouter mounts the inbox shares handler; nil accessClient/cfg suffice for list/accept/decline.
-func newTestRouter(repo sharesinbox.IncomingShareRepo, sender sharesinbox.NotificationSender, user *identity.User) http.Handler {
-	h := inboxshares.NewHandler(repo, sender, nil, currentUserFunc(user), testLogger)
+func newTestRouter(repo sharesinbox.IncomingShareRepo, user *identity.User) http.Handler {
+	h := inboxshares.NewHandler(repo, nil, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
 	r.Route("/inbox/shares", func(r chi.Router) {
 		r.Get("/", h.HandleList)
@@ -84,7 +69,7 @@ func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
 	createShareForUser(repo, userBID, "prov-b1", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
 	w := httptest.NewRecorder()
@@ -112,7 +97,7 @@ func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
 	createShareForUser(repo, userAID, "prov-a1", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
-	router := newTestRouter(repo, nil, userB)
+	router := newTestRouter(repo, userB)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
 	w := httptest.NewRecorder()
@@ -132,7 +117,7 @@ func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
 
 func TestHandleList_Unauthenticated(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	router := newTestRouter(repo, nil, nil) // nil user = unauthenticated
+	router := newTestRouter(repo, nil) // nil user = unauthenticated
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
 	w := httptest.NewRecorder()
@@ -145,11 +130,10 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 
 func TestHandleAccept_Success(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	sender := &mockNotificationSender{}
 	share := createShareForUser(repo, userAID, "prov-accept", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, sender, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
@@ -163,10 +147,6 @@ func TestHandleAccept_Success(t *testing.T) {
 	if updated.Status != sharesinbox.ShareStatusAccepted {
 		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusAccepted, updated.Status)
 	}
-
-	if len(sender.acceptCalls) != 1 {
-		t.Errorf("expected 1 accept notification, got %d", len(sender.acceptCalls))
-	}
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
@@ -174,7 +154,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 	share := createShareForUser(repo, userAID, "prov-cross", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
-	router := newTestRouter(repo, nil, userB)
+	router := newTestRouter(repo, userB)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
@@ -188,7 +168,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/nonexistent-id/accept", nil)
 	w := httptest.NewRecorder()
@@ -201,13 +181,12 @@ func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	sender := &mockNotificationSender{}
 	share := createShareForUser(repo, userAID, "prov-idem", "sender.example.com")
 
 	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, sender, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
@@ -215,10 +194,6 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200 for idempotent accept, got %d", w.Code)
-	}
-
-	if len(sender.acceptCalls) != 0 {
-		t.Errorf("expected no accept notifications, got %d", len(sender.acceptCalls))
 	}
 }
 
@@ -229,7 +204,7 @@ func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusDeclined)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
@@ -242,7 +217,7 @@ func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	router := newTestRouter(repo, nil, nil)
+	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/some-id/accept", nil)
 	w := httptest.NewRecorder()
@@ -255,11 +230,10 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 
 func TestHandleDecline_Success(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	sender := &mockNotificationSender{}
 	share := createShareForUser(repo, userAID, "prov-decline", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, sender, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/decline", nil)
 	w := httptest.NewRecorder()
@@ -273,10 +247,6 @@ func TestHandleDecline_Success(t *testing.T) {
 	if updated.Status != sharesinbox.ShareStatusDeclined {
 		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusDeclined, updated.Status)
 	}
-
-	if len(sender.declineCalls) != 1 {
-		t.Errorf("expected 1 decline notification, got %d", len(sender.declineCalls))
-	}
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
@@ -284,7 +254,7 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 	share := createShareForUser(repo, userAID, "prov-cross-dec", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
-	router := newTestRouter(repo, nil, userB)
+	router := newTestRouter(repo, userB)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/decline", nil)
 	w := httptest.NewRecorder()
@@ -302,7 +272,7 @@ func TestHandleDecline_ConflictForAcceptedShare(t *testing.T) {
 	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/decline", nil)
 	w := httptest.NewRecorder()
@@ -332,7 +302,7 @@ func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
 	repo.Create(context.Background(), share)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
 	w := httptest.NewRecorder()
@@ -352,25 +322,24 @@ func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
 func createDetailedShareForUser(
 	repo *sharesinbox.MemoryIncomingShareRepo,
 	recipientUserID, providerID, senderHost string,
-	webdavID, webdavURIAbsolute, sharedSecret string,
-	mustExchangeToken bool,
+	webdavID, sharedSecret string,
+	requirements []string,
 ) *sharesinbox.IncomingShare {
 	share := &sharesinbox.IncomingShare{
-		ProviderID:        providerID,
-		SenderHost:        senderHost,
-		ShareWith:         recipientUserID + "@example.com",
-		RecipientUserID:   recipientUserID,
-		Status:            sharesinbox.ShareStatusPending,
-		ResourceType:      "file",
-		Name:              "test-share-" + providerID,
-		Owner:             "owner@sender.example.com",
-		Sender:            "sender@sender.example.com",
-		ShareType:         "user",
-		Permissions:       []string{"read"},
-		WebDAVID:          webdavID,
-		WebDAVURIAbsolute: webdavURIAbsolute,
-		SharedSecret:      sharedSecret,
-		MustExchangeToken: mustExchangeToken,
+		ProviderID:      providerID,
+		SenderHost:      senderHost,
+		ShareWith:       recipientUserID + "@example.com",
+		RecipientUserID: recipientUserID,
+		Status:          sharesinbox.ShareStatusPending,
+		ResourceType:    "file",
+		Name:            "test-share-" + providerID,
+		Owner:           "owner@sender.example.com",
+		Sender:          "sender@sender.example.com",
+		ShareType:       "user",
+		Permissions:     []string{"read"},
+		WebDAVID:        webdavID,
+		SharedSecret:    sharedSecret,
+		Requirements:    requirements,
 	}
 	repo.Create(context.Background(), share)
 	return share
@@ -379,10 +348,10 @@ func createDetailedShareForUser(
 func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, userAID, "prov-detail", "sender.example.com",
-		"webdav-id-123", "", "secret-value", true)
+		"webdav-id-123", "secret-value", []string{"must-exchange-token"})
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
@@ -414,9 +383,6 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	if resp["webdavId"] != "webdav-id-123" {
 		t.Errorf("expected webdavId webdav-id-123, got %v", resp["webdavId"])
 	}
-	if resp["mustExchangeToken"] != true {
-		t.Errorf("expected mustExchangeToken true, got %v", resp["mustExchangeToken"])
-	}
 	if resp["webdavUriAbsolutePresent"] != false {
 		t.Errorf("expected webdavUriAbsolutePresent false (no absolute URI), got %v", resp["webdavUriAbsolutePresent"])
 	}
@@ -425,8 +391,8 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
 	}
-	if proto["name"] != "webdav" {
-		t.Errorf("expected protocol.name webdav, got %v", proto["name"])
+	if proto["name"] != "multi" {
+		t.Errorf("expected protocol.name multi, got %v", proto["name"])
 	}
 	webdav, ok := proto["webdav"].(map[string]any)
 	if !ok {
@@ -435,15 +401,22 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	if webdav["uri"] != "webdav-id-123" {
 		t.Errorf("expected protocol.webdav.uri webdav-id-123, got %v", webdav["uri"])
 	}
+	reqs, ok := webdav["requirements"].([]any)
+	if !ok {
+		t.Fatalf("expected requirements to be an array, got %T", webdav["requirements"])
+	}
+	if len(reqs) != 1 || reqs[0] != "must-exchange-token" {
+		t.Errorf("expected requirements [must-exchange-token], got %v", reqs)
+	}
 }
 
 func TestHandleGetDetail_CrossUserReturns404(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, userAID, "prov-cross-detail", "sender.example.com",
-		"wdid", "", "secret", false)
+		"wdid", "secret", []string{})
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
-	router := newTestRouter(repo, nil, userB)
+	router := newTestRouter(repo, userB)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
@@ -457,7 +430,7 @@ func TestHandleGetDetail_CrossUserReturns404(t *testing.T) {
 func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/nonexistent-id", nil)
 	w := httptest.NewRecorder()
@@ -471,10 +444,10 @@ func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
 func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, userAID, "prov-redact", "sender.example.com",
-		"wdid", "", "real-secret-value", false)
+		"wdid", "real-secret-value", []string{})
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
@@ -506,10 +479,10 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, userAID, "prov-noleak", "sender.example.com",
-		"wdid", "", "secret", false)
+		"wdid", "secret", []string{})
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
@@ -525,14 +498,14 @@ func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 	}
 }
 
-func TestHandleGetDetail_RequirementsReflectsMustExchangeToken(t *testing.T) {
+func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
 	shareA := createDetailedShareForUser(repo, userAID, "prov-met-true", "sender.example.com",
-		"wdid", "", "secret", true)
+		"wdid", "secret", []string{"must-exchange-token"})
 
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	reqA := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareA.ShareID, nil)
 	wA := httptest.NewRecorder()
@@ -551,7 +524,7 @@ func TestHandleGetDetail_RequirementsReflectsMustExchangeToken(t *testing.T) {
 	}
 
 	shareB := createDetailedShareForUser(repo, userAID, "prov-met-false", "sender.example.com",
-		"wdid2", "", "secret2", false)
+		"wdid2", "secret2", []string{})
 
 	reqB := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareB.ShareID, nil)
 	wB := httptest.NewRecorder()
@@ -566,13 +539,13 @@ func TestHandleGetDetail_RequirementsReflectsMustExchangeToken(t *testing.T) {
 		t.Fatalf("expected requirements to be an array, got %T", webdavB["requirements"])
 	}
 	if len(reqsB) != 0 {
-		t.Errorf("expected empty requirements for MustExchangeToken=false, got %v", reqsB)
+		t.Errorf("expected empty requirements, got %v", reqsB)
 	}
 }
 
 func TestHandleGetDetail_Unauthenticated(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	router := newTestRouter(repo, nil, nil)
+	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/some-id", nil)
 	w := httptest.NewRecorder()
@@ -602,7 +575,7 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	repo.Create(context.Background(), share)
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
@@ -626,13 +599,13 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	}
 }
 
-func TestHandleGetDetail_WebDAVURIAbsolutePresent(t *testing.T) {
+func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, nil, userA)
+	router := newTestRouter(repo, userA)
 
 	shareA := createDetailedShareForUser(repo, userAID, "prov-abs-yes", "sender.example.com",
-		"relative-id", "https://sender.example.com/webdav/file.txt", "secret", false)
+		"https://sender.example.com/webdav/file.txt", "secret", []string{})
 
 	reqA := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareA.ShareID, nil)
 	wA := httptest.NewRecorder()
@@ -651,7 +624,7 @@ func TestHandleGetDetail_WebDAVURIAbsolutePresent(t *testing.T) {
 	}
 
 	shareB := createDetailedShareForUser(repo, userAID, "prov-abs-no", "sender.example.com",
-		"relative-id-only", "", "secret2", false)
+		"relative-id-only", "secret2", []string{})
 
 	reqB := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareB.ShareID, nil)
 	wB := httptest.NewRecorder()

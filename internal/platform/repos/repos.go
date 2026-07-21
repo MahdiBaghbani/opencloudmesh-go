@@ -77,10 +77,6 @@ func newDurableRepos(ctx context.Context, cfg config.PersistenceConfig) (*Repos,
 	driverCfg := &store.DriverConfig{
 		Driver:  cfg.Backend,
 		DataDir: cfg.DataDir,
-		Mirror: store.MirrorConfig{
-			IncludeSecrets: cfg.Mirror.IncludeSecrets,
-			SecretsScope:   cfg.Mirror.SecretsScope,
-		},
 	}
 
 	drv, err := store.New(driverCfg)

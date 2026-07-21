@@ -1,5 +1,5 @@
 // OCM spec error and validation types.
-// See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#share-creation-notification
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1
 package spec
 
 import (
@@ -42,7 +42,7 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 	if req.ResourceType == "" {
 		errs = append(errs, ValidationError{Name: "resourceType", Message: "REQUIRED"})
 	}
-	if req.Protocol.Name == "" && req.Protocol.WebDAV == nil && req.Protocol.WebApp == nil {
+	if req.Protocol.Name == "" && req.Protocol.WebDAV == nil {
 		errs = append(errs, ValidationError{Name: "protocol", Message: "REQUIRED"})
 	}
 
@@ -61,6 +61,11 @@ func WriteValidationError(w http.ResponseWriter, message string, errors []Valida
 // WriteShareTypeNotSupported writes a 501 response for unsupported share types.
 func WriteShareTypeNotSupported(w http.ResponseWriter) {
 	WriteOCMError(w, http.StatusNotImplemented, "SHARE_TYPE_NOT_SUPPORTED")
+}
+
+// WriteResourceTypeNotSupported writes a 501 response for unsupported resource types.
+func WriteResourceTypeNotSupported(w http.ResponseWriter) {
+	WriteOCMError(w, http.StatusNotImplemented, "RESOURCE_TYPE_NOT_SUPPORTED")
 }
 
 // WriteProtocolNotSupported writes a 501 response for unsupported protocols.

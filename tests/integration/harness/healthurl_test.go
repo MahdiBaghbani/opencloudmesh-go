@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 )
@@ -91,53 +90,32 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 		wantSubstr string
 	}{
 		{
-			name:      "valid none-scope strict config passes",
+			name:      "valid strict config passes",
 			mutate:    func(*config.Config) {},
 			wantError: false,
 		},
 		{
-			// Scoped compatibility does not constrain transport settings;
-			// strict signature and peer posture from StrictConfig keep this valid.
-			name: "scoped config with tls.mode off allowed before startup",
+			name: "dev config with tls.mode off allowed before startup",
 			mutate: func(cfg *config.Config) {
-				cfg.CompatibilityScope = "scoped"
+				cfg.Mode = "dev"
 				cfg.TLS.Mode = "off"
+				cfg.OutboundHTTP.SSRF.Mode = "off"
+				cfg.OutboundHTTP.InsecureSkipVerify = true
 			},
 			wantError: false,
 		},
 		{
-			name: "none-scope allow_mismatch contradiction rejected before startup",
+			name: "strict config with tls.mode off rejected",
 			mutate: func(cfg *config.Config) {
-				// scope=none with signature.allow_mismatch=true is a static
-				// contradiction the posture-only validation does not catch.
-				cfg.CompatibilityScope = "none"
-				cfg.Signature.AllowMismatch = true
-			},
-			wantError: true,
-		},
-		{
-			name: "none-scope non-strict peer_policy rejected before startup",
-			mutate: func(cfg *config.Config) {
-				cfg.PeerPolicy = "prefer-strict"
+				cfg.TLS.Mode = "off"
 			},
 			wantError:  true,
-			wantSubstr: "compatibility_scope=none requires peer_policy=strict",
-		},
-		{
-			name: "none-scope peer trust without global_enforce rejected before startup",
-			mutate: func(cfg *config.Config) {
-				cfg.PeerTrust.Enabled = true
-				cfg.PeerTrust.Policy.GlobalEnforce = false
-			},
-			wantError:  true,
-			wantSubstr: "compatibility_scope=none requires peer_trust.policy.global_enforce=true when peer trust is enabled",
+			wantSubstr: "mode=strict requires tls.mode!=off",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// StrictConfig is compatibility_scope=none and satisfies the
-			// none-scope compatibility requirements, giving each case a valid starting point.
 			cfg := config.StrictConfig()
 			tc.mutate(cfg)
 			err := validatePreBootstrapStartup(cfg)
@@ -159,30 +137,13 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 	cfg := config.DevConfig()
 	applyIETFConfigDefaults(cfg)
 
-	if cfg.Signature.InboundMode != "strict" {
-		t.Fatalf("Signature.InboundMode = %q, want strict", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Fatalf("Signature.OutboundMode = %q, want strict", cfg.Signature.OutboundMode)
-	}
 	if cfg.Signature.Label != config.DefaultSignatureLabel {
 		t.Fatalf("Signature.Label = %q, want %q", cfg.Signature.Label, config.DefaultSignatureLabel)
 	}
-	if cfg.Signature.AllowMismatch {
-		t.Fatal("Signature.AllowMismatch = true, want false")
-	}
-	if !cfg.RequireTokenExchange {
-		t.Fatal("RequireTokenExchange = false, want true")
-	}
-
-	assertIETFHarnessLocalhostPeerMappings(t, cfg.PeerProfiles.Mappings)
 
 	// Intentionally preserved DevConfig leniencies for in-process localhost tests.
 	if cfg.Mode != dev.Mode {
 		t.Fatalf("Mode = %q, want preserved %q", cfg.Mode, dev.Mode)
-	}
-	if cfg.CompatibilityScope != dev.CompatibilityScope {
-		t.Fatalf("CompatibilityScope = %q, want preserved %q", cfg.CompatibilityScope, dev.CompatibilityScope)
 	}
 	if cfg.TLS.Mode != dev.TLS.Mode {
 		t.Fatalf("TLS.Mode = %q, want preserved %q", cfg.TLS.Mode, dev.TLS.Mode)
@@ -193,49 +154,12 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 	if cfg.OutboundHTTP.InsecureSkipVerify != dev.OutboundHTTP.InsecureSkipVerify {
 		t.Fatalf("OutboundHTTP.InsecureSkipVerify = %v, want preserved %v", cfg.OutboundHTTP.InsecureSkipVerify, dev.OutboundHTTP.InsecureSkipVerify)
 	}
-	if cfg.Signature.PeerProfileLevelOverride != dev.Signature.PeerProfileLevelOverride {
-		t.Fatalf("Signature.PeerProfileLevelOverride = %q, want preserved %q", cfg.Signature.PeerProfileLevelOverride, dev.Signature.PeerProfileLevelOverride)
-	}
-	if cfg.PeerPolicy != dev.PeerPolicy {
-		t.Fatalf("PeerPolicy = %q, want preserved %q", cfg.PeerPolicy, dev.PeerPolicy)
-	}
-}
-
-func TestIETFHarnessLocalhostPeerMappings(t *testing.T) {
-	mappings := ietfHarnessLocalhostPeerMappings()
-	assertIETFHarnessLocalhostPeerMappings(t, mappings)
-}
-
-func assertIETFHarnessLocalhostPeerMappings(t *testing.T, mappings []config.PeerProfileMapping) {
-	t.Helper()
-
-	want := map[string]string{
-		"localhost": "dev",
-		"127.0.0.1": "dev",
-	}
-	if len(mappings) != len(want) {
-		t.Fatalf("peer profile mappings = %d, want %d", len(mappings), len(want))
-	}
-
-	got := make(map[string]string, len(mappings))
-	for _, mapping := range mappings {
-		got[mapping.Pattern] = mapping.Profile
-	}
-	for pattern, profile := range want {
-		if got[pattern] != profile {
-			t.Fatalf("mapping[%q] = %q, want profile %q (full mappings: %+v)",
-				pattern, got[pattern], profile, mappings)
-		}
-	}
 }
 
 func TestIETFIntegrationBuildOpts(t *testing.T) {
 	opts := IETFIntegrationBuildOpts()
 	if opts.SkipCrypto {
 		t.Fatal("SkipCrypto must be false for IETF integration path")
-	}
-	if opts.SkipSignatureMiddleware {
-		t.Fatal("SkipSignatureMiddleware must be false for IETF integration path")
 	}
 
 	base := IntegrationBuildOpts()
@@ -253,45 +177,13 @@ func TestIETFIntegrationBuildOpts(t *testing.T) {
 func TestIETFIntegrationBuildOpts_MatchesWiringBuildOpts(t *testing.T) {
 	got := IETFIntegrationBuildOpts()
 	want := wiring.BuildOpts{
-		FastAuth:                true,
-		SkipCrypto:              false,
-		SkipPeerTrust:           true,
-		SkipSignatureMiddleware: false,
-		OutboundOverride:        got.OutboundOverride,
-		SkipDiscoveryCache:      true,
+		FastAuth:           true,
+		SkipCrypto:         false,
+		SkipPeerTrust:      true,
+		OutboundOverride:   got.OutboundOverride,
+		SkipDiscoveryCache: true,
 	}
 	if got != want {
 		t.Fatalf("IETFIntegrationBuildOpts() = %+v, want %+v", got, want)
-	}
-}
-
-func TestCheckStartupPosture(t *testing.T) {
-	cases := []struct {
-		name      string
-		scope     string
-		isStrict  bool
-		wantError bool
-	}{
-		{name: "none with strict posture is allowed", scope: "none", isStrict: true, wantError: false},
-		{name: "none with non-strict posture is rejected", scope: "none", isStrict: false, wantError: true},
-		{name: "scoped with non-strict posture is allowed", scope: "scoped", isStrict: false, wantError: false},
-		{name: "empty scope with non-strict posture is allowed", scope: "", isStrict: false, wantError: false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &config.Config{CompatibilityScope: tc.scope}
-			eval := policy.RuntimeEvaluation{
-				CompatibilityScope: tc.scope,
-				Strict:             policy.StrictAssessment{IsStrict: tc.isStrict},
-			}
-			err := checkStartupPosture(cfg, eval)
-			if tc.wantError && err == nil {
-				t.Fatalf("checkStartupPosture(scope=%q, strict=%v) = nil, want error", tc.scope, tc.isStrict)
-			}
-			if !tc.wantError && err != nil {
-				t.Fatalf("checkStartupPosture(scope=%q, strict=%v) = %v, want nil", tc.scope, tc.isStrict, err)
-			}
-		})
 	}
 }

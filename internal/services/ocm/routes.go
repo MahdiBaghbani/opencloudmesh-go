@@ -6,7 +6,6 @@ import (
 
 const (
 	RouteShares         = "/shares"
-	RouteNotifications  = "/notifications"
 	RouteInviteAccepted = "/invite-accepted"
 )
 
@@ -26,44 +25,41 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 	tokenPattern := tokenRoutePattern(opts)
 	return []service.RouteSpec{
 		{
-			ID:            "ocm-shares",
-			Service:       "ocm",
-			Method:        "POST",
-			Pattern:       RouteShares,
-			SessionPolicy: service.SessionPublic,
-			HandlerAuth:   service.HandlerAuthOptionalHTTPSig,
-			SurfaceClass:  service.SurfaceProtocol,
-			TrustClass:    service.TrustPeerRequired,
+			ID:             "ocm-shares",
+			Service:        "ocm",
+			Method:         "POST",
+			Pattern:        RouteShares,
+			SessionPolicy:  service.SessionPublic,
+			HandlerAuth:    service.HandlerAuthRequiredHTTPSig,
+			SurfaceClass:   service.SurfaceProtocol,
+			TrustClass:     service.TrustPeerRequired,
+			BodyLimitBytes: service.OCMProtocolBodyLimitBytes,
+			PeerResolution: service.PeerResolutionShares,
 		},
 		{
-			ID:            "ocm-notifications",
-			Service:       "ocm",
-			Method:        "POST",
-			Pattern:       RouteNotifications,
-			SessionPolicy: service.SessionPublic,
-			HandlerAuth:   service.HandlerAuthOptionalHTTPSig,
-			SurfaceClass:  service.SurfaceProtocol,
-			TrustClass:    service.TrustNotificationsSpecial,
+			ID:             "ocm-invite-accepted",
+			Service:        "ocm",
+			Method:         "POST",
+			Pattern:        RouteInviteAccepted,
+			SessionPolicy:  service.SessionPublic,
+			HandlerAuth:    service.HandlerAuthRequiredHTTPSig,
+			SurfaceClass:   service.SurfaceProtocol,
+			TrustClass:     service.TrustPeerRequired,
+			BodyLimitBytes: service.OCMProtocolBodyLimitBytes,
+			PeerResolution: service.PeerResolutionInviteAccepted,
 		},
 		{
-			ID:            "ocm-invite-accepted",
-			Service:       "ocm",
-			Method:        "POST",
-			Pattern:       RouteInviteAccepted,
-			SessionPolicy: service.SessionPublic,
-			HandlerAuth:   service.HandlerAuthOptionalHTTPSig,
-			SurfaceClass:  service.SurfaceProtocol,
-			TrustClass:    service.TrustPeerRequired,
-		},
-		{
-			ID:            service.RouteIDOCMToken,
-			Service:       "ocm",
-			Method:        "POST",
-			Pattern:       tokenPattern,
-			SessionPolicy: service.SessionPublic,
-			HandlerAuth:   service.HandlerAuthOptionalHTTPSig,
-			SurfaceClass:  service.SurfaceProtocol,
-			TrustClass:    service.TrustPeerRequired,
+			ID:              service.RouteIDOCMToken,
+			Service:         "ocm",
+			Method:          "POST",
+			Pattern:         tokenPattern,
+			SessionPolicy:   service.SessionPublic,
+			HandlerAuth:     service.HandlerAuthRequiredHTTPSig,
+			SurfaceClass:    service.SurfaceProtocol,
+			TrustClass:      service.TrustPeerRequired,
+			DiscoveryFields: []string{"tokenEndPoint"},
+			BodyLimitBytes:  service.OCMProtocolBodyLimitBytes,
+			PeerResolution:  service.PeerResolutionToken,
 		},
 	}
 }

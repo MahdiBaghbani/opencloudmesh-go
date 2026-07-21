@@ -6,7 +6,7 @@
     },
     {
       "author": "OpenCloudMesh Go maintainers",
-      "content": "Keep the scope honest. This server implements a practical WebDAV-centered subset of OCM, including discovery, user shares, invite flows, token exchange, a notification subset, and related UI and helper paths. Do not describe it as full OCM-API coverage or broad interoperability with arbitrary peers. Presets strict, compat, and dev are only entry points; effective behavior also depends on compatibility_scope and the signature, transport, trust, and peer-compat settings."
+      "content": "Keep the scope honest. This server implements a practical WebDAV-centered subset of OCM, including discovery, user shares, invite flows, strict authorization-code token exchange, HTTP signatures with JWKS, Bearer WebDAV access, and related UI and helper paths. Effective behavior depends on trust and operational configuration. Do not describe it as full OCM-API coverage or broad interoperability with arbitrary peers."
     },
     {
       "author": "OpenCloudMesh Go maintainers",

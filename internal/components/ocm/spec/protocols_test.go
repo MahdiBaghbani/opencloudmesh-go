@@ -90,7 +90,7 @@ func TestProtocolRole_UnmarshalJSON_RejectsInvalidTypes(t *testing.T) {
 }
 
 func TestProtocolRole_JSONRoundTrip_StringRole(t *testing.T) {
-	const input = `{"protocols":{"webdav":"/remote/dav/ocm/","talk":"/apps/spreed/api/"}}`
+	const input = `{"protocols":{"webdav":"/remote/dav/ocm/"}}`
 	assertProtocolsRoundTrip(t, input)
 
 	var wrapper struct {
@@ -103,14 +103,10 @@ func TestProtocolRole_JSONRoundTrip_StringRole(t *testing.T) {
 	if !ok || path != "/remote/dav/ocm/" {
 		t.Fatalf("webdav = %q, ok=%v", path, ok)
 	}
-	talk, ok := wrapper.Protocols.StringRole("talk")
-	if !ok || talk != "/apps/spreed/api/" {
-		t.Fatalf("talk = %q, ok=%v", talk, ok)
-	}
 }
 
 func TestProtocolRole_JSONRoundTrip_ObjectReceiveRoles(t *testing.T) {
-	const input = `{"protocols":{"webdav-receive":{"uri":"absolute"},"webapp-receive":{"targets":["blank","iframe"]}}}`
+	const input = `{"protocols":{"webdav-receive":{"uri":"absolute"}}}`
 	assertProtocolsRoundTrip(t, input)
 
 	var wrapper struct {
@@ -122,28 +118,6 @@ func TestProtocolRole_JSONRoundTrip_ObjectReceiveRoles(t *testing.T) {
 	wr, ok := wrapper.Protocols.WebDAVReceive()
 	if !ok || wr.URI != spec.WebDAVReceiveURIAbsolute {
 		t.Fatalf("WebDAVReceive = %+v, ok=%v", wr, ok)
-	}
-	war, ok := wrapper.Protocols.WebAppReceive()
-	if !ok || len(war.Targets) != 2 || war.Targets[0] != "blank" {
-		t.Fatalf("WebAppReceive = %+v, ok=%v", war, ok)
-	}
-}
-
-func TestProtocolRole_JSONRoundTrip_EmptyObject(t *testing.T) {
-	const input = `{"protocols":{"webapp":{},"ssh-receive":{}}}`
-	assertProtocolsRoundTrip(t, input)
-
-	var wrapper struct {
-		Protocols spec.Protocols `json:"protocols"`
-	}
-	if err := json.Unmarshal([]byte(input), &wrapper); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if !wrapper.Protocols["webapp"].IsEmptyObject() {
-		t.Error("expected webapp to be empty object")
-	}
-	if !wrapper.Protocols["ssh-receive"].IsEmptyObject() {
-		t.Error("expected ssh-receive to be empty object")
 	}
 }
 
@@ -164,7 +138,7 @@ func TestProtocolRole_JSONRoundTrip_CustomProtocol(t *testing.T) {
 }
 
 func TestProtocolRole_JSONRoundTrip_FullExample(t *testing.T) {
-	const input = `{"protocols":{"webdav":"/remote/dav/ocm/","webdav-receive":{"uri":"absolute"},"webapp":{},"webapp-receive":{"targets":["blank","iframe"]},"talk":"/apps/spreed/api/"}}`
+	const input = `{"protocols":{"webdav":"/remote/dav/ocm/","webdav-receive":{"uri":"absolute"}}}`
 	assertProtocolsRoundTrip(t, input)
 }
 

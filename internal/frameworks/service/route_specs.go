@@ -15,9 +15,8 @@ type HandlerAuth string
 const (
 	HandlerAuthNone            HandlerAuth = "none"
 	HandlerAuthCurrentUser     HandlerAuth = "current user"
-	HandlerAuthOptionalHTTPSig HandlerAuth = "optional HTTP signature"
 	HandlerAuthRequiredHTTPSig HandlerAuth = "required HTTP signature"
-	HandlerAuthBearerOrBasic   HandlerAuth = "bearer or basic"
+	HandlerAuthBearer          HandlerAuth = "bearer"
 	HandlerAuthRateLimitOnly   HandlerAuth = "rate limit only"
 )
 
@@ -37,9 +36,8 @@ const (
 type TrustClass string
 
 const (
-	TrustPeerNone             TrustClass = "peer-trust-none"
-	TrustPeerRequired         TrustClass = "peer-trust-required"
-	TrustNotificationsSpecial TrustClass = "notifications-special"
+	TrustPeerNone     TrustClass = "peer-trust-none"
+	TrustPeerRequired TrustClass = "peer-trust-required"
 )
 
 // FeatureCondition gates a route on optional product features.
@@ -55,13 +53,23 @@ const (
 type OutboundProtocolKind string
 
 const (
-	OutboundNone          OutboundProtocolKind = ""
-	OutboundNotifications OutboundProtocolKind = "notifications"
-	OutboundShares        OutboundProtocolKind = "shares"
-	OutboundInvites       OutboundProtocolKind = "invites"
-	OutboundTokenExchange OutboundProtocolKind = "token-exchange"
-	OutboundAccess        OutboundProtocolKind = "access"
+	OutboundNone    OutboundProtocolKind = ""
+	OutboundShares  OutboundProtocolKind = "shares"
+	OutboundInvites OutboundProtocolKind = "invites"
+	OutboundAccess  OutboundProtocolKind = "access"
 )
+
+// PeerResolution names which inbound peer resolver an OCM protocol POST route uses.
+type PeerResolution string
+
+const (
+	PeerResolutionShares         PeerResolution = "shares"
+	PeerResolutionInviteAccepted PeerResolution = "invite-accepted"
+	PeerResolutionToken          PeerResolution = "token"
+)
+
+// OCMProtocolBodyLimitBytes is the pre-verification request body limit for OCM POST routes.
+const OCMProtocolBodyLimitBytes int64 = 1 << 20
 
 // RouteSpec is a service-owned route policy declaration. Pattern is relative to
 // the service chi router (not the host external_base_path).
@@ -78,14 +86,17 @@ type RouteSpec struct {
 	OutboundProtocolKind OutboundProtocolKind
 	FeatureCondition     FeatureCondition
 	TrustClass           TrustClass
+	BodyLimitBytes       int64
+	PeerResolution       PeerResolution
 }
 
 // RouteOpts carries config-derived values that affect route registration and
-// aggregation. MVP sources InviteAcceptEnabled from the same WAYF config flag.
+// aggregation.
 type RouteOpts struct {
 	ExternalBasePath    string
 	WayfEnabled         bool
 	InviteAcceptEnabled bool
+	InvitesEnabled      bool
 	TokenExchangePath   string
 }
 

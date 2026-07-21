@@ -41,9 +41,8 @@ func TestTokenExchangeFlow(t *testing.T) {
 
 	binaryPath := harness.BuildBinary(t)
 	sender := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "token-flow-sender",
-		Mode:                  "compat",
-		KeepSignatureDefaults: true,
+		Name: "token-flow-sender",
+		Mode: "dev",
 		ExtraConfig: `
 [outbound_http.ssrf]
 mode = "off"
@@ -56,7 +55,7 @@ mode = "off"
 
 	token := loginSubprocessAdmin(t, sender)
 	status, body := createOutgoingShare(t, sender.BaseURL, token, map[string]any{
-		"receiverDomain": receiver.peerDomain,
+		"receiverDomain": receiver.peerBaseURL,
 		"shareWith":      "bob@" + receiver.peerDomain,
 		"localPath":      testFile,
 		"permissions":    []string{"read"},
@@ -84,8 +83,8 @@ mode = "off"
 	if captured.SharedSecret == "" {
 		t.Fatal("captured strict share is missing sharedSecret")
 	}
-	if !captured.MustExchangeToken {
-		t.Fatal("expected strict receiver to receive must-exchange-token share")
+	if len(captured.Requirements) != 1 || captured.Requirements[0] != spec.RequirementMustExchangeToken {
+		t.Fatalf("expected requirements [%s], got %v", spec.RequirementMustExchangeToken, captured.Requirements)
 	}
 	if !captured.SawSignature {
 		t.Fatal("expected outbound /ocm/shares request to be signed for strict receiver")
@@ -221,7 +220,7 @@ func TestIETFTwoInstance_JWKSRouteAndSignedTokenExchange(t *testing.T) {
 	}
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", clientHost)
 	form.Set("code", sharedSecret)
 	body := []byte(form.Encode())
@@ -323,7 +322,7 @@ func postTokenExchange(t *testing.T, providerBaseURL, clientHost, code string, s
 	t.Helper()
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", clientHost)
 	form.Set("code", code)
 	body := []byte(form.Encode())

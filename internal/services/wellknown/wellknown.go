@@ -1,11 +1,13 @@
 package wellknown
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -15,7 +17,7 @@ import (
 
 // Config holds wellknown service configuration.
 type Config struct {
-	OCMProvider OCMProviderConfig `mapstructure:"ocmprovider"`
+	OCMProvider resolve.ProviderConfig `mapstructure:"ocmprovider"`
 }
 
 // ApplyDefaults implements cfg.Setter.
@@ -33,7 +35,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	log = logutil.NoopIfNil(log)
 
 	var c Config
-	unused, err := svccfg.DecodeWithUnused(m, &c)
+	topLevel := make(map[string]any, len(m))
+	for k, v := range m {
+		if k != "ocmprovider" {
+			topLevel[k] = v
+		}
+	}
+	unused, err := svccfg.DecodeWithUnused(topLevel, &c)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +52,11 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	var rawOCMProvider map[string]any
 	if om, ok := m["ocmprovider"].(map[string]any); ok {
 		rawOCMProvider = om
+		if err := svccfg.MustDecodeStrict(om, &c.OCMProvider); err != nil {
+			return nil, fmt.Errorf("ocmprovider: %w", err)
+		}
+	} else if m["ocmprovider"] != nil {
+		return nil, fmt.Errorf("ocmprovider must be a table")
 	}
 
 	r := chi.NewRouter()

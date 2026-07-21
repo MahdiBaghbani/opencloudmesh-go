@@ -28,10 +28,9 @@ profile = "discover"
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "ratelimit-ocmaux",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
-		ExtraConfig:           extraConfig,
+		Name:        "ratelimit-ocmaux",
+		Mode:        "dev",
+		ExtraConfig: extraConfig,
 	})
 	defer srv.Stop(t)
 
@@ -87,10 +86,9 @@ profile = "login"
 
 	binaryPath := harness.BuildBinary(t)
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                  "ratelimit-api",
-		Mode:                  "dev",
-		KeepSignatureDefaults: true,
-		ExtraConfig:           extraConfig,
+		Name:        "ratelimit-api",
+		Mode:        "dev",
+		ExtraConfig: extraConfig,
 	})
 	defer srv.Stop(t)
 

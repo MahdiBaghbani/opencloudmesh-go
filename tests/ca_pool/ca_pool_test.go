@@ -27,8 +27,8 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
-	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tlspkg "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/tls"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 const (
@@ -120,7 +120,6 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 
 	cfg := &config.OutboundHTTPConfig{
 		SSRF:               config.SSRFConfig{Mode: "off"},
-		DerivedSSRFMode:    "off",
 		TimeoutMS:          tshttp.TestOutboundTimeoutMS,
 		InsecureSkipVerify: false,
 	}

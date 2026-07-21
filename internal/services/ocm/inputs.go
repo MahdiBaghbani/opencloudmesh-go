@@ -2,10 +2,8 @@ package ocm
 
 import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
@@ -21,10 +19,7 @@ type Inputs struct {
 	OutgoingInviteRepo  invitesoutgoing.OutgoingInviteRepo
 	PartyRepo           identity.PartyRepo
 	PolicyEngine        *peertrust.PolicyEngine
-	DiscoveryClient     *discovery.Client
-	OpenCloudMeshPolicy *policy.OpenCloudMeshPolicy
-	RuntimePolicy       *policy.RuntimePolicy
-	PeerContract        *peercompat.CompiledContract
+	CodeFlow            *policy.CodeFlow
 	LocalIdentity       localidentity.Identity
 	TokenStore          token.TokenStore
 	SignatureMiddleware *inboundsignature.SignatureMiddleware

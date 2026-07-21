@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
 	"gopkg.in/yaml.v3"
 )
@@ -60,5 +61,29 @@ func TestSpecPinPresent(t *testing.T) {
 	}
 	if spec.Info.Version != "1.4.0" {
 		t.Errorf("spec.yaml info.version = %q, want 1.4.0", spec.Info.Version)
+	}
+}
+
+func TestRuntimeAPIVersionPinMatchesVendoredSpec(t *testing.T) {
+	root := modroot.ModuleRoot(t)
+	specPath := filepath.Join(root, "internal", "components", "ocm", "spec", "vendor", "spec.yaml")
+
+	specData, err := os.ReadFile(specPath)
+	if err != nil {
+		t.Fatalf("failed to read spec.yaml: %v", err)
+	}
+
+	var vendored struct {
+		Info struct {
+			Version string `yaml:"version"`
+		} `yaml:"info"`
+	}
+	if err := yaml.Unmarshal(specData, &vendored); err != nil {
+		t.Fatalf("failed to parse spec.yaml: %v", err)
+	}
+
+	if spec.APIVersionPin != vendored.Info.Version {
+		t.Errorf("spec.APIVersionPin = %q, want vendored spec.yaml info.version %q",
+			spec.APIVersionPin, vendored.Info.Version)
 	}
 }

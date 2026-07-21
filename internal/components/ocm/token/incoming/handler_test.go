@@ -13,23 +13,28 @@ import (
 	"testing"
 
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 )
 
-// enabledSettings returns token exchange settings with enabled=true for testing.
+// enabledSettings returns token exchange path settings for testing.
 func enabledSettings() *tokenincoming.TokenExchangeSettings {
-	s := &tokenincoming.TokenExchangeSettings{Enabled: true}
+	s := &tokenincoming.TokenExchangeSettings{}
 	s.ApplyDefaults()
 	return s
+}
+
+func enabledCodeFlow() *policy.CodeFlow {
+	return policy.NewCodeFlow()
 }
 
 func TestHandler_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -41,9 +46,9 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	}
 	shareRepo.Create(context.Background(), share)
 
-	// Make token request
+	// Make token request using the canonical authorization_code grant.
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code-789")
 
@@ -55,6 +60,15 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q, want %q", got, "no-store")
+	}
+	if got := w.Header().Get("Pragma"); got != "no-cache" {
+		t.Errorf("Pragma = %q, want %q", got, "no-cache")
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q, want prefix %q", ct, "application/json")
 	}
 
 	var resp token.TokenResponse
@@ -82,50 +96,11 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	}
 }
 
-func TestHandler_JSON_NextcloudInterop(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
-
-	// Create a share
-	share := &sharesoutgoing.OutgoingShare{
-		ProviderID:   "provider-nc",
-		WebDAVID:     "webdav-nc",
-		SharedSecret: "nc-secret",
-		ReceiverHost: "nextcloud.example.com",
-		LocalPath:    "/tmp/test.txt",
-	}
-	shareRepo.Create(context.Background(), share)
-
-	// Make token request with JSON body (Nextcloud style)
-	body := `{"grant_type":"ocm_share","client_id":"nextcloud.example.com","code":"nc-secret"}`
-
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	handler.HandleToken(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp token.TokenResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-
-	if resp.AccessToken == "" {
-		t.Error("access_token is empty")
-	}
-}
-
 func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-ac",
@@ -163,54 +138,19 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 	}
 }
 
-func TestHandler_AuthorizationCode_JSON_Success(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
-
-	share := &sharesoutgoing.OutgoingShare{
-		ProviderID:   "provider-ac-json",
-		WebDAVID:     "webdav-ac-json",
-		SharedSecret: "ac-json-secret",
-		ReceiverHost: "receiver.example.com",
-		LocalPath:    "/tmp/test.txt",
-	}
-	shareRepo.Create(context.Background(), share)
-
-	body := `{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"ac-json-secret"}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	handler.HandleToken(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp token.TokenResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if resp.AccessToken == "" {
-		t.Error("access_token is empty")
-	}
-}
-
 func TestHandler_MissingFields(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	tests := []struct {
 		name string
 		form url.Values
 	}{
 		{"missing grant_type", url.Values{"client_id": {"x"}, "code": {"y"}}},
-		{"missing client_id", url.Values{"grant_type": {"ocm_share"}, "code": {"y"}}},
-		{"missing code", url.Values{"grant_type": {"ocm_share"}, "client_id": {"x"}}},
+		{"missing client_id", url.Values{"grant_type": {"authorization_code"}, "code": {"y"}}},
+		{"missing code", url.Values{"grant_type": {"authorization_code"}, "client_id": {"x"}}},
 	}
 
 	for _, tt := range tests {
@@ -238,7 +178,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	form := url.Values{}
 	form.Set("grant_type", "password")
@@ -257,8 +197,186 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 
 	var resp token.OAuthError
 	json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Error != token.ErrorInvalidGrant {
-		t.Errorf("expected error %q, got %q", token.ErrorInvalidGrant, resp.Error)
+	if resp.Error != token.ErrorUnsupportedGrantType {
+		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
+	}
+}
+
+// TestHandler_UnsupportedGrantType_Rejected proves the strict token contract
+// rejects unknown grant types with unsupported_grant_type.
+func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	form.Set("client_id", "receiver.example.com")
+	form.Set("code", "secret-code")
+
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Error != token.ErrorUnsupportedGrantType {
+		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
+	}
+}
+
+// TestHandler_JSONBody_Rejected proves JSON token request bodies are rejected.
+func TestHandler_JSONBody_Rejected(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+
+	body := `{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"secret-code"}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Error != token.ErrorInvalidRequest {
+		t.Errorf("expected error %q, got %q", token.ErrorInvalidRequest, resp.Error)
+	}
+}
+
+func TestHandler_ContentTypeValidation(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	tests := []struct {
+		name               string
+		contentType        string
+		omitContentType    bool
+		wantStatus         int
+		wantInvalidRequest bool
+	}{
+		{
+			name:        "canonical form urlencoded",
+			contentType: "application/x-www-form-urlencoded",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "form urlencoded with charset",
+			contentType: "application/x-www-form-urlencoded; charset=utf-8",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "mixed case media type",
+			contentType: "Application/x-www-Form-Urlencoded",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "upper case media type",
+			contentType: "APPLICATION/X-WWW-FORM-URLENCODED",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:               "omitted content type header",
+			omitContentType:    true,
+			wantStatus:         http.StatusBadRequest,
+			wantInvalidRequest: true,
+		},
+		{
+			name:               "text plain",
+			contentType:        "text/plain",
+			wantStatus:         http.StatusBadRequest,
+			wantInvalidRequest: true,
+		},
+		{
+			name:               "application json",
+			contentType:        "application/json",
+			wantStatus:         http.StatusBadRequest,
+			wantInvalidRequest: true,
+		},
+		{
+			name:               "bogus form urlencoded suffix",
+			contentType:        "application/x-www-form-urlencoded-bogus",
+			wantStatus:         http.StatusBadRequest,
+			wantInvalidRequest: true,
+		},
+		{
+			name:               "malformed charset parameter",
+			contentType:        "application/x-www-form-urlencoded; charset=",
+			wantStatus:         http.StatusBadRequest,
+			wantInvalidRequest: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+			tokenStore := token.NewMemoryTokenStore()
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+
+			sharedSecret := "content-type-secret-" + tt.name
+			if tt.wantStatus == http.StatusOK {
+				share := &sharesoutgoing.OutgoingShare{
+					ProviderID:   "provider-content-type",
+					WebDAVID:     "webdav-content-type",
+					SharedSecret: sharedSecret,
+					ReceiverHost: "receiver.example.com",
+					LocalPath:    "/tmp/test.txt",
+				}
+				shareRepo.Create(context.Background(), share)
+			}
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("client_id", "receiver.example.com")
+			if tt.wantStatus == http.StatusOK {
+				form.Set("code", sharedSecret)
+			} else {
+				form.Set("code", "arbitrary-code")
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+			if !tt.omitContentType {
+				req.Header.Set("Content-Type", tt.contentType)
+			}
+
+			w := httptest.NewRecorder()
+			handler.HandleToken(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("expected %d, got %d: %s", tt.wantStatus, w.Code, w.Body.String())
+			}
+
+			if tt.wantInvalidRequest {
+				var resp token.OAuthError
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+				if resp.Error != token.ErrorInvalidRequest {
+					t.Errorf("expected error %q, got %q", token.ErrorInvalidRequest, resp.Error)
+				}
+				return
+			}
+
+			var resp token.TokenResponse
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+			if resp.AccessToken == "" {
+				t.Error("access_token is empty")
+			}
+		})
 	}
 }
 
@@ -266,10 +384,10 @@ func TestHandler_InvalidCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "nonexistent-secret")
 
@@ -294,7 +412,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	// Create a share
 	share := &sharesoutgoing.OutgoingShare{
@@ -307,7 +425,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	shareRepo.Create(context.Background(), share)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "wrong-receiver.example.com")
 	form.Set("code", "secret-mismatch")
 
@@ -427,7 +545,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), tt.publicOrigin, logger)
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), tt.publicOrigin, logger)
 
 			share := &sharesoutgoing.OutgoingShare{
 				ProviderID:   "provider-port-test",
@@ -439,7 +557,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 			shareRepo.Create(context.Background(), share)
 
 			form := url.Values{}
-			form.Set("grant_type", "ocm_share")
+			form.Set("grant_type", "authorization_code")
 			form.Set("client_id", tt.clientID)
 			form.Set("code", "port-test-secret-"+tt.name)
 
@@ -472,7 +590,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-empty-origin",
@@ -484,7 +602,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 	shareRepo.Create(context.Background(), share)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com:443")
 	form.Set("code", "empty-origin-secret")
 
@@ -499,18 +617,17 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 	}
 }
 
-func TestHandler_DisabledReturns501(t *testing.T) {
+func TestHandler_NilCodeFlowReturns501(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
-	// Create handler with token exchange disabled
-	disabledSettings := &tokenincoming.TokenExchangeSettings{Enabled: false}
-	disabledSettings.ApplyDefaults()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, disabledSettings, "https://local.example.com", logger)
+	nilCodeFlowSettings := &tokenincoming.TokenExchangeSettings{}
+	nilCodeFlowSettings.ApplyDefaults()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, nilCodeFlowSettings, nil, "https://local.example.com", logger)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code")
 
@@ -538,7 +655,7 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-match",
@@ -550,7 +667,7 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 	shareRepo.Create(context.Background(), share)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "identity-match-secret")
 
@@ -574,7 +691,7 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-mismatch",
@@ -586,7 +703,7 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 	shareRepo.Create(context.Background(), share)
 
 	form := url.Values{}
-	form.Set("grant_type", "ocm_share")
+	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "identity-mismatch-secret")
 

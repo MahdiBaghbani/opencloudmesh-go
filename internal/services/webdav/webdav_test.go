@@ -41,11 +41,10 @@ func TestNew_UsesMinimalInputs(t *testing.T) {
 func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	strictShare := &sharesoutgoing.OutgoingShare{
-		ProviderID:        "provider-strict-share",
-		WebDAVID:          "11111111-1111-1111-1111-111111111111",
-		SharedSecret:      "strict-share-secret",
-		MustExchangeToken: true,
-		ReceiverHost:      "receiver.example.com",
+		ProviderID:   "provider-strict-share",
+		WebDAVID:     "11111111-1111-1111-1111-111111111111",
+		SharedSecret: "strict-share-secret",
+		ReceiverHost: "receiver.example.com",
 	}
 	if err := repo.Create(nil, strictShare); err != nil {
 		t.Fatalf("failed to seed outgoing share: %v", err)

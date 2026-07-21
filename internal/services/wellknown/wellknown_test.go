@@ -7,45 +7,38 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
-func nextcloudDiscoveryResolveInputs(t *testing.T) resolve.ResolveInputs {
+func signatureMiddlewareForTest(
+	t *testing.T,
+	pd inboundsignature.PeerDiscovery,
+) *inboundsignature.SignatureMiddleware {
 	t.Helper()
-	contract, err := peercompat.NewCompiledContract(
-		nil,
-		[]peercompat.ProfileMapping{{Pattern: "nc.example.com", Profile: "nextcloud"}},
+	sigCfg := config.DefaultSignatureConfig()
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	return inboundsignature.NewSignatureMiddleware(
+		pd,
+		"https://receiver.example.com",
+		sigCfg,
+		log,
 	)
-	if err != nil {
-		t.Fatalf("NewCompiledContract() unexpected error: %v", err)
-	}
-	return resolve.ResolveInputs{PeerContract: contract}
 }
-
-func withPeerIdentity(req *http.Request, peer string) *http.Request {
-	return req.WithContext(context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
-		AuthorityForCompare: peer,
-	}))
-}
-
 func TestNew_SucceedsWithResolveInputs(t *testing.T) {
 	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
+		"ocmprovider": map[string]any{},
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,18 +53,33 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 
 	m := map[string]any{
 		"unknown_key": "value",
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
+		"ocmprovider": map[string]any{},
 	}
 
-	_, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	_, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestNew_RejectsInvalidOCMProviderConfig(t *testing.T) {
+func TestNew_RejectsUnknownOCMProviderKeys(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	m := map[string]any{
+		"ocmprovider": map[string]any{
+			"definitely_unknown_key_xyz": "value",
+		},
+	}
+	_, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	if err == nil {
+		t.Fatal("expected error for unknown ocmprovider key")
+	}
+	if !strings.Contains(err.Error(), "unused config keys") {
+		t.Fatalf("expected unused config keys error, got %v", err)
+	}
+}
+
+func TestNew_RejectsInvalidProviderConfig(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	m := map[string]any{
@@ -86,13 +94,11 @@ func TestNew_RejectsInvalidOCMProviderConfig(t *testing.T) {
 
 func TestService_HandlerReturnsValidResponse(t *testing.T) {
 	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
+		"ocmprovider": map[string]any{},
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -109,12 +115,10 @@ func TestService_HandlerReturnsValidResponse(t *testing.T) {
 func TestService_Close(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
+		"ocmprovider": map[string]any{},
 	}
 
-	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -124,15 +128,13 @@ func TestService_Close(t *testing.T) {
 	}
 }
 
-func TestService_TrailingSlashAliases(t *testing.T) {
+func TestService_TrailingSlashPath(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
+		"ocmprovider": map[string]any{},
 	}
 
-	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -148,12 +150,10 @@ func TestService_TrailingSlashAliases(t *testing.T) {
 func TestService_PercentEncodedPath(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
+		"ocmprovider": map[string]any{},
 	}
 
-	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -168,67 +168,18 @@ func TestService_PercentEncodedPath(t *testing.T) {
 	}
 }
 
-func TestService_APIVersionOverride(t *testing.T) {
+func TestService_APIVersionPinned(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-			"api_version_overrides": []map[string]any{
-				{
-					"profile":             "nextcloud",
-					"user_agent_contains": "Nextcloud Server Crawler",
-					"api_version":         "1.1",
-				},
-			},
-		},
+		"ocmprovider": map[string]any{},
 	}
 
-	svc, err := New(Inputs{Resolve: nextcloudDiscoveryResolveInputs(t)}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req = withPeerIdentity(req, "nc.example.com")
-	req.Header.Set("User-Agent", "Nextcloud Server Crawler/1.0")
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-
-	var disc spec.Discovery
-	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if disc.APIVersion != "1.1" {
-		t.Fatalf("expected apiVersion 1.1 for matched peer override, got %q", disc.APIVersion)
-	}
-}
-
-func TestService_APIVersionOverride_UserAgentOnlyDoesNotActivate(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-			"api_version_overrides": []map[string]any{
-				{
-					"profile":             "nextcloud",
-					"user_agent_contains": "Nextcloud Server Crawler",
-					"api_version":         "1.1",
-				},
-			},
-		},
-	}
-
-	svc, err := New(Inputs{Resolve: nextcloudDiscoveryResolveInputs(t)}, m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req.Header.Set("User-Agent", "Nextcloud Server Crawler/1.0")
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -237,119 +188,12 @@ func TestService_APIVersionOverride_UserAgentOnlyDoesNotActivate(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 	if disc.APIVersion != "1.4.0" {
-		t.Fatalf("expected default apiVersion without peer identity, got %q", disc.APIVersion)
-	}
-}
-
-func TestService_APIVersionOverride_WithoutProfileBindingDoesNotActivate(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-			"api_version_overrides": []map[string]any{
-				{
-					"user_agent_contains": "Nextcloud Server Crawler",
-					"api_version":         "1.1",
-				},
-			},
-		},
-	}
-
-	svc, err := New(Inputs{Resolve: nextcloudDiscoveryResolveInputs(t)}, m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req = withPeerIdentity(req, "nc.example.com")
-	req.Header.Set("User-Agent", "Nextcloud Server Crawler/1.0")
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	var disc spec.Discovery
-	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if disc.APIVersion != "1.4.0" {
-		t.Fatalf("expected default apiVersion without profile binding, got %q", disc.APIVersion)
-	}
-}
-
-func TestService_APIVersionOverride_NoMatchUsesDefault(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-			"api_version_overrides": []map[string]any{
-				{
-					"profile":             "nextcloud",
-					"user_agent_contains": "Nextcloud Server Crawler",
-					"api_version":         "1.1",
-				},
-			},
-		},
-	}
-
-	svc, err := New(Inputs{Resolve: nextcloudDiscoveryResolveInputs(t)}, m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req = withPeerIdentity(req, "nc.example.com")
-	req.Header.Set("User-Agent", "SomeOtherClient/1.0")
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-
-	var disc spec.Discovery
-	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if disc.APIVersion != "1.4.0" {
-		t.Fatalf("expected default apiVersion 1.4.0, got %q", disc.APIVersion)
-	}
-}
-
-func TestService_APIVersionOverride_NoOverridesUsesDefault(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-		},
-	}
-
-	svc, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-
-	var disc spec.Discovery
-	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if disc.APIVersion != "1.4.0" {
-		t.Fatalf("expected default apiVersion 1.4.0, got %q", disc.APIVersion)
+		t.Fatalf("expected pinned apiVersion 1.4.0, got %q", disc.APIVersion)
 	}
 }
 
 type mockPeerDiscovery struct {
 	publicKeys map[string]sigalg.ResolvedPublicKey
-}
-
-func (m *mockPeerDiscovery) IsSigningCapable(ctx context.Context, host string) (bool, error) {
-	return false, nil
 }
 
 func (m *mockPeerDiscovery) ResolveVerificationKey(ctx context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
@@ -369,149 +213,76 @@ func resolvedKeyFromManager(km *crypto.KeyManager) sigalg.ResolvedPublicKey {
 	}
 }
 
-func signatureMiddlewareWithInboundMode(
-	t *testing.T,
-	inboundMode string,
-	contract *peercompat.CompiledContract,
-	pd inboundsignature.PeerDiscovery,
-) *inboundsignature.SignatureMiddleware {
-	t.Helper()
-	base := config.DevConfig()
-	base.Signature = config.SignatureConfig{InboundMode: inboundMode}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	return inboundsignature.NewSignatureMiddleware(
-		policy.NewRuntimePolicy(base, nil),
-		contract,
-		pd,
-		"https://receiver.example.com",
-		base.Signature,
-		log,
-	)
-}
-
-func TestService_APIVersionOverride_ThroughSignatureMiddleware(t *testing.T) {
+func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 	km := crypto.NewKeyManager("", "https://nc.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
 	}
 	signer := crypto.NewRFC9421Signer(km)
 
-	resolveInputs := nextcloudDiscoveryResolveInputs(t)
+	resolveInputs := handlerResolveInputs(t, "https://example.com", "")
 	pd := &mockPeerDiscovery{
 		publicKeys: map[string]sigalg.ResolvedPublicKey{
 			km.GetKeyID(): resolvedKeyFromManager(km),
 		},
 	}
+	mw := signatureMiddlewareForTest(t, pd)
 
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	m := map[string]any{
-		"ocmprovider": map[string]any{
-			"endpoint": "https://example.com",
-			"api_version_overrides": []map[string]any{
-				{
-					"profile":             "nextcloud",
-					"user_agent_contains": "Nextcloud Server Crawler",
-					"api_version":         "1.1",
-				},
-			},
-		},
+	var captured *inboundsignature.PeerIdentity
+	signedHandler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured = inboundsignature.GetPeerIdentity(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	signedReq := httptest.NewRequest(
+		http.MethodGet,
+		"https://receiver.example.com/.well-known/ocm",
+		nil,
+	)
+	signedReq.Host = "receiver.example.com"
+	signedReq.Header.Set("User-Agent", "Nextcloud Server Crawler/1.0")
+	if err := signer.SignRequest(signedReq, nil); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
+	signedW := httptest.NewRecorder()
+	signedHandler.ServeHTTP(signedW, signedReq)
+
+	if signedW.Code != http.StatusOK {
+		t.Fatalf("signed discovery middleware returned %d: %s", signedW.Code, signedW.Body.String())
+	}
+	if captured == nil {
+		t.Fatal("signed discovery did not populate peer identity")
+	}
+	if !captured.Authenticated {
+		t.Fatal("signed discovery peer identity is not authenticated")
+	}
+	if captured.AuthorityForCompare != "nc.example.com" {
+		t.Fatalf("AuthorityForCompare = %q, want %q", captured.AuthorityForCompare, "nc.example.com")
 	}
 
-	for _, tc := range []struct {
-		name               string
-		inboundMode        string
-		signedAPIVersion   string
-		unsignedAPIVersion string
-	}{
-		{
-			name:               "off",
-			inboundMode:        "off",
-			signedAPIVersion:   "1.1",
-			unsignedAPIVersion: "1.4.0",
-		},
-		{
-			name:               "lenient",
-			inboundMode:        "lenient",
-			signedAPIVersion:   "1.1",
-			unsignedAPIVersion: "1.4.0",
-		},
-		{
-			name:               "strict",
-			inboundMode:        "strict",
-			signedAPIVersion:   "1.1",
-			unsignedAPIVersion: "1.4.0",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			mw := signatureMiddlewareWithInboundMode(
-				t,
-				tc.inboundMode,
-				resolveInputs.PeerContract,
-				pd,
-			)
+	m := map[string]any{
+		"ocmprovider": map[string]any{},
+	}
+	svc, err := New(Inputs{
+		Resolve:             resolveInputs,
+		SignatureMiddleware: mw,
+	}, m, testLogger())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-			svc, err := New(Inputs{
-				Resolve:             resolveInputs,
-				SignatureMiddleware: mw,
-			}, m, log)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+	unsignedReq := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	unsignedW := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(unsignedW, unsignedReq)
+	if unsignedW.Code != http.StatusOK {
+		t.Fatalf("unsigned discovery returned %d: %s", unsignedW.Code, unsignedW.Body.String())
+	}
 
-			t.Run("signed matched peer activates override", func(t *testing.T) {
-				req := httptest.NewRequest(
-					http.MethodGet,
-					"https://receiver.example.com/.well-known/ocm",
-					nil,
-				)
-				req.Host = "receiver.example.com"
-				req.Header.Set("User-Agent", "Nextcloud Server Crawler/1.0")
-				if err := signer.SignRequest(req, nil); err != nil {
-					t.Fatalf("SignRequest: %v", err)
-				}
-
-				w := httptest.NewRecorder()
-				svc.Handler().ServeHTTP(w, req)
-
-				if w.Code != http.StatusOK {
-					t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-				}
-
-				var disc spec.Discovery
-				if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
-					t.Fatalf("failed to decode response: %v", err)
-				}
-				if disc.APIVersion != tc.signedAPIVersion {
-					t.Fatalf(
-						"expected apiVersion %s for signed matched peer in %s mode, got %q",
-						tc.signedAPIVersion,
-						tc.name,
-						disc.APIVersion,
-					)
-				}
-			})
-
-			t.Run("unsigned request returns canonical response", func(t *testing.T) {
-				req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-				w := httptest.NewRecorder()
-				svc.Handler().ServeHTTP(w, req)
-
-				if w.Code != http.StatusOK {
-					t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-				}
-
-				var disc spec.Discovery
-				if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
-					t.Fatalf("failed to decode response: %v", err)
-				}
-				if disc.APIVersion != tc.unsignedAPIVersion {
-					t.Fatalf(
-						"expected default apiVersion %s without override, got %q",
-						tc.unsignedAPIVersion,
-						disc.APIVersion,
-					)
-				}
-			})
-		})
+	var disc spec.Discovery
+	if err := json.Unmarshal(unsignedW.Body.Bytes(), &disc); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if disc.APIVersion != "1.4.0" {
+		t.Fatalf("apiVersion = %q, want 1.4.0", disc.APIVersion)
 	}
 }

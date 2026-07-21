@@ -12,8 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outboundsigning"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -37,15 +36,14 @@ type BuildOpts struct {
 	// FastAuth uses low-cost argon2id parameters. Set true for tests.
 	FastAuth bool
 
-	// SkipCrypto disables KeyManager, Signer, and OutboundPolicy construction.
+	// SkipCrypto skips KeyManager and Signer construction. Build fails fast when
+	// the code flow requires HTTP request signatures but no signing key is
+	// configured (RequiresHTTPRequestSignatures && keyManager == nil).
 	SkipCrypto bool
 
 	// SkipPeerTrust disables TrustGroupManager and PolicyEngine construction
 	// regardless of cfg.PeerTrust.Enabled.
 	SkipPeerTrust bool
-
-	// SkipSignatureMiddleware disables SignatureMiddleware construction.
-	SkipSignatureMiddleware bool
 
 	// OutboundOverride replaces cfg.OutboundHTTP when non-nil.
 	OutboundOverride *config.OutboundHTTPConfig
@@ -63,9 +61,6 @@ type BuildResult struct {
 	// RootCAPool is the built root CA pool (nil = use system TLS defaults).
 	RootCAPool *x509.CertPool
 
-	// RuntimeEval is the pre-computed runtime posture snapshot.
-	RuntimeEval policy.RuntimeEvaluation
-
 	// Persistence holds the wired persistence repos. Callers must call
 	// Persistence.Close() on shutdown; Close is a no-op for the memory backend.
 	Persistence *repos.Repos
@@ -79,13 +74,9 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, fmt.Errorf("wire shared deps: persistence repos must be non-nil")
 	}
 
-	peerContract, err := peercompat.NewCompiledContractFromConfig(cfg)
-	if err != nil {
-		return BuildResult{}, fmt.Errorf("compile peer compatibility contract: %w", err)
-	}
-	openCloudMeshPolicy := policy.NewOpenCloudMeshPolicy(cfg)
-	runtimePolicy := policy.NewRuntimePolicy(cfg, peerContract)
-	runtimeEval := runtimePolicy.Evaluate()
+	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == "off")
+	codeFlow := policy.NewCodeFlow()
+	versionPolicy := discovery.VersionPolicyFromConfig(cfg.OCM.Discovery)
 
 	localIdentity, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
 	if err != nil {
@@ -99,29 +90,31 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	if opts.FastAuth {
 		userAuth = identity.NewUserAuthFast()
 	} else {
-		userAuth = identity.NewUserAuth(3)
+		userAuth = identity.NewUserAuth()
 	}
 
 	var keyManager *crypto.KeyManager
 	if !opts.SkipCrypto {
-		needsKeys := cfg.Signature.InboundMode != "off" || cfg.Signature.OutboundMode != "off"
-		if needsKeys {
-			keyDir := filepath.Dir(cfg.Signature.KeyPath)
-			if keyDir != "" && keyDir != "." {
-				if err := os.MkdirAll(keyDir, 0700); err != nil {
-					return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
-				}
+		keyDir := filepath.Dir(cfg.Signature.KeyPath)
+		if keyDir != "" && keyDir != "." {
+			if err := os.MkdirAll(keyDir, 0700); err != nil {
+				return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
 			}
-			keyManager = crypto.NewKeyManagerWithFragment(
-				cfg.Signature.KeyPath,
-				localIdentity.Origin,
-				cfg.Signature.KidFragment,
-			)
-			if err := keyManager.LoadOrGenerate(); err != nil {
-				return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
-			}
-			logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
 		}
+		keyManager = crypto.NewKeyManagerWithFragment(
+			cfg.Signature.KeyPath,
+			localIdentity.Origin,
+			cfg.Signature.KidFragment,
+		)
+		if err := keyManager.LoadOrGenerate(); err != nil {
+			return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
+		}
+		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
+	}
+
+	facts := codeFlow.Evaluate()
+	if facts.RequiresHTTPRequestSignatures && keyManager == nil {
+		return BuildResult{}, fmt.Errorf("ocm: code flow requires HTTP request signatures but no signing key is configured")
 	}
 
 	outboundCfg := &cfg.OutboundHTTP
@@ -153,6 +146,8 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		discoveryCache = cacheInstance
 	}
 	discoveryClient := discovery.NewClient(rawHTTPClient, discoveryCache)
+	discoveryClient.SetVersionPolicy(versionPolicy)
+	discoveryClient.SetLogger(logger)
 
 	var trustGroupMgr *peertrust.TrustGroupManager
 	var policyEngine *peertrust.PolicyEngine
@@ -163,8 +158,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
 		}
 
-		defaultVerificationPolicy := runtimePolicy.DirectoryServiceVerificationPolicy()
-		dirServiceClient := directoryservice.NewClient(rawHTTPClient, defaultVerificationPolicy, logger)
+		dirServiceClient := directoryservice.NewClient(rawHTTPClient, "required", logger)
 		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, localIdentity.Scheme, logger, refreshTimeout)
 
 		for _, cfgPath := range cfg.PeerTrust.ConfigPaths {
@@ -178,24 +172,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		}
 
 		policyCfg := &peertrust.PolicyConfig{
-			GlobalEnforce: cfg.PeerTrust.Policy.GlobalEnforce,
-			AllowList:     cfg.PeerTrust.Policy.AllowList,
-			DenyList:      cfg.PeerTrust.Policy.DenyList,
-			ExemptList:    cfg.PeerTrust.Policy.ExemptList,
+			AllowList: cfg.PeerTrust.Policy.AllowList,
+			DenyList:  cfg.PeerTrust.Policy.DenyList,
 		}
 		policyEngine = peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
-		logger.Info(
-			"peer trust enabled",
-			"config_paths", len(cfg.PeerTrust.ConfigPaths),
-			"global_enforce", policyCfg.GlobalEnforce,
-		)
-		if runtimeEval.Trust.Status == policy.TrustStatusFailOpen {
-			logger.Warn(
-				"peer trust is enabled without global enforcement",
-				"trust_status", runtimeEval.Trust.Status,
-				"compatibility_scope", runtimeEval.CompatibilityScope,
-			)
-		}
+		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths))
 	}
 
 	var signer *crypto.RFC9421Signer
@@ -206,27 +187,14 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		)
 	}
 
-	var outboundPolicy *outboundsigning.OutboundPolicy
-	if !opts.SkipCrypto {
-		outboundPolicy = outboundsigning.NewOutboundPolicy(
-			outboundsigning.ResolveInputs(runtimePolicy),
-			peerContract,
-		)
-	}
-
-	var signatureMiddleware *signature.SignatureMiddleware
-	if !opts.SkipSignatureMiddleware {
-		peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(discoveryClient, rawHTTPClient)
-		peerDiscoveryAdapter.SetPeerContract(peerContract)
-		signatureMiddleware = signature.NewSignatureMiddleware(
-			runtimePolicy,
-			peerContract,
-			peerDiscoveryAdapter,
-			localIdentity.Origin,
-			cfg.Signature,
-			logger,
-		)
-	}
+	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(rawHTTPClient)
+	peerDiscoveryAdapter.SetPeerOrigin(peerOrigin)
+	signatureMiddleware := signature.NewSignatureMiddleware(
+		peerDiscoveryAdapter,
+		localIdentity.Origin,
+		cfg.Signature,
+		logger,
+	)
 
 	tokenStore := token.NewMemoryTokenStore()
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
@@ -242,15 +210,13 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		TokenStore:          tokenStore,
 		HTTPClient:          httpClient,
 		DiscoveryClient:     discoveryClient,
-		OpenCloudMeshPolicy: openCloudMeshPolicy,
-		RuntimePolicy:       runtimePolicy,
+		CodeFlow:            codeFlow,
 		KeyManager:          keyManager,
 		Signer:              signer,
-		OutboundPolicy:      outboundPolicy,
 		SignatureMiddleware: signatureMiddleware,
 		TrustGroupMgr:       trustGroupMgr,
 		PolicyEngine:        policyEngine,
-		PeerContract:        peerContract,
+		PeerOrigin:          peerOrigin,
 		LocalIdentity:       localIdentity,
 		Config:              cfg,
 		Cache:               cacheInstance,
@@ -260,7 +226,6 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	return BuildResult{
 		Deps:        built,
 		RootCAPool:  rootCAPool,
-		RuntimeEval: runtimeEval,
 		Persistence: persistence,
 	}, nil
 }

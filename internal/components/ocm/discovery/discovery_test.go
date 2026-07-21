@@ -3,15 +3,14 @@ package discovery_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
@@ -19,9 +18,9 @@ import (
 )
 
 func TestCriteriaAlwaysPresent(t *testing.T) {
-	disc := &discovery.Discovery{
+	disc := &spec.Discovery{
 		Enabled:    true,
-		APIVersion: "1.2.2",
+		APIVersion: "1.4.0",
 		Criteria:   []string{},
 	}
 
@@ -52,40 +51,12 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 	}
 }
 
-func TestEvaluator_RequiresTokenExchangeDrivesCriteria(t *testing.T) {
-	t.Run("require_token_exchange=true", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			RequireTokenExchange: true,
-			PeerPolicy:           "legacy",
-		}
-		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
-		if !eval.RequiresTokenExchange {
-			t.Error("expected RequiresTokenExchange true")
-		}
-	})
-
-	t.Run("require_token_exchange=false", func(t *testing.T) {
-		tokenExchangeEnabled := true
-		cfg := &config.Config{
-			TokenExchange:        config.TokenExchangeConfig{Enabled: &tokenExchangeEnabled},
-			RequireTokenExchange: false,
-			PeerPolicy:           "legacy",
-		}
-		eval := policy.NewOpenCloudMeshPolicy(cfg).Evaluate()
-		if eval.RequiresTokenExchange {
-			t.Error("expected RequiresTokenExchange false")
-		}
-	})
-}
-
 func TestDiscovery_Helpers(t *testing.T) {
-	disc := &discovery.Discovery{
+	disc := &spec.Discovery{
 		Enabled:    true,
-		APIVersion: "1.2.2",
+		APIVersion: "1.4.0",
 		EndPoint:   "https://example.com/ocm",
-		ResourceTypes: []discovery.ResourceType{
+		ResourceTypes: []spec.ResourceType{
 			{
 				Name:       "file",
 				ShareTypes: []string{"user"},
@@ -102,9 +73,6 @@ func TestDiscovery_Helpers(t *testing.T) {
 	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
 		t.Error("HasCriteria must-use-http-sig should be true")
 	}
-	if !disc.HasCriteria("http-request-signatures") {
-		t.Error("HasCriteria legacy alias should be true")
-	}
 
 	url, err := disc.BuildWebDAVURL("abc123")
 	if err != nil {
@@ -116,12 +84,15 @@ func TestDiscovery_Helpers(t *testing.T) {
 }
 
 func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			disc := discovery.Discovery{
-				Enabled:    true,
-				APIVersion: "1.2.2",
-				EndPoint:   "https://example.com/ocm",
+			disc := spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.4.0",
+				EndPoint:      strings.TrimSuffix(server.URL, "/") + "/ocm",
+				ResourceTypes: []spec.ResourceType{},
+				Criteria:      []string{},
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(disc)
@@ -132,7 +103,6 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	httpClient := httpclient.New(httpCfg, nil)
 	client := discovery.NewClient(httpClient, nil)
 
@@ -148,11 +118,12 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 // inlineKeyDiscoveryPayload builds a raw discovery JSON document carrying
 // inline key material in either the singular publicKey wire shape or the
 // plural publicKeys wire shape.
-func inlineKeyDiscoveryPayload(shape, apiVersion string) map[string]any {
+func inlineKeyDiscoveryPayload(serverURL, shape, apiVersion string) map[string]any {
+	endpoint := strings.TrimSuffix(serverURL, "/") + "/ocm"
 	raw := map[string]any{
 		"enabled":       true,
 		"apiVersion":    apiVersion,
-		"endPoint":      "https://peer.example.com/ocm",
+		"endPoint":      endpoint,
 		"resourceTypes": []any{},
 		"criteria":      []any{},
 		"capabilities":  []string{"http-sig"},
@@ -160,13 +131,13 @@ func inlineKeyDiscoveryPayload(shape, apiVersion string) map[string]any {
 	switch shape {
 	case "singular":
 		raw["publicKey"] = map[string]string{
-			"keyId":        "https://peer.example.com/ocm#legacy",
-			"publicKeyPem": "legacy-pem",
+			"keyId":        "https://peer.example.com/ocm#test-key",
+			"publicKeyPem": "test-pem",
 		}
 	case "plural":
 		raw["publicKeys"] = []map[string]string{{
-			"keyId":        "https://peer.example.com/ocm#legacy",
-			"publicKeyPem": "legacy-pem",
+			"keyId":        "https://peer.example.com/ocm#test-key",
+			"publicKeyPem": "test-pem",
 		}}
 	}
 	return raw
@@ -177,38 +148,62 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 		name       string
 		shape      string
 		apiVersion string
+		wantErr    bool
 	}{
-		{name: "singular_1.2.2", shape: "singular", apiVersion: "1.2.2"},
-		{name: "plural_1.2.2", shape: "plural", apiVersion: "1.2.2"},
-		{name: "singular_1.4.0", shape: "singular", apiVersion: "1.4.0"},
-		{name: "plural_1.4.0", shape: "plural", apiVersion: "1.4.0"},
+		{name: "singular_1.2.2", shape: "singular", apiVersion: "1.2.2", wantErr: false},
+		{name: "plural_1.2.2", shape: "plural", apiVersion: "1.2.2", wantErr: false},
+		{name: "singular_1.4.0", shape: "singular", apiVersion: "1.4.0", wantErr: false},
+		{name: "plural_1.4.0", shape: "plural", apiVersion: "1.4.0", wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var server *httptest.Server
+			server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path != "/.well-known/ocm" {
 					http.NotFound(w, r)
 					return
 				}
+				raw := inlineKeyDiscoveryPayload(server.URL, tt.shape, tt.apiVersion)
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(inlineKeyDiscoveryPayload(tt.shape, tt.apiVersion))
+				json.NewEncoder(w).Encode(raw)
 			}))
 			defer server.Close()
 
 			httpCfg := tshttp.PermissiveConfig()
-			httpCfg.DerivedSSRFMode = "off"
 			client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 			disc, err := client.Discover(context.Background(), server.URL)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				if !errors.Is(err, discovery.ErrInvalidDiscoveryJSON) {
+					t.Fatalf("errors.Is(err, ErrInvalidDiscoveryJSON) = false, err = %v", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("Discover failed: %v", err)
+			}
+
+			if tt.apiVersion != spec.APIVersionPin {
+				found := false
+				for _, w := range disc.Warnings {
+					if strings.Contains(w, "differs from pin") {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatalf("expected differs-from-pin warning for apiVersion %q, got %v", tt.apiVersion, disc.Warnings)
+				}
 			}
 
 			out, err := json.Marshal(disc)
 			if err != nil {
 				t.Fatalf("marshal discovery: %v", err)
 			}
-			if strings.Contains(string(out), "legacy-pem") {
+			if strings.Contains(string(out), "test-pem") {
 				t.Fatalf("expected no inline key material, got %s", out)
 			}
 		})
@@ -217,7 +212,8 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 
 func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 	callCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
 			return
@@ -226,7 +222,7 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 		raw := map[string]any{
 			"enabled":       true,
 			"apiVersion":    "1.4.0",
-			"endPoint":      "https://peer.example.com/ocm",
+			"endPoint":      strings.TrimSuffix(server.URL, "/") + "/ocm",
 			"resourceTypes": []any{},
 			"criteria":      []any{},
 			"capabilities":  []string{"http-sig"},
@@ -237,7 +233,6 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 	defer server.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	if _, err := client.Discover(context.Background(), server.URL); err != nil {

@@ -6,8 +6,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 )
 
-// TestParse_AllFormats covers every keyId format found in the wild.
-// See plan "keyId format test coverage" table for origins.
+// TestParse_AllFormats covers supported absolute keyId formats.
 func TestParse_AllFormats(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -24,7 +23,7 @@ func TestParse_AllFormats(t *testing.T) {
 			expectedPort:     "",
 		},
 		{
-			name:             "Nextcloud root (legacy)",
+			name:             "Nextcloud root",
 			keyID:            "https://example.com/ocm#signature",
 			expectedScheme:   "https",
 			expectedHostname: "example.com",
@@ -52,7 +51,7 @@ func TestParse_AllFormats(t *testing.T) {
 			expectedPort:     "",
 		},
 		{
-			name:             "OCM-API spec legacy",
+			name:             "OCM-API spec signature",
 			keyID:            "https://cloud.example.org/ocm#signature",
 			expectedScheme:   "https",
 			expectedHostname: "cloud.example.org",

@@ -24,22 +24,14 @@ import (
 
 func main() {
 	configPath := flag.String("config", "", "Path to TOML config file (optional)")
-	modeFlag := flag.String("mode", "", "Preset bundle: strict, compat, or dev (legacy alias: interop)")
+	modeFlag := flag.String("mode", "", "Preset bundle: strict or dev")
 	listenAddr := flag.String("listen", "", "Listen address (overrides config)")
 	publicOrigin := flag.String("public-origin", "", "Public origin (overrides config)")
 	externalBasePath := flag.String("external-base-path", "", "External base path (overrides config)")
-	compatibilityScope := flag.String("compatibility-scope", "", "Compatibility scope: none or scoped (overrides config)")
-	signatureInboundMode := flag.String("signature-inbound-mode", "", "Signature inbound mode: strict, lenient, or off (overrides config)")
-	signatureOutboundMode := flag.String("signature-outbound-mode", "", "Signature outbound mode: strict, criteria-only, token-only, or off (overrides config)")
-	signaturePeerOverride := flag.String("signature-peer-profile-level-override", "", "Peer profile override level: all, non-strict, or off (overrides config)")
 	adminUsername := flag.String("admin-username", "", "Bootstrap admin username (overrides config)")
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
 	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
-	loggingAllowSensitive := flag.String("logging-allow-sensitive", "", "Allow sensitive values in logs: true or false (overrides config)")
-	tokenExchangeEnabled := flag.String("token-exchange-enabled", "", "Enable token exchange: true or false (overrides config)")
 	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
-	requireTokenExchange := flag.String("require-token-exchange", "", "Require must-exchange-token for receive strictness: true or false (overrides config)")
-	peerPolicy := flag.String("peer-policy", "", "Peer policy: legacy, prefer-strict, or strict (overrides config)")
 	flag.Parse()
 
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -51,21 +43,13 @@ func main() {
 		ConfigPath: *configPath,
 		ModeFlag:   *modeFlag,
 		FlagOverrides: config.FlagOverrides{
-			ListenAddr:                   listenAddr,
-			PublicOrigin:                 publicOrigin,
-			ExternalBasePath:             externalBasePath,
-			CompatibilityScope:           compatibilityScope,
-			SignatureInboundMode:         signatureInboundMode,
-			SignatureOutboundMode:        signatureOutboundMode,
-			SignaturePeerProfileOverride: signaturePeerOverride,
-			AdminUsername:                adminUsername,
-			AdminPassword:                adminPassword,
-			LoggingLevel:                 loggingLevel,
-			LoggingAllowSensitive:        loggingAllowSensitive,
-			TokenExchangeEnabled:         tokenExchangeEnabled,
-			TokenExchangePath:            tokenExchangePath,
-			RequireTokenExchange:         requireTokenExchange,
-			PeerPolicy:                   peerPolicy,
+			ListenAddr:        listenAddr,
+			PublicOrigin:      publicOrigin,
+			ExternalBasePath:  externalBasePath,
+			AdminUsername:     adminUsername,
+			AdminPassword:     adminPassword,
+			LoggingLevel:      loggingLevel,
+			TokenExchangePath: tokenExchangePath,
 		},
 		Logger: bootstrapLogger,
 	})
@@ -105,34 +89,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Posture guard: compatibility_scope=none requires a resolved strict posture.
-	runtimeEval := result.RuntimeEval
-	if cfg.CompatibilityScope == "none" && !runtimeEval.Strict.IsStrict {
-		logger.Error(
-			"compatibility_scope=none contradicts resolved runtime posture",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"reasons", runtimeEval.Strict.ViolationReasons,
-		)
-		os.Exit(1)
-	}
-
-	if runtimeEval.Strict.IsStrict {
+	if cfg.Mode == "strict" {
 		logger.Info(
 			"resolved runtime posture",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"strict", runtimeEval.Strict.IsStrict,
-			"trust_status", runtimeEval.Trust.Status,
+			"mode", cfg.Mode,
 		)
 	} else {
 		logger.Warn(
 			"resolved runtime posture is non-strict",
-			"tier", runtimeEval.DerivedTier,
-			"compatibility_scope", runtimeEval.CompatibilityScope,
-			"strict", runtimeEval.Strict.IsStrict,
-			"reasons", runtimeEval.Strict.ViolationReasons,
-			"trust_status", runtimeEval.Trust.Status,
+			"mode", cfg.Mode,
 		)
 	}
 

@@ -25,11 +25,6 @@ func TestTokenExchangeSettings_ApplyDefaults(t *testing.T) {
 			settings: TokenExchangeSettings{Path: "token/v2"},
 			wantPath: "token/v2",
 		},
-		{
-			name:     "enabled state preserved",
-			settings: TokenExchangeSettings{Enabled: true},
-			wantPath: "token",
-		},
 	}
 
 	for _, tt := range tests {

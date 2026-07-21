@@ -2,14 +2,13 @@ package wiring
 
 import (
 	"fmt"
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
-	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"log/slog"
 	"sync/atomic"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 )
 
@@ -33,7 +32,7 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 	}
 	t.Cleanup(func() { wireSharedDepsHook = oldWire })
 
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	_, err := Build(cfg, tslog.DiscardLogger(), harnessBuildOptsForPackageTest(tswiring.HarnessWireOptions))
 	if err == nil {
 		t.Fatal("expected wire shared deps failure")
@@ -44,7 +43,7 @@ func TestBuild_ClosesPersistenceWhenWireSharedDepsFails(t *testing.T) {
 }
 
 func TestWireSharedDeps_RejectsNilPersistence(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	_, err := wireSharedDeps(cfg, tslog.DiscardLogger(), BuildOpts{}, nil)
 	if err == nil {
 		t.Fatal("expected error for nil persistence")
@@ -56,11 +55,10 @@ func TestWireSharedDeps_RejectsNilPersistence(t *testing.T) {
 
 func harnessBuildOptsForPackageTest(f tswiring.FixtureBuildOpts) BuildOpts {
 	return BuildOpts{
-		FastAuth:                f.FastAuth,
-		SkipCrypto:              f.SkipCrypto,
-		SkipPeerTrust:           f.SkipPeerTrust,
-		SkipSignatureMiddleware: f.SkipSignatureMiddleware,
-		OutboundOverride:        f.OutboundOverride,
-		SkipDiscoveryCache:      f.SkipDiscoveryCache,
+		FastAuth:           f.FastAuth,
+		SkipCrypto:         f.SkipCrypto,
+		SkipPeerTrust:      f.SkipPeerTrust,
+		OutboundOverride:   f.OutboundOverride,
+		SkipDiscoveryCache: f.SkipDiscoveryCache,
 	}
 }

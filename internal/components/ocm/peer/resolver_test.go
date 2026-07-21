@@ -106,20 +106,6 @@ func TestResolveInviteAcceptedRequest_RejectsURLShapedProvider(t *testing.T) {
 	}
 }
 
-func TestResolveNotificationsRequest_ReturnsEmpty(t *testing.T) {
-	body := []byte(`{"notificationType":"SHARE_ACCEPTED","resourceType":"file","providerId":"abc123"}`)
-	r := httptest.NewRequest("POST", "/ocm/notifications", nil)
-
-	resolver := NewResolver()
-	got, err := resolver.ResolveNotificationsRequest(r, body)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "" {
-		t.Errorf("got %q, want empty string", got)
-	}
-}
-
 func TestResolveTokenRequest_FormBody(t *testing.T) {
 	body := []byte(`grant_type=authorization_code&client_id=receiver.example.com%3A443&code=abc`)
 	r := httptest.NewRequest("POST", "/ocm/token", nil)
@@ -135,18 +121,15 @@ func TestResolveTokenRequest_FormBody(t *testing.T) {
 	}
 }
 
-func TestResolveTokenRequest_JSONBody(t *testing.T) {
+func TestResolveTokenRequest_RejectsJSONBody(t *testing.T) {
 	body := []byte(`{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"abc"}`)
 	r := httptest.NewRequest("POST", "/ocm/token", nil)
 	r.Header.Set("Content-Type", "application/json")
 
 	resolver := NewResolver()
-	got, err := resolver.ResolveTokenRequest(r, body)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "receiver.example.com" {
-		t.Errorf("got %q, want %q", got, "receiver.example.com")
+	_, err := resolver.ResolveTokenRequest(r, body)
+	if err == nil {
+		t.Fatal("expected error for JSON body")
 	}
 }
 

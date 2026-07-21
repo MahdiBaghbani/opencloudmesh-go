@@ -1,6 +1,7 @@
 package spec_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -13,16 +14,14 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/webdav"
 )
 
-func TestHasCriteria_IETFAndLegacyAliases(t *testing.T) {
+func TestHasCriteria_CanonicalEqualityOnly(t *testing.T) {
 	disc := &spec.Discovery{
 		Criteria: []string{spec.CriteriaMustUseHTTPSig, spec.CriteriaMustExchangeToken},
 	}
 
 	for _, query := range []string{
 		spec.CriteriaMustUseHTTPSig,
-		"http-request-signatures",
 		spec.CriteriaMustExchangeToken,
-		"token-exchange",
 	} {
 		if !disc.HasCriteria(query) {
 			t.Errorf("HasCriteria(%q) = false, want true", query)
@@ -100,25 +99,21 @@ func TestResolveInviteAcceptDialog_RelativePeerValue(t *testing.T) {
 	}
 }
 
-func TestDeriveDiscoveryPathsFromEndpointBase_ExplicitEndpoint(t *testing.T) {
-	opts := service.RouteOpts{
-		ExternalBasePath:    "/ocm",
-		InviteAcceptEnabled: true,
-		TokenExchangePath:   "token",
+func TestDeriveDiscoveryPaths_SameAuthorityEndpoints(t *testing.T) {
+	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
+	opts := service.RouteOpts{ExternalBasePath: "/ocm"}
+	paths, ok := spec.DeriveDiscoveryPaths(id, opts)
+	if !ok {
+		t.Fatal("expected projection ok")
 	}
-	paths := spec.DeriveDiscoveryPathsFromEndpointBase("https://cloud.example.com/ocm", "ocm", opts)
-
-	if paths.EndPoint != "https://cloud.example.com/ocm/ocm" {
-		t.Errorf("EndPoint = %q", paths.EndPoint)
+	if paths.EndPoint == "" || paths.TokenEndPoint == "" {
+		t.Fatal("expected non-empty projected endpoints")
 	}
-	if paths.TokenEndPoint != "https://cloud.example.com/ocm/ocm/token" {
-		t.Errorf("TokenEndPoint = %q", paths.TokenEndPoint)
+	if !strings.HasPrefix(paths.EndPoint, "https://cloud.example.com/") {
+		t.Errorf("EndPoint = %q, want same-authority projection", paths.EndPoint)
 	}
-	if paths.WebDAVRoot != "" {
-		t.Errorf("WebDAVRoot = %q, want empty (not projected from explicit endpoint base)", paths.WebDAVRoot)
-	}
-	if paths.InviteAcceptDialog != "" {
-		t.Errorf("InviteAcceptDialog = %q, want empty (not projected from explicit endpoint base)", paths.InviteAcceptDialog)
+	if !strings.HasPrefix(paths.TokenEndPoint, "https://cloud.example.com/") {
+		t.Errorf("TokenEndPoint = %q, want same-authority projection", paths.TokenEndPoint)
 	}
 }
 
@@ -126,5 +121,49 @@ func TestDeriveDiscoveryPaths_RequiresOrigin(t *testing.T) {
 	_, ok := spec.DeriveDiscoveryPaths(localidentity.Identity{ExternalBasePath: "/ocm"}, service.DefaultRouteOpts())
 	if ok {
 		t.Error("expected projection false without Origin")
+	}
+}
+
+func TestWebDAVReceiveURIKind(t *testing.T) {
+	absDisc := &spec.Discovery{
+		ResourceTypes: []spec.ResourceType{{
+			Name: "file",
+			Protocols: spec.Protocols{
+				"webdav-receive": spec.WebDAVReceiveRole(spec.WebDAVReceiveURIAbsolute),
+			},
+		}},
+	}
+	if got := absDisc.WebDAVReceiveURIKind(); got != spec.WebDAVReceiveURIAbsolute {
+		t.Fatalf("WebDAVReceiveURIKind() = %q, want %q", got, spec.WebDAVReceiveURIAbsolute)
+	}
+
+	relDisc := &spec.Discovery{
+		ResourceTypes: []spec.ResourceType{{
+			Name: "folder",
+			Protocols: spec.Protocols{
+				"webdav-receive": spec.WebDAVReceiveRole(spec.WebDAVReceiveURIRelative),
+			},
+		}},
+	}
+	if got := relDisc.WebDAVReceiveURIKind(); got != spec.WebDAVReceiveURIRelative {
+		t.Fatalf("WebDAVReceiveURIKind() = %q, want %q", got, spec.WebDAVReceiveURIRelative)
+	}
+
+	if got := (&spec.Discovery{}).WebDAVReceiveURIKind(); got != "" {
+		t.Fatalf("WebDAVReceiveURIKind() = %q, want empty", got)
+	}
+}
+
+func TestSupportedResourceTypes(t *testing.T) {
+	if len(spec.SupportedResourceTypes) != 2 {
+		t.Fatalf("SupportedResourceTypes = %v, want [file folder]", spec.SupportedResourceTypes)
+	}
+	for _, rt := range []string{"file", "folder"} {
+		if !spec.IsSupportedResourceType(rt) {
+			t.Errorf("IsSupportedResourceType(%q) = false, want true", rt)
+		}
+	}
+	if spec.IsSupportedResourceType("calendar") {
+		t.Error("IsSupportedResourceType(calendar) = true, want false")
 	}
 }

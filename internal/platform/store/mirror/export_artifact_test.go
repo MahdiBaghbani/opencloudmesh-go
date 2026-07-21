@@ -20,81 +20,33 @@ func TestMirrorDriverSecretRedaction(t *testing.T) {
 	cfg := &store.DriverConfig{
 		Driver:  "mirror",
 		DataDir: tempDir,
-		Mirror: store.MirrorConfig{
-			IncludeSecrets: false,
-			SecretsScope:   []string{},
-		},
 	}
 
 	driver := testutil.OpenDriver(t, cfg)
 
 	outStore := driver.(store.OutgoingShareStore)
 
-	// Create a share with a secret
 	share := testutil.NewOutgoingShareFixture()
 	share.SharedSecret = "my-secret-value"
 	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatal(err)
 	}
 
-	// Read the JSON export
 	jsonPath := filepath.Join(tempDir, "mirror", "outgoing_shares.json")
 	data, err := os.ReadFile(jsonPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Secret should NOT be in the JSON
 	if string(data) != "[]" && strings.Contains(string(data), "my-secret-value") {
-		t.Error("secret was exported to JSON when IncludeSecrets=false")
-	}
-
-	driver.Close()
-}
-
-func TestMirrorDriverSecretExport(t *testing.T) {
-	tempDir := testutil.TempDataDir(t, "ocm-test-mirror-export-*")
-
-	ctx := context.Background()
-
-	cfg := &store.DriverConfig{
-		Driver:  "mirror",
-		DataDir: tempDir,
-		Mirror: store.MirrorConfig{
-			IncludeSecrets: true,
-			SecretsScope:   []string{"webdav_shared_secrets"},
-		},
-	}
-
-	driver := testutil.OpenDriver(t, cfg)
-
-	outStore := driver.(store.OutgoingShareStore)
-
-	// Create a share with a secret
-	share := testutil.NewOutgoingShareFixture()
-	share.SharedSecret = "exported-secret"
-	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
-		t.Fatal(err)
-	}
-
-	// Read the JSON export
-	jsonPath := filepath.Join(tempDir, "mirror", "outgoing_shares.json")
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Secret SHOULD be in the JSON
-	if !strings.Contains(string(data), "exported-secret") {
-		t.Error("secret was NOT exported to JSON when IncludeSecrets=true and scope allows")
+		t.Error("shared secret must not appear in mirror JSON export")
 	}
 
 	driver.Close()
 }
 
 // TestMirrorInviteExportOnInit verifies that Init exports both invite surfaces
-// to JSON and that rows created in a prior session appear in the exported files
-// after a close/reopen cycle.
+// to JSON and redacts invite tokens from exported files.
 func TestMirrorInviteExportOnInit(t *testing.T) {
 	tempDir := testutil.TempDataDir(t, "ocm-test-mirror-invite-*")
 
@@ -104,7 +56,6 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 		DataDir: tempDir,
 	}
 
-	// First open: create both invite types through the store interface, then close.
 	driver := testutil.OpenDriver(t, cfg)
 
 	outInvite := testutil.NewOutgoingInviteFixture()
@@ -123,7 +74,6 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 
 	driver.Close()
 
-	// Second open: Init exports all surfaces from SQLite to JSON.
 	driver2 := testutil.OpenDriver(t, cfg)
 	defer driver2.Close()
 
@@ -133,15 +83,15 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("outgoing_invites.json missing after reopen: %v", err)
 	}
-	if !strings.Contains(string(outData), outInvite.Token) {
-		t.Errorf("outgoing_invites.json missing token %q; content: %s", outInvite.Token, outData)
+	if strings.Contains(string(outData), outInvite.Token) {
+		t.Errorf("outgoing_invites.json must not contain token %q", outInvite.Token)
 	}
 
 	inData, err := os.ReadFile(filepath.Join(mirrorDir, "incoming_invites.json"))
 	if err != nil {
 		t.Fatalf("incoming_invites.json missing after reopen: %v", err)
 	}
-	if !strings.Contains(string(inData), inInvite.Token) {
-		t.Errorf("incoming_invites.json missing token %q; content: %s", inInvite.Token, inData)
+	if strings.Contains(string(inData), inInvite.Token) {
+		t.Errorf("incoming_invites.json must not contain token %q", inInvite.Token)
 	}
 }

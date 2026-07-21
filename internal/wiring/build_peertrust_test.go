@@ -1,18 +1,17 @@
 package wiring_test
 
 import (
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
-	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func peerTrustCfg() *config.Config {
-	cfg := tscfg.DevConfigNoSignatures()
+	cfg := config.DevConfig()
 	cfg.PeerTrust.Enabled = true
 	cfg.PeerTrust.ConfigPaths = []string{}
 	return cfg

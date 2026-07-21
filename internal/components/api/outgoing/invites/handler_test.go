@@ -45,7 +45,8 @@ func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) 
 	}
 
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, wantProvider, nil, testLogger)
+	user := &identity.User{ID: "creator-1", Username: "alice"}
+	handler := outgoinginvites.NewHandler(repo, wantProvider, testCurrentUser(user), testLogger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
@@ -67,7 +68,8 @@ func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) 
 
 func TestHandleCreateOutgoing_Success(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), nil, testLogger)
+	user := &identity.User{ID: "creator-2", Username: "alice"}
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), testCurrentUser(user), testLogger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
@@ -131,31 +133,23 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 	}
 }
 
-func TestHandleCreateOutgoing_NilCurrentUser_NoCreatedByUserID(t *testing.T) {
+func TestHandleCreateOutgoing_NilCurrentUser_Returns401(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), nil, testLogger)
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp invites.CreateOutgoingResponse
-	json.NewDecoder(w.Body).Decode(&resp)
-
-	stored, _ := repo.GetByToken(context.Background(), resp.Token)
-	if stored.CreatedByUserID != "" {
-		t.Errorf("CreatedByUserID = %q, want empty (no currentUser)", stored.CreatedByUserID)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), nil, testLogger)
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
@@ -169,7 +163,7 @@ func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 
 func TestHandleCreateOutgoing_MethodNotAllowed_Returns405(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), nil, testLogger)
+	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
 	req := httptest.NewRequest(http.MethodPut, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()

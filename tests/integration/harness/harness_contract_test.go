@@ -7,26 +7,20 @@ import (
 
 func TestSubprocessConfig_needsSecureTransport(t *testing.T) {
 	cases := []struct {
-		name  string
-		mode  string
-		scope string
-		want  bool
+		name string
+		mode string
+		want bool
 	}{
-		{name: "none scope requires https", mode: "dev", scope: "none", want: true},
-		{name: "scoped requires https", mode: "dev", scope: "scoped", want: true},
-		// needsSecureTransport is a pure string helper exercised before config
-		// validation; an unrecognized scope defaults to a dev-friendly fallback.
-		{name: "unknown scope allows http", mode: "dev", scope: "not-a-real-scope", want: false},
-		{name: "empty scope with strict mode requires https", mode: "strict", scope: "", want: true},
-		{name: "empty scope with dev mode allows http", mode: "dev", scope: "", want: false},
+		{name: "strict mode requires https", mode: "strict", want: true},
+		{name: "empty mode requires https", mode: "", want: true},
+		{name: "dev mode allows http", mode: "dev", want: false},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := needsSecureTransport(tc.mode, tc.scope)
+			got := needsSecureTransport(tc.mode)
 			if got != tc.want {
-				t.Fatalf("needsSecureTransport(%q, %q) = %v, want %v",
-					tc.mode, tc.scope, got, tc.want)
+				t.Fatalf("needsSecureTransport(%q) = %v, want %v", tc.mode, got, tc.want)
 			}
 		})
 	}
@@ -64,18 +58,18 @@ public_origin = "http://ignored.test"
 }
 
 func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
-	t.Run("unknown scope dev uses tls off", func(t *testing.T) {
-		cfg := generateTOMLConfig("test", 8080, "/tmp", "dev", "not-a-real-scope", false, false, "", "", "")
+	t.Run("dev mode uses tls off", func(t *testing.T) {
+		cfg := generateTOMLConfig("test", 8080, "/tmp", "dev", false, "", "", "", "")
 		if !strings.Contains(cfg, `mode = "off"`) {
 			t.Fatalf("expected tls off in generated config:\n%s", cfg)
 		}
 		if strings.Contains(cfg, `mode = "selfsigned"`) {
-			t.Fatal("did not expect selfsigned TLS for unknown-scope dev")
+			t.Fatal("did not expect selfsigned TLS for dev mode")
 		}
 	})
 
-	t.Run("none scope uses selfsigned tls", func(t *testing.T) {
-		cfg := generateTOMLConfig("test", 8443, "/tmp", "strict", "none", false, false, "", "", "")
+	t.Run("strict mode uses selfsigned tls", func(t *testing.T) {
+		cfg := generateTOMLConfig("test", 8443, "/tmp", "strict", false, "", "", "", "")
 		if !strings.Contains(cfg, `mode = "selfsigned"`) {
 			t.Fatalf("expected selfsigned TLS in generated config:\n%s", cfg)
 		}
@@ -85,7 +79,7 @@ func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
 		extra := `[tls]
 mode = "off"
 `
-		cfg := generateTOMLConfig("test", 8080, "/tmp", "strict", "none", false, false, "", "", extra)
+		cfg := generateTOMLConfig("test", 8080, "/tmp", "strict", false, "", "", "", extra)
 		if strings.Count(cfg, "[tls]") != 1 {
 			t.Fatalf("expected single [tls] table, got:\n%s", cfg)
 		}

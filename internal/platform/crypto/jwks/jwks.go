@@ -68,11 +68,12 @@ func SetFromEd25519PublicKey(kid string, pub ed25519.PublicKey) Set {
 
 // MarshalJSON encodes the JWKS set.
 func (s Set) MarshalJSON() ([]byte, error) {
-	type alias Set
 	if s.Keys == nil {
 		s.Keys = []Key{}
 	}
-	return json.Marshal(alias(s))
+	return json.Marshal(struct {
+		Keys []Key `json:"keys"`
+	}{Keys: s.Keys})
 }
 
 // ErrKeyNotFound indicates the JWKS document does not contain the requested kid.

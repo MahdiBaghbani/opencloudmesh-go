@@ -12,6 +12,7 @@ func DefaultRouteOpts() RouteOpts {
 		ExternalBasePath:    "",
 		WayfEnabled:         false,
 		InviteAcceptEnabled: false,
+		InvitesEnabled:      true,
 		TokenExchangePath:   "token",
 	}
 }
@@ -28,6 +29,10 @@ func RouteOptsFromConfig(cfg *config.Config) RouteOpts {
 		if wayf, ok := uiCfg["wayf"].(map[string]any); ok {
 			if enabled, ok := wayf["enabled"].(bool); ok && enabled {
 				opts.WayfEnabled = true
+			}
+		}
+		if inviteAccept, ok := uiCfg["invite_accept"].(map[string]any); ok {
+			if enabled, ok := inviteAccept["enabled"].(bool); ok && enabled {
 				opts.InviteAcceptEnabled = true
 			}
 		}

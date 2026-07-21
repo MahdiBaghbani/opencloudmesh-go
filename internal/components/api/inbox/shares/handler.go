@@ -71,9 +71,7 @@ type InboxShareDetailView struct {
 	InboxShareView
 
 	WebDAVID                 string              `json:"webdavId,omitempty"`
-	MustExchangeToken        bool                `json:"mustExchangeToken"`
-	SenderExchangeCapable    bool                `json:"senderExchangeCapable"`
-	WebDAVURIAbsolutePresent bool                `json:"webdavUriAbsolutePresent"`
+	AbsoluteWebDAVURIPresent bool                `json:"webdavUriAbsolutePresent"`
 	Protocol                 *ProtocolDetailView `json:"protocol"`
 }
 
@@ -90,16 +88,21 @@ type WebDAVDetailView struct {
 	SharedSecret string   `json:"sharedSecret"`
 }
 
+func isAbsoluteWebDAVURI(uri string) bool {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+	return u.IsAbs()
+}
+
 // NewInboxShareDetailView returns a detail view with SharedSecret masked as [REDACTED].
 func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView {
 	uri := s.WebDAVID
-	if s.WebDAVURIAbsolute != "" {
-		uri = s.WebDAVURIAbsolute
-	}
 
-	requirements := []string{}
-	if s.MustExchangeToken {
-		requirements = []string{"must-exchange-token"}
+	requirements := s.Requirements
+	if requirements == nil {
+		requirements = []string{}
 	}
 
 	permissions := s.Permissions
@@ -110,11 +113,10 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 	return InboxShareDetailView{
 		InboxShareView:           NewInboxShareView(s),
 		WebDAVID:                 s.WebDAVID,
-		MustExchangeToken:        s.MustExchangeToken,
-		SenderExchangeCapable:    s.SenderExchangeCapable,
-		WebDAVURIAbsolutePresent: s.WebDAVURIAbsolute != "",
+		AbsoluteWebDAVURIPresent: isAbsoluteWebDAVURI(s.WebDAVID),
 		Protocol: &ProtocolDetailView{
-			Name: "webdav",
+			// Normalized wire name: inbound protocol.name is not persisted.
+			Name: "multi",
 			WebDAV: &WebDAVDetailView{
 				URI:          uri,
 				Permissions:  permissions,
@@ -132,8 +134,6 @@ type InboxListResponse struct {
 // VerifyAccessResponse is the body of the verify-access endpoint.
 type VerifyAccessResponse struct {
 	OK                      bool   `json:"ok"`
-	MethodUsed              string `json:"methodUsed,omitempty"`
-	TokenExchanged          bool   `json:"tokenExchanged,omitempty"`
 	HTTPStatus              int    `json:"httpStatus,omitempty"`
 	ContentType             string `json:"contentType,omitempty"`
 	ContentPreview          string `json:"contentPreview,omitempty"`
@@ -147,7 +147,6 @@ const maxPreviewBytes = 4096
 // Handler serves list, detail, accept, decline, and verify-access for inbox shares.
 type Handler struct {
 	repo         sharesinbox.IncomingShareRepo
-	sender       sharesinbox.NotificationSender
 	accessClient access.RemoteAccessor
 	currentUser  func(context.Context) (*identity.User, error)
 	log          *slog.Logger
@@ -156,7 +155,6 @@ type Handler struct {
 // NewHandler returns a Handler with the given dependencies.
 func NewHandler(
 	repo sharesinbox.IncomingShareRepo,
-	sender sharesinbox.NotificationSender,
 	accessClient access.RemoteAccessor,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
@@ -164,7 +162,6 @@ func NewHandler(
 	log = logutil.NoopIfNil(log)
 	return &Handler{
 		repo:         repo,
-		sender:       sender,
 		accessClient: accessClient,
 		currentUser:  currentUser,
 		log:          log,
@@ -240,15 +237,6 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
 		return
-	}
-
-	if h.sender != nil {
-		if err := h.sender.SendShareAccepted(ctx, share.SenderHost, share.ProviderID, share.ResourceType); err != nil {
-			h.log.Warn("failed to send accept notification",
-				"share_id", shareID,
-				"sender_host", share.SenderHost,
-				"error", err)
-		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -335,15 +323,6 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.sender != nil {
-		if err := h.sender.SendShareDeclined(ctx, share.SenderHost, share.ProviderID, share.ResourceType); err != nil {
-			h.log.Warn("failed to send decline notification",
-				"share_id", shareID,
-				"sender_host", share.SenderHost,
-				"error", err)
-		}
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  string(sharesinbox.ShareStatusDeclined),
@@ -389,14 +368,11 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shareInfo := access.ShareInfo{
-		Status:                string(share.Status),
-		SenderHost:            share.SenderHost,
-		OwnerHost:             share.OwnerHost,
-		SharedSecret:          share.SharedSecret,
-		WebDAVID:              share.WebDAVID,
-		WebDAVURIAbsolute:     share.WebDAVURIAbsolute,
-		MustExchangeToken:     share.MustExchangeToken,
-		SenderExchangeCapable: share.SenderExchangeCapable,
+		Status:       string(share.Status),
+		SenderHost:   share.SenderHost,
+		OwnerHost:    share.OwnerHost,
+		SharedSecret: share.SharedSecret,
+		WebDAVID:     share.WebDAVID,
 	}
 
 	result, err := h.accessClient.Access(ctx, access.AccessOptions{
@@ -424,8 +400,6 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:                      true,
-		MethodUsed:              result.MethodUsed,
-		TokenExchanged:          result.TokenExchanged,
 		HTTPStatus:              result.Response.StatusCode,
 		ContentType:             result.Response.Header.Get("Content-Type"),
 		ContentPreview:          string(preview),

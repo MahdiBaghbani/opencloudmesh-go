@@ -116,11 +116,9 @@ func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 		req.Header.Set("Date", s.opts.Now().UTC().Format(httpTimeFormat))
 	}
 
-	if len(body) > 0 {
-		digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
-		req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:", digest))
-		req.Header.Set("Content-Length", strconv.Itoa(len(body)))
-	}
+	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
+	req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:", digest))
+	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 	components := s.presentComponents(req, s.opts.RequiredComponents)
 	created := s.opts.Now().Unix()
@@ -181,6 +179,13 @@ func PresentComponents(req *http.Request, components []string) []string {
 	return actual
 }
 
+// RequiredComponentsForRequest returns the Appendix B covered set that must
+// appear in Signature-Input for this request.
+func RequiredComponentsForRequest(req *http.Request, body []byte) []string {
+	_, _ = req, body
+	return AppendixBCoveredComponents()
+}
+
 // RFC9421Verifier verifies HTTP request signatures per RFC 9421.
 type RFC9421Verifier struct {
 	opts RFC9421Options
@@ -219,6 +224,7 @@ const (
 	ReasonKeyLookupFailed   = "key_lookup_failed"
 	ReasonAlgorithmRejected = "algorithm_rejected"
 	ReasonCryptoFail        = "crypto_fail"
+	ReasonContentDigest     = "content_digest"
 )
 
 // VerificationResult contains the result of signature verification.
@@ -262,6 +268,13 @@ func (v *RFC9421Verifier) VerifyRequest(
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMalformed, Error: err}
 	}
 
+	if err := sigparams.ValidateExactlyOneLabel(sigInputHeader, v.opts.Label); err != nil {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
+	}
+	if err := sigparams.ValidateExactlyOneLabel(sigHeader, v.opts.Label); err != nil {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
+	}
+
 	if params.Created == 0 {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingCreated, Error: fmt.Errorf("missing created parameter")}
 	}
@@ -269,9 +282,17 @@ func (v *RFC9421Verifier) VerifyRequest(
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: reason, Error: err}
 	}
 
-	expectedComponents := PresentComponents(req, v.opts.RequiredComponents)
+	expectedComponents := RequiredComponentsForRequest(req, body)
 	if err := validateRequiredComponents(params.Components, expectedComponents); err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingComponent, Error: err}
+	}
+
+	if err := verifyRequiredBodyHeaders(req, body, expectedComponents); err != nil {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonContentDigest, Error: err}
+	}
+
+	if err := VerifyContentDigest(req, body); err != nil {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonContentDigest, Error: err}
 	}
 
 	resolvedKey, err := keyFetcher(params.KeyID)
@@ -326,6 +347,38 @@ func validateRequiredComponents(actual, required []string) error {
 	for _, reqComp := range required {
 		if _, ok := present[strings.ToLower(reqComp)]; !ok {
 			return fmt.Errorf("missing required signature component %q", reqComp)
+		}
+	}
+	return nil
+}
+
+func verifyRequiredBodyHeaders(req *http.Request, body []byte, requiredComponents []string) error {
+	required := map[string]struct{}{}
+	for _, comp := range requiredComponents {
+		required[strings.ToLower(comp)] = struct{}{}
+	}
+	if _, ok := required["content-digest"]; ok {
+		if req.Header.Get("Content-Digest") == "" {
+			return fmt.Errorf("missing Content-Digest header")
+		}
+	}
+	if _, ok := required["content-length"]; ok {
+		cl := req.Header.Get("Content-Length")
+		if cl == "" {
+			if len(body) > 0 {
+				return fmt.Errorf("missing Content-Length header")
+			}
+			if req.ContentLength != 0 {
+				return fmt.Errorf("content length mismatch")
+			}
+			return nil
+		}
+		n, err := strconv.Atoi(cl)
+		if err != nil {
+			return fmt.Errorf("invalid Content-Length header")
+		}
+		if n != len(body) {
+			return fmt.Errorf("content length mismatch")
 		}
 	}
 	return nil
@@ -403,7 +456,10 @@ func componentValue(req *http.Request, comp string, received bool) (string, erro
 	case "content-digest":
 		return req.Header.Get("content-digest"), nil
 	case "content-length":
-		return req.Header.Get("content-length"), nil
+		if v := req.Header.Get("content-length"); v != "" {
+			return v, nil
+		}
+		return strconv.FormatInt(req.ContentLength, 10), nil
 	case "date":
 		return req.Header.Get("date"), nil
 	default:
@@ -434,30 +490,112 @@ func CanonicalTargetURI(req *http.Request) string {
 }
 
 // VerifyContentDigest verifies the Content-Digest header matches the body.
+// When the header is absent, verification is skipped so optional unsigned
+// paths can accept requests without a digest. When the header is present,
+// every listed digest algorithm must be recognized and match the body per OCM
+// IETF Appendix B.
 func VerifyContentDigest(req *http.Request, body []byte) error {
 	digestHeader := req.Header.Get("Content-Digest")
 	if digestHeader == "" {
 		return nil
 	}
 
-	if !strings.HasPrefix(digestHeader, "sha-256=:") {
-		return fmt.Errorf("unsupported digest algorithm")
-	}
-
-	digestB64 := strings.TrimPrefix(digestHeader, "sha-256=:")
-	digestB64 = strings.TrimSuffix(digestB64, ":")
-
-	expected, err := base64.StdEncoding.DecodeString(digestB64)
+	entries, err := parseContentDigestHeader(digestHeader)
 	if err != nil {
-		return fmt.Errorf("invalid digest encoding: %w", err)
+		return err
 	}
 
-	actual := sigalg.SumSHA256(body)
-	if !bytes.Equal(expected, actual) {
-		return fmt.Errorf("content digest mismatch")
+	for _, entry := range entries {
+		hasher, ok := recognizedDigestHashers[entry.algorithm]
+		if !ok {
+			return fmt.Errorf("unsupported digest algorithm %q", entry.algorithm)
+		}
+		actual := hasher(body)
+		if !bytes.Equal(entry.value, actual) {
+			return fmt.Errorf("content digest mismatch for %s", entry.algorithm)
+		}
 	}
-
 	return nil
+}
+
+type contentDigestEntry struct {
+	algorithm string
+	value     []byte
+}
+
+var recognizedDigestHashers = map[string]func([]byte) []byte{
+	"sha-256": sigalg.SumSHA256,
+	"sha-512": sigalg.SumSHA512,
+}
+
+func parseContentDigestHeader(header string) ([]contentDigestEntry, error) {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return nil, fmt.Errorf("empty Content-Digest header")
+	}
+
+	var entries []contentDigestEntry
+	for memberStart := 0; memberStart < len(header); {
+		for memberStart < len(header) {
+			ch := header[memberStart]
+			if ch == ' ' || ch == '\t' || ch == ',' {
+				memberStart++
+				continue
+			}
+			break
+		}
+		if memberStart >= len(header) {
+			break
+		}
+		memberEnd := scanContentDigestMemberEnd(header, memberStart)
+		member := strings.TrimSpace(header[memberStart:memberEnd])
+		if member == "" {
+			return nil, fmt.Errorf("malformed Content-Digest entry")
+		}
+		eq := strings.Index(member, "=")
+		if eq <= 0 {
+			return nil, fmt.Errorf("malformed Content-Digest entry %q", member)
+		}
+		algorithm := strings.TrimSpace(member[:eq])
+		valuePart := strings.TrimSpace(member[eq+1:])
+		if !strings.HasPrefix(valuePart, ":") || !strings.HasSuffix(valuePart, ":") {
+			return nil, fmt.Errorf("malformed digest value for %s", algorithm)
+		}
+		raw, err := base64.StdEncoding.DecodeString(strings.Trim(valuePart, ":"))
+		if err != nil {
+			return nil, fmt.Errorf("invalid digest encoding for %s: %w", algorithm, err)
+		}
+		entries = append(entries, contentDigestEntry{algorithm: algorithm, value: raw})
+		memberStart = memberEnd
+		if memberStart < len(header) && header[memberStart] == ',' {
+			memberStart++
+		}
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("malformed Content-Digest header")
+	}
+	return entries, nil
+}
+
+func scanContentDigestMemberEnd(header string, start int) int {
+	inByteSeq := false
+	for i := start; i < len(header); i++ {
+		ch := header[i]
+		if inByteSeq {
+			if ch == ':' {
+				inByteSeq = false
+			}
+			continue
+		}
+		if ch == ':' {
+			inByteSeq = true
+			continue
+		}
+		if ch == ',' {
+			return i
+		}
+	}
+	return len(header)
 }
 
 // ReadAndRestoreBody reads the request body and restores it for re-reading.

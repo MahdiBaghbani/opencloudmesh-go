@@ -11,29 +11,29 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 )
 
-// Deterministic reason codes for error classification; keep stable for client compatibility.
+// Deterministic reason codes for error classification; keep stable for clients.
 const (
 	// Authentication and authorization
-	ReasonUnauthenticated     = "unauthenticated"
-	ReasonUnauthorized        = "unauthorized"
-	ReasonSessionExpired      = "session_expired"
-	ReasonInvalidCredentials  = "invalid_credentials"
+	ReasonUnauthenticated    = "unauthenticated"
+	ReasonUnauthorized       = "unauthorized"
+	ReasonSessionExpired     = "session_expired"
+	ReasonInvalidCredentials = "invalid_credentials"
 
 	// Signature verification
-	ReasonSignatureRequired   = "signature_required"
-	ReasonSignatureInvalid    = "signature_invalid"
-	ReasonSignatureMismatch   = "signature_mismatch"
-	ReasonDigestMismatch      = "digest_mismatch"
+	ReasonSignatureRequired = "signature_required"
+	ReasonSignatureInvalid  = "signature_invalid"
+	ReasonSignatureMismatch = "signature_mismatch"
+	ReasonDigestMismatch    = "digest_mismatch"
 
 	// Rate limiting
-	ReasonRateLimited         = "rate_limited"
+	ReasonRateLimited = "rate_limited"
 
 	// Request validation
-	ReasonBadRequest          = "bad_request"
-	ReasonMissingField        = "missing_field"
-	ReasonInvalidField        = "invalid_field"
-	ReasonNotFound            = "not_found"
-	ReasonConflict            = "conflict"
+	ReasonBadRequest   = "bad_request"
+	ReasonMissingField = "missing_field"
+	ReasonInvalidField = "invalid_field"
+	ReasonNotFound     = "not_found"
+	ReasonConflict     = "conflict"
 
 	// SSRF, network, and federation policy -- canonical source is the reason package.
 	ReasonSSRFBlocked      = reason.SSRFBlocked
@@ -43,8 +43,7 @@ const (
 	ReasonNotAllowed       = reason.NotAllowed
 
 	// Server errors
-	ReasonInternalError       = "internal_error"
-	ReasonNotImplemented      = "not_implemented"
+	ReasonInternalError = "internal_error"
 )
 
 // ErrorEnvelope is the standard error response format.
@@ -54,7 +53,7 @@ type ErrorEnvelope struct {
 
 // ErrorDetail holds code, reason_code, and message for API errors.
 type ErrorDetail struct {
-	Code       string `json:"code"`       // HTTP status text (e.g., "forbidden")
+	Code       string `json:"code"`        // HTTP status text (e.g., "forbidden")
 	ReasonCode string `json:"reason_code"` // Deterministic reason code
 	Message    string `json:"message"`     // Human-readable message
 }
@@ -108,9 +107,4 @@ func WriteTooManyRequests(w http.ResponseWriter, message string) {
 // WriteInternalError sends 500. Avoid leaking sensitive data in the message.
 func WriteInternalError(w http.ResponseWriter, message string) {
 	WriteError(w, http.StatusInternalServerError, ReasonInternalError, message)
-}
-
-// WriteNotImplemented sends 501 with a feature name.
-func WriteNotImplemented(w http.ResponseWriter, feature string) {
-	WriteError(w, http.StatusNotImplemented, ReasonNotImplemented, feature+" not implemented yet")
 }

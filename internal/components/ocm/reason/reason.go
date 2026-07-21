@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peercompat"
 )
 
 // Canonical internal reason codes for peer and federation failures.
@@ -19,7 +17,7 @@ const (
 	PeerUnreachable        = "peer_unreachable"
 )
 
-// Peer/federation overlap reason codes migrated from api/errors.go.
+// Peer/federation overlap reason codes.
 // These have peer/federation semantics and are owned by this package.
 const (
 	DeniedByDenylist  = "denied_by_denylist"
@@ -125,24 +123,24 @@ func TranslatePolicyCode(policyReasonCode string) string {
 	}
 }
 
-// FromPeerCompat maps a peercompat reason code to the canonical reason taxonomy.
-func FromPeerCompat(code string) string {
+// FromClassified maps a classified reason code to the canonical reason taxonomy.
+func FromClassified(code string) string {
 	switch code {
-	case peercompat.ReasonDiscoveryFailed, peercompat.ReasonDiscoveryTimeout:
+	case ReasonDiscoveryFailed, ReasonDiscoveryTimeout:
 		return PeerDiscoveryFailed
-	case peercompat.ReasonPeerCapabilityMissing:
+	case ReasonPeerCapabilityMissing:
 		return PeerCapabilityMismatch
-	case peercompat.ReasonSSRFBlocked:
+	case ReasonSSRFBlocked:
 		return PeerPolicyUnsatisfied
-	case peercompat.ReasonSignatureRequired, peercompat.ReasonSignatureInvalid,
-		peercompat.ReasonSignatureMismatch, peercompat.ReasonDigestMismatch,
-		peercompat.ReasonKeyIDMismatch, peercompat.ReasonKeyNotFound:
+	case ReasonSignatureRequired, ReasonSignatureInvalid,
+		ReasonSignatureMismatch, ReasonDigestMismatch,
+		ReasonKeyIDMismatch, ReasonKeyNotFound:
 		return PeerPolicyUnsatisfied
-	case peercompat.ReasonNetworkError, peercompat.ReasonPeerUnreachable,
-		peercompat.ReasonRemoteError, peercompat.ReasonProtocolMismatch,
-		peercompat.ReasonTokenExchangeFailed, peercompat.ReasonTokenInvalidFormat,
-		peercompat.ReasonTokenExpired, peercompat.ReasonTLSError,
-		peercompat.ReasonUnsupportedVersion:
+	case ReasonNetworkError, ReasonPeerUnreachable,
+		ReasonRemoteError, ReasonProtocolMismatch,
+		ReasonTokenExchangeFailed, ReasonTokenInvalidFormat,
+		ReasonTokenExpired, ReasonTLSError,
+		ReasonUnsupportedVersion:
 		return PeerUnreachable
 	default:
 		return PeerUnreachable
@@ -150,10 +148,10 @@ func FromPeerCompat(code string) string {
 }
 
 // CanonicalFromError returns a canonical reason code from either reason.Error
-// or peercompat classified errors.
+// or classified errors.
 func CanonicalFromError(err error) string {
 	if extracted := Extract(err); extracted != "" {
 		return extracted
 	}
-	return FromPeerCompat(peercompat.ClassifyError(err))
+	return FromClassified(ClassifyError(err))
 }

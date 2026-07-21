@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
@@ -15,48 +15,23 @@ import (
 )
 
 func TestCryptoSkip_GatesDeps(t *testing.T) {
-	t.Run("SkipCrypto=true produces nil crypto deps", func(t *testing.T) {
-		cfg := tscfg.DevConfigHarness()
-
-		result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
-		if err != nil {
-			t.Fatalf("bootstrap failed: %v", err)
-		}
-		d := result.Deps
-		if d.KeyManager != nil {
-			t.Error("KeyManager must be nil when SkipCrypto=true")
-		}
-		if d.Signer != nil {
-			t.Error("Signer must be nil when SkipCrypto=true")
-		}
-		if d.OutboundPolicy != nil {
-			t.Error("OutboundPolicy must be nil when SkipCrypto=true")
-		}
-	})
-
-	t.Run("SkipCrypto=false with signature modes off produces non-nil OutboundPolicy", func(t *testing.T) {
-		cfg := tscfg.DevConfigNoSignatures()
+	t.Run("SkipCrypto=true fails when code flow requires HTTP signatures", func(t *testing.T) {
+		cfg := config.DevConfig()
 
 		opts := harnessBuildOpts()
-		opts.SkipCrypto = false
-		result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
-		if err != nil {
-			t.Fatalf("bootstrap failed: %v", err)
+		opts.SkipCrypto = true
+		_, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
+		if err == nil {
+			t.Fatal("expected bootstrap to fail when SkipCrypto=true and code flow requires HTTP signatures")
 		}
-		d := result.Deps
-		if d.KeyManager != nil {
-			t.Error("KeyManager must be nil when both signature modes are off")
-		}
-		if d.Signer != nil {
-			t.Error("Signer must be nil when KeyManager is nil")
-		}
-		if d.OutboundPolicy == nil {
-			t.Error("OutboundPolicy must be non-nil when SkipCrypto=false")
+		want := "ocm: code flow requires HTTP request signatures but no signing key is configured"
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q, want substring %q", err.Error(), want)
 		}
 	})
 
-	t.Run("SkipCrypto=false with signature modes on produces non-nil Signer", func(t *testing.T) {
-		cfg := tscfg.DevConfigHarness()
+	t.Run("SkipCrypto=false with crypto enabled produces non-nil Signer", func(t *testing.T) {
+		cfg := config.DevConfig()
 
 		opts := harnessBuildOpts()
 		opts.SkipCrypto = false
@@ -66,7 +41,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 		}
 		d := result.Deps
 		if d.KeyManager == nil {
-			t.Error("KeyManager must be non-nil when signature modes are on and SkipCrypto=false")
+			t.Error("KeyManager must be non-nil when crypto is enabled and SkipCrypto=false")
 		}
 		if d.Signer == nil {
 			t.Error("Signer must be non-nil when KeyManager is present")
@@ -75,7 +50,7 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 }
 
 func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	cfg.Signature.Label = "wiredlabel"
 
 	opts := harnessBuildOpts()
@@ -86,7 +61,7 @@ func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
 		t.Fatalf("bootstrap failed: %v", err)
 	}
 	if result.Deps.Signer == nil {
-		t.Fatal("Signer must be non-nil when signature modes are on")
+		t.Fatal("Signer must be non-nil when crypto is enabled")
 	}
 
 	body := []byte(`{"test":"data"}`)
@@ -107,7 +82,7 @@ func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
 }
 
 func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), toBuildOpts(tswiring.IETFWireOptions))
 	if err != nil {
@@ -119,7 +94,7 @@ func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
 	if result.Deps.Signer == nil {
 		t.Fatal("Signer must be non-nil for IETF harness opts")
 	}
-	if result.Deps.OutboundPolicy == nil {
-		t.Fatal("OutboundPolicy must be non-nil for IETF harness opts")
+	if result.Deps.SignatureMiddleware == nil {
+		t.Fatal("SignatureMiddleware must be non-nil for IETF harness opts")
 	}
 }

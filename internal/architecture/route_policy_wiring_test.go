@@ -94,7 +94,7 @@ func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProductRoutes(opts) {
 		switch row.HandlerAuth {
-		case service.HandlerAuthOptionalHTTPSig, service.HandlerAuthRequiredHTTPSig:
+		case service.HandlerAuthRequiredHTTPSig:
 			if row.SurfaceClass != service.SurfaceProtocol {
 				t.Errorf("route %q HandlerAuth %q on surface %q, want protocol", row.ID, row.HandlerAuth, row.SurfaceClass)
 			}
@@ -106,7 +106,7 @@ func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 			}
 		default:
 			if row.SurfaceClass == service.SurfaceProtocol {
-				t.Errorf("protocol route %q HandlerAuth = %q, want optional HTTP signature", row.ID, row.HandlerAuth)
+				t.Errorf("protocol route %q HandlerAuth = %q, want required HTTP signature", row.ID, row.HandlerAuth)
 			}
 		}
 	}
@@ -116,10 +116,9 @@ func TestRoutePolicyWiring_ProtocolRoutesHavePeerTrustClass(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProtocolRoutes(opts) {
 		switch row.TrustClass {
-		case service.TrustPeerRequired, service.TrustNotificationsSpecial:
-			// peer trust or notifications-special handling
+		case service.TrustPeerRequired:
 		default:
-			t.Errorf("protocol route %q TrustClass = %q, want peer-trust-required or notifications-special", row.ID, row.TrustClass)
+			t.Errorf("protocol route %q TrustClass = %q, want peer-trust-required", row.ID, row.TrustClass)
 		}
 	}
 }
@@ -131,8 +130,7 @@ func TestRoutePolicyWiring_AuxAndUIExcludedFromProtocolTrust(t *testing.T) {
 			if row.TrustClass != service.TrustPeerNone {
 				t.Errorf("%s route %q TrustClass = %q, want peer-trust-none", surface, row.ID, row.TrustClass)
 			}
-			if row.HandlerAuth == service.HandlerAuthOptionalHTTPSig ||
-				row.HandlerAuth == service.HandlerAuthRequiredHTTPSig {
+			if row.HandlerAuth == service.HandlerAuthRequiredHTTPSig {
 				t.Errorf("%s route %q uses HTTP signature handler auth", surface, row.ID)
 			}
 		}
@@ -186,8 +184,8 @@ func TestRoutePolicyWiring_WebDAVUsesHandlerAuthNotSession(t *testing.T) {
 		t.Fatal("expected webdav product routes")
 	}
 	for _, row := range rows {
-		if row.HandlerAuth != service.HandlerAuthBearerOrBasic {
-			t.Errorf("webdav route %q HandlerAuth = %q, want bearer or basic", row.ID, row.HandlerAuth)
+		if row.HandlerAuth != service.HandlerAuthBearer {
+			t.Errorf("webdav route %q HandlerAuth = %q, want bearer", row.ID, row.HandlerAuth)
 		}
 		if row.SessionPolicy != service.SessionPublic {
 			t.Errorf("webdav route %q SessionPolicy = %q, want public (handler-authenticated)", row.ID, row.SessionPolicy)
@@ -199,7 +197,7 @@ func TestRoutePolicyWiring_WebDAVUsesHandlerAuthNotSession(t *testing.T) {
 }
 
 func TestRoutePolicyWiring_InviteAcceptDialogDistinctFromInviteAccepted(t *testing.T) {
-	opts := tsrouting.WayfEnabledOpts()
+	opts := tsrouting.InviteAcceptEnabledOpts()
 	var uiAccept, ocmInvite *service.RouteRow
 	for _, row := range tsrouting.ProductRoutes(opts) {
 		switch row.ID {

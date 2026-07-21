@@ -580,7 +580,7 @@
           const data = await resp.json();
           if (data.ok) {
             container.classList.add("success");
-            let text = "OK -- " + data.methodUsed + " (HTTP " + data.httpStatus + ")";
+            let text = "OK (HTTP " + data.httpStatus + ")";
             if (data.contentPreview) {
               text += "\nPreview: " + data.contentPreview.substring(0, 200);
               if (data.contentPreviewTruncated) text += "...";

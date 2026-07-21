@@ -16,11 +16,9 @@ mode = "strict"
 [http.services.wellknown]
 [http.services.wellknown.ocmprovider]
 provider = "CustomProvider"
-endpoint = "https://custom.example.com"
 
 [http.services.ocm]
 [http.services.ocm.token_exchange]
-enabled = true
 path = "auth/token"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {

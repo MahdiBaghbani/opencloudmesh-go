@@ -34,13 +34,12 @@ type SubprocessServer struct {
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
 	Name                    string
-	Mode                    string // dev, compat, or strict
-	CompatibilityScope      string
-	KeepSignatureDefaults   bool              // when true, skip the [signature] override block so mode presets apply
-	SSRFMode                string            // when "strict", emits [outbound_http.ssrf.mode = "strict"] in [outbound_http]
+	Mode                    string            // dev or strict
+	Port                    int               // when non-zero, binds listen_addr to this port
 	DisableProxyEnvFallback bool              // when true, emits proxy_env_fallback = false in [outbound_http]
 	TLSRootCAFile           string            // when set, adds tls_root_ca_file under [outbound_http]
 	BootstrapAdminPassword  string            // when set, adds password under [server.bootstrap_admin]
+	PublicOriginHost        string            // when set, overrides localhost in generated public_origin
 	ExtraConfig             string            // Additional TOML config to append
 	ExtraFiles              map[string]string // Extra files to write to tempDir: {relativePath: contents}
 }
@@ -82,6 +81,11 @@ func BuildBinary(t *testing.T) string {
 
 // findProjectRoot finds the project root by looking for go.mod
 func findProjectRoot(t *testing.T) string {
+	return FindProjectRoot(t)
+}
+
+// FindProjectRoot finds the project root by looking for go.mod.
+func FindProjectRoot(t *testing.T) string {
 	t.Helper()
 
 	dir, err := os.Getwd()
@@ -111,11 +115,15 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 
-	// Get a free port
-	port, err := getFreePort()
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("failed to get free port: %v", err)
+	// Get a free port unless the caller reserved one (strict pair fixtures).
+	port := cfg.Port
+	if port == 0 {
+		var err error
+		port, err = getFreePort()
+		if err != nil {
+			os.RemoveAll(tempDir)
+			t.Fatalf("failed to get free port: %v", err)
+		}
 	}
 
 	// Write extra files before config.toml (so config can reference them)
@@ -141,11 +149,10 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		port,
 		tempDir,
 		cfg.Mode,
-		cfg.CompatibilityScope,
-		cfg.KeepSignatureDefaults,
 		cfg.DisableProxyEnvFallback,
 		cfg.TLSRootCAFile,
 		cfg.BootstrapAdminPassword,
+		cfg.PublicOriginHost,
 		cfg.ExtraConfig,
 	)
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -254,9 +261,53 @@ func (s *SubprocessServer) Stop(t *testing.T) {
 	}
 }
 
+// syncLog flushes the shared server.log file so reads observe stdout/stderr
+// redirected from the subprocess.
+func (s *SubprocessServer) syncLog() {
+	if s.logFile != nil {
+		_ = s.logFile.Sync()
+	}
+}
+
+// ReadLog returns the current server.log contents after syncing the shared log
+// file. stdout and stderr are redirected to the same file.
+func (s *SubprocessServer) ReadLog(t *testing.T) string {
+	t.Helper()
+
+	s.syncLog()
+
+	logPath := filepath.Join(s.TempDir, "server.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read logs for %s: %v", s.Name, err)
+	}
+	return string(content)
+}
+
+// LogContainsAny reports whether server.log contains any of the needles after
+// syncing the shared log file.
+func (s *SubprocessServer) LogContainsAny(needles ...string) bool {
+	s.syncLog()
+
+	logPath := filepath.Join(s.TempDir, "server.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		return false
+	}
+	logText := string(content)
+	for _, needle := range needles {
+		if needle != "" && strings.Contains(logText, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // DumpLogs outputs the server logs to the test log.
 func (s *SubprocessServer) DumpLogs(t *testing.T) {
 	t.Helper()
+
+	s.syncLog()
 
 	logPath := filepath.Join(s.TempDir, "server.log")
 	content, err := os.ReadFile(logPath)
@@ -297,19 +348,10 @@ func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, 
 	return config.Load(config.LoaderOptions{ConfigPath: configPath})
 }
 
-// needsSecureTransport reports whether the mode+scope combination requires HTTPS.
-// The config loader rejects tls.mode=off for compatibility_scope "none" and "scoped".
-// An empty scope with strict (or default-empty) mode implies "none" via the preset.
-func needsSecureTransport(mode, compatibilityScope string) bool {
-	scope := strings.ToLower(strings.TrimSpace(compatibilityScope))
-	switch scope {
-	case "none", "scoped":
-		return true
-	case "":
-		m := strings.ToLower(strings.TrimSpace(mode))
-		return m == "strict" || m == ""
-	}
-	return false
+// needsSecureTransport reports whether the mode requires HTTPS listener transport.
+func needsSecureTransport(mode string) bool {
+	m := strings.ToLower(strings.TrimSpace(mode))
+	return m == "strict" || m == ""
 }
 
 // extraTLSMode scans ExtraConfig for a [tls] table and returns the tls.mode it
@@ -371,21 +413,19 @@ func extraDefinesPublicOrigin(extra string) bool {
 }
 
 // generateTOMLConfig creates a TOML config for a test server.
-// Uses the Reva-aligned TOML shape. The mode preset (dev/compat/strict)
+// Uses the Reva-aligned TOML shape. The mode preset (dev/strict)
 // drives defaults via config.Load(), including token exchange settings.
-// When keepSigDefaults is false, signature mode is forced off for test simplicity.
-// When true, the [signature] block is omitted so the mode preset's defaults apply.
 //
-// For strict/scoped-like configurations (CompatibilityScope "none" or "scoped"),
-// the generated config uses HTTPS with a self-signed certificate instead of
-// plain HTTP, matching the transport requirements enforced by the loader.
+// For strict mode configurations, the generated config uses HTTPS with a
+// self-signed certificate instead of plain HTTP, matching the transport
+// requirements enforced by the loader.
 //
 // Per-service configuration ([http.services.*]) is NOT included in the base
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope string, keepSigDefaults bool, disableProxyEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword string, extra string) string {
-	secure := needsSecureTransport(mode, compatibilityScope)
+func generateTOMLConfig(name string, port int, dataDir, mode string, disableProxyEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
+	secure := needsSecureTransport(mode)
 
 	// Derive the scheme for the generated default public_origin from the FINAL
 	// effective TLS mode, not just the preset heuristic. ExtraConfig may override
@@ -400,10 +440,14 @@ func generateTOMLConfig(name string, port int, dataDir, mode, compatibilityScope
 	}
 
 	var publicOrigin string
+	originHost := "localhost"
+	if strings.TrimSpace(publicOriginHost) != "" {
+		originHost = strings.TrimSpace(publicOriginHost)
+	}
 	if publicOriginSecure {
-		publicOrigin = fmt.Sprintf("https://localhost:%d", port)
+		publicOrigin = fmt.Sprintf("https://%s:%d", originHost, port)
 	} else {
-		publicOrigin = fmt.Sprintf("http://localhost:%d", port)
+		publicOrigin = fmt.Sprintf("http://%s:%d", originHost, port)
 	}
 
 	// Omit the generated public_origin when the test sets its own so the explicit
@@ -420,8 +464,11 @@ listen_addr = ":%d"
 
 `, name, mode, port, publicOriginLine)
 
-	if compatibilityScope != "" {
-		config += fmt.Sprintf("compatibility_scope = %q\n\n", compatibilityScope)
+	// Root-level ExtraConfig keys must appear before any [table]. Appending
+	// them after [outbound_http] would bind them to that table in TOML.
+	rootExtra, tableExtra := splitExtraConfigRootKeys(extra)
+	if rootExtra != "" {
+		config += rootExtra + "\n"
 	}
 
 	// Emit the preset-derived [tls] block unless the test supplies its own [tls]
@@ -452,7 +499,7 @@ mode = "off"
 	bootstrapAdmin += "\n"
 
 	if secure {
-		// insecure_skip_verify must be false for scoped/none scope guardrails to pass.
+		// insecure_skip_verify must be false for strict mode guardrails to pass.
 		config += `[server]
 trusted_proxies = ["127.0.0.0/8", "::1/128"]
 
@@ -484,19 +531,53 @@ insecure_skip_verify = true
 		config += fmt.Sprintf("tls_root_ca_file = %q\n", tlsRootCAFile)
 	}
 
-	if !keepSigDefaults {
-		config += `
-[signature]
-inbound_mode = "off"
-outbound_mode = "off"
-`
-	}
-
-	if extra != "" {
-		config += "\n# Extra config appended by test\n" + extra
+	if tableExtra != "" {
+		config += "\n# Extra config appended by test\n" + tableExtra
 	}
 
 	return config
+}
+
+// splitExtraConfigRootKeys separates leading root key/value lines from table
+// overrides in ExtraConfig. Comments and blank lines before the first [table]
+// stay with the root block.
+func splitExtraConfigRootKeys(extra string) (root string, tables string) {
+	extra = strings.TrimSpace(extra)
+	if extra == "" {
+		return "", ""
+	}
+
+	lines := strings.Split(extra, "\n")
+	rootLines := make([]string, 0, len(lines))
+	tableStart := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			rootLines = append(rootLines, line)
+			continue
+		}
+		if strings.HasPrefix(trimmed, "[") {
+			tableStart = i
+			break
+		}
+		rootLines = append(rootLines, line)
+	}
+
+	if tableStart < 0 {
+		return strings.TrimSpace(strings.Join(rootLines, "\n")), ""
+	}
+
+	// Drop trailing blank/comment-only padding from the root block.
+	for len(rootLines) > 0 {
+		trimmed := strings.TrimSpace(rootLines[len(rootLines)-1])
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			rootLines = rootLines[:len(rootLines)-1]
+			continue
+		}
+		break
+	}
+
+	return strings.TrimSpace(strings.Join(rootLines, "\n")), strings.TrimSpace(strings.Join(lines[tableStart:], "\n"))
 }
 
 // newInsecureHTTPSClient returns an http.Client that skips TLS verification.

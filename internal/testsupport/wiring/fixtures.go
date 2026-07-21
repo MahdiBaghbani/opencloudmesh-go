@@ -12,34 +12,33 @@ import (
 // FixtureBuildOpts mirrors wiring.BuildOpts for harness fixtures without
 // importing wiring (avoids test import cycles).
 type FixtureBuildOpts struct {
-	FastAuth                bool
-	SkipCrypto              bool
-	SkipPeerTrust           bool
-	SkipSignatureMiddleware bool
-	OutboundOverride        *config.OutboundHTTPConfig
-	SkipDiscoveryCache      bool
+	FastAuth           bool
+	SkipCrypto         bool
+	SkipPeerTrust      bool
+	OutboundOverride   *config.OutboundHTTPConfig
+	SkipDiscoveryCache bool
 }
 
 // HarnessWireOptions is the in-process integration harness baseline used by
-// tests/integration/harness StartTestServerWithConfig.
+// tests/integration/harness StartTestServerWithConfig. Crypto and signature
+// middleware match production; remaining skips are test transport shortcuts.
 var HarnessWireOptions = FixtureBuildOpts{
-	FastAuth:                true,
-	SkipCrypto:              true,
-	SkipPeerTrust:           true,
-	SkipSignatureMiddleware: true,
-	OutboundOverride:        tshttp.HarnessOutboundConfig(),
-	SkipDiscoveryCache:      true,
+	FastAuth:           true,
+	SkipCrypto:         false,
+	SkipPeerTrust:      true,
+	OutboundOverride:   tshttp.HarnessOutboundConfig(),
+	SkipDiscoveryCache: true,
 }
 
-// IETFWireOptions enables real crypto and signature middleware for HTTP
-// signature integration tests (see harness.IETFIntegrationBuildOpts).
+// IETFWireOptions is the IETF strict signature fixture after harness
+// convergence: real crypto and signature middleware enabled (SkipCrypto
+// false). See harness.IETFIntegrationBuildOpts.
 var IETFWireOptions = FixtureBuildOpts{
-	FastAuth:                true,
-	SkipCrypto:              false,
-	SkipPeerTrust:           true,
-	SkipSignatureMiddleware: false,
-	OutboundOverride:        tshttp.HarnessOutboundConfig(),
-	SkipDiscoveryCache:      true,
+	FastAuth:           true,
+	SkipCrypto:         false,
+	SkipPeerTrust:      true,
+	OutboundOverride:   tshttp.HarnessOutboundConfig(),
+	SkipDiscoveryCache: true,
 }
 
 // ProductionWireOptions is the main.go zero-value bootstrap path.

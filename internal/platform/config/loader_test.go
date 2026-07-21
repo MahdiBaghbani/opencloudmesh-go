@@ -18,33 +18,22 @@ func TestConfig_Redacted(t *testing.T) {
 				Password: "supersecret",
 			},
 		},
-		Signature: SignatureConfig{
-			InboundMode:              "strict",
-			OutboundMode:             "strict",
-			PeerProfileLevelOverride: "non-strict",
-			KeyPath:                  ".ocm/keys/signing.pem",
-		},
-		RequireTokenExchange: true,
+		Signature: DefaultSignatureConfig(),
 	}
 
 	redacted := cfg.Redacted()
 
-	// Password should be redacted
 	if strings.Contains(redacted, "supersecret") {
 		t.Error("password was not redacted")
 	}
 	if !strings.Contains(redacted, "[REDACTED]") {
 		t.Error("expected [REDACTED] placeholder")
 	}
-	// Username should be visible
 	if !strings.Contains(redacted, "admin") {
 		t.Error("username should be visible")
 	}
-	if !strings.Contains(redacted, "RequireTokenExchange: true") {
-		t.Error("expected require_token_exchange in redacted output")
-	}
-	if strings.Contains(redacted, "WebDAVTokenExchange") {
-		t.Error("expected WebDAVTokenExchange block removed from redacted output")
+	if !strings.Contains(redacted, "TokenExchange:") {
+		t.Error("expected token exchange block in redacted output")
 	}
 }
 
@@ -55,12 +44,6 @@ func TestLoad_StrictModeSignatureIETFDefaults(t *testing.T) {
 	}
 	if cfg.Signature.Label != DefaultSignatureLabel {
 		t.Fatalf("Label = %q, want %q", cfg.Signature.Label, DefaultSignatureLabel)
-	}
-	if cfg.Signature.InboundMode != "strict" {
-		t.Fatalf("InboundMode = %q, want strict", cfg.Signature.InboundMode)
-	}
-	if cfg.Signature.OutboundMode != "strict" {
-		t.Fatalf("OutboundMode = %q, want strict", cfg.Signature.OutboundMode)
 	}
 	if len(cfg.Signature.AllowedAlgorithms) != len(sigalg.DefaultAllowed()) || cfg.Signature.AllowedAlgorithms[0] != "ed25519" {
 		t.Fatalf("AllowedAlgorithms = %v", cfg.Signature.AllowedAlgorithms)

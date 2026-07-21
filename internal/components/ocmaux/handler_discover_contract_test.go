@@ -54,12 +54,13 @@ func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
 }
 
 func TestHandleDiscover_Success(t *testing.T) {
+	var serverURL string
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
-				"endPoint":           "https://example.com/ocm",
+				"apiVersion":         "1.4.0",
+				"endPoint":           serverURL + "/ocm",
 				"provider":           "TestProvider",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
 				"resourceTypes":      []any{},
@@ -70,9 +71,9 @@ func TestHandleDiscover_Success(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+	serverURL = discServer.URL
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
@@ -108,12 +109,13 @@ func TestHandleDiscover_Success(t *testing.T) {
 }
 
 func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
+	var serverURL string
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"enabled":            true,
-				"apiVersion":         "1.2.2",
-				"endPoint":           "https://remote.example.com/ocm",
+				"apiVersion":         "1.4.0",
+				"endPoint":           serverURL + "/ocm",
 				"inviteAcceptDialog": "/apps/ocm/invite-accept",
 				"resourceTypes":      []any{},
 				"criteria":           []any{},
@@ -123,9 +125,9 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+	serverURL = discServer.URL
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
@@ -178,7 +180,6 @@ func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
 	defer discServer.Close()
 
 	httpCfg := tshttp.PermissiveConfig()
-	httpCfg.DerivedSSRFMode = "off"
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 

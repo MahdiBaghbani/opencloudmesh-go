@@ -12,10 +12,9 @@ Each HTTP service registers `RouteSpec` values from its `routes.go` file
 
 - HTTP method and pattern (relative to the service chi router)
 - `SessionPolicy` (public, protected, or public when WAYF enabled)
-- `HandlerAuth` (none, session user, HTTP signature, bearer/basic, rate limit)
+- `HandlerAuth` (none, session user, HTTP signature, bearer, rate limit)
 - `SurfaceClass` (discovery, protocol, helper, ui, api, webdav)
-- `TrustClass` for protocol routes (peer trust required, notifications
-  special, or none)
+- `TrustClass` for protocol routes (peer trust required or none)
 - Optional `DiscoveryFields`, `FeatureCondition`, and
   `OutboundProtocolKind`
 
@@ -36,8 +35,9 @@ is the sole canonical route-policy aggregate. It:
 `RouteOpts` carries config-derived inputs:
 
 - `ExternalBasePath`
-- `WayfEnabled` and `InviteAcceptEnabled` (both from `[http.services.ui.wayf]`
-  when enabled)
+- `WayfEnabled` from `[http.services.ui.wayf] enabled`
+- `InviteAcceptEnabled` from `[http.services.ui.invite_accept] enabled`
+- `InvitesEnabled` defaults true (OCM invite protocol routes are always mounted)
 - `TokenExchangePath`
 
 Build opts with `service.RouteOptsFromConfig(cfg)`.
@@ -63,11 +63,11 @@ Routes group into product surfaces:
 | Surface | Typical services | Session / handler auth |
 | ------- | ---------------- | ---------------------- |
 | Discovery | `wellknown` | Public; no session |
-| Protocol | `ocm` | Public session; optional HTTP signature on handler |
+| Protocol | `ocm` | Public session; required HTTP signature on handler |
 | Helper | `ocmaux` | Public; rate limit on discover |
 | UI | `ui` | Mix of public login/WAYF and protected inbox |
 | API | `api` | Protected first-party session |
-| WebDAV | `webdav` | Public session; bearer or basic on handler |
+| WebDAV | `webdav` | Public session; Bearer on handler |
 
 Protocol routes (`SurfaceProtocol`) require peer trust classes and are the
 only routes that use HTTP signature handler auth. Helper and UI routes use
@@ -75,9 +75,9 @@ only routes that use HTTP signature handler auth. Helper and UI routes use
 
 ## Feature gates
 
-WAYF and invite accept UI routes register only when
-`[http.services.ui.wayf] enabled = true` in config. That same flag enables
-invite accept discovery fields and the `/ui/accept-invite` route.
+WAYF UI routes register only when `[http.services.ui.wayf] enabled = true` in
+config. Invite accept UI routes and discovery fields independently use
+`[http.services.ui.invite_accept] enabled = true`.
 
 Token exchange path comes from `[token_exchange] path` (default `token`).
 

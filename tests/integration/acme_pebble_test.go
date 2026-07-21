@@ -101,10 +101,6 @@ max_redirects = 1
 max_response_bytes = 1048576
 insecure_skip_verify = true
 tls_root_ca_file = %q
-
-[signature]
-inbound_mode = "off"
-outbound_mode = "off"
 `, httpsPort, httpPort, httpsPort, acmeDir, minicaPEM)
 
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {

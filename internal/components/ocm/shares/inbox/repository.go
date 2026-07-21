@@ -24,9 +24,9 @@ type IncomingShareRepo interface {
 }
 
 type MemoryIncomingShareRepo struct {
-	mu               sync.RWMutex
-	shares           map[string]*IncomingShare
-	providerIndex    map[string]string
+	mu                sync.RWMutex
+	shares            map[string]*IncomingShare
+	providerIndex     map[string]string
 	byRecipientUserID map[string]map[string]struct{}
 }
 

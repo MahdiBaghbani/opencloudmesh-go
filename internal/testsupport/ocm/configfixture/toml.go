@@ -3,13 +3,12 @@
 
 // Package configfixture provides reusable TOML string fragments for config
 // loader tests. It deliberately does not import internal/platform/config to
-// avoid import cycles: loader_test.go is package config, and
-// internal/testsupport/ocm/helpers.go already imports config, so loader_test.go
-// cannot import testsupport/ocm directly. This subpackage has no such constraint.
+// avoid import cycles with loader_test.go (package config). This subpackage
+// has no such constraint.
 //
 // Usage pattern: compose fragments with string concatenation.
 //
-//	tomlContent := configfixture.NoneScopeBase() +
+//	tomlContent := configfixture.StrictModeBase() +
 //	    configfixture.SSRFStrictWithPolicy("internal") +
 //	    configfixture.RoutePolicyInternal("internal")
 //
@@ -20,16 +19,9 @@ package configfixture
 
 import "fmt"
 
-// NoneScopeBase returns the TOML header for a compatibility_scope=none strict
-// config: mode=strict + explicit compatibility_scope=none.
-func NoneScopeBase() string {
-	return "\nmode = \"strict\"\ncompatibility_scope = \"none\"\n"
-}
-
-// ScopedScopeBase returns the TOML header for a compatibility_scope=scoped
-// strict config: mode=strict + compatibility_scope=scoped.
-func ScopedScopeBase() string {
-	return "\nmode = \"strict\"\ncompatibility_scope = \"scoped\"\n"
+// StrictModeBase returns the TOML header for mode=strict.
+func StrictModeBase() string {
+	return "\nmode = \"strict\"\n"
 }
 
 // SSRFOff returns an [outbound_http.ssrf] block with mode=off.

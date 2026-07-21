@@ -47,7 +47,7 @@ Key rules (see `internal/architecture/layering_test.go`):
 **Components** (`internal/components/`) hold domain logic:
 
 - `ocm/` - protocol implementations (discovery, shares, invites, token
-  exchange, notifications, directory service client, peer policy)
+  exchange, directory service client, and peer trust)
 - `api/` - first-party REST helpers for the bundled UI and operators
 - `identity/` - users, sessions, and bootstrap admin
 - `ocmaux/` - helper logic backing `/ocm-aux/*` UX endpoints
@@ -63,7 +63,7 @@ requests to component APIs. Each service package maps to a route group
 `wiring.Build(cfg, logger, opts)` creates persistence repos, outbound HTTP
 clients, signature middleware, and returns `wiring.BuildResult`. Callers
 use `BuildResult` fields: `Deps` (dependency graph for route handlers),
-`RootCAPool`, `RuntimeEval`, and `Persistence`. Callers pass an
+`RootCAPool` and `Persistence`. Callers pass an
 already-loaded `*config.Config`.
 
 Persistence backends are selected from config and constructed in
@@ -101,11 +101,11 @@ Guard categories:
 | --------- | ---------------- |
 | `layering_test.go` | Package import boundaries between layers |
 | `testsupport_imports_test.go` | `internal/testsupport` only in `_test.go` |
-| `naming_conventions_test.go` | Banned abbreviations and legacy package names |
+| `naming_conventions_test.go` | Banned DS abbreviations, spec Directory Service JSON tags, and address parsing |
 | `production_loader_imports_test.go` | No loader blank imports in production |
 | `spec_pin_test.go` | Vendored OCM spec pin integrity |
 | `wire_dto_location_test.go` | Wire DTO placement rules |
-| `peercompat_boundaries_test.go` | Peer-compat package boundaries |
+| `internal/architecture` scheme guard | Peer-origin scheme boundary |
 | `static_construction_test.go` | Static construction constraints |
 | `forwarded_header_test.go` | Forwarded-header handling rules |
 | `slog_keys_test.go` | Structured log key conventions |

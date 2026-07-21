@@ -1,31 +1,26 @@
 package wellknown
 
-import "testing"
+import (
+	"testing"
 
-func TestOCMProviderConfig_ApplyDefaults(t *testing.T) {
-	c := &OCMProviderConfig{}
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
+)
+
+func TestProviderConfig_ApplyDefaults(t *testing.T) {
+	c := &resolve.ProviderConfig{}
 	c.ApplyDefaults()
 
-	// ApplyDefaults only sets service-local fields (OCMPrefix, Provider).
-	// Cross-cutting fields (WebDAVRoot, TokenExchange) are derived in newOCMHandler.
-	if c.OCMPrefix != "ocm" {
-		t.Errorf("expected OCMPrefix 'ocm', got %q", c.OCMPrefix)
-	}
 	if c.Provider != "OpenCloudMesh" {
 		t.Errorf("expected Provider 'OpenCloudMesh', got %q", c.Provider)
 	}
 }
 
-func TestOCMProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
-	c := &OCMProviderConfig{
-		OCMPrefix: "custom-ocm",
-		Provider:  "CustomProvider",
+func TestProviderConfig_ApplyDefaults_PreservesCustomValues(t *testing.T) {
+	c := &resolve.ProviderConfig{
+		Provider: "CustomProvider",
 	}
 	c.ApplyDefaults()
 
-	if c.OCMPrefix != "custom-ocm" {
-		t.Errorf("expected OCMPrefix 'custom-ocm', got %q", c.OCMPrefix)
-	}
 	if c.Provider != "CustomProvider" {
 		t.Errorf("expected Provider 'CustomProvider', got %q", c.Provider)
 	}

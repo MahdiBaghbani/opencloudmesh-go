@@ -16,11 +16,17 @@ import (
 
 // Config holds ui service configuration (service-local knobs only).
 type Config struct {
-	Wayf WayfConfig `mapstructure:"wayf"`
+	Wayf         WayfConfig         `mapstructure:"wayf"`
+	InviteAccept InviteAcceptConfig `mapstructure:"invite_accept"`
 }
 
 // WayfConfig holds WAYF (Where Are You From) UI configuration.
 type WayfConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+}
+
+// InviteAcceptConfig holds invite-accept UI configuration.
+type InviteAcceptConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 }
 
@@ -59,8 +65,11 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	if c.Wayf.Enabled {
 		r.Get(RouteWAYF, uiHandler.Wayf)
+		log.Info("WAYF UI enabled", "wayf_path", "/ui/wayf")
+	}
+	if c.InviteAccept.Enabled {
 		r.Get(RouteAcceptInvite, uiHandler.AcceptInvite)
-		log.Info("WAYF UI enabled", "wayf_path", "/ui/wayf", "accept_invite_path", "/ui/accept-invite")
+		log.Info("invite accept UI enabled", "accept_invite_path", "/ui/accept-invite")
 	}
 
 	return &Service{router: r, conf: &c, log: log}, nil

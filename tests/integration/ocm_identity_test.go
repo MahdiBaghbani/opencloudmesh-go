@@ -19,9 +19,27 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
+
+func postSignedJSON(t *testing.T, targetURL string, body []byte, signer *crypto.RFC9421Signer) *http.Response {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, targetURL, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("failed to build signed request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if err := signer.Sign(req); err != nil {
+		t.Fatalf("failed to sign request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("signed POST failed: %v", err)
+	}
+	return resp
+}
 
 // TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID verifies that the
 // /ocm/invite-accepted endpoint returns userID as a Reva-style federated
@@ -34,6 +52,9 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
+
+	peer := startStrictCodeFlowReceiver(t)
+	defer peer.Close()
 
 	d := ts.Deps
 	localProvider := d.LocalIdentity.ProviderDomain
@@ -63,9 +84,9 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 
 	// POST /ocm/invite-accepted
 	reqBody := spec.InviteAcceptedRequest{
-		RecipientProvider: "remote.example.com",
+		RecipientProvider: peer.peerDomain,
 		Token:             "identity-test-token",
-		UserID:            "remote-user@remote.example.com",
+		UserID:            "remote-user@" + peer.peerDomain,
 		Email:             "remote@example.com",
 		Name:              "Remote User",
 	}
@@ -74,10 +95,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 		t.Fatalf("failed to marshal request: %v", err)
 	}
 
-	resp, err := http.Post(ts.BaseURL+"/ocm/invite-accepted", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST /ocm/invite-accepted failed: %v", err)
-	}
+	resp := postSignedJSON(t, ts.BaseURL+"/ocm/invite-accepted", body, peer.signer)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -146,7 +164,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 // internal/components/api/outgoing/shares/handler_test.go.
 //
 // Token exchange grant_type coverage lives in token_exchange_test.go
-// (authorization_code + ocm_share + invalid grant_type rejection).
+// (authorization_code + invalid grant_type rejection).
 
 // TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback verifies that
 // POST /ocm/shares with a Reva-style base64url-encoded shareWith identifier
@@ -157,14 +175,14 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	}
 
 	// This test targets recipient identity resolution, not token-exchange
-	// policy, and posts from a fictitious remote owner/sender domain that has
-	// no live discovery endpoint. DevConfig defaults RequireTokenExchange to
-	// true, which would force a discovery round-trip against that domain.
-	// Disable it for this server instance only.
-	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
-		cfg.RequireTokenExchange = false
-	})
+	// policy. The receiver requires token exchange, so the request carries
+	// the must-exchange-token requirement and the peer is a discoverable,
+	// token-exchange-capable receiver.
+	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
+
+	peer := startStrictCodeFlowReceiver(t)
+	defer peer.Close()
 
 	d := ts.Deps
 	localProvider := d.LocalIdentity.ProviderDomain
@@ -186,8 +204,8 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	encodedID := address.EncodeFederatedOpaqueID(shareUser.ID, localProvider)
 	shareWith := encodedID + "@" + localProvider
 
-	// Build Reva-style owner/sender OCM addresses (simulating remote Reva instance)
-	remoteProvider := "remote.example.com"
+	// Build Reva-style owner/sender OCM addresses for the signed peer.
+	remoteProvider := peer.peerDomain
 	owner := address.FormatOutgoingOCMAddressFromUserID("remote-owner-id", remoteProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID("remote-sender-id", remoteProvider)
 
@@ -205,6 +223,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 				URI:          "federated-share-uri",
 				SharedSecret: "secret-abc",
 				Permissions:  []string{"read"},
+				Requirements: []string{spec.RequirementMustExchangeToken},
 			},
 		},
 	}
@@ -213,10 +232,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 		t.Fatalf("failed to marshal request: %v", err)
 	}
 
-	resp, err := http.Post(ts.BaseURL+"/ocm/shares", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST /ocm/shares failed: %v", err)
-	}
+	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
@@ -267,6 +283,9 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
+	peer := startStrictCodeFlowReceiver(t)
+	defer peer.Close()
+
 	d := ts.Deps
 	localProvider := d.LocalIdentity.ProviderDomain
 
@@ -291,8 +310,8 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 		ShareWith:    shareWith,
 		Name:         "test-idp-mismatch.txt",
 		ProviderID:   "idp-mismatch-test-001",
-		Owner:        "owner@remote.example.com",
-		Sender:       "sender@remote.example.com",
+		Owner:        address.FormatOutgoingOCMAddressFromUserID("owner", peer.peerDomain),
+		Sender:       address.FormatOutgoingOCMAddressFromUserID("sender", peer.peerDomain),
 		ShareType:    "user",
 		ResourceType: "file",
 		Protocol: spec.Protocol{
@@ -301,6 +320,7 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 				URI:          "mismatch-uri",
 				SharedSecret: "secret-xyz",
 				Permissions:  []string{"read"},
+				Requirements: []string{spec.RequirementMustExchangeToken},
 			},
 		},
 	}
@@ -309,10 +329,7 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 		t.Fatalf("failed to marshal request: %v", err)
 	}
 
-	resp, err := http.Post(ts.BaseURL+"/ocm/shares", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST /ocm/shares failed: %v", err)
-	}
+	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadRequest {
@@ -332,33 +349,32 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	t.Logf("share correctly rejected: IDP mismatch (encoded IDP=%q, local=%q)", wrongIDP, localProvider)
 }
 
-// TestIncomingShare_RevaStyleOwnerSender_Accepted verifies that POST /ocm/shares
-// accepts Reva-style OCM addresses for owner and sender fields -- addresses where
-// the identifier is a base64url-encoded federated opaque ID.
+// TestIncomingShare_RevaStyleOwnerSender_Accepted verifies that inbound shares
+// with Reva-style base64url owner/sender addresses are accepted.
 func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	// This test targets Reva-style address parsing, not token-exchange
-	// policy, and posts from a fictitious remote owner/sender domain that has
-	// no live discovery endpoint. DevConfig defaults RequireTokenExchange to
-	// true, which would force a discovery round-trip against that domain.
-	// Disable it for this server instance only.
-	ts := harness.StartTestServerWithConfig(t, func(cfg *config.Config) {
-		cfg.RequireTokenExchange = false
-	})
+	// This test targets owner/sender address acceptance, not token-exchange
+	// policy. The receiver requires token exchange, so the request carries
+	// the must-exchange-token requirement and the peer is a discoverable,
+	// token-exchange-capable receiver.
+	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
+
+	peer := startStrictCodeFlowReceiver(t)
+	defer peer.Close()
 
 	d := ts.Deps
 	localProvider := d.LocalIdentity.ProviderDomain
 
 	// Seed a local user (the share recipient)
 	shareUser := &identity.User{
-		ID:          "reva-compat-user-uuid",
-		Username:    "revacompat",
-		Email:       "revacompat@localhost",
-		DisplayName: "Reva Compat User",
+		ID:          "fed-opaque-user-uuid",
+		Username:    "fedopaque",
+		Email:       "fedopaque@localhost",
+		DisplayName: "Fed Opaque User",
 	}
 	if err := d.PartyRepo.Create(context.Background(), shareUser); err != nil {
 		t.Fatalf("failed to seed local user: %v", err)
@@ -368,14 +384,14 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	shareWith := shareUser.ID + "@" + localProvider
 
 	// Build Reva-style owner and sender: base64url(uid@provider)@provider
-	remoteProvider := "reva.example.com"
+	remoteProvider := peer.peerDomain
 	owner := address.FormatOutgoingOCMAddressFromUserID("einstein", remoteProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID("einstein", remoteProvider)
 
 	reqBody := spec.NewShareRequest{
 		ShareWith:         shareWith,
-		Name:              "reva-compat-share.txt",
-		ProviderID:        "reva-compat-test-001",
+		Name:              "fed-opaque-share.txt",
+		ProviderID:        "fed-opaque-test-001",
 		Owner:             owner,
 		Sender:            sender,
 		OwnerDisplayName:  "Albert Einstein",
@@ -387,7 +403,8 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 			WebDAV: &spec.WebDAVProtocol{
 				URI:          "reva-share-uri",
 				SharedSecret: "reva-secret",
-				Permissions:  []string{"read", "write"},
+				Permissions:  []string{"read"},
+				Requirements: []string{spec.RequirementMustExchangeToken},
 			},
 		},
 	}
@@ -396,10 +413,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 		t.Fatalf("failed to marshal request: %v", err)
 	}
 
-	resp, err := http.Post(ts.BaseURL+"/ocm/shares", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST /ocm/shares failed: %v", err)
-	}
+	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
@@ -428,5 +442,5 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 		t.Errorf("owner identifier %q is not valid padded base64url: %v", ownerIdent, err)
 	}
 
-	t.Logf("share accepted with Reva-style owner=%q sender=%q", owner, sender)
+	t.Logf("reva-style owner/sender accepted: owner=%q", owner)
 }

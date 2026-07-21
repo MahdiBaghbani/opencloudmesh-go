@@ -74,51 +74,6 @@ func TestNoBannedDSAbbreviations(t *testing.T) {
 	}
 }
 
-func TestNoFederationPackageImports(t *testing.T) {
-	bannedImport := "internal/components/federation"
-
-	allowedSubstrings := []string{"/architecture/"}
-
-	root := modroot.ModuleRoot(t)
-	var violations []string
-
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-
-		p := filepath.ToSlash(path)
-		for _, allow := range allowedSubstrings {
-			if strings.Contains(p, allow) {
-				return nil
-			}
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if strings.Contains(string(data), bannedImport) {
-			relPath, _ := filepath.Rel(root, path)
-			violations = append(violations, relPath)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk failed: %v", err)
-	}
-	if len(violations) > 0 {
-		t.Fatalf("Found imports of deleted federation package:\n%s",
-			strings.Join(violations, "\n"))
-	}
-}
-
 func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 	bannedTags := []string{
 		`json:"domain"`, `json:"domain,`,

@@ -1,5 +1,5 @@
 // Wire-format DTOs for POST /ocm/shares.
-// See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#share-creation-notification
+// See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1
 package spec
 
 type NewShareRequest struct {
@@ -20,7 +20,6 @@ type NewShareRequest struct {
 type Protocol struct {
 	Name   string          `json:"name,omitempty"`
 	WebDAV *WebDAVProtocol `json:"webdav,omitempty"`
-	WebApp *WebAppProtocol `json:"webapp,omitempty"`
 }
 
 type WebDAVProtocol struct {
@@ -40,12 +39,6 @@ func (p *WebDAVProtocol) HasRequirement(req string) bool {
 		}
 	}
 	return false
-}
-
-type WebAppProtocol struct {
-	URI          string `json:"uri"`
-	SharedSecret string `json:"sharedSecret,omitempty"`
-	ViewMode     string `json:"viewMode,omitempty"`
 }
 
 type CreateShareResponse struct {

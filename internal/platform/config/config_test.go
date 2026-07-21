@@ -1,10 +1,15 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 // TestSchemeFromOrigin documents the empty-on-invalid contract used by call
 // sites that must leave localScheme empty when PublicOrigin is empty or
-// unparseable (invites, notifications, signature middleware).
+// unparseable (signature middleware).
 func TestSchemeFromOrigin(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -59,5 +64,30 @@ func TestConfigPublicScheme(t *testing.T) {
 	}
 	if got := (&Config{PublicOrigin: "http://example.com"}).PublicScheme(); got != "http" {
 		t.Errorf("PublicScheme() = %q, want %q", got, "http")
+	}
+}
+
+// TestLoader_RejectsUnknownKeys locks the strict-decoder contract: a config
+// file with an unknown top-level key fails to load.
+func TestLoader_RejectsUnknownKeys(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := `
+mode = "dev"
+
+[unrecognized_section]
+some_key = "value"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected Load to reject an unknown top-level key")
+	}
+	if !strings.Contains(err.Error(), "unsupported keys") {
+		t.Errorf("error = %v, want an unsupported-keys message", err)
 	}
 }

@@ -6,13 +6,12 @@ import (
 )
 
 type IncomingShare struct {
-	ShareID   string `json:"shareId"`   // local UUIDv7
+	ShareID    string `json:"shareId"` // local UUIDv7
 	ProviderID string `json:"providerId"`
 	SenderHost string `json:"senderHost"`
 
-	WebDAVID         string `json:"webdavId,omitempty"`
-	WebDAVURIAbsolute string `json:"webdavUriAbsolute,omitempty"` // deprecated
-	SharedSecret     string `json:"-"`
+	WebDAVID     string `json:"webdavId,omitempty"`
+	SharedSecret string `json:"-"`
 
 	Permissions []string `json:"permissions"`
 
@@ -30,12 +29,12 @@ type IncomingShare struct {
 	RecipientUserID      string `json:"-"`
 	RecipientDisplayName string `json:"-"`
 
+	Requirements []string `json:"requirements,omitempty"`
+
 	Status    ShareStatus `json:"status"`
 	CreatedAt time.Time   `json:"createdAt"`
 	UpdatedAt time.Time   `json:"updatedAt"`
-	OwnerHost             string `json:"ownerHost,omitempty"`
-	MustExchangeToken     bool   `json:"mustExchangeToken,omitempty"`
-	SenderExchangeCapable bool   `json:"senderExchangeCapable,omitempty"`
+	OwnerHost string      `json:"ownerHost,omitempty"`
 }
 
 type ShareStatus string

@@ -177,27 +177,6 @@ func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
 	}
 }
 
-func TestService_AdminFederationsEndpoint_NotImplemented(t *testing.T) {
-
-	m := map[string]any{}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	svc, err := New(testAPIInputs(), m, log)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/admin/federations", nil)
-	w := httptest.NewRecorder()
-
-	svc.Handler().ServeHTTP(w, req)
-
-	// Should return 501 Not Implemented
-	if w.Code != http.StatusNotImplemented {
-		t.Errorf("expected status 501, got %d", w.Code)
-	}
-}
-
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 
 	var logBuf testLogBuffer

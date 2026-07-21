@@ -13,6 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -145,11 +146,11 @@ func resolveInviteDialog(serverURL, dialog string) string {
 
 // DiscoverResponse is the JSON response for /ocm-aux/discover.
 type DiscoverResponse struct {
-	Success                    bool                 `json:"success"`
-	Error                      string               `json:"error,omitempty"`
-	ReasonCode                 string               `json:"reasonCode,omitempty"`
-	Discovery                  *discovery.Discovery `json:"discovery,omitempty"`
-	InviteAcceptDialogAbsolute string               `json:"inviteAcceptDialogAbsolute,omitempty"`
+	Success                    bool            `json:"success"`
+	Error                      string          `json:"error,omitempty"`
+	ReasonCode                 string          `json:"reasonCode,omitempty"`
+	Discovery                  *spec.Discovery `json:"discovery,omitempty"`
+	InviteAcceptDialogAbsolute string          `json:"inviteAcceptDialogAbsolute,omitempty"`
 }
 
 // Discover reason codes for /ocm-aux/discover helper responses.

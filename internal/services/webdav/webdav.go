@@ -44,7 +44,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	handler := webdav.NewHandler(
 		inputs.OutgoingShareRepo,
 		inputs.TokenStore,
-		inputs.PeerContract,
 		log.With("component", "webdav"),
 	)
 

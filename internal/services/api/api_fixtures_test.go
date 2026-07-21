@@ -5,7 +5,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
@@ -28,17 +27,16 @@ func testAPIInputs() Inputs {
 	rawHTTP := httpclient.New(nil, nil)
 	realIP := realip.NewTrustedProxies(nil)
 	return Inputs{
-		PartyRepo:           identity.NewMemoryPartyRepo(),
-		SessionRepo:         identity.NewMemorySessionRepo(),
-		UserAuth:            identity.NewUserAuthFast(),
-		IncomingShareRepo:   sharesinbox.NewMemoryIncomingShareRepo(),
-		OutgoingShareRepo:   sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		IncomingInviteRepo:  invitesinbox.NewMemoryIncomingInviteRepo(),
-		OutgoingInviteRepo:  invitesoutgoing.NewMemoryOutgoingInviteRepo(),
-		HTTPClient:          httpclient.NewContextClient(rawHTTP),
-		DiscoveryClient:     discovery.NewClient(rawHTTP, nil),
-		OpenCloudMeshPolicy: policy.NewOpenCloudMeshPolicy(cfg),
-		LocalIdentity:       testLocalIdentity(),
+		PartyRepo:          identity.NewMemoryPartyRepo(),
+		SessionRepo:        identity.NewMemorySessionRepo(),
+		UserAuth:           identity.NewUserAuthFast(),
+		IncomingShareRepo:  sharesinbox.NewMemoryIncomingShareRepo(),
+		OutgoingShareRepo:  sharesoutgoing.NewMemoryOutgoingShareRepo(),
+		IncomingInviteRepo: invitesinbox.NewMemoryIncomingInviteRepo(),
+		OutgoingInviteRepo: invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		HTTPClient:         httpclient.NewContextClient(rawHTTP),
+		DiscoveryClient:    discovery.NewClient(rawHTTP, nil),
+		LocalIdentity:      testLocalIdentity(),
 		Ratelimit: ratelimit.Inputs{
 			KeyFunc: realIP.GetClientIPString,
 		},

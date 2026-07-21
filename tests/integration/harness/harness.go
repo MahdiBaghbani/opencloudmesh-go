@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
@@ -52,6 +51,13 @@ func StartTestServerWithConfig(t *testing.T, patch func(*config.Config)) *TestSe
 	return startTestServer(t, patch, IntegrationBuildOpts())
 }
 
+// StartTestServerWithOutgoingSharePolicy starts a test server with outbound
+// signing policy and keys wired for outgoing share consumer integration tests.
+func StartTestServerWithOutgoingSharePolicy(t *testing.T, patch func(*config.Config)) *TestServer {
+	t.Helper()
+	return startTestServer(t, patch, OutgoingSharePolicyBuildOpts())
+}
+
 // StartTestServerWithIETFConfig starts a test server with real signing keys and
 // inbound signature middleware enabled. Use for HTTP signature integration tests.
 func StartTestServerWithIETFConfig(t *testing.T, patch func(*config.Config)) *TestServer {
@@ -64,36 +70,12 @@ func StartTestServerWithIETFConfig(t *testing.T, patch func(*config.Config)) *Te
 	}, IETFIntegrationBuildOpts())
 }
 
-// applyIETFConfigDefaults is a hybrid overlay on DevConfig(): it tightens only
-// the signature inbound/outbound modes, label, allow_mismatch, token exchange
-// requirement, and localhost peer-profile mappings needed for in-process HTTP
-// signature tests. Other DevConfig leniencies (TLS off, SSRF off,
-// insecure_skip_verify, and the bounded "scoped"
-// compatibility scope) are intentionally preserved; see
-// TestApplyIETFConfigDefaults.
-//
-// localhost and 127.0.0.1 map to the built-in "dev" peer profile because
-// StartTestServerWithIETFConfig serves plain HTTP on ephemeral localhost ports.
-// Peer discovery and JWKS resolution (for example provider verification of a
-// client keyId during signed token exchange) must therefore use http:// peers.
-// Without these mappings, ResolvePeerOrigin would keep the default strict
-// profile, reject HTTP transport, and break in-process two-instance JWKS fetch.
+// applyIETFConfigDefaults is a hybrid overlay on DevConfig(): it sets the
+// signature label used by the IETF integration harness. Other DevConfig
+// leniencies (TLS off, SSRF off, insecure_skip_verify) are intentionally
+// preserved.
 func applyIETFConfigDefaults(cfg *config.Config) {
-	cfg.Signature.InboundMode = "strict"
-	cfg.Signature.OutboundMode = "strict"
 	cfg.Signature.Label = config.DefaultSignatureLabel
-	cfg.Signature.AllowMismatch = false
-	cfg.RequireTokenExchange = true
-	cfg.PeerProfiles.Mappings = ietfHarnessLocalhostPeerMappings()
-}
-
-// ietfHarnessLocalhostPeerMappings returns the localhost bridge mappings
-// required for in-process IETF integration tests over plain HTTP.
-func ietfHarnessLocalhostPeerMappings() []config.PeerProfileMapping {
-	return []config.PeerProfileMapping{
-		{Pattern: "localhost", Profile: "dev"},
-		{Pattern: "127.0.0.1", Profile: "dev"},
-	}
 }
 
 func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.BuildOpts) *TestServer {
@@ -112,7 +94,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 		t.Fatalf("failed to find free port: %v", err)
 	}
 
-	// Create config - DevConfig() has TLS.Mode="off", DerivedSSRFMode="off", InsecureSkipVerify=true
+	// Create config - DevConfig() has TLS.Mode="off", SSRF.Mode="off", InsecureSkipVerify=true
 	cfg := config.DevConfig()
 	cfg.ListenAddr = fmt.Sprintf(":%d", port)
 	cfg.PublicOrigin = fmt.Sprintf("http://localhost:%d", port)
@@ -123,8 +105,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	}
 
 	// Fail-fast checks that must run before any side-effecting bootstrap
-	// (mirrors main.go: a typo or impossible compatibility-scope startup state
-	// must never cause partial startup).
+	// (mirrors main.go: impossible startup state must never cause partial startup).
 	if err := validatePreBootstrapStartup(cfg); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("pre-bootstrap startup validation rejected: %v", err)
@@ -140,14 +121,6 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	if err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap dependencies: %v", err)
-	}
-
-	// Posture guard parity with main.go: a compatibility_scope=none config that
-	// resolves to a non-strict runtime posture is an impossible production state
-	// and must not silently start in-process.
-	if err := checkStartupPosture(cfg, buildResult.RuntimeEval); err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("startup posture rejected: %v", err)
 	}
 
 	d := buildResult.Deps
@@ -256,21 +229,6 @@ func (ts *TestServer) LogFile(name string) string {
 // calling t.Fatalf) so it can be unit-tested directly.
 func validatePreBootstrapStartup(cfg *config.Config) error {
 	return service.ValidatePreBootstrap(cfg)
-}
-
-// checkStartupPosture mirrors the main.go startup guard: when
-// compatibility_scope is "none", the resolved runtime posture must be strict.
-// Returning an error (rather than relying on cfg alone) keeps the in-process
-// harness from starting a production-impossible state that the real binary
-// would reject. eval comes from BootstrapResult.RuntimeEval.
-func checkStartupPosture(cfg *config.Config, eval policy.RuntimeEvaluation) error {
-	if cfg.CompatibilityScope == "none" && !eval.Strict.IsStrict {
-		return fmt.Errorf(
-			"compatibility_scope=none contradicts resolved runtime posture (tier=%s, scope=%s, reasons=%v)",
-			eval.DerivedTier, eval.CompatibilityScope, eval.Strict.ViolationReasons,
-		)
-	}
-	return nil
 }
 
 // localListenerScheme returns the scheme the in-process test server actually

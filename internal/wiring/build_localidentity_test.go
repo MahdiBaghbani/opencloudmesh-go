@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
-	tscfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/cfg"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
@@ -13,7 +13,7 @@ import (
 )
 
 func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	cfg.ExternalBasePath = "/ocm"
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
@@ -36,7 +36,7 @@ func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
 func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 	const messyOrigin = "https://Cloud.Example.COM:443/"
 
-	cfg := tscfg.DevConfigHarness()
+	cfg := config.DevConfig()
 	cfg.PublicOrigin = messyOrigin
 	cfg.ExternalBasePath = "/ocm"
 	cfg.Signature.KeyPath = filepath.Join(t.TempDir(), "signing.pem")
@@ -52,7 +52,7 @@ func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 		t.Fatal("Build must return Deps")
 	}
 	if result.Deps.KeyManager == nil {
-		t.Fatal("KeyManager must be non-nil when signature modes are on and SkipCrypto=false")
+		t.Fatal("KeyManager must be non-nil when crypto is enabled and SkipCrypto=false")
 	}
 
 	gotOrigin := result.Deps.LocalIdentity.Origin
@@ -67,7 +67,7 @@ func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 
 	naiveKeyID := cfg.PublicOrigin + "/ocm#key-1"
 	if result.Deps.KeyManager.GetKeyID() == naiveKeyID {
-		t.Errorf("keyId must not equal legacy URI concat %q", naiveKeyID)
+		t.Errorf("keyId must not equal raw URI concat %q", naiveKeyID)
 	}
 
 	want, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)

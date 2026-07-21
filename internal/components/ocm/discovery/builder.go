@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"log/slog"
-	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -11,23 +10,18 @@ import (
 // BuildParams holds route-projected discovery inputs resolved by the caller.
 // Path fields are final values; the builder does not join route segments.
 type BuildParams struct {
-	Provider            string
-	EndPoint            string
-	WebDAVRoot          string
-	TokenEndPoint       string
-	InviteAcceptDialog  string
-	AdvertiseInviteWAYF bool
+	Provider           string
+	EndPoint           string
+	WebDAVRoot         string
+	WebDAVReceiveURI   string
+	TokenEndPoint      string
+	InviteAcceptDialog string
+	InvitesEnabled     bool
+	WayfEnabled        bool
 
 	// AdvertiseHTTPSig adds the http-sig capability when local signing keys are
 	// published via /.well-known/jwks.json.
 	AdvertiseHTTPSig bool
-
-	// Receiver metadata for typed receive protocol roles.
-	WebDAVReceiveURI     string
-	WebAppReceiveTargets []string
-	AdvertiseWebApp      bool
-	AdvertiseSSHReceive  bool
-	TalkPath             string
 
 	// Evaluation flags resolved by the caller from the canonical policies.
 	TokenExchangeCapable   bool
@@ -37,18 +31,18 @@ type BuildParams struct {
 
 // BuildDiscovery constructs the static discovery document (Reva pattern:
 // computed once, not at request time). An empty or non-absolute endPoint yields
-// a disabled document, mirroring the prior service-layer behavior.
-func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
+// a disabled document.
+func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	log = logutil.NoopIfNil(log)
 
-	disc := &Discovery{
+	disc := &spec.Discovery{
 		Enabled:    false,
-		APIVersion: "1.4.0",
+		APIVersion: spec.APIVersionPin,
 		Provider:   p.Provider,
 		Criteria:   []string{}, // Always present, serializes as [] when empty
 	}
 
-	if p.EndPoint == "" || !isAbsoluteEndpoint(p.EndPoint) {
+	if p.EndPoint == "" || !isAbsoluteURL(p.EndPoint) {
 		return disc
 	}
 
@@ -62,24 +56,15 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 	if p.WebDAVReceiveURI != "" {
 		protocols["webdav-receive"] = spec.WebDAVReceiveRole(spec.WebDAVReceiveURIKind(p.WebDAVReceiveURI))
 	}
-	if len(p.WebAppReceiveTargets) > 0 {
-		protocols["webapp-receive"] = spec.WebAppReceiveRole(p.WebAppReceiveTargets)
-	}
-	if p.AdvertiseWebApp {
-		protocols["webapp"] = spec.EmptyObjectProtocolRole()
-	}
-	if p.AdvertiseSSHReceive {
-		protocols["ssh-receive"] = spec.EmptyObjectProtocolRole()
-	}
-	if p.TalkPath != "" {
-		protocols["talk"] = spec.StringProtocolRole(p.TalkPath)
-	}
 
-	disc.ResourceTypes = []ResourceType{{
-		Name:       "file",
-		ShareTypes: []string{"user"},
-		Protocols:  protocols,
-	}}
+	disc.ResourceTypes = make([]spec.ResourceType, 0, len(spec.SupportedResourceTypes))
+	for _, rtName := range spec.SupportedResourceTypes {
+		disc.ResourceTypes = append(disc.ResourceTypes, spec.ResourceType{
+			Name:       rtName,
+			ShareTypes: []string{"user"},
+			Protocols:  protocols,
+		})
+	}
 
 	capabilities := []string{}
 
@@ -94,12 +79,13 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 		log.Warn("token exchange enabled but token endpoint is empty; omitting exchange-token capability")
 	}
 
-	capabilities = append(capabilities, "invites", "protocol-object", "notifications")
-
 	if p.InviteAcceptDialog != "" {
 		disc.InviteAcceptDialog = p.InviteAcceptDialog
 	}
-	if p.AdvertiseInviteWAYF {
+	if p.InvitesEnabled {
+		capabilities = append(capabilities, "invites")
+	}
+	if p.WayfEnabled {
 		capabilities = append(capabilities, "invite-wayf")
 	}
 
@@ -110,17 +96,7 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *Discovery {
 	}
 	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustExchangeToken)
-	} else if p.RequiresTokenExchange && !p.TokenExchangeCapable {
-		log.Warn("local evaluator requires token exchange but code flow is disabled; omitting token-exchange criteria")
 	}
 
 	return disc
-}
-
-func isAbsoluteEndpoint(endpoint string) bool {
-	u, err := url.Parse(endpoint)
-	if err != nil || u == nil {
-		return false
-	}
-	return u.Scheme != "" && u.Host != ""
 }

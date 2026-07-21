@@ -49,7 +49,7 @@ slash, trailing slash, `..`, and empty path segments.
 ## Default-port stripping
 
 `ProviderDomain` uses `hostport.Normalize` with the origin scheme. Standard
-ports are removed from the published domain:
+ports are omitted from the published domain:
 
 - `https://cloud.example.com:443` -> `cloud.example.com`
 - `http://cloud.example.com:80` -> `cloud.example.com`

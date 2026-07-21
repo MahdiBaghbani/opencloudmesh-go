@@ -107,10 +107,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		OutgoingInviteRepo:  d.OutgoingInviteRepo,
 		PartyRepo:           d.PartyRepo,
 		PolicyEngine:        d.PolicyEngine,
-		DiscoveryClient:     d.DiscoveryClient,
-		OpenCloudMeshPolicy: d.OpenCloudMeshPolicy,
-		RuntimePolicy:       d.RuntimePolicy,
-		PeerContract:        d.PeerContract,
+		CodeFlow:            d.CodeFlow,
 		LocalIdentity:       d.LocalIdentity,
 		TokenStore:          d.TokenStore,
 		SignatureMiddleware: d.SignatureMiddleware,
@@ -147,9 +144,8 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		HTTPClient:          d.HTTPClient,
 		DiscoveryClient:     d.DiscoveryClient,
 		Signer:              d.Signer,
-		OutboundPolicy:      d.OutboundPolicy,
-		OpenCloudMeshPolicy: d.OpenCloudMeshPolicy,
-		PeerContract:        d.PeerContract,
+		PeerOrigin:          d.PeerOrigin,
+		CodeFlow:            d.CodeFlow,
 		LocalIdentity:       d.LocalIdentity,
 		Ratelimit:           ratelimitInputs(d),
 		InterceptorProfiles: profiles,
@@ -166,6 +162,5 @@ func buildWebDAVService(cfg *config.Config, svcCfg map[string]any, log *slog.Log
 	return webdav.New(webdav.Inputs{
 		OutgoingShareRepo: d.OutgoingShareRepo,
 		TokenStore:        d.TokenStore,
-		PeerContract:      d.PeerContract,
 	}, svcCfg, log)
 }

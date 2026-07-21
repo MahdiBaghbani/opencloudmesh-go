@@ -40,6 +40,11 @@ go test ./tests/integration/... -run TestInviteAcceptTwoInstanceAPI
 
 When WAYF is enabled (`[http.services.ui.wayf] enabled = true`):
 
+WAYF and the accept-invite UI are independently configured. Set
+`[http.services.ui.invite_accept] enabled = true` to enable the
+`/ui/accept-invite` route and invite discovery fields. This setting is
+independent of WAYF; configure both for the complete WAYF path.
+
 1. Alice creates an outgoing invite (same as above).
 2. Alice's browser or client calls `/ocm-aux/discover?base=<bob-url>` on
    Alice's server. The helper normalizes pasted URLs (bare host, deep file

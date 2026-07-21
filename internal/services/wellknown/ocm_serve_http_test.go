@@ -11,12 +11,15 @@ import (
 )
 
 func TestOCMHandler_ServeHTTP(t *testing.T) {
-	c := &OCMProviderConfig{
-		Endpoint: "https://example.com",
+	c := &resolve.ProviderConfig{
 		Provider: "TestProvider",
 	}
-	c.TokenExchange.Enabled = true
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
+	h, err := newOCMHandler(
+		c,
+		nil,
+		handlerResolveInputs(t, "https://example.com", ""),
+		testLogger(),
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,7 +55,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
-	c := &OCMProviderConfig{} // no endpoint
+	c := &resolve.ProviderConfig{}
 	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
