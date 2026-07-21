@@ -37,7 +37,7 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 
 	disc := &spec.Discovery{
 		Enabled:    false,
-		APIVersion: "1.4.0",
+		APIVersion: spec.APIVersionPin,
 		Provider:   p.Provider,
 		Criteria:   []string{}, // Always present, serializes as [] when empty
 	}

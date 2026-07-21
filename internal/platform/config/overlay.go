@@ -48,6 +48,18 @@ type fileConfig struct {
 	TokenExchange *tokenExchangeConfig    `toml:"token_exchange"`
 	HTTP          *httpFileConfig         `toml:"http"`
 	Persistence   *persistenceFileConfig  `toml:"persistence"`
+	OCM           *ocmFileConfig          `toml:"ocm"`
+}
+
+// ocmFileConfig holds OCM settings from TOML.
+type ocmFileConfig struct {
+	Discovery *discoveryFileConfig `toml:"discovery"`
+}
+
+// discoveryFileConfig holds inbound peer discovery settings from TOML.
+type discoveryFileConfig struct {
+	PeerAPIVersionPolicy string `toml:"peer_api_version_policy"`
+	PeerAPIVersionWarn   string `toml:"peer_api_version_warn"`
 }
 
 // httpFileConfig holds per-service HTTP configuration from TOML.
@@ -292,6 +304,15 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 		if fc.Persistence.DataDir != "" {
 			cfg.Persistence.DataDir = fc.Persistence.DataDir
+		}
+	}
+
+	if fc.OCM != nil && fc.OCM.Discovery != nil {
+		if fc.OCM.Discovery.PeerAPIVersionPolicy != "" {
+			cfg.OCM.Discovery.PeerAPIVersionPolicy = fc.OCM.Discovery.PeerAPIVersionPolicy
+		}
+		if fc.OCM.Discovery.PeerAPIVersionWarn != "" {
+			cfg.OCM.Discovery.PeerAPIVersionWarn = fc.OCM.Discovery.PeerAPIVersionWarn
 		}
 	}
 }

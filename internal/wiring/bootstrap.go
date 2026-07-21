@@ -76,6 +76,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == "off")
 	codeFlow := policy.NewCodeFlow()
+	versionPolicy := discovery.VersionPolicyFromConfig(cfg.OCM.Discovery)
 
 	localIdentity, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
 	if err != nil {
@@ -145,6 +146,8 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		discoveryCache = cacheInstance
 	}
 	discoveryClient := discovery.NewClient(rawHTTPClient, discoveryCache)
+	discoveryClient.SetVersionPolicy(versionPolicy)
+	discoveryClient.SetLogger(logger)
 
 	var trustGroupMgr *peertrust.TrustGroupManager
 	var policyEngine *peertrust.PolicyEngine

@@ -88,6 +88,14 @@ func DefaultPeerTrustMembershipCache() PeerTrustMembershipCacheConfig {
 	}
 }
 
+// DefaultDiscoveryConfig returns inbound peer discovery validation defaults.
+func DefaultDiscoveryConfig() DiscoveryConfig {
+	return DiscoveryConfig{
+		PeerAPIVersionPolicy: "accept-any",
+		PeerAPIVersionWarn:   "any-diff",
+	}
+}
+
 // DefaultSignatureConfig returns RFC 9421 / OCM IETF signature defaults.
 func DefaultSignatureConfig() SignatureConfig {
 	return SignatureConfig{

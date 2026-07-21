@@ -55,6 +55,23 @@ type Config struct {
 
 	// Persistence holds persistence backend settings.
 	Persistence PersistenceConfig `toml:"persistence"`
+
+	// OCM holds OCM-specific settings.
+	OCM OCMConfig `toml:"ocm"`
+}
+
+// OCMConfig holds OCM-specific settings.
+type OCMConfig struct {
+	Discovery DiscoveryConfig `toml:"discovery"`
+}
+
+// DiscoveryConfig holds inbound peer discovery validation settings.
+type DiscoveryConfig struct {
+	// PeerAPIVersionPolicy selects accept policy: accept-any, exact, at-least-1.4.
+	PeerAPIVersionPolicy string `toml:"peer_api_version_policy"`
+
+	// PeerAPIVersionWarn selects warning behavior: any-diff, lower-only, none.
+	PeerAPIVersionWarn string `toml:"peer_api_version_warn"`
 }
 
 // PersistenceConfig holds persistence backend settings.

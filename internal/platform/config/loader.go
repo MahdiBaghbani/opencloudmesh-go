@@ -345,6 +345,26 @@ func validateEnums(cfg *Config) error {
 		)
 	}
 
+	switch cfg.OCM.Discovery.PeerAPIVersionPolicy {
+	case "accept-any", "exact", "at-least-1.4":
+		// valid
+	default:
+		return fmt.Errorf(
+			"invalid ocm.discovery.peer_api_version_policy %q: must be one of accept-any, exact, at-least-1.4",
+			cfg.OCM.Discovery.PeerAPIVersionPolicy,
+		)
+	}
+
+	switch cfg.OCM.Discovery.PeerAPIVersionWarn {
+	case "any-diff", "lower-only", "none":
+		// valid
+	default:
+		return fmt.Errorf(
+			"invalid ocm.discovery.peer_api_version_warn %q: must be one of any-diff, lower-only, none",
+			cfg.OCM.Discovery.PeerAPIVersionWarn,
+		)
+	}
+
 	if err := validateSSRFRoutePolicyGuardrails(cfg); err != nil {
 		return err
 	}

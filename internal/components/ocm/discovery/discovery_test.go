@@ -150,8 +150,8 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 		apiVersion string
 		wantErr    bool
 	}{
-		{name: "singular_1.2.2", shape: "singular", apiVersion: "1.2.2", wantErr: true},
-		{name: "plural_1.2.2", shape: "plural", apiVersion: "1.2.2", wantErr: true},
+		{name: "singular_1.2.2", shape: "singular", apiVersion: "1.2.2", wantErr: false},
+		{name: "plural_1.2.2", shape: "plural", apiVersion: "1.2.2", wantErr: false},
 		{name: "singular_1.4.0", shape: "singular", apiVersion: "1.4.0", wantErr: false},
 		{name: "plural_1.4.0", shape: "plural", apiVersion: "1.4.0", wantErr: false},
 	}
@@ -184,6 +184,19 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatalf("Discover failed: %v", err)
+			}
+
+			if tt.apiVersion != spec.APIVersionPin {
+				found := false
+				for _, w := range disc.Warnings {
+					if strings.Contains(w, "differs from pin") {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatalf("expected differs-from-pin warning for apiVersion %q, got %v", tt.apiVersion, disc.Warnings)
+				}
 			}
 
 			out, err := json.Marshal(disc)

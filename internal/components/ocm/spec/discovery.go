@@ -18,6 +18,9 @@ const (
 	CriteriaMustExchangeToken = "must-exchange-token"
 )
 
+// APIVersionPin is the Layer 1 wire pin for OCM discovery apiVersion.
+const APIVersionPin = "1.4.0"
+
 type Discovery struct {
 	Enabled            bool           `json:"enabled"`
 	APIVersion         string         `json:"apiVersion"`
@@ -28,6 +31,7 @@ type Discovery struct {
 	Criteria           []string       `json:"criteria"`                     // Always present, serializes as [] when empty
 	TokenEndPoint      string         `json:"tokenEndPoint,omitempty"`      // Required when exchange-token capability is advertised
 	InviteAcceptDialog string         `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
+	Warnings           []string       `json:"-"`
 }
 
 type ResourceType struct {

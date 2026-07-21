@@ -72,6 +72,9 @@ func StrictConfig() *Config {
 		Persistence: PersistenceConfig{
 			Backend: BackendMemory,
 		},
+		OCM: OCMConfig{
+			Discovery: DefaultDiscoveryConfig(),
+		},
 	}
 	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
 		// Built-in defaults must already be canonical.

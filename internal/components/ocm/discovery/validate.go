@@ -9,11 +9,22 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-const expectedAPIVersion = "1.4.0"
+func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *VersionPolicy) error {
+	if policy == nil {
+		policy = NewVersionPolicy()
+	}
 
-func validateDiscovery(disc *spec.Discovery, discoveryOrigin string) error {
-	if disc.APIVersion != expectedAPIVersion {
-		return fmt.Errorf("apiVersion %q is not supported (want %q)", disc.APIVersion, expectedAPIVersion)
+	var warnings []string
+
+	ok, warn := policy.Accept(disc.APIVersion)
+	if !ok {
+		return fmt.Errorf(
+			"apiVersion %q is not supported (policy %d, pin %q)",
+			disc.APIVersion, policy.Mode, spec.APIVersionPin,
+		)
+	}
+	if warn != "" {
+		warnings = append(warnings, warn)
 	}
 
 	if disc.EndPoint == "" {
@@ -52,46 +63,54 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string) error {
 	}
 
 	for i, rt := range disc.ResourceTypes {
-		if err := validateResourceType(rt); err != nil {
+		if err := validateResourceType(rt, &warnings); err != nil {
 			return fmt.Errorf("resourceTypes[%d]: %w", i, err)
 		}
 	}
 
+	if len(warnings) > 0 {
+		disc.Warnings = append(disc.Warnings, warnings...)
+	}
+
 	return nil
 }
 
-func validateResourceType(rt spec.ResourceType) error {
+func validateResourceType(rt spec.ResourceType, warnings *[]string) error {
 	if rt.Name == "" {
 		return fmt.Errorf("name is required")
 	}
 	for name, role := range rt.Protocols {
-		if err := validateProtocolRole(name, role); err != nil {
+		w, err := validateProtocolRole(name, role)
+		if err != nil {
 			return fmt.Errorf("protocols[%q]: %w", name, err)
+		}
+		if w != "" {
+			*warnings = append(*warnings, w)
 		}
 	}
 	return nil
 }
 
-func validateProtocolRole(name string, role spec.ProtocolRole) error {
+func validateProtocolRole(name string, role spec.ProtocolRole) (warning string, err error) {
 	switch name {
 	case "webdav":
 		if _, ok := role.StringValue(); !ok {
-			return fmt.Errorf("must be a string path")
+			return "", fmt.Errorf("must be a string path")
 		}
 	case "webdav-receive":
 		wr, ok := role.WebDAVReceive()
 		if !ok {
-			return fmt.Errorf("must be an object with uri")
+			return "", fmt.Errorf("must be an object with uri")
 		}
 		switch wr.URI {
 		case spec.WebDAVReceiveURIAbsolute, spec.WebDAVReceiveURIRelative:
 		default:
-			return fmt.Errorf("uri must be absolute or relative")
+			return "", fmt.Errorf("uri must be absolute or relative")
 		}
 	default:
-		return fmt.Errorf("malformed protocol role")
+		return fmt.Sprintf("protocol role %q preserved but not locally shape-validated", name), nil
 	}
-	return nil
+	return "", nil
 }
 
 func sameAuthority(absoluteURI, discoveryOrigin string) bool {

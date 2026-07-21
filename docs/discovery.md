@@ -12,7 +12,7 @@ Built by `internal/components/ocm/discovery` and served by
 
 | Field | Source |
 | ----- | ------ |
-| `enabled`, `apiVersion`, `provider` | Handler and spec pin (`apiVersion` is `1.4.0`) |
+| `enabled`, `apiVersion`, `provider` | Handler and spec pin (`apiVersion` advertises `1.4.0`; inbound peers are accepted per `[ocm.discovery]` policy) |
 | `endPoint` | Route-derived projection from local identity |
 | `tokenEndPoint` | Projected when token exchange is capable |
 | `resourceTypes[].protocols` | `webdav` path plus `webdav-receive` with `uri: relative` |
@@ -59,13 +59,17 @@ Proof: `internal/services/wellknown/ocm_handler_test.go`
 When this server discovers a remote peer (`internal/components/ocm/discovery`
 client), the client validates the document before returning it:
 
-- `apiVersion` must be exactly `1.4.0`
+- `apiVersion` is checked against `[ocm.discovery]` policy (default:
+  accept-any with any-diff warning). Operators may select exact,
+  at-least-1.4, or accept-any; warnings are configurable (any-diff,
+  lower-only, none). Capability-based consume happens at operation time; there
+  is no version handshake.
 - `endPoint` and `tokenEndPoint` (when present) must be absolute URLs on the
   same authority as the discovered peer origin
 - `exchange-token` capability and `tokenEndPoint` must appear together
-- protocol roles must use supported value shapes (for example `webdav` as a
-  string path, `webdav-receive` as `{"uri":"relative"}` or
-  `{"uri":"absolute"}`)
+- `webdav` and `webdav-receive` protocol roles must use supported value shapes
+- Other protocol roles (for example `talk`, `webapp`, `ssh`, or custom roles)
+  are preserved opaquely with a warning, not rejected
 
 Relative `inviteAcceptDialog` values from the peer document are normalized to
 absolute URLs, then rejected when the resolved authority does not match the
@@ -96,6 +100,8 @@ the raw discovery field was relative.
 | Signature and peer trust axes | Criteria and capabilities |
 | `[http.services.ui.wayf] enabled` | `invite-wayf` capability and WAYF UI route |
 | `[http.services.ui.invite_accept] enabled` | Accept-invite UI route and `inviteAcceptDialog` |
+| `[ocm.discovery] peer_api_version_policy` | Inbound peer apiVersion accept policy |
+| `[ocm.discovery] peer_api_version_warn` | Inbound peer apiVersion warning mode |
 
 Unknown keys under `[http.services.wellknown.ocmprovider]` fail at load time.
 
