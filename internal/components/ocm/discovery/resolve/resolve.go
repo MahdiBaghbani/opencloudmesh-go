@@ -27,12 +27,6 @@ func (c *ProviderConfig) ApplyDefaults() {
 	}
 }
 
-type localEvaluation struct {
-	codeFlow               bool
-	strict                 bool
-	requiresHTTPSignatures bool
-}
-
 // BuildInputs bundles the resolved discovery build params.
 type BuildInputs struct {
 	Params discovery.BuildParams
@@ -40,8 +34,8 @@ type BuildInputs struct {
 
 // Resolve applies service-local defaults, derives cross-cutting values from
 // ResolveInputs and route inventory when not explicitly set in per-service TOML,
-// resolves policy-driven evaluation flags, and returns the resolved discovery
-// build params.
+// maps CodeFlow.Evaluate() facts into build params, and returns the resolved
+// discovery build params.
 func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs) BuildInputs {
 	c.ApplyDefaults()
 
@@ -88,13 +82,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	}
 
 	advertiseHTTPSig := in.KeyManager != nil
-
 	ev := in.CodeFlow.Evaluate()
-	localEval := localEvaluation{
-		codeFlow:               ev.TokenExchangeCapable,
-		strict:                 ev.RequiresTokenExchange,
-		requiresHTTPSignatures: ev.RequiresHTTPRequestSignatures,
-	}
 
 	return BuildInputs{
 		Params: discovery.BuildParams{
@@ -107,9 +95,9 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			InvitesEnabled:         routeOpts.InvitesEnabled,
 			WayfEnabled:            routeOpts.WayfEnabled,
 			AdvertiseHTTPSig:       advertiseHTTPSig,
-			TokenExchangeCapable:   localEval.codeFlow,
-			RequiresTokenExchange:  localEval.strict,
-			RequiresHTTPSignatures: localEval.requiresHTTPSignatures,
+			TokenExchangeCapable:   ev.TokenExchangeCapable,
+			RequiresTokenExchange:  ev.RequiresTokenExchange,
+			RequiresHTTPSignatures: ev.RequiresHTTPRequestSignatures,
 		},
 	}
 }

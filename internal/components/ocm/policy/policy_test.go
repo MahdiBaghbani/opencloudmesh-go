@@ -154,12 +154,12 @@ func TestCodeFlow_EvaluateReturnsFixedFacts(t *testing.T) {
 }
 
 // TestCodeFlow_NilSafe confirms a nil *CodeFlow is safe to call and returns
-// the fixed facts.
+// all-false Facts (strict-off).
 func TestCodeFlow_NilSafe(t *testing.T) {
 	var c *policy.CodeFlow
 	facts := c.Evaluate()
-	if !facts.TokenExchangeCapable || !facts.RequiresTokenExchange ||
-		!facts.IncludesTokenExchangeRequirement || !facts.RequiresHTTPRequestSignatures {
-		t.Fatalf("expected fixed facts from nil *CodeFlow, got %+v", facts)
+	if facts.TokenExchangeCapable || facts.RequiresTokenExchange ||
+		facts.IncludesTokenExchangeRequirement || facts.RequiresHTTPRequestSignatures {
+		t.Fatalf("expected all-false Facts from nil *CodeFlow, got %+v", facts)
 	}
 }
