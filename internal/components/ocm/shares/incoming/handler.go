@@ -103,7 +103,11 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if webdavErrs := spec.ValidateWebDAVProtocol(req.Protocol.WebDAV); len(webdavErrs) > 0 {
-		writeWebDAVValidationErrors(w, webdavErrs)
+		writeProtocolValidationErrors(w, webdavErrs)
+		return
+	}
+	if webappErrs := spec.ValidateWebappProtocol(req.Protocol.Webapp); len(webappErrs) > 0 {
+		writeProtocolValidationErrors(w, webappErrs)
 		return
 	}
 
@@ -228,6 +232,17 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	webdav := req.Protocol.WebDAV
+	// Persist WebDAV fields when the webdav arm is present. A webapp-only admit
+	// (multi + webapp, no webdav) has no WebDAV arm here; webapp fields are not
+	// stored on the incoming share in this flow.
+	var webdavURI, webdavSharedSecret string
+	var webdavPermissions, webdavRequirements []string
+	if webdav != nil {
+		webdavURI = webdav.URI
+		webdavSharedSecret = webdav.SharedSecret
+		webdavPermissions = webdav.Permissions
+		webdavRequirements = append([]string(nil), webdav.Requirements...)
+	}
 	share := &sharesinbox.IncomingShare{
 		ProviderID:           req.ProviderID,
 		SenderHost:           senderHost,
@@ -245,10 +260,10 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		Status:               sharesinbox.ShareStatusPending,
 		RecipientUserID:      resolvedUser.ID,
 		RecipientDisplayName: resolvedUser.DisplayName,
-		WebDAVID:             webdav.URI,
-		SharedSecret:         webdav.SharedSecret,
-		Permissions:          webdav.Permissions,
-		Requirements:         append([]string(nil), webdav.Requirements...),
+		WebDAVID:             webdavURI,
+		SharedSecret:         webdavSharedSecret,
+		Permissions:          webdavPermissions,
+		Requirements:         webdavRequirements,
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {
@@ -269,7 +284,12 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func writeWebDAVValidationErrors(w http.ResponseWriter, errs []spec.ValidationError) {
+// writeProtocolValidationErrors maps spec protocol validation errors to the
+// shared OCM response taxonomy used by both the webdav and webapp arms: any
+// UNSUPPORTED value yields PROTOCOL_NOT_SUPPORTED (501); all other errors
+// (missing/invalid required fields, GAP rejections) yield INVALID_PROTOCOL
+// (400) with the validation errors attached so the rejection is observable.
+func writeProtocolValidationErrors(w http.ResponseWriter, errs []spec.ValidationError) {
 	for _, e := range errs {
 		if e.Message == "UNSUPPORTED" {
 			spec.WriteProtocolNotSupported(w)

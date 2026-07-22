@@ -20,6 +20,7 @@ type NewShareRequest struct {
 type Protocol struct {
 	Name   string          `json:"name,omitempty"`
 	WebDAV *WebDAVProtocol `json:"webdav,omitempty"`
+	Webapp *WebappProtocol `json:"webapp,omitempty"`
 }
 
 type WebDAVProtocol struct {
@@ -30,9 +31,40 @@ type WebDAVProtocol struct {
 	Requirements []string `json:"requirements,omitempty"`
 }
 
+// WebappProtocol is the webapp protocol arm. Its permissions are distinct
+// from WebDAV permissions (see SupportedWebappPermissions) and must not be
+// merged into a shared permissions list. sharedSecret is IETF REQUIRED at
+// admit time, so it has no omitempty here; the redacted outbound-view
+// exception belongs to the P4 wire/admission split and is out of scope.
+type WebappProtocol struct {
+	URI          string   `json:"uri"`
+	Targets      []string `json:"targets"`
+	Permissions  []string `json:"permissions"`
+	Requirements []string `json:"requirements"`
+	SharedSecret string   `json:"sharedSecret"`
+}
+
 const RequirementMustExchangeToken = "must-exchange-token"
 
+// RequirementMustUseMFA is the MFA requirement. It is recognized only to be
+// hard-rejected at admit: enforce-mfa is not implemented yet (see GAP note in
+// ValidateWebappProtocol).
+const RequirementMustUseMFA = "must-use-mfa"
+
 func (p *WebDAVProtocol) HasRequirement(req string) bool {
+	for _, r := range p.Requirements {
+		if r == req {
+			return true
+		}
+	}
+	return false
+}
+
+// HasRequirement reports whether the webapp arm advertises req.
+func (p *WebappProtocol) HasRequirement(req string) bool {
+	if p == nil {
+		return false
+	}
 	for _, r := range p.Requirements {
 		if r == req {
 			return true
