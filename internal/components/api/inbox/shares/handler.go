@@ -78,6 +78,7 @@ type InboxShareDetailView struct {
 type ProtocolDetailView struct {
 	Name   string            `json:"name"`
 	WebDAV *WebDAVDetailView `json:"webdav,omitempty"`
+	Webapp *WebappDetailView `json:"webapp,omitempty"`
 }
 
 // WebDAVDetailView exposes WebDAV protocol fields; SharedSecret is masked in responses.
@@ -86,6 +87,15 @@ type WebDAVDetailView struct {
 	Permissions  []string `json:"permissions"`
 	Requirements []string `json:"requirements"`
 	SharedSecret string   `json:"sharedSecret"`
+}
+
+// WebappDetailView exposes the persisted webapp arm fields for the inbox
+// detail response. The webapp sharedSecret is not persisted, so it has no
+// field here.
+type WebappDetailView struct {
+	URI         string   `json:"uri,omitempty"`
+	Targets     []string `json:"targets,omitempty"`
+	Permissions []string `json:"permissions,omitempty"`
 }
 
 func isAbsoluteWebDAVURI(uri string) bool {
@@ -110,20 +120,35 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 		permissions = []string{}
 	}
 
+	// Emit the stored protocol name. Legacy rows have an empty value; never
+	// synthesize "multi" for them.
+	proto := &ProtocolDetailView{
+		Name: s.ProtocolName,
+		WebDAV: &WebDAVDetailView{
+			URI:          uri,
+			Permissions:  permissions,
+			Requirements: requirements,
+			SharedSecret: "[REDACTED]",
+		},
+	}
+
+	// Attach the webapp arm only when persisted webapp data exists. Legacy
+	// rows leave the webapp field empty and omit the arm. The Targets and
+	// Permissions fields use omitempty JSON tags, so nil slices are omitted
+	// on the wire without explicit normalization.
+	if s.WebappURI != "" || len(s.WebappPermissions) > 0 || len(s.WebappTargets) > 0 {
+		proto.Webapp = &WebappDetailView{
+			URI:         s.WebappURI,
+			Targets:     s.WebappTargets,
+			Permissions: s.WebappPermissions,
+		}
+	}
+
 	return InboxShareDetailView{
 		InboxShareView:           NewInboxShareView(s),
 		WebDAVID:                 s.WebDAVID,
 		AbsoluteWebDAVURIPresent: isAbsoluteWebDAVURI(s.WebDAVID),
-		Protocol: &ProtocolDetailView{
-			// Normalized wire name: inbound protocol.name is not persisted.
-			Name: "multi",
-			WebDAV: &WebDAVDetailView{
-				URI:          uri,
-				Permissions:  permissions,
-				Requirements: requirements,
-				SharedSecret: "[REDACTED]",
-			},
-		},
+		Protocol:                 proto,
 	}
 }
 

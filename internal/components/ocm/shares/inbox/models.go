@@ -26,6 +26,16 @@ type IncomingShare struct {
 	SenderDisplayName string `json:"senderDisplayName,omitempty"`
 	Expiration        *int64 `json:"expiration,omitempty"`
 
+	// Webapp arm fields. Stored alongside the WebDAV Permissions field; the
+	// two permission lists are distinct and must not be merged.
+	WebappPermissions []string `json:"webappPermissions,omitempty"`
+	WebappURI         string   `json:"webappUri,omitempty"`
+	WebappTargets     []string `json:"webappTargets,omitempty"`
+
+	// ProtocolName is the stored protocol.name from the wire payload. Legacy
+	// rows have an empty value; never synthesize "multi" for them.
+	ProtocolName string `json:"protocolName,omitempty"`
+
 	RecipientUserID      string `json:"-"`
 	RecipientDisplayName string `json:"-"`
 
