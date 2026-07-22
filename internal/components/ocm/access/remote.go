@@ -142,7 +142,7 @@ func accessHostForDiscovery(share *ShareInfo) string {
 	return share.SenderHost
 }
 
-// DecideAccessAuth implements the F3 decision table for the access plane.
+// DecideAccessAuth implements the access-plane decision table.
 // The caller must have already prefetched discovery; a nil share or document fails closed.
 func (c *Client) DecideAccessAuth(opts AccessOptions, disc *spec.Discovery) (AccessAuthDecision, error) {
 	if opts.Share == nil {

@@ -15,8 +15,8 @@ import (
 // identifiers. Empty until P5 introduces PeerMapping types.
 var peerMappingAllowlist = []string{}
 
-// section3BannedTokens are Audit Sec 3 residue identifiers that must not return.
-var section3BannedTokens = []string{
+// bannedTokens are residue identifiers that must not return.
+var bannedTokens = []string{
 	"PeerCompat",
 	"PeerProfile",
 	"compatibility_scope",
@@ -31,7 +31,7 @@ var section3BannedTokens = []string{
 
 var peerMappingIdent = regexp.MustCompile(`PeerMapping\w*`)
 
-func TestResolvedFindings_Section3BanList(t *testing.T) {
+func TestResolvedFindings_BanList(t *testing.T) {
 	root := modroot.ModuleRoot(t)
 	var violations []string
 
@@ -65,7 +65,7 @@ func TestResolvedFindings_Section3BanList(t *testing.T) {
 		}
 		content := string(data)
 
-		for _, token := range section3BannedTokens {
+		for _, token := range bannedTokens {
 			if strings.Contains(content, token) {
 				violations = append(violations, rel+": banned residue "+token)
 			}
@@ -84,7 +84,7 @@ func TestResolvedFindings_Section3BanList(t *testing.T) {
 		t.Fatalf("walk failed: %v", err)
 	}
 	if len(violations) > 0 {
-		t.Fatalf("Section 3 ban-list regressions:\n%s", strings.Join(violations, "\n"))
+		t.Fatalf("Ban-list regressions:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
