@@ -136,22 +136,46 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 	}
 
 	if resp.StatusCode >= 400 {
-		var oauthErr token.OAuthError
-		if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
-			return nil, c.classifyOAuthError(oauthErr)
-		}
-		if resp.StatusCode == http.StatusUnauthorized && req.Header.Get("Signature") != "" {
+		// Auth failures (401/403) must fail closed and not be retried.
+		// Keep them distinct so callers can distinguish missing credentials
+		// from a rejected signature or an explicit denial.
+		switch resp.StatusCode {
+		case http.StatusForbidden:
+			return nil, reason.NewClassifiedError(
+				reason.ReasonTokenForbidden,
+				"token exchange failed with status 403",
+				nil,
+			)
+		case http.StatusUnauthorized:
+			if req.Header.Get("Signature") == "" {
+				return nil, reason.NewClassifiedError(
+					reason.ReasonTokenUnauthorized,
+					"token exchange failed with status 401",
+					nil,
+				)
+			}
+			// Signed request was rejected; prefer the OAuth error detail if
+			// the peer supplied one, otherwise fall back to signature required.
+			var oauthErr token.OAuthError
+			if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
+				return nil, c.classifyOAuthError(oauthErr)
+			}
 			return nil, reason.NewClassifiedError(
 				reason.ReasonSignatureRequired,
 				fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
 				nil,
 			)
+		default:
+			var oauthErr token.OAuthError
+			if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
+				return nil, c.classifyOAuthError(oauthErr)
+			}
+			return nil, reason.NewClassifiedError(
+				reason.ReasonTokenExchangeFailed,
+				fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
+				nil,
+			)
 		}
-		return nil, reason.NewClassifiedError(
-			reason.ReasonTokenExchangeFailed,
-			fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
-			nil,
-		)
 	}
 
 	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))

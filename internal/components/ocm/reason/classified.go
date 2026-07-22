@@ -27,6 +27,8 @@ const (
 	ReasonTokenExchangeFailed = "token_exchange_failed"
 	ReasonTokenInvalidFormat  = "token_invalid_format"
 	ReasonTokenExpired        = "token_expired"
+	ReasonTokenUnauthorized   = "token_unauthorized"
+	ReasonTokenForbidden      = "token_forbidden"
 
 	// Discovery failures
 	ReasonDiscoveryFailed       = "discovery_failed"
