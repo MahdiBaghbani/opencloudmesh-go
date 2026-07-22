@@ -392,18 +392,29 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	protocol := access.ProtocolWebDAV
+	if share.WebappURI != "" || strings.EqualFold(share.ProtocolName, access.ProtocolWebapp) {
+		protocol = access.ProtocolWebapp
+	}
+
 	shareInfo := access.ShareInfo{
-		Status:       string(share.Status),
-		SenderHost:   share.SenderHost,
-		OwnerHost:    share.OwnerHost,
-		SharedSecret: share.SharedSecret,
-		WebDAVID:     share.WebDAVID,
+		Status:            string(share.Status),
+		SenderHost:        share.SenderHost,
+		OwnerHost:         share.OwnerHost,
+		SharedSecret:      share.SharedSecret,
+		ProtocolName:      share.ProtocolName,
+		Requirements:      share.Requirements,
+		WebDAVID:          share.WebDAVID,
+		WebappURI:         share.WebappURI,
+		WebappTargets:     share.WebappTargets,
+		WebappPermissions: share.WebappPermissions,
 	}
 
 	result, err := h.accessClient.Access(ctx, access.AccessOptions{
-		Share:   &shareInfo,
-		Method:  "GET",
-		SubPath: url.PathEscape(share.Name),
+		Share:    &shareInfo,
+		Protocol: protocol,
+		Method:   "GET",
+		SubPath:  url.PathEscape(share.Name),
 	})
 	if err != nil {
 		h.writeAccessError(w, err)
@@ -413,7 +424,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 
 	if result.Response.StatusCode < 200 || result.Response.StatusCode >= 300 {
 		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable),
-			"remote server returned "+result.Response.Status)
+			"remote server returned "+redactPeerValue(result.Response.Status, share.SharedSecret))
 		return
 	}
 
@@ -426,8 +437,8 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:                      true,
 		HTTPStatus:              result.Response.StatusCode,
-		ContentType:             result.Response.Header.Get("Content-Type"),
-		ContentPreview:          string(preview),
+		ContentType:             redactPeerValue(result.Response.Header.Get("Content-Type"), share.SharedSecret),
+		ContentPreview:          redactPeerValue(string(preview), share.SharedSecret),
 		ContentPreviewTruncated: truncated,
 	})
 }
@@ -446,6 +457,18 @@ func readBoundedPreview(r io.Reader) ([]byte, bool, error) {
 		return buf[:maxPreviewBytes], true, err
 	}
 	return buf, false, err
+}
+
+// redactPeerValue redacts peer-controlled values (preview, content-type,
+// status text) before they reach the browser.
+func redactPeerValue(value, secret string) string {
+	const redacted = "[REDACTED]"
+	if secret != "" {
+		value = strings.ReplaceAll(value, secret, redacted)
+	}
+	value = strings.ReplaceAll(value, "code=", "[REDACTED_CODE_PARAM]")
+	value = strings.ReplaceAll(value, "sharedSecret", "[REDACTED_FIELD]")
+	return value
 }
 
 // writeVerifyError writes a VerifyAccessResponse with ok=false.

@@ -90,8 +90,10 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if !ok {
 		t.Fatalf("inbox detail protocol missing: %v", multiDetail)
 	}
-	if proto["name"] != "multi" {
-		t.Fatalf("inbox detail protocol.name = %v, want multi", proto["name"])
+	// Legacy/multi outgoing rows emit an empty/unknown protocol name,
+	// not the old hardcoded "multi" string.
+	if proto["name"] != "" {
+		t.Fatalf("inbox detail protocol.name = %v, want empty/unknown", proto["name"])
 	}
 
 	webdavProviderID := "step14-webdav-inbound-positive"
