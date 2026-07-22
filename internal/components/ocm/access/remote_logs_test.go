@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -61,12 +62,14 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 				Status:       ShareStatusAccepted,
 				SenderHost:   srv.Listener.Addr().String(),
 				SharedSecret: tt.sharedSecret,
+				Requirements: []string{spec.RequirementMustExchangeToken},
 				WebDAVID:     "/webdav/ocm/file.txt",
 			}
 
 			result, err := client.Access(context.Background(), AccessOptions{
-				Share:  share,
-				Method: http.MethodGet,
+				Share:    share,
+				Protocol: "webdav",
+				Method:   http.MethodGet,
 			})
 			if err != nil {
 				t.Fatalf("access failed: %v", err)
