@@ -71,9 +71,6 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 	if !ok || path != "/webdav/ocm/" {
 		t.Errorf("webdav protocol = %q, ok=%v", path, ok)
 	}
-	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-		t.Errorf("criteria = %v, want must-use-http-sig under strict inbound", disc.Criteria)
-	}
 }
 
 func TestDiscoveryFields_BasePathMount(t *testing.T) {

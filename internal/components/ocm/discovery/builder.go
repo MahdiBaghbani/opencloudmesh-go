@@ -91,7 +91,7 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 
 	disc.Capabilities = capabilities
 
-	if p.RequiresHTTPSignatures {
+	if p.RequiresHTTPSignatures && p.AdvertiseHTTPSig {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustUseHTTPSig)
 	}
 	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
