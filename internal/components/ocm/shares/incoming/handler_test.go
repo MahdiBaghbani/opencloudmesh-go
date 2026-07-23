@@ -1047,14 +1047,25 @@ func TestCreateShare_AcceptsValidMultiWebapp(t *testing.T) {
 		t.Errorf("expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
 	}
 
-	// The share must be persisted (webapp fields are not stored, but the share
-	// itself is) and indexed by the sender host.
 	stored, err := repo.GetByProviderID(context.Background(), ownerHost, "webapp-ok")
 	if err != nil {
 		t.Fatalf("expected persisted share, got error: %v", err)
 	}
 	if stored.WebDAVID != "" || stored.SharedSecret != "" {
 		t.Errorf("webapp-only admit must not populate WebDAV fields, got WebDAVID=%q SharedSecret=%q", stored.WebDAVID, stored.SharedSecret)
+	}
+	if stored.ProtocolName != "multi" {
+		t.Errorf("ProtocolName = %q, want %q", stored.ProtocolName, "multi")
+	}
+	wantURI := "https://" + ownerHost + "/apps/files/abc"
+	if stored.WebappURI != wantURI {
+		t.Errorf("WebappURI = %q, want %q", stored.WebappURI, wantURI)
+	}
+	if len(stored.WebappTargets) != 1 || stored.WebappTargets[0] != "blank" {
+		t.Errorf("WebappTargets = %v, want [blank]", stored.WebappTargets)
+	}
+	if len(stored.WebappPermissions) != 2 || stored.WebappPermissions[0] != "view" || stored.WebappPermissions[1] != "read" {
+		t.Errorf("WebappPermissions = %v, want [view read]", stored.WebappPermissions)
 	}
 }
 

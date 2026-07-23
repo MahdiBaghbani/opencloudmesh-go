@@ -232,9 +232,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	webdav := req.Protocol.WebDAV
-	// Persist WebDAV fields when the webdav arm is present. A webapp-only admit
-	// (multi + webapp, no webdav) has no WebDAV arm here; webapp fields are not
-	// stored on the incoming share in this flow.
+	// Persist fields from each protocol arm when present.
 	var webdavURI, webdavSharedSecret string
 	var webdavPermissions, webdavRequirements []string
 	if webdav != nil {
@@ -264,6 +262,13 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		SharedSecret:         webdavSharedSecret,
 		Permissions:          webdavPermissions,
 		Requirements:         webdavRequirements,
+	}
+	share.ProtocolName = req.Protocol.Name
+	webapp := req.Protocol.Webapp
+	if webapp != nil {
+		share.WebappURI = webapp.URI
+		share.WebappTargets = append([]string(nil), webapp.Targets...)
+		share.WebappPermissions = append([]string(nil), webapp.Permissions...)
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {
