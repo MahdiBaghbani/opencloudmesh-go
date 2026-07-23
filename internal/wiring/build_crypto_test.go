@@ -2,7 +2,10 @@ package wiring_test
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,6 +14,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	apisvc "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/api"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
@@ -77,8 +82,26 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 }
 
 func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
-	cfg := config.DevConfig()
-	cfg.Signature.Label = "wiredlabel"
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "config.toml")
+	keyPath := filepath.Join(dir, "signing.pem")
+	tomlContent := fmt.Sprintf(`
+mode = "dev"
+public_origin = "http://localhost:9200"
+listen_addr = "localhost:9200"
+
+[signature]
+label = "wiredlabel"
+key_path = %q
+`, keyPath)
+	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(config.LoaderOptions{ConfigPath: tomlPath})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
 
 	opts := harnessBuildOpts()
 	opts.SkipCrypto = false
@@ -105,6 +128,24 @@ func TestBuild_SignatureConfigWiresSignerOptions(t *testing.T) {
 	sigInput := req.Header.Get("Signature-Input")
 	if !strings.HasPrefix(sigInput, "wiredlabel=") {
 		t.Fatalf("Signature-Input = %q, want wiredlabel= prefix from config", sigInput)
+	}
+	if !strings.Contains(sigInput, `;tag="ocm"`) {
+		t.Fatalf("Signature-Input = %q, want OCM tag parameter", sigInput)
+	}
+
+	verifier := crypto.NewRFC9421Verifier()
+	verifyResult := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		key := result.Deps.KeyManager.GetSigningKey()
+		return sigalg.ResolvedPublicKey{
+			KeyID:     keyID,
+			Algorithm: key.Algorithm,
+			PublicKey: key.PublicKey,
+			JWKKty:    "OKP",
+			JWKCrv:    "Ed25519",
+		}, nil
+	})
+	if !verifyResult.Verified {
+		t.Fatalf("tag-based verification failed: %v", verifyResult.Error)
 	}
 }
 
