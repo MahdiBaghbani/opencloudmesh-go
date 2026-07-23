@@ -239,3 +239,36 @@ func TestBuild_APIOutgoingHandlerTokenEndpointMatchesDiscoveryResolve(t *testing
 		t.Fatalf("outgoing handler localTokenEndPoint = %q, want %q", got, want)
 	}
 }
+
+func TestBuild_DefaultSignatureInputIncludesOCMTag(t *testing.T) {
+	cfg := config.DevConfig()
+	opts := harnessBuildOpts()
+	opts.SkipCrypto = false
+
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
+	if err != nil {
+		t.Fatalf("bootstrap failed: %v", err)
+	}
+	if result.Deps.Signer == nil {
+		t.Fatal("Signer must be non-nil when crypto is enabled")
+	}
+
+	body := []byte(`{"test":"data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "example.com"
+
+	if err := result.Deps.Signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
+
+	sigInput := req.Header.Get("Signature-Input")
+	if !strings.HasPrefix(sigInput, "ocm=") {
+		t.Fatalf("Signature-Input = %q, want ocm= prefix", sigInput)
+	}
+	if !strings.HasSuffix(sigInput, `;tag="ocm"`) {
+		t.Fatalf("Signature-Input = %q, want ;tag=\"ocm\" suffix", sigInput)
+	}
+}

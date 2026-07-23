@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -2056,5 +2057,36 @@ func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
 	}
 	if !strings.Contains(params.Raw, `;tag="ocm"`) {
 		t.Fatalf("@signature-params raw entry must preserve tag: %q", params.Raw)
+	}
+}
+
+func TestHTTPSig_GoldenDefaultSignatureInput(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate failed: %v", err)
+	}
+
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/json")
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest failed: %v", err)
+	}
+
+	sigInput := req.Header.Get("Signature-Input")
+	goldenRe := regexp.MustCompile(
+		`^ocm=\("@method" "@target-uri" "content-digest" "content-length" "date"\);created=1730815200;keyid="[^"]+";alg="ed25519";tag="ocm"$`,
+	)
+	if !goldenRe.MatchString(sigInput) {
+		t.Fatalf("Signature-Input = %q, does not match golden default pattern", sigInput)
 	}
 }
