@@ -225,6 +225,7 @@ const (
 	ReasonAlgorithmRejected = "algorithm_rejected"
 	ReasonCryptoFail        = "crypto_fail"
 	ReasonContentDigest     = "content_digest"
+	ReasonUnsigned          = "unsigned"
 )
 
 // VerificationResult contains the result of signature verification.
@@ -242,37 +243,60 @@ func (v *RFC9421Verifier) VerifyRequest(
 	keyFetcher func(keyID string) (sigalg.ResolvedPublicKey, error),
 ) *VerificationResult {
 	sigInputHeader := req.Header.Get("Signature-Input")
-	if sigInputHeader == "" {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature-Input header")}
-	}
-
 	sigHeader := req.Header.Get("Signature")
+
+	if sigInputHeader == "" && sigHeader == "" {
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing signature headers")}
+	}
+
+	if sigInputHeader == "" {
+		if sigparams.HasOCMSignatureAttempt(sigHeader) {
+			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature-Input header for OCM signature")}
+		}
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature-Input header")}
+	}
+
 	if sigHeader == "" {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature header")}
+		if sigparams.HasOCMSignatureAttempt(sigInputHeader) {
+			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature header for OCM signature")}
+		}
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature header")}
 	}
 
-	if sigparams.CountDictionaryMembers(sigInputHeader, v.opts.Label) > 1 {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple %q signatures", v.opts.Label)}
+	// Tag-first lookup: identify the OCM signature by its tag parameter
+	// rather than by the dictionary label. Zero matching tags means the
+	// request is unsigned for OCM; more than one is malformed.
+	tagCount := sigparams.CountTags(sigInputHeader, sigparams.SignatureTagOCM)
+	if tagCount == 0 {
+		if sigparams.HasOCMTagAttempt(sigInputHeader) || sigparams.HasOCMTagAttempt(sigHeader) {
+			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("malformed OCM signature tag")}
+		}
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("no tag=%q signature", sigparams.SignatureTagOCM)}
 	}
-	if sigparams.CountDictionaryMembers(sigHeader, v.opts.Label) > 1 {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple %q signatures", v.opts.Label)}
+	if tagCount > 1 {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple tag=%q signatures", sigparams.SignatureTagOCM)}
 	}
 
-	params, err := sigparams.ParseSignatureInput(sigInputHeader, v.opts.Label)
+	label, err := sigparams.FindTaggedLabel(sigInputHeader, sigparams.SignatureTagOCM)
+	if err != nil {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("failed to locate tag=%q signature: %w", sigparams.SignatureTagOCM, err)}
+	}
+
+	if err := sigparams.ValidateExactlyOneLabel(sigInputHeader, label); err != nil {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
+	}
+	if err := sigparams.ValidateExactlyOneLabel(sigHeader, label); err != nil {
+		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
+	}
+
+	params, err := sigparams.ParseSignatureInput(sigInputHeader, label)
 	if err != nil {
 		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("failed to parse Signature-Input: %w", err)}
 	}
 
-	sig, err := sigparams.ParseSignature(sigHeader, v.opts.Label)
+	sig, err := sigparams.ParseSignature(sigHeader, label)
 	if err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMalformed, Error: err}
-	}
-
-	if err := sigparams.ValidateExactlyOneLabel(sigInputHeader, v.opts.Label); err != nil {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
-	}
-	if err := sigparams.ValidateExactlyOneLabel(sigHeader, v.opts.Label); err != nil {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
 	}
 
 	if params.Created == 0 {
@@ -387,6 +411,13 @@ func verifyRequiredBodyHeaders(req *http.Request, body []byte, requiredComponent
 // HasSignatureHeaders checks if the request has signature headers.
 func (v *RFC9421Verifier) HasSignatureHeaders(req *http.Request) bool {
 	return req.Header.Get("Signature-Input") != "" || req.Header.Get("Signature") != ""
+}
+
+// HasOCMSignatureAttempt checks if the request has any OCM signature attempt
+// by tag or label.
+func (v *RFC9421Verifier) HasOCMSignatureAttempt(req *http.Request) bool {
+	return sigparams.HasOCMSignatureAttempt(req.Header.Get("Signature-Input")) ||
+		sigparams.HasOCMSignatureAttempt(req.Header.Get("Signature"))
 }
 
 func buildSignatureBase(req *http.Request, components []string) (string, error) {

@@ -35,12 +35,23 @@ func defaultSigTestConfig() *config.SignatureConfig {
 	return &cfg
 }
 
+func newStrictSignatureMiddleware(
+	cfg *config.SignatureConfig,
+	pd sig.PeerDiscovery,
+	publicOrigin string,
+	logger *slog.Logger,
+) *sig.SignatureMiddleware {
+	mw := newTestSignatureMiddleware(cfg, pd, publicOrigin, logger)
+	mw.SetLocalHTTPSigPolicy(true, true)
+	return mw
+}
+
 func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	pd := &mockPeerDiscovery{}
 
-	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw := newStrictSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
 	peerResolver := func(r *http.Request, body []byte) (string, error) {
 		return "sender.example.com", nil
@@ -277,8 +288,8 @@ func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T
 }
 
 // TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial checks
-// that the strict middleware returns 401 for incomplete or malformed signature
-// material rather than passing the request through.
+// that the strict middleware returns 401 for malformed signature material rather
+// than passing the request through.
 func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *testing.T) {
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -286,7 +297,7 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 		publicKeys: map[string]sigalg.ResolvedPublicKey{},
 	}
 
-	mw := newTestSignatureMiddleware(
+	mw := newStrictSignatureMiddleware(
 		cfg,
 		pd,
 		"https://receiver.example.com",
@@ -296,47 +307,35 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 	// A syntactically valid but wrong 64-byte signature in RFC 9421 format.
 	zeroSig := base64.StdEncoding.EncodeToString(make([]byte, 64))
 
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com", nil
+	}
+
 	tests := []struct {
 		name           string
 		signatureInput string
 		signature      string
-		wantStatus     int
 	}{
 		{
-			name:           "signature-input only, no signature header",
-			signatureInput: `ocm=("@method");created=1234567890;keyid="example.com#key1";alg="ed25519"`,
-			signature:      "",
-			wantStatus:     http.StatusUnauthorized,
-		},
-		{
-			name:           "signature header only, no signature-input",
-			signatureInput: "",
-			signature:      fmt.Sprintf("ocm=:%s:", zeroSig),
-			wantStatus:     http.StatusUnauthorized,
-		},
-		{
 			name:           "empty keyid in signature params",
-			signatureInput: `ocm=("@method");created=1234567890;keyid="";alg="ed25519"`,
+			signatureInput: `ocm=("@method");created=1234567890;keyid="";alg="ed25519";tag="ocm"`,
 			signature:      fmt.Sprintf("ocm=:%s:", zeroSig),
-			wantStatus:     http.StatusUnauthorized,
 		},
 		{
 			name:           "invalid base64 in signature value",
-			signatureInput: `ocm=("@method");created=1234567890;keyid="example.com#key1";alg="ed25519"`,
+			signatureInput: `ocm=("@method");created=1234567890;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 			signature:      "ocm=:not!valid!base64!!!:",
-			wantStatus:     http.StatusUnauthorized,
 		},
 		{
 			name:           "malformed keyid missing closing quote",
-			signatureInput: `ocm=("@method");created=1234567890;keyid="example.com#key1`,
+			signatureInput: `ocm=("@method");created=1234567890;keyid="example.com#key1;alg="ed25519";tag="ocm"`,
 			signature:      fmt.Sprintf("ocm=:%s:", zeroSig),
-			wantStatus:     http.StatusUnauthorized,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
@@ -351,9 +350,102 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
-			if w.Code != tt.wantStatus {
-				t.Errorf("expected status %d, got %d (body: %s)",
-					tt.wantStatus, w.Code, w.Body.String())
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("expected status 401, got %d (body: %s)",
+					w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+// TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned
+// proves that a malformed or partial OCM signature attempt is rejected even
+// on the optional path, while a genuine unsigned request is still allowed.
+func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *testing.T) {
+	cfg := defaultSigTestConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{}
+
+	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw.SetLocalHTTPSigPolicy(true, true)
+
+	zeroSig := base64.StdEncoding.EncodeToString(make([]byte, 64))
+
+	tests := []struct {
+		name           string
+		signatureInput string
+		signature      string
+		wantCode       int
+		wantBody       string
+	}{
+		{
+			name:           "genuine unsigned request",
+			signatureInput: "",
+			signature:      "",
+			wantCode:       http.StatusOK,
+			wantBody:       "",
+		},
+		{
+			name:           "partial OCM signature input missing signature",
+			signatureInput: `ocm=("@method");created=1234567890;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
+			signature:      "",
+			wantCode:       http.StatusUnauthorized,
+			wantBody:       "signature verification failed",
+		},
+		{
+			name:           "partial OCM signature missing signature input",
+			signatureInput: "",
+			signature:      fmt.Sprintf("ocm=:%s:", zeroSig),
+			wantCode:       http.StatusUnauthorized,
+			wantBody:       "signature verification failed",
+		},
+		{
+			name:           "partial OCM tag missing closing quote",
+			signatureInput: `ocm=("@method");created=1234567890;keyid="example.com#key1";alg="ed25519";tag="ocm`,
+			signature:      fmt.Sprintf("ocm=:%s:", zeroSig),
+			wantCode:       http.StatusUnauthorized,
+			wantBody:       "signature verification failed",
+		},
+		{
+			name:           "unquoted OCM tag",
+			signatureInput: `ocm=("@method");created=1234567890;keyid="example.com#key1";alg="ed25519";tag=ocm`,
+			signature:      fmt.Sprintf("ocm=:%s:", zeroSig),
+			wantCode:       http.StatusUnauthorized,
+			wantBody:       "signature verification failed",
+		},
+		{
+			name:           "foreign signature treated as unsigned",
+			signatureInput: `proxy=("@method" "@target-uri");created=1;keyid="proxy.example.com#key1";tag="proxy"`,
+			signature:      "proxy=:AAAA:",
+			wantCode:       http.StatusOK,
+			wantBody:       "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.wantCode != http.StatusOK {
+					t.Fatal("handler should not run for rejected request")
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+			if tt.signatureInput != "" {
+				req.Header.Set("Signature-Input", tt.signatureInput)
+			}
+			if tt.signature != "" {
+				req.Header.Set("Signature", tt.signature)
+			}
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.wantCode {
+				t.Errorf("want status %d, got %d (body: %s)", tt.wantCode, w.Code, w.Body.String())
+			}
+			if tt.wantBody != "" && strings.TrimSpace(w.Body.String()) != tt.wantBody {
+				t.Errorf("want body %q, got %q", tt.wantBody, w.Body.String())
 			}
 		})
 	}
@@ -382,6 +474,13 @@ func TestSignatureMiddleware_UsesSignatureConfigLabel(t *testing.T) {
 	mw := newTestSignatureMiddleware(sigCfg, pd, "https://receiver.example.com", logger)
 
 	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pi := sig.GetPeerIdentity(r.Context())
+		if pi == nil || !pi.Authenticated {
+			t.Error("expected authenticated peer identity")
+		}
+		if pi.AuthorityForCompare != "sender.example.com" {
+			t.Errorf("AuthorityForCompare = %q, want sender.example.com", pi.AuthorityForCompare)
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -404,8 +503,8 @@ func TestSignatureMiddleware_UsesSignatureConfigLabel(t *testing.T) {
 	}
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, defaultReq)
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected default ocm label to fail against peerlabel verifier, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected default ocm label with tag to verify label-free, got %d", w.Code)
 	}
 }
 
@@ -605,7 +704,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 	created := now.Unix()
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;tag="ocm"`,
 		created, keyID,
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
@@ -808,7 +907,7 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 	created := time.Now().Unix()
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
 		created, pathfulKid,
 	)
 	req.Header.Set("Signature-Input", sigInput)
@@ -864,7 +963,7 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 	created := time.Now().Unix()
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
 		created, badKid,
 	)
 	req.Header.Set("Signature-Input", sigInput)
@@ -958,7 +1057,7 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;tag="ocm"`,
 		now.Unix(), keyID,
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
@@ -1069,7 +1168,7 @@ func TestSignatureMiddleware_IfPresent_RejectsInvalidSignature(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
-	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri");created=1;keyid="https://nc.example.com#main-key"`)
+	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri");created=1;keyid="https://nc.example.com#main-key";tag="ocm"`)
 	req.Header.Set("Signature", "ocm=:invalid:")
 
 	w := httptest.NewRecorder()
@@ -1077,5 +1176,203 @@ func TestSignatureMiddleware_IfPresent_RejectsInvalidSignature(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for invalid signature, got %d", w.Code)
+	}
+}
+
+func TestSignatureMiddleware_RequireSignatureAndPeer_AdvertiseFalse_AllowsUnsigned(t *testing.T) {
+	cfg := defaultSigTestConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{}
+	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw.SetLocalHTTPSigPolicy(true, false)
+
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com", nil
+	}
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if sig.GetPeerIdentity(r.Context()) != nil {
+			t.Error("expected no authenticated peer identity for unsigned optional request")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	body := []byte(`{"test":"data"}`)
+	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 when signatures are required but not advertised, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSignatureMiddleware_RequireSignatureAndPeer_Advertised_UnsignedRejects(t *testing.T) {
+	cfg := defaultSigTestConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{}
+	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+	mw.SetLocalHTTPSigPolicy(true, true)
+
+	peerResolver := func(r *http.Request, body []byte) (string, error) {
+		return "sender.example.com", nil
+	}
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not run when advertised unsigned request is rejected")
+	}))
+
+	body := []byte(`{"test":"data"}`)
+	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for advertised unsigned request, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "signature required" {
+		t.Fatalf("body = %q, want signature required", w.Body.String())
+	}
+}
+
+func TestSignatureMiddleware_LabelWithoutTag_IsUnsigned(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://sender.example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+	cfg := defaultSigTestConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{
+		publicKeys: map[string]sigalg.ResolvedPublicKey{
+			km.GetKeyID(): resolvedKeyFromManager(km),
+		},
+	}
+
+	tests := []struct {
+		name      string
+		requires  bool
+		advertise bool
+		wantCode  int
+	}{
+		{
+			name:      "advertised requires signature",
+			requires:  true,
+			advertise: true,
+			wantCode:  http.StatusUnauthorized,
+		},
+		{
+			name:      "not advertised optional",
+			requires:  true,
+			advertise: false,
+			wantCode:  http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+			mw.SetLocalHTTPSigPolicy(tt.requires, tt.advertise)
+
+			peerResolver := func(r *http.Request, body []byte) (string, error) {
+				return "sender.example.com", nil
+			}
+			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			body := []byte(`{"test":"data"}`)
+			req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+			req.Host = "receiver.example.com"
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
+			digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+			req.Header.Set("Content-Digest", digest)
+			req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+
+			created := time.Now().Unix()
+			components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+			sigInput := fmt.Sprintf(
+				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519"`,
+				created, km.GetKeyID(),
+			)
+			req.Header.Set("Signature-Input", sigInput)
+			paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+			base, err := crypto.BuildSignatureBase(req, components)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fullBase := base + fmt.Sprintf("\"@signature-params\": %s", paramsRaw)
+			sigBytes, err := km.Sign([]byte(fullBase))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sigBytes)))
+
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			if w.Code != tt.wantCode {
+				t.Fatalf("expected %d, got %d: %s", tt.wantCode, w.Code, w.Body.String())
+			}
+			if tt.wantCode == http.StatusUnauthorized {
+				got := strings.TrimSpace(w.Body.String())
+				if got != "signature required" {
+					t.Fatalf("body = %q, want signature required", got)
+				}
+				if strings.Contains(got, "signature verification failed") {
+					t.Fatalf("body = %q, must not be signature verification failed", got)
+				}
+			}
+		})
+	}
+}
+
+func TestSignatureMiddleware_ForeignSignature_TreatedAsUnsigned(t *testing.T) {
+	cfg := defaultSigTestConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	pd := &mockPeerDiscovery{}
+
+	tests := []struct {
+		name      string
+		sigInput  string
+		signature string
+		mount     func(*sig.SignatureMiddleware) func(http.Handler) http.Handler
+	}{
+		{
+			name:      "foreign label with foreign tag via IfPresent",
+			sigInput:  `proxy=("@method" "@target-uri");created=1;keyid="proxy.example.com#key1";tag="proxy"`,
+			signature: "proxy=:AAAA:",
+			mount: func(mw *sig.SignatureMiddleware) func(http.Handler) http.Handler {
+				return mw.VerifyOCMRequestIfPresent()
+			},
+		},
+		{
+			name:      "foreign label without tag via RequireSignatureAndPeer optional",
+			sigInput:  `proxy=("@method" "@target-uri");created=1;keyid="proxy.example.com#key1"`,
+			signature: "proxy=:AAAA:",
+			mount: func(mw *sig.SignatureMiddleware) func(http.Handler) http.Handler {
+				return mw.VerifyOCMRequestRequireSignatureAndPeer(func(r *http.Request, body []byte) (string, error) {
+					return "sender.example.com", nil
+				})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
+			mw.SetLocalHTTPSigPolicy(true, false)
+			handler := tt.mount(mw)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+			req.Header.Set("Signature-Input", tt.sigInput)
+			req.Header.Set("Signature", tt.signature)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200 for foreign signature treated as unsigned, got %d: %s", w.Code, w.Body.String())
+			}
+		})
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigparams"
 )
 
 func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
@@ -306,7 +307,7 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 	req.Header.Set("Content-Digest", "sha-256=:"+emptyDigest+":")
 	req.Header.Set("Content-Length", "0")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="hmac-sha256"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="hmac-sha256";tag="ocm"`,
 		now,
 	))
 	req.Header.Set("Signature", "ocm=:AAAA:")
@@ -512,7 +513,7 @@ func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		`ocm=("@method" "@target-uri" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 		now,
 	))
 	req.Header.Set("Signature", "ocm=:AAAA:")
@@ -733,7 +734,7 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 
 	now := time.Now().Unix()
 	validParams := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
 		now,
 		km.GetKeyID(),
 	)
@@ -759,14 +760,14 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 		},
 		{
 			name:           "missing created parameter",
-			signatureInput: `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519"`,
+			signatureInput: `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 			signature:      zeroSig,
 			fetcher:        keyFetcher,
 			wantErrSubstr:  "missing created",
 		},
 		{
 			name:           "missing minimum component",
-			signatureInput: fmt.Sprintf(`ocm=("@method");created=%d;keyid=%q;alg="ed25519"`, now, km.GetKeyID()),
+			signatureInput: fmt.Sprintf(`ocm=("@method");created=%d;keyid=%q;alg="ed25519";tag="ocm"`, now, km.GetKeyID()),
 			signature:      zeroSig,
 			fetcher:        keyFetcher,
 			wantErrSubstr:  "missing required signature component",
@@ -961,12 +962,11 @@ func TestAppendixB_VectorVerify_Negative(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "wrong signature label",
+			name: "wrong signature tag",
 			mutate: func(r *http.Request) {
-				r.Header.Set("Signature-Input", strings.Replace(r.Header.Get("Signature-Input"), "ocm=", "other=", 1))
-				r.Header.Set("Signature", strings.Replace(r.Header.Get("Signature"), "ocm=", "other=", 1))
+				r.Header.Set("Signature-Input", strings.Replace(r.Header.Get("Signature-Input"), `tag="ocm"`, `tag="other"`, 1))
 			},
-			wantErr: "label",
+			wantErr: "tag",
 		},
 		{
 			name: "changed method after signing",
@@ -1027,7 +1027,7 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 	// Signature-Input omits alg; algorithm comes from the JWK. SignRequest
 	// always emits alg, so build params and signature base explicitly.
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;tag="ocm"`,
 		created, km.GetKeyID(),
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
@@ -1059,7 +1059,7 @@ func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
 	fetches := 0
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
-	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519"`)
+	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519";tag="ocm"`)
 	req.Header.Set("Signature", "ocm=:AAAA:")
 
 	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
@@ -1084,7 +1084,7 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
-		`ocm=("@method" "@target-uri");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		`ocm=("@method" "@target-uri");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 		now,
 	))
 	req.Header.Set("Signature", "ocm=:AAAA:")
@@ -1113,7 +1113,7 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 	req.Header.Set("Content-Digest", "sha-256=:AAAA:")
 	req.Header.Set("Content-Length", "2")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 		now,
 	))
 	req.Header.Set("Signature", "ocm=not-a-byte-sequence")
@@ -1153,7 +1153,7 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	created := opts.Now().Unix()
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;tag="ocm"`,
 		created, keyID,
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
@@ -1198,7 +1198,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 		req.Header.Set("Signature-Input", fmt.Sprintf(
-			`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+			`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 			now,
 		))
 		req.Header.Set("Signature", "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:")
@@ -1230,7 +1230,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 	})
 }
 
-func TestVerifyRequest_RejectsDuplicateDictionaryLabel(t *testing.T) {
+func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	body := []byte(`{"test":"data"}`)
@@ -1251,7 +1251,7 @@ func TestVerifyRequest_RejectsDuplicateDictionaryLabel(t *testing.T) {
 		fetched := false
 		result := verifier.VerifyRequest(newReq(
 			fmt.Sprintf(
-				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519"`,
+				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519";tag="ocm"`,
 				now, now,
 			),
 			"ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:",
@@ -1260,16 +1260,16 @@ func TestVerifyRequest_RejectsDuplicateDictionaryLabel(t *testing.T) {
 			return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
 		})
 		if result.Verified {
-			t.Fatal("expected duplicate label rejection")
+			t.Fatal("expected duplicate tag rejection")
 		}
 		if result.Reason != crypto.ReasonMalformed {
 			t.Fatalf("Reason=%q want malformed (err=%v)", result.Reason, result.Error)
 		}
-		if result.Error == nil || !strings.Contains(result.Error.Error(), `multiple "ocm" signatures`) {
-			t.Fatalf("error = %v, want multiple ocm signatures", result.Error)
+		if result.Error == nil || !strings.Contains(result.Error.Error(), `multiple tag="ocm" signatures`) {
+			t.Fatalf("error = %v, want multiple tag=\"ocm\" signatures", result.Error)
 		}
 		if fetched {
-			t.Fatal("key fetch must not run after duplicate-label rejection")
+			t.Fatal("key fetch must not run after duplicate-tag rejection")
 		}
 	})
 
@@ -1277,7 +1277,7 @@ func TestVerifyRequest_RejectsDuplicateDictionaryLabel(t *testing.T) {
 		fetched := false
 		result := verifier.VerifyRequest(newReq(
 			fmt.Sprintf(
-				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519"`,
+				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm"`,
 				now,
 			),
 			"ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:, ocm=:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=:",
@@ -1441,7 +1441,7 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 			req.Header.Set("Date", opts.Now().UTC().Format(http.TimeFormat))
 
 			sigInput := fmt.Sprintf(
-				`ocm=("%s");created=%d;keyid=%q;alg="ed25519"`,
+				`ocm=("%s");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
 				strings.Join(tc.components, `" "`),
 				opts.Now().Unix(),
 				km.GetKeyID(),
@@ -1525,7 +1525,7 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519";tag="ocm"`,
 		now, now,
 	))
 	req.Header.Set("Signature", "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:")
@@ -1574,7 +1574,7 @@ func TestVerifyRequest_RejectsMissingCreated(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
-	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "date");keyid="a#1";alg="ed25519"`)
+	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "date");keyid="a#1";alg="ed25519";tag="ocm"`)
 	req.Header.Set("Signature", "ocm=:AAAA:")
 
 	result := verifier.VerifyRequest(req, nil, func(string) (sigalg.ResolvedPublicKey, error) {
@@ -1750,7 +1750,7 @@ func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) 
 	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	created := opts.Now().Unix()
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
 		created, km.GetKeyID(),
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
@@ -1789,7 +1789,7 @@ func TestVerifyRequest_RejectsNonEmptyBodyMissingContentLengthHeader(t *testing.
 	// Deliberately do NOT set Content-Length.
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 		now,
 	))
 	req.Header.Set("Signature", "ocm=:AAAA:")
@@ -1895,5 +1895,166 @@ func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
 	})
 	if !result.Verified {
 		t.Fatalf("verification of signed request with custom label failed: %v", result.Error)
+	}
+}
+
+func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate failed: %v", err)
+	}
+
+	signOpts := crypto.DefaultRFC9421Options()
+	signOpts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	signOpts.Label = "not-ocm"
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, signOpts)
+	verifyOpts := crypto.DefaultRFC9421Options()
+	verifyOpts.Now = signOpts.Now
+	verifier := crypto.NewRFC9421VerifierWithOptions(verifyOpts)
+
+	body := []byte(`{"test":"data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	req.Host = "example.com"
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest failed: %v", err)
+	}
+
+	sigInput := req.Header.Get("Signature-Input")
+	if !strings.HasPrefix(sigInput, "not-ocm=") {
+		t.Fatalf("Signature-Input = %q, want not-ocm= prefix", sigInput)
+	}
+
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("expected verification by tag to ignore label, got verified=false reason=%s err=%v", result.Reason, result.Error)
+	}
+	if result.KeyID != km.GetKeyID() {
+		t.Errorf("KeyID = %q, want %q", result.KeyID, km.GetKeyID())
+	}
+}
+
+func TestHTTPSig_Verify_TagCount(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate failed: %v", err)
+	}
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test":"data"}`)
+	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+	newReq := func(sigInput string) *http.Request {
+		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Digest", digest)
+		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+		req.Header.Set("Signature-Input", sigInput)
+		req.Header.Set("Signature", "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:")
+		return req
+	}
+
+	tests := []struct {
+		name       string
+		sigInput   string
+		wantReason string
+	}{
+		{
+			name:       "zero tags gives unsigned",
+			sigInput:   `sig1=("@method" "@target-uri" "content-digest" "content-length" "date");created=1730815200;keyid="example.com#key1";alg="ed25519"`,
+			wantReason: crypto.ReasonUnsigned,
+		},
+		{
+			name:       "zero tags with foreign label and ocm label miss",
+			sigInput:   `sig1=("@method" "@target-uri" "content-digest" "content-length" "date");created=1730815200;keyid="foreign.example#key1";alg="ed25519", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=1730815200;keyid="example.com#key1";alg="ed25519"`,
+			wantReason: crypto.ReasonUnsigned,
+		},
+		{
+			name: "more than one tag rejects",
+			sigInput: fmt.Sprintf(
+				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519";tag="ocm"`,
+				opts.Now().Unix(), opts.Now().Unix(),
+			),
+			wantReason: crypto.ReasonMalformed,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := verifier.VerifyRequest(newReq(tc.sigInput), body, func(string) (sigalg.ResolvedPublicKey, error) {
+				return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
+			})
+			if result.Verified {
+				t.Fatal("expected verification failure")
+			}
+			if result.Reason != tc.wantReason {
+				t.Fatalf("Reason=%q, want %q (err=%v)", result.Reason, tc.wantReason, result.Error)
+			}
+		})
+	}
+}
+
+func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate failed: %v", err)
+	}
+
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts.Label = "integritylabel"
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	req.Host = "example.com"
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest failed: %v", err)
+	}
+
+	sigInput := req.Header.Get("Signature-Input")
+	if !strings.HasPrefix(sigInput, "integritylabel=") {
+		t.Fatalf("Signature-Input = %q, want integritylabel= prefix", sigInput)
+	}
+	if !strings.Contains(sigInput, `;tag="ocm"`) {
+		t.Fatalf("Signature-Input must include tag parameter: %q", sigInput)
+	}
+
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("expected verification with tag preserved, got verified=false reason=%s err=%v", result.Reason, result.Error)
+	}
+
+	label, err := sigparams.FindTaggedLabel(sigInput, sigparams.SignatureTagOCM)
+	if err != nil {
+		t.Fatalf("FindTaggedLabel: %v", err)
+	}
+	params, err := sigparams.ParseSignatureInput(sigInput, label)
+	if err != nil {
+		t.Fatalf("ParseSignatureInput: %v", err)
+	}
+	if !strings.Contains(params.Raw, `;tag="ocm"`) {
+		t.Fatalf("@signature-params raw entry must preserve tag: %q", params.Raw)
 	}
 }
