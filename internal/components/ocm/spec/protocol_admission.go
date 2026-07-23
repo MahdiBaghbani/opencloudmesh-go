@@ -80,12 +80,11 @@ func ValidateProtocolShape(p Protocol) *ValidationError {
 	return nil
 }
 
-// ValidateWebDAVProtocol checks the WebDAV protocol sub-fields required by
-// the OCM wire contract: uri, sharedSecret, and permissions are required;
-// permissions and accessTypes (when present) must be in this
-// implementation's supported lists, and any requirements entry must be one
-// this implementation recognizes. Missing accessTypes means remote access.
-func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
+// ValidateWebDAVProtocolWire checks WebDAV wire fields only: uri, sharedSecret,
+// and permissions are required; permissions and accessTypes (when present) must
+// be in this implementation's supported lists; unknown requirements return
+// UNSUPPORTED. Empty requirements are valid on the wire.
+func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 	var errs []ValidationError
 	if p == nil {
 		return errs
@@ -114,16 +113,34 @@ func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
 			}
 		}
 	}
-	if len(p.Requirements) == 0 {
-		errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: "REQUIRED"})
-	} else {
-		for _, req := range p.Requirements {
-			if !isSupportedWebDAVRequirement(req) {
-				errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: "UNSUPPORTED"})
-				break
-			}
+	for _, req := range p.Requirements {
+		if !isSupportedWebDAVRequirement(req) {
+			errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: "UNSUPPORTED"})
+			break
 		}
 	}
+	return errs
+}
+
+// ValidateWebDAVRequirementsAdmission applies the criteria-aware requirements
+// seam. When localRequires is true, empty requirements are REQUIRED; when
+// false, empty requirements produce no admission error. Non-empty requirements
+// produce no admission error either way (wire validation covers unknown values).
+func ValidateWebDAVRequirementsAdmission(localRequires bool, reqs []string) []ValidationError {
+	if localRequires && len(reqs) == 0 {
+		return []ValidationError{{Name: "protocol.webdav.requirements", Message: "REQUIRED"}}
+	}
+	return nil
+}
+
+// ValidateWebDAVProtocol is the strict wrapper: wire validation plus
+// requirements admission with localRequires=true.
+func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
+	if p == nil {
+		return nil
+	}
+	errs := ValidateWebDAVProtocolWire(p)
+	errs = append(errs, ValidateWebDAVRequirementsAdmission(true, p.Requirements)...)
 	return errs
 }
 
@@ -154,16 +171,13 @@ func isSupportedWebDAVPermission(perm string) bool {
 	return false
 }
 
-// ValidateWebappProtocol checks the webapp protocol sub-fields required by the
-// OCM wire contract at admit: uri, targets, permissions, requirements, and
-// sharedSecret are all required; permissions must be in
-// SupportedWebappPermissions (distinct from the WebDAV allow-list);
-// requirements must include must-exchange-token and must not contain unknown
-// values. must-use-mfa is hard-rejected at admit with an explicit GAP note:
-// enforce-mfa is not implemented yet, so this implementation does not claim
-// diagram parity for MFA. The GAP rejection is observable here in the returned
-// validation errors, not only as a comment.
-func ValidateWebappProtocol(p *WebappProtocol) []ValidationError {
+// ValidateWebappProtocolWire checks webapp wire fields: uri, targets,
+// permissions, and sharedSecret are required; permissions must be in
+// SupportedWebappPermissions; unknown requirements return UNSUPPORTED;
+// must-use-mfa is hard-rejected with a GAP note because MFA is not
+// implemented. must-exchange-token remains REQUIRED on the wire; the
+// criteria-aware admission seam does not relax that check.
+func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 	var errs []ValidationError
 	if p == nil {
 		return errs
@@ -208,6 +222,45 @@ func ValidateWebappProtocol(p *WebappProtocol) []ValidationError {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.sharedSecret", Message: "REQUIRED"})
 	}
 	return errs
+}
+
+// ValidateWebappRequirementsAdmission applies the criteria-aware requirements
+// seam. When localRequires is true, empty requirements are REQUIRED; when
+// false, empty requirements produce no admission error. Non-empty requirements
+// produce no admission error either way. This does not replace wire checks for
+// must-exchange-token.
+func ValidateWebappRequirementsAdmission(localRequires bool, reqs []string) []ValidationError {
+	if localRequires && len(reqs) == 0 {
+		return []ValidationError{{Name: "protocol.webapp.requirements", Message: "REQUIRED"}}
+	}
+	return nil
+}
+
+// ValidateWebappProtocol is the strict wrapper: wire validation plus
+// requirements admission with localRequires=true. Admission errors that
+// already appear identically from wire are skipped so empty requirements
+// still yield a single REQUIRED error.
+func ValidateWebappProtocol(p *WebappProtocol) []ValidationError {
+	if p == nil {
+		return nil
+	}
+	errs := ValidateWebappProtocolWire(p)
+	for _, adm := range ValidateWebappRequirementsAdmission(true, p.Requirements) {
+		if hasExactValidationError(errs, adm) {
+			continue
+		}
+		errs = append(errs, adm)
+	}
+	return errs
+}
+
+func hasExactValidationError(errs []ValidationError, want ValidationError) bool {
+	for _, e := range errs {
+		if e.Name == want.Name && e.Message == want.Message {
+			return true
+		}
+	}
+	return false
 }
 
 func isSupportedWebappPermission(perm string) bool {
