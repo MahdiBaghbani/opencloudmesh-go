@@ -1809,3 +1809,91 @@ func TestVerifyRequest_RejectsNonEmptyBodyMissingContentLengthHeader(t *testing.
 		t.Fatal("key fetch must not run after missing Content-Length rejection")
 	}
 }
+
+func TestHTTPSig_Sign_AlwaysEmitsTag(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate failed: %v", err)
+	}
+
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	req.Host = "example.com"
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest failed: %v", err)
+	}
+
+	sigInput := req.Header.Get("Signature-Input")
+	if strings.Count(sigInput, `tag="ocm"`) != 1 {
+		t.Fatalf("Signature-Input must contain exactly one tag=\"ocm\": %q", sigInput)
+	}
+	if !strings.HasSuffix(sigInput, `;tag="ocm"`) {
+		t.Fatalf("tag=\"ocm\" must be appended at the end: %q", sigInput)
+	}
+
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("verification of signed request with tag failed: %v", result.Error)
+	}
+}
+
+func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
+	km := crypto.NewKeyManager("", "https://example.com")
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate failed: %v", err)
+	}
+
+	opts := crypto.DefaultRFC9421Options()
+	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts.Label = "customlabel"
+
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+
+	body := []byte(`{"test":"data"}`)
+	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	req.Host = "example.com"
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest failed: %v", err)
+	}
+
+	sigInput := req.Header.Get("Signature-Input")
+	if !strings.HasPrefix(sigInput, "customlabel=") {
+		t.Fatalf("Signature-Input = %q, want customlabel= prefix", sigInput)
+	}
+	if strings.Count(sigInput, `tag="ocm"`) != 1 {
+		t.Fatalf("Signature-Input must contain exactly one tag=\"ocm\": %q", sigInput)
+	}
+	if !strings.HasSuffix(sigInput, `;tag="ocm"`) {
+		t.Fatalf("tag=\"ocm\" must be appended at the end: %q", sigInput)
+	}
+
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+	if !result.Verified {
+		t.Fatalf("verification of signed request with custom label failed: %v", result.Error)
+	}
+}

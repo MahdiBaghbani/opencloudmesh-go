@@ -9,6 +9,9 @@ import (
 	"strings"
 )
 
+// SignatureTagOCM is the RFC 9421 tag parameter value for OCM signatures.
+const SignatureTagOCM = SignatureLabelOCM
+
 // Params holds parsed @signature-params for one label.
 type Params struct {
 	Label      string
@@ -105,6 +108,7 @@ func ParseSignature(header, label string) ([]byte, error) {
 
 // FormatSignatureInput builds a Signature-Input dictionary member value.
 // When algorithm is empty, the alg parameter is omitted.
+// The formatter always appends the OCM tag parameter.
 func FormatSignatureInput(label string, components []string, created int64, keyID, algorithm string) string {
 	quoted := make([]string, len(components))
 	for i, c := range components {
@@ -120,6 +124,7 @@ func FormatSignatureInput(label string, components []string, created int64, keyI
 	if algorithm != "" {
 		out += fmt.Sprintf(`;alg=%q`, algorithm)
 	}
+	out += fmt.Sprintf(`;tag=%q`, SignatureTagOCM)
 	return out
 }
 
