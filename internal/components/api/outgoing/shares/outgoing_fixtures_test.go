@@ -13,6 +13,8 @@ import (
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
@@ -20,6 +22,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm/configfixture"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -155,14 +158,84 @@ func makeTestSigner(t *testing.T) *crypto.RFC9421Signer {
 	return crypto.NewRFC9421Signer(km)
 }
 
+// stubResolver implements PeerFactsResolver for tests without touching the real
+// peer-mapping config surface.
+type stubResolver struct {
+	facts policy.Facts
+}
+
+func (r *stubResolver) ResolveFacts(host string, disc policy.DiscoveryView) policy.Facts {
+	return r.facts
+}
+
 func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	discClient := makeDummyDiscoveryClient()
 
 	return outgoingshares.NewHandler(
-		repo, discClient, nil, nil,
+		repo,
+		discClient,
+		nil,
+		nil,
 		testProvider,
 		currentUser,
 		testLogger,
+		&stubResolver{facts: policy.NewCodeFlow().Evaluate()},
+		"https://example.com/ocm/token",
 	)
+}
+
+func newOutgoingHandler(
+	t *testing.T,
+	repo sharesoutgoing.OutgoingShareRepo,
+	discClient *discovery.Client,
+	ctxClient *httpclient.ContextClient,
+	user *identity.User,
+	resolver outgoingshares.PeerFactsResolver,
+	localTokenEndPoint string,
+) *outgoingshares.Handler {
+	t.Helper()
+	if resolver == nil {
+		resolver = &stubResolver{facts: policy.NewCodeFlow().Evaluate()}
+	}
+	if localTokenEndPoint == "" {
+		localTokenEndPoint = "https://example.com/ocm/token"
+	}
+	handler := outgoingshares.NewHandler(
+		repo,
+		discClient,
+		ctxClient,
+		makeTestSigner(t),
+		testProvider,
+		testCurrentUser(user),
+		testLogger,
+		resolver,
+		localTokenEndPoint,
+	)
+	handler.SetAllowedPaths([]string{"/tmp"})
+	handler.SetPeerOrigin(peerorigin.NewResolver(false))
+	return handler
+}
+
+func newStrictOutgoingHandler(
+	t *testing.T,
+	repo sharesoutgoing.OutgoingShareRepo,
+	discClient *discovery.Client,
+	ctxClient *httpclient.ContextClient,
+	user *identity.User,
+) *outgoingshares.Handler {
+	t.Helper()
+	return newOutgoingHandler(t, repo, discClient, ctxClient, user, nil, "")
+}
+
+func newLegacyVoluntaryOutgoingHandler(
+	t *testing.T,
+	repo sharesoutgoing.OutgoingShareRepo,
+	discClient *discovery.Client,
+	ctxClient *httpclient.ContextClient,
+	user *identity.User,
+) *outgoingshares.Handler {
+	t.Helper()
+	resolver := &stubResolver{facts: configfixture.CodeFlowLegacyVoluntary().Evaluate()}
+	return newOutgoingHandler(t, repo, discClient, ctxClient, user, resolver, "")
 }

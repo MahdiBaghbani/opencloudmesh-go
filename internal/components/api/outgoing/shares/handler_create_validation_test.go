@@ -12,6 +12,7 @@ import (
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 )
 
@@ -121,10 +122,15 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 
 	discClient := makeDummyDiscoveryClient()
 	handler := outgoingshares.NewHandler(
-		repo, discClient, nil, nil,
+		repo,
+		discClient,
+		nil,
+		nil,
 		testProvider,
 		testCurrentUser(user),
 		testLogger,
+		&stubResolver{facts: policy.NewCodeFlow().Evaluate()},
+		"https://example.com/ocm/token",
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 

@@ -15,21 +15,27 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
+// outgoingFactsResolver resolves code-flow facts for an outgoing share target.
+type outgoingFactsResolver interface {
+	ResolveFacts(host string, disc policy.DiscoveryView) policy.Facts
+}
+
 // Inputs holds dependencies for the API service constructor.
 type Inputs struct {
-	PartyRepo           identity.PartyRepo
-	SessionRepo         identity.SessionRepo
-	UserAuth            *identity.UserAuth
-	IncomingShareRepo   sharesinbox.IncomingShareRepo
-	OutgoingShareRepo   sharesoutgoing.OutgoingShareRepo
-	IncomingInviteRepo  invitesinbox.IncomingInviteRepo
-	OutgoingInviteRepo  invitesoutgoing.OutgoingInviteRepo
-	HTTPClient          *httpclient.ContextClient
-	DiscoveryClient     *discovery.Client
-	Signer              *crypto.RFC9421Signer
-	PeerOrigin          *peerorigin.Resolver
-	CodeFlow            *policy.CodeFlow
-	LocalIdentity       localidentity.Identity
-	Ratelimit           ratelimit.Inputs
-	InterceptorProfiles map[string]map[string]any
+	PartyRepo             identity.PartyRepo
+	SessionRepo           identity.SessionRepo
+	UserAuth              *identity.UserAuth
+	IncomingShareRepo     sharesinbox.IncomingShareRepo
+	OutgoingShareRepo     sharesoutgoing.OutgoingShareRepo
+	IncomingInviteRepo    invitesinbox.IncomingInviteRepo
+	OutgoingInviteRepo    invitesoutgoing.OutgoingInviteRepo
+	HTTPClient            *httpclient.ContextClient
+	DiscoveryClient       *discovery.Client
+	Signer                *crypto.RFC9421Signer
+	PeerOrigin            *peerorigin.Resolver
+	OutgoingFactsResolver outgoingFactsResolver
+	LocalTokenEndpoint    string
+	LocalIdentity         localidentity.Identity
+	Ratelimit             ratelimit.Inputs
+	InterceptorProfiles   map[string]map[string]any
 }

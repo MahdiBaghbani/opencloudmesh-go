@@ -10,6 +10,7 @@ import (
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -52,6 +53,8 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 				testProvider,
 				testCurrentUser(user),
 				capture.Logger,
+				&stubResolver{facts: policy.NewCodeFlow().Evaluate()},
+				"https://example.com/ocm/token",
 			)
 			handler.SetAllowedPaths([]string{"/tmp"})
 			handler.SetPeerOrigin(peerorigin.NewResolver(false))

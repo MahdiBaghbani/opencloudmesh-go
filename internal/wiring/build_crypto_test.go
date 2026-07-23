@@ -3,10 +3,15 @@ package wiring_test
 import (
 	"bytes"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	apisvc "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/api"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	tswiring "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/wiring"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
@@ -118,5 +123,78 @@ func TestBuild_IETFHarnessOptsWireFullCryptoStack(t *testing.T) {
 	}
 	if result.Deps.SignatureMiddleware == nil {
 		t.Fatal("SignatureMiddleware must be non-nil for IETF harness opts")
+	}
+}
+
+func TestBuild_APIOutgoingHandlerTokenEndpointMatchesDiscoveryResolve(t *testing.T) {
+	cfg := config.DevConfig()
+	// Set the production discovery provider path under wellknown.ocmprovider
+	// and a different aggregate route path under ocm. The wiring must use the
+	// provider path, not the route path, to stay aligned with discovery.
+	cfg.HTTP.Services = map[string]map[string]any{
+		"wellknown": {
+			"ocmprovider": map[string]any{
+				"token_exchange": map[string]any{
+					"path": "wellknown-token",
+				},
+			},
+		},
+		"ocm": {
+			"token_exchange": map[string]any{
+				"path": "ocm-token",
+			},
+		},
+	}
+
+	opts := harnessBuildOpts()
+	opts.SkipCrypto = false
+
+	result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	var rawOCMProvider map[string]any
+	if wellknownSvcCfg := cfg.BuildServiceConfig("wellknown"); wellknownSvcCfg != nil {
+		if om, ok := wellknownSvcCfg["ocmprovider"].(map[string]any); ok {
+			rawOCMProvider = om
+		}
+	}
+	var providerCfg resolve.ProviderConfig
+	if rawOCMProvider != nil {
+		if err := svccfg.Decode(rawOCMProvider, &providerCfg); err != nil {
+			t.Fatalf("decode ocm provider config: %v", err)
+		}
+	}
+	resolved := resolve.Resolve(&providerCfg, rawOCMProvider, resolve.ResolveInputs{
+		LocalIdentity:     result.Deps.LocalIdentity,
+		RouteOpts:         service.RouteOptsFromConfig(cfg),
+		TokenExchangePath: cfg.TokenExchange.Path,
+		KeyManager:        result.Deps.KeyManager,
+		CodeFlow:          result.Deps.CodeFlow,
+	})
+	want := resolved.Params.TokenEndPoint
+	if want == "" {
+		t.Fatal("resolved token endpoint is empty")
+	}
+	if !strings.HasSuffix(want, "/wellknown-token") {
+		t.Fatalf("resolved token endpoint %q did not use provider override", want)
+	}
+
+	services, err := wiring.BuildCoreServices(cfg, tslog.DiscardLogger(), result.Deps)
+	if err != nil {
+		t.Fatalf("BuildCoreServices failed: %v", err)
+	}
+	apiSvc, ok := services["api"].(*apisvc.Service)
+	if !ok {
+		t.Fatalf("api service is %T, not *api.Service", services["api"])
+	}
+	outgoingHandler := reflect.ValueOf(apiSvc).Elem().FieldByName("outgoingHandler")
+	if outgoingHandler.IsNil() {
+		t.Fatal("outgoing shares handler is nil")
+	}
+	got := outgoingHandler.Elem().FieldByName("localTokenEndPoint").String()
+	if got != want {
+		t.Fatalf("outgoing handler localTokenEndPoint = %q, want %q", got, want)
 	}
 }

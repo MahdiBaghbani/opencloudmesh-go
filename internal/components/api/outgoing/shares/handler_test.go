@@ -6,36 +6,24 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-// TestOutgoing_NilCodeFlow_EmptyRequirements confirms a nil CodeFlow leaves
-// webdav requirements empty on the create path (strict-off Includes).
-func TestOutgoing_NilCodeFlow_EmptyRequirements(t *testing.T) {
+// TestOutgoing_LegacyVoluntary_EmptyRequirements confirms a legacy voluntary
+// code flow leaves webdav requirements empty when the receiver does not force
+// token exchange.
+func TestOutgoing_LegacyVoluntary_EmptyRequirements(t *testing.T) {
 	srv, postCount, captured := makeCapturingReceiverTLSServer([]string{"exchange-token"}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	discClient, ctxClient := makeTLSClients()
-	handler := outgoingshares.NewHandler(
-		repo,
-		discClient,
-		ctxClient,
-		makeTestSigner(t),
-		testProvider,
-		testCurrentUser(user),
-		testLogger,
-	)
-	handler.SetAllowedPaths([]string{"/tmp"})
-	handler.SetPeerOrigin(peerorigin.NewResolver(false))
-	// Intentionally leave CodeFlow unset (nil).
+	handler := newLegacyVoluntaryOutgoingHandler(t, repo, discClient, ctxClient, user)
 
-	tmpFile := createTempShareFile(t, "outgoing-nil-codeflow-*")
+	tmpFile := createTempShareFile(t, "outgoing-legacy-voluntary-*")
 	receiverHost := srv.Listener.Addr().String()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
@@ -53,9 +41,9 @@ func TestOutgoing_NilCodeFlow_EmptyRequirements(t *testing.T) {
 		t.Fatal("expected webdav protocol in captured payload")
 	}
 	if len(captured.Protocol.WebDAV.Requirements) != 0 {
-		t.Fatalf("expected empty requirements for nil CodeFlow, got %v", captured.Protocol.WebDAV.Requirements)
+		t.Fatalf("expected empty requirements for legacy voluntary, got %v", captured.Protocol.WebDAV.Requirements)
 	}
 	if captured.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
-		t.Fatal("expected no must-exchange-token requirement when CodeFlow is nil")
+		t.Fatal("expected no must-exchange-token requirement for legacy voluntary")
 	}
 }

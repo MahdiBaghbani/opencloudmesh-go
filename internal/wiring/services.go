@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/server"
@@ -136,22 +138,44 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	if cfg.HTTP.Interceptors != nil {
 		profiles = cfg.HTTP.Interceptors
 	}
+
+	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping)
+
+	// Use the same production provider config that wellknown.New resolves for
+	// discovery, so the API service token endpoint stays in lock-step with the
+	// published discovery document.
+	var rawOCMProvider map[string]any
+	if wellknownSvcCfg := cfg.BuildServiceConfig("wellknown"); wellknownSvcCfg != nil {
+		if om, ok := wellknownSvcCfg["ocmprovider"].(map[string]any); ok {
+			rawOCMProvider = om
+		}
+	}
+	var providerCfg resolve.ProviderConfig
+	if rawOCMProvider != nil {
+		if err := svccfg.Decode(rawOCMProvider, &providerCfg); err != nil {
+			return nil, fmt.Errorf("api: decode ocm provider config: %w", err)
+		}
+	}
+	resolved := resolve.Resolve(&providerCfg, rawOCMProvider, resolveInputs(cfg, d))
+	localTokenEndpoint := resolved.Params.TokenEndPoint
+
 	return api.New(api.Inputs{
-		PartyRepo:           d.PartyRepo,
-		SessionRepo:         d.SessionRepo,
-		UserAuth:            d.UserAuth,
-		IncomingShareRepo:   d.IncomingShareRepo,
-		OutgoingShareRepo:   d.OutgoingShareRepo,
-		IncomingInviteRepo:  d.IncomingInviteRepo,
-		OutgoingInviteRepo:  d.OutgoingInviteRepo,
-		HTTPClient:          d.HTTPClient,
-		DiscoveryClient:     d.DiscoveryClient,
-		Signer:              d.Signer,
-		PeerOrigin:          d.PeerOrigin,
-		CodeFlow:            d.CodeFlow,
-		LocalIdentity:       d.LocalIdentity,
-		Ratelimit:           ratelimitInputs(d),
-		InterceptorProfiles: profiles,
+		PartyRepo:             d.PartyRepo,
+		SessionRepo:           d.SessionRepo,
+		UserAuth:              d.UserAuth,
+		IncomingShareRepo:     d.IncomingShareRepo,
+		OutgoingShareRepo:     d.OutgoingShareRepo,
+		IncomingInviteRepo:    d.IncomingInviteRepo,
+		OutgoingInviteRepo:    d.OutgoingInviteRepo,
+		HTTPClient:            d.HTTPClient,
+		DiscoveryClient:       d.DiscoveryClient,
+		Signer:                d.Signer,
+		PeerOrigin:            d.PeerOrigin,
+		OutgoingFactsResolver: peerMappingResolver,
+		LocalTokenEndpoint:    localTokenEndpoint,
+		LocalIdentity:         d.LocalIdentity,
+		Ratelimit:             ratelimitInputs(d),
+		InterceptorProfiles:   profiles,
 	}, svcCfg, log)
 }
 
