@@ -11,9 +11,16 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
 )
 
-// peerMappingAllowlist lists intentional PeerMapping* successor paths or
-// identifiers. Empty until P5 introduces PeerMapping types.
-var peerMappingAllowlist = []string{}
+// peerMappingAllowlist lists intentional PeerMapping* successor file paths.
+var peerMappingAllowlist = []string{
+	"internal/platform/config/peer_mapping.go",
+	"internal/platform/config/peer_mapping_test.go",
+	"internal/components/ocm/policy/peer_mapping.go",
+	"internal/components/ocm/policy/peer_mapping_test.go",
+	"internal/platform/config/config.go",
+	"internal/platform/config/loader.go",
+	"internal/platform/config/overlay.go",
+}
 
 // bannedTokens are residue identifiers that must not return.
 var bannedTokens = []string{
@@ -88,9 +95,43 @@ func TestResolvedFindings_BanList(t *testing.T) {
 	}
 }
 
-func TestResolvedFindings_PeerMappingAllowlistEmpty(t *testing.T) {
-	if len(peerMappingAllowlist) != 0 {
-		t.Fatalf("PeerMapping allowlist must stay empty until P5; got %v", peerMappingAllowlist)
+func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
+	want := []string{
+		"internal/platform/config/peer_mapping.go",
+		"internal/platform/config/peer_mapping_test.go",
+		"internal/components/ocm/policy/peer_mapping.go",
+		"internal/components/ocm/policy/peer_mapping_test.go",
+		"internal/platform/config/config.go",
+		"internal/platform/config/loader.go",
+		"internal/platform/config/overlay.go",
+	}
+	if len(peerMappingAllowlist) == 0 {
+		t.Fatal("PeerMapping allowlist must be non-empty")
+	}
+	if len(peerMappingAllowlist) != len(want) {
+		t.Fatalf("PeerMapping allowlist length = %d, want %d; got %v",
+			len(peerMappingAllowlist), len(want), peerMappingAllowlist)
+	}
+	got := make(map[string]struct{}, len(peerMappingAllowlist))
+	for _, path := range peerMappingAllowlist {
+		got[path] = struct{}{}
+	}
+	for _, path := range want {
+		if _, ok := got[path]; !ok {
+			t.Errorf("PeerMapping allowlist missing %q", path)
+		}
+	}
+	for path := range got {
+		found := false
+		for _, w := range want {
+			if path == w {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("PeerMapping allowlist has unexpected %q", path)
+		}
 	}
 }
 

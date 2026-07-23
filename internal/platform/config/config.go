@@ -62,8 +62,9 @@ type Config struct {
 
 // OCMConfig holds OCM-specific settings.
 type OCMConfig struct {
-	Discovery DiscoveryConfig `toml:"discovery"`
-	CodeFlow  CodeFlowConfig  `toml:"code_flow"`
+	Discovery   DiscoveryConfig   `toml:"discovery"`
+	CodeFlow    CodeFlowConfig    `toml:"code_flow"`
+	PeerMapping PeerMappingConfig `toml:"peer_compat"`
 }
 
 // DiscoveryConfig holds inbound peer discovery validation settings.
