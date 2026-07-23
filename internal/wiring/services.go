@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -101,6 +102,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	if tokenPath == "" {
 		tokenPath = "token"
 	}
+	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping)
 	return ocm.New(ocm.Inputs{
 		IncomingShareRepo:   d.IncomingShareRepo,
 		OutgoingShareRepo:   d.OutgoingShareRepo,
@@ -108,6 +110,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		PartyRepo:           d.PartyRepo,
 		PolicyEngine:        d.PolicyEngine,
 		CodeFlow:            d.CodeFlow,
+		PeerMappingResolver: peerMappingResolver,
 		LocalIdentity:       d.LocalIdentity,
 		TokenStore:          d.TokenStore,
 		SignatureMiddleware: d.SignatureMiddleware,

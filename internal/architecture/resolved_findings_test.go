@@ -13,13 +13,19 @@ import (
 
 // peerMappingAllowlist lists intentional PeerMapping* successor file paths.
 var peerMappingAllowlist = []string{
-	"internal/platform/config/peer_mapping.go",
-	"internal/platform/config/peer_mapping_test.go",
 	"internal/components/ocm/policy/peer_mapping.go",
 	"internal/components/ocm/policy/peer_mapping_test.go",
+	"internal/components/ocm/shares/incoming/handler.go",
+	"internal/components/ocm/shares/incoming/handler_logs_test.go",
+	"internal/components/ocm/shares/incoming/handler_test.go",
 	"internal/platform/config/config.go",
 	"internal/platform/config/loader.go",
 	"internal/platform/config/overlay.go",
+	"internal/platform/config/peer_mapping.go",
+	"internal/platform/config/peer_mapping_test.go",
+	"internal/services/ocm/inputs.go",
+	"internal/services/ocm/ocm.go",
+	"internal/wiring/services.go",
 }
 
 // bannedTokens are residue identifiers that must not return.
@@ -97,13 +103,19 @@ func TestResolvedFindings_BanList(t *testing.T) {
 
 func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
 	want := []string{
-		"internal/platform/config/peer_mapping.go",
-		"internal/platform/config/peer_mapping_test.go",
 		"internal/components/ocm/policy/peer_mapping.go",
 		"internal/components/ocm/policy/peer_mapping_test.go",
+		"internal/components/ocm/shares/incoming/handler.go",
+		"internal/components/ocm/shares/incoming/handler_logs_test.go",
+		"internal/components/ocm/shares/incoming/handler_test.go",
 		"internal/platform/config/config.go",
 		"internal/platform/config/loader.go",
 		"internal/platform/config/overlay.go",
+		"internal/platform/config/peer_mapping.go",
+		"internal/platform/config/peer_mapping_test.go",
+		"internal/services/ocm/inputs.go",
+		"internal/services/ocm/ocm.go",
+		"internal/wiring/services.go",
 	}
 	if len(peerMappingAllowlist) == 0 {
 		t.Fatal("PeerMapping allowlist must be non-empty")

@@ -18,6 +18,7 @@ import (
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
@@ -46,13 +47,13 @@ func setupTestPartyRepo() identity.PartyRepo {
 
 // newTestHandler creates a handler wired for testing against localhost:9200 (https).
 func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
-	return newTestHandlerWithCodeFlow(repo, partyRepo, nil)
+	return newTestHandlerWithResolver(repo, partyRepo, nil)
 }
 
-func newTestHandlerWithCodeFlow(
+func newTestHandlerWithResolver(
 	repo *sharesinbox.MemoryIncomingShareRepo,
 	partyRepo identity.PartyRepo,
-	codeFlow *policy.CodeFlow,
+	resolver *policy.PeerMappingResolver,
 ) *incoming.Handler {
 	return incoming.NewHandler(
 		repo,
@@ -60,7 +61,7 @@ func newTestHandlerWithCodeFlow(
 		nil, // no policy engine
 		"localhost:9200",
 		"https",
-		codeFlow,
+		resolver,
 		testLogger(),
 	)
 }
@@ -1462,7 +1463,7 @@ func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
 	}
 }
 
-func TestCreateShare_NilCodeFlow_RejectsEmptyWebDAVRequirements(t *testing.T) {
+func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -1485,9 +1486,25 @@ func TestCreateShare_NilCodeFlow_RejectsEmptyWebDAVRequirements(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "INVALID_PROTOCOL" {
+		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
+	}
+	found := false
+	for _, e := range resp.ValidationErrors {
+		if e.Name == "protocol.webdav.requirements" && e.Message == "REQUIRED" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected validationError {protocol.webdav.requirements, REQUIRED}, got %v", resp.ValidationErrors)
+	}
 }
 
-func TestCreateShare_NilCodeFlow_RejectsEmptyWebappRequirements(t *testing.T) {
+func TestCreateShare_NilResolver_RejectsEmptyWebappRequirements(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -1525,10 +1542,10 @@ func TestCreateShare_NilCodeFlow_RejectsEmptyWebappRequirements(t *testing.T) {
 	}
 }
 
-func TestCreateShare_NonNilZeroCodeFlow_RejectsEmptyWebDAVRequirementsUnderStrictAdmission(t *testing.T) {
+func TestCreateShare_ResolverWithNoPeerOverlay_RejectsEmptyWebDAVRequirements(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newTestHandlerWithCodeFlow(repo, partyRepo, &policy.CodeFlow{})
+	handler := newTestHandlerWithResolver(repo, partyRepo, policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil))
 
 	body := `{
 		"shareWith": "alice@localhost:9200",
@@ -1563,7 +1580,7 @@ func TestCreateShare_NonNilZeroCodeFlow_RejectsEmptyWebDAVRequirementsUnderStric
 	}
 }
 
-func TestCreateShare_NilCodeFlow_AcceptsWebDAVWithMustExchangeToken(t *testing.T) {
+func TestCreateShare_NilResolver_AcceptsWebDAVWithMustExchangeToken(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -1585,5 +1602,240 @@ func TestCreateShare_NilCodeFlow_AcceptsWebDAVWithMustExchangeToken(t *testing.T
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func peerMappingConfigWithInstanceRequires(host string, requires bool) *config.PeerMappingConfig {
+	return &config.PeerMappingConfig{
+		Platform: map[string]config.PeerPlatformOverlay{
+			"platform-a": {
+				Instance: map[string]config.PeerMappingInstanceOverlay{
+					host: {
+						RequiresTokenExchangeRequirement: &requires,
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestCreateShare_PeerOverlayOmitsRequirementForMatchedHost(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	const matchedHost = "sender.example.com"
+	const unmatchedHost = "other.example.com"
+
+	cfg := peerMappingConfigWithInstanceRequires(matchedHost, false)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
+
+	bodyFor := func(host string) string {
+		return `{
+			"shareWith": "alice@localhost:9200",
+			"name": "test.txt",
+			"providerId": "overlay-omit",
+			"owner": "owner@` + host + `",
+			"sender": "sender@` + host + `",
+			"shareType": "user",
+			"resourceType": "file",
+			"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
+		}`
+	}
+
+	matchedReq := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(bodyFor(matchedHost)))
+	matchedReq.Header.Set("Content-Type", "application/json")
+	matchedW := httptest.NewRecorder()
+	handler.CreateShare(matchedW, matchedReq)
+	if matchedW.Code != http.StatusCreated {
+		t.Fatalf("matched host: expected 201, got %d: %s", matchedW.Code, matchedW.Body.String())
+	}
+
+	unmatchedReq := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(bodyFor(unmatchedHost)))
+	unmatchedReq.Header.Set("Content-Type", "application/json")
+	unmatchedW := httptest.NewRecorder()
+	handler.CreateShare(unmatchedW, unmatchedReq)
+	if unmatchedW.Code != http.StatusBadRequest {
+		t.Fatalf("unmatched host: expected 400, got %d: %s", unmatchedW.Code, unmatchedW.Body.String())
+	}
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(unmatchedW.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "INVALID_PROTOCOL" {
+		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
+	}
+	found := false
+	for _, e := range resp.ValidationErrors {
+		if e.Name == "protocol.webdav.requirements" && e.Message == "REQUIRED" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected validationError {protocol.webdav.requirements, REQUIRED}, got %v", resp.ValidationErrors)
+	}
+}
+
+func TestCreateShare_UnknownHostUsesGlobalStrictAdmission(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	const unknownHost = "unknown.example.com"
+	const boundHost = "other.example.com"
+
+	cfg := peerMappingConfigWithInstanceRequires(boundHost, false)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "unknown-host",
+		"owner": "owner@` + unknownHost + `",
+		"sender": "sender@` + unknownHost + `",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown host under global strict, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "INVALID_PROTOCOL" {
+		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
+	}
+	found := false
+	for _, e := range resp.ValidationErrors {
+		if e.Name == "protocol.webdav.requirements" && e.Message == "REQUIRED" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected validationError {protocol.webdav.requirements, REQUIRED}, got %v", resp.ValidationErrors)
+	}
+}
+
+func TestCreateShare_PeerOverlayAcceptsWebappForMatchedHost(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	const matchedHost = "sender.example.com"
+
+	cfg := peerMappingConfigWithInstanceRequires(matchedHost, false)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
+
+	body := validWebappShareBody("alice@localhost:9200", matchedHost, "webapp-overlay-accept")
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("matched host: expected 201 for webapp admission, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_UnknownHostRejectsWebappWithGlobalStrictAdmission(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	const matchedHost = "sender.example.com"
+	const unknownHost = "unknown.example.com"
+
+	cfg := peerMappingConfigWithInstanceRequires(matchedHost, false)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "webapp-resource",
+		"providerId": "webapp-unknown-host",
+		"owner": "owner@` + unknownHost + `",
+		"sender": "sender@` + unknownHost + `",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {
+			"name": "multi",
+			"webapp": {
+				"uri": "https://` + unknownHost + `/apps/files/abc",
+				"targets": ["blank"],
+				"permissions": ["view"],
+				"requirements": [],
+				"sharedSecret": "s"
+			}
+		}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown host webapp under global strict, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "INVALID_PROTOCOL" {
+		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
+	}
+	found := false
+	for _, e := range resp.ValidationErrors {
+		if e.Name == "protocol.webapp.requirements" && e.Message == "REQUIRED" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected validationError {protocol.webapp.requirements, REQUIRED}, got %v", resp.ValidationErrors)
+	}
+}
+
+func TestCreateShare_MalformedSender_KeepsStrictRequirements(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	const relaxedHost = "relaxed.example.com"
+	cfg := peerMappingConfigWithInstanceRequires(relaxedHost, false)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "malformed-sender",
+		"owner": "owner@` + relaxedHost + `",
+		"sender": "not-an-ocm-address",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "INVALID_PROTOCOL" {
+		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
+	}
+	found := false
+	for _, e := range resp.ValidationErrors {
+		if e.Name == "protocol.webdav.requirements" && e.Message == "REQUIRED" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected validationError {protocol.webdav.requirements, REQUIRED}, got %v", resp.ValidationErrors)
 	}
 }

@@ -72,7 +72,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.PolicyEngine,
 		inputs.LocalIdentity.ProviderDomainCompare,
 		inputs.LocalIdentity.Scheme,
-		inputs.CodeFlow,
+		inputs.PeerMappingResolver,
 		log,
 	)
 	invitesHandler := invitesincoming.NewHandler(

@@ -27,7 +27,7 @@ type Handler struct {
 	repo                        sharesinbox.IncomingShareRepo
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
-	codeFlow                    *policy.CodeFlow
+	resolver                    *policy.PeerMappingResolver
 	localProviderFQDNForCompare string
 	localScheme                 string
 	logger                      *slog.Logger
@@ -39,7 +39,7 @@ func NewHandler(
 	policyEngine *peertrust.PolicyEngine,
 	localProviderFQDNForCompare string,
 	localScheme string,
-	codeFlow *policy.CodeFlow,
+	resolver *policy.PeerMappingResolver,
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
@@ -47,7 +47,7 @@ func NewHandler(
 		repo:                        repo,
 		partyRepo:                   partyRepo,
 		policyEngine:                policyEngine,
-		codeFlow:                    codeFlow,
+		resolver:                    resolver,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 		logger:                      logger,
@@ -106,11 +106,12 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		spec.WriteValidationError(w, "INVALID_PROTOCOL", []spec.ValidationError{*shapeErr})
 		return
 	}
-	// localRequires defaults to strict true; a non-nil injected codeFlow mirrors
-	// Evaluate().RequiresTokenExchange (currently always true).
+	// localRequires defaults to strict; a non-nil resolver lets peer mapping relax it.
 	localRequires := true
-	if h.codeFlow != nil {
-		localRequires = h.codeFlow.Evaluate().RequiresTokenExchange
+	if h.resolver != nil {
+		if _, senderHost, err := address.Parse(req.Sender); err == nil {
+			localRequires = h.resolver.ResolveFacts(senderHost, nil).RequiresTokenExchange
+		}
 	}
 
 	webdav := req.Protocol.WebDAV
