@@ -12,12 +12,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
-// Canonical OCM-API discovery criteria strings (IETF-RFC / OpenAPI).
-const (
-	CriteriaMustUseHTTPSig    = "must-use-http-sig"
-	CriteriaMustExchangeToken = "must-exchange-token"
-)
-
 // APIVersionPin is the Layer 1 wire pin for OCM discovery apiVersion.
 const APIVersionPin = "1.4.0"
 
