@@ -205,7 +205,7 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 			if req == RequirementMustUseMFA {
 				errs = append(errs, ValidationError{
 					Name:    "protocol.webapp.requirements",
-					Message: "GAP: must-use-mfa rejected at admit; enforce-mfa is not implemented yet",
+					Message: "GAP: " + RequirementMustUseMFA + " rejected at admit; enforce-mfa is not implemented yet",
 				})
 				continue
 			}

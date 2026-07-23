@@ -219,7 +219,7 @@ func (c *Client) decideWebappAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 	if !hasRequirement(share.Requirements, spec.RequirementMustExchangeToken) {
 		return failClosedAccessDecision(
 			reason.ReasonProtocolMismatch,
-			"webapp access requires must-exchange-token",
+			"webapp access requires "+spec.RequirementMustExchangeToken,
 			nil,
 		)
 	}

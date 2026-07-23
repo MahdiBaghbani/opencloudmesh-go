@@ -44,13 +44,6 @@ type WebappProtocol struct {
 	SharedSecret string   `json:"sharedSecret"`
 }
 
-const RequirementMustExchangeToken = "must-exchange-token"
-
-// RequirementMustUseMFA is the MFA requirement. It is recognized only to be
-// hard-rejected at admit: enforce-mfa is not implemented yet (see GAP note in
-// ValidateWebappProtocol).
-const RequirementMustUseMFA = "must-use-mfa"
-
 func (p *WebDAVProtocol) HasRequirement(req string) bool {
 	for _, r := range p.Requirements {
 		if r == req {
