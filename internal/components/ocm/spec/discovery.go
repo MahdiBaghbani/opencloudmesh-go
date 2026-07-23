@@ -72,7 +72,7 @@ func (d *Discovery) IsHTTPSigCapable() bool {
 	if d == nil {
 		return false
 	}
-	return d.HasCapability("http-sig")
+	return d.HasCapability(CapabilityHTTPSig)
 }
 
 // DiscoveryPaths holds route-derived discovery path fields before policy overlays.
@@ -177,7 +177,7 @@ func ResolveInviteAcceptDialog(baseURL, dialog string) string {
 // SupportsTokenExchange reports whether the peer advertises a complete
 // token-exchange capability set (capability + token endpoint).
 func (d *Discovery) SupportsTokenExchange() bool {
-	return d.HasCapability("exchange-token") && d.TokenEndPoint != ""
+	return d.HasCapability(CapabilityExchangeToken) && d.TokenEndPoint != ""
 }
 
 func (d *Discovery) GetEndpoint() string {

@@ -69,24 +69,25 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	capabilities := []string{}
 
 	if p.AdvertiseHTTPSig {
-		capabilities = append(capabilities, "http-sig")
+		capabilities = append(capabilities, spec.CapabilityHTTPSig)
 	}
 
 	if p.TokenExchangeCapable && p.TokenEndPoint != "" {
-		capabilities = append(capabilities, "exchange-token")
+		capabilities = append(capabilities, spec.CapabilityExchangeToken)
 		disc.TokenEndPoint = p.TokenEndPoint
 	} else if p.TokenExchangeCapable && p.TokenEndPoint == "" {
-		log.Warn("token exchange enabled but token endpoint is empty; omitting exchange-token capability")
+		log.Warn("token exchange enabled but token endpoint is empty; omitting " +
+			spec.CapabilityExchangeToken + " capability")
 	}
 
 	if p.InviteAcceptDialog != "" {
 		disc.InviteAcceptDialog = p.InviteAcceptDialog
 	}
 	if p.InvitesEnabled {
-		capabilities = append(capabilities, "invites")
+		capabilities = append(capabilities, spec.CapabilityInvite)
 	}
 	if p.WayfEnabled {
-		capabilities = append(capabilities, "invite-wayf")
+		capabilities = append(capabilities, spec.CapabilityInviteWAYF)
 	}
 
 	disc.Capabilities = capabilities

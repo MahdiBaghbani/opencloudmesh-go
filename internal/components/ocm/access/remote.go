@@ -190,7 +190,7 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 		if !capable {
 			return failClosedAccessDecision(
 				reason.ReasonPeerCapabilityMissing,
-				"peer does not advertise exchange-token or tokenEndPoint",
+				"peer does not advertise "+spec.CapabilityExchangeToken+" or tokenEndPoint",
 				nil,
 			)
 		}
@@ -403,7 +403,7 @@ func (c *Client) checkSignaturePolicy(disc *spec.Discovery) error {
 	if disc.RequiresHTTPSig() && !disc.IsHTTPSigCapable() {
 		return reason.NewClassifiedError(
 			reason.ReasonSignatureRequired,
-			"peer requires signatures but does not advertise http-sig capability",
+			"peer requires signatures but does not advertise "+spec.CapabilityHTTPSig+" capability",
 			nil,
 		)
 	}
