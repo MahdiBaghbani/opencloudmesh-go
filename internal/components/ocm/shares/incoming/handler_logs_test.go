@@ -45,6 +45,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				nil,
 				"localhost:9200",
 				"https",
+				nil,
 				capture.Logger,
 			)
 

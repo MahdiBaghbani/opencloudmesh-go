@@ -14,6 +14,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -45,12 +46,21 @@ func setupTestPartyRepo() identity.PartyRepo {
 
 // newTestHandler creates a handler wired for testing against localhost:9200 (https).
 func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+	return newTestHandlerWithCodeFlow(repo, partyRepo, nil)
+}
+
+func newTestHandlerWithCodeFlow(
+	repo *sharesinbox.MemoryIncomingShareRepo,
+	partyRepo identity.PartyRepo,
+	codeFlow *policy.CodeFlow,
+) *incoming.Handler {
 	return incoming.NewHandler(
 		repo,
 		partyRepo,
 		nil, // no policy engine
 		"localhost:9200",
 		"https",
+		codeFlow,
 		testLogger(),
 	)
 }
@@ -1449,5 +1459,131 @@ func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
 	}
 	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
 		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
+	}
+}
+
+func TestCreateShare_NilCodeFlow_RejectsEmptyWebDAVRequirements(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "nil-wdav-empty",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateShare_NilCodeFlow_RejectsEmptyWebappRequirements(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "nil-wapp-empty",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "multi", "webapp": {"uri": "https://sender.com/apps/files/abc", "targets": ["blank"], "permissions": ["view"], "requirements": [], "sharedSecret": "s"}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "INVALID_PROTOCOL" {
+		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
+	}
+	if len(resp.ValidationErrors) != 1 {
+		t.Fatalf("expected exactly one validation error, got %d: %v", len(resp.ValidationErrors), resp.ValidationErrors)
+	}
+	if resp.ValidationErrors[0].Name != "protocol.webapp.requirements" || resp.ValidationErrors[0].Message != "REQUIRED" {
+		t.Errorf("expected {protocol.webapp.requirements, REQUIRED}, got %v", resp.ValidationErrors[0])
+	}
+}
+
+func TestCreateShare_NonNilZeroCodeFlow_RejectsEmptyWebDAVRequirementsUnderStrictAdmission(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandlerWithCodeFlow(repo, partyRepo, &policy.CodeFlow{})
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "nonnil-wdav-empty",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "INVALID_PROTOCOL" {
+		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
+	}
+	if len(resp.ValidationErrors) != 1 {
+		t.Fatalf("expected exactly one validation error, got %d: %v", len(resp.ValidationErrors), resp.ValidationErrors)
+	}
+	if resp.ValidationErrors[0].Name != "protocol.webdav.requirements" || resp.ValidationErrors[0].Message != "REQUIRED" {
+		t.Errorf("expected {protocol.webdav.requirements, REQUIRED}, got %v", resp.ValidationErrors[0])
+	}
+}
+
+func TestCreateShare_NilCodeFlow_AcceptsWebDAVWithMustExchangeToken(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler := newTestHandler(repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "test.txt",
+		"providerId": "nil-wdav-token",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 }

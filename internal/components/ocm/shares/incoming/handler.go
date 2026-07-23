@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -26,6 +27,7 @@ type Handler struct {
 	repo                        sharesinbox.IncomingShareRepo
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
+	codeFlow                    *policy.CodeFlow
 	localProviderFQDNForCompare string
 	localScheme                 string
 	logger                      *slog.Logger
@@ -37,6 +39,7 @@ func NewHandler(
 	policyEngine *peertrust.PolicyEngine,
 	localProviderFQDNForCompare string,
 	localScheme string,
+	codeFlow *policy.CodeFlow,
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
@@ -44,6 +47,7 @@ func NewHandler(
 		repo:                        repo,
 		partyRepo:                   partyRepo,
 		policyEngine:                policyEngine,
+		codeFlow:                    codeFlow,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 		logger:                      logger,
@@ -102,13 +106,33 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		spec.WriteValidationError(w, "INVALID_PROTOCOL", []spec.ValidationError{*shapeErr})
 		return
 	}
-	if webdavErrs := spec.ValidateWebDAVProtocol(req.Protocol.WebDAV); len(webdavErrs) > 0 {
-		writeProtocolValidationErrors(w, webdavErrs)
-		return
+	// localRequires defaults to strict true; a non-nil injected codeFlow mirrors
+	// Evaluate().RequiresTokenExchange (currently always true).
+	localRequires := true
+	if h.codeFlow != nil {
+		localRequires = h.codeFlow.Evaluate().RequiresTokenExchange
 	}
-	if webappErrs := spec.ValidateWebappProtocol(req.Protocol.Webapp); len(webappErrs) > 0 {
-		writeProtocolValidationErrors(w, webappErrs)
-		return
+
+	webdav := req.Protocol.WebDAV
+	if webdav != nil {
+		webdavErrs := spec.ValidateWebDAVProtocolWire(webdav)
+		webdavErrs = append(webdavErrs, spec.ValidateWebDAVRequirementsAdmission(localRequires, webdav.Requirements)...)
+		webdavErrs = dedupeValidationErrors(webdavErrs)
+		if len(webdavErrs) > 0 {
+			writeProtocolValidationErrors(w, webdavErrs)
+			return
+		}
+	}
+
+	webapp := req.Protocol.Webapp
+	if webapp != nil {
+		webappErrs := spec.ValidateWebappProtocolWire(webapp)
+		webappErrs = append(webappErrs, spec.ValidateWebappRequirementsAdmission(localRequires, webapp.Requirements)...)
+		webappErrs = dedupeValidationErrors(webappErrs)
+		if len(webappErrs) > 0 {
+			writeProtocolValidationErrors(w, webappErrs)
+			return
+		}
 	}
 
 	var formatErrs []spec.ValidationError
@@ -231,7 +255,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	webdav := req.Protocol.WebDAV
+	webdav = req.Protocol.WebDAV
 	// Persist fields from each protocol arm when present.
 	var webdavURI, webdavSharedSecret string
 	var webdavPermissions, webdavRequirements []string
@@ -264,7 +288,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		Requirements:         webdavRequirements,
 	}
 	share.ProtocolName = req.Protocol.Name
-	webapp := req.Protocol.Webapp
+	webapp = req.Protocol.Webapp
 	if webapp != nil {
 		share.WebappURI = webapp.URI
 		share.WebappTargets = append([]string(nil), webapp.Targets...)
@@ -287,6 +311,23 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(spec.CreateShareResponse{
 		RecipientDisplayName: share.RecipientDisplayName,
 	})
+}
+
+func dedupeValidationErrors(errs []spec.ValidationError) []spec.ValidationError {
+	if len(errs) == 0 {
+		return errs
+	}
+	seen := make(map[string]struct{}, len(errs))
+	out := make([]spec.ValidationError, 0, len(errs))
+	for _, e := range errs {
+		key := e.Name + "\x00" + e.Message
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, e)
+	}
+	return out
 }
 
 // writeProtocolValidationErrors maps spec protocol validation errors to the
