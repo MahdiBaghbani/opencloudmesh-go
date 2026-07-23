@@ -181,7 +181,7 @@ func (d *Discovery) GetEndpoint() string {
 func (d *Discovery) GetWebDAVPath() string {
 	for _, rt := range d.ResourceTypes {
 		if rt.Name == "file" {
-			if p, ok := rt.Protocols.StringRole("webdav"); ok {
+			if p, ok := rt.Protocols.StringRole(ProtocolWebDAV); ok {
 				return p
 			}
 		}

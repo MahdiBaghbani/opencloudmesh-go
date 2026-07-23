@@ -93,11 +93,11 @@ func validateResourceType(rt spec.ResourceType, warnings *[]string) error {
 
 func validateProtocolRole(name string, role spec.ProtocolRole) (warning string, err error) {
 	switch name {
-	case "webdav":
+	case spec.ProtocolWebDAV:
 		if _, ok := role.StringValue(); !ok {
 			return "", fmt.Errorf("must be a string path")
 		}
-	case "webdav-receive":
+	case spec.ProtocolWebDAVReceive:
 		wr, ok := role.WebDAVReceive()
 		if !ok {
 			return "", fmt.Errorf("must be an object with uri")
