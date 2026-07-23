@@ -185,10 +185,8 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	var signer *crypto.RFC9421Signer
 	if keyManager != nil {
-		signer = crypto.NewRFC9421SignerWithOptions(
-			keyManager,
-			crypto.RFC9421OptionsFromConfig(cfg.Signature),
-		)
+		signerOpts := crypto.RFC9421OptionsFromConfig(cfg.Signature)
+		signer = crypto.NewRFC9421SignerWithOptions(keyManager, signerOpts)
 	}
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(rawHTTPClient)

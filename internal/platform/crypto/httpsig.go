@@ -38,7 +38,7 @@ func DefaultRFC9421Options() RFC9421Options {
 func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 	label := sig.Label
 	if label == "" {
-		label = config.DefaultSignatureLabel
+		label = sigparams.SignatureLabelOCM
 	}
 	maxAge := time.Duration(sig.CreatedMaxAgeSeconds) * time.Second
 	if maxAge <= 0 {
@@ -90,7 +90,7 @@ func NewRFC9421SignerWithOptions(km *KeyManager, opts RFC9421Options) *RFC9421Si
 		opts.Now = time.Now
 	}
 	if opts.Label == "" {
-		opts.Label = config.DefaultSignatureLabel
+		opts.Label = sigparams.SignatureLabelOCM
 	}
 	if len(opts.AllowedAlgorithms) == 0 {
 		opts.AllowedAlgorithms = sigalg.DefaultAllowed()
@@ -202,7 +202,7 @@ func NewRFC9421VerifierWithOptions(opts RFC9421Options) *RFC9421Verifier {
 		opts.Now = time.Now
 	}
 	if opts.Label == "" {
-		opts.Label = config.DefaultSignatureLabel
+		opts.Label = sigparams.SignatureLabelOCM
 	}
 	if len(opts.AllowedAlgorithms) == 0 {
 		opts.AllowedAlgorithms = sigalg.DefaultAllowed()

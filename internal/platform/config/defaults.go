@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigparams"
 )
 
 // Outbound HTTP defaults (production strict preset baseline).
@@ -37,7 +38,7 @@ const (
 
 // HTTP signature defaults (RFC 9421 / OCM IETF Appendix B).
 const (
-	DefaultSignatureLabel          = "ocm"
+	DefaultSignatureLabel          = sigparams.SignatureLabelOCM
 	DefaultSignatureKidFragment    = "key1"
 	DefaultSignatureCreatedMaxAge  = 300
 	DefaultSignatureCreatedMaxSkew = 60
