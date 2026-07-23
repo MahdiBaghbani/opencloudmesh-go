@@ -75,7 +75,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	}
 
 	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == "off")
-	codeFlow := policy.NewCodeFlow()
+	codeFlow := &policy.CodeFlow{
+		IncludesTokenExchangeRequirement: cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement,
+		RequiresTokenExchangeRequirement: cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement,
+		RequiresHTTPRequestSignatures:    cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures,
+	}
 	versionPolicy := discovery.VersionPolicyFromConfig(cfg.OCM.Discovery)
 
 	localIdentity, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)

@@ -54,6 +54,7 @@ type fileConfig struct {
 // ocmFileConfig holds OCM settings from TOML.
 type ocmFileConfig struct {
 	Discovery *discoveryFileConfig `toml:"discovery"`
+	CodeFlow  *CodeFlowConfig      `toml:"code_flow"`
 }
 
 // discoveryFileConfig holds inbound peer discovery settings from TOML.
@@ -313,6 +314,18 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 		if fc.OCM.Discovery.PeerAPIVersionWarn != "" {
 			cfg.OCM.Discovery.PeerAPIVersionWarn = fc.OCM.Discovery.PeerAPIVersionWarn
+		}
+	}
+
+	if fc.OCM != nil && fc.OCM.CodeFlow != nil {
+		if fc.OCM.CodeFlow.IncludesTokenExchangeRequirement != nil {
+			cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement = fc.OCM.CodeFlow.IncludesTokenExchangeRequirement
+		}
+		if fc.OCM.CodeFlow.RequiresTokenExchangeRequirement != nil {
+			cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement = fc.OCM.CodeFlow.RequiresTokenExchangeRequirement
+		}
+		if fc.OCM.CodeFlow.RequiresHTTPRequestSignatures != nil {
+			cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = fc.OCM.CodeFlow.RequiresHTTPRequestSignatures
 		}
 	}
 }

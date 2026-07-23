@@ -30,6 +30,28 @@ func TestCryptoSkip_GatesDeps(t *testing.T) {
 		}
 	})
 
+	t.Run("SkipCrypto=true succeeds when code flow does not require HTTP signatures", func(t *testing.T) {
+		cfg := config.DevConfig()
+		falseVal := false
+		cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = &falseVal
+
+		opts := harnessBuildOpts()
+		opts.SkipCrypto = true
+		result, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
+		if err != nil {
+			t.Fatalf("bootstrap should succeed when requires_http_request_signatures=false and SkipCrypto=true: %v", err)
+		}
+		if result.Deps == nil {
+			t.Fatal("Deps is nil after successful Build")
+		}
+		if result.Deps.CodeFlow == nil {
+			t.Fatal("CodeFlow is nil; Build must populate it")
+		}
+		if facts := result.Deps.CodeFlow.Evaluate(); facts.RequiresHTTPRequestSignatures {
+			t.Error("expected CodeFlow.Evaluate() to report RequiresHTTPRequestSignatures=false")
+		}
+	})
+
 	t.Run("SkipCrypto=false with crypto enabled produces non-nil Signer", func(t *testing.T) {
 		cfg := config.DevConfig()
 
