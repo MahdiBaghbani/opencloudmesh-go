@@ -197,6 +197,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		cfg.Signature,
 		logger,
 	)
+	signatureMiddleware.SetLocalHTTPSigPolicy(facts.RequiresHTTPRequestSignatures, keyManager != nil)
 
 	tokenStore := token.NewMemoryTokenStore()
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)
