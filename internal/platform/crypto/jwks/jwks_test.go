@@ -23,16 +23,14 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	tscrypto "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/crypto"
 )
 
 func TestSetFromEd25519PublicKey_Find(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	pub, _ := mustEd25519KeyPair(t)
 
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
-	got, err := set.Find("example.com#key1")
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
+	got, err := set.Find(testJWKSKey1)
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
@@ -45,11 +43,8 @@ func TestSetFromEd25519PublicKey_Find(t *testing.T) {
 }
 
 func TestFetchURL(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != jwks.WellKnownPath {
@@ -65,7 +60,7 @@ func TestFetchURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchURL: %v", err)
 	}
-	key, err := got.Find("example.com#key1")
+	key, err := got.Find(testJWKSKey1)
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
@@ -96,28 +91,19 @@ func TestAuthorityFromBaseURL_NormalizesHostAndDefaultPort(t *testing.T) {
 }
 
 func TestResolver_Resolve(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set)
-	}))
+	srv := httptest.NewServer(jwksJSONHandler(set))
 	defer srv.Close()
 
-	scheme, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheme, authority := mustSchemeAuthority(t, srv.URL)
 
 	resolver, err := jwks.NewResolver(srv.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := resolver.Resolve(context.Background(), scheme, authority, "example.com#key1")
+	got, err := resolver.Resolve(context.Background(), scheme, authority, testJWKSKey1)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -146,11 +132,8 @@ func (d *recordingDoer) Do(req *http.Request) (*http.Response, error) {
 }
 
 func TestResolver_ResolveKeyID_CanonicalizesAuthority(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 	body, err := json.Marshal(set)
 	if err != nil {
 		t.Fatal(err)
@@ -255,22 +238,13 @@ func TestFetchURL_Errors(t *testing.T) {
 }
 
 func TestResolver_Resolve_MissingKid(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set)
-	}))
+	srv := httptest.NewServer(jwksJSONHandler(set))
 	defer srv.Close()
 
-	scheme, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheme, authority := mustSchemeAuthority(t, srv.URL)
 
 	resolver, err := jwks.NewResolver(srv.Client())
 	if err != nil {
@@ -283,47 +257,34 @@ func TestResolver_Resolve_MissingKid(t *testing.T) {
 }
 
 func TestFind_MissingKid(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
-	_, err = set.Find("example.com#missing")
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
+	_, err := set.Find("example.com#missing")
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
 		t.Fatalf("Find() error = %v, want ErrKeyNotFound", err)
 	}
 }
 
 func TestResolver_RefreshesOnTTLExpiry(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
 	var fetches atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fetches.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set)
-	}))
+	srv := httptest.NewServer(jwksJSONHandlerWithBefore(set, func() { fetches.Add(1) }))
 	defer srv.Close()
 
-	scheme, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheme, authority := mustSchemeAuthority(t, srv.URL)
 
 	resolver, err := jwks.NewResolverWithTTL(srv.Client(), 10*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	if _, err := resolver.Resolve(ctx, scheme, authority, "example.com#key1"); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
 		t.Fatalf("first Resolve: %v", err)
 	}
 	time.Sleep(15 * time.Millisecond)
-	if _, err := resolver.Resolve(ctx, scheme, authority, "example.com#key1"); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
 		t.Fatalf("second Resolve after TTL: %v", err)
 	}
 	if got := fetches.Load(); got != 2 {
@@ -332,30 +293,13 @@ func TestResolver_RefreshesOnTTLExpiry(t *testing.T) {
 }
 
 func TestResolver_RefetchesOnKidMiss(t *testing.T) {
-	key1Pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	key2Pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	key1Pub, key2Pub := mustTwoEd25519PublicKeys(t)
 
 	var version atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if version.Load() == 0 {
-			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("example.com#key1", key1Pub))
-			return
-		}
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("example.com#key2", key2Pub))
-	}))
+	srv := httptest.NewServer(twoKeyRotationHandler(&version, key1Pub, key2Pub))
 	defer srv.Close()
 
-	scheme, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheme, authority := mustSchemeAuthority(t, srv.URL)
 
 	resolver, err := jwks.NewResolverWithOptions(srv.Client(), jwks.ResolverOptions{
 		TTL:                time.Hour,
@@ -367,12 +311,12 @@ func TestResolver_RefetchesOnKidMiss(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if _, err := resolver.Resolve(ctx, scheme, authority, "example.com#key1"); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
 		t.Fatalf("Resolve key1: %v", err)
 	}
 
 	version.Store(1)
-	got, err := resolver.Resolve(ctx, scheme, authority, "example.com#key2")
+	got, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey2)
 	if err != nil {
 		t.Fatalf("Resolve key2 after rotation: %v", err)
 	}
@@ -382,11 +326,8 @@ func TestResolver_RefetchesOnKidMiss(t *testing.T) {
 }
 
 func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
 	var fetches atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -399,10 +340,7 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	scheme, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheme, authority := mustSchemeAuthority(t, srv.URL)
 
 	resolver, err := jwks.NewResolverWithOptions(srv.Client(), jwks.ResolverOptions{
 		TTL:                time.Hour,
@@ -414,7 +352,7 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if _, err := resolver.Resolve(ctx, scheme, authority, "example.com#key1"); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
 		t.Fatalf("initial Resolve: %v", err)
 	}
 
@@ -431,30 +369,24 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 }
 
 func TestFind_AmbiguousKid(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.Set{Keys: []jwks.Key{
-		jwks.Ed25519Key("example.com#key1", pub),
-		jwks.Ed25519Key("example.com#key1", pub),
+		jwks.Ed25519Key(testJWKSKey1, pub),
+		jwks.Ed25519Key(testJWKSKey1, pub),
 	}}
-	_, err = set.Find("example.com#key1")
+	_, err := set.Find(testJWKSKey1)
 	if !errors.Is(err, jwks.ErrAmbiguousKid) {
 		t.Fatalf("Find() error = %v, want ErrAmbiguousKid", err)
 	}
 }
 
 func TestFind_UseSigAndEnc(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sigKey := jwks.Ed25519Key("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	sigKey := jwks.Ed25519Key(testJWKSKey1, pub)
 	if sigKey.Use != "sig" {
 		t.Fatalf("Ed25519Key Use = %q, want sig", sigKey.Use)
 	}
-	got, err := jwks.Set{Keys: []jwks.Key{sigKey}}.Find("example.com#key1")
+	got, err := jwks.Set{Keys: []jwks.Key{sigKey}}.Find(testJWKSKey1)
 	if err != nil {
 		t.Fatalf("use=sig Find: %v", err)
 	}
@@ -462,16 +394,16 @@ func TestFind_UseSigAndEnc(t *testing.T) {
 		t.Fatalf("Algorithm = %q", got.Algorithm)
 	}
 
-	encOnly := jwks.Ed25519Key("example.com#key1", pub)
+	encOnly := jwks.Ed25519Key(testJWKSKey1, pub)
 	encOnly.Use = "enc"
-	_, err = jwks.Set{Keys: []jwks.Key{encOnly}}.Find("example.com#key1")
+	_, err = jwks.Set{Keys: []jwks.Key{encOnly}}.Find(testJWKSKey1)
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
 		t.Fatalf("use=enc Find error = %v, want ErrKeyNotFound", err)
 	}
 
-	emptyUse := jwks.Ed25519Key("example.com#key1", pub)
+	emptyUse := jwks.Ed25519Key(testJWKSKey1, pub)
 	emptyUse.Use = ""
-	if _, err := (jwks.Set{Keys: []jwks.Key{emptyUse}}).Find("example.com#key1"); err != nil {
+	if _, err := (jwks.Set{Keys: []jwks.Key{emptyUse}}).Find(testJWKSKey1); err != nil {
 		t.Fatalf("empty use Find: %v", err)
 	}
 }
@@ -481,8 +413,8 @@ func TestFind_ECP256AndRSA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	x := base64.RawURLEncoding.EncodeToString(padCoord(ecPriv.X.Bytes(), 32))
-	y := base64.RawURLEncoding.EncodeToString(padCoord(ecPriv.Y.Bytes(), 32))
+	x := base64.RawURLEncoding.EncodeToString(tscrypto.PadCoord(ecPriv.X.Bytes(), 32))
+	y := base64.RawURLEncoding.EncodeToString(tscrypto.PadCoord(ecPriv.Y.Bytes(), 32))
 	ecSet := jwks.Set{Keys: []jwks.Key{{
 		Kty: "EC", Kid: "example.com#ec1", Use: "sig", Alg: "ES256", Crv: "P-256", X: x, Y: y,
 	}}}
@@ -515,15 +447,6 @@ func TestFind_ECP256AndRSA(t *testing.T) {
 	}
 }
 
-func padCoord(b []byte, size int) []byte {
-	if len(b) >= size {
-		return b
-	}
-	out := make([]byte, size)
-	copy(out[size-len(b):], b)
-	return out
-}
-
 func TestNewResolver_NilClient(t *testing.T) {
 	_, err := jwks.NewResolver(nil)
 	if !errors.Is(err, jwks.ErrNilHTTPClient) {
@@ -536,32 +459,18 @@ func TestNewResolver_NilClient(t *testing.T) {
 }
 
 func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
-	key1Pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	key2Pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	key1Pub, key2Pub := mustTwoEd25519PublicKeys(t)
 
 	var version atomic.Int32
 	var fetches atomic.Int32
+	handler := twoKeyRotationHandler(&version, key1Pub, key2Pub)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fetches.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		if version.Load() == 0 {
-			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("example.com#key1", key1Pub))
-			return
-		}
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("example.com#key2", key2Pub))
+		handler(w, r)
 	}))
 	defer srv.Close()
 
-	scheme, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheme, authority := mustSchemeAuthority(t, srv.URL)
 
 	now := time.Unix(1_700_000_000, 0)
 	resolver, err := jwks.NewResolverWithOptions(srv.Client(), jwks.ResolverOptions{
@@ -574,7 +483,7 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	if _, err := resolver.Resolve(ctx, scheme, authority, "example.com#key1"); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
 		t.Fatalf("Resolve key1: %v", err)
 	}
 	if got := fetches.Load(); got != 1 {
@@ -582,7 +491,7 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 	}
 
 	version.Store(1)
-	_, err = resolver.Resolve(ctx, scheme, authority, "example.com#key2")
+	_, err = resolver.Resolve(ctx, scheme, authority, testJWKSKey2)
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
 		t.Fatalf("Resolve new kid during cooldown = %v, want ErrKeyNotFound", err)
 	}
@@ -591,7 +500,7 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 	}
 
 	now = now.Add(time.Minute)
-	got, err := resolver.Resolve(ctx, scheme, authority, "example.com#key2")
+	got, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey2)
 	if err != nil {
 		t.Fatalf("Resolve key2 after cooldown: %v", err)
 	}
@@ -604,24 +513,14 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 }
 
 func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
 	var fetches atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fetches.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set)
-	}))
+	srv := httptest.NewServer(jwksJSONHandlerWithBefore(set, func() { fetches.Add(1) }))
 	defer srv.Close()
 
-	scheme, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheme, authority := mustSchemeAuthority(t, srv.URL)
 
 	now := time.Unix(1_700_000_000, 0)
 	resolver, err := jwks.NewResolverWithOptions(srv.Client(), jwks.ResolverOptions{
@@ -634,7 +533,7 @@ func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	if _, err := resolver.Resolve(ctx, scheme, authority, "example.com#key1"); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
 		t.Fatalf("Resolve key1: %v", err)
 	}
 	baseFetches := fetches.Load()
@@ -658,11 +557,8 @@ func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
 }
 
 func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
-	pub, _, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set := jwks.SetFromEd25519PublicKey("example.com#key1", pub)
+	pub, _ := mustEd25519KeyPair(t)
+	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
 	started := make(chan struct{})
 	var startOnce sync.Once
@@ -677,10 +573,7 @@ func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	scheme, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheme, authority := mustSchemeAuthority(t, srv.URL)
 	resolver, err := jwks.NewResolverWithOptions(srv.Client(), jwks.ResolverOptions{
 		TTL:                time.Hour,
 		MinRefetchInterval: -1,
@@ -693,7 +586,7 @@ func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
 	errCh := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
-			_, err := resolver.Resolve(context.Background(), scheme, authority, "example.com#key1")
+			_, err := resolver.Resolve(context.Background(), scheme, authority, testJWKSKey1)
 			errCh <- err
 		}()
 	}
