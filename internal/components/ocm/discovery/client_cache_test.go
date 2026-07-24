@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
@@ -96,5 +97,77 @@ func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
 	}
 	if disc2.EndPoint != wantEndpoint {
 		t.Errorf("cached EndPoint = %q, want %q", disc2.EndPoint, wantEndpoint)
+	}
+}
+
+func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/ocm" {
+			disc := spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.4.0",
+				EndPoint:      strings.TrimSuffix(server.URL, "/") + "/ocm",
+				ResourceTypes: []spec.ResourceType{},
+				Criteria:      []string{},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(disc)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	httpCfg := tshttp.PermissiveConfig()
+	httpClient := httpclient.New(httpCfg, nil)
+	client := discovery.NewClient(httpClient, nil)
+
+	disc, err := client.Discover(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+	if !disc.Enabled {
+		t.Error("expected discovery to be enabled")
+	}
+}
+
+func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
+	callCount := 0
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/ocm" {
+			http.NotFound(w, r)
+			return
+		}
+		callCount++
+		raw := map[string]any{
+			"enabled":       true,
+			"apiVersion":    "1.4.0",
+			"endPoint":      strings.TrimSuffix(server.URL, "/") + "/ocm",
+			"resourceTypes": []any{},
+			"criteria":      []any{},
+			"capabilities":  []string{"http-sig"},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(raw)
+	}))
+	defer server.Close()
+
+	httpCfg := tshttp.PermissiveConfig()
+	client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
+	if _, err := client.Discover(context.Background(), server.URL); err != nil {
+		t.Fatalf("first Discover failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected exactly 1 HTTP call, got %d", callCount)
+	}
+
+	if _, err := client.Discover(context.Background(), server.URL); err != nil {
+		t.Fatalf("second Discover failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected cache hit to avoid a second HTTP call, call count %d", callCount)
 	}
 }

@@ -1,6 +1,7 @@
 package spec_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -165,5 +166,71 @@ func TestSupportedResourceTypes(t *testing.T) {
 	}
 	if spec.IsSupportedResourceType("calendar") {
 		t.Error("IsSupportedResourceType(calendar) = true, want false")
+	}
+}
+
+func TestCriteriaAlwaysPresent(t *testing.T) {
+	disc := &spec.Discovery{
+		Enabled:    true,
+		APIVersion: "1.4.0",
+		Criteria:   []string{},
+	}
+
+	if disc.Criteria == nil {
+		t.Error("Criteria must not be nil")
+	}
+
+	data, err := json.Marshal(disc)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	criteriaRaw, ok := parsed["criteria"]
+	if !ok {
+		t.Error("criteria key must be present in JSON")
+	}
+	criteriaSlice, ok := criteriaRaw.([]interface{})
+	if !ok {
+		t.Errorf("criteria must be an array, got %T", criteriaRaw)
+	}
+	if len(criteriaSlice) != 0 {
+		t.Errorf("expected empty criteria array, got %v", criteriaSlice)
+	}
+}
+
+func TestDiscovery_Helpers(t *testing.T) {
+	disc := &spec.Discovery{
+		Enabled:    true,
+		APIVersion: "1.4.0",
+		EndPoint:   "https://example.com/ocm",
+		ResourceTypes: []spec.ResourceType{
+			{
+				Name:       "file",
+				ShareTypes: []string{"user"},
+				Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")},
+			},
+		},
+		Capabilities: []string{"http-sig", "exchange-token"},
+		Criteria:     []string{spec.CriteriaMustUseHTTPSig},
+	}
+
+	if disc.GetWebDAVPath() != "/webdav/ocm/" {
+		t.Errorf("GetWebDAVPath failed: %q", disc.GetWebDAVPath())
+	}
+	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+		t.Error("HasCriteria must-use-http-sig should be true")
+	}
+
+	url, err := disc.BuildWebDAVURL("abc123")
+	if err != nil {
+		t.Fatalf("BuildWebDAVURL failed: %v", err)
+	}
+	if url != "https://example.com/webdav/ocm/abc123" {
+		t.Errorf("BuildWebDAVURL returned %q", url)
 	}
 }
