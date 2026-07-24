@@ -74,7 +74,7 @@ func InlineKeyDiscoveryDoc(t testing.TB, publicKeyPEM string) map[string]any {
 		"endPoint":      endpoint,
 		"resourceTypes": []any{},
 		"criteria":      []any{},
-		"capabilities":  []string{"http-sig"},
+		"capabilities":  []string{spec.CapabilityHTTPSig},
 		"publicKey": map[string]string{
 			"keyId":        defaultInlineKeyID,
 			"publicKeyPem": publicKeyPEM,
