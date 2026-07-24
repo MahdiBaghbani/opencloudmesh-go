@@ -24,13 +24,9 @@ import (
 )
 
 func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -59,25 +55,16 @@ func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
 		t.Errorf("Content-Length = %q, want 0", got)
 	}
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, nil, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("empty-body verification failed: %v", result.Error)
 	}
 }
 
 func TestRFC9421_SignAndVerify(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -106,12 +93,7 @@ func TestRFC9421_SignAndVerify(t *testing.T) {
 		t.Error("missing Date header")
 	}
 
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 
 	if !result.Verified {
 		t.Errorf("verification failed: %v", result.Error)
@@ -122,13 +104,9 @@ func TestRFC9421_SignAndVerify(t *testing.T) {
 }
 
 func TestRFC9421_SignatureParams(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	body := []byte(`{"test": "data"}`)
@@ -175,8 +153,7 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 	km1.LoadOrGenerate()
 	km2.LoadOrGenerate()
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 
 	signer := crypto.NewRFC9421SignerWithOptions(km1, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -201,12 +178,9 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 }
 
 func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	now := time.Unix(1_730_815_200, 0)
+	now := httpsigFixedNow()
 	opts := crypto.DefaultRFC9421Options()
 	opts.Now = func() time.Time { return now }
 	opts.CreatedMaxAge = time.Minute
@@ -221,21 +195,9 @@ func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	staleVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
-		Label:              opts.Label,
-		CreatedMaxAge:      opts.CreatedMaxAge,
-		CreatedMaxSkew:     opts.CreatedMaxSkew,
-		AllowedAlgorithms:  opts.AllowedAlgorithms,
-		RequiredComponents: opts.RequiredComponents,
-		Now:                func() time.Time { return now.Add(2 * time.Minute) },
-	})
+	staleVerifier := httpsigVerifierWithNow(opts, now.Add(2*time.Minute))
 
-	result := staleVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := staleVerifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if result.Verified {
 		t.Fatal("expected stale created to fail verification")
 	}
@@ -248,12 +210,9 @@ func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
 }
 
 func TestRFC9421_VerifyRejectsFutureCreated(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	signTime := time.Unix(1_730_815_200, 0)
+	signTime := httpsigFixedNow()
 	verifyTime := signTime.Add(-2 * time.Minute)
 
 	opts := crypto.DefaultRFC9421Options()
@@ -273,21 +232,9 @@ func TestRFC9421_VerifyRejectsFutureCreated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	futureVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
-		Label:              opts.Label,
-		CreatedMaxAge:      opts.CreatedMaxAge,
-		CreatedMaxSkew:     opts.CreatedMaxSkew,
-		AllowedAlgorithms:  opts.AllowedAlgorithms,
-		RequiredComponents: opts.RequiredComponents,
-		Now:                func() time.Time { return verifyTime },
-	})
+	futureVerifier := httpsigVerifierWithNow(opts, verifyTime)
 
-	result := futureVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := futureVerifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if result.Verified {
 		t.Fatal("expected future created to fail verification")
 	}
@@ -303,7 +250,7 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	req := httptest.NewRequest("POST", "https://example.com/test", nil)
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	emptyDigest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))
 	req.Header.Set("Content-Digest", "sha-256=:"+emptyDigest+":")
 	req.Header.Set("Content-Length", "0")
@@ -311,7 +258,7 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="hmac-sha256";tag="ocm"`,
 		now,
 	))
-	req.Header.Set("Signature", "ocm=:AAAA:")
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
 	fetches := 0
 	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
@@ -362,7 +309,7 @@ func TestContentDigest(t *testing.T) {
 }
 
 func TestVerifyContentDigest_MultiDigest(t *testing.T) {
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	sha512Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA512(body))
 
@@ -375,7 +322,7 @@ func TestVerifyContentDigest_MultiDigest(t *testing.T) {
 }
 
 func TestVerifyContentDigest_MultiDigest_OneTampered(t *testing.T) {
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	tampered := base64.StdEncoding.EncodeToString(sigalg.SumSHA512([]byte("wrong")))
 
@@ -388,7 +335,7 @@ func TestVerifyContentDigest_MultiDigest_OneTampered(t *testing.T) {
 }
 
 func TestVerifyContentDigest_UnknownPlusRecognizedRejected(t *testing.T) {
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 
 	req := httptest.NewRequest("POST", "/test", bytes.NewReader(body))
@@ -400,7 +347,7 @@ func TestVerifyContentDigest_UnknownPlusRecognizedRejected(t *testing.T) {
 }
 
 func TestVerifyContentDigest_OnlyUnknownAlgorithmsRejected(t *testing.T) {
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 
 	req := httptest.NewRequest("POST", "/test", bytes.NewReader(body))
@@ -413,7 +360,7 @@ func TestVerifyContentDigest_OnlyUnknownAlgorithmsRejected(t *testing.T) {
 
 func TestRequiredComponentsForRequest(t *testing.T) {
 	req := httptest.NewRequest("GET", "https://example.com/ocm/discovery", nil)
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 
 	want := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
 	empty := crypto.RequiredComponentsForRequest(req, nil)
@@ -439,16 +386,12 @@ func TestRequiredComponentsForRequest(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
@@ -473,16 +416,12 @@ func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testin
 }
 
 func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
@@ -509,15 +448,15 @@ func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testin
 func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 		now,
 	))
-	req.Header.Set("Signature", "ocm=:AAAA:")
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
 	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
@@ -531,16 +470,12 @@ func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T
 }
 
 func TestVerifyRequest_RejectsContentDigestMismatch(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
@@ -554,12 +489,7 @@ func TestVerifyRequest_RejectsContentDigestMismatch(t *testing.T) {
 	if bytes.Equal(sigalg.SumSHA256(body), sigalg.SumSHA256(tampered)) {
 		t.Fatal("tampered body must produce a different digest")
 	}
-	result := verifier.VerifyRequest(req, tampered, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, tampered, httpsigEd25519KeyFetcher(km))
 	if result.Verified {
 		t.Fatal("expected digest mismatch rejection")
 	}
@@ -569,57 +499,30 @@ func TestVerifyRequest_RejectsContentDigestMismatch(t *testing.T) {
 }
 
 func TestRFC9421_VerifyCreatedBoundaryAtMaxSkew(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	signTime := time.Unix(1_730_815_200, 0)
+	signTime := httpsigFixedNow()
 	maxSkew := 60 * time.Second
 	opts := crypto.DefaultRFC9421Options()
 	opts.Now = func() time.Time { return signTime }
 	opts.CreatedMaxSkew = maxSkew
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
 		t.Fatal(err)
 	}
 
-	atSkewVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
-		Label:              opts.Label,
-		CreatedMaxAge:      opts.CreatedMaxAge,
-		CreatedMaxSkew:     maxSkew,
-		AllowedAlgorithms:  opts.AllowedAlgorithms,
-		RequiredComponents: opts.RequiredComponents,
-		Now:                func() time.Time { return signTime.Add(-maxSkew) },
-	})
-	result := atSkewVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	atSkewVerifier := httpsigVerifierWithNow(crypto.RFC9421Options{Label: opts.Label, CreatedMaxAge: opts.CreatedMaxAge, CreatedMaxSkew: maxSkew, AllowedAlgorithms: opts.AllowedAlgorithms, RequiredComponents: opts.RequiredComponents}, signTime.Add(-maxSkew))
+	result := atSkewVerifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("created at max skew should verify: %v", result.Error)
 	}
 
-	pastSkewVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
-		Label:              opts.Label,
-		CreatedMaxAge:      opts.CreatedMaxAge,
-		CreatedMaxSkew:     maxSkew,
-		AllowedAlgorithms:  opts.AllowedAlgorithms,
-		RequiredComponents: opts.RequiredComponents,
-		Now:                func() time.Time { return signTime.Add(-maxSkew - time.Second) },
-	})
-	result = pastSkewVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	pastSkewVerifier := httpsigVerifierWithNow(crypto.RFC9421Options{Label: opts.Label, CreatedMaxAge: opts.CreatedMaxAge, CreatedMaxSkew: maxSkew, AllowedAlgorithms: opts.AllowedAlgorithms, RequiredComponents: opts.RequiredComponents}, signTime.Add(-maxSkew-time.Second))
+	result = pastSkewVerifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if result.Verified {
 		t.Fatal("created past max skew should fail")
 	}
@@ -629,57 +532,30 @@ func TestRFC9421_VerifyCreatedBoundaryAtMaxSkew(t *testing.T) {
 }
 
 func TestRFC9421_VerifyCreatedBoundaryAtMaxAge(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	signTime := time.Unix(1_730_815_200, 0)
+	signTime := httpsigFixedNow()
 	maxAge := time.Minute
 	opts := crypto.DefaultRFC9421Options()
 	opts.Now = func() time.Time { return signTime }
 	opts.CreatedMaxAge = maxAge
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
 		t.Fatal(err)
 	}
 
-	atAgeVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
-		Label:              opts.Label,
-		CreatedMaxAge:      maxAge,
-		CreatedMaxSkew:     opts.CreatedMaxSkew,
-		AllowedAlgorithms:  opts.AllowedAlgorithms,
-		RequiredComponents: opts.RequiredComponents,
-		Now:                func() time.Time { return signTime.Add(maxAge) },
-	})
-	result := atAgeVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	atAgeVerifier := httpsigVerifierWithNow(crypto.RFC9421Options{Label: opts.Label, CreatedMaxAge: maxAge, CreatedMaxSkew: opts.CreatedMaxSkew, AllowedAlgorithms: opts.AllowedAlgorithms, RequiredComponents: opts.RequiredComponents}, signTime.Add(maxAge))
+	result := atAgeVerifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("created at max age should verify: %v", result.Error)
 	}
 
-	staleVerifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
-		Label:              opts.Label,
-		CreatedMaxAge:      maxAge,
-		CreatedMaxSkew:     opts.CreatedMaxSkew,
-		AllowedAlgorithms:  opts.AllowedAlgorithms,
-		RequiredComponents: opts.RequiredComponents,
-		Now:                func() time.Time { return signTime.Add(maxAge + time.Second) },
-	})
-	result = staleVerifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	staleVerifier := httpsigVerifierWithNow(crypto.RFC9421Options{Label: opts.Label, CreatedMaxAge: maxAge, CreatedMaxSkew: opts.CreatedMaxSkew, AllowedAlgorithms: opts.AllowedAlgorithms, RequiredComponents: opts.RequiredComponents}, signTime.Add(maxAge+time.Second))
+	result = staleVerifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if result.Verified {
 		t.Fatal("created past max age should fail")
 	}
@@ -719,19 +595,11 @@ func TestHasSignatureHeaders(t *testing.T) {
 func TestVerifyRequest_RejectPaths(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
 	zeroSig := "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==:"
 
-	keyFetcher := func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	}
+	keyFetcher := httpsigEd25519KeyFetcher(km)
 
 	now := time.Now().Unix()
 	validParams := fmt.Sprintf(
@@ -778,7 +646,7 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("POST", "https://example.com/test", nil)
-			req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+			req.Header.Set("Date", httpsigStandardDate)
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
@@ -837,7 +705,6 @@ func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
 }
 
 func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
-	fixedNow := time.Unix(1_730_815_200, 0)
 	cases := []struct {
 		name   string
 		method string
@@ -860,13 +727,9 @@ func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			km := crypto.NewKeyManager("", "https://example.com")
-			if err := km.LoadOrGenerate(); err != nil {
-				t.Fatal(err)
-			}
+			km := mustHTTPSigKeyManager(t)
 
-			opts := crypto.DefaultRFC9421Options()
-			opts.Now = func() time.Time { return fixedNow }
+			opts := httpsigFixedOptions()
 
 			signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 			verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -913,12 +776,7 @@ func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 				}
 			}
 
-			result := verifier.VerifyRequest(req, tc.body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-				return sigalg.ResolvedPublicKey{
-					KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-					JWKKty: "OKP", JWKCrv: "Ed25519",
-				}, nil
-			})
+			result := verifier.VerifyRequest(req, tc.body, httpsigEd25519KeyFetcher(km))
 			if !result.Verified {
 				t.Fatalf("verification failed: %v", result.Error)
 			}
@@ -927,19 +785,14 @@ func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 }
 
 func TestAppendixB_VectorVerify_Negative(t *testing.T) {
-	fixedNow := time.Unix(1_730_815_200, 0)
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return fixedNow }
+	opts := httpsigFixedOptions()
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/token", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -950,12 +803,7 @@ func TestAppendixB_VectorVerify_Negative(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keyFetcher := func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	}
+	keyFetcher := httpsigEd25519KeyFetcher(km)
 
 	cases := []struct {
 		name    string
@@ -1008,10 +856,7 @@ func TestAppendixB_VectorVerify_Negative(t *testing.T) {
 }
 
 func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
+	km := mustHTTPSigKeyManager(t)
 	opts := crypto.DefaultRFC9421Options()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
@@ -1023,7 +868,7 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 
-	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	components := httpsigAppendixBComponents
 	created := opts.Now().Unix()
 	// Signature-Input omits alg; algorithm comes from the JWK. SignRequest
 	// always emits alg, so build params and signature base explicitly.
@@ -1044,12 +889,7 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)))
 
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("expected omit-alg verify OK, got %v", result.Error)
 	}
@@ -1059,9 +899,9 @@ func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519";tag="ocm"`)
-	req.Header.Set("Signature", "ocm=:AAAA:")
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
 	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
@@ -1083,12 +923,12 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 	fetches := 0
 	now := time.Now().Unix()
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 		now,
 	))
-	req.Header.Set("Signature", "ocm=:AAAA:")
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
 	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
@@ -1110,7 +950,7 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 	fetches := 0
 	now := time.Now().Unix()
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Content-Digest", "sha-256=:AAAA:")
 	req.Header.Set("Content-Length", "2")
 	req.Header.Set("Signature-Input", fmt.Sprintf(
@@ -1151,7 +991,7 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 
 	keyID := "example.com#ec1"
-	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	components := httpsigAppendixBComponents
 	created := opts.Now().Unix()
 	sigInput := fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;tag="ocm"`,
@@ -1189,20 +1029,20 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	body := []byte(`{"test":"data"}`)
-	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+	body := httpsigTestBodyJSON
+	digest := httpsigContentDigestHeader(body)
 
 	newReq := func() *http.Request {
 		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
-		req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+		req.Header.Set("Date", httpsigStandardDate)
 		req.Header.Set("Signature-Input", fmt.Sprintf(
 			`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 			now,
 		))
-		req.Header.Set("Signature", "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:")
+		req.Header.Set("Signature", httpsigPlaceholderSig)
 		return req
 	}
 
@@ -1234,15 +1074,15 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	body := []byte(`{"test":"data"}`)
-	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+	body := httpsigTestBodyJSON
+	digest := httpsigContentDigestHeader(body)
 
 	newReq := func(sigInput, signature string) *http.Request {
 		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
-		req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+		req.Header.Set("Date", httpsigStandardDate)
 		req.Header.Set("Signature-Input", sigInput)
 		req.Header.Set("Signature", signature)
 		return req
@@ -1255,7 +1095,7 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 				`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519";tag="ocm"`,
 				now, now,
 			),
-			"ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:",
+			httpsigPlaceholderSig,
 		), body, func(string) (sigalg.ResolvedPublicKey, error) {
 			fetched = true
 			return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch key")
@@ -1330,12 +1170,8 @@ func TestBuildSignatureBase_RejectsCRLFInComponent(t *testing.T) {
 }
 
 func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	req, err := http.NewRequest("GET", "https://example.com/ocm/discovery", nil)
@@ -1365,15 +1201,11 @@ func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
 }
 
 func TestSignRequest_CoversAllComponentsOnNonEmptyBody(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -1393,12 +1225,8 @@ func TestSignRequest_CoversAllComponentsOnNonEmptyBody(t *testing.T) {
 }
 
 func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	tests := []struct {
@@ -1463,12 +1291,7 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 				fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)),
 			)
 
-			result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-				return sigalg.ResolvedPublicKey{
-					KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-					JWKKty: "OKP", JWKCrv: "Ed25519",
-				}, nil
-			})
+			result := verifier.VerifyRequest(req, nil, httpsigEd25519KeyFetcher(km))
 			if result.Verified {
 				t.Fatal("expected verification failure when a body component is omitted")
 			}
@@ -1477,16 +1300,12 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 }
 
 func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -1501,12 +1320,7 @@ func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
 	req.Header.Set("Signature-Input", foreignSigInput+", "+req.Header.Get("Signature-Input"))
 	req.Header.Set("Signature", foreignSignature+", "+req.Header.Get("Signature"))
 
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("expected verification of the ocm member alongside an ignored foreign label, got verified=false reason=%s err=%v", result.Reason, result.Error)
 	}
@@ -1518,18 +1332,18 @@ func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
 func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	body := []byte(`{"test":"data"}`)
-	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+	body := httpsigTestBodyJSON
+	digest := httpsigContentDigestHeader(body)
 
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Digest", digest)
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="a#1";alg="ed25519";tag="ocm", ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="b#1";alg="ed25519";tag="ocm"`,
 		now, now,
 	))
-	req.Header.Set("Signature", "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:")
+	req.Header.Set("Signature", httpsigPlaceholderSig)
 
 	fetched := false
 	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
@@ -1548,7 +1362,7 @@ func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`sig1=("@method" "@target-uri" "date");created=%d;keyid="a#1";alg="ed25519"`,
 		now,
@@ -1574,9 +1388,9 @@ func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
 func TestVerifyRequest_RejectsMissingCreated(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "date");keyid="a#1";alg="ed25519";tag="ocm"`)
-	req.Header.Set("Signature", "ocm=:AAAA:")
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
 	result := verifier.VerifyRequest(req, nil, func(string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{}, nil
@@ -1590,11 +1404,8 @@ func TestVerifyRequest_RejectsMissingCreated(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsFutureCreated(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	signTime := time.Unix(1_730_815_200, 0)
+	km := mustHTTPSigKeyManager(t)
+	signTime := httpsigFixedNow()
 	verifyTime := signTime.Add(-2 * time.Minute)
 
 	opts := crypto.DefaultRFC9421Options()
@@ -1602,7 +1413,7 @@ func TestVerifyRequest_RejectsFutureCreated(t *testing.T) {
 	opts.CreatedMaxSkew = time.Minute
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -1612,20 +1423,8 @@ func TestVerifyRequest_RejectsFutureCreated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	verifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
-		Label:              opts.Label,
-		CreatedMaxAge:      opts.CreatedMaxAge,
-		CreatedMaxSkew:     opts.CreatedMaxSkew,
-		AllowedAlgorithms:  opts.AllowedAlgorithms,
-		RequiredComponents: opts.RequiredComponents,
-		Now:                func() time.Time { return verifyTime },
-	})
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	verifier := httpsigVerifierWithNow(opts, verifyTime)
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if result.Verified {
 		t.Fatal("expected future created to fail verification")
 	}
@@ -1635,17 +1434,14 @@ func TestVerifyRequest_RejectsFutureCreated(t *testing.T) {
 }
 
 func TestVerifyRequest_RejectsStaleCreated(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	now := time.Unix(1_730_815_200, 0)
+	km := mustHTTPSigKeyManager(t)
+	now := httpsigFixedNow()
 	opts := crypto.DefaultRFC9421Options()
 	opts.Now = func() time.Time { return now }
 	opts.CreatedMaxAge = time.Minute
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -1655,20 +1451,8 @@ func TestVerifyRequest_RejectsStaleCreated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	verifier := crypto.NewRFC9421VerifierWithOptions(crypto.RFC9421Options{
-		Label:              opts.Label,
-		CreatedMaxAge:      opts.CreatedMaxAge,
-		CreatedMaxSkew:     opts.CreatedMaxSkew,
-		AllowedAlgorithms:  opts.AllowedAlgorithms,
-		RequiredComponents: opts.RequiredComponents,
-		Now:                func() time.Time { return now.Add(2 * time.Minute) },
-	})
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	verifier := httpsigVerifierWithNow(opts, now.Add(2*time.Minute))
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if result.Verified {
 		t.Fatal("expected stale created to fail verification")
 	}
@@ -1678,10 +1462,7 @@ func TestVerifyRequest_RejectsStaleCreated(t *testing.T) {
 }
 
 func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
+	km := mustHTTPSigKeyManager(t)
 	opts := crypto.DefaultRFC9421Options()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
@@ -1690,12 +1471,7 @@ func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
 	var gotVerified bool
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotSignatureInput = r.Header.Get("Signature-Input")
-		result := verifier.VerifyRequest(r, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-			return sigalg.ResolvedPublicKey{
-				KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-				JWKKty: "OKP", JWKCrv: "Ed25519",
-			}, nil
-		})
+		result := verifier.VerifyRequest(r, nil, httpsigEd25519KeyFetcher(km))
 		gotVerified = result.Verified
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -1723,22 +1499,9 @@ func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
 	}
 }
 
-func padCoordTest(b []byte, size int) []byte {
-	if len(b) >= size {
-		return b
-	}
-	out := make([]byte, size)
-	copy(out[size-len(b):], b)
-	return out
-}
-
 func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	req := httptest.NewRequest("GET", "https://example.com/ocm/discovery", nil)
@@ -1748,7 +1511,7 @@ func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) 
 	req.Header.Set("Content-Digest", "sha-256=:"+emptyDigest+":")
 	// Deliberately do NOT set Content-Length; req.ContentLength defaults to 0.
 
-	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	components := httpsigAppendixBComponents
 	created := opts.Now().Unix()
 	sigInput := fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
@@ -1767,12 +1530,7 @@ func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) 
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)))
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, nil, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("expected empty-body verify OK with missing Content-Length header (canonical fallback), got verified=false reason=%s err=%v", result.Reason, result.Error)
 	}
@@ -1781,19 +1539,19 @@ func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) 
 func TestVerifyRequest_RejectsNonEmptyBodyMissingContentLengthHeader(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	body := []byte(`{"test":"data"}`)
-	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+	body := httpsigTestBodyJSON
+	digest := httpsigContentDigestHeader(body)
 
 	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Digest", digest)
 	// Deliberately do NOT set Content-Length.
-	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
 		now,
 	))
-	req.Header.Set("Signature", "ocm=:AAAA:")
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
 	fetched := false
 	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
@@ -1812,17 +1570,13 @@ func TestVerifyRequest_RejectsNonEmptyBodyMissingContentLengthHeader(t *testing.
 }
 
 func TestHTTPSig_Sign_AlwaysEmitsTag(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
@@ -1842,30 +1596,21 @@ func TestHTTPSig_Sign_AlwaysEmitsTag(t *testing.T) {
 	}
 
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("verification of signed request with tag failed: %v", result.Error)
 	}
 }
 
 func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 	opts.Label = "customlabel"
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
@@ -1888,25 +1633,17 @@ func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
 	}
 
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("verification of signed request with custom label failed: %v", result.Error)
 	}
 }
 
 func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
 	signOpts := crypto.DefaultRFC9421Options()
-	signOpts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	signOpts.Now = func() time.Time { return httpsigFixedNow() }
 	signOpts.Label = "not-ocm"
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, signOpts)
@@ -1914,7 +1651,7 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 	verifyOpts.Now = signOpts.Now
 	verifier := crypto.NewRFC9421VerifierWithOptions(verifyOpts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
@@ -1930,12 +1667,7 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 		t.Fatalf("Signature-Input = %q, want not-ocm= prefix", sigInput)
 	}
 
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("expected verification by tag to ignore label, got verified=false reason=%s err=%v", result.Reason, result.Error)
 	}
@@ -1945,24 +1677,19 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 }
 
 func TestHTTPSig_Verify_TagCount(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	body := []byte(`{"test":"data"}`)
-	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
+	body := httpsigTestBodyJSON
+	digest := httpsigContentDigestHeader(body)
 	newReq := func(sigInput string) *http.Request {
 		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
-		req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
+		req.Header.Set("Date", httpsigStandardDate)
 		req.Header.Set("Signature-Input", sigInput)
-		req.Header.Set("Signature", "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:")
+		req.Header.Set("Signature", httpsigPlaceholderSig)
 		return req
 	}
 
@@ -2007,18 +1734,14 @@ func TestHTTPSig_Verify_TagCount(t *testing.T) {
 }
 
 func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 	opts.Label = "integritylabel"
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
@@ -2037,12 +1760,7 @@ func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
 		t.Fatalf("Signature-Input must include tag parameter: %q", sigInput)
 	}
 
-	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
-		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
-		}, nil
-	})
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
 	if !result.Verified {
 		t.Fatalf("expected verification with tag preserved, got verified=false reason=%s err=%v", result.Reason, result.Error)
 	}
@@ -2061,16 +1779,12 @@ func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
 }
 
 func TestHTTPSig_GoldenDefaultSignatureInput(t *testing.T) {
-	km := crypto.NewKeyManager("", "https://example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatalf("LoadOrGenerate failed: %v", err)
-	}
+	km := mustHTTPSigKeyManager(t)
 
-	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
+	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	body := []byte(`{"test":"data"}`)
+	body := httpsigTestBodyJSON
 	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
