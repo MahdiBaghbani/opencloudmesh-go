@@ -51,10 +51,10 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 
 	protocols := spec.Protocols{}
 	if p.WebDAVRoot != "" {
-		protocols["webdav"] = spec.StringProtocolRole(p.WebDAVRoot)
+		protocols[spec.ProtocolWebDAV] = spec.StringProtocolRole(p.WebDAVRoot)
 	}
 	if p.WebDAVReceiveURI != "" {
-		protocols["webdav-receive"] = spec.WebDAVReceiveRole(spec.WebDAVReceiveURIKind(p.WebDAVReceiveURI))
+		protocols[spec.ProtocolWebDAVReceive] = spec.WebDAVReceiveRole(spec.WebDAVReceiveURIKind(p.WebDAVReceiveURI))
 	}
 
 	disc.ResourceTypes = make([]spec.ResourceType, 0, len(spec.SupportedResourceTypes))

@@ -2,9 +2,16 @@ package spec_test
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
 )
 
 func assertProtocolsRoundTrip(t *testing.T, input string) {
@@ -154,4 +161,66 @@ func TestDiscovery_GetWebDAVPath_TypedStringRole(t *testing.T) {
 	if got := disc.GetWebDAVPath(); got != "/webdav/ocm/" {
 		t.Errorf("GetWebDAVPath() = %q", got)
 	}
+}
+
+func TestProtocolsDiscoveryProductionUsesSpecConstants(t *testing.T) {
+	root := modroot.ModuleRoot(t)
+	files := []string{
+		"internal/components/ocm/discovery/builder.go",
+		"internal/components/ocm/discovery/validate.go",
+	}
+	for _, rel := range files {
+		rel := rel
+		t.Run(rel, func(t *testing.T) {
+			path := filepath.Join(root, rel)
+			src, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read %s: %v", rel, err)
+			}
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, rel, src, parser.ParseComments)
+			if err != nil {
+				t.Fatalf("parse %s: %v", rel, err)
+			}
+
+			found := map[string]bool{}
+			ast.Inspect(f, func(n ast.Node) bool {
+				if sel, ok := n.(*ast.SelectorExpr); ok {
+					name := selectorExprName(sel)
+					switch name {
+					case "spec.ProtocolWebDAV", "spec.ProtocolWebDAVReceive":
+						found[name] = true
+					}
+				}
+				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+					val, err := strconv.Unquote(lit.Value)
+					if err != nil {
+						return true
+					}
+					if val == "webdav" || val == "webdav-receive" {
+						pos := fset.Position(lit.Pos())
+						t.Errorf("%s:%d: raw protocol literal %q", rel, pos.Line, val)
+					}
+				}
+				return true
+			})
+
+			if !found["spec.ProtocolWebDAV"] {
+				t.Errorf("%s: missing spec.ProtocolWebDAV", rel)
+			}
+			if !found["spec.ProtocolWebDAVReceive"] {
+				t.Errorf("%s: missing spec.ProtocolWebDAVReceive", rel)
+			}
+		})
+	}
+}
+
+func selectorExprName(sel *ast.SelectorExpr) string {
+	if sel == nil || sel.Sel == nil {
+		return ""
+	}
+	if ident, ok := sel.X.(*ast.Ident); ok {
+		return ident.Name + "." + sel.Sel.Name
+	}
+	return ""
 }

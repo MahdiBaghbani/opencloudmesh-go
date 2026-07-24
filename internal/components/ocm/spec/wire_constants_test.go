@@ -51,10 +51,6 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 	"internal/components/ocm/access/remote.go": {
 		32: {},
 	},
-	"internal/components/ocm/discovery/builder.go": {
-		54: {},
-		57: {},
-	},
 	"internal/components/ocm/outbound/kinds.go": {
 		11: {},
 	},
