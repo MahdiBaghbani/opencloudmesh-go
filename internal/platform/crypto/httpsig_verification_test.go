@@ -1,0 +1,89 @@
+package crypto_test
+
+import (
+	"bytes"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+
+	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+
+	if verifier.HasSignatureHeaders(req) {
+		t.Error("should not have signature headers")
+	}
+
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{}, nil
+	})
+
+	if result.Verified {
+		t.Error("should not verify without signature headers")
+	}
+	if result.Error == nil {
+		t.Error("should return error for missing headers")
+	}
+}
+
+func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
+	km1 := crypto.NewKeyManager("", "https://example.com")
+	km2 := crypto.NewKeyManager("", "https://attacker.com")
+	km1.LoadOrGenerate()
+	km2.LoadOrGenerate()
+
+	opts := httpsigFixedOptions()
+
+	signer := crypto.NewRFC9421SignerWithOptions(km1, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test": "data"}`)
+	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/json")
+
+	signer.SignRequest(req, body)
+
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km2.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519",
+		}, nil
+	})
+
+	if result.Verified {
+		t.Error("verification should fail with wrong key")
+	}
+}
+
+func TestHasSignatureHeaders(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+
+	tests := []struct {
+		name     string
+		headers  map[string]string
+		expected bool
+	}{
+		{"no headers", map[string]string{}, false},
+		{"signature-input only", map[string]string{"Signature-Input": "test"}, true},
+		{"signature only", map[string]string{"Signature": "test"}, true},
+		{"both headers", map[string]string{"Signature-Input": "a", "Signature": "b"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/test", nil)
+			for k, v := range tt.headers {
+				req.Header.Set(k, v)
+			}
+
+			if verifier.HasSignatureHeaders(req) != tt.expected {
+				t.Errorf("HasSignatureHeaders = %v, want %v", !tt.expected, tt.expected)
+			}
+		})
+	}
+}
