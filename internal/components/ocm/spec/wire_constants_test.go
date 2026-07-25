@@ -74,7 +74,7 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		58: {},
 	},
 	"internal/platform/config/loader.go": {
-		662: {},
+		668: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		4: {},
