@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
@@ -103,11 +104,11 @@ func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
 
 	body := w.Body.String()
 
-	if containsStr(body, "super-secret-token") {
+	if strings.Contains(body, "super-secret-token") {
 		t.Error("response contains SharedSecret -- must not be leaked")
 	}
 
-	if containsStr(body, "recipientUserID") || containsStr(body, "RecipientUserID") {
+	if strings.Contains(body, "recipientUserID") || strings.Contains(body, "RecipientUserID") {
 		t.Error("response contains RecipientUserID field name -- must not be leaked")
 	}
 }

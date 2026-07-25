@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
@@ -156,11 +157,11 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 
 	body := w.Body.String()
 
-	if containsStr(body, "real-secret-value") {
+	if strings.Contains(body, "real-secret-value") {
 		t.Error("response contains the actual SharedSecret -- must not be leaked")
 	}
 
-	if !containsStr(body, "[REDACTED]") {
+	if !strings.Contains(body, "[REDACTED]") {
 		t.Error("response does not contain [REDACTED] for sharedSecret")
 	}
 
@@ -187,10 +188,10 @@ func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 
 	body := w.Body.String()
 
-	if containsStr(body, "recipientUserID") || containsStr(body, "RecipientUserID") {
+	if strings.Contains(body, "recipientUserID") || strings.Contains(body, "RecipientUserID") {
 		t.Error("response contains RecipientUserID field name -- must not be leaked")
 	}
-	if containsStr(body, "recipientDisplayName") || containsStr(body, "RecipientDisplayName") {
+	if strings.Contains(body, "recipientDisplayName") || strings.Contains(body, "RecipientDisplayName") {
 		t.Error("response contains RecipientDisplayName field name -- must not be leaked")
 	}
 }

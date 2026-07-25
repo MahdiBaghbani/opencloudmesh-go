@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
@@ -42,13 +43,13 @@ func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if containsStr(body, secret) {
+	if strings.Contains(body, secret) {
 		t.Errorf("response body must not contain the shared secret, got %q", body)
 	}
-	if containsStr(body, "code=") {
+	if strings.Contains(body, "code=") {
 		t.Errorf("response body must not contain 'code=', got %q", body)
 	}
-	if containsStr(body, "sharedSecret") {
+	if strings.Contains(body, "sharedSecret") {
 		t.Errorf("response body must not contain 'sharedSecret', got %q", body)
 	}
 }
@@ -85,13 +86,13 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 	if !resp.OK {
 		t.Fatal("expected ok=true")
 	}
-	if containsStr(resp.ContentType, secret) {
+	if strings.Contains(resp.ContentType, secret) {
 		t.Errorf("contentType must not contain the shared secret, got %q", resp.ContentType)
 	}
-	if containsStr(resp.ContentType, "code=") {
+	if strings.Contains(resp.ContentType, "code=") {
 		t.Errorf("contentType must not contain 'code=', got %q", resp.ContentType)
 	}
-	if containsStr(resp.ContentType, "sharedSecret") {
+	if strings.Contains(resp.ContentType, "sharedSecret") {
 		t.Errorf("contentType must not contain 'sharedSecret', got %q", resp.ContentType)
 	}
 }
@@ -131,10 +132,10 @@ func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 	if resp.ReasonCode != "unreachable" {
 		t.Errorf("expected reasonCode unreachable, got %s", resp.ReasonCode)
 	}
-	if containsStr(resp.Error, secret) {
+	if strings.Contains(resp.Error, secret) {
 		t.Errorf("error must not contain the shared secret, got %q", resp.Error)
 	}
-	if !containsStr(resp.Error, "403") {
+	if !strings.Contains(resp.Error, "403") {
 		t.Errorf("expected error to mention status code, got %q", resp.Error)
 	}
 }
@@ -180,10 +181,10 @@ func TestHandleVerifyAccess_RedactsCodeAndSharedSecretEvenWithEmptySecret(t *tes
 	}
 
 	body := w.Body.String()
-	if containsStr(body, "code=") {
+	if strings.Contains(body, "code=") {
 		t.Errorf("response body must not contain 'code=', got %q", body)
 	}
-	if containsStr(body, "sharedSecret") {
+	if strings.Contains(body, "sharedSecret") {
 		t.Errorf("response body must not contain 'sharedSecret', got %q", body)
 	}
 }
