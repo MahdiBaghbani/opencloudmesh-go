@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -143,20 +144,5 @@ func (b *testLogBuffer) Write(p []byte) (n int, err error) {
 
 func (b *testLogBuffer) contains(s string) bool {
 	return len(b.data) > 0 && string(b.data) != "" &&
-		(len(s) == 0 || (len(b.data) >= len(s) && containsString(string(b.data), s)))
-}
-
-func containsString(haystack, needle string) bool {
-	return len(haystack) >= len(needle) &&
-		(haystack == needle ||
-			(len(haystack) > len(needle) && searchString(haystack, needle)))
-}
-
-func searchString(haystack, needle string) bool {
-	for i := 0; i <= len(haystack)-len(needle); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
+		(len(s) == 0 || (len(b.data) >= len(s) && strings.Contains(string(b.data), s)))
 }
