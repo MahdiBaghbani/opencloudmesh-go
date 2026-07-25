@@ -62,8 +62,8 @@ func NewTestClient(t testing.TB, opts ...Option) *ocmdiscovery.Client {
 }
 
 // InlineKeyDiscoveryDoc builds a raw discovery JSON document carrying a singular
-// inline publicKey entry, mirroring discovery_test inlineKeyDiscoveryPayload with
-// shape "singular", apiVersion spec.APIVersionPin, and a fixed peer base URL.
+// inline publicKey entry, mirroring client_deserialize_test's inlineKeyDiscoveryPayload
+// with shape "singular", apiVersion spec.APIVersionPin, and a fixed peer base URL.
 func InlineKeyDiscoveryDoc(t testing.TB, publicKeyPEM string) map[string]any {
 	t.Helper()
 
