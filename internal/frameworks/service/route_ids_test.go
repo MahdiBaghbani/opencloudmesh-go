@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -89,7 +90,7 @@ func TestDerivedRouteInventory_ExternalBasePath(t *testing.T) {
 			t.Errorf("unexpected host-root inventory row %q with external base path", row.FullPath)
 			continue
 		}
-		if !hasPrefix(row.FullPath, "/ocm/") && row.FullPath != "/ocm" {
+		if !strings.HasPrefix(row.FullPath, "/ocm/") && row.FullPath != "/ocm" {
 			t.Errorf("inventory row %q FullPath = %q, want /ocm prefix", row.ID, row.FullPath)
 		}
 		if _, ok := prefixedServices[row.Service]; ok {
