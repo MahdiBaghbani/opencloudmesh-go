@@ -2,6 +2,7 @@ package invites_test
 
 import (
 	"encoding/base64"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
@@ -75,7 +76,7 @@ func TestParseInviteString(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error, got nil")
-				} else if tt.errContains != "" && !containsStr(err.Error(), tt.errContains) {
+				} else if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
 					t.Errorf("error %q does not contain %q", err.Error(), tt.errContains)
 				}
 				return
@@ -126,8 +127,4 @@ func TestRoundTrip(t *testing.T) {
 	if gotFQDN != fqdn {
 		t.Errorf("fqdn = %q, want %q", gotFQDN, fqdn)
 	}
-}
-
-func containsStr(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsStr(s[1:], substr) || s[:len(substr)] == substr)
 }
