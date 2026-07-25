@@ -1,6 +1,7 @@
 package incoming
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -112,7 +113,7 @@ func TestTokenExchangeSettings_Validate(t *testing.T) {
 					t.Errorf("Validate() error = nil, want error containing %q", tt.errMsg)
 					return
 				}
-				if tt.errMsg != "" && !containsString(err.Error(), tt.errMsg) {
+				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("Validate() error = %q, want error containing %q", err.Error(), tt.errMsg)
 				}
 			} else {
@@ -205,19 +206,4 @@ func TestTokenExchangeSettings_RoutePath(t *testing.T) {
 			}
 		})
 	}
-}
-
-// containsString reports whether s contains substr.
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
