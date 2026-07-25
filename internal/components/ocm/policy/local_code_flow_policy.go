@@ -1,7 +1,8 @@
 package policy
 
-// Facts are the fixed OCM code-flow facts for this implementation. There is
-// exactly one supported code flow, so these facts hold as constants.
+// Facts are the OCM code-flow facts for this implementation. A non-nil
+// *CodeFlow evaluates knobs with strict defaults; a nil *CodeFlow returns
+// all-false Facts (strict-off).
 type Facts struct {
 	TokenExchangeCapable             bool
 	RequiresTokenExchange            bool
@@ -9,21 +10,37 @@ type Facts struct {
 	RequiresHTTPRequestSignatures    bool
 }
 
-// CodeFlow reports the fixed local code-flow facts. The code flow is not configurable.
-type CodeFlow struct{}
+// CodeFlow reports local code-flow facts. Nil *bool knobs mean strict (true).
+// false relaxes; true enforces. Knobs apply only to a non-nil CodeFlow.
+type CodeFlow struct {
+	IncludesTokenExchangeRequirement *bool
+	RequiresTokenExchangeRequirement *bool
+	RequiresHTTPRequestSignatures    *bool
+}
 
-// NewCodeFlow constructs the fixed local code-flow policy.
+// NewCodeFlow constructs a local code-flow policy with unset (strict) knobs.
 func NewCodeFlow() *CodeFlow {
 	return &CodeFlow{}
 }
 
-// Evaluate returns the fixed local code-flow facts. Safe to call on a nil
-// receiver.
+// Evaluate returns the local code-flow facts. Safe to call on a nil
+// receiver: nil means strict-off (all Facts false). On a non-nil receiver,
+// unset knobs default to true.
 func (c *CodeFlow) Evaluate() Facts {
+	if c == nil {
+		return Facts{}
+	}
 	return Facts{
 		TokenExchangeCapable:             true,
-		RequiresTokenExchange:            true,
-		IncludesTokenExchangeRequirement: true,
-		RequiresHTTPRequestSignatures:    true,
+		RequiresTokenExchange:            boolOrDefaultTrue(c.RequiresTokenExchangeRequirement),
+		IncludesTokenExchangeRequirement: boolOrDefaultTrue(c.IncludesTokenExchangeRequirement),
+		RequiresHTTPRequestSignatures:    boolOrDefaultTrue(c.RequiresHTTPRequestSignatures),
 	}
+}
+
+func boolOrDefaultTrue(v *bool) bool {
+	if v == nil {
+		return true
+	}
+	return *v
 }

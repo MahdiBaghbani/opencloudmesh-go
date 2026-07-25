@@ -43,9 +43,10 @@ func (c *Config) ApplyDefaults() {}
 
 // Service is the API service.
 type Service struct {
-	router chi.Router
-	conf   *Config
-	log    *slog.Logger
+	router          chi.Router
+	conf            *Config
+	log             *slog.Logger
+	outgoingHandler *outgoingshares.Handler
 }
 
 // New creates a new API service from narrow injected inputs.
@@ -102,9 +103,10 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.LocalIdentity.ProviderDomain,
 		currentUser,
 		log,
+		inputs.OutgoingFactsResolver,
+		inputs.LocalTokenEndpoint,
 	)
 	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
-	outgoingHandler.SetCodeFlow(inputs.CodeFlow)
 	if len(c.AllowedPaths) > 0 {
 		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
 	}
@@ -140,6 +142,14 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	r := chi.NewRouter()
+
+	s := &Service{
+		router:          r,
+		conf:            &c,
+		log:             log,
+		outgoingHandler: outgoingHandler,
+	}
+
 	r.Get(RouteHealthz, api.HealthHandler)
 
 	if loginMiddleware != nil {
@@ -163,7 +173,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	r.Post(RouteSharesOutgoing, outgoingHandler.HandleCreate)
 	r.Post(RouteInvitesOutgoing, outgoingInvitesHandler.HandleCreateOutgoing)
 
-	return &Service{router: r, conf: &c, log: log}, nil
+	return s, nil
 }
 
 func validateInputs(in Inputs) error {

@@ -53,10 +53,12 @@ type PeerDiscovery interface {
 
 // SignatureMiddleware verifies HTTP request signatures.
 type SignatureMiddleware struct {
-	verifier      *crypto.RFC9421Verifier
-	peerDiscovery PeerDiscovery
-	logger        *slog.Logger
-	localScheme   string // scheme from PublicOrigin for unverified peer normalization
+	verifier                           *crypto.RFC9421Verifier
+	peerDiscovery                      PeerDiscovery
+	logger                             *slog.Logger
+	localScheme                        string // scheme from PublicOrigin for unverified peer normalization
+	localRequiresHTTPRequestSignatures bool
+	localAdvertiseHTTPSig              bool
 }
 
 // NewSignatureMiddleware creates a new signature verification middleware.
@@ -75,31 +77,46 @@ func NewSignatureMiddleware(
 		verifier: crypto.NewRFC9421VerifierWithOptions(
 			crypto.RFC9421OptionsFromConfig(sigCfg),
 		),
-		peerDiscovery: pd,
-		logger:        logger,
-		localScheme:   localScheme,
+		peerDiscovery:                      pd,
+		logger:                             logger,
+		localScheme:                        localScheme,
+		localRequiresHTTPRequestSignatures: true,
+		localAdvertiseHTTPSig:              true,
 	}
+}
+
+// SetLocalHTTPSigPolicy sets the local discovery policy used by the request
+// path to decide whether unsigned requests must be rejected. This mirrors the
+// discovery builder gate: RequiresHTTPRequestSignatures && AdvertiseHTTPSig.
+func (m *SignatureMiddleware) SetLocalHTTPSigPolicy(requiresHTTPRequestSignatures, advertiseHTTPSig bool) {
+	m.localRequiresHTTPRequestSignatures = requiresHTTPRequestSignatures
+	m.localAdvertiseHTTPSig = advertiseHTTPSig
+}
+
+func (m *SignatureMiddleware) localRequiresHTTPSig() bool {
+	return m.localRequiresHTTPRequestSignatures && m.localAdvertiseHTTPSig
 }
 
 // VerifyOCMRequestIfPresent verifies inbound signatures when present and
 // populates peer identity from a verified keyId. Unsigned requests pass through
 // without identity. Invalid signatures are rejected.
 func (m *SignatureMiddleware) VerifyOCMRequestIfPresent() func(http.Handler) http.Handler {
-	return m.verifyOCMRequest(nil, false, false, true)
+	return m.verifyOCMRequest(nil, false, true)
 }
 
-// VerifyOCMRequestRequireSignatureAndPeer enforces a verified signature and a
-// non-empty declared peer from the request body. Use on shares, invites, and
-// token routes where keyId must bind to the body-declared peer.
+// VerifyOCMRequestRequireSignatureAndPeer requires a verified signature and a
+// non-empty declared peer from the request body when the local HTTPSig policy
+// (RequiresHTTPRequestSignatures && AdvertiseHTTPSig) says signatures must be
+// enforced. Use on shares, invites, and token routes where keyId must bind to
+// the body-declared peer.
 func (m *SignatureMiddleware) VerifyOCMRequestRequireSignatureAndPeer(
 	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
 ) func(http.Handler) http.Handler {
-	return m.verifyOCMRequest(declaredPeerResolver, true, true, false)
+	return m.verifyOCMRequest(declaredPeerResolver, true, false)
 }
 
 func (m *SignatureMiddleware) verifyOCMRequest(
 	declaredPeerResolver func(r *http.Request, body []byte) (string, error),
-	requireSignature bool,
 	requireDeclaredPeer bool,
 	optionalSignature bool,
 ) func(http.Handler) http.Handler {
@@ -135,13 +152,14 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 				}
 			}
 
-			// Check for signature headers
-			hasSignature := m.verifier.HasSignatureHeaders(r)
+			// Only consider OCM signature attempts; foreign signatures are
+			// treated as unsigned.
+			hasOCMSignature := m.verifier.HasOCMSignatureAttempt(r)
 
 			// Get peer identity for context
 			peerIdentity := &PeerIdentity{}
 
-			if hasSignature {
+			if hasOCMSignature {
 				// Verify signature
 				result := m.verifier.VerifyRequest(r, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 					return m.peerDiscovery.ResolveVerificationKey(r.Context(), keyID)
@@ -190,6 +208,9 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 						Authenticated:       true,
 						KeyID:               result.KeyID,
 					}
+				} else if result.Reason == crypto.ReasonUnsigned {
+					m.serveUnsigned(w, r, body, optionalSignature, next)
+					return
 				} else {
 					bodyMsg := httpBodyForVerifyReason(result.Reason)
 					status := httpStatusForVerifyReason(result.Reason)
@@ -201,23 +222,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 					return
 				}
 			} else {
-				// No signature present
-				if optionalSignature {
-					if err := crypto.VerifyContentDigest(r, body); err != nil {
-						m.logger.Warn("content digest verification failed", "error", err)
-						http.Error(w, "content digest mismatch", http.StatusBadRequest)
-						return
-					}
-					next.ServeHTTP(w, r)
-					return
-				}
-
-				if requireSignature {
-					http.Error(w, "signature required", http.StatusUnauthorized)
-					return
-				}
-
-				http.Error(w, "signature required", http.StatusUnauthorized)
+				m.serveUnsigned(w, r, body, optionalSignature, next)
 				return
 			}
 
@@ -233,6 +238,20 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func (m *SignatureMiddleware) serveUnsigned(w http.ResponseWriter, r *http.Request, body []byte, optionalSignature bool, next http.Handler) {
+	if optionalSignature || !m.localRequiresHTTPSig() {
+		if err := crypto.VerifyContentDigest(r, body); err != nil {
+			m.logger.Warn("content digest verification failed", "error", err)
+			http.Error(w, "content digest mismatch", http.StatusBadRequest)
+			return
+		}
+		next.ServeHTTP(w, r)
+		return
+	}
+	m.logger.Warn("signature required", "reason", crypto.ReasonUnsigned)
+	http.Error(w, "signature required", http.StatusUnauthorized)
 }
 
 func authorityForCompareFromKid(k keyid.Kid, scheme string) (string, error) {
@@ -256,6 +275,8 @@ func httpBodyForVerifyReason(reason string) string {
 		return "signature algorithm rejected"
 	case crypto.ReasonContentDigest:
 		return "content digest mismatch"
+	case crypto.ReasonUnsigned:
+		return "signature required"
 	default:
 		return "signature verification failed"
 	}

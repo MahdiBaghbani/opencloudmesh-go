@@ -14,6 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -26,6 +27,7 @@ type Handler struct {
 	repo                        sharesinbox.IncomingShareRepo
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
+	resolver                    *policy.PeerMappingResolver
 	localProviderFQDNForCompare string
 	localScheme                 string
 	logger                      *slog.Logger
@@ -37,6 +39,7 @@ func NewHandler(
 	policyEngine *peertrust.PolicyEngine,
 	localProviderFQDNForCompare string,
 	localScheme string,
+	resolver *policy.PeerMappingResolver,
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
@@ -44,6 +47,7 @@ func NewHandler(
 		repo:                        repo,
 		partyRepo:                   partyRepo,
 		policyEngine:                policyEngine,
+		resolver:                    resolver,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 		logger:                      logger,
@@ -102,9 +106,34 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		spec.WriteValidationError(w, "INVALID_PROTOCOL", []spec.ValidationError{*shapeErr})
 		return
 	}
-	if webdavErrs := spec.ValidateWebDAVProtocol(req.Protocol.WebDAV); len(webdavErrs) > 0 {
-		writeWebDAVValidationErrors(w, webdavErrs)
-		return
+	// localRequires defaults to strict; a non-nil resolver lets peer mapping relax it.
+	localRequires := true
+	if h.resolver != nil {
+		if _, senderHost, err := address.Parse(req.Sender); err == nil {
+			localRequires = h.resolver.ResolveFacts(senderHost, nil).RequiresTokenExchange
+		}
+	}
+
+	webdav := req.Protocol.WebDAV
+	if webdav != nil {
+		webdavErrs := spec.ValidateWebDAVProtocolWire(webdav)
+		webdavErrs = append(webdavErrs, spec.ValidateWebDAVRequirementsAdmission(localRequires, webdav.Requirements)...)
+		webdavErrs = dedupeValidationErrors(webdavErrs)
+		if len(webdavErrs) > 0 {
+			writeProtocolValidationErrors(w, webdavErrs)
+			return
+		}
+	}
+
+	webapp := req.Protocol.Webapp
+	if webapp != nil {
+		webappErrs := spec.ValidateWebappProtocolWire(webapp)
+		webappErrs = append(webappErrs, spec.ValidateWebappRequirementsAdmission(localRequires, webapp.Requirements)...)
+		webappErrs = dedupeValidationErrors(webappErrs)
+		if len(webappErrs) > 0 {
+			writeProtocolValidationErrors(w, webappErrs)
+			return
+		}
 	}
 
 	var formatErrs []spec.ValidationError
@@ -227,7 +256,16 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	webdav := req.Protocol.WebDAV
+	webdav = req.Protocol.WebDAV
+	// Persist fields from each protocol arm when present.
+	var webdavURI, webdavSharedSecret string
+	var webdavPermissions, webdavRequirements []string
+	if webdav != nil {
+		webdavURI = webdav.URI
+		webdavSharedSecret = webdav.SharedSecret
+		webdavPermissions = webdav.Permissions
+		webdavRequirements = append([]string(nil), webdav.Requirements...)
+	}
 	share := &sharesinbox.IncomingShare{
 		ProviderID:           req.ProviderID,
 		SenderHost:           senderHost,
@@ -245,10 +283,17 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		Status:               sharesinbox.ShareStatusPending,
 		RecipientUserID:      resolvedUser.ID,
 		RecipientDisplayName: resolvedUser.DisplayName,
-		WebDAVID:             webdav.URI,
-		SharedSecret:         webdav.SharedSecret,
-		Permissions:          webdav.Permissions,
-		Requirements:         append([]string(nil), webdav.Requirements...),
+		WebDAVID:             webdavURI,
+		SharedSecret:         webdavSharedSecret,
+		Permissions:          webdavPermissions,
+		Requirements:         webdavRequirements,
+	}
+	share.ProtocolName = req.Protocol.Name
+	webapp = req.Protocol.Webapp
+	if webapp != nil {
+		share.WebappURI = webapp.URI
+		share.WebappTargets = append([]string(nil), webapp.Targets...)
+		share.WebappPermissions = append([]string(nil), webapp.Permissions...)
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {
@@ -269,7 +314,29 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func writeWebDAVValidationErrors(w http.ResponseWriter, errs []spec.ValidationError) {
+func dedupeValidationErrors(errs []spec.ValidationError) []spec.ValidationError {
+	if len(errs) == 0 {
+		return errs
+	}
+	seen := make(map[string]struct{}, len(errs))
+	out := make([]spec.ValidationError, 0, len(errs))
+	for _, e := range errs {
+		key := e.Name + "\x00" + e.Message
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, e)
+	}
+	return out
+}
+
+// writeProtocolValidationErrors maps spec protocol validation errors to the
+// shared OCM response taxonomy used by both the webdav and webapp arms: any
+// UNSUPPORTED value yields PROTOCOL_NOT_SUPPORTED (501); all other errors
+// (missing/invalid required fields, GAP rejections) yield INVALID_PROTOCOL
+// (400) with the validation errors attached so the rejection is observable.
+func writeProtocolValidationErrors(w http.ResponseWriter, errs []spec.ValidationError) {
 	for _, e := range errs {
 		if e.Message == "UNSUPPORTED" {
 			spec.WriteProtocolNotSupported(w)

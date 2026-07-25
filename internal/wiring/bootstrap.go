@@ -75,7 +75,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	}
 
 	peerOrigin := peerorigin.NewResolver(cfg.TLS.Mode == "off")
-	codeFlow := policy.NewCodeFlow()
+	codeFlow := &policy.CodeFlow{
+		IncludesTokenExchangeRequirement: cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement,
+		RequiresTokenExchangeRequirement: cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement,
+		RequiresHTTPRequestSignatures:    cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures,
+	}
 	versionPolicy := discovery.VersionPolicyFromConfig(cfg.OCM.Discovery)
 
 	localIdentity, err := localidentity.Derive(cfg.PublicOrigin, cfg.ExternalBasePath)
@@ -181,10 +185,8 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	var signer *crypto.RFC9421Signer
 	if keyManager != nil {
-		signer = crypto.NewRFC9421SignerWithOptions(
-			keyManager,
-			crypto.RFC9421OptionsFromConfig(cfg.Signature),
-		)
+		signerOpts := crypto.RFC9421OptionsFromConfig(cfg.Signature)
+		signer = crypto.NewRFC9421SignerWithOptions(keyManager, signerOpts)
 	}
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(rawHTTPClient)
@@ -195,6 +197,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		cfg.Signature,
 		logger,
 	)
+	signatureMiddleware.SetLocalHTTPSigPolicy(facts.RequiresHTTPRequestSignatures, keyManager != nil)
 
 	tokenStore := token.NewMemoryTokenStore()
 	realIPExtractor := realip.NewTrustedProxies(cfg.Server.TrustedProxies)

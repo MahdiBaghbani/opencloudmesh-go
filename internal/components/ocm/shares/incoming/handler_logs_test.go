@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
@@ -45,6 +46,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				nil,
 				"localhost:9200",
 				"https",
+				policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil),
 				capture.Logger,
 			)
 

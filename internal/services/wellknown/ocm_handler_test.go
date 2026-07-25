@@ -100,10 +100,13 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 	if !found {
 		t.Error("expected 'http-sig' in capabilities when KeyManager is present")
 	}
+	if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+		t.Error("expected must-use-http-sig in criteria when KeyManager is present")
+	}
 }
 
 func TestNewOCMHandler_Criteria(t *testing.T) {
-	t.Run("default criteria include signing and token exchange", func(t *testing.T) {
+	t.Run("default criteria include token exchange", func(t *testing.T) {
 		c := &resolve.ProviderConfig{}
 		h, err := newOCMHandler(c, nil, handlerResolveInputs(t, "https://example.com", ""), testLogger())
 		if err != nil {
@@ -113,47 +116,11 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 		if h.data.Criteria == nil {
 			t.Error("expected Criteria to be non-nil")
 		}
-		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("expected must-use-http-sig in default criteria")
+		if h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+			t.Error("did not expect must-use-http-sig without http-sig capability")
 		}
 		if !h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
 			t.Error("expected must-exchange-token in default criteria")
-		}
-	})
-
-	t.Run("with HTTP signatures", func(t *testing.T) {
-		codeFlow := policy.NewCodeFlow()
-		c := &resolve.ProviderConfig{}
-		h, err := newOCMHandler(c, nil, resolve.ResolveInputs{
-			LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
-			RouteOpts:     service.DefaultRouteOpts(),
-			CodeFlow:      codeFlow,
-		}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("expected must-use-http-sig in criteria")
-		}
-	})
-}
-
-func TestNewOCMHandler_CodeFlowDrivesHTTPSignatureCriteria(t *testing.T) {
-	t.Run("derived from code-flow policy when not explicitly configured", func(t *testing.T) {
-		codeFlow := policy.NewCodeFlow()
-		c := &resolve.ProviderConfig{}
-		h, err := newOCMHandler(c, map[string]any{}, resolve.ResolveInputs{
-			LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", ""),
-			RouteOpts:     service.DefaultRouteOpts(),
-			CodeFlow:      codeFlow,
-		}, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("expected must-use-http-sig criteria from code-flow policy")
 		}
 	})
 }

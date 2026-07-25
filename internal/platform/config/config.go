@@ -62,7 +62,9 @@ type Config struct {
 
 // OCMConfig holds OCM-specific settings.
 type OCMConfig struct {
-	Discovery DiscoveryConfig `toml:"discovery"`
+	Discovery   DiscoveryConfig   `toml:"discovery"`
+	CodeFlow    CodeFlowConfig    `toml:"code_flow"`
+	PeerMapping PeerMappingConfig `toml:"peer_compat"`
 }
 
 // DiscoveryConfig holds inbound peer discovery validation settings.
@@ -72,6 +74,14 @@ type DiscoveryConfig struct {
 
 	// PeerAPIVersionWarn selects warning behavior: any-diff, lower-only, none.
 	PeerAPIVersionWarn string `toml:"peer_api_version_warn"`
+}
+
+// CodeFlowConfig holds relaxable OCM code-flow knobs under [ocm.code_flow].
+// Unset (nil) means inherit/strict default; false relaxes; true enforces.
+type CodeFlowConfig struct {
+	IncludesTokenExchangeRequirement *bool `toml:"includes_token_exchange_requirement"`
+	RequiresTokenExchangeRequirement *bool `toml:"requires_token_exchange_requirement"`
+	RequiresHTTPRequestSignatures    *bool `toml:"requires_http_request_signatures"`
 }
 
 // PersistenceConfig holds persistence backend settings.

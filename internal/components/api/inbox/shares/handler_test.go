@@ -15,6 +15,7 @@ import (
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -391,8 +392,13 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
 	}
-	if proto["name"] != "multi" {
-		t.Errorf("expected protocol.name multi, got %v", proto["name"])
+	// Legacy row: no protocol name was persisted, so the detail must emit an
+	// empty name. It must never synthesize "multi".
+	if proto["name"] != "" {
+		t.Errorf("expected protocol.name empty for legacy row, got %v", proto["name"])
+	}
+	if _, hasWebapp := proto["webapp"]; hasWebapp {
+		t.Errorf("expected no webapp arm for legacy row, got %v", proto["webapp"])
 	}
 	webdav, ok := proto["webdav"].(map[string]any)
 	if !ok {
@@ -640,6 +646,149 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 	webdavB := protoB["webdav"].(map[string]any)
 	if webdavB["uri"] != "relative-id-only" {
 		t.Errorf("expected WebDAVID as uri, got %v", webdavB["uri"])
+	}
+}
+
+// TestHandleGetDetail_RendersProtocolNameAndWebappArm verifies the inbox
+// detail HTTP response renders the stored protocol.name and all webapp arm
+// fields. It uses an in-memory repo and exercises the handler -> detail view
+// rendering path. The durable store -> adapter round-trip is covered by
+// TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm.
+// Legacy rows (no protocol name, no webapp data) emit an empty name and omit
+// the webapp arm; that case is covered by TestHandleGetDetail_OwnShareReturns200.
+func TestHandleGetDetail_RendersProtocolNameAndWebappArm(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	userA := &identity.User{ID: userAID, Username: "alice"}
+
+	share := &sharesinbox.IncomingShare{
+		ProviderID:        "prov-webapp-arm",
+		SenderHost:        "sender.example.com",
+		ShareWith:         userAID + "@example.com",
+		RecipientUserID:   userAID,
+		Status:            sharesinbox.ShareStatusPending,
+		ResourceType:      "file",
+		Name:              "test-share-webapp",
+		Owner:             "owner@sender.example.com",
+		Sender:            "sender@sender.example.com",
+		ShareType:         "user",
+		Permissions:       []string{"read"},
+		WebDAVID:          "wdid-webapp",
+		SharedSecret:      "secret",
+		Requirements:      []string{"must-exchange-token"},
+		ProtocolName:      "custom-app",
+		WebappURI:         "https://app.sender.example.com/launch",
+		WebappTargets:     []string{"blank", "_self"},
+		WebappPermissions: []string{"view", "share"},
+	}
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	router := newTestRouter(repo, userA)
+	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	proto, ok := resp["protocol"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
+	}
+	if proto["name"] != "custom-app" {
+		t.Errorf("expected protocol.name custom-app, got %v", proto["name"])
+	}
+
+	webapp, ok := proto["webapp"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected protocol.webapp to be an object, got %T", proto["webapp"])
+	}
+	if webapp["uri"] != "https://app.sender.example.com/launch" {
+		t.Errorf("expected webapp.uri %q, got %v", "https://app.sender.example.com/launch", webapp["uri"])
+	}
+	targets, ok := webapp["targets"].([]any)
+	if !ok {
+		t.Fatalf("expected webapp.targets to be an array, got %T", webapp["targets"])
+	}
+	if len(targets) != 2 || targets[0] != "blank" || targets[1] != "_self" {
+		t.Errorf("expected webapp.targets [blank _self], got %v", targets)
+	}
+	perms, ok := webapp["permissions"].([]any)
+	if !ok {
+		t.Fatalf("expected webapp.permissions to be an array, got %T", webapp["permissions"])
+	}
+	if len(perms) != 2 || perms[0] != "view" || perms[1] != "share" {
+		t.Errorf("expected webapp.permissions [view share], got %v", perms)
+	}
+
+	// WebDAV arm must remain present and unchanged alongside the webapp arm.
+	webdav, ok := proto["webdav"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected protocol.webdav to still be present, got %T", proto["webdav"])
+	}
+	if webdav["uri"] != "wdid-webapp" {
+		t.Errorf("expected webdav.uri wdid-webapp, got %v", webdav["uri"])
+	}
+}
+
+// TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm
+// verifies the real JSON store plus the incoming-share adapter preserve
+// ProtocolName and the webapp arm fields across a Create -> read-back
+// round-trip. This proves the durable persistence path that the in-memory
+// HTTP rendering test above cannot cover.
+func TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm(t *testing.T) {
+	ctx := context.Background()
+	r := tsrepos.OpenJSON(t)
+	defer r.Close()
+
+	repo := r.IncomingShares
+
+	share := &sharesinbox.IncomingShare{
+		ProviderID:        "prov-durable-rt",
+		SenderHost:        "sender.example.com",
+		ShareWith:         userAID + "@example.com",
+		RecipientUserID:   userAID,
+		Status:            sharesinbox.ShareStatusPending,
+		ResourceType:      "file",
+		Name:              "test-share-durable",
+		Owner:             "owner@sender.example.com",
+		Sender:            "sender@sender.example.com",
+		ShareType:         "user",
+		Permissions:       []string{"read"},
+		WebDAVID:          "wdid-durable",
+		SharedSecret:      "secret",
+		Requirements:      []string{"must-exchange-token"},
+		ProtocolName:      "custom-app",
+		WebappURI:         "https://app.sender.example.com/launch",
+		WebappTargets:     []string{"blank", "_self"},
+		WebappPermissions: []string{"view", "share"},
+	}
+	if err := repo.Create(ctx, share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	got, err := repo.GetByIDForRecipientUserID(ctx, share.ShareID, userAID)
+	if err != nil {
+		t.Fatalf("GetByIDForRecipientUserID: %v", err)
+	}
+	if got.ProtocolName != "custom-app" {
+		t.Errorf("ProtocolName: got %q, want %q", got.ProtocolName, "custom-app")
+	}
+	if got.WebappURI != "https://app.sender.example.com/launch" {
+		t.Errorf("WebappURI: got %q, want %q", got.WebappURI, "https://app.sender.example.com/launch")
+	}
+	if len(got.WebappTargets) != 2 || got.WebappTargets[0] != "blank" || got.WebappTargets[1] != "_self" {
+		t.Errorf("WebappTargets: got %v, want [blank _self]", got.WebappTargets)
+	}
+	if len(got.WebappPermissions) != 2 || got.WebappPermissions[0] != "view" || got.WebappPermissions[1] != "share" {
+		t.Errorf("WebappPermissions: got %v, want [view share]", got.WebappPermissions)
 	}
 }
 

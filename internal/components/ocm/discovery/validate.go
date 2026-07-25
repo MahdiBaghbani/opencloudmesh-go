@@ -37,12 +37,12 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 		return fmt.Errorf("endPoint authority must match discovery origin")
 	}
 
-	hasExchangeToken := disc.HasCapability("exchange-token")
+	hasExchangeToken := disc.HasCapability(spec.CapabilityExchangeToken)
 	if hasExchangeToken && disc.TokenEndPoint == "" {
-		return fmt.Errorf("exchange-token capability requires tokenEndPoint")
+		return fmt.Errorf("%s capability requires tokenEndPoint", spec.CapabilityExchangeToken)
 	}
 	if !hasExchangeToken && disc.TokenEndPoint != "" {
-		return fmt.Errorf("tokenEndPoint requires exchange-token capability")
+		return fmt.Errorf("tokenEndPoint requires %s capability", spec.CapabilityExchangeToken)
 	}
 	if disc.TokenEndPoint != "" {
 		if !isAbsoluteURL(disc.TokenEndPoint) {
@@ -93,11 +93,11 @@ func validateResourceType(rt spec.ResourceType, warnings *[]string) error {
 
 func validateProtocolRole(name string, role spec.ProtocolRole) (warning string, err error) {
 	switch name {
-	case "webdav":
+	case spec.ProtocolWebDAV:
 		if _, ok := role.StringValue(); !ok {
 			return "", fmt.Errorf("must be a string path")
 		}
-	case "webdav-receive":
+	case spec.ProtocolWebDAVReceive:
 		wr, ok := role.WebDAVReceive()
 		if !ok {
 			return "", fmt.Errorf("must be an object with uri")

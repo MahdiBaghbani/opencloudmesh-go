@@ -133,7 +133,7 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 		}
 	})
 
-	t.Run("nil CodeFlow yields fixed strict profile", func(t *testing.T) {
+	t.Run("nil CodeFlow yields strict-off discovery", func(t *testing.T) {
 		c := &resolve.ProviderConfig{}
 		in := handlerResolveInputs(t, "https://example.com", "")
 		in.CodeFlow = nil
@@ -142,24 +142,19 @@ func TestNewOCMHandler_CodeFlowDrivesTokenExchangeCriteria(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		foundExchangeToken := false
 		for _, cap := range h.data.Capabilities {
 			if cap == "exchange-token" {
-				foundExchangeToken = true
-				break
+				t.Fatal("expected no exchange-token capability when CodeFlow is nil")
 			}
 		}
-		if !foundExchangeToken {
-			t.Fatal("expected exchange-token capability from nil-safe CodeFlow.Evaluate() strict profile")
+		if h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
+			t.Error("expected no must-exchange-token criteria when CodeFlow is nil")
 		}
-		if h.data.TokenEndPoint == "" {
-			t.Fatal("expected non-empty tokenEndPoint when nil CodeFlow enables token exchange")
+		if h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+			t.Error("expected no must-use-http-sig criteria when CodeFlow is nil")
 		}
-		if !h.data.HasCriteria(spec.CriteriaMustExchangeToken) {
-			t.Error("expected must-exchange-token in criteria from nil CodeFlow strict profile")
-		}
-		if !h.data.HasCriteria(spec.CriteriaMustUseHTTPSig) {
-			t.Error("expected must-use-http-sig in criteria from nil CodeFlow strict profile")
+		if h.data.TokenEndPoint != "" {
+			t.Error("expected empty tokenEndPoint when CodeFlow is nil (strict-off)")
 		}
 	})
 }

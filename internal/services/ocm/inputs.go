@@ -20,6 +20,7 @@ type Inputs struct {
 	PartyRepo           identity.PartyRepo
 	PolicyEngine        *peertrust.PolicyEngine
 	CodeFlow            *policy.CodeFlow
+	PeerMappingResolver *policy.PeerMappingResolver
 	LocalIdentity       localidentity.Identity
 	TokenStore          token.TokenStore
 	SignatureMiddleware *inboundsignature.SignatureMiddleware

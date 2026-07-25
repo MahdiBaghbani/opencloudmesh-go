@@ -32,18 +32,24 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// PeerFactsResolver resolves code-flow facts for a remote peer.
+type PeerFactsResolver interface {
+	ResolveFacts(host string, disc policy.DiscoveryView) policy.Facts
+}
+
 // Handler serves POST /api/shares/outgoing to create and send shares.
 type Handler struct {
-	repo            sharesoutgoing.OutgoingShareRepo
-	discoveryClient *discovery.Client
-	httpClient      httpclient.HTTPClient
-	signer          *crypto.RFC9421Signer
-	peerOrigin      *peerorigin.Resolver
-	localProvider   string // raw host[:port] for owner/sender identity
-	currentUser     func(context.Context) (*identity.User, error)
-	logger          *slog.Logger
-	allowedPaths    []string
-	codeFlow        *policy.CodeFlow
+	repo               sharesoutgoing.OutgoingShareRepo
+	discoveryClient    *discovery.Client
+	httpClient         httpclient.HTTPClient
+	signer             *crypto.RFC9421Signer
+	peerOrigin         *peerorigin.Resolver
+	resolver           PeerFactsResolver
+	localProvider      string // raw host[:port] for owner/sender identity
+	localTokenEndPoint string
+	currentUser        func(context.Context) (*identity.User, error)
+	logger             *slog.Logger
+	allowedPaths       []string
 }
 
 // NewHandler returns a Handler with the given dependencies. Panics if discoveryClient is nil.
@@ -55,20 +61,24 @@ func NewHandler(
 	localProvider string,
 	currentUser func(context.Context) (*identity.User, error),
 	logger *slog.Logger,
+	resolver PeerFactsResolver,
+	localTokenEndPoint string,
 ) *Handler {
 	if discClient == nil {
 		panic("outgoingshares.NewHandler: discoveryClient must not be nil")
 	}
 	logger = logutil.NoopIfNil(logger)
 	return &Handler{
-		repo:            repo,
-		discoveryClient: discClient,
-		httpClient:      httpClient,
-		signer:          signer,
-		localProvider:   localProvider,
-		currentUser:     currentUser,
-		logger:          logger,
-		allowedPaths:    []string{"/tmp", os.TempDir()},
+		repo:               repo,
+		discoveryClient:    discClient,
+		httpClient:         httpClient,
+		signer:             signer,
+		localProvider:      localProvider,
+		localTokenEndPoint: localTokenEndPoint,
+		currentUser:        currentUser,
+		logger:             logger,
+		allowedPaths:       []string{"/tmp", os.TempDir()},
+		resolver:           resolver,
 	}
 }
 
@@ -80,18 +90,6 @@ func (h *Handler) SetAllowedPaths(paths []string) {
 // SetPeerOrigin wires the peer origin resolver used for receiver discovery.
 func (h *Handler) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
 	h.peerOrigin = peerOrigin
-}
-
-// SetCodeFlow wires the local code-flow policy used for outgoing share requirements.
-func (h *Handler) SetCodeFlow(cf *policy.CodeFlow) {
-	h.codeFlow = cf
-}
-
-func webdavRequirementsFromCodeFlow(cf *policy.CodeFlow) []string {
-	if cf.Evaluate().IncludesTokenExchangeRequirement {
-		return []string{spec.RequirementMustExchangeToken}
-	}
-	return nil
 }
 
 // HandleCreate handles POST /api/shares/outgoing.
@@ -190,7 +188,22 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !disc.SupportsTokenExchange() {
+	facts := policy.Facts{}
+	if h.resolver != nil {
+		facts = h.resolver.ResolveFacts(receiverOrigin.peerDomain, disc)
+	}
+	mustInclude := mustIncludeTokenExchange(facts, disc)
+
+	if !facts.TokenExchangeCapable || h.localTokenEndPoint == "" {
+		h.logger.Warn("local sender is not configured for token exchange",
+			"token_exchange_capable", facts.TokenExchangeCapable,
+			"has_token_endpoint", h.localTokenEndPoint != "")
+		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+			"local sender is not configured for token exchange")
+		return
+	}
+
+	if mustInclude && !disc.SupportsTokenExchange() {
 		h.logger.Warn("receiver lacks token-exchange capability",
 			"receiver", req.ReceiverDomain)
 		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
@@ -221,7 +234,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		URI:          webdavURI,
 		SharedSecret: sharedSecret,
 		Permissions:  req.Permissions,
-		Requirements: webdavRequirementsFromCodeFlow(h.codeFlow),
+		Requirements: tokenExchangeRequirements(mustInclude),
 	}
 
 	payload := spec.NewShareRequest{

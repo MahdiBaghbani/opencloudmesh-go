@@ -53,7 +53,9 @@ type fileConfig struct {
 
 // ocmFileConfig holds OCM settings from TOML.
 type ocmFileConfig struct {
-	Discovery *discoveryFileConfig `toml:"discovery"`
+	Discovery   *discoveryFileConfig `toml:"discovery"`
+	CodeFlow    *CodeFlowConfig      `toml:"code_flow"`
+	PeerMapping *PeerMappingConfig   `toml:"peer_compat"`
 }
 
 // discoveryFileConfig holds inbound peer discovery settings from TOML.
@@ -313,6 +315,36 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 		if fc.OCM.Discovery.PeerAPIVersionWarn != "" {
 			cfg.OCM.Discovery.PeerAPIVersionWarn = fc.OCM.Discovery.PeerAPIVersionWarn
+		}
+	}
+
+	if fc.OCM != nil && fc.OCM.CodeFlow != nil {
+		if fc.OCM.CodeFlow.IncludesTokenExchangeRequirement != nil {
+			cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement = fc.OCM.CodeFlow.IncludesTokenExchangeRequirement
+		}
+		if fc.OCM.CodeFlow.RequiresTokenExchangeRequirement != nil {
+			cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement = fc.OCM.CodeFlow.RequiresTokenExchangeRequirement
+		}
+		if fc.OCM.CodeFlow.RequiresHTTPRequestSignatures != nil {
+			cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = fc.OCM.CodeFlow.RequiresHTTPRequestSignatures
+		}
+	}
+
+	if fc.OCM != nil && fc.OCM.PeerMapping != nil {
+		if fc.OCM.PeerMapping.IncludesTokenExchangeRequirement != nil {
+			cfg.OCM.PeerMapping.IncludesTokenExchangeRequirement = fc.OCM.PeerMapping.IncludesTokenExchangeRequirement
+		}
+		if fc.OCM.PeerMapping.RequiresTokenExchangeRequirement != nil {
+			cfg.OCM.PeerMapping.RequiresTokenExchangeRequirement = fc.OCM.PeerMapping.RequiresTokenExchangeRequirement
+		}
+		if fc.OCM.PeerMapping.RequiresHTTPRequestSignatures != nil {
+			cfg.OCM.PeerMapping.RequiresHTTPRequestSignatures = fc.OCM.PeerMapping.RequiresHTTPRequestSignatures
+		}
+		if len(fc.OCM.PeerMapping.HostPlatform) > 0 {
+			cfg.OCM.PeerMapping.HostPlatform = fc.OCM.PeerMapping.HostPlatform
+		}
+		if len(fc.OCM.PeerMapping.Platform) > 0 {
+			cfg.OCM.PeerMapping.Platform = fc.OCM.PeerMapping.Platform
 		}
 	}
 }

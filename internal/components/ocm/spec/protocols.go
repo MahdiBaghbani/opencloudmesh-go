@@ -13,6 +13,12 @@ const (
 	WebDAVReceiveURIRelative WebDAVReceiveURIKind = "relative"
 )
 
+// ProtocolWebDAV and ProtocolWebDAVReceive are the canonical OCM discovery protocol role keys.
+const (
+	ProtocolWebDAV        = "webdav"
+	ProtocolWebDAVReceive = "webdav-receive"
+)
+
 // WebDAVReceive is the structured webdav-receive protocol role.
 type WebDAVReceive struct {
 	URI WebDAVReceiveURIKind `json:"uri"`
@@ -127,7 +133,7 @@ func (p Protocols) StringRole(name string) (string, bool) {
 
 // WebDAVReceive returns a webdav-receive role when present.
 func (p Protocols) WebDAVReceive() (*WebDAVReceive, bool) {
-	role, ok := p["webdav-receive"]
+	role, ok := p[ProtocolWebDAVReceive]
 	if !ok {
 		return nil, false
 	}

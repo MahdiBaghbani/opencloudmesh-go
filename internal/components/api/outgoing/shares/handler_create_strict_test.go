@@ -10,39 +10,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
-
-func newStrictOutgoingHandler(
-	t *testing.T,
-	repo sharesoutgoing.OutgoingShareRepo,
-	discClient *discovery.Client,
-	ctxClient *httpclient.ContextClient,
-	user *identity.User,
-) *outgoingshares.Handler {
-	t.Helper()
-	handler := outgoingshares.NewHandler(
-		repo,
-		discClient,
-		ctxClient,
-		makeTestSigner(t),
-		testProvider,
-		testCurrentUser(user),
-		testLogger,
-	)
-	handler.SetAllowedPaths([]string{"/tmp"})
-	handler.SetPeerOrigin(peerorigin.NewResolver(false))
-	handler.SetCodeFlow(policy.NewCodeFlow())
-	return handler
-}
 
 func outgoingCreateBody(receiverHost, localPath string) string {
 	return `{

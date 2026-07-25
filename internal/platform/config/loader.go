@@ -14,6 +14,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
@@ -78,6 +79,12 @@ func Load(opts LoaderOptions) (*Config, error) {
 					strings.HasPrefix(keyStr, "http.interceptors.") {
 					continue
 				}
+				if isUnquotedMultiSegmentInstanceKey(k) {
+					return nil, fmt.Errorf(
+						"config file %s contains peer_compat instance host %q that must be a quoted TOML key; unquoted multi-segment hosts are not allowed",
+						opts.ConfigPath, keyStr,
+					)
+				}
 				keys = append(keys, keyStr)
 			}
 			if len(keys) > 0 {
@@ -111,6 +118,13 @@ func Load(opts LoaderOptions) (*Config, error) {
 
 	// Overlay CLI flag overrides.
 	overlayFlags(cfg, opts.FlagOverrides)
+
+	if err := normalizePeerMappingConfig(cfg); err != nil {
+		return nil, fmt.Errorf("invalid peer_compat configuration: %w", err)
+	}
+	if err := validatePeerMappingConfig(cfg); err != nil {
+		return nil, fmt.Errorf("invalid peer_compat configuration: %w", err)
+	}
 
 	applySignatureDefaults(cfg)
 	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
@@ -633,6 +647,93 @@ func validateOutboundTLSPaths(cfg *Config) error {
 		if !fi.IsDir() {
 			return fmt.Errorf("outbound_http.tls_root_ca_dir: %q is not a directory", cfg.OutboundHTTP.TLSRootCADir)
 		}
+	}
+	return nil
+}
+
+// isUnquotedMultiSegmentInstanceKey reports whether a TOML key path represents
+// an instance host under [ocm.peer_compat.platform.<platform>.instance] that
+// was written without quotes and contains a dot. Valid instance field keys have
+// exactly seven segments: ocm.peer_compat.platform.<platform>.instance.<host>.<field>.
+func isUnquotedMultiSegmentInstanceKey(key toml.Key) bool {
+	if len(key) < 8 {
+		return false
+	}
+	if key[0] != "ocm" || key[1] != "peer_compat" || key[2] != "platform" {
+		return false
+	}
+	if key[4] != "instance" {
+		return false
+	}
+	return len(key) > 7
+}
+
+// normalizePeerMappingConfig canonicalizes host keys in [ocm.peer_compat] using
+// the public origin scheme. It must run after config overlays are applied.
+func normalizePeerMappingConfig(cfg *Config) error {
+	if cfg.OCM.PeerMapping.HostPlatform == nil && len(cfg.OCM.PeerMapping.Platform) == 0 {
+		return nil
+	}
+
+	scheme := cfg.PublicScheme()
+	cfg.OCM.PeerMapping.scheme = scheme
+	if len(cfg.OCM.PeerMapping.HostPlatform) > 0 {
+		normalized := make(map[string]string, len(cfg.OCM.PeerMapping.HostPlatform))
+		for host, platform := range cfg.OCM.PeerMapping.HostPlatform {
+			norm, err := hostport.Normalize(host, scheme)
+			if err != nil {
+				return fmt.Errorf("host_platform key %q: %w", host, err)
+			}
+			if _, exists := normalized[norm]; exists {
+				return fmt.Errorf("duplicate normalized host %q", norm)
+			}
+			normalized[norm] = platform
+		}
+		cfg.OCM.PeerMapping.HostPlatform = normalized
+	}
+
+	for platformName, overlay := range cfg.OCM.PeerMapping.Platform {
+		if len(overlay.Instance) == 0 {
+			continue
+		}
+		normalizedInstances := make(map[string]PeerMappingInstanceOverlay, len(overlay.Instance))
+		for host, instance := range overlay.Instance {
+			norm, err := hostport.Normalize(host, scheme)
+			if err != nil {
+				return fmt.Errorf("platform.%s.instance key %q: %w", platformName, host, err)
+			}
+			if _, exists := normalizedInstances[norm]; exists {
+				return fmt.Errorf("duplicate normalized host %q", norm)
+			}
+			normalizedInstances[norm] = instance
+		}
+		cfg.OCM.PeerMapping.Platform[platformName] = PeerPlatformOverlay{
+			IncludesTokenExchangeRequirement: overlay.IncludesTokenExchangeRequirement,
+			RequiresTokenExchangeRequirement: overlay.RequiresTokenExchangeRequirement,
+			RequiresHTTPRequestSignatures:    overlay.RequiresHTTPRequestSignatures,
+			Instance:                         normalizedInstances,
+		}
+	}
+	return nil
+}
+
+// validatePeerMappingConfig rejects duplicate host bindings across instance
+// and host_platform maps after normalization.
+func validatePeerMappingConfig(cfg *Config) error {
+	seen := make(map[string]struct{})
+	for platformName, overlay := range cfg.OCM.PeerMapping.Platform {
+		for host := range overlay.Instance {
+			if _, exists := seen[host]; exists {
+				return fmt.Errorf("duplicate host binding %q (platform %s instance)", host, platformName)
+			}
+			seen[host] = struct{}{}
+		}
+	}
+	for host, platform := range cfg.OCM.PeerMapping.HostPlatform {
+		if _, exists := seen[host]; exists {
+			return fmt.Errorf("duplicate host binding %q (host_platform maps to %s)", host, platform)
+		}
+		seen[host] = struct{}{}
 	}
 	return nil
 }

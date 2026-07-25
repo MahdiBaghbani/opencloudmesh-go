@@ -7,6 +7,12 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigparams"
 )
 
+func TestSignatureTagOCM(t *testing.T) {
+	if sigparams.SignatureTagOCM != "ocm" {
+		t.Fatalf("SignatureTagOCM = %q, want %q", sigparams.SignatureTagOCM, "ocm")
+	}
+}
+
 func TestParseSignatureInput_OCM(t *testing.T) {
 	header := `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=1730815200;keyid="example.com#key1";alg="ed25519"`
 
@@ -75,10 +81,30 @@ func TestFormatRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFormatSignatureInput_AlwaysIncludesTagOCM(t *testing.T) {
+	raw := sigparams.FormatSignatureInput("ocm", []string{"@method"}, 1, "example.com#k1", "ed25519")
+	if strings.Count(raw, `tag="ocm"`) != 1 {
+		t.Fatalf("Signature-Input must contain exactly one tag=\"ocm\": %q", raw)
+	}
+	if !strings.HasSuffix(raw, `;tag="ocm"`) {
+		t.Fatalf("tag=\"ocm\" must be appended at the end: %q", raw)
+	}
+	params, err := sigparams.ParseSignatureInput(raw, "ocm")
+	if err != nil {
+		t.Fatalf("ParseSignatureInput: %v", err)
+	}
+	if params.Created != 1 || params.KeyID != "example.com#k1" {
+		t.Fatalf("params = %+v", params)
+	}
+}
+
 func TestFormatSignatureInput_OmitsEmptyAlg(t *testing.T) {
 	raw := sigparams.FormatSignatureInput("ocm", []string{"@method"}, 1, "example.com#k1", "")
 	if strings.Contains(raw, "alg=") {
 		t.Fatalf("empty algorithm must omit alg=: %q", raw)
+	}
+	if strings.Count(raw, `tag="ocm"`) != 1 {
+		t.Fatalf("Signature-Input must still contain exactly one tag=\"ocm\" when alg is empty: %q", raw)
 	}
 	params, err := sigparams.ParseSignatureInput(raw, "ocm")
 	if err != nil {

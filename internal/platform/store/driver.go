@@ -102,21 +102,28 @@ type OutgoingShare struct {
 // provider-key pair can be stored at most once, matching GetIncomingShareByProviderKey
 // singular semantics.
 type IncomingShare struct {
-	ShareId           string   `json:"share_id" gorm:"primaryKey"`                                         // receiver-local id (UUIDv7)
-	SendingServer     string   `json:"sending_server" gorm:"uniqueIndex:idx_incoming_shares_provider_key"` // sender's host
-	ProviderId        string   `json:"provider_id" gorm:"uniqueIndex:idx_incoming_shares_provider_key"`    // sender's share id
-	WebDAVId          string   `json:"webdav_id,omitempty"`                                                // relative or absolute webdav URI
-	SharedSecret      string   `json:"shared_secret,omitempty"`                                            // omitempty for redaction
-	Owner             string   `json:"owner"`
-	Sender            string   `json:"sender"`
-	ShareWith         string   `json:"share_with"`
-	Name              string   `json:"name"`
-	Description       string   `json:"description,omitempty"`
-	ResourceType      string   `json:"resource_type"`
-	ShareType         string   `json:"share_type"`
-	OwnerDisplayName  string   `json:"owner_display_name,omitempty"`
-	SenderDisplayName string   `json:"sender_display_name,omitempty"`
-	Permissions       string   `json:"permissions"`
+	ShareId           string `json:"share_id" gorm:"primaryKey"`                                         // receiver-local id (UUIDv7)
+	SendingServer     string `json:"sending_server" gorm:"uniqueIndex:idx_incoming_shares_provider_key"` // sender's host
+	ProviderId        string `json:"provider_id" gorm:"uniqueIndex:idx_incoming_shares_provider_key"`    // sender's share id
+	WebDAVId          string `json:"webdav_id,omitempty"`                                                // relative or absolute webdav URI
+	SharedSecret      string `json:"shared_secret,omitempty"`                                            // omitempty for redaction
+	Owner             string `json:"owner"`
+	Sender            string `json:"sender"`
+	ShareWith         string `json:"share_with"`
+	Name              string `json:"name"`
+	Description       string `json:"description,omitempty"`
+	ResourceType      string `json:"resource_type"`
+	ShareType         string `json:"share_type"`
+	OwnerDisplayName  string `json:"owner_display_name,omitempty"`
+	SenderDisplayName string `json:"sender_display_name,omitempty"`
+	Permissions       string `json:"permissions"`
+	// Webapp arm columns. WebappPermissions mirrors the comma-joined
+	// Permissions pattern; WebappTargets uses the json serializer like
+	// Requirements. Legacy rows leave these empty.
+	WebappPermissions string   `json:"webapp_permissions,omitempty"`
+	WebappURI         string   `json:"webapp_uri,omitempty"`
+	WebappTargets     []string `json:"webapp_targets,omitempty" gorm:"serializer:json"`
+	ProtocolName      string   `json:"protocol_name,omitempty"`
 	State             string   `json:"state"` // pending, accepted, declined
 	UserId            string   `json:"user_id" gorm:"index"`
 	OwnerHost         string   `json:"owner_host"`

@@ -12,12 +12,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
-// Canonical OCM-API discovery criteria strings (IETF-RFC / OpenAPI).
-const (
-	CriteriaMustUseHTTPSig    = "must-use-http-sig"
-	CriteriaMustExchangeToken = "must-exchange-token"
-)
-
 // APIVersionPin is the Layer 1 wire pin for OCM discovery apiVersion.
 const APIVersionPin = "1.4.0"
 
@@ -72,7 +66,7 @@ func (d *Discovery) IsHTTPSigCapable() bool {
 	if d == nil {
 		return false
 	}
-	return d.HasCapability("http-sig")
+	return d.HasCapability(CapabilityHTTPSig)
 }
 
 // DiscoveryPaths holds route-derived discovery path fields before policy overlays.
@@ -177,7 +171,7 @@ func ResolveInviteAcceptDialog(baseURL, dialog string) string {
 // SupportsTokenExchange reports whether the peer advertises a complete
 // token-exchange capability set (capability + token endpoint).
 func (d *Discovery) SupportsTokenExchange() bool {
-	return d.HasCapability("exchange-token") && d.TokenEndPoint != ""
+	return d.HasCapability(CapabilityExchangeToken) && d.TokenEndPoint != ""
 }
 
 func (d *Discovery) GetEndpoint() string {
@@ -187,7 +181,7 @@ func (d *Discovery) GetEndpoint() string {
 func (d *Discovery) GetWebDAVPath() string {
 	for _, rt := range d.ResourceTypes {
 		if rt.Name == "file" {
-			if p, ok := rt.Protocols.StringRole("webdav"); ok {
+			if p, ok := rt.Protocols.StringRole(ProtocolWebDAV); ok {
 				return p
 			}
 		}

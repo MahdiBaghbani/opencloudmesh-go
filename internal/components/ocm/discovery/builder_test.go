@@ -63,6 +63,7 @@ func TestBuildDiscovery_CriteriaUseIETFStrings(t *testing.T) {
 		EndPoint:               "https://example.com/ocm",
 		WebDAVRoot:             "/webdav/ocm/",
 		TokenEndPoint:          "https://example.com/ocm/token",
+		AdvertiseHTTPSig:       true,
 		TokenExchangeCapable:   true,
 		RequiresTokenExchange:  true,
 		RequiresHTTPSignatures: true,
@@ -300,6 +301,25 @@ func TestBuildDiscovery_StrictDocument(t *testing.T) {
 	wr, ok := protocols.WebDAVReceive()
 	if !ok || wr.URI != spec.WebDAVReceiveURIRelative {
 		t.Fatalf("webdav-receive = %+v, ok=%v, want uri=relative", wr, ok)
+	}
+}
+
+func TestBuildDiscovery_MustUseHTTPSig_RequiresAdvertise(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:               "https://example.com/ocm",
+		WebDAVRoot:             "/webdav/ocm/",
+		RequiresHTTPSignatures: true,
+		AdvertiseHTTPSig:       false,
+	}, nil)
+
+	if !disc.Enabled {
+		t.Fatal("expected enabled discovery with absolute endpoint")
+	}
+	if disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
+		t.Error("did not expect must-use-http-sig when AdvertiseHTTPSig is false")
+	}
+	if disc.HasCapability("http-sig") {
+		t.Error("did not expect http-sig capability when AdvertiseHTTPSig is false")
 	}
 }
 
