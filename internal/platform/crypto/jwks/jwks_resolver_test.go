@@ -39,21 +39,17 @@ func TestResolver_Resolve(t *testing.T) {
 
 type recordingDoer struct {
 	lastURL string
-	inner   *http.Client
 	body    []byte
 }
 
 func (d *recordingDoer) Do(req *http.Request) (*http.Response, error) {
 	d.lastURL = req.URL.String()
-	if d.body != nil {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(bytes.NewReader(d.body)),
-			Header:     make(http.Header),
-			Request:    req,
-		}, nil
-	}
-	return d.inner.Do(req)
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(d.body)),
+		Header:     make(http.Header),
+		Request:    req,
+	}, nil
 }
 
 func TestResolver_ResolveKeyID_CanonicalizesAuthority(t *testing.T) {
