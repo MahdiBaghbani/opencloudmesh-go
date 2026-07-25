@@ -62,6 +62,10 @@ type Config struct {
 
 // OCMConfig holds OCM-specific settings.
 type OCMConfig struct {
+	// CompatibilityScope selects global vs scoped peer-compat leniency.
+	// Default: global. This is ocmgo-internal policy, not an OCM spec field.
+	CompatibilityScope CompatibilityScope `toml:"compatibility_scope"`
+
 	Discovery   DiscoveryConfig   `toml:"discovery"`
 	CodeFlow    CodeFlowConfig    `toml:"code_flow"`
 	PeerMapping PeerMappingConfig `toml:"peer_compat"`

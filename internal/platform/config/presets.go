@@ -13,6 +13,29 @@ const (
 	ModeDev    Mode = "dev"
 )
 
+// CompatibilityScope selects how peer-compat leniency is applied.
+// This is an ocmgo-internal policy axis, not an OCM specification concept.
+type CompatibilityScope string
+
+const (
+	// CompatibilityScopeGlobal applies peer_compat relaxations globally (current behavior).
+	CompatibilityScopeGlobal CompatibilityScope = "global"
+	// CompatibilityScopeScoped limits leniency to explicitly mapped peers only.
+	CompatibilityScopeScoped CompatibilityScope = "scoped"
+)
+
+// ParseCompatibilityScope parses a compatibility_scope string.
+func ParseCompatibilityScope(s string) (CompatibilityScope, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "global", "":
+		return CompatibilityScopeGlobal, nil
+	case "scoped":
+		return CompatibilityScopeScoped, nil
+	default:
+		return "", fmt.Errorf("invalid ocm.compatibility_scope %q: must be one of global, scoped", s)
+	}
+}
+
 // ParseMode parses a mode string, returning an error for invalid values.
 func ParseMode(s string) (Mode, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
@@ -73,7 +96,8 @@ func StrictConfig() *Config {
 			Backend: BackendMemory,
 		},
 		OCM: OCMConfig{
-			Discovery: DefaultDiscoveryConfig(),
+			CompatibilityScope: CompatibilityScopeGlobal,
+			Discovery:          DefaultDiscoveryConfig(),
 		},
 	}
 	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {

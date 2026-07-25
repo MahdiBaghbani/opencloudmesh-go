@@ -53,9 +53,10 @@ type fileConfig struct {
 
 // ocmFileConfig holds OCM settings from TOML.
 type ocmFileConfig struct {
-	Discovery   *discoveryFileConfig `toml:"discovery"`
-	CodeFlow    *CodeFlowConfig      `toml:"code_flow"`
-	PeerMapping *PeerMappingConfig   `toml:"peer_compat"`
+	CompatibilityScope string               `toml:"compatibility_scope"`
+	Discovery          *discoveryFileConfig `toml:"discovery"`
+	CodeFlow           *CodeFlowConfig      `toml:"code_flow"`
+	PeerMapping        *PeerMappingConfig   `toml:"peer_compat"`
 }
 
 // discoveryFileConfig holds inbound peer discovery settings from TOML.
@@ -306,6 +307,16 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		}
 		if fc.Persistence.DataDir != "" {
 			cfg.Persistence.DataDir = fc.Persistence.DataDir
+		}
+	}
+
+	if fc.OCM != nil && fc.OCM.CompatibilityScope != "" {
+		scope, err := ParseCompatibilityScope(fc.OCM.CompatibilityScope)
+		if err != nil {
+			// Keep the raw value so validateEnums can report the invalid input.
+			cfg.OCM.CompatibilityScope = CompatibilityScope(fc.OCM.CompatibilityScope)
+		} else {
+			cfg.OCM.CompatibilityScope = scope
 		}
 	}
 

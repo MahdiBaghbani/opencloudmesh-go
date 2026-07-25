@@ -359,6 +359,12 @@ func validateEnums(cfg *Config) error {
 		)
 	}
 
+	scope, err := ParseCompatibilityScope(string(cfg.OCM.CompatibilityScope))
+	if err != nil {
+		return err
+	}
+	cfg.OCM.CompatibilityScope = scope
+
 	switch cfg.OCM.Discovery.PeerAPIVersionPolicy {
 	case "accept-any", "exact", "at-least-1.4":
 		// valid

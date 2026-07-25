@@ -28,6 +28,7 @@ var peerMappingAllowlist = []string{
 	"internal/components/ocm/shares/incoming/handler_test.go",
 	"internal/platform/config/config.go",
 	"internal/platform/config/loader.go",
+	"internal/platform/config/loader_compatibility_scope_test.go",
 	"internal/platform/config/overlay.go",
 	"internal/platform/config/peer_mapping.go",
 	"internal/platform/config/peer_mapping_test.go",
@@ -42,7 +43,6 @@ var bannedTokens = []string{
 	// ResolveFacts stays as-is (KISS); we are not renaming to PeerProfile or HostFacts.
 	// PeerProfile here guards against that rename churn resurfacing in the tree.
 	"PeerProfile",
-	"compatibility_scope",
 	"RuntimePolicy",
 	"OpenCloudMeshPolicy",
 	"/ocm-provider",
@@ -120,6 +120,7 @@ func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
 		"internal/components/ocm/shares/incoming/handler_test.go",
 		"internal/platform/config/config.go",
 		"internal/platform/config/loader.go",
+		"internal/platform/config/loader_compatibility_scope_test.go",
 		"internal/platform/config/overlay.go",
 		"internal/platform/config/peer_mapping.go",
 		"internal/platform/config/peer_mapping_test.go",
