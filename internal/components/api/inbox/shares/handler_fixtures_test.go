@@ -59,11 +59,3 @@ func createShareForUser(repo *sharesinbox.MemoryIncomingShareRepo, recipientUser
 	repo.Create(context.Background(), share)
 	return share
 }
-func containsStr(haystack, needle string) bool {
-	for i := 0; i <= len(haystack)-len(needle); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
-}

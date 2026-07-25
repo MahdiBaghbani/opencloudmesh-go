@@ -224,7 +224,7 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 	if resp.ReasonCode != "unreachable" {
 		t.Errorf("expected reasonCode unreachable, got %s", resp.ReasonCode)
 	}
-	if !containsStr(resp.Error, "403") {
+	if !strings.Contains(resp.Error, "403") {
 		t.Errorf("expected error to mention status code, got %q", resp.Error)
 	}
 }
