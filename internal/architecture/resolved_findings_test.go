@@ -39,6 +39,8 @@ var peerMappingAllowlist = []string{
 // bannedTokens are residue identifiers that must not return.
 var bannedTokens = []string{
 	"PeerCompat",
+	// ResolveFacts stays as-is (KISS); we are not renaming to PeerProfile or HostFacts.
+	// PeerProfile here guards against that rename churn resurfacing in the tree.
 	"PeerProfile",
 	"compatibility_scope",
 	"RuntimePolicy",
