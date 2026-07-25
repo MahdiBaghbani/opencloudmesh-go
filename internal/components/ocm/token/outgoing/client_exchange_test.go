@@ -141,6 +141,46 @@ func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
 	}
 }
 
+func TestClient_Exchange_SignFailureFailClosed(t *testing.T) {
+	tokenEndpointCalled := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenEndpointCalled = true
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "should-not-be-returned",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRF:             config.SSRFConfig{Mode: "off"},
+		MaxResponseBytes: config.DefaultMaxResponseBytes,
+	}, nil))
+
+	client := tokenoutgoing.NewClient(httpClient, &mockSigner{failSign: true}, "local.example.com")
+
+	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		SharedSecret:  "test-secret",
+	})
+	if err == nil {
+		t.Fatal("expected failure when signing fails")
+	}
+
+	var ce *reason.ClassifiedError
+	if !isClassifiedError(err, &ce) {
+		t.Fatalf("expected ClassifiedError, got %T", err)
+	}
+	if ce.ReasonCode != reason.ReasonSignatureInvalid {
+		t.Fatalf("expected reason %q, got %q (cause=%v err=%v)", reason.ReasonSignatureInvalid, ce.ReasonCode, ce.Cause, err)
+	}
+	if tokenEndpointCalled {
+		t.Fatal("token endpoint should not be called when signing fails")
+	}
+}
+
 func TestClient_Exchange_SignedRejection401EmptyBodySingleAttempt(t *testing.T) {
 	var tokenHits atomic.Int32
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
