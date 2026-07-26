@@ -7,28 +7,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
-func newTestHandlerWithResolver(
-	repo *sharesinbox.MemoryIncomingShareRepo,
-	partyRepo identity.PartyRepo,
-	resolver *policy.PeerMappingResolver,
-) *incoming.Handler {
-	return incoming.NewHandler(
-		repo,
-		partyRepo,
-		nil, // no policy engine
-		"localhost:9200",
-		"https",
-		resolver,
-	)
-}
 func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
@@ -185,24 +169,6 @@ func TestCreateShare_NilResolver_AcceptsWebDAVWithMustExchangeToken(t *testing.T
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func ptrBool(v bool) *bool {
-	return &v
-}
-
-func peerMappingConfigWithInstance(host string) *config.PeerMappingConfig {
-	return &config.PeerMappingConfig{
-		Platform: map[string]config.PeerPlatformOverlay{
-			"platform-a": {
-				Instance: map[string]config.PeerMappingInstanceOverlay{
-					host: {
-						RequiresTokenExchangeRequirement: ptrBool(false),
-					},
-				},
-			},
-		},
 	}
 }
 
