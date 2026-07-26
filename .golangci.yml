@@ -1,23 +1,22 @@
 # Curated comprehensive lint bar for opencloudmesh-go (OCM strict server).
 #
-# Version pin: golangci-lint v2.12.2 (audit toolchain; config verify exit 0).
+# Version pin: golangci-lint v2.12.2 (config verify exit 0).
 #
 # Enable/disable philosophy:
 # - linters.default: all, then disable only documented noise buckets.
 # - Correctness + security linters stay ON (errcheck explicit, gosec curated,
 #   forcetypeassert, contextcheck, wastedassign, bodyclose, cyclop, etc.).
-# - v3.1 operator decisions (A/B/C):
-#     A. wsl_v5 ON (auto-fix via `make lint-fix`; accept churn). Old wsl OFF.
-#     B. tagliatelle ON, json: camel (manual struct-tag churn; accept).
-#     C. cyclop is the sole complexity linter (15 prod / 25 test). gocyclo OFF.
+# - wsl_v5 ON (auto-fix via `make lint-fix`; accept churn). Old wsl OFF.
+# - tagliatelle ON, json: camel (manual struct-tag churn; accept).
+# - cyclop is the sole complexity linter (15 prod / 25 test). gocyclo OFF.
 # - v2 has NO default exclusions: every exclusion is explicit (presets: []).
 # - Do NOT use linters.exclusions.presets std-error-handling: it hides errcheck
 #   Close/RemoveAll failures (~279 hits including prod HTTP clients).
 #
-# Bootstrap policy (not YAML keys):
+# CI and local lint policy (not YAML keys):
 # - CI: only-new-issues delta BLOCKS merges on new lint in touched lines.
-# - Full-tree make lint / report-only CI job stays NON-BLOCKING until burn-down.
-# - Local lint-new uses --new-from-merge-base=master on CLI only (G24).
+# - Full-tree make lint / report-only CI job stays NON-BLOCKING until baseline is clean.
+# - Local lint-new uses --new-from-merge-base=master on CLI only.
 # - Do NOT put issues.new-from-merge-base in this committed file.
 #
 # Cyclop test rule: max-complexity 15 globally; text exclusion on _test.go for
@@ -34,9 +33,9 @@ run:
 linters:
   default: all
   disable:
-    # Whitespace / layout: old wsl OFF (duplicate of wsl_v5); wsl_v5 now ON (A).
+    # Whitespace / layout: old wsl OFF (duplicate of wsl_v5); wsl_v5 now ON.
     - wsl
-    # Import firewall without SSOT deny list (S17); gomodguard_v2 stays on via default:all.
+    # Import firewall without SSOT deny list; gomodguard_v2 stays on via default:all.
     - depguard
     # Zero-value struct literal noise (~1308); not correctness.
     - exhaustruct
@@ -54,7 +53,7 @@ linters:
     - err113
     # Line length (~201); not a correctness gate.
     - lll
-    # Requires wrapping all external errors (~181); too strict for bootstrap.
+    # Requires wrapping all external errors (~181); too strict for initial rollout.
     - wrapcheck
     # External test package layout (~155); conflicts with in-package tests.
     - testpackage
@@ -78,7 +77,7 @@ linters:
     - gomodguard
     # Prefer testing helpers (t.Setenv/t.TempDir); high churn in existing tests.
     - usetesting
-    # Godoc comment style lint; docs burn-down deferred under bootstrap.
+    # Godoc comment style lint; docs cleanup deferred until baseline is stable.
     - godoclint
     # Bans named returns; style noise across handlers and helpers.
     - nonamedreturns
@@ -90,7 +89,7 @@ linters:
     - godot
     # Bans init(); conflicts with registry and package wiring patterns.
     - gochecknoinits
-    # C: redundant complexity linter; cyclop is the sole complexity gate.
+    # Redundant complexity linter; cyclop is the sole complexity gate.
     - gocyclo
 
   settings:
@@ -126,7 +125,7 @@ linters:
     nolintlint:
       require-explanation: true
       require-specific: true
-    # B: enforce JSON struct tags to camelCase. Manual churn accepted.
+    # Enforce JSON struct tags to camelCase. Manual churn accepted.
     tagliatelle:
       case:
         rules:

@@ -112,11 +112,11 @@ Route policy keeps `inviteAcceptDialog` on the UI accept route, not on
 `internal/architecture/route_policy_wiring_test.go`
 (`TestRoutePolicyWiring_InviteAcceptDialogDistinctFromInviteAccepted`).
 
-## Verification split (T7a / T7b)
+## Verification split
 
 Two integration tracks cover different parts of the invite story:
 
-### T7a -- manual discover normalization before WAYF
+### Manual discover normalization before WAYF
 
 Subprocess tests prove `/ocm-aux/discover` accepts operator-pasted input
 (bare hostname, deep paths), blocks SSRF targets with friendly errors, and
@@ -128,7 +128,7 @@ requires `inviteAcceptDialog` on the target peer.
 go test ./tests/integration/... -run TestOCMAuxDiscover
 ```
 
-### T7b -- hermetic Directory Service JWS after MVP acceptance
+### Hermetic Directory Service JWS after MVP acceptance
 
 Separate from WAYF discover normalization: a signed Directory Service listing
 feeds `/ocm-aux/federations` with per-row discovery enrichment. This path

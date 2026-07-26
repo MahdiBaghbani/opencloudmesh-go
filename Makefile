@@ -42,13 +42,13 @@ GOVULNCHECK ?= govulncheck
 GOIMPORTS ?= goimports
 
 # Install pinned CLIs into GOBIN (no @latest). gosec runs via golangci-lint
-# SSOT only; no standalone gosec binary (G30).
+# SSOT only; no standalone gosec binary.
 tools:
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
 
-# Mutating format: go fmt + goimports (matches pre-commit hook; G30).
+# Mutating format: go fmt + goimports (matches pre-commit hook).
 fmt:
 	go fmt ./...
 	$(GOIMPORTS) -w .
@@ -67,7 +67,7 @@ vet:
 tidy:
 	go mod tidy
 
-# Full golangci-lint bar (.golangci.yml from ARTIFACT-v3.1-01).
+# Full golangci-lint bar (see .golangci.yml).
 lint:
 	$(GOLANGCI_LINT) run ./...
 
@@ -75,7 +75,7 @@ lint:
 lint-fix:
 	$(GOLANGCI_LINT) run --fix ./...
 
-# Delta vs merge base (agent/PR discipline; does not require full baseline clean).
+# Delta vs merge base; does not require full baseline clean.
 LINT_MERGE_BASE ?= master
 lint-new:
 	$(GOLANGCI_LINT) run --new-from-merge-base=$(LINT_MERGE_BASE) ./...
@@ -85,7 +85,7 @@ security:
 	$(GOVULNCHECK) ./...
 	$(GOLANGCI_LINT) run --enable-only=gosec ./...
 
-# Light local gate during bootstrap: no full lint, no security scan.
+# Light local check: no full lint, no security scan.
 check: fmt-check vet lint-new test-go
 
 # Laptop CI mirror: blocking gates minus tidy (tidy is CI fmt-vet only).

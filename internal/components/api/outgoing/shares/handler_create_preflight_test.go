@@ -412,7 +412,7 @@ func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
 	}
 }
 
-// TestHandleCreate_StrictCapableButEmptyLocalEndpoint_Rejects covers the Dir A
+// TestHandleCreate_StrictCapableButEmptyLocalEndpoint_Rejects covers the strict
 // strict gate: the local sender is token-exchange capable and the peer forces
 // must-exchange-token, but the local token endpoint is empty. The strict code
 // flow must reject and must not fall back to the legacy shared-secret path.

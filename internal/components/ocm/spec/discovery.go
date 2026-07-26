@@ -1,5 +1,5 @@
 // Package spec defines OCM wire-format types (discovery, shares, invites, errors).
-// See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#ocm-api-discovery
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md?plain=1#ocm-api-discovery
 package spec
 
 import (

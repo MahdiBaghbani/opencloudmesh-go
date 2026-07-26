@@ -122,8 +122,8 @@ policy code.
 | Protocol vs UI vs helper surfaces | [protocol-endpoints.md](protocol-endpoints.md), [routes-and-auth.md](routes-and-auth.md) | `go test ./internal/frameworks/service/... -run Route` |
 | WAYF Alice/Bob, accept-invite redirect | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `go test ./tests/integration/... -run 'Wayf\|AcceptInvite'` |
 | MVP invite API (no WAYF) | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `go test ./tests/integration/... -run TestInviteAcceptTwoInstanceAPI` |
-| Discover normalization (T7a) | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `go test ./tests/integration/... -run TestOCMAuxDiscover` |
-| Directory Service JWS (T7b) | [directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md) | `go test ./tests/integration/... -run TestDirectoryServiceJWSFeedsFederations` |
+| Discover normalization | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `go test ./tests/integration/... -run TestOCMAuxDiscover` |
+| Directory Service JWS | [directory-service-and-ocm-aux.md](directory-service-and-ocm-aux.md) | `go test ./tests/integration/... -run TestDirectoryServiceJWSFeedsFederations` |
 | SSRF on discover | [outbound-http-ssrf.md](outbound-http-ssrf.md) | `go test ./tests/integration/... -run TestOCMAuxDiscover_SSRF` |
 | WAYF browser flows | [invite-wayf-and-accept.md](invite-wayf-and-accept.md) | `make test-e2e` (specs `wayf.spec.ts`, `wayf-two-instance.spec.ts`) |
 | Live discovery from server | [discovery.md](discovery.md) | `go test ./tests/integration/... -run 'DiscoveryEndpoint\|DiscoveryRemains\|DiscoveryRoutesMatch'` |

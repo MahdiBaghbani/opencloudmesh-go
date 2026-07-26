@@ -44,14 +44,11 @@ var peerMappingAllowlist = []string{
 	"internal/wiring/services.go",
 }
 
-// bannedTokens are residue identifiers that must not return.
+// bannedTokens are legacy identifiers that must not return in the tree.
 var bannedTokens = []string{
 	// PeerCompat was the old PascalCase type/name; TOML key peer_compat remains.
 	"PeerCompat",
-	// capability-emit is owned by policy.CompatCompiler; do not re-ban here.
-	// protocol-emit is owned by policy.CompatCompiler; do not re-ban here.
-	// ResolveFacts stays as-is (KISS); we are not renaming to PeerProfile or HostFacts.
-	// PeerProfile here guards against that rename churn resurfacing in the tree.
+	// PeerProfile was a proposed rename for ResolveFacts; keep the retired name out of the tree.
 	"PeerProfile",
 	"RuntimePolicy",
 	"OpenCloudMeshPolicy",
@@ -100,7 +97,7 @@ func TestResolvedFindings_BanList(t *testing.T) {
 
 		for _, token := range bannedTokens {
 			if strings.Contains(content, token) {
-				violations = append(violations, rel+": banned residue "+token)
+				violations = append(violations, rel+": retired identifier "+token)
 			}
 		}
 
@@ -117,7 +114,7 @@ func TestResolvedFindings_BanList(t *testing.T) {
 		t.Fatalf("walk failed: %v", err)
 	}
 	if len(violations) > 0 {
-		t.Fatalf("Ban-list regressions:\n%s", strings.Join(violations, "\n"))
+		t.Fatalf("Retired identifier regressions:\n%s", strings.Join(violations, "\n"))
 	}
 }
 

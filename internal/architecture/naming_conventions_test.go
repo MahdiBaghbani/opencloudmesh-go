@@ -115,7 +115,7 @@ func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 		t.Fatalf("walk failed: %v", err)
 	}
 	if len(violations) > 0 {
-		t.Fatalf("Found non-spec JSON tags in directoryservice (Appendix C uses url and displayName):\n%s",
+		t.Fatalf("Found non-spec JSON tags in directoryservice (OCM Appendix C, https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#appendix-c-directory-service, uses url and displayName):\n%s",
 			strings.Join(violations, "\n"))
 	}
 }

@@ -75,7 +75,7 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 	}
 }
 
-// TestService_NonStrictShareAcceptsSharedSecret covers the Dir A legacy sender
+// TestService_NonStrictShareAcceptsSharedSecret covers the non-strict legacy sender
 // fork at the service layer: a non-strict share (Requirements omit
 // must-exchange-token) authenticates with a sharedSecret Bearer and succeeds.
 func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {

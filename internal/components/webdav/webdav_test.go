@@ -344,7 +344,7 @@ func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 	assertBearerWWWAuthenticate(t, w)
 }
 
-// TestServeHTTP_NonStrictSharedSecretSucceeds covers the Dir A legacy sender
+// TestServeHTTP_NonStrictSharedSecretSucceeds covers the non-strict legacy sender
 // fork at the HTTP layer: a non-strict share (Requirements omit
 // must-exchange-token) authenticates with a sharedSecret Bearer and succeeds.
 func TestServeHTTP_NonStrictSharedSecretSucceeds(t *testing.T) {

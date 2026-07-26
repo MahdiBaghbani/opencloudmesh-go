@@ -1,5 +1,5 @@
 // Package directoryservice fetches and verifies OCM directory service listings.
-// See https://github.com/cs3org/OCM-API/blob/f9a704f63477134701c0b58b29bb6b98949361dc/IETF-OCM.md?plain=1#appendix-c-directory-service
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md?plain=1#appendix-c-directory-service
 package directoryservice
 
 import (
@@ -33,7 +33,9 @@ type VerificationKey struct {
 	Active       bool   `json:"active"`
 }
 
-// Listing is a directory service response (Appendix C format). Verified is true when JWS verified.
+// Listing is a directory service response (OCM Appendix C:
+// https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#appendix-c-directory-service).
+// Verified is true when JWS verified.
 type Listing struct {
 	Federation string   `json:"federation"`
 	Servers    []Server `json:"servers"`
@@ -65,7 +67,8 @@ func NewClient(httpClient *httpclient.Client, defaultVerificationPolicy string, 
 
 // FetchListing fetches and parses the listing. Policies: required (verify or fail), optional
 // (verify if possible, accept unsigned, reject bad sigs), off (no verification). Verified
-// listings have invalid server URLs filtered per Appendix C.
+// listings have invalid server URLs filtered per OCM Appendix C
+// (https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#appendix-c-directory-service).
 func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, keys []VerificationKey, verificationPolicy string) (*Listing, error) {
 	body, resp, err := c.httpClient.GetJSON(ctx, directoryServiceURL)
 	if err != nil {
@@ -189,7 +192,9 @@ func (c *Client) verifyJWS(jws *jose.JSONWebSignature, keys []VerificationKey) (
 	return nil, fmt.Errorf("JWS signature verification failed (F2)")
 }
 
-// filterValidServerURLs drops invalid server URLs from verified listings (Appendix C: http(s), no path/query/fragment).
+// filterValidServerURLs drops invalid server URLs from verified listings (OCM Appendix C:
+// https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#appendix-c-directory-service;
+// http(s) only, no path/query/fragment).
 func (c *Client) filterValidServerURLs(servers []Server) []Server {
 	valid := make([]Server, 0, len(servers))
 	for _, s := range servers {

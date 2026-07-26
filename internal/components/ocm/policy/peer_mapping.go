@@ -41,7 +41,7 @@ func NewPeerMappingResolver(global *CodeFlow, cfg PeerMappingConfigSource, scope
 	return &PeerMappingResolver{global: global, cfg: cfg, scope: scope}
 }
 
-// ResolveFacts is the public naming SSOT for host-facts resolution; keep this name (see architecture ban list).
+// ResolveFacts is the public naming SSOT for host-facts resolution; keep this stable name.
 // ResolveFacts returns the code-flow facts for host and optional discovery.
 // Unknown or unmapped hosts skip platform and instance overlays: under global
 // scope they get the global CodeFlow facts with global knobs; under scoped

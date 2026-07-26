@@ -52,9 +52,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      # P1/P2: block NEW issues only. Do NOT pass manual --new* in args while
-      # only-new-issues is true (action throws).
-      # P3 PR: remove only-new-issues: true (full tree gate).
+      # Block new lint issues only on changed lines. Do not pass manual --new* in
+      # args while only-new-issues is true (action throws).
+      # Full-tree lint gate can replace only-new-issues when baseline is clean.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -74,8 +74,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      # P1/P2 report-only. P2 PR: remove continue-on-error after toolchain pin
-      # + module bumps + govulncheck reachable == 0.
+      # Report-only until toolchain pin, module bumps, and govulncheck reach zero.
       - name: govulncheck
         uses: golang/govulncheck-action@v1
         with:
@@ -84,8 +83,7 @@ jobs:
       - name: Install golangci-lint for SARIF
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
-      # P1/P2 report-only. NO || true (G30). P3 PR: remove --issues-exit-code=0
-      # AND continue-on-error below.
+      # Report-only: do not use || true here. Make blocking when baseline is clean.
       - name: gosec SARIF (golangci-lint)
         run: |
           golangci-lint run --enable-only=gosec \
@@ -138,6 +136,5 @@ jobs:
           test "${{ needs.lint.result }}" = "success"
           test "${{ needs.test.result }}" = "success"
           test "${{ needs.build.result }}" = "success"
-          # P1: security is report-only; do not require security success.
-          # P2 PR: add: test "${{ needs.security.result }}" = "success"
-          # P3 PR: security must succeed (govulncheck + blocking gosec step)
+          # Security is report-only; do not require security success yet.
+          # When ready: test "${{ needs.security.result }}" = "success"
