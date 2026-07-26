@@ -34,7 +34,7 @@ import (
 
 // PeerFactsResolver resolves code-flow facts for a remote peer.
 type PeerFactsResolver interface {
-	ResolveFacts(host string, disc policy.DiscoveryView) policy.Facts
+	ResolveFacts(host string) policy.Facts
 }
 
 // Handler serves POST /api/shares/outgoing to create and send shares.
@@ -201,15 +201,14 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	facts := policy.Facts{}
 	if h.resolver != nil {
-		facts = h.resolver.ResolveFacts(receiverOrigin.peerDomain, disc)
+		facts = h.resolver.ResolveFacts(receiverOrigin.peerDomain)
 	}
 
 	mustInclude := mustIncludeTokenExchange(facts, disc)
 	requirements := tokenExchangeRequirements(mustInclude)
 
-	if mustInclude && (!facts.TokenExchangeCapable || h.localTokenEndPoint == "") {
+	if mustInclude && h.localTokenEndPoint == "" {
 		h.logger.Warn("local sender is not configured for token exchange",
-			"token_exchange_capable", facts.TokenExchangeCapable,
 			"has_token_endpoint", h.localTokenEndPoint != "")
 		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
 			"local sender is not configured for token exchange")

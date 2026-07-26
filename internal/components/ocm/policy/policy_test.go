@@ -71,10 +71,6 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode string) {
 func assertAllFactsTrue(t *testing.T, facts policy.Facts) {
 	t.Helper()
 
-	if !facts.TokenExchangeCapable {
-		t.Error("expected TokenExchangeCapable true")
-	}
-
 	if !facts.RequiresTokenExchange {
 		t.Error("expected RequiresTokenExchange true")
 	}
@@ -208,7 +204,7 @@ func TestCodeFlow_NilSafe(t *testing.T) {
 	var c *policy.CodeFlow
 
 	facts := c.Evaluate()
-	if facts.TokenExchangeCapable || facts.RequiresTokenExchange ||
+	if facts.RequiresTokenExchange ||
 		facts.IncludesTokenExchangeRequirement || facts.RequiresHTTPRequestSignatures {
 		t.Fatalf("expected all-false Facts from nil *CodeFlow, got %+v", facts)
 	}
@@ -218,10 +214,6 @@ func TestCodeFlow_LegacyVoluntary_IncludesFalse(t *testing.T) {
 	facts := configfixture.CodeFlowLegacyVoluntary().Evaluate()
 	if facts.IncludesTokenExchangeRequirement {
 		t.Fatal("expected IncludesTokenExchangeRequirement false")
-	}
-
-	if !facts.TokenExchangeCapable {
-		t.Error("expected TokenExchangeCapable true")
 	}
 
 	if !facts.RequiresTokenExchange {
@@ -248,10 +240,6 @@ func TestCodeFlow_KnobRelaxationAndEnforcement(t *testing.T) {
 		if facts.IncludesTokenExchangeRequirement || facts.RequiresTokenExchange ||
 			facts.RequiresHTTPRequestSignatures {
 			t.Fatalf("expected relaxed knobs false, got %+v", facts)
-		}
-
-		if !facts.TokenExchangeCapable {
-			t.Error("TokenExchangeCapable must stay true on a non-nil CodeFlow")
 		}
 	})
 
@@ -311,7 +299,7 @@ requires_http_request_signatures = false
 
 	facts := cf.Evaluate()
 	if facts.IncludesTokenExchangeRequirement || !facts.RequiresTokenExchange ||
-		facts.RequiresHTTPRequestSignatures || !facts.TokenExchangeCapable {
+		facts.RequiresHTTPRequestSignatures {
 		t.Fatalf("evaluated facts = %+v", facts)
 	}
 }

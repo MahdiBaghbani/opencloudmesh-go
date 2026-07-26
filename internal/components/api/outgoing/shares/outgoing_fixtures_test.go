@@ -184,7 +184,7 @@ type stubResolver struct {
 	facts policy.Facts
 }
 
-func (r *stubResolver) ResolveFacts(host string, disc policy.DiscoveryView) policy.Facts {
+func (r *stubResolver) ResolveFacts(host string) policy.Facts {
 	return r.facts
 }
 

@@ -56,7 +56,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	capable := h.codeFlow != nil && h.codeFlow.Evaluate().TokenExchangeCapable
+	capable := h.codeFlow != nil
 	if h.settings == nil || !capable {
 		h.sendOAuthError(w, http.StatusNotImplemented, "not_implemented", "token exchange is disabled")
 		return

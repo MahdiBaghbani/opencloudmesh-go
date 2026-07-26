@@ -35,7 +35,7 @@ func (c *CompatCompiler) Resolver() *PeerMappingResolver {
 	return c.resolver
 }
 
-// LocalProfile returns code-flow facts for host via ResolveFacts(host, nil).
+// LocalProfile returns code-flow facts for host via ResolveFacts(host).
 // Under scoped compatibility, overlays apply only to explicitly mapped peers;
 // unmatched hosts keep the global CodeFlow baseline. Under global scope,
 // global peer_compat knobs apply to every host. Discovery and middleware use
@@ -45,7 +45,7 @@ func (c *CompatCompiler) LocalProfile(host string) Facts {
 		return Facts{}
 	}
 
-	return c.resolver.ResolveFacts(host, nil)
+	return c.resolver.ResolveFacts(host)
 }
 
 // FactsForHost is an alias of LocalProfile; both return identical facts for
@@ -72,7 +72,7 @@ func (c *CompatCompiler) EmitDiscoveryCriteria(in EmitDiscoveryCriteriaInput) []
 		criteria = append(criteria, spec.CriteriaMustUseHTTPSig)
 	}
 
-	if in.Facts.RequiresTokenExchange && in.Facts.TokenExchangeCapable && in.TokenEndPoint != "" {
+	if in.Facts.RequiresTokenExchange && in.TokenEndPoint != "" {
 		criteria = append(criteria, spec.CriteriaMustExchangeToken)
 	}
 

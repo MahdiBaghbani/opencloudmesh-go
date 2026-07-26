@@ -53,7 +53,7 @@ func TestNewOCMHandler_TokenExchangeDefaultPath(t *testing.T) {
 }
 
 func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
-	t.Run("code-flow TokenExchangeCapable=true adds exchange-token", func(t *testing.T) {
+	t.Run("non-nil code flow adds exchange-token", func(t *testing.T) {
 		c := &resolve.ProviderConfig{}
 		c.TokenExchange.Path = "token"
 
@@ -74,7 +74,7 @@ func TestNewOCMHandler_CodeFlowDrivesExchangeToken(t *testing.T) {
 		}
 
 		if !found {
-			t.Error("expected exchange-token in capabilities when code-flow TokenExchangeCapable=true")
+			t.Error("expected exchange-token in capabilities when code flow is configured")
 		}
 
 		if h.data.TokenEndPoint == "" {

@@ -117,7 +117,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 
 	if h.resolver != nil {
 		if _, senderHost, err := address.Parse(req.Sender); err == nil {
-			localRequires = h.resolver.ResolveFacts(senderHost, nil).RequiresTokenExchange
+			localRequires = h.resolver.ResolveFacts(senderHost).RequiresTokenExchange
 		}
 	}
 

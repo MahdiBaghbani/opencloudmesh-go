@@ -4,7 +4,6 @@ package policy
 // *CodeFlow evaluates knobs with strict defaults; a nil *CodeFlow returns
 // all-false Facts (strict-off).
 type Facts struct {
-	TokenExchangeCapable             bool
 	RequiresTokenExchange            bool
 	IncludesTokenExchangeRequirement bool
 	RequiresHTTPRequestSignatures    bool
@@ -32,7 +31,6 @@ func (c *CodeFlow) Evaluate() Facts {
 	}
 
 	return Facts{
-		TokenExchangeCapable:             true,
 		RequiresTokenExchange:            boolOrDefaultTrue(c.RequiresTokenExchangeRequirement),
 		IncludesTokenExchangeRequirement: boolOrDefaultTrue(c.IncludesTokenExchangeRequirement),
 		RequiresHTTPRequestSignatures:    boolOrDefaultTrue(c.RequiresHTTPRequestSignatures),

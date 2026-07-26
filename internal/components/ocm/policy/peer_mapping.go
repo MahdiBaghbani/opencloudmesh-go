@@ -8,12 +8,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
-// DiscoveryView is a placeholder for the peer discovery surface the resolver
-// will use once the outbound preflight phase adds peer-discovery accessors.
-// The disc parameter is accepted and reserved for upcoming discovery-resolve
-// wiring; it is not currently used by the scope-gated logic in ResolveFacts.
-type DiscoveryView interface{}
-
 // PeerMappingConfigSource abstracts the peer mapping data the resolver needs.
 // It is implemented by config.PeerMappingConfig without importing policy.
 type PeerMappingConfigSource interface {
@@ -42,24 +36,16 @@ func NewPeerMappingResolver(global *CodeFlow, cfg PeerMappingConfigSource, scope
 }
 
 // ResolveFacts is the public naming SSOT for host-facts resolution; keep this stable name.
-// ResolveFacts returns the code-flow facts for host and optional discovery.
+// ResolveFacts returns the code-flow facts for host.
 // Unknown or unmapped hosts skip platform and instance overlays: under global
 // scope they get the global CodeFlow facts with global knobs; under scoped
 // scope they get the global facts without peer-specific overrides.
-// TokenExchangeCapable is always taken from the global policy and never
-// modified by the peer overlay.
 //
 // Under global scope, global peer_compat knobs apply to every host.
 // Under scoped scope, peer_compat knobs (global, platform, and instance) apply
 // only to explicitly mapped peers. Unmapped peers receive the global CodeFlow
 // facts without any peer_compat overlay.
-//
-// The disc parameter is accepted for signature stability and reserved for
-// upcoming discovery-resolve wiring. It is not consulted by the current
-// scope-gated logic; mapped hosts apply platform and instance overlays based
-// solely on host-key resolution, and unmapped hosts fall back to the global
-// CodeFlow facts (or global knobs under global scope).
-func (r *PeerMappingResolver) ResolveFacts(host string, disc DiscoveryView) Facts {
+func (r *PeerMappingResolver) ResolveFacts(host string) Facts {
 	facts := Facts{}
 	if r.global != nil {
 		facts = r.global.Evaluate()

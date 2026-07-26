@@ -98,7 +98,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			InvitesEnabled:         routeOpts.InvitesEnabled,
 			WayfEnabled:            routeOpts.WayfEnabled,
 			AdvertiseHTTPSig:       advertiseHTTPSig,
-			TokenExchangeCapable:   facts.TokenExchangeCapable,
+			TokenExchangeCapable:   in.CodeFlow != nil,
 			RequiresTokenExchange:  facts.RequiresTokenExchange,
 			RequiresHTTPSignatures: facts.RequiresHTTPRequestSignatures,
 		},
@@ -107,17 +107,11 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 
 // resolveFacts derives the code-flow facts for the local discovery document.
 // When a scope-gated resolver is wired, it is consulted with the local provider
-// domain as the host and the reserved discovery view argument. The discovery
-// view is accepted for signature stability but is not consulted by the current
-// resolver logic. When no resolver is wired, the legacy CodeFlow.Evaluate path
+// domain as the host. When no resolver is wired, the legacy CodeFlow.Evaluate path
 // is used as a fallback.
 func resolveFacts(in ResolveInputs) policy.Facts {
 	if in.Resolver != nil {
-		// The local provider domain is the host for LocalProfile resolution.
-		// Global peer_compat knobs apply under global scope; under scoped they
-		// apply only when the host is explicitly mapped.
-		var disc policy.DiscoveryView = nil
-		return in.Resolver.ResolveFacts(in.LocalIdentity.ProviderDomain, disc)
+		return in.Resolver.ResolveFacts(in.LocalIdentity.ProviderDomain)
 	}
 
 	return in.CodeFlow.Evaluate()

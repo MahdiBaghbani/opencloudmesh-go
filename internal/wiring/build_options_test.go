@@ -32,8 +32,4 @@ func TestOptions_ProductionBootstrapSucceeds(t *testing.T) {
 	if result.Deps.CodeFlow == nil {
 		t.Fatal("CodeFlow is nil; Build must populate it")
 	}
-
-	if facts := result.Deps.CodeFlow.Evaluate(); !facts.TokenExchangeCapable {
-		t.Error("expected Build-populated CodeFlow.Evaluate() to report TokenExchangeCapable")
-	}
 }

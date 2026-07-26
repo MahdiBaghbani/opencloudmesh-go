@@ -18,7 +18,6 @@ func TestCompatCompiler_EmitDiscoveryCriteriaUsesSpecConstants(t *testing.T) {
 
 	criteria := compiler.EmitDiscoveryCriteria(policy.EmitDiscoveryCriteriaInput{
 		Facts: policy.Facts{
-			TokenExchangeCapable:          true,
 			RequiresTokenExchange:         true,
 			RequiresHTTPRequestSignatures: true,
 		},
@@ -52,7 +51,6 @@ func TestCompatCompiler_EmitDiscoveryCriteriaOmitsWhenGated(t *testing.T) {
 
 	criteria = compiler.EmitDiscoveryCriteria(policy.EmitDiscoveryCriteriaInput{
 		Facts: policy.Facts{
-			TokenExchangeCapable:          true,
 			RequiresTokenExchange:         true,
 			RequiresHTTPRequestSignatures: false,
 		},
@@ -65,7 +63,6 @@ func TestCompatCompiler_EmitDiscoveryCriteriaOmitsWhenGated(t *testing.T) {
 
 	criteria = compiler.EmitDiscoveryCriteria(policy.EmitDiscoveryCriteriaInput{
 		Facts: policy.Facts{
-			TokenExchangeCapable:          true,
 			RequiresTokenExchange:         true,
 			RequiresHTTPRequestSignatures: true,
 		},
@@ -74,19 +71,6 @@ func TestCompatCompiler_EmitDiscoveryCriteriaOmitsWhenGated(t *testing.T) {
 	})
 	if len(criteria) != 1 || criteria[0] != spec.CriteriaMustExchangeToken {
 		t.Fatalf("criteria = %v, want [%q] without http-sig advertise", criteria, spec.CriteriaMustExchangeToken)
-	}
-
-	criteria = compiler.EmitDiscoveryCriteria(policy.EmitDiscoveryCriteriaInput{
-		Facts: policy.Facts{
-			TokenExchangeCapable:          false,
-			RequiresTokenExchange:         true,
-			RequiresHTTPRequestSignatures: true,
-		},
-		AdvertiseHTTPSig: true,
-		TokenEndPoint:    "https://example.com/ocm/token",
-	})
-	if len(criteria) != 1 || criteria[0] != spec.CriteriaMustUseHTTPSig {
-		t.Fatalf("criteria = %v, want [%q] when TokenExchangeCapable is false", criteria, spec.CriteriaMustUseHTTPSig)
 	}
 }
 

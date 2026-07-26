@@ -155,7 +155,7 @@ type stubResolverForRedaction struct {
 	facts policy.Facts
 }
 
-func (r *stubResolverForRedaction) ResolveFacts(host string, disc policy.DiscoveryView) policy.Facts {
+func (r *stubResolverForRedaction) ResolveFacts(host string) policy.Facts {
 	return r.facts
 }
 

@@ -17,7 +17,7 @@ import (
 
 // outgoingFactsResolver resolves code-flow facts for an outgoing share target.
 type outgoingFactsResolver interface {
-	ResolveFacts(host string, disc policy.DiscoveryView) policy.Facts
+	ResolveFacts(host string) policy.Facts
 }
 
 // Inputs holds dependencies for the API service constructor.
