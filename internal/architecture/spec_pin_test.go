@@ -1,3 +1,12 @@
+// OCM conformance is measured against IETF-OCM.md (the prose Internet-Draft),
+// not the vendored OpenAPI snapshot. Normative SSOT:
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md
+//
+// spec.yaml is a derived snapshot pinned for schema stability and may lag the
+// prose spec, including http-sig applicability for /request-share and
+// /invite-accepted. Tests here assert vendored snapshot integrity (pin.json
+// and spec.yaml exist and agree with spec.APIVersionPin), not normative
+// behavior.
 package architecture
 
 import (
