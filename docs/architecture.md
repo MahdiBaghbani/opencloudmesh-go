@@ -86,6 +86,36 @@ OCM protocol behavior is pinned to a vendored spec snapshot:
 `internal/architecture/spec_pin_test.go` asserts the pin is present and
 matches the expected commit.
 
+## Signing direction
+
+The OCM-API [Signing Direction Index][signing-direction-index] is the
+authoritative signer/verifier map for protocol HTTP Message Signatures.
+The index is INFORMATIVE. HTTP Message Signatures apply only when the
+peer advertises `http-sig`; `must-use-http-sig` makes signing mandatory
+for inbound requests. See the [applicability rules][signing-applicability].
+
+[signing-direction-index]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L882-L912
+[signing-applicability]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+
+| Flow | Endpoint | Signer | Verifier |
+| ---- | -------- | ------ | -------- |
+| Share Creation Notification | POST /shares | Sending Server | Receiving Server |
+| Token Request | POST {tokenEndPoint} | Receiving Server | Sending Server |
+| Invite Acceptance | POST /invite-accepted | Invite Receiver | Invite Sender |
+| Request for a Share | POST /request-share | Requesting Server | Requested Server |
+| Share Acceptance Notification | POST /notifications | Receiving Server | Sending Server |
+| Sender-initiated Notification | POST /notifications | Sending Server SHOULD sign | Receiving Server |
+
+ocmgo signs outbound requests conditionally when the peer advertises
+`http-sig`, and fails closed when no signer is available while the peer
+advertises `http-sig`. Inbound verification runs through the signature
+middleware (internal/components/ocm/inbound/signature/middleware.go), wired
+per route in internal/services/ocm/mount.go: it verifies any present OCM
+signature and rejects unsigned requests when `must-use-http-sig` applies.
+Outbound signing lives in `internal/components/ocm/outbound/poster.go` and
+`internal/components/ocm/token/outgoing/client.go`. Protocol endpoint
+handlers (shares, invites, token) sit behind that middleware.
+
 ## Architecture guard tests
 
 `internal/architecture/` contains test-only guard files. They are not
