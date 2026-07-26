@@ -23,6 +23,7 @@ func TestFetchURL(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(set)
 	}))
@@ -32,10 +33,12 @@ func TestFetchURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchURL: %v", err)
 	}
+
 	key, err := got.Find(testJWKSKey1)
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
+
 	if !pub.Equal(key.PublicKey.(ed25519.PublicKey)) {
 		t.Fatal("key mismatch")
 	}

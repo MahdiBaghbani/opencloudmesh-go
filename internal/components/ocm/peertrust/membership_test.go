@@ -121,6 +121,7 @@ func TestTrustGroupManager_M1UnionAcrossTrustGroups(t *testing.T) {
 	if !m.IsMember(context.Background(), "member1.example.com", false) {
 		t.Error("expected member1 to be a member")
 	}
+
 	if !m.IsMember(context.Background(), "member2.example.com", false) {
 		t.Error("expected member2 to be a member")
 	}
@@ -159,6 +160,7 @@ func TestTrustGroupManager_IsMember_RequireVerified(t *testing.T) {
 	if !m.IsMember(context.Background(), "verified.example.com", false) {
 		t.Error("expected verified.example.com to be a member with requireVerified=false")
 	}
+
 	if !m.IsMember(context.Background(), "unverified.example.com", false) {
 		t.Error("expected unverified.example.com to be a member with requireVerified=false")
 	}
@@ -167,6 +169,7 @@ func TestTrustGroupManager_IsMember_RequireVerified(t *testing.T) {
 	if !m.IsMember(context.Background(), "verified.example.com", true) {
 		t.Error("expected verified.example.com to be a member with requireVerified=true")
 	}
+
 	if m.IsMember(context.Background(), "unverified.example.com", true) {
 		t.Error("expected unverified.example.com to NOT be a member with requireVerified=true")
 	}
@@ -258,12 +261,14 @@ func TestTrustGroupManager_IsMember_TTLVersusMaxStaleBoundary(t *testing.T) {
 
 	betweenAge := time.Now().Add(-45 * time.Minute)
 	m.SetCacheForTesting("test-tg", listings, betweenAge)
+
 	if !m.IsMember(context.Background(), "member.example.com", false) {
 		t.Error("expected member between TTL and MaxStale")
 	}
 
 	beyondMaxStale := time.Now().Add(-3 * time.Hour)
 	m.SetCacheForTesting("test-tg", listings, beyondMaxStale)
+
 	if m.IsMember(context.Background(), "member.example.com", false) {
 		t.Error("expected not a member beyond MaxStale")
 	}
@@ -273,6 +278,7 @@ func TestTrustGroupManager_IsMember_MaxStaleTriggersRefresh(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	var fetchCount atomic.Int32
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fetchCount.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -311,8 +317,10 @@ func TestTrustGroupManager_IsMember_MaxStaleTriggersRefresh(t *testing.T) {
 		if fetchCount.Load() > 0 {
 			return
 		}
+
 		time.Sleep(10 * time.Millisecond)
 	}
+
 	t.Error("expected directory service refresh when cache age exceeds MaxStale")
 }
 

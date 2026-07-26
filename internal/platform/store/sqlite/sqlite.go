@@ -27,6 +27,7 @@ func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 	if cfg.DataDir == "" {
 		return nil, fmt.Errorf("data_dir is required for sqlite driver")
 	}
+
 	return &Driver{dataDir: cfg.DataDir}, nil
 }
 
@@ -41,7 +42,9 @@ func (d *Driver) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	d.core = core
+
 	return nil
 }
 

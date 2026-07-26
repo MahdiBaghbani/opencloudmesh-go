@@ -76,9 +76,11 @@ func TestParse_AllFormats(t *testing.T) {
 			if p.Scheme != tt.expectedScheme {
 				t.Errorf("Scheme: got %q, want %q", p.Scheme, tt.expectedScheme)
 			}
+
 			if p.Hostname != tt.expectedHostname {
 				t.Errorf("Hostname: got %q, want %q", p.Hostname, tt.expectedHostname)
 			}
+
 			if p.Port != tt.expectedPort {
 				t.Errorf("Port: got %q, want %q", p.Port, tt.expectedPort)
 			}
@@ -163,9 +165,11 @@ func TestParse_EdgeCases(t *testing.T) {
 			if p.Scheme != tt.expectedScheme {
 				t.Errorf("Scheme: got %q, want %q", p.Scheme, tt.expectedScheme)
 			}
+
 			if p.Hostname != tt.expectedHostname {
 				t.Errorf("Hostname: got %q, want %q", p.Hostname, tt.expectedHostname)
 			}
+
 			if p.Port != tt.expectedPort {
 				t.Errorf("Port: got %q, want %q", p.Port, tt.expectedPort)
 			}
@@ -374,6 +378,7 @@ func TestSchemeAwareEquivalence(t *testing.T) {
 		}
 
 		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
+
 		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "https")
 		if err != nil {
 			t.Fatal(err)
@@ -391,6 +396,7 @@ func TestSchemeAwareEquivalence(t *testing.T) {
 		}
 
 		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
+
 		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "http")
 		if err != nil {
 			t.Fatal(err)
@@ -408,6 +414,7 @@ func TestSchemeAwareEquivalence(t *testing.T) {
 		}
 
 		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
+
 		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "https")
 		if err != nil {
 			t.Fatal(err)
@@ -425,6 +432,7 @@ func TestSchemeAwareEquivalence(t *testing.T) {
 		}
 
 		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
+
 		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "http")
 		if err != nil {
 			t.Fatal(err)
@@ -442,6 +450,7 @@ func TestSchemeAwareEquivalence(t *testing.T) {
 		}
 
 		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
+
 		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com:443", "https")
 		if err != nil {
 			t.Fatal(err)

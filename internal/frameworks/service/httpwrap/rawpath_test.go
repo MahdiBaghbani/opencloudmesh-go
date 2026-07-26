@@ -9,15 +9,17 @@ import (
 func TestClearRawPath(t *testing.T) {
 	// Track what RawPath the inner handler sees
 	var seenRawPath string
+
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenRawPath = r.URL.RawPath
+
 		w.WriteHeader(http.StatusOK)
 	})
 
 	handler := ClearRawPath(inner)
 
 	// Create request with RawPath set (simulating percent-encoded segments)
-	req := httptest.NewRequest("GET", "/path/with%2Fencoded", nil)
+	req := httptest.NewRequest(http.MethodGet, "/path/with%2Fencoded", nil)
 	req.URL.RawPath = "/path/with%2Fencoded"
 
 	// Verify RawPath is set before wrapping
@@ -41,15 +43,17 @@ func TestClearRawPath(t *testing.T) {
 
 func TestClearRawPath_PreservesOtherURLFields(t *testing.T) {
 	var seenPath, seenQuery string
+
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenPath = r.URL.Path
 		seenQuery = r.URL.RawQuery
+
 		w.WriteHeader(http.StatusOK)
 	})
 
 	handler := ClearRawPath(inner)
 
-	req := httptest.NewRequest("GET", "/test/path?foo=bar", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test/path?foo=bar", nil)
 	req.URL.RawPath = "/test/path"
 
 	rec := httptest.NewRecorder()
@@ -58,6 +62,7 @@ func TestClearRawPath_PreservesOtherURLFields(t *testing.T) {
 	if seenPath != "/test/path" {
 		t.Errorf("expected Path /test/path, got %q", seenPath)
 	}
+
 	if seenQuery != "foo=bar" {
 		t.Errorf("expected RawQuery foo=bar, got %q", seenQuery)
 	}

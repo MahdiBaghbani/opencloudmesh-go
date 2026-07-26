@@ -53,6 +53,7 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	if p.WebDAVRoot != "" {
 		protocols[spec.ProtocolWebDAV] = spec.StringProtocolRole(p.WebDAVRoot)
 	}
+
 	if p.WebDAVReceiveURI != "" {
 		protocols[spec.ProtocolWebDAVReceive] = spec.WebDAVReceiveRole(spec.WebDAVReceiveURIKind(p.WebDAVReceiveURI))
 	}
@@ -87,9 +88,11 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	if p.InviteAcceptDialog != "" {
 		disc.InviteAcceptDialog = p.InviteAcceptDialog
 	}
+
 	if p.InvitesEnabled {
 		capabilities = append(capabilities, spec.CapabilityInvite)
 	}
+
 	if p.WayfEnabled {
 		capabilities = append(capabilities, spec.CapabilityInviteWAYF)
 	}
@@ -99,6 +102,7 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	if p.RequiresHTTPSignatures && p.AdvertiseHTTPSig {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustUseHTTPSig)
 	}
+
 	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustExchangeToken)
 	}

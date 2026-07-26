@@ -51,6 +51,7 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			prev := slog.Default()
+
 			slog.SetDefault(capture.Logger)
 			t.Cleanup(func() { slog.SetDefault(prev) })
 
@@ -58,12 +59,15 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 				if r.Method != http.MethodPost {
 					t.Errorf("token exchange method = %s, want POST", r.Method)
 				}
+
 				if got := r.Header.Get("Signature"); got != tt.signature {
 					t.Errorf("token exchange signature = %q, want %q", got, tt.signature)
 				}
+
 				if err := r.ParseForm(); err != nil {
 					t.Errorf("parse token exchange form: %v", err)
 				}
+
 				if got := r.FormValue("code"); got != tt.sharedSecret {
 					t.Errorf("token exchange code = %q, want %q", got, tt.sharedSecret)
 				}
@@ -89,6 +93,7 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 			if err != nil {
 				t.Fatalf("token exchange failed: %v", err)
 			}
+
 			if result.AccessToken != tt.accessToken {
 				t.Fatalf("access token = %q, want %q", result.AccessToken, tt.accessToken)
 			}

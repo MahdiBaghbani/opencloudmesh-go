@@ -103,6 +103,7 @@ func handleUnauthorized(w http.ResponseWriter, r *http.Request, basePath, reason
 		redirectToLogin(w, r, basePath)
 		return
 	}
+
 	api.WriteUnauthorized(w, reason, message)
 }
 
@@ -110,9 +111,11 @@ func normalizeBasePath(basePath string) string {
 	if basePath == "" {
 		return ""
 	}
+
 	if !strings.HasPrefix(basePath, "/") {
 		basePath = "/" + basePath
 	}
+
 	return strings.TrimSuffix(basePath, "/")
 }
 
@@ -120,6 +123,7 @@ func uiPrefix(basePath string) string {
 	if basePath == "" {
 		return "/ui"
 	}
+
 	return basePath + "/ui"
 }
 
@@ -127,6 +131,7 @@ func shouldRedirectToLogin(r *http.Request, basePath string) bool {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return false
 	}
+
 	return isUIPath(r.URL.Path, basePath)
 }
 
@@ -135,6 +140,7 @@ func isUIPath(path, basePath string) bool {
 	if path == prefix {
 		return true
 	}
+
 	return strings.HasPrefix(path, prefix+"/")
 }
 
@@ -143,6 +149,7 @@ func redirectToLogin(w http.ResponseWriter, r *http.Request, basePath string) {
 	if r.URL.RawQuery != "" {
 		original += "?" + r.URL.RawQuery
 	}
+
 	loginPath := uiPrefix(basePath) + "/login"
 	loginURL := loginPath + "?redirect=" + url.QueryEscape(original)
 	http.Redirect(w, r, loginURL, http.StatusFound)

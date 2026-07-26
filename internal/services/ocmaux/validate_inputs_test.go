@@ -10,6 +10,7 @@ func TestValidateInputs_ReportsMissingRatelimitKeyFunc(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
+
 	if !strings.Contains(err.Error(), "Ratelimit.KeyFunc is required") {
 		t.Fatalf("error = %q, want Ratelimit.KeyFunc required", err.Error())
 	}

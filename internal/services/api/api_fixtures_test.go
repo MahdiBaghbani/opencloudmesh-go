@@ -19,6 +19,7 @@ func testLocalIdentity() localidentity.Identity {
 	if err != nil {
 		panic("testLocalIdentity: " + err.Error())
 	}
+
 	return id
 }
 
@@ -26,6 +27,7 @@ func testAPIInputs() Inputs {
 	cfg := config.DevConfig()
 	rawHTTP := httpclient.New(nil, nil)
 	realIP := realip.NewTrustedProxies(nil)
+
 	return Inputs{
 		PartyRepo:          identity.NewMemoryPartyRepo(),
 		SessionRepo:        identity.NewMemorySessionRepo(),

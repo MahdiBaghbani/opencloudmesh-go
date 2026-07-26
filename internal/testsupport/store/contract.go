@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 // function returns.
 func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	// Preflight: verify creation, initialization, name, and interface compliance
@@ -29,49 +31,62 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 	if err != nil {
 		t.Fatalf("failed to create %s driver: %v", driverName, err)
 	}
+
 	if err := preflight.Init(ctx); err != nil {
 		preflight.Close()
 		t.Fatalf("failed to init %s driver: %v", driverName, err)
 	}
+
 	if preflight.Name() != driverName {
 		t.Errorf("expected driver name %q, got %q", driverName, preflight.Name())
 	}
+
 	if _, ok := preflight.(store.OutgoingShareStore); !ok {
 		preflight.Close()
 		t.Fatalf("%s driver does not implement OutgoingShareStore", driverName)
 	}
+
 	if _, ok := preflight.(store.IncomingShareStore); !ok {
 		preflight.Close()
 		t.Fatalf("%s driver does not implement IncomingShareStore", driverName)
 	}
+
 	if _, ok := preflight.(store.OutgoingInviteStore); !ok {
 		preflight.Close()
 		t.Fatalf("%s driver does not implement OutgoingInviteStore", driverName)
 	}
+
 	if _, ok := preflight.(store.IncomingInviteStore); !ok {
 		preflight.Close()
 		t.Fatalf("%s driver does not implement IncomingInviteStore", driverName)
 	}
+
 	preflight.Close()
 
 	// newSubDriver creates a fresh, isolated driver in a new subdirectory of
 	// cfg.DataDir. The subtest's t.Cleanup closes it when the subtest ends.
 	newSubDriver := func(t *testing.T) store.Driver {
 		t.Helper()
+
 		subDir, err := os.MkdirTemp(cfg.DataDir, "sub-")
 		if err != nil {
 			t.Fatalf("create subtest dir: %v", err)
 		}
+
 		subCfg := cloneConfig(cfg, subDir)
+
 		d, err := store.New(subCfg)
 		if err != nil {
 			t.Fatalf("failed to create %s sub-driver: %v", driverName, err)
 		}
+
 		if err := d.Init(ctx); err != nil {
 			d.Close()
 			t.Fatalf("failed to init %s sub-driver: %v", driverName, err)
 		}
+
 		t.Cleanup(func() { d.Close() })
+
 		return d
 	}
 
@@ -135,6 +150,7 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 func cloneConfig(cfg *store.DriverConfig, dir string) *store.DriverConfig {
 	c := *cfg
 	c.DataDir = dir
+
 	return &c
 }
 
@@ -145,8 +161,9 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	if err := s.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatalf("CreateOutgoingShare failed: %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, share.ProviderId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteOutgoingShare(ctx, share.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteOutgoingShare: %v", err)
 		}
 	})
@@ -156,6 +173,7 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	if err != nil {
 		t.Fatalf("GetOutgoingShareByID failed: %v", err)
 	}
+
 	if gotByID.ShareId != share.ShareId {
 		t.Errorf("expected shareId %q, got %q", share.ShareId, gotByID.ShareId)
 	}
@@ -165,6 +183,7 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	if err != nil {
 		t.Fatalf("GetOutgoingShare failed: %v", err)
 	}
+
 	if got.ProviderId != share.ProviderId {
 		t.Errorf("expected providerId %q, got %q", share.ProviderId, got.ProviderId)
 	}
@@ -174,6 +193,7 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	if err != nil {
 		t.Fatalf("GetOutgoingShareByWebDAVId failed: %v", err)
 	}
+
 	if got.WebDAVId != share.WebDAVId {
 		t.Errorf("expected webdavId %q, got %q", share.WebDAVId, got.WebDAVId)
 	}
@@ -183,6 +203,7 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	if err != nil {
 		t.Fatalf("GetOutgoingShareBySharedSecret failed: %v", err)
 	}
+
 	if gotBySecret.SharedSecret != share.SharedSecret {
 		t.Errorf("expected sharedSecret %q, got %q", share.SharedSecret, gotBySecret.SharedSecret)
 	}
@@ -192,6 +213,7 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	if err := s.UpdateOutgoingShare(ctx, share); err != nil {
 		t.Fatalf("UpdateOutgoingShare failed: %v", err)
 	}
+
 	got, _ = s.GetOutgoingShare(ctx, share.ProviderId)
 	if got.State != "accepted" {
 		t.Errorf("expected state 'accepted', got %q", got.State)
@@ -202,6 +224,7 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	if err != nil {
 		t.Fatalf("ListOutgoingShares failed: %v", err)
 	}
+
 	if len(shares) == 0 {
 		t.Error("expected at least one share in list")
 	}
@@ -213,7 +236,7 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 
 	// Verify deleted
 	_, err = s.GetOutgoingShare(ctx, share.ProviderId)
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
 }
@@ -228,8 +251,9 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 	if err := s.CreateIncomingShare(ctx, share); err != nil {
 		t.Fatalf("CreateIncomingShare failed: %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, share.ShareId, share.UserId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteIncomingShareForRecipient(ctx, share.ShareId, share.UserId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient: %v", err)
 		}
 	})
@@ -239,13 +263,14 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient failed: %v", err)
 	}
+
 	if got.ShareId != share.ShareId {
 		t.Errorf("expected shareId %q, got %q", share.ShareId, got.ShareId)
 	}
 
 	// Cross-user access must return not found
 	_, err = s.GetIncomingShareByIDForRecipient(ctx, share.ShareId, "other-user")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for wrong recipient, got %v", err)
 	}
 
@@ -254,6 +279,7 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey failed: %v", err)
 	}
+
 	if got.ShareId != share.ShareId {
 		t.Errorf("expected shareId %q, got %q", share.ShareId, got.ShareId)
 	}
@@ -263,13 +289,16 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 	if err := s.UpdateIncomingShareStatusForRecipient(ctx, share.ShareId, share.UserId, "accepted"); err != nil {
 		t.Fatalf("UpdateIncomingShareStatusForRecipient failed: %v", err)
 	}
+
 	updated, err := s.GetIncomingShareByIDForRecipient(ctx, share.ShareId, share.UserId)
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient after status update failed: %v", err)
 	}
+
 	if updated.State != "accepted" {
 		t.Errorf("expected state 'accepted' after status update, got %q", updated.State)
 	}
+
 	if updated.UpdatedAt <= priorUpdatedAt {
 		t.Errorf(
 			"UpdatedAt not increased after status update: got %d, want > %d",
@@ -280,7 +309,7 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 
 	// Cross-user update must return not found
 	err = s.UpdateIncomingShareStatusForRecipient(ctx, share.ShareId, "other-user", "accepted")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for wrong recipient on update, got %v", err)
 	}
 
@@ -289,6 +318,7 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 	if err != nil {
 		t.Fatalf("ListIncomingSharesByRecipient failed: %v", err)
 	}
+
 	if len(shares) == 0 {
 		t.Error("expected at least one share in list")
 	}
@@ -300,7 +330,7 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 
 	// Verify deleted
 	_, err = s.GetIncomingShareByIDForRecipient(ctx, share.ShareId, share.UserId)
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
 }
@@ -321,16 +351,19 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 	if err := s.CreateIncomingShare(ctx, share1); err != nil {
 		t.Fatalf("CreateIncomingShare share1 failed: %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, share1.ShareId, share1.UserId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteIncomingShareForRecipient(ctx, share1.ShareId, share1.UserId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient share1: %v", err)
 		}
 	})
+
 	if err := s.CreateIncomingShare(ctx, share2); err != nil {
 		t.Fatalf("CreateIncomingShare share2 failed: %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, share2.ShareId, share2.UserId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteIncomingShareForRecipient(ctx, share2.ShareId, share2.UserId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient share2: %v", err)
 		}
 	})
@@ -340,6 +373,7 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey server1 failed: %v", err)
 	}
+
 	if got.ShareId != "share-1" {
 		t.Errorf("expected share-1, got %q", got.ShareId)
 	}
@@ -349,6 +383,7 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey server2 failed: %v", err)
 	}
+
 	if got.ShareId != "share-2" {
 		t.Errorf("expected share-2, got %q", got.ShareId)
 	}
@@ -363,14 +398,15 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	if err := s.CreateOutgoingInvite(ctx, invite); err != nil {
 		t.Fatalf("CreateOutgoingInvite failed: %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteOutgoingInvite(ctx, invite.ID); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteOutgoingInvite(ctx, invite.ID); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteOutgoingInvite: %v", err)
 		}
 	})
 
 	// Duplicate create must fail
-	if err := s.CreateOutgoingInvite(ctx, invite); err != store.ErrAlreadyExists {
+	if err := s.CreateOutgoingInvite(ctx, invite); !errors.Is(err, store.ErrAlreadyExists) {
 		t.Errorf("expected ErrAlreadyExists on duplicate create, got %v", err)
 	}
 
@@ -379,6 +415,7 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	if err != nil {
 		t.Fatalf("GetOutgoingInvite failed: %v", err)
 	}
+
 	if got.Token != invite.Token {
 		t.Errorf("expected token %q, got %q", invite.Token, got.Token)
 	}
@@ -388,6 +425,7 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken failed: %v", err)
 	}
+
 	if got.ID != invite.ID {
 		t.Errorf("expected id %q, got %q", invite.ID, got.ID)
 	}
@@ -395,6 +433,7 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	// Update with a new token - old token index entry must be removed.
 	oldToken := invite.Token
 	invite.Token = "new-invite-token"
+
 	invite.Status = "accepted"
 	if err := s.UpdateOutgoingInvite(ctx, invite); err != nil {
 		t.Fatalf("UpdateOutgoingInvite failed: %v", err)
@@ -402,7 +441,7 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 
 	// Old token must no longer resolve.
 	_, err = s.GetOutgoingInviteByToken(ctx, oldToken)
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for stale token after update, got %v", err)
 	}
 
@@ -411,6 +450,7 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken for new token failed: %v", err)
 	}
+
 	if got.Status != "accepted" {
 		t.Errorf("expected status 'accepted', got %q", got.Status)
 	}
@@ -420,6 +460,7 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	if err != nil {
 		t.Fatalf("ListOutgoingInvites failed: %v", err)
 	}
+
 	if len(invites) == 0 {
 		t.Error("expected at least one invite in list")
 	}
@@ -431,7 +472,7 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 
 	// Verify deleted
 	_, err = s.GetOutgoingInvite(ctx, invite.ID)
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
 }
@@ -446,8 +487,9 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	if err := s.CreateIncomingInvite(ctx, invite); err != nil {
 		t.Fatalf("CreateIncomingInvite failed: %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingInviteForRecipient: %v", err)
 		}
 	})
@@ -457,13 +499,14 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	if err != nil {
 		t.Fatalf("GetIncomingInviteForRecipient failed: %v", err)
 	}
+
 	if got.Token != invite.Token {
 		t.Errorf("expected token %q, got %q", invite.Token, got.Token)
 	}
 
 	// Cross-user get must return not found
 	_, err = s.GetIncomingInviteForRecipient(ctx, invite.ID, "other-user")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user get, got %v", err)
 	}
 
@@ -472,27 +515,31 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken failed: %v", err)
 	}
+
 	if got.ID != invite.ID {
 		t.Errorf("expected id %q, got %q", invite.ID, got.ID)
 	}
 
 	// Cross-user token lookup must return not found
 	_, err = s.GetIncomingInviteByToken(ctx, invite.Token, "other-user")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user token lookup, got %v", err)
 	}
 
 	// Status update scoped to recipient
 	beforeUpdate := time.Now().Unix()
+
 	if err := s.UpdateIncomingInviteStatusForRecipient(
 		ctx, invite.ID, invite.RecipientUserId, "accepted",
 	); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", err)
 	}
+
 	got, err = s.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId)
 	if err != nil {
 		t.Fatalf("GetIncomingInviteForRecipient after update failed: %v", err)
 	}
+
 	if got.Status != "accepted" {
 		t.Errorf("expected status 'accepted' after update, got %q", got.Status)
 	}
@@ -504,6 +551,7 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 			got.Token,
 		)
 	}
+
 	if got.RecipientUserId != invite.RecipientUserId {
 		t.Errorf(
 			"recipient must not change on status update: expected %q, got %q",
@@ -522,7 +570,7 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 
 	// Cross-user status update must return not found
 	err = s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "other-user", "declined")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user status update, got %v", err)
 	}
 
@@ -531,6 +579,7 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken must still work after status update: %v", err)
 	}
+
 	if got.Status != "accepted" {
 		t.Errorf("expected updated status via token lookup, got %q", got.Status)
 	}
@@ -540,13 +589,14 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	if err != nil {
 		t.Fatalf("ListIncomingInvites failed: %v", err)
 	}
+
 	if len(invites) == 0 {
 		t.Error("expected at least one invite in list")
 	}
 
 	// Cross-user delete must return not found
 	err = s.DeleteIncomingInviteForRecipient(ctx, invite.ID, "other-user")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user delete, got %v", err)
 	}
 
@@ -557,7 +607,7 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 
 	// Verify deleted
 	_, err = s.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId)
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
 }
@@ -585,8 +635,9 @@ func runIncomingInviteCompositeUniqueness(
 	if err := s.CreateIncomingInvite(ctx, first); err != nil {
 		t.Fatalf("CreateIncomingInvite(first): %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingInviteForRecipient(ctx, first.ID, first.RecipientUserId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteIncomingInviteForRecipient(ctx, first.ID, first.RecipientUserId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingInviteForRecipient first: %v", err)
 		}
 	})
@@ -602,7 +653,7 @@ func runIncomingInviteCompositeUniqueness(
 		ReceivedAt:      time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
 	}
-	if err := s.CreateIncomingInvite(ctx, second); err != store.ErrAlreadyExists {
+	if err := s.CreateIncomingInvite(ctx, second); !errors.Is(err, store.ErrAlreadyExists) {
 		t.Fatalf("expected ErrAlreadyExists for duplicate (token, recipientUserId), got %v", err)
 	}
 
@@ -611,6 +662,7 @@ func runIncomingInviteCompositeUniqueness(
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken after conflict: %v", err)
 	}
+
 	if got.ID != "composite-unique-test-1" {
 		t.Errorf(
 			"original invite overwritten: expected composite-unique-test-1, got %q",
@@ -632,8 +684,9 @@ func runIncomingInviteCompositeUniqueness(
 	if err := s.CreateIncomingInvite(ctx, third); err != nil {
 		t.Fatalf("CreateIncomingInvite(third, different recipient): %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingInviteForRecipient(ctx, third.ID, third.RecipientUserId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteIncomingInviteForRecipient(ctx, third.ID, third.RecipientUserId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingInviteForRecipient third: %v", err)
 		}
 	})
@@ -642,6 +695,7 @@ func runIncomingInviteCompositeUniqueness(
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken for bob: %v", err)
 	}
+
 	if gotBob.ID != "composite-unique-test-3" {
 		t.Errorf("expected composite-unique-test-3 for bob, got %q", gotBob.ID)
 	}
@@ -678,8 +732,9 @@ func runOutgoingShareDuplicateSharedSecret(
 	if err := s.CreateOutgoingShare(ctx, first); err != nil {
 		t.Fatalf("CreateOutgoingShare(first): %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, first.ProviderId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteOutgoingShare(ctx, first.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteOutgoingShare first: %v", err)
 		}
 	})
@@ -702,7 +757,7 @@ func runOutgoingShareDuplicateSharedSecret(
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
-	if err := s.CreateOutgoingShare(ctx, second); err != store.ErrAlreadyExists {
+	if err := s.CreateOutgoingShare(ctx, second); !errors.Is(err, store.ErrAlreadyExists) {
 		t.Fatalf("expected ErrAlreadyExists for duplicate SharedSecret on create, got %v", err)
 	}
 
@@ -711,6 +766,7 @@ func runOutgoingShareDuplicateSharedSecret(
 	if err != nil {
 		t.Fatalf("GetOutgoingShareBySharedSecret after conflict: %v", err)
 	}
+
 	if got.ProviderId != "dup-secret-provider-1" {
 		t.Errorf(
 			"original share overwritten: expected dup-secret-provider-1, got %q",
@@ -740,13 +796,15 @@ func runOutgoingShareDuplicateSharedSecret(
 	if err := s.CreateOutgoingShare(ctx, third); err != nil {
 		t.Fatalf("CreateOutgoingShare(third): %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, third.ProviderId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteOutgoingShare(ctx, third.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteOutgoingShare third: %v", err)
 		}
 	})
+
 	third.SharedSecret = "dup-shared-secret"
-	if err := s.UpdateOutgoingShare(ctx, third); err != store.ErrAlreadyExists {
+	if err := s.UpdateOutgoingShare(ctx, third); !errors.Is(err, store.ErrAlreadyExists) {
 		t.Errorf("expected ErrAlreadyExists for conflicting SharedSecret on update, got %v", err)
 	}
 
@@ -785,19 +843,23 @@ func runOutgoingShareDuplicateSharedSecret(
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
+
 	if err := s.CreateOutgoingShare(ctx, noSecret1); err != nil {
 		t.Fatalf("CreateOutgoingShare(noSecret1): %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, noSecret1.ProviderId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteOutgoingShare(ctx, noSecret1.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteOutgoingShare noSecret1: %v", err)
 		}
 	})
+
 	if err := s.CreateOutgoingShare(ctx, noSecret2); err != nil {
 		t.Fatalf("CreateOutgoingShare(noSecret2) with same empty secret: %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, noSecret2.ProviderId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteOutgoingShare(ctx, noSecret2.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteOutgoingShare noSecret2: %v", err)
 		}
 	})
@@ -833,6 +895,7 @@ func runOutgoingShareEmptySharedSecretLookup(
 	if err := s.CreateOutgoingShare(ctx, row); err != nil {
 		t.Fatalf("CreateOutgoingShare(empty-secret row): %v", err)
 	}
+
 	t.Cleanup(func() {
 		if err := s.DeleteOutgoingShare(ctx, row.ProviderId); err != nil {
 			t.Errorf("cleanup: DeleteOutgoingShare empty-secret row: %v", err)
@@ -840,7 +903,7 @@ func runOutgoingShareEmptySharedSecretLookup(
 	})
 
 	_, err := s.GetOutgoingShareBySharedSecret(ctx, "")
-	if err != store.ErrNotFound {
+	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("GetOutgoingShareBySharedSecret(\"\") expected ErrNotFound, got %v", err)
 	}
 }
@@ -853,7 +916,7 @@ func runOutgoingShareUpdateNotFound(t *testing.T, ctx context.Context, s store.O
 	ghost.ShareId = "update-missing-out-share-id"
 	ghost.WebDAVId = "update-missing-out-share-webdav"
 
-	if err := s.UpdateOutgoingShare(ctx, ghost); err != store.ErrNotFound {
+	if err := s.UpdateOutgoingShare(ctx, ghost); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for update of missing outgoing share, got %v", err)
 	}
 }
@@ -868,7 +931,7 @@ func runOutgoingInviteUpdateNotFound(
 	ghost := NewOutgoingInviteFixture()
 	ghost.ID = "update-missing-out-invite-id"
 
-	if err := s.UpdateOutgoingInvite(ctx, ghost); err != store.ErrNotFound {
+	if err := s.UpdateOutgoingInvite(ctx, ghost); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for update of missing outgoing invite, got %v", err)
 	}
 }
@@ -901,8 +964,9 @@ func runIncomingShareProviderKeyUniqueness(
 	if err := s.CreateIncomingShare(ctx, first); err != nil {
 		t.Fatalf("CreateIncomingShare(first): %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, first.ShareId, first.UserId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteIncomingShareForRecipient(ctx, first.ShareId, first.UserId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient first: %v", err)
 		}
 	})
@@ -923,7 +987,7 @@ func runIncomingShareProviderKeyUniqueness(
 		CreatedAt:     time.Now().Unix(),
 		UpdatedAt:     time.Now().Unix(),
 	}
-	if err := s.CreateIncomingShare(ctx, second); err != store.ErrAlreadyExists {
+	if err := s.CreateIncomingShare(ctx, second); !errors.Is(err, store.ErrAlreadyExists) {
 		t.Fatalf("expected ErrAlreadyExists for duplicate (sendingServer, providerId), got %v", err)
 	}
 
@@ -932,6 +996,7 @@ func runIncomingShareProviderKeyUniqueness(
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey after conflict: %v", err)
 	}
+
 	if got.ShareId != "provider-key-unique-1" {
 		t.Errorf(
 			"original share overwritten: expected provider-key-unique-1, got %q",
@@ -958,8 +1023,9 @@ func runIncomingShareProviderKeyUniqueness(
 	if err := s.CreateIncomingShare(ctx, third); err != nil {
 		t.Fatalf("CreateIncomingShare(third, different sendingServer): %v", err)
 	}
+
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, third.ShareId, third.UserId); err != nil && err != store.ErrNotFound {
+		if err := s.DeleteIncomingShareForRecipient(ctx, third.ShareId, third.UserId); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient third: %v", err)
 		}
 	})
@@ -968,6 +1034,7 @@ func runIncomingShareProviderKeyUniqueness(
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey for third: %v", err)
 	}
+
 	if gotThird.ShareId != "provider-key-unique-3" {
 		t.Errorf("expected provider-key-unique-3, got %q", gotThird.ShareId)
 	}

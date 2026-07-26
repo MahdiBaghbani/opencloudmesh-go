@@ -21,6 +21,7 @@ func TestSignatureCriteria(t *testing.T) {
 
 	t.Run("criteria off allows unsigned token request", func(t *testing.T) {
 		falseVal := false
+
 		ts := harness.StartTestServerWithIETFConfig(t, func(cfg *config.Config) {
 			cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = &falseVal
 		})
@@ -30,6 +31,7 @@ func TestSignatureCriteria(t *testing.T) {
 		if status != http.StatusBadRequest {
 			t.Fatalf("criteria-off: status = %d, body = %q; want 400", status, body)
 		}
+
 		if !strings.Contains(body, "invalid_grant") {
 			t.Fatalf("criteria-off: status = %d, body = %q; want it to contain invalid_grant", status, body)
 		}
@@ -37,6 +39,7 @@ func TestSignatureCriteria(t *testing.T) {
 
 	t.Run("criteria on rejects unsigned token request", func(t *testing.T) {
 		trueVal := true
+
 		ts := harness.StartTestServerWithIETFConfig(t, func(cfg *config.Config) {
 			cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = &trueVal
 		})
@@ -71,5 +74,6 @@ func postUnsignedToken(t *testing.T, baseURL string) (int, string) {
 	if err != nil {
 		t.Fatalf("read token response body: %v", err)
 	}
+
 	return resp.StatusCode, string(body)
 }

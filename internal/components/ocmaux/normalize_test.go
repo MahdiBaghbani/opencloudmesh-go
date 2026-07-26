@@ -28,11 +28,14 @@ func TestNormalizeToOrigin(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error for %q", tt.input)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("normalizeToOrigin(%q) error: %v", tt.input, err)
 			}
+
 			if got != tt.want {
 				t.Fatalf("normalizeToOrigin(%q) = %q, want %q", tt.input, got, tt.want)
 			}

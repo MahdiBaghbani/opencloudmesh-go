@@ -18,6 +18,7 @@ func TestHandleInviteAccepted_RecipientProviderRequired(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+
 	if msg := decodeOCMError(t, w); msg != "RECIPIENT_PROVIDER_REQUIRED" {
 		t.Errorf("expected RECIPIENT_PROVIDER_REQUIRED, got %q", msg)
 	}
@@ -32,6 +33,7 @@ func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+
 	if msg := decodeOCMError(t, w); msg != "INVALID_RECIPIENT_PROVIDER" {
 		t.Errorf("expected INVALID_RECIPIENT_PROVIDER, got %q", msg)
 	}
@@ -46,6 +48,7 @@ func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+
 	if msg := decodeOCMError(t, w); msg != "TOKEN_REQUIRED" {
 		t.Errorf("expected TOKEN_REQUIRED, got %q", msg)
 	}
@@ -60,6 +63,7 @@ func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+
 	if msg := decodeOCMError(t, w); msg != "USERID_REQUIRED" {
 		t.Errorf("expected USERID_REQUIRED, got %q", msg)
 	}
@@ -74,6 +78,7 @@ func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+
 	if msg := decodeOCMError(t, w); msg != "EMAIL_REQUIRED" {
 		t.Errorf("expected EMAIL_REQUIRED, got %q", msg)
 	}
@@ -88,6 +93,7 @@ func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+
 	if msg := decodeOCMError(t, w); msg != "NAME_REQUIRED" {
 		t.Errorf("expected NAME_REQUIRED, got %q", msg)
 	}
@@ -99,6 +105,7 @@ func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted",
 		bytes.NewBufferString("token=abc&recipientProvider=other.com"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleInviteAccepted(w, req)

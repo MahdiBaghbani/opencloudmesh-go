@@ -52,6 +52,7 @@ func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
 		bob.DumpLogs(t)
 		t.Fatalf("bob import invite: %v", err)
 	}
+
 	if imported.Status != invites.InviteStatusPending {
 		t.Fatalf("imported status = %q, want pending", imported.Status)
 	}
@@ -67,10 +68,12 @@ func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
 		bob.DumpLogs(t)
 		t.Fatalf("bob list inbox invites: %v", err)
 	}
+
 	bobInvite, err := tsinvite.FindInboxInvite(list, imported.ID)
 	if err != nil {
 		t.Fatalf("bob inbox missing accepted invite: %v", err)
 	}
+
 	if bobInvite.Status != invites.InviteStatusAccepted {
 		t.Fatalf("bob inbox status = %q, want accepted", bobInvite.Status)
 	}
@@ -80,12 +83,15 @@ func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
 		alice.DumpLogs(t)
 		t.Fatalf("read alice outgoing invite status: %v", err)
 	}
+
 	if status != invites.InviteStatusAccepted {
 		t.Fatalf("alice outgoing status = %q, want accepted", status)
 	}
+
 	if acceptedBy == "" {
 		t.Fatal("alice outgoing invite missing accepted_by recipient provider")
 	}
+
 	if !strings.Contains(acceptedBy, "localhost") {
 		t.Fatalf("accepted_by = %q, expected bob localhost provider", acceptedBy)
 	}

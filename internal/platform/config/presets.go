@@ -108,6 +108,7 @@ func StrictConfig() *Config {
 		// Built-in defaults must already be canonical.
 		panic("config.StrictConfig: " + err.Error())
 	}
+
 	return cfg
 }
 
@@ -127,5 +128,6 @@ func DevConfig() *Config {
 	cfg.OutboundHTTP.InsecureSkipVerify = true
 	cfg.OutboundHTTP.UseEnvFallback = false
 	cfg.Logging.Level = "debug"
+
 	return cfg
 }

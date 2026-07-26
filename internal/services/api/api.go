@@ -58,10 +58,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "api", "unused_keys", unused)
 	}
@@ -73,6 +75,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		if u == nil {
 			return nil, fmt.Errorf("no authenticated user in context")
 		}
+
 		return u, nil
 	}
 
@@ -107,6 +110,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.LocalTokenEndpoint,
 	)
 	outgoingHandler.SetPeerOrigin(inputs.PeerOrigin)
+
 	if len(c.AllowedPaths) > 0 {
 		outgoingHandler.SetAllowedPaths(c.AllowedPaths)
 	}
@@ -130,11 +134,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	)
 
 	var loginMiddleware func(http.Handler) http.Handler
+
 	if c.Ratelimit.Profile != "" {
 		profileConfig, err := interceptors.GetProfileConfig(inputs.InterceptorProfiles, "ratelimit", c.Ratelimit.Profile)
 		if err != nil {
 			return nil, fmt.Errorf("api: %w", err)
 		}
+
 		loginMiddleware, err = ratelimit.New(inputs.Ratelimit, profileConfig, log)
 		if err != nil {
 			return nil, fmt.Errorf("api: failed to create ratelimit interceptor: %w", err)
@@ -157,6 +163,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	} else {
 		r.Post(RouteAuthLogin, authHandler.Login)
 	}
+
 	r.Post(RouteAuthLogout, authHandler.Logout)
 	r.Get(RouteAuthMe, authHandler.GetCurrentUser)
 

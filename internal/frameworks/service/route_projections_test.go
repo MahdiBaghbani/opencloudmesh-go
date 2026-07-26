@@ -98,6 +98,7 @@ func TestSessionAuthChecker_MatchesSessionAuthRequiredForPath(t *testing.T) {
 
 	for _, path := range paths {
 		got := checker.Required(path)
+
 		want := SessionAuthRequiredForPath(path, opts)
 		if got != want {
 			t.Errorf("checker.Required(%q) = %v, SessionAuthRequiredForPath = %v", path, got, want)

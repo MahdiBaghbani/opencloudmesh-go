@@ -35,9 +35,11 @@ func TestDiscoveryHelpersUseCriteriaConstants(t *testing.T) {
 	if !disc.RequiresHTTPSig() {
 		t.Error("RequiresHTTPSig() = false, want true")
 	}
+
 	if !disc.HasCriteria(spec.CriteriaMustExchangeToken) {
 		t.Error("HasCriteria(CriteriaMustExchangeToken) = false, want true")
 	}
+
 	if disc.HasCriteria("unknown") {
 		t.Error("HasCriteria(unknown) = true, want false")
 	}
@@ -64,6 +66,7 @@ func TestCriteriaClosedPathNoRawWireLiterals(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
 			}
+
 			content := string(data)
 			for _, lit := range criteriaWireLiterals {
 				if strings.Contains(content, lit) {

@@ -50,15 +50,19 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 	if !resp.OK {
 		t.Error("expected ok=true")
 	}
+
 	if resp.HTTPStatus != 200 {
 		t.Errorf("expected httpStatus 200, got %d", resp.HTTPStatus)
 	}
+
 	if resp.ContentType != "text/plain" {
 		t.Errorf("expected contentType text/plain, got %s", resp.ContentType)
 	}
+
 	if resp.ContentPreview != fileContent {
 		t.Errorf("expected contentPreview %q, got %q", fileContent, resp.ContentPreview)
 	}
+
 	if resp.ContentPreviewTruncated {
 		t.Error("expected contentPreviewTruncated=false for small body")
 	}
@@ -92,6 +96,7 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	if resp.OK {
 		t.Error("expected ok=false")
 	}
+
 	if resp.ReasonCode != "discovery_failed" {
 		t.Errorf("expected reasonCode discovery_failed, got %s", resp.ReasonCode)
 	}
@@ -121,6 +126,7 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 
 	var resp inboxshares.VerifyAccessResponse
 	json.Unmarshal(w.Body.Bytes(), &resp)
+
 	if resp.ReasonCode != "policy_denied" {
 		t.Errorf("expected reasonCode policy_denied, got %s", resp.ReasonCode)
 	}
@@ -146,6 +152,7 @@ func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T
 
 	var resp inboxshares.VerifyAccessResponse
 	json.Unmarshal(w.Body.Bytes(), &resp)
+
 	if resp.ReasonCode != "discovery_disabled" {
 		t.Errorf("expected reasonCode discovery_disabled, got %s", resp.ReasonCode)
 	}
@@ -182,9 +189,11 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 	if !resp.OK {
 		t.Error("expected ok=true")
 	}
+
 	if !resp.ContentPreviewTruncated {
 		t.Error("expected contentPreviewTruncated=true for large body")
 	}
+
 	if len(resp.ContentPreview) != 4096 {
 		t.Errorf("expected preview length 4096, got %d", len(resp.ContentPreview))
 	}
@@ -221,9 +230,11 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 	if resp.OK {
 		t.Error("expected ok=false")
 	}
+
 	if resp.ReasonCode != "unreachable" {
 		t.Errorf("expected reasonCode unreachable, got %s", resp.ReasonCode)
 	}
+
 	if !strings.Contains(resp.Error, "403") {
 		t.Errorf("expected error to mention status code, got %q", resp.Error)
 	}

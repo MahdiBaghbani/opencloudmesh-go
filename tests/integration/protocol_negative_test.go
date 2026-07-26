@@ -25,66 +25,81 @@ func TestProtocolNegativeStrict(t *testing.T) {
 	t.Run("inbound", func(t *testing.T) {
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
+
 		pair := startStrictProtocolPairWithExtraAllowedPorts(
 			t,
 			tsprotocol.VariantProtocolPair,
 			[]int{strictRecordingReceiverAllowedPort(t, recordingReceiver)},
 		)
 		defer pair.Stop(t)
+
 		runInboundNegativeCases(t, pair, recordingReceiver)
 	})
 
 	t.Run("outbound_cross_authority_endpoint", func(t *testing.T) {
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
+
 		receiver := startCrossAuthorityDiscoveryPeer(t)
 		extraPorts := []int{receiver.Port(), strictRecordingReceiverAllowedPort(t, recordingReceiver)}
+
 		pair := startStrictProtocolPairWithExtraAllowedPorts(t, tsprotocol.VariantProtocolPair, extraPorts)
 		defer pair.Stop(t)
+
 		runOutboundCrossAuthorityCase(t, pair, receiver, recordingReceiver)
 	})
 
 	t.Run("outbound_redirect_ssrf", func(t *testing.T) {
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
+
 		receiver := startRedirectSSRFDiscoveryPeer(t)
 		extraPorts := []int{receiver.Port(), strictRecordingReceiverAllowedPort(t, recordingReceiver)}
+
 		pair := startStrictProtocolPairWithExtraAllowedPorts(t, tsprotocol.VariantSSRFStrictRedirect, extraPorts)
 		defer pair.Stop(t)
+
 		runOutboundRedirectSSRFCase(t, pair, receiver, recordingReceiver)
 	})
 
 	t.Run("outbound_stale_trust_membership", func(t *testing.T) {
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
+
 		pair := startStrictProtocolPairWithExtraAllowedPorts(
 			t,
 			tsprotocol.VariantPeerTrustStaleMembership,
 			[]int{strictRecordingReceiverAllowedPort(t, recordingReceiver)},
 		)
 		defer pair.Stop(t)
+
 		runOutboundStaleTrustMembershipCase(t, pair, recordingReceiver)
 	})
 
 	t.Run("contract_malformed_discovery_blocks_outbound_post", func(t *testing.T) {
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
+
 		receiver := startMalformedDiscoveryPeer(t)
 		extraPorts := []int{receiver.Port(), strictRecordingReceiverAllowedPort(t, recordingReceiver)}
+
 		pair := startStrictProtocolPairWithExtraAllowedPorts(t, tsprotocol.VariantProtocolPair, extraPorts)
 		defer pair.Stop(t)
+
 		runMalformedDiscoveryBlocksOutboundCase(t, pair, receiver, recordingReceiver)
 	})
 
 	t.Run("contract_unexchanged_shared_secret_bearer_401", func(t *testing.T) {
 		recordingReceiver := startStrictRecordingReceiver(t)
 		defer recordingReceiver.Close()
+
 		pair := startStrictProtocolPairWithExtraAllowedPorts(
 			t,
 			tsprotocol.VariantProtocolPair,
 			[]int{strictRecordingReceiverAllowedPort(t, recordingReceiver)},
 		)
 		defer pair.Stop(t)
+
 		runUnexchangedSharedSecretBearer401Case(t, pair, recordingReceiver)
 	})
 }

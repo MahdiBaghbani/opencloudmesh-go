@@ -77,8 +77,10 @@ func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
+
 			w := httptest.NewRecorder()
 			handler.CreateShare(w, req)
+
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 			}
@@ -103,6 +105,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -129,6 +132,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -155,6 +159,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -181,6 +186,7 @@ func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)

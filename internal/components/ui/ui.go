@@ -44,7 +44,9 @@ type TemplateData struct {
 // Login serves the login page.
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	data := TemplateData{BasePath: h.basePath}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	if err := h.templates.ExecuteTemplate(w, "login.html", data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
@@ -53,7 +55,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 // Inbox serves the inbox page.
 func (h *Handler) Inbox(w http.ResponseWriter, r *http.Request) {
 	data := TemplateData{BasePath: h.basePath}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	if err := h.templates.ExecuteTemplate(w, "inbox.html", data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
@@ -62,7 +66,9 @@ func (h *Handler) Inbox(w http.ResponseWriter, r *http.Request) {
 // Outgoing serves the outgoing shares and invites page.
 func (h *Handler) Outgoing(w http.ResponseWriter, r *http.Request) {
 	data := TemplateData{BasePath: h.basePath}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	if err := h.templates.ExecuteTemplate(w, "outgoing.html", data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
@@ -75,7 +81,9 @@ func (h *Handler) Wayf(w http.ResponseWriter, r *http.Request) {
 		Token:          r.URL.Query().Get("token"),
 		ProviderDomain: h.providerDomain,
 	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	if err := h.templates.ExecuteTemplate(w, "wayf.html", data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
@@ -88,7 +96,9 @@ func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		Token:          r.URL.Query().Get("token"),
 		ProviderDomain: r.URL.Query().Get("providerDomain"),
 	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	if err := h.templates.ExecuteTemplate(w, "accept-invite.html", data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}

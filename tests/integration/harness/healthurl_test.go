@@ -118,13 +118,16 @@ func TestValidatePreBootstrapStartup(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.StrictConfig()
 			tc.mutate(cfg)
+
 			err := validatePreBootstrapStartup(cfg)
 			if tc.wantError && err == nil {
 				t.Fatalf("validatePreBootstrapStartup() = nil, want error")
 			}
+
 			if !tc.wantError && err != nil {
 				t.Fatalf("validatePreBootstrapStartup() = %v, want nil", err)
 			}
+
 			if tc.wantSubstr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantSubstr)) {
 				t.Fatalf("validatePreBootstrapStartup() = %v, want error containing %q", err, tc.wantSubstr)
 			}
@@ -145,12 +148,15 @@ func TestApplyIETFConfigDefaults(t *testing.T) {
 	if cfg.Mode != dev.Mode {
 		t.Fatalf("Mode = %q, want preserved %q", cfg.Mode, dev.Mode)
 	}
+
 	if cfg.TLS.Mode != dev.TLS.Mode {
 		t.Fatalf("TLS.Mode = %q, want preserved %q", cfg.TLS.Mode, dev.TLS.Mode)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != dev.OutboundHTTP.SSRF.Mode {
 		t.Fatalf("OutboundHTTP.SSRF.Mode = %q, want preserved %q", cfg.OutboundHTTP.SSRF.Mode, dev.OutboundHTTP.SSRF.Mode)
 	}
+
 	if cfg.OutboundHTTP.InsecureSkipVerify != dev.OutboundHTTP.InsecureSkipVerify {
 		t.Fatalf("OutboundHTTP.InsecureSkipVerify = %v, want preserved %v", cfg.OutboundHTTP.InsecureSkipVerify, dev.OutboundHTTP.InsecureSkipVerify)
 	}
@@ -166,9 +172,11 @@ func TestIETFIntegrationBuildOpts(t *testing.T) {
 	if opts.FastAuth != base.FastAuth {
 		t.Fatal("IETF opts should preserve FastAuth from integration baseline")
 	}
+
 	if opts.SkipPeerTrust != base.SkipPeerTrust {
 		t.Fatal("IETF opts should preserve SkipPeerTrust from integration baseline")
 	}
+
 	if opts.SkipDiscoveryCache != base.SkipDiscoveryCache {
 		t.Fatal("IETF opts should preserve SkipDiscoveryCache from integration baseline")
 	}
@@ -176,6 +184,7 @@ func TestIETFIntegrationBuildOpts(t *testing.T) {
 
 func TestIETFIntegrationBuildOpts_MatchesWiringBuildOpts(t *testing.T) {
 	got := IETFIntegrationBuildOpts()
+
 	want := wiring.BuildOpts{
 		FastAuth:           true,
 		SkipCrypto:         false,

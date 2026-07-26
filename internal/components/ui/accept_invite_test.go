@@ -53,6 +53,7 @@ func TestAcceptInvite_MissingParamsShowsWarning(t *testing.T) {
 	if !strings.Contains(body, "missing-params") {
 		t.Error("expected missing-params element in page when query params absent")
 	}
+
 	if !strings.Contains(body, "Missing invite parameters") {
 		t.Error("expected missing-params warning text")
 	}

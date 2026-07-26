@@ -27,10 +27,12 @@ type fixedResolver struct {
 func (r *fixedResolver) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	addrs, ok := r.entries[host]
 	if !ok {
 		return nil, fmt.Errorf("no records for %s", host)
 	}
+
 	return addrs, nil
 }
 
@@ -74,10 +76,12 @@ func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
 	if httpclient.IsSSRFError(err) {
 		t.Errorf("route policy should allow this private host, got SSRF error: %v", err)
 	}
+
 	if err != nil {
 		t.Fatalf("expected successful request, got: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
@@ -320,6 +324,7 @@ func TestRoutePolicy_ProxyTrustedWhileDestinationPolicyEnforced(t *testing.T) {
 // The destination resolves to a private IP; the route policy does not allow it.
 func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) {
 	var proxyHit atomic.Bool
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHit.Store(true)
 		t.Error("proxy must not be reached: preflight SSRF check fires first")
@@ -358,6 +363,7 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error: NO_PROXY routing direct must not bypass destination policy, got: %v", err)
 	}
+
 	if proxyHit.Load() {
 		t.Error("proxy must not be hit; preflight SSRF check must fire before proxy decision")
 	}
@@ -369,12 +375,15 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 // SSRF check must pass for the redirect to succeed.
 func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
 	var requestCount int32
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&requestCount, 1)
+
 		if r.URL.Path == "/start" {
 			http.Redirect(w, r, "/target", http.StatusFound)
 			return
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -405,6 +414,7 @@ func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if atomic.LoadInt32(&requestCount) < 2 {
 		t.Error("expected redirect to be followed (at least 2 requests)")
 	}
@@ -428,9 +438,11 @@ func TestClient_NoPolicyErrorDistinct(t *testing.T) {
 	if !httpclient.IsSSRFError(err) {
 		t.Fatalf("expected SSRF error, got: %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "no active route policy") {
 		t.Errorf("expected 'no active route policy' in error when no policy is set, got: %v", err)
 	}
+
 	if strings.Contains(err.Error(), "host suffix") {
 		t.Errorf("error must not mention host suffix when the problem is a missing policy, got: %v", err)
 	}

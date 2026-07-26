@@ -33,6 +33,7 @@ random_key = "value"
 	if err == nil {
 		t.Fatal("Load() should fail with unsupported keys")
 	}
+
 	if !strings.Contains(err.Error(), "unsupported keys") {
 		t.Errorf("expected unsupported-keys error, got: %v", err)
 	}
@@ -56,6 +57,7 @@ mode = "letsencrypt"
 	if err == nil {
 		t.Fatal("expected error for invalid tls.mode")
 	}
+
 	if !strings.Contains(err.Error(), "invalid tls.mode") {
 		t.Errorf("expected tls.mode error, got: %v", err)
 	}
@@ -80,6 +82,7 @@ external_base_path = "ocm"
 	if err == nil {
 		t.Fatal("expected error for invalid external_base_path")
 	}
+
 	if !strings.Contains(err.Error(), "external_base_path") {
 		t.Errorf("expected external_base_path error, got: %v", err)
 	}
@@ -112,6 +115,7 @@ mode = "off"
 	if cfg.TLS.Mode != "acme" {
 		t.Errorf("expected tls.mode acme, got %s", cfg.TLS.Mode)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "off" {
 		t.Errorf("expected ssrf.mode off, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}

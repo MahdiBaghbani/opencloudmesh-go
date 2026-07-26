@@ -24,7 +24,9 @@ func (s *mockSigner) Sign(req *http.Request) error {
 			Message:    "signing failed",
 		}
 	}
+
 	req.Header.Set("Signature", "mock-signature")
+
 	return nil
 }
 

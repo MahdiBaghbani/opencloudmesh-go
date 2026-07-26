@@ -40,14 +40,17 @@ func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 	if label == "" {
 		label = sigparams.SignatureLabelOCM
 	}
+
 	maxAge := time.Duration(sig.CreatedMaxAgeSeconds) * time.Second
 	if maxAge <= 0 {
 		maxAge = time.Duration(config.DefaultSignatureCreatedMaxAge) * time.Second
 	}
+
 	maxSkew := time.Duration(sig.CreatedMaxSkewSeconds) * time.Second
 	if sig.CreatedMaxSkewSeconds == 0 {
 		maxSkew = time.Duration(config.DefaultSignatureCreatedMaxSkew) * time.Second
 	}
+
 	allowed := sig.AllowedAlgorithms
 	if len(allowed) == 0 {
 		allowed = sigalg.DefaultAllowed()
@@ -118,15 +121,19 @@ func NewRFC9421SignerWithOptions(km *KeyManager, opts RFC9421Options) *RFC9421Si
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
+
 	if opts.Label == "" {
 		opts.Label = sigparams.SignatureLabelOCM
 	}
+
 	if len(opts.AllowedAlgorithms) == 0 {
 		opts.AllowedAlgorithms = sigalg.DefaultAllowed()
 	}
+
 	if len(opts.RequiredComponents) == 0 {
 		opts.RequiredComponents = AppendixBCoveredComponents()
 	}
+
 	return &RFC9421Signer{keyManager: km, opts: opts}
 }
 
@@ -165,6 +172,7 @@ func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to build signature base: %w", err)
 	}
+
 	fullBase := sigBase + fmt.Sprintf("\"@signature-params\": %s", sigParamsValue)
 
 	sig, err := s.keyManager.Sign([]byte(fullBase))
@@ -174,6 +182,7 @@ func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set("Signature", sigparams.FormatSignature(s.opts.Label, sig))
+
 	return nil
 }
 
@@ -184,6 +193,7 @@ func (s *RFC9421Signer) Sign(req *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("failed to read request body for signing: %w", err)
 	}
+
 	return s.SignRequest(req, body)
 }
 
@@ -201,10 +211,12 @@ func PresentComponents(req *http.Request, components []string) []string {
 			actual = append(actual, comp)
 			continue
 		}
+
 		if req.Header.Get(comp) != "" {
 			actual = append(actual, comp)
 		}
 	}
+
 	return actual
 }
 
@@ -223,15 +235,19 @@ func NewRFC9421VerifierWithOptions(opts RFC9421Options) *RFC9421Verifier {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
+
 	if opts.Label == "" {
 		opts.Label = sigparams.SignatureLabelOCM
 	}
+
 	if len(opts.AllowedAlgorithms) == 0 {
 		opts.AllowedAlgorithms = sigalg.DefaultAllowed()
 	}
+
 	if len(opts.RequiredComponents) == 0 {
 		opts.RequiredComponents = MandatorySignatureComponents()
 	}
+
 	return &RFC9421Verifier{opts: opts}
 }
 
@@ -275,6 +291,7 @@ func (v *RFC9421Verifier) VerifyRequest(
 		if sigparams.HasOCMSignatureAttempt(sigHeader) {
 			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature-Input header for OCM signature")}
 		}
+
 		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature-Input header")}
 	}
 
@@ -282,6 +299,7 @@ func (v *RFC9421Verifier) VerifyRequest(
 		if sigparams.HasOCMSignatureAttempt(sigInputHeader) {
 			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature header for OCM signature")}
 		}
+
 		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature header")}
 	}
 
@@ -293,8 +311,10 @@ func (v *RFC9421Verifier) VerifyRequest(
 		if sigparams.HasOCMTagAttempt(sigInputHeader) || sigparams.HasOCMTagAttempt(sigHeader) {
 			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("malformed OCM signature tag")}
 		}
+
 		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("no tag=%q signature", sigparams.SignatureTagOCM)}
 	}
+
 	if tagCount > 1 {
 		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple tag=%q signatures", sigparams.SignatureTagOCM)}
 	}
@@ -307,6 +327,7 @@ func (v *RFC9421Verifier) VerifyRequest(
 	if err := sigparams.ValidateExactlyOneLabel(sigInputHeader, label); err != nil {
 		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
 	}
+
 	if err := sigparams.ValidateExactlyOneLabel(sigHeader, label); err != nil {
 		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
 	}
@@ -324,6 +345,7 @@ func (v *RFC9421Verifier) VerifyRequest(
 	if params.Created == 0 {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingCreated, Error: fmt.Errorf("missing created parameter")}
 	}
+
 	if reason, err := v.validateCreated(params.Created); err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: reason, Error: err}
 	}
@@ -353,6 +375,7 @@ func (v *RFC9421Verifier) VerifyRequest(
 		if errors.Is(err, jwks.ErrKeyNotFound) {
 			reason = ReasonKeyNotFound
 		}
+
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: reason, Error: fmt.Errorf("failed to get public key: %w", err)}
 	}
 
@@ -360,6 +383,7 @@ func (v *RFC9421Verifier) VerifyRequest(
 	if err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonAlgorithmRejected, Error: err}
 	}
+
 	if err := sigalg.ValidateAllowed(resolvedAlg, v.opts.AllowedAlgorithms); err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonAlgorithmRejected, Error: err}
 	}
@@ -382,12 +406,15 @@ func (v *RFC9421Verifier) validateCreated(created int64) (string, error) {
 	now := v.opts.Now().Unix()
 	maxSkew := int64(v.opts.CreatedMaxSkew / time.Second)
 	maxAge := int64(v.opts.CreatedMaxAge / time.Second)
+
 	if created > now+maxSkew {
 		return ReasonFutureCreated, fmt.Errorf("created timestamp is too far in the future")
 	}
+
 	if now-created > maxAge {
 		return ReasonStaleCreated, fmt.Errorf("created timestamp is stale")
 	}
+
 	return "", nil
 }
 
@@ -396,11 +423,13 @@ func validateRequiredComponents(actual, required []string) error {
 	for _, c := range actual {
 		present[strings.ToLower(c)] = struct{}{}
 	}
+
 	for _, reqComp := range required {
 		if _, ok := present[strings.ToLower(reqComp)]; !ok {
 			return fmt.Errorf("missing required signature component %q", reqComp)
 		}
 	}
+
 	return nil
 }
 
@@ -409,30 +438,37 @@ func verifyRequiredBodyHeaders(req *http.Request, body []byte, requiredComponent
 	for _, comp := range requiredComponents {
 		required[strings.ToLower(comp)] = struct{}{}
 	}
+
 	if _, ok := required["content-digest"]; ok {
 		if req.Header.Get("Content-Digest") == "" {
 			return fmt.Errorf("missing Content-Digest header")
 		}
 	}
+
 	if _, ok := required["content-length"]; ok {
 		cl := req.Header.Get("Content-Length")
 		if cl == "" {
 			if len(body) > 0 {
 				return fmt.Errorf("missing Content-Length header")
 			}
+
 			if req.ContentLength != 0 {
 				return fmt.Errorf("content length mismatch")
 			}
+
 			return nil
 		}
+
 		n, err := strconv.Atoi(cl)
 		if err != nil {
 			return fmt.Errorf("invalid Content-Length header")
 		}
+
 		if n != len(body) {
 			return fmt.Errorf("content length mismatch")
 		}
 	}
+
 	return nil
 }
 
@@ -450,17 +486,22 @@ func (v *RFC9421Verifier) HasOCMSignatureAttempt(req *http.Request) bool {
 
 func buildSignatureBase(req *http.Request, components []string) (string, error) {
 	var lines []string
+
 	for _, comp := range components {
 		comp = strings.ToLower(comp)
+
 		value, err := componentValue(req, comp, false)
 		if err != nil {
 			return "", err
 		}
+
 		if err := rejectCRLF(comp, value); err != nil {
 			return "", err
 		}
+
 		lines = append(lines, fmt.Sprintf("\"%s\": %s", comp, value))
 	}
+
 	return strings.Join(lines, "\n") + "\n", nil
 }
 
@@ -472,17 +513,22 @@ func BuildSignatureBase(req *http.Request, components []string) (string, error) 
 
 func buildSignatureBaseFromRequest(req *http.Request, _ []byte, components []string) (string, error) {
 	var lines []string
+
 	for _, comp := range components {
 		comp = strings.ToLower(comp)
+
 		value, err := componentValue(req, comp, true)
 		if err != nil {
 			return "", err
 		}
+
 		if err := rejectCRLF(comp, value); err != nil {
 			return "", err
 		}
+
 		lines = append(lines, fmt.Sprintf("\"%s\": %s", comp, value))
 	}
+
 	return strings.Join(lines, "\n") + "\n", nil
 }
 
@@ -490,6 +536,7 @@ func rejectCRLF(comp, value string) error {
 	if strings.ContainsAny(value, "\r\n") {
 		return fmt.Errorf("component %q value contains CR/LF", comp)
 	}
+
 	return nil
 }
 
@@ -504,6 +551,7 @@ func componentValue(req *http.Request, comp string, received bool) (string, erro
 		if value == "" {
 			value = req.URL.Host
 		}
+
 		return value, nil
 	case "@path":
 		return req.URL.Path, nil
@@ -511,6 +559,7 @@ func componentValue(req *http.Request, comp string, received bool) (string, erro
 		if req.URL.RawQuery == "" {
 			return "?", nil
 		}
+
 		return "?" + req.URL.RawQuery, nil
 	case "content-digest":
 		return req.Header.Get("content-digest"), nil
@@ -518,6 +567,7 @@ func componentValue(req *http.Request, comp string, received bool) (string, erro
 		if v := req.Header.Get("content-length"); v != "" {
 			return v, nil
 		}
+
 		return strconv.FormatInt(req.ContentLength, 10), nil
 	case "date":
 		return req.Header.Get("date"), nil
@@ -526,6 +576,7 @@ func componentValue(req *http.Request, comp string, received bool) (string, erro
 		if value == "" && received {
 			return "", fmt.Errorf("missing header %q", comp)
 		}
+
 		return value, nil
 	}
 }
@@ -541,10 +592,12 @@ func CanonicalTargetURI(req *http.Request) string {
 			scheme = "http"
 		}
 	}
+
 	host := req.Host
 	if host == "" {
 		host = req.URL.Host
 	}
+
 	return scheme + "://" + host + req.URL.RequestURI()
 }
 
@@ -569,11 +622,13 @@ func VerifyContentDigest(req *http.Request, body []byte) error {
 		if !ok {
 			return fmt.Errorf("unsupported digest algorithm %q", entry.algorithm)
 		}
+
 		actual := hasher(body)
 		if !bytes.Equal(entry.value, actual) {
 			return fmt.Errorf("content digest mismatch for %s", entry.algorithm)
 		}
 	}
+
 	return nil
 }
 
@@ -594,6 +649,7 @@ func parseContentDigestHeader(header string) ([]contentDigestEntry, error) {
 	}
 
 	var entries []contentDigestEntry
+
 	for memberStart := 0; memberStart < len(header); {
 		for memberStart < len(header) {
 			ch := header[memberStart]
@@ -601,59 +657,76 @@ func parseContentDigestHeader(header string) ([]contentDigestEntry, error) {
 				memberStart++
 				continue
 			}
+
 			break
 		}
+
 		if memberStart >= len(header) {
 			break
 		}
+
 		memberEnd := scanContentDigestMemberEnd(header, memberStart)
+
 		member := strings.TrimSpace(header[memberStart:memberEnd])
 		if member == "" {
 			return nil, fmt.Errorf("malformed Content-Digest entry")
 		}
+
 		eq := strings.Index(member, "=")
 		if eq <= 0 {
 			return nil, fmt.Errorf("malformed Content-Digest entry %q", member)
 		}
+
 		algorithm := strings.TrimSpace(member[:eq])
+
 		valuePart := strings.TrimSpace(member[eq+1:])
 		if !strings.HasPrefix(valuePart, ":") || !strings.HasSuffix(valuePart, ":") {
 			return nil, fmt.Errorf("malformed digest value for %s", algorithm)
 		}
+
 		raw, err := base64.StdEncoding.DecodeString(strings.Trim(valuePart, ":"))
 		if err != nil {
 			return nil, fmt.Errorf("invalid digest encoding for %s: %w", algorithm, err)
 		}
+
 		entries = append(entries, contentDigestEntry{algorithm: algorithm, value: raw})
+
 		memberStart = memberEnd
 		if memberStart < len(header) && header[memberStart] == ',' {
 			memberStart++
 		}
 	}
+
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("malformed Content-Digest header")
 	}
+
 	return entries, nil
 }
 
 func scanContentDigestMemberEnd(header string, start int) int {
 	inByteSeq := false
+
 	for i := start; i < len(header); i++ {
 		ch := header[i]
 		if inByteSeq {
 			if ch == ':' {
 				inByteSeq = false
 			}
+
 			continue
 		}
+
 		if ch == ':' {
 			inByteSeq = true
 			continue
 		}
+
 		if ch == ',' {
 			return i
 		}
 	}
+
 	return len(header)
 }
 
@@ -667,8 +740,10 @@ func ReadAndRestoreBody(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	req.Body.Close()
 
 	req.Body = io.NopCloser(bytes.NewReader(body))
+
 	return body, nil
 }

@@ -23,6 +23,7 @@ func AssertClassifiedReason(t testing.TB, err error, wantReason string) {
 	if !errors.As(err, &ce) {
 		t.Fatalf("error is not a ClassifiedError: %v", err)
 	}
+
 	if ce.ReasonCode != wantReason {
 		t.Fatalf("classified reason mismatch: got %q, want %q", ce.ReasonCode, wantReason)
 	}

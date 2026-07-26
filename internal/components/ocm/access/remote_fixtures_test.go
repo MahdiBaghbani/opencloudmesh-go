@@ -29,10 +29,13 @@ func newTestDiscoveryServer() *httptest.Server {
 					},
 				},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(disc)
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 }
@@ -43,6 +46,7 @@ func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextCli
 	rawClient := httpclient.New(cfg, nil)
 	discClient := discovery.NewClient(rawClient, nil)
 	ctxClient := httpclient.NewContextClient(rawClient)
+
 	return discClient, ctxClient
 }
 
@@ -58,6 +62,7 @@ func newExchangeAccessClient(
 	srv *httptest.Server,
 ) (*Client, *httpclient.ContextClient) {
 	t.Helper()
+
 	discClient, ctxClient := newTestClients(srv.URL)
 	tokenClient := tokenoutgoing.NewClient(ctxClient, accessMockSigner{}, "local.example.com")
 	client := NewClient(
@@ -66,6 +71,7 @@ func newExchangeAccessClient(
 		tokenClient,
 		peerorigin.NewResolver(true),
 	)
+
 	return client, ctxClient
 }
 
@@ -90,19 +96,26 @@ func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToke
 				},
 			},
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(disc)
+
 		return true
 	}
+
 	if r.URL.Path == "/ocm/token" {
 		if r.Header.Get("Signature") == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return true
 		}
+
 		_ = r.ParseForm()
+
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"access_token":"` + accessToken + `","token_type":"Bearer","expires_in":3600}`))
+
 		return true
 	}
+
 	return false
 }

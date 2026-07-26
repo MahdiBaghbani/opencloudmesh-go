@@ -33,6 +33,7 @@ func (pd *serviceTestPeerDiscovery) ResolveVerificationKey(_ context.Context, ke
 	if key, ok := pd.publicKeys[keyID]; ok {
 		return key, nil
 	}
+
 	return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup for %q: %w", keyID, jwks.ErrKeyNotFound)
 }
 
@@ -45,7 +46,9 @@ func testInputs(cfg *config.Config) Inputs {
 	if err != nil {
 		panic("testInputs: " + err.Error())
 	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	return Inputs{
 		PartyRepo:         identity.NewMemoryPartyRepo(),
 		CodeFlow:          policy.NewCodeFlow(),
@@ -70,6 +73,7 @@ func setupTestInputsWithOutgoingShareRepo(t *testing.T) Inputs {
 
 	in := testInputs(config.DevConfig())
 	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
+
 	return in
 }
 
@@ -81,6 +85,7 @@ func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serv
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("load key manager: %v", err)
 	}
+
 	signer := crypto.NewRFC9421Signer(km)
 	pd := &serviceTestPeerDiscovery{
 		publicKeys: map[string]sigalg.ResolvedPublicKey{
@@ -93,6 +98,7 @@ func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serv
 			},
 		},
 	}
+
 	return signer, pd
 }
 
@@ -138,6 +144,7 @@ func setupSignedTokenServiceInputs(
 
 	in := testInputs(cfg)
 	replaceSignatureMiddleware(&in, cfg, pd)
+
 	innerStore := token.NewMemoryTokenStore()
 	spyStore := &identityCapturingTokenStore{inner: innerStore}
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
@@ -145,5 +152,6 @@ func setupSignedTokenServiceInputs(
 	in.CodeFlow = policy.NewCodeFlow()
 	in.OutgoingShareRepo = shareRepo
 	in.TokenStore = spyStore
+
 	return in, spyStore, shareRepo
 }

@@ -44,10 +44,12 @@ func TestValidateInputs_ReportsMissingRequiredFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			in := base
 			tt.mutate(&in)
+
 			err := validateInputs(in)
 			if err == nil {
 				t.Fatal("expected validation error")
 			}
+
 			if !strings.Contains(err.Error(), tt.wantSub) {
 				t.Fatalf("error = %q, want substring %q", err.Error(), tt.wantSub)
 			}

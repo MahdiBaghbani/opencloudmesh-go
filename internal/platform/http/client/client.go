@@ -92,6 +92,7 @@ func (c *Client) getResolver() Resolver {
 	if c.resolver != nil {
 		return c.resolver
 	}
+
 	return net.DefaultResolver
 }
 
@@ -107,6 +108,7 @@ func (c *Client) Get(ctx context.Context, urlStr string) (*http.Response, error)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
 	}
+
 	return c.DoWithOptions(req, RequestOptions{IsSigned: false})
 }
 
@@ -145,6 +147,7 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 			resp.Body.Close()
 			return nil, fmt.Errorf("%w: received %d", ErrSignedNoRedirect, resp.StatusCode)
 		}
+
 		return c.followRedirect(req, resp, 0)
 	}
 
@@ -159,12 +162,14 @@ func hasSignatureHeaders(req *http.Request) bool {
 // followRedirect follows a single redirect with strict constraints.
 func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, depth int) (*http.Response, error) {
 	defer resp.Body.Close()
+
 	ctx := origReq.Context()
 
 	maxRedirects := c.cfg.MaxRedirects
 	if maxRedirects <= 0 {
 		maxRedirects = 1
 	}
+
 	if depth >= maxRedirects {
 		return nil, fmt.Errorf("%w: exceeded limit of %d", ErrTooManyRedirects, maxRedirects)
 	}
@@ -227,6 +232,7 @@ func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Resp
 	defer resp.Body.Close()
 
 	limitedReader := io.LimitReader(resp.Body, c.cfg.MaxResponseBytes+1)
+
 	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, resp, err

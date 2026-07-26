@@ -24,12 +24,15 @@ func TestDecideAccessAuth_WebappProtocolFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected webapp protocol to fail closed, got mode %q", decision.Mode)
 	}
+
 	if decision.Mode != AccessModeFailClosed {
 		t.Errorf("mode = %q, want %q", decision.Mode, AccessModeFailClosed)
 	}
+
 	if decision.HTTPStatus != http.StatusForbidden {
 		t.Errorf("HTTPStatus = %d, want %d", decision.HTTPStatus, http.StatusForbidden)
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonProtocolMismatch {
 		t.Errorf("expected protocol mismatch error, got: %v", err)
@@ -55,6 +58,7 @@ func TestAccess_WebappProtocolFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected webapp protocol to fail closed")
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonProtocolMismatch {
 		t.Errorf("expected protocol mismatch error, got: %v", err)

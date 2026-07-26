@@ -31,6 +31,7 @@ func Normalize(authority string, scheme string) (string, error) {
 
 	// Use a dummy scheme so url.Parse handles IPv6 brackets and port splitting.
 	dummy := "dummy://" + authority
+
 	u, err := url.Parse(dummy)
 	if err != nil {
 		return "", fmt.Errorf("hostport: invalid authority %q: %w", authority, err)
@@ -53,6 +54,7 @@ func Normalize(authority string, scheme string) (string, error) {
 		if strings.Contains(hostname, ":") {
 			return "[" + hostname + "]", nil
 		}
+
 		return hostname, nil
 	}
 

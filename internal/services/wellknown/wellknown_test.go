@@ -23,8 +23,10 @@ func signatureMiddlewareForTest(
 	pd inboundsignature.PeerDiscovery,
 ) *inboundsignature.SignatureMiddleware {
 	t.Helper()
+
 	sigCfg := config.DefaultSignatureConfig()
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	return inboundsignature.NewSignatureMiddleware(
 		pd,
 		"https://receiver.example.com",
@@ -70,10 +72,12 @@ func TestNew_RejectsUnknownOCMProviderKeys(t *testing.T) {
 			"definitely_unknown_key_xyz": "value",
 		},
 	}
+
 	_, err := New(Inputs{Resolve: resolve.ResolveInputs{}}, m, log)
 	if err == nil {
 		t.Fatal("expected error for unknown ocmprovider key")
 	}
+
 	if !strings.Contains(err.Error(), "unused config keys") {
 		t.Fatalf("expected unused config keys error, got %v", err)
 	}
@@ -142,6 +146,7 @@ func TestService_TrailingSlashPath(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm/", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
+
 	if w.Code != http.StatusOK {
 		t.Errorf("path /.well-known/ocm/: expected 200, got %d", w.Code)
 	}
@@ -187,6 +192,7 @@ func TestService_APIVersionPinned(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &disc); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if disc.APIVersion != "1.4.0" {
 		t.Fatalf("expected pinned apiVersion 1.4.0, got %q", disc.APIVersion)
 	}
@@ -200,6 +206,7 @@ func (m *mockPeerDiscovery) ResolveVerificationKey(ctx context.Context, keyID st
 	if key, ok := m.publicKeys[keyID]; ok {
 		return key, nil
 	}
+
 	return sigalg.ResolvedPublicKey{}, context.Canceled
 }
 
@@ -218,6 +225,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
 	}
+
 	signer := crypto.NewRFC9421Signer(km)
 
 	resolveInputs := handlerResolveInputs(t, "https://example.com", "")
@@ -229,8 +237,10 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 	mw := signatureMiddlewareForTest(t, pd)
 
 	var captured *inboundsignature.PeerIdentity
+
 	signedHandler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		captured = inboundsignature.GetPeerIdentity(r.Context())
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -241,21 +251,26 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 	)
 	signedReq.Host = "receiver.example.com"
 	signedReq.Header.Set("User-Agent", "Nextcloud Server Crawler/1.0")
+
 	if err := signer.SignRequest(signedReq, nil); err != nil {
 		t.Fatalf("SignRequest: %v", err)
 	}
+
 	signedW := httptest.NewRecorder()
 	signedHandler.ServeHTTP(signedW, signedReq)
 
 	if signedW.Code != http.StatusOK {
 		t.Fatalf("signed discovery middleware returned %d: %s", signedW.Code, signedW.Body.String())
 	}
+
 	if captured == nil {
 		t.Fatal("signed discovery did not populate peer identity")
 	}
+
 	if !captured.Authenticated {
 		t.Fatal("signed discovery peer identity is not authenticated")
 	}
+
 	if captured.AuthorityForCompare != "nc.example.com" {
 		t.Fatalf("AuthorityForCompare = %q, want %q", captured.AuthorityForCompare, "nc.example.com")
 	}
@@ -263,6 +278,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 	m := map[string]any{
 		"ocmprovider": map[string]any{},
 	}
+
 	svc, err := New(Inputs{
 		Resolve:             resolveInputs,
 		SignatureMiddleware: mw,
@@ -274,6 +290,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 	unsignedReq := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
 	unsignedW := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(unsignedW, unsignedReq)
+
 	if unsignedW.Code != http.StatusOK {
 		t.Fatalf("unsigned discovery returned %d: %s", unsignedW.Code, unsignedW.Body.String())
 	}
@@ -282,6 +299,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 	if err := json.Unmarshal(unsignedW.Body.Bytes(), &disc); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if disc.APIVersion != "1.4.0" {
 		t.Fatalf("apiVersion = %q, want 1.4.0", disc.APIVersion)
 	}

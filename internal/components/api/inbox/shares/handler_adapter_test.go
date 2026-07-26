@@ -16,6 +16,7 @@ import (
 // in handler_detail_test.go) cannot cover.
 func TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm(t *testing.T) {
 	ctx := context.Background()
+
 	r := tsrepos.OpenJSON(t)
 	defer r.Close()
 
@@ -49,15 +50,19 @@ func TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm(
 	if err != nil {
 		t.Fatalf("GetByIDForRecipientUserID: %v", err)
 	}
+
 	if got.ProtocolName != "custom-app" {
 		t.Errorf("ProtocolName: got %q, want %q", got.ProtocolName, "custom-app")
 	}
+
 	if got.WebappURI != "https://app.sender.example.com/launch" {
 		t.Errorf("WebappURI: got %q, want %q", got.WebappURI, "https://app.sender.example.com/launch")
 	}
+
 	if len(got.WebappTargets) != 2 || got.WebappTargets[0] != "blank" || got.WebappTargets[1] != "_self" {
 		t.Errorf("WebappTargets: got %v, want [blank _self]", got.WebappTargets)
 	}
+
 	if len(got.WebappPermissions) != 2 || got.WebappPermissions[0] != "view" || got.WebappPermissions[1] != "share" {
 		t.Errorf("WebappPermissions: got %v, want [view share]", got.WebappPermissions)
 	}

@@ -10,6 +10,7 @@ func TestWebDAVRequirementsAdmission_BoolSeam(t *testing.T) {
 		if !hasValidationError(errs, "protocol.webdav.requirements") {
 			t.Fatalf("expected REQUIRED for true+omit, got %v", errs)
 		}
+
 		for _, e := range errs {
 			if e.Name == "protocol.webdav.requirements" && e.Message != "REQUIRED" {
 				t.Fatalf("requirements error = %q, want REQUIRED", e.Message)
@@ -41,6 +42,7 @@ func TestWebappRequirementsAdmission_BoolSeam(t *testing.T) {
 		if !hasValidationError(errs, "protocol.webapp.requirements") {
 			t.Fatalf("expected REQUIRED for true+omit, got %v", errs)
 		}
+
 		for _, e := range errs {
 			if e.Name == "protocol.webapp.requirements" && e.Message != "REQUIRED" {
 				t.Fatalf("requirements error = %q, want REQUIRED", e.Message)

@@ -62,8 +62,10 @@ func StartTestServerWithOutgoingSharePolicy(t *testing.T, patch func(*config.Con
 // inbound signature middleware enabled. Use for HTTP signature integration tests.
 func StartTestServerWithIETFConfig(t *testing.T, patch func(*config.Config)) *TestServer {
 	t.Helper()
+
 	return startTestServer(t, func(cfg *config.Config) {
 		applyIETFConfigDefaults(cfg)
+
 		if patch != nil {
 			patch(cfg)
 		}
@@ -128,7 +130,9 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 		os.RemoveAll(tempDir)
 		t.Fatal(wiring.ErrMsgNilDepsAfterBuild)
 	}
+
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
+
 	adminUser := identity.SeededUser{
 		Username:    "admin",
 		Password:    "admin",
@@ -145,6 +149,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create core services: %v", err)
 	}
+
 	if err := service.ValidateBuiltServices(services); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("built service validation rejected: %v", err)
@@ -161,6 +166,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)
 	}
+
 	srv.SetRootCAPool(buildResult.RootCAPool)
 
 	// Start server in background
@@ -191,7 +197,9 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 		Deps:        d,
 		persistence: buildResult.Persistence,
 	}
+
 	t.Cleanup(func() { ts.Stop(t) })
+
 	return ts
 }
 
@@ -240,6 +248,7 @@ func localListenerScheme(tlsMode string) string {
 	if strings.TrimSpace(tlsMode) == "off" {
 		return "http"
 	}
+
 	return "https"
 }
 
@@ -258,5 +267,6 @@ func getFreePort() (int, error) {
 		return 0, err
 	}
 	defer listener.Close()
+
 	return listener.Addr().(*net.TCPAddr).Port, nil
 }

@@ -21,15 +21,19 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 
 	makeDriver := func(t *testing.T, dir string) store.Driver {
 		t.Helper()
+
 		cfg := &store.DriverConfig{Driver: "json", DataDir: dir}
+
 		return testutil.OpenDriver(t, cfg)
 	}
 
 	lockDir := func(t *testing.T, dir string) {
 		t.Helper()
+
 		if err := os.Chmod(dir, 0500); err != nil {
 			t.Fatal(err)
 		}
+
 		t.Cleanup(func() { os.Chmod(dir, 0700) })
 	}
 
@@ -40,6 +44,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 		defer d.Close()
 
 		invite := testutil.NewOutgoingInviteFixture()
+
 		lockDir(t, dir)
 
 		if err := d.(store.OutgoingInviteStore).CreateOutgoingInvite(ctx, invite); err == nil {
@@ -48,9 +53,11 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 
 		// Restore write permission and verify the invite is NOT in-memory (rollback succeeded).
 		os.Chmod(dir, 0700)
+
 		if _, err := d.(store.OutgoingInviteStore).GetOutgoingInvite(ctx, invite.ID); err == nil {
 			t.Error("invite found in memory after failed create - rollback did not occur")
 		}
+
 		if _, err := d.(store.OutgoingInviteStore).GetOutgoingInviteByToken(ctx, invite.Token); err == nil {
 			t.Error("invite token index not rolled back after failed create")
 		}
@@ -78,10 +85,12 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 
 		// Restore and verify the old value is still present (rollback succeeded).
 		os.Chmod(dir, 0700)
+
 		got, err := d.(store.OutgoingInviteStore).GetOutgoingInvite(ctx, invite.ID)
 		if err != nil {
 			t.Fatalf("invite missing after failed update: %v", err)
 		}
+
 		if got.Token != invite.Token {
 			t.Errorf(
 				"in-memory token changed after failed update: got %q, want %q",
@@ -89,9 +98,11 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 				invite.Token,
 			)
 		}
+
 		if _, err := d.(store.OutgoingInviteStore).GetOutgoingInviteByToken(ctx, invite.Token); err != nil {
 			t.Error("old token index entry missing after failed update rollback")
 		}
+
 		if _, err := d.(store.OutgoingInviteStore).GetOutgoingInviteByToken(ctx, updated.Token); err == nil {
 			t.Error("new token index entry present after failed update - rollback incomplete")
 		}
@@ -116,9 +127,11 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 
 		// Restore and verify the invite is still present (rollback succeeded).
 		os.Chmod(dir, 0700)
+
 		if _, err := d.(store.OutgoingInviteStore).GetOutgoingInvite(ctx, invite.ID); err != nil {
 			t.Errorf("invite missing after failed delete - rollback did not occur: %v", err)
 		}
+
 		if _, err := d.(store.OutgoingInviteStore).GetOutgoingInviteByToken(ctx, invite.Token); err != nil {
 			t.Error("token index entry missing after failed delete rollback")
 		}
@@ -131,6 +144,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 		defer d.Close()
 
 		invite := testutil.NewIncomingInviteFixture()
+
 		lockDir(t, dir)
 
 		if err := d.(store.IncomingInviteStore).CreateIncomingInvite(ctx, invite); err == nil {
@@ -138,11 +152,13 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 		}
 
 		os.Chmod(dir, 0700)
+
 		if _, err := d.(store.IncomingInviteStore).GetIncomingInviteForRecipient(
 			ctx, invite.ID, invite.RecipientUserId,
 		); err == nil {
 			t.Error("incoming invite found in memory after failed create - rollback did not occur")
 		}
+
 		if _, err := d.(store.IncomingInviteStore).GetIncomingInviteByToken(
 			ctx, invite.Token, invite.RecipientUserId,
 		); err == nil {
@@ -162,6 +178,7 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 		}
 
 		oldStatus := invite.Status
+
 		lockDir(t, dir)
 
 		if err := d.(store.IncomingInviteStore).UpdateIncomingInviteStatusForRecipient(
@@ -171,12 +188,14 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 		}
 
 		os.Chmod(dir, 0700)
+
 		got, err := d.(store.IncomingInviteStore).GetIncomingInviteForRecipient(
 			ctx, invite.ID, invite.RecipientUserId,
 		)
 		if err != nil {
 			t.Fatalf("invite missing after failed status update: %v", err)
 		}
+
 		if got.Status != oldStatus {
 			t.Errorf(
 				"in-memory status changed after failed update: got %q, want %q",
@@ -206,11 +225,13 @@ func TestJSONInviteSaveFailureRollback(t *testing.T) {
 		}
 
 		os.Chmod(dir, 0700)
+
 		if _, err := d.(store.IncomingInviteStore).GetIncomingInviteForRecipient(
 			ctx, invite.ID, invite.RecipientUserId,
 		); err != nil {
 			t.Errorf("invite missing after failed delete - rollback did not occur: %v", err)
 		}
+
 		if _, err := d.(store.IncomingInviteStore).GetIncomingInviteByToken(
 			ctx, invite.Token, invite.RecipientUserId,
 		); err != nil {

@@ -12,6 +12,7 @@ func CodeFlowLegacyVoluntary() *policy.CodeFlow {
 	includesFalse := false
 	requiresTrue := true
 	httpSigTrue := true
+
 	return &policy.CodeFlow{
 		IncludesTokenExchangeRequirement: &includesFalse,
 		RequiresTokenExchangeRequirement: &requiresTrue,

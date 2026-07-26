@@ -28,6 +28,7 @@ func TestHasCriteria_CanonicalEqualityOnly(t *testing.T) {
 			t.Errorf("HasCriteria(%q) = false, want true", query)
 		}
 	}
+
 	if disc.HasCriteria("unknown") {
 		t.Error("HasCriteria(unknown) should be false")
 	}
@@ -41,9 +42,11 @@ func TestRequiresHTTPSigAndIsHTTPSigCapable(t *testing.T) {
 	if !disc.RequiresHTTPSig() {
 		t.Error("RequiresHTTPSig() should be true")
 	}
+
 	if !disc.IsHTTPSigCapable() {
 		t.Error("IsHTTPSigCapable() should be true")
 	}
+
 	if (&spec.Discovery{}).RequiresHTTPSig() {
 		t.Error("nil criteria should not require http sig")
 	}
@@ -51,19 +54,24 @@ func TestRequiresHTTPSigAndIsHTTPSigCapable(t *testing.T) {
 
 func TestDeriveDiscoveryPaths_RootMount(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://example.com", "")
+
 	paths, ok := spec.DeriveDiscoveryPaths(id, service.DefaultRouteOpts())
 	if !ok {
 		t.Fatal("expected projection ok")
 	}
+
 	if paths.EndPoint != "https://example.com/ocm" {
 		t.Errorf("EndPoint = %q, want https://example.com/ocm", paths.EndPoint)
 	}
+
 	if paths.TokenEndPoint != "https://example.com/ocm/token" {
 		t.Errorf("TokenEndPoint = %q, want https://example.com/ocm/token", paths.TokenEndPoint)
 	}
+
 	if paths.WebDAVRoot != "/webdav/ocm/" {
 		t.Errorf("WebDAVRoot = %q, want /webdav/ocm/", paths.WebDAVRoot)
 	}
+
 	if paths.InviteAcceptDialog != "" {
 		t.Errorf("InviteAcceptDialog = %q, want empty when invite accept disabled", paths.InviteAcceptDialog)
 	}
@@ -77,16 +85,20 @@ func TestDeriveDiscoveryPaths_BasePathAndInviteAccept(t *testing.T) {
 		InviteAcceptEnabled: true,
 		TokenExchangePath:   "token",
 	}
+
 	paths, ok := spec.DeriveDiscoveryPaths(id, opts)
 	if !ok {
 		t.Fatal("expected projection ok")
 	}
+
 	if paths.EndPoint != "https://cloud.example.com/ocm/ocm" {
 		t.Errorf("EndPoint = %q, want https://cloud.example.com/ocm/ocm", paths.EndPoint)
 	}
+
 	if paths.WebDAVRoot != "/ocm/webdav/ocm/" {
 		t.Errorf("WebDAVRoot = %q, want /ocm/webdav/ocm/", paths.WebDAVRoot)
 	}
+
 	if paths.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
 		t.Errorf("InviteAcceptDialog = %q", paths.InviteAcceptDialog)
 	}
@@ -94,6 +106,7 @@ func TestDeriveDiscoveryPaths_BasePathAndInviteAccept(t *testing.T) {
 
 func TestResolveInviteAcceptDialog_RelativePeerValue(t *testing.T) {
 	got := spec.ResolveInviteAcceptDialog("https://peer.example.com/ocm", "/apps/ocm/invite-accept")
+
 	want := "https://peer.example.com/apps/ocm/invite-accept"
 	if got != want {
 		t.Errorf("ResolveInviteAcceptDialog() = %q, want %q", got, want)
@@ -103,16 +116,20 @@ func TestResolveInviteAcceptDialog_RelativePeerValue(t *testing.T) {
 func TestDeriveDiscoveryPaths_SameAuthorityEndpoints(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
 	opts := service.RouteOpts{ExternalBasePath: "/ocm"}
+
 	paths, ok := spec.DeriveDiscoveryPaths(id, opts)
 	if !ok {
 		t.Fatal("expected projection ok")
 	}
+
 	if paths.EndPoint == "" || paths.TokenEndPoint == "" {
 		t.Fatal("expected non-empty projected endpoints")
 	}
+
 	if !strings.HasPrefix(paths.EndPoint, "https://cloud.example.com/") {
 		t.Errorf("EndPoint = %q, want same-authority projection", paths.EndPoint)
 	}
+
 	if !strings.HasPrefix(paths.TokenEndPoint, "https://cloud.example.com/") {
 		t.Errorf("TokenEndPoint = %q, want same-authority projection", paths.TokenEndPoint)
 	}
@@ -159,11 +176,13 @@ func TestSupportedResourceTypes(t *testing.T) {
 	if len(spec.SupportedResourceTypes) != 2 {
 		t.Fatalf("SupportedResourceTypes = %v, want [file folder]", spec.SupportedResourceTypes)
 	}
+
 	for _, rt := range []string{"file", "folder"} {
 		if !spec.IsSupportedResourceType(rt) {
 			t.Errorf("IsSupportedResourceType(%q) = false, want true", rt)
 		}
 	}
+
 	if spec.IsSupportedResourceType("calendar") {
 		t.Error("IsSupportedResourceType(calendar) = true, want false")
 	}
@@ -194,10 +213,12 @@ func TestCriteriaAlwaysPresent(t *testing.T) {
 	if !ok {
 		t.Error("criteria key must be present in JSON")
 	}
+
 	criteriaSlice, ok := criteriaRaw.([]interface{})
 	if !ok {
 		t.Errorf("criteria must be an array, got %T", criteriaRaw)
 	}
+
 	if len(criteriaSlice) != 0 {
 		t.Errorf("expected empty criteria array, got %v", criteriaSlice)
 	}
@@ -222,6 +243,7 @@ func TestDiscovery_Helpers(t *testing.T) {
 	if disc.GetWebDAVPath() != "/webdav/ocm/" {
 		t.Errorf("GetWebDAVPath failed: %q", disc.GetWebDAVPath())
 	}
+
 	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
 		t.Error("HasCriteria must-use-http-sig should be true")
 	}
@@ -230,6 +252,7 @@ func TestDiscovery_Helpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildWebDAVURL failed: %v", err)
 	}
+
 	if url != "https://example.com/webdav/ocm/abc123" {
 		t.Errorf("BuildWebDAVURL returned %q", url)
 	}

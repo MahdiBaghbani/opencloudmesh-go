@@ -33,6 +33,7 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			prev := slog.Default()
+
 			slog.SetDefault(capture.Logger)
 			t.Cleanup(func() { slog.SetDefault(prev) })
 
@@ -43,16 +44,21 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 						t.Errorf("token exchange code = %q, want %q", got, tt.sharedSecret)
 					}
 				}
+
 				if exchangeDiscoveryHandler(w, r, tt.accessToken) {
 					return
 				}
+
 				if r.URL.Path == "/webdav/ocm/file.txt" {
 					if got := r.Header.Get("Authorization"); got != "Bearer "+tt.accessToken {
 						t.Errorf("WebDAV authorization = %q, want bearer token", got)
 					}
+
 					w.WriteHeader(http.StatusOK)
+
 					return
 				}
+
 				http.NotFound(w, r)
 			}))
 			t.Cleanup(srv.Close)
@@ -75,6 +81,7 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 				t.Fatalf("access failed: %v", err)
 			}
 			defer result.Response.Body.Close()
+
 			if result.AccessToken != tt.accessToken {
 				t.Fatalf("access token = %q, want %q", result.AccessToken, tt.accessToken)
 			}

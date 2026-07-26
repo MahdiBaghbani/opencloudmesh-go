@@ -62,6 +62,7 @@ path = "token/v2"
 	}
 
 	path := "exchange"
+
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
@@ -108,6 +109,7 @@ path = "` + tt.path + `"
 			if err == nil {
 				t.Fatalf("expected error for invalid token_exchange.path %q", tt.path)
 			}
+
 			if !strings.Contains(err.Error(), "token_exchange.path") {
 				t.Errorf("expected error to mention token_exchange.path, got: %v", err)
 			}
@@ -118,6 +120,7 @@ path = "` + tt.path + `"
 func TestLoad_TokenExchangeConfig_DefaultPathWhenSectionMissing(t *testing.T) {
 	// Clear ambient env override so the default path load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)

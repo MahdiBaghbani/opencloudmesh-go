@@ -17,6 +17,7 @@ func TestDiscoveryShareTypes_AdvertiseUserNotFederation(t *testing.T) {
 	if !disc.Enabled {
 		t.Fatal("expected enabled discovery for absolute endPoint")
 	}
+
 	if len(disc.ResourceTypes) == 0 {
 		t.Fatal("expected at least one resource type")
 	}
@@ -25,6 +26,7 @@ func TestDiscoveryShareTypes_AdvertiseUserNotFederation(t *testing.T) {
 		if !slices.Contains(rt.ShareTypes, "user") {
 			t.Errorf("resource type %q ShareTypes = %v, want to contain \"user\"", rt.Name, rt.ShareTypes)
 		}
+
 		if slices.Contains(rt.ShareTypes, "federation") {
 			t.Errorf("resource type %q ShareTypes = %v, must not contain \"federation\"", rt.Name, rt.ShareTypes)
 		}

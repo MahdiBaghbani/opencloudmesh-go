@@ -8,14 +8,15 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
@@ -24,9 +25,10 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"ok":true}`)
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Date", opts.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -40,15 +42,19 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 		created, km.GetKeyID(),
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+
 	sigBase, err := crypto.BuildSignatureBase(req, components)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fullBase := sigBase + `"@signature-params": ` + paramsRaw
+
 	sig, err := km.Sign([]byte(fullBase))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)))
 
@@ -63,13 +69,15 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	opts := crypto.DefaultRFC9421Options()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"ok":true}`)
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Date", opts.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	req.Header.Set("Content-Digest", "sha-256=:"+digest+":")
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -82,20 +90,25 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 		created, keyID,
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+
 	sigBase, err := crypto.BuildSignatureBase(req, components)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fullBase := sigBase + `"@signature-params": ` + paramsRaw
 	sum := sha256.Sum256([]byte(fullBase))
+
 	r, s, err := ecdsa.Sign(rand.Reader, priv, sum[:])
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	raw, err := sigalg.EncodeECDSARawRS(r, s, 32)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(raw)))
 
@@ -117,7 +130,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 	digest := httpsigContentDigestHeader(body)
 
 	newReq := func() *http.Request {
-		req := httptest.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -127,6 +140,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 			now,
 		))
 		req.Header.Set("Signature", httpsigPlaceholderSig)
+
 		return req
 	}
 
@@ -137,6 +151,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 		if result.Verified {
 			t.Fatal("expected failure")
 		}
+
 		if result.Reason != crypto.ReasonKeyNotFound {
 			t.Fatalf("Reason=%q want key_not_found (err=%v)", result.Reason, result.Error)
 		}
@@ -149,6 +164,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 		if result.Verified {
 			t.Fatal("expected failure")
 		}
+
 		if result.Reason != crypto.ReasonKeyLookupFailed {
 			t.Fatalf("Reason=%q want key_lookup_failed (err=%v)", result.Reason, result.Error)
 		}

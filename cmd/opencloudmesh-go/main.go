@@ -32,6 +32,7 @@ func main() {
 	adminPassword := flag.String("admin-password", "", "Bootstrap admin password (overrides config)")
 	loggingLevel := flag.String("logging-level", "", "Log level: trace, debug, info, warn, error (overrides config)")
 	tokenExchangePath := flag.String("token-exchange-path", "", "Token exchange endpoint path relative to /ocm/ (overrides config)")
+
 	flag.Parse()
 
 	bootstrapLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -59,6 +60,7 @@ func main() {
 	}
 
 	var level slog.Level
+
 	switch cfg.Logging.Level {
 	case "trace":
 		level = slog.LevelDebug - 4 // slog has no trace, use debug-4
@@ -106,11 +108,14 @@ func main() {
 		logger.Error(wiring.ErrMsgNilDepsAfterBuild)
 		os.Exit(1)
 	}
+
 	bootstrap := identity.NewBootstrap(d.PartyRepo, d.UserAuth, logger)
+
 	bootstrapUsername := cfg.Server.BootstrapAdmin.Username
 	if bootstrapUsername == "" {
 		bootstrapUsername = "admin"
 	}
+
 	explicitPasswordSet := cfg.Server.BootstrapAdmin.Password != ""
 	if err := bootstrap.EnsureSuperAdmin(
 		context.Background(),
@@ -127,6 +132,7 @@ func main() {
 		logger.Error("failed to create services", "error", err)
 		os.Exit(1)
 	}
+
 	if err := service.ValidateBuiltServices(services); err != nil {
 		logger.Error("built service validation failed", "error", err)
 		os.Exit(1)
@@ -143,12 +149,14 @@ func main() {
 		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
 	}
+
 	srv.SetRootCAPool(result.RootCAPool)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	srvErr := make(chan error, 1)
+
 	go func() {
 		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			srvErr <- err

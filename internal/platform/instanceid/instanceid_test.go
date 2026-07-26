@@ -40,11 +40,14 @@ func TestNormalizePublicOrigin(t *testing.T) {
 				if err == nil {
 					t.Errorf("expected error, got result %q", result)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
@@ -54,6 +57,7 @@ func TestNormalizePublicOrigin(t *testing.T) {
 
 func TestLocalIdentityUsesNormalizePublicOrigin(t *testing.T) {
 	const origin = "https://EXAMPLE.COM:9200/"
+
 	normalized, err := instanceid.NormalizePublicOrigin(origin)
 	if err != nil {
 		t.Fatalf("NormalizePublicOrigin: %v", err)
@@ -63,6 +67,7 @@ func TestLocalIdentityUsesNormalizePublicOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	if id.Origin != normalized {
 		t.Errorf("Origin = %q, want %q", id.Origin, normalized)
 	}
@@ -97,11 +102,14 @@ func TestProviderFQDN(t *testing.T) {
 				if err == nil {
 					t.Errorf("expected error, got result %q", result)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
@@ -137,11 +145,14 @@ func TestHostname(t *testing.T) {
 				if err == nil {
 					t.Errorf("expected error, got result %q", result)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}

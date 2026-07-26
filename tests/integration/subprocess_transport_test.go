@@ -29,6 +29,7 @@ func TestSubprocessTransportFollowsExtraConfigTLS(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "tls-override",
 		Mode: "dev",
@@ -50,6 +51,7 @@ mode = "selfsigned"
 		t.Fatalf("health check against overridden TLS listener failed: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected healthz 200 over https listener, got %d", resp.StatusCode)
 	}
@@ -71,6 +73,7 @@ func TestSubprocessDiscoveryFollowsExtraConfigTLS(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "tls-override-discovery",
 		Mode: "dev",
@@ -90,6 +93,7 @@ mode = "selfsigned"
 		t.Fatalf("failed to get discovery: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("discovery returned %d", resp.StatusCode)
 	}

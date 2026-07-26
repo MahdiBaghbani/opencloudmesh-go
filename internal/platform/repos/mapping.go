@@ -13,6 +13,7 @@ func permStringToSlice(s string) []string {
 	if s == "" {
 		return []string{}
 	}
+
 	return strings.Split(s, ",")
 }
 
@@ -27,6 +28,7 @@ func unixToTime(epoch int64) time.Time {
 	if epoch == 0 {
 		return time.Time{}
 	}
+
 	return time.Unix(epoch, 0).UTC()
 }
 
@@ -36,7 +38,9 @@ func unixToTimePtr(epoch int64) *time.Time {
 	if epoch == 0 {
 		return nil
 	}
+
 	t := time.Unix(epoch, 0).UTC()
+
 	return &t
 }
 
@@ -45,6 +49,7 @@ func timeToUnix(t time.Time) int64 {
 	if t.IsZero() {
 		return 0
 	}
+
 	return t.Unix()
 }
 
@@ -53,6 +58,7 @@ func timePtrToUnix(t *time.Time) int64 {
 	if t == nil {
 		return 0
 	}
+
 	return t.Unix()
 }
 
@@ -61,6 +67,7 @@ func int64PtrToInt64(v *int64) int64 {
 	if v == nil {
 		return 0
 	}
+
 	return *v
 }
 
@@ -69,5 +76,6 @@ func int64ToInt64Ptr(v int64) *int64 {
 	if v == 0 {
 		return nil
 	}
+
 	return &v
 }

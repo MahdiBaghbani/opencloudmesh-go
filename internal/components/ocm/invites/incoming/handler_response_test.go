@@ -44,6 +44,7 @@ func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
 		t.Fatalf("failed to parse raw JSON: %v", err)
 	}
+
 	for _, field := range []string{"userID", "email", "name"} {
 		if _, ok := raw[field]; !ok {
 			t.Errorf("field %q missing from response", field)

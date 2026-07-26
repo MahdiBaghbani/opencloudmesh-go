@@ -18,6 +18,7 @@ type TrustedProxies struct {
 // Invalid CIDRs are silently ignored.
 func NewTrustedProxies(cidrs []string) *TrustedProxies {
 	tp := &TrustedProxies{}
+
 	for _, cidr := range cidrs {
 		_, network, err := net.ParseCIDR(cidr)
 		if err != nil {
@@ -31,10 +32,12 @@ func NewTrustedProxies(cidrs []string) *TrustedProxies {
 				}
 			}
 		}
+
 		if network != nil {
 			tp.networks = append(tp.networks, network)
 		}
 	}
+
 	return tp
 }
 
@@ -45,6 +48,7 @@ func (tp *TrustedProxies) IsTrusted(ip net.IP) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -70,6 +74,7 @@ func (tp *TrustedProxies) GetClientIP(r *http.Request) net.IP {
 				return ip
 			}
 		}
+
 		return directIP
 	}
 
@@ -94,6 +99,7 @@ func parseRemoteAddr(addr string) net.IP {
 		// Maybe it's just an IP
 		return net.ParseIP(addr)
 	}
+
 	return net.ParseIP(host)
 }
 
@@ -103,5 +109,6 @@ func (tp *TrustedProxies) GetClientIPString(r *http.Request) string {
 	if ip == nil {
 		return "unknown"
 	}
+
 	return ip.String()
 }

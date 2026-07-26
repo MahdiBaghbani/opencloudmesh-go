@@ -6,6 +6,7 @@ func hasValidationError(errs []ValidationError, name string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 

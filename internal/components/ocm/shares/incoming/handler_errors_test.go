@@ -20,6 +20,7 @@ func TestCreateShare_MissingRequiredFields(t *testing.T) {
 	body := `{"name": "test.txt"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -30,9 +31,11 @@ func TestCreateShare_MissingRequiredFields(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Message != "MISSING_REQUIRED_FIELDS" {
 		t.Errorf("expected message MISSING_REQUIRED_FIELDS, got %q", resp.Message)
 	}
+
 	if len(resp.ValidationErrors) == 0 {
 		t.Error("expected validation errors in response")
 	}
@@ -55,6 +58,7 @@ func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -65,16 +69,19 @@ func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Message != "INVALID_FIELD_FORMAT" {
 		t.Errorf("expected INVALID_FIELD_FORMAT, got %q", resp.Message)
 	}
 
 	found := false
+
 	for _, e := range resp.ValidationErrors {
 		if e.Name == "owner" && e.Message == "INVALID_FORMAT" {
 			found = true
 		}
 	}
+
 	if !found {
 		t.Error("expected validation error for owner with INVALID_FORMAT")
 	}
@@ -88,6 +95,7 @@ func TestCreateShare_ProviderMismatch(t *testing.T) {
 	body := validShareBody("alice@wrong-provider.com")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -98,6 +106,7 @@ func TestCreateShare_ProviderMismatch(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Message != "PROVIDER_MISMATCH" {
 		t.Errorf("expected PROVIDER_MISMATCH, got %q", resp.Message)
 	}
@@ -120,6 +129,7 @@ func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -130,6 +140,7 @@ func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Message != "SHARE_TYPE_NOT_SUPPORTED" {
 		t.Errorf("expected SHARE_TYPE_NOT_SUPPORTED, got %q", resp.Message)
 	}
@@ -143,6 +154,7 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 	body := validShareBody("nonexistent@localhost:9200")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -153,16 +165,19 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Message != "RECIPIENT_NOT_FOUND" {
 		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
 	}
 
 	found := false
+
 	for _, e := range resp.ValidationErrors {
 		if e.Name == "shareWith" && e.Message == "NOT_FOUND" {
 			found = true
 		}
 	}
+
 	if !found {
 		t.Error("expected validationError {shareWith, NOT_FOUND}")
 	}
@@ -184,6 +199,7 @@ func TestCreateShare_InvalidResourceType_Returns501(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -204,6 +220,7 @@ func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -214,6 +231,7 @@ func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Message != "RECIPIENT_NOT_FOUND" {
 		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
 	}
@@ -231,6 +249,7 @@ func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.CreateShare(w, req)
@@ -241,6 +260,7 @@ func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
 
 	var resp spec.OCMErrorResponse
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Message != "RECIPIENT_NOT_FOUND" {
 		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
 	}

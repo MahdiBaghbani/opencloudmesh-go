@@ -36,7 +36,9 @@ func NewMemoryTokenStore() *MemoryTokenStore {
 func (s *MemoryTokenStore) Store(ctx context.Context, token *IssuedToken) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.tokens[token.AccessToken] = token
+
 	return nil
 }
 
@@ -48,16 +50,20 @@ func (s *MemoryTokenStore) Get(ctx context.Context, accessToken string) (*Issued
 	if !ok {
 		return nil, ErrTokenNotFound
 	}
+
 	if token.IsExpired() {
 		return nil, ErrTokenExpired
 	}
+
 	return token, nil
 }
 
 func (s *MemoryTokenStore) Delete(ctx context.Context, accessToken string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	delete(s.tokens, accessToken)
+
 	return nil
 }
 
@@ -71,5 +77,6 @@ func (s *MemoryTokenStore) CleanExpired(ctx context.Context) error {
 			delete(s.tokens, k)
 		}
 	}
+
 	return nil
 }

@@ -25,5 +25,6 @@ func GetLogger(ctx context.Context) *slog.Logger {
 	if l, ok := LoggerFromContext(ctx); ok {
 		return l
 	}
+
 	return slog.Default()
 }

@@ -17,6 +17,7 @@ func TestDriverRegistry(t *testing.T) {
 		if !expected[d] {
 			t.Logf("unexpected driver registered: %s", d)
 		}
+
 		delete(expected, d)
 	}
 

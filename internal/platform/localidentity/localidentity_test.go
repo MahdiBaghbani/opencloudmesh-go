@@ -19,7 +19,7 @@ func TestValidateExternalBasePath(t *testing.T) {
 		{"whitespace", " /ocm", "", true},
 		{"missing leading slash", "ocm", "", true},
 		{"trailing slash", "/ocm/", "", true},
-		{"dot dot", "/ocm/../x", "", true},
+		{"dot", "/ocm/../x", "", true},
 		{"empty segment", "/ocm//x", "", true},
 	}
 
@@ -30,11 +30,14 @@ func TestValidateExternalBasePath(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error, got %q", got)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
@@ -93,18 +96,23 @@ func TestDerive_ProviderDomainStripsDefaultPorts(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Derive: %v", err)
 			}
+
 			if id.ProviderDomain != tt.wantProvider {
 				t.Errorf("ProviderDomain = %q, want %q", id.ProviderDomain, tt.wantProvider)
 			}
+
 			if id.ProviderDomainCompare != tt.wantCompare {
 				t.Errorf("ProviderDomainCompare = %q, want %q", id.ProviderDomainCompare, tt.wantCompare)
 			}
+
 			if id.Origin != tt.wantOrigin {
 				t.Errorf("Origin = %q, want %q", id.Origin, tt.wantOrigin)
 			}
+
 			if id.EndpointBase != tt.wantEndpoint {
 				t.Errorf("EndpointBase = %q, want %q", id.EndpointBase, tt.wantEndpoint)
 			}
+
 			if id.ExternalBasePath != tt.externalBase {
 				t.Errorf("ExternalBasePath = %q, want %q", id.ExternalBasePath, tt.externalBase)
 			}
@@ -117,6 +125,7 @@ func TestDerive_SchemeFromOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	if id.Scheme != "http" {
 		t.Errorf("Scheme = %q, want http", id.Scheme)
 	}

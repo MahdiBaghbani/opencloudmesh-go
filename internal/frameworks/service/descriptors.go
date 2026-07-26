@@ -74,5 +74,6 @@ func DescriptorByName(name string) (Descriptor, bool) {
 			return d, true
 		}
 	}
+
 	return Descriptor{}, false
 }

@@ -80,10 +80,12 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req token.TokenRequest
+
 	if err := r.ParseForm(); err != nil {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "failed to parse form body")
 		return
 	}
+
 	req.GrantType = r.FormValue("grant_type")
 	req.ClientID = r.FormValue("client_id")
 	req.Code = r.FormValue("code")
@@ -92,14 +94,17 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "grant_type is required")
 		return
 	}
+
 	if req.GrantType != token.GrantTypeAuthorizationCode {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorUnsupportedGrantType, "unsupported grant_type")
 		return
 	}
+
 	if req.ClientID == "" {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "client_id is required")
 		return
 	}
+
 	if req.Code == "" {
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidRequest, "code is required")
 		return
@@ -108,6 +113,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if h.outgoingRepo == nil {
 		log.Error("token exchange attempted but outgoing share repo not configured")
 		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token exchange not available")
+
 		return
 	}
 
@@ -117,6 +123,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		// Note: Do not log the code (secret). Only log client_id for correlation.
 		log.Warn("token exchange for unknown secret", "client_id", req.ClientID)
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidGrant, "invalid code")
+
 		return
 	}
 
@@ -129,6 +136,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 		log.Warn("token exchange client_id normalization failed, falling back to raw comparison",
 			"receiver_err", errReceiver,
 			"client_err", errClient)
+
 		normalizedReceiver = share.ReceiverHost
 		normalizedClient = req.ClientID
 	}
@@ -138,6 +146,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 			"expected", share.ReceiverHost,
 			"got", req.ClientID)
 		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidClient, "client_id mismatch")
+
 		return
 	}
 
@@ -148,6 +157,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 				"expected", normalizedReceiver,
 				"got", peerIdentity.AuthorityForCompare)
 			h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidClient, "client_id mismatch")
+
 			return
 		}
 	}
@@ -155,6 +165,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if h.tokenTTL <= 0 {
 		log.Error("token exchange misconfigured: non-positive token TTL")
 		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token exchange not available")
+
 		return
 	}
 
@@ -162,6 +173,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error("failed to generate access token", "error", err)
 		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token generation failed")
+
 		return
 	}
 
@@ -177,6 +189,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if err := h.tokenStore.Store(ctx, issuedToken); err != nil {
 		log.Error("failed to store token", "error", err)
 		h.sendOAuthError(w, http.StatusInternalServerError, token.ErrorInvalidRequest, "token storage failed")
+
 		return
 	}
 

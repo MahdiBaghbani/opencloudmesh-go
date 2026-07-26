@@ -15,6 +15,7 @@ func cloneIncomingShare(s *store.IncomingShare) *store.IncomingShare {
 	if len(s.Requirements) > 0 {
 		c.Requirements = append([]string(nil), s.Requirements...)
 	}
+
 	return &c
 }
 

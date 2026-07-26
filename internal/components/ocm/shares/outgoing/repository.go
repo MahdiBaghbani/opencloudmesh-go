@@ -48,6 +48,7 @@ func (r *MemoryOutgoingShareRepo) Create(ctx context.Context, share *OutgoingSha
 	share.CreatedAt = time.Now()
 	r.shares[share.ShareID] = share
 	r.providerIndex[share.ProviderID] = share.ShareID
+
 	r.webdavIndex[share.WebDAVID] = share.ShareID
 	if share.SharedSecret != "" {
 		r.secretIndex[share.SharedSecret] = share.ShareID
@@ -64,6 +65,7 @@ func (r *MemoryOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (
 	if !ok {
 		return nil, fmt.Errorf("share not found: %s", shareID)
 	}
+
 	return share, nil
 }
 
@@ -75,6 +77,7 @@ func (r *MemoryOutgoingShareRepo) GetByProviderID(ctx context.Context, providerI
 	if !ok {
 		return nil, fmt.Errorf("share not found for providerId: %s", providerID)
 	}
+
 	return r.shares[shareID], nil
 }
 
@@ -86,6 +89,7 @@ func (r *MemoryOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID st
 	if !ok {
 		return nil, fmt.Errorf("share not found for webdavId: %s", webdavID)
 	}
+
 	return r.shares[shareID], nil
 }
 
@@ -97,6 +101,7 @@ func (r *MemoryOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedS
 	if !ok {
 		return nil, fmt.Errorf("share not found for sharedSecret")
 	}
+
 	return r.shares[shareID], nil
 }
 
@@ -108,6 +113,7 @@ func (r *MemoryOutgoingShareRepo) List(ctx context.Context) ([]*OutgoingShare, e
 	for _, s := range r.shares {
 		result = append(result, s)
 	}
+
 	return result, nil
 }
 
@@ -118,6 +124,8 @@ func (r *MemoryOutgoingShareRepo) Update(ctx context.Context, share *OutgoingSha
 	if _, ok := r.shares[share.ShareID]; !ok {
 		return fmt.Errorf("share not found: %s", share.ShareID)
 	}
+
 	r.shares[share.ShareID] = share
+
 	return nil
 }

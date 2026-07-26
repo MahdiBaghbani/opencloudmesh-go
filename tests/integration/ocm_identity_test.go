@@ -30,14 +30,18 @@ func postSignedJSON(t *testing.T, targetURL string, body []byte, signer *crypto.
 	if err != nil {
 		t.Fatalf("failed to build signed request: %v", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
+
 	if err := signer.Sign(req); err != nil {
 		t.Fatalf("failed to sign request: %v", err)
 	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("signed POST failed: %v", err)
 	}
+
 	return resp
 }
 
@@ -90,6 +94,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 		Email:             "remote@example.com",
 		Name:              "Remote User",
 	}
+
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
@@ -122,16 +127,19 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 
 	// --- Assertion 3: decoded payload must be userID@idp ---
 	payload := string(decoded)
+
 	idx := strings.LastIndex(payload, "@")
 	if idx < 1 || idx == len(payload)-1 {
 		t.Fatalf("decoded payload %q does not have valid userID@idp structure", payload)
 	}
+
 	decodedUserID := payload[:idx]
 	decodedIDP := payload[idx+1:]
 
 	if decodedUserID != localUser.ID {
 		t.Errorf("decoded userID = %q, want %q", decodedUserID, localUser.ID)
 	}
+
 	if decodedIDP != localProvider {
 		t.Errorf("decoded idp = %q, want %q", decodedIDP, localProvider)
 	}
@@ -227,6 +235,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 			},
 		},
 	}
+
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
@@ -258,13 +267,16 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 
 	// Verify the decoded payload has userID@idp structure
 	payload := string(decoded)
+
 	idx := strings.LastIndex(payload, "@")
 	if idx < 1 || idx == len(payload)-1 {
 		t.Fatalf("decoded payload %q does not have valid userID@idp structure", payload)
 	}
+
 	if payload[:idx] != shareUser.ID {
 		t.Errorf("decoded userID = %q, want %q", payload[:idx], shareUser.ID)
 	}
+
 	if payload[idx+1:] != localProvider {
 		t.Errorf("decoded idp = %q, want %q", payload[idx+1:], localProvider)
 	}
@@ -324,6 +336,7 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 			},
 		},
 	}
+
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
@@ -408,6 +421,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 			},
 		},
 	}
+
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
@@ -435,9 +449,11 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse owner address: %v", err)
 	}
+
 	if ownerProvider != remoteProvider {
 		t.Errorf("owner provider = %q, want %q", ownerProvider, remoteProvider)
 	}
+
 	if _, err := base64.RawURLEncoding.DecodeString(ownerIdent); err != nil {
 		t.Errorf("owner identifier %q is not valid base64url: %v", ownerIdent, err)
 	}

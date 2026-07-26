@@ -30,6 +30,7 @@ func TestMemoryTokenStore_CleanExpired(t *testing.T) {
 	if err := store.Store(ctx, expired); err != nil {
 		t.Fatalf("Store(expired): %v", err)
 	}
+
 	if err := store.Store(ctx, live); err != nil {
 		t.Fatalf("Store(live): %v", err)
 	}
@@ -47,6 +48,7 @@ func TestMemoryTokenStore_CleanExpired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get(live): %v", err)
 	}
+
 	if got.ShareID != live.ShareID {
 		t.Errorf("Get(live).ShareID = %q, want %q", got.ShareID, live.ShareID)
 	}

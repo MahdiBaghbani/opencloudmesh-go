@@ -40,6 +40,7 @@ max_stale_seconds = 600
 `
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "federation-test",
 		Mode: "dev",
@@ -81,6 +82,7 @@ func TestFederationsEndpointWithoutFederation(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "no-federation-test",
 		Mode: "dev",

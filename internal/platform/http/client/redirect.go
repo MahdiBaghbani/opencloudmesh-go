@@ -21,6 +21,7 @@ func isSameHost(a, b *url.URL) bool {
 	if !strings.EqualFold(a.Hostname(), b.Hostname()) {
 		return false
 	}
+
 	return effectivePort(a) == effectivePort(b)
 }
 
@@ -36,6 +37,7 @@ func effectivePort(u *url.URL) string {
 	if port == defaultPort(u.Scheme) {
 		return defaultPort(u.Scheme)
 	}
+
 	return port
 }
 
@@ -57,6 +59,7 @@ func copyRedirectHeaders(src, dst *http.Request) {
 	if ua := src.Header.Get("User-Agent"); ua != "" {
 		dst.Header.Set("User-Agent", ua)
 	}
+
 	if accept := src.Header.Get("Accept"); accept != "" {
 		dst.Header.Set("Accept", accept)
 	}

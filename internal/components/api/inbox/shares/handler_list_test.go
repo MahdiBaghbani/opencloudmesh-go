@@ -37,6 +37,7 @@ func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
 	if len(resp.Shares) != 1 {
 		t.Fatalf("expected 1 share for user A, got %d", len(resp.Shares))
 	}
+
 	if resp.Shares[0].ShareID != shareA.ShareID {
 		t.Errorf("expected share %s, got %s", shareA.ShareID, resp.Shares[0].ShareID)
 	}

@@ -96,6 +96,7 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	if err := p.applySigning(httpReq, req, peer.Discovery); err != nil {
@@ -106,6 +107,7 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
+
 	return resp, nil
 }
 
@@ -120,12 +122,15 @@ func (p *Poster) applySigning(httpReq *http.Request, req Request, disc *spec.Dis
 		if !disc.IsHTTPSigCapable() {
 			return nil
 		}
+
 		if p.signer == nil {
 			return fmt.Errorf("outbound signing requires a configured signer")
 		}
+
 		if err := p.signer.SignRequest(httpReq, req.Body); err != nil {
 			return fmt.Errorf("failed to sign request: %w", err)
 		}
 	}
+
 	return nil
 }

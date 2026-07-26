@@ -27,12 +27,14 @@ func TestMirrorDriverSecretRedaction(t *testing.T) {
 	outStore := driver.(store.OutgoingShareStore)
 
 	share := testutil.NewOutgoingShareFixture()
+
 	share.SharedSecret = "my-secret-value"
 	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatal(err)
 	}
 
 	jsonPath := filepath.Join(tempDir, "mirror", "outgoing_shares.json")
+
 	data, err := os.ReadFile(jsonPath)
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +62,7 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 
 	outInvite := testutil.NewOutgoingInviteFixture()
 	outInvite.ID = "mirror-out-id"
+
 	outInvite.Token = "mirror-out-token"
 	if err := driver.(store.OutgoingInviteStore).CreateOutgoingInvite(ctx, outInvite); err != nil {
 		t.Fatalf("create outgoing invite: %v", err)
@@ -67,6 +70,7 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 
 	inInvite := testutil.NewIncomingInviteFixture()
 	inInvite.ID = "mirror-in-id"
+
 	inInvite.Token = "mirror-in-token"
 	if err := driver.(store.IncomingInviteStore).CreateIncomingInvite(ctx, inInvite); err != nil {
 		t.Fatalf("create incoming invite: %v", err)
@@ -83,6 +87,7 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("outgoing_invites.json missing after reopen: %v", err)
 	}
+
 	if strings.Contains(string(outData), outInvite.Token) {
 		t.Errorf("outgoing_invites.json must not contain token %q", outInvite.Token)
 	}
@@ -91,6 +96,7 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("incoming_invites.json missing after reopen: %v", err)
 	}
+
 	if strings.Contains(string(inData), inInvite.Token) {
 		t.Errorf("incoming_invites.json must not contain token %q", inInvite.Token)
 	}

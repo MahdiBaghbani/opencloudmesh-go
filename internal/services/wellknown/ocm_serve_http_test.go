@@ -14,6 +14,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 	c := &resolve.ProviderConfig{
 		Provider: "TestProvider",
 	}
+
 	h, err := newOCMHandler(
 		c,
 		nil,
@@ -46,9 +47,11 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 	if !disc.Enabled {
 		t.Error("expected Enabled=true in response")
 	}
+
 	if disc.Provider != "TestProvider" {
 		t.Errorf("expected Provider 'TestProvider', got %q", disc.Provider)
 	}
+
 	if disc.TokenEndPoint == "" {
 		t.Error("expected non-empty tokenEndPoint")
 	}
@@ -56,6 +59,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 	c := &resolve.ProviderConfig{}
+
 	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

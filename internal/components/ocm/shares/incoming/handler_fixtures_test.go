@@ -32,6 +32,7 @@ func setupTestPartyRepo() identity.PartyRepo {
 		Email:       "bob@example.org",
 		DisplayName: "Bob B",
 	})
+
 	return repo
 }
 

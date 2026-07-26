@@ -37,6 +37,7 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	if err := os.Chmod(mirrorDir, 0500); err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(func() { os.Chmod(mirrorDir, 0700) })
 
 	outStore := driver.(store.OutgoingShareStore)
@@ -52,6 +53,7 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingShare: %v", err)
 	}
+
 	if got.ProviderId != share.ProviderId {
 		t.Errorf("unexpected ProviderId: got %q, want %q", got.ProviderId, share.ProviderId)
 	}
@@ -60,6 +62,7 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	if err := os.Chmod(mirrorDir, 0700); err != nil {
 		t.Fatal(err)
 	}
+
 	share.Name = "updated-name"
 	if err := outStore.UpdateOutgoingShare(ctx, share); err != nil {
 		t.Fatalf("UpdateOutgoingShare returned unexpected error: %v", err)
@@ -84,6 +87,7 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatal(err)
 	}
+
 	driver.Close()
 
 	// Corrupt the JSON file
@@ -97,10 +101,12 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 	defer driver2.Close()
 
 	outStore2 := driver2.(store.OutgoingShareStore)
+
 	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderId)
 	if err != nil {
 		t.Fatalf("mirror driver read from JSON instead of SQLite: %v", err)
 	}
+
 	if got.ProviderId != share.ProviderId {
 		t.Errorf("data corruption: expected %q, got %q", share.ProviderId, got.ProviderId)
 	}

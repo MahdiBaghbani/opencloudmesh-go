@@ -79,6 +79,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest, disc *spec.D
 				fmt.Errorf("no signer configured"),
 			)
 		}
+
 		if err := c.signer.Sign(httpReq); err != nil {
 			return nil, reason.NewClassifiedError(
 				reason.ReasonSignatureInvalid,
@@ -127,6 +128,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 	defer resp.Body.Close()
 
 	maxBytes := int64(config.DefaultMaxResponseBytes)
+
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
 		return nil, reason.NewClassifiedError(
@@ -135,6 +137,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 			err,
 		)
 	}
+
 	if int64(len(body)) > maxBytes {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonTokenInvalidFormat,
@@ -168,6 +171,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 			if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
 				return nil, c.classifyOAuthError(oauthErr)
 			}
+
 			return nil, reason.NewClassifiedError(
 				reason.ReasonSignatureRequired,
 				fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
@@ -178,6 +182,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 			if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
 				return nil, c.classifyOAuthError(oauthErr)
 			}
+
 			return nil, reason.NewClassifiedError(
 				reason.ReasonTokenExchangeFailed,
 				fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
@@ -211,6 +216,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 			nil,
 		)
 	}
+
 	if !strings.EqualFold(tokenResp.TokenType, "Bearer") {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonTokenInvalidFormat,
@@ -218,6 +224,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 			fmt.Errorf("got %q", tokenResp.TokenType),
 		)
 	}
+
 	if tokenResp.ExpiresIn <= 0 {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonTokenInvalidFormat,
@@ -236,6 +243,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 // classifyOAuthError maps OAuth error codes to reason codes.
 func (c *Client) classifyOAuthError(oauthErr token.OAuthError) error {
 	var reasonCode string
+
 	switch oauthErr.Error {
 	case token.ErrorInvalidGrant:
 		reasonCode = reason.ReasonTokenExchangeFailed

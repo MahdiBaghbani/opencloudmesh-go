@@ -77,6 +77,7 @@ func SnapshotPersistence(dataDir string) (PersistenceSnapshot, error) {
 	if err != nil {
 		return PersistenceSnapshot{}, err
 	}
+
 	return PersistenceSnapshot{
 		Shares: shares,
 		Tokens: tokenSnapshotFromShares(shares.Outgoing),
@@ -94,10 +95,12 @@ func SnapshotEqual(a, b PersistenceSnapshot) bool {
 	if err != nil {
 		return false
 	}
+
 	bb, err := canonicalSnapshotBytes(b)
 	if err != nil {
 		return false
 	}
+
 	return bytes.Equal(ab, bb)
 }
 
@@ -111,10 +114,12 @@ func snapshotShares(dataDir string) (SharePersistenceSnapshot, error) {
 	if err != nil {
 		return SharePersistenceSnapshot{}, err
 	}
+
 	incoming, err := readIncomingShares(dataDir)
 	if err != nil {
 		return SharePersistenceSnapshot{}, err
 	}
+
 	return SharePersistenceSnapshot{
 		Outgoing: outgoing,
 		Incoming: incoming,
@@ -123,11 +128,13 @@ func snapshotShares(dataDir string) (SharePersistenceSnapshot, error) {
 
 func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error) {
 	path := filepath.Join(dataDir, "data", fileOutgoingShares)
+
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return map[string]RedactedOutgoingShare{}, nil
 		}
+
 		return nil, fmt.Errorf("read outgoing shares: %w", err)
 	}
 
@@ -142,6 +149,7 @@ func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error
 		if key == "" {
 			key = share.ProviderID
 		}
+
 		out[key] = RedactedOutgoingShare{
 			ProviderID:      share.ProviderID,
 			ShareID:         share.ShareID,
@@ -151,16 +159,19 @@ func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error
 			HasSharedSecret: share.SharedSecret != "",
 		}
 	}
+
 	return out, nil
 }
 
 func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error) {
 	path := filepath.Join(dataDir, "data", fileIncomingShares)
+
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return map[string]RedactedIncomingShare{}, nil
 		}
+
 		return nil, fmt.Errorf("read incoming shares: %w", err)
 	}
 
@@ -175,6 +186,7 @@ func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error
 		if key == "" {
 			key = share.ShareID
 		}
+
 		out[key] = RedactedIncomingShare{
 			ShareID:         share.ShareID,
 			ProviderID:      share.ProviderID,
@@ -184,6 +196,7 @@ func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error
 			HasSharedSecret: share.SharedSecret != "",
 		}
 	}
+
 	return out, nil
 }
 
@@ -192,6 +205,7 @@ func tokenSnapshotFromShares(outgoing map[string]RedactedOutgoingShare) TokenPer
 	for providerID, share := range outgoing {
 		codes[providerID] = share.HasSharedSecret
 	}
+
 	return TokenPersistenceSnapshot{OutgoingCodes: codes}
 }
 

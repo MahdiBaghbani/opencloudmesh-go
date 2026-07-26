@@ -29,6 +29,7 @@ func TestHandleDiscover_MissingBase(t *testing.T) {
 
 	var resp map[string]any
 	json.Unmarshal(w.Body.Bytes(), &resp)
+
 	if resp["success"] != false {
 		t.Error("expected success=false")
 	}
@@ -44,9 +45,11 @@ func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
 	if w.Code != http.StatusNotImplemented {
 		t.Errorf("expected 501, got %d", w.Code)
 	}
+
 	var resp struct {
 		ReasonCode string `json:"reasonCode"`
 	}
+
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp.ReasonCode != reason.PeerDiscoveryDisabled {
 		t.Errorf("expected reasonCode %q, got %q", reason.PeerDiscoveryDisabled, resp.ReasonCode)
@@ -55,6 +58,7 @@ func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
 
 func TestHandleDiscover_Success(t *testing.T) {
 	var serverURL string
+
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
@@ -66,11 +70,14 @@ func TestHandleDiscover_Success(t *testing.T) {
 				"resourceTypes":      []any{},
 				"criteria":           []any{},
 			})
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+
 	serverURL = discServer.URL
 
 	httpCfg := tshttp.PermissiveConfig()
@@ -97,12 +104,15 @@ func TestHandleDiscover_Success(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode: %v", err)
 	}
+
 	if !resp.Success {
 		t.Error("expected success=true")
 	}
+
 	if resp.Discovery == nil {
 		t.Fatal("expected discovery object")
 	}
+
 	if resp.Discovery.Provider != "TestProvider" {
 		t.Errorf("expected provider 'TestProvider', got %q", resp.Discovery.Provider)
 	}
@@ -110,6 +120,7 @@ func TestHandleDiscover_Success(t *testing.T) {
 
 func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 	var serverURL string
+
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			json.NewEncoder(w).Encode(map[string]any{
@@ -120,11 +131,14 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 				"resourceTypes":      []any{},
 				"criteria":           []any{},
 			})
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer discServer.Close()
+
 	serverURL = discServer.URL
 
 	httpCfg := tshttp.PermissiveConfig()
@@ -150,12 +164,15 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode: %v", err)
 	}
+
 	if !resp.Success {
 		t.Error("expected success=true")
 	}
+
 	if resp.InviteAcceptDialogAbsolute == "" {
 		t.Error("expected non-empty inviteAcceptDialogAbsolute")
 	}
+
 	if resp.InviteAcceptDialogAbsolute == "/apps/ocm/invite-accept" {
 		t.Error("expected absolute URL, got relative")
 	}
@@ -190,6 +207,7 @@ func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("expected 502, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp struct {
 		Success    bool   `json:"success"`
 		ReasonCode string `json:"reasonCode"`
@@ -197,9 +215,11 @@ func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode: %v", err)
 	}
+
 	if resp.Success {
 		t.Fatal("expected success=false")
 	}
+
 	if resp.ReasonCode != reason.PeerDiscoveryFailed {
 		t.Fatalf("expected reasonCode %q, got %q", reason.PeerDiscoveryFailed, resp.ReasonCode)
 	}

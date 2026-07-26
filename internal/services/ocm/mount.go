@@ -36,19 +36,23 @@ func mountProtocolRoutes(
 
 		r.With(middlewares...).Method(row.Method, row.Pattern, handler)
 	}
+
 	return nil
 }
 
 func protocolPostRows(opts service.RouteOpts) []service.RouteRow {
 	rows := service.DerivedRouteInventory(opts)
+
 	out := make([]service.RouteRow, 0, len(rows))
 	for _, row := range rows {
 		if row.Service != "ocm" || row.Method != http.MethodPost ||
 			row.SurfaceClass != service.SurfaceProtocol || row.Synthetic {
 			continue
 		}
+
 		out = append(out, row)
 	}
+
 	return out
 }
 
@@ -75,9 +79,11 @@ func middlewaresForRow(
 	if row.BodyLimitBytes <= 0 {
 		return nil, fmt.Errorf("ocm: route %q missing body limit", row.ID)
 	}
+
 	middlewares = append(middlewares, enforceOCMBodyLimit(row.BodyLimitBytes))
 
 	sig := inputs.SignatureMiddleware
+
 	switch row.PeerResolution {
 	case service.PeerResolutionShares:
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveSharesRequest))
@@ -106,6 +112,7 @@ func enforceOCMBodyLimit(limit int64) func(http.Handler) http.Handler {
 				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 				return
 			}
+
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 			next.ServeHTTP(w, r)
 		})

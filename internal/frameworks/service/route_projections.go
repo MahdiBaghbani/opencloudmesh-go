@@ -7,6 +7,7 @@ import (
 // DerivedAuthRows projects session auth rows from Routes(opts).
 func DerivedAuthRows(opts RouteOpts) []AuthRow {
 	rows := Routes(opts)
+
 	out := make([]AuthRow, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, AuthRow{
@@ -16,6 +17,7 @@ func DerivedAuthRows(opts RouteOpts) []AuthRow {
 			Synthetic:     row.Synthetic,
 		})
 	}
+
 	return out
 }
 
@@ -30,6 +32,7 @@ type DerivedRouteGroup struct {
 // DerivedMountSpecs projects coarse mount subtrees from Routes(opts).
 func DerivedMountSpecs(opts RouteOpts) []DerivedRouteGroup {
 	rows := Routes(opts)
+
 	out := make([]DerivedRouteGroup, 0, len(rows))
 	for _, row := range rows {
 		if row.AtHostRoot && !row.Synthetic {
@@ -39,8 +42,10 @@ func DerivedMountSpecs(opts RouteOpts) []DerivedRouteGroup {
 				RequiresAuth: sessionAuthRequired(row.SessionPolicy, opts),
 				AtHostRoot:   true,
 			})
+
 			continue
 		}
+
 		if row.Synthetic && !row.AtHostRoot {
 			out = append(out, DerivedRouteGroup{
 				Name:         row.Service,
@@ -50,19 +55,23 @@ func DerivedMountSpecs(opts RouteOpts) []DerivedRouteGroup {
 			})
 		}
 	}
+
 	return out
 }
 
 // DerivedRouteInventory returns active product route rows (non-synthetic).
 func DerivedRouteInventory(opts RouteOpts) []RouteRow {
 	rows := Routes(opts)
+
 	out := make([]RouteRow, 0, len(rows))
 	for _, row := range rows {
 		if row.Synthetic {
 			continue
 		}
+
 		out = append(out, row)
 	}
+
 	return out
 }
 
@@ -95,6 +104,7 @@ func sessionAuthRequiredForRows(path string, rows []RouteRow, opts RouteOpts) bo
 		if !row.AtHostRoot || row.Synthetic {
 			continue
 		}
+
 		if pathMatchesRoute(path, row.FullPath) {
 			return sessionAuthRequired(row.SessionPolicy, opts)
 		}
@@ -104,6 +114,7 @@ func sessionAuthRequiredForRows(path string, rows []RouteRow, opts RouteOpts) bo
 		if row.AtHostRoot || row.Synthetic {
 			continue
 		}
+
 		if pathMatchesRoute(path, row.FullPath) {
 			return sessionAuthRequired(row.SessionPolicy, opts)
 		}
@@ -113,6 +124,7 @@ func sessionAuthRequiredForRows(path string, rows []RouteRow, opts RouteOpts) bo
 		if !row.Synthetic {
 			continue
 		}
+
 		if pathMatchesPrefix(path, row.FullPath) {
 			return sessionAuthRequired(row.SessionPolicy, opts)
 		}
@@ -125,14 +137,17 @@ func pathMatchesRoute(path, pattern string) bool {
 	if path == pattern {
 		return true
 	}
+
 	if strings.HasSuffix(pattern, "/*") {
 		prefix := strings.TrimSuffix(pattern, "/*")
 		return pathMatchesPrefix(path, prefix)
 	}
+
 	if idx := strings.Index(pattern, "{"); idx >= 0 {
 		prefix := strings.TrimSuffix(pattern[:idx], "/")
 		return pathMatchesPrefix(path, prefix)
 	}
+
 	return pathMatchesPrefix(path, pattern)
 }
 
@@ -140,10 +155,12 @@ func pathMatchesPrefix(path, prefix string) bool {
 	if path == prefix {
 		return true
 	}
+
 	if len(path) > len(prefix) && path[:len(prefix)] == prefix {
 		if path[len(prefix)] == '/' {
 			return true
 		}
 	}
+
 	return false
 }

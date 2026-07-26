@@ -19,6 +19,7 @@ func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.Incomin
 	if _, exists := d.incomingInvites[invite.ID]; exists {
 		return store.ErrAlreadyExists
 	}
+
 	if invite.Token != "" && invite.RecipientUserId != "" {
 		key := tokenUserKey(invite.Token, invite.RecipientUserId)
 		if existing, ok := d.incomingInviteTokenUserIndex[key]; ok && existing != invite.ID {
@@ -34,11 +35,14 @@ func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.Incomin
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
 		// Rollback: remove the in-memory entry so state stays consistent with disk.
 		delete(d.incomingInvites, invite.ID)
+
 		if invite.Token != "" && invite.RecipientUserId != "" {
 			delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserId))
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -59,6 +63,7 @@ func (d *Driver) GetIncomingInviteForRecipient(
 	if !ok || invite.RecipientUserId != recipientUserId {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneIncomingInvite(invite), nil
 }
 
@@ -75,10 +80,12 @@ func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, rec
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	invite, ok := d.incomingInvites[id]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneIncomingInvite(invite), nil
 }
 
@@ -112,8 +119,10 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 		// Rollback: restore the old field values on the in-place pointer.
 		existing.Status = oldStatus
 		existing.UpdatedAt = oldUpdatedAt
+
 		return err
 	}
+
 	return nil
 }
 
@@ -138,6 +147,7 @@ func (d *Driver) DeleteIncomingInviteForRecipient(
 	if invite.Token != "" && invite.RecipientUserId != "" {
 		delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserId))
 	}
+
 	delete(d.incomingInvites, id)
 
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
@@ -146,8 +156,10 @@ func (d *Driver) DeleteIncomingInviteForRecipient(
 		if invite.Token != "" && invite.RecipientUserId != "" {
 			d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserId)] = id
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -161,10 +173,12 @@ func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string
 	}
 
 	invites := make([]*store.IncomingInvite, 0)
+
 	for _, invite := range d.incomingInvites {
 		if invite.RecipientUserId == recipientUserId {
 			invites = append(invites, cloneIncomingInvite(invite))
 		}
 	}
+
 	return invites, nil
 }

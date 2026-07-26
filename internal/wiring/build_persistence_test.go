@@ -13,9 +13,11 @@ import (
 
 func assertMemoryBackedTokenStore(t *testing.T, d *wiring.Deps) {
 	t.Helper()
+
 	if d.TokenStore == nil {
 		t.Fatal("TokenStore must be non-nil")
 	}
+
 	if _, ok := d.TokenStore.(*token.MemoryTokenStore); !ok {
 		t.Errorf("TokenStore must stay memory-backed, got %T", d.TokenStore)
 	}
@@ -33,19 +35,25 @@ func TestPersistence_MemoryBackend(t *testing.T) {
 	if d.IncomingShareRepo == nil {
 		t.Error("IncomingShareRepo must be non-nil")
 	}
+
 	if d.OutgoingShareRepo == nil {
 		t.Error("OutgoingShareRepo must be non-nil")
 	}
+
 	if d.OutgoingInviteRepo == nil {
 		t.Error("OutgoingInviteRepo must be non-nil")
 	}
+
 	if d.IncomingInviteRepo == nil {
 		t.Error("IncomingInviteRepo must be non-nil")
 	}
+
 	if result.Persistence == nil {
 		t.Fatal("Persistence must be non-nil")
 	}
+
 	assertMemoryBackedTokenStore(t, d)
+
 	if err := result.Persistence.Close(); err != nil {
 		t.Errorf("Persistence.Close() for memory backend: %v", err)
 	}
@@ -65,19 +73,25 @@ func TestPersistence_JSONBackend(t *testing.T) {
 	if d.IncomingShareRepo == nil {
 		t.Error("IncomingShareRepo must be non-nil")
 	}
+
 	if d.OutgoingShareRepo == nil {
 		t.Error("OutgoingShareRepo must be non-nil")
 	}
+
 	if d.OutgoingInviteRepo == nil {
 		t.Error("OutgoingInviteRepo must be non-nil")
 	}
+
 	if d.IncomingInviteRepo == nil {
 		t.Error("IncomingInviteRepo must be non-nil")
 	}
+
 	if result.Persistence == nil {
 		t.Fatal("Persistence must be non-nil")
 	}
+
 	assertMemoryBackedTokenStore(t, d)
+
 	if err := result.Persistence.Close(); err != nil {
 		t.Errorf("Persistence.Close() for json backend: %v", err)
 	}

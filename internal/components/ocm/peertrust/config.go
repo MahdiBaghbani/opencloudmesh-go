@@ -29,10 +29,12 @@ func LoadTrustGroupConfig(path string) (*TrustGroupConfig, error) {
 
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
+
 	var cfg TrustGroupConfig
 	if err := dec.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("decoding trust group config %s: %w", path, err)
 	}
+
 	if err := dec.Decode(&json.RawMessage{}); err != io.EOF {
 		return nil, fmt.Errorf("trust group config %s: unexpected trailing content after JSON object", path)
 	}

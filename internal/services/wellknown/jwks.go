@@ -22,6 +22,7 @@ func (h *jwksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	set := h.keyManager.JWKS()
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(set)

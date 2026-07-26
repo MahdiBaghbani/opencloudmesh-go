@@ -36,6 +36,7 @@ func TestHandler_MissingFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(tt.form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 			w := httptest.NewRecorder()
 
 			handler.HandleToken(w, req)
@@ -46,6 +47,7 @@ func TestHandler_MissingFields(t *testing.T) {
 
 			var resp token.OAuthError
 			json.NewDecoder(w.Body).Decode(&resp)
+
 			if resp.Error != token.ErrorInvalidRequest {
 				t.Errorf("expected error %q, got %q", token.ErrorInvalidRequest, resp.Error)
 			}
@@ -66,6 +68,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -76,6 +79,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 
 	var resp token.OAuthError
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Error != token.ErrorUnsupportedGrantType {
 		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
 	}
@@ -96,6 +100,7 @@ func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -106,6 +111,7 @@ func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
 
 	var resp token.OAuthError
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Error != token.ErrorUnsupportedGrantType {
 		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
 	}
@@ -121,6 +127,7 @@ func TestHandler_JSONBody_Rejected(t *testing.T) {
 	body := `{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"secret-code"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -131,6 +138,7 @@ func TestHandler_JSONBody_Rejected(t *testing.T) {
 
 	var resp token.OAuthError
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Error != token.ErrorInvalidRequest {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidRequest, resp.Error)
 	}
@@ -219,6 +227,7 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 			form := url.Values{}
 			form.Set("grant_type", "authorization_code")
 			form.Set("client_id", "receiver.example.com")
+
 			if tt.wantStatus == http.StatusOK {
 				form.Set("code", sharedSecret)
 			} else {
@@ -242,9 +251,11 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 					t.Fatalf("failed to decode response: %v", err)
 				}
+
 				if resp.Error != token.ErrorInvalidRequest {
 					t.Errorf("expected error %q, got %q", token.ErrorInvalidRequest, resp.Error)
 				}
+
 				return
 			}
 
@@ -252,6 +263,7 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 				t.Fatalf("failed to decode response: %v", err)
 			}
+
 			if resp.AccessToken == "" {
 				t.Error("access_token is empty")
 			}

@@ -81,6 +81,7 @@ func TestIsAuthRequired_WayfEnabled(t *testing.T) {
 	if IsAuthRequired("/ui/wayf", opts) {
 		t.Error("expected /ui/wayf public when WAYF enabled")
 	}
+
 	if !IsAuthRequired("/ui/accept-invite", opts) {
 		t.Error("expected /ui/accept-invite protected when invite accept enabled")
 	}
@@ -96,6 +97,7 @@ func TestIsAuthRequired_AcceptInviteWithExternalBasePath(t *testing.T) {
 	if IsAuthRequired("/ocm/ui/wayf", opts) {
 		t.Error("expected /ocm/ui/wayf public when WAYF enabled")
 	}
+
 	if !IsAuthRequired("/ocm/ui/accept-invite", opts) {
 		t.Error("expected /ocm/ui/accept-invite protected")
 	}
@@ -131,6 +133,7 @@ func TestSessionGate_AcceptInviteProtectedAtServer(t *testing.T) {
 	if rr.Code != http.StatusFound {
 		t.Fatalf("expected 302 for unauthenticated accept-invite, got %d", rr.Code)
 	}
+
 	if !strings.HasSuffix(rr.Header().Get("Location"), "/ui/login") &&
 		!strings.Contains(rr.Header().Get("Location"), "/ui/login?") {
 		t.Fatalf("expected redirect to login, got %q", rr.Header().Get("Location"))

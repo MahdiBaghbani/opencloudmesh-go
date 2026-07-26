@@ -23,7 +23,6 @@ func TestNew_FailsWithoutRequiredInputs(t *testing.T) {
 }
 
 func TestNew_SucceedsWithInputs(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -38,7 +37,6 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -53,7 +51,6 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -68,7 +65,6 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -83,7 +79,6 @@ func TestService_Close(t *testing.T) {
 }
 
 func TestService_HealthzEndpoint(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -113,7 +108,6 @@ func TestService_HealthzEndpoint(t *testing.T) {
 }
 
 func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -124,6 +118,7 @@ func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -135,7 +130,6 @@ func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 }
 
 func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -157,7 +151,6 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
-
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -179,8 +172,8 @@ func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
-
 	var logBuf testLogBuffer
+
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	m := map[string]any{

@@ -17,6 +17,7 @@ import (
 // interface.
 func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	t.Run("CRUD", func(t *testing.T) {
@@ -37,6 +38,7 @@ func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByIDForRecipientUserID: %v", err)
 		}
+
 		if got.Token != invite.Token {
 			t.Errorf("Token: got %q, want %q", got.Token, invite.Token)
 		}
@@ -45,6 +47,7 @@ func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByTokenForRecipientUserID: %v", err)
 		}
+
 		if got.ID != invite.ID {
 			t.Errorf("ID: got %q, want %q", got.ID, invite.ID)
 		}
@@ -54,10 +57,12 @@ func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		); err != nil {
 			t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
 		}
+
 		got, err = r.IncomingInvites.GetByIDForRecipientUserID(ctx, invite.ID, invite.RecipientUserID)
 		if err != nil {
 			t.Fatalf("GetByIDForRecipientUserID after update: %v", err)
 		}
+
 		if got.Status != invites.InviteStatusAccepted {
 			t.Errorf("Status after update: got %q, want accepted", got.Status)
 		}
@@ -65,6 +70,7 @@ func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err := r.IncomingInvites.DeleteForRecipientUserID(ctx, invite.ID, invite.RecipientUserID); err != nil {
 			t.Fatalf("DeleteForRecipientUserID: %v", err)
 		}
+
 		_, err = r.IncomingInvites.GetByIDForRecipientUserID(ctx, invite.ID, invite.RecipientUserID)
 		if !errors.Is(err, invites.ErrInviteNotFound) {
 			t.Errorf("GetByIDForRecipientUserID after delete: expected ErrInviteNotFound, got %v", err)
@@ -89,13 +95,16 @@ func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("ListByRecipientUserID: %v", err)
 		}
+
 		found := false
+
 		for _, inv := range all {
 			if inv.ID == invite.ID {
 				found = true
 				break
 			}
 		}
+
 		if !found {
 			t.Errorf("ListByRecipientUserID: created invite %q not found in result", invite.ID)
 		}
@@ -104,6 +113,7 @@ func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("ListByRecipientUserID other user: %v", err)
 		}
+
 		for _, inv := range others {
 			if inv.ID == invite.ID {
 				t.Errorf("ListByRecipientUserID: invite %q leaked to other user", invite.ID)
@@ -158,12 +168,15 @@ func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err := r.IncomingInvites.Create(ctx, invite); err != nil {
 			t.Fatalf("Create: %v", err)
 		}
+
 		if invite.ID == "" {
 			t.Error("ID not auto-filled after Create")
 		}
+
 		if invite.ReceivedAt.IsZero() {
 			t.Error("ReceivedAt not auto-filled after Create")
 		}
+
 		if invite.Status == "" {
 			t.Error("Status not auto-filled after Create")
 		}
@@ -181,10 +194,12 @@ func runIncomingInviteRepoContract(t *testing.T, r *repos.Repos) {
 // sentinel behaviour for the OutgoingInviteRepo interface.
 func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	t.Run("CRUD", func(t *testing.T) {
 		now := time.Unix(time.Now().Unix(), 0).UTC()
+
 		invite := &invitesoutgoing.OutgoingInvite{
 			ID:              "ct-out-inv-1",
 			Token:           "ct-out-token-1",
@@ -204,6 +219,7 @@ func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByID: %v", err)
 		}
+
 		if got.Token != invite.Token {
 			t.Errorf("Token: got %q, want %q", got.Token, invite.Token)
 		}
@@ -212,6 +228,7 @@ func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByToken: %v", err)
 		}
+
 		if got.ID != invite.ID {
 			t.Errorf("GetByToken ID: got %q, want %q", got.ID, invite.ID)
 		}
@@ -221,16 +238,20 @@ func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		); err != nil {
 			t.Fatalf("UpdateStatus: %v", err)
 		}
+
 		got, err = r.OutgoingInvites.GetByID(ctx, invite.ID)
 		if err != nil {
 			t.Fatalf("GetByID after UpdateStatus: %v", err)
 		}
+
 		if got.Status != invites.InviteStatusAccepted {
 			t.Errorf("Status after update: got %q, want accepted", got.Status)
 		}
+
 		if got.AcceptedBy != "ct-acceptor-1" {
 			t.Errorf("AcceptedBy: got %q, want ct-acceptor-1", got.AcceptedBy)
 		}
+
 		if got.AcceptedAt == nil {
 			t.Error("AcceptedAt: expected non-nil after acceptance")
 		}
@@ -258,9 +279,11 @@ func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 			ExpiresAt:       now.Add(24 * time.Hour),
 			Status:          invites.InviteStatusPending,
 		}
+
 		if err := r.OutgoingInvites.Create(ctx, inviteA); err != nil {
 			t.Fatalf("Create inviteA: %v", err)
 		}
+
 		if err := r.OutgoingInvites.Create(ctx, inviteB); err != nil {
 			t.Fatalf("Create inviteB: %v", err)
 		}
@@ -269,7 +292,9 @@ func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("List: %v", err)
 		}
+
 		foundA, foundB := false, false
+
 		for _, inv := range all {
 			switch inv.ID {
 			case inviteA.ID:
@@ -278,9 +303,11 @@ func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 				foundB = true
 			}
 		}
+
 		if !foundA {
 			t.Errorf("List: invite %q (creator-A) not found; List must return all invites, not creator-filtered", inviteA.ID)
 		}
+
 		if !foundB {
 			t.Errorf("List: invite %q (creator-B) not found; List must return all invites, not creator-filtered", inviteB.ID)
 		}
@@ -288,6 +315,7 @@ func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 
 	t.Run("AutoFill", func(t *testing.T) {
 		now := time.Unix(time.Now().Unix(), 0).UTC()
+
 		invite := &invitesoutgoing.OutgoingInvite{
 			Token:        "ct-autofill-out-token",
 			ProviderFQDN: "ct.autofill.provider.example",
@@ -298,9 +326,11 @@ func runOutgoingInviteRepoContract(t *testing.T, r *repos.Repos) {
 		if err := r.OutgoingInvites.Create(ctx, invite); err != nil {
 			t.Fatalf("Create: %v", err)
 		}
+
 		if invite.ID == "" {
 			t.Error("ID not auto-filled after Create")
 		}
+
 		if invite.Status == "" {
 			t.Error("Status not auto-filled after Create")
 		}

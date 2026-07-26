@@ -20,9 +20,11 @@ func (m *mockPeerDiscovery) ResolveVerificationKey(ctx context.Context, keyID st
 	if err, ok := m.publicKeyErrors[keyID]; ok {
 		return sigalg.ResolvedPublicKey{}, err
 	}
+
 	if key, ok := m.publicKeys[keyID]; ok {
 		return key, nil
 	}
+
 	return sigalg.ResolvedPublicKey{}, fmt.Errorf("public key not found for %q", keyID)
 }
 

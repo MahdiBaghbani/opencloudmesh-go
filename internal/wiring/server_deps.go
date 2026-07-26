@@ -14,9 +14,11 @@ func BuildServerDeps(cfg *config.Config, log *slog.Logger, d *Deps) (server.Serv
 	if d == nil {
 		return server.ServerDeps{}, server.ErrMissingServerDeps
 	}
+
 	if d.RealIP == nil {
 		return server.ServerDeps{}, server.ErrMissingRealIP
 	}
+
 	if d.SessionRepo == nil || d.PartyRepo == nil {
 		return server.ServerDeps{}, server.ErrMissingAuthRepos
 	}

@@ -64,9 +64,11 @@ func NewTrustGroupManager(
 	refreshTimeout time.Duration,
 ) *TrustGroupManager {
 	logger = logutil.NoopIfNil(logger)
+
 	if refreshTimeout <= 0 {
 		refreshTimeout = 10 * time.Second
 	}
+
 	return &TrustGroupManager{
 		trustGroups:            make(map[string]*TrustGroup),
 		cacheConfig:            cacheConfig,
@@ -120,14 +122,17 @@ func (m *TrustGroupManager) isMemberOf(tg *TrustGroup, host string, requireVerif
 	if err != nil {
 		return false
 	}
+
 	for _, authority := range tg.memberAuthorities {
 		if authority.normalized == normalized {
 			if requireVerified && !authority.verified {
 				continue
 			}
+
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -138,19 +143,23 @@ func (m *TrustGroupManager) triggerRefreshIfNeeded(_ context.Context, tg *TrustG
 
 	if age > m.cacheConfig.TTL {
 		enabledCount := 0
+
 		for _, ds := range tg.config.DirectoryServices {
 			if ds.Enabled {
 				enabledCount++
 			}
 		}
+
 		if enabledCount == 0 {
 			enabledCount = 1
 		}
+
 		timeout := m.refreshTimeout * time.Duration(enabledCount)
 
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
+
 			m.refreshTrustGroup(ctx, tg)
 		}()
 	}
@@ -163,6 +172,7 @@ func (m *TrustGroupManager) refreshTrustGroup(ctx context.Context, tg *TrustGrou
 		tg.refreshMu.Unlock()
 		return
 	}
+
 	tg.refreshing = true
 	tg.refreshMu.Unlock()
 
@@ -187,6 +197,7 @@ func (m *TrustGroupManager) refreshTrustGroup(ctx context.Context, tg *TrustGrou
 				"trust_group", tg.config.TrustGroupID,
 				"directory_service_url", ds.URL,
 				"error", err)
+
 			continue // keep cache if fetch fails
 		}
 
@@ -220,10 +231,12 @@ func (m *TrustGroupManager) precomputeAuthorities(listings []directoryservice.Li
 			if err != nil {
 				continue
 			}
+
 			normalized, err := hostport.Normalize(u.Host, m.scheme)
 			if err != nil {
 				continue
 			}
+
 			if listing.Verified {
 				verifiedMap[normalized] = true
 			} else if _, exists := verifiedMap[normalized]; !exists {
@@ -236,6 +249,7 @@ func (m *TrustGroupManager) precomputeAuthorities(listings []directoryservice.Li
 	for norm, verified := range verifiedMap {
 		result = append(result, memberAuthority{normalized: norm, verified: verified})
 	}
+
 	return result
 }
 
@@ -248,6 +262,7 @@ func (m *TrustGroupManager) GetTrustGroups() []*TrustGroupConfig {
 	for _, tg := range m.trustGroups {
 		result = append(result, tg.config)
 	}
+
 	return result
 }
 

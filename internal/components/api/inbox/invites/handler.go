@@ -74,6 +74,7 @@ func NewHandler(
 	log *slog.Logger,
 ) *Handler {
 	log = logutil.NoopIfNil(log)
+
 	return &Handler{
 		incomingRepo:    incomingRepo,
 		httpClient:      httpClient,
@@ -102,6 +103,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.Error("failed to list inbox invites", "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to list inbox invites")
+
 		return
 	}
 
@@ -155,6 +157,7 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 			ReceivedAt: existing.ReceivedAt.Format("2006-01-02T15:04:05Z07:00"),
 			Status:     existing.Status,
 		})
+
 		return
 	}
 
@@ -168,6 +171,7 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 	if err := h.incomingRepo.Create(ctx, invite); err != nil {
 		h.log.Error("failed to create incoming invite", "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to import invite")
+
 		return
 	}
 
@@ -203,8 +207,10 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 			api.WriteNotFound(w, "invite not found")
 			return
 		}
+
 		h.log.Error("failed to get invite", "invite_id", inviteID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get invite")
+
 		return
 	}
 
@@ -214,6 +220,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 			"status":   string(invites.InviteStatusAccepted),
 			"inviteId": inviteID,
 		})
+
 		return
 	}
 
@@ -226,6 +233,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("failed to send invite-accepted",
 			"invite_id", inviteID, "sender_fqdn", invite.SenderFQDN, "error", err)
 		api.WriteError(w, http.StatusBadGateway, api.ReasonPeerUnreachable, "failed to notify sender")
+
 		return
 	}
 
@@ -265,8 +273,10 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 			api.WriteNotFound(w, "invite not found")
 			return
 		}
+
 		h.log.Error("failed to get invite", "invite_id", inviteID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get invite")
+
 		return
 	}
 
@@ -276,6 +286,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 			"status":   string(invites.InviteStatusDeclined),
 			"inviteId": inviteID,
 		})
+
 		return
 	}
 

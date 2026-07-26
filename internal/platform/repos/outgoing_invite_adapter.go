@@ -25,19 +25,24 @@ func (a *outgoingInviteAdapter) Create(ctx context.Context, invite *invitesoutgo
 	if invite.ID == "" {
 		invite.ID = uuid.New().String()
 	}
+
 	if invite.CreatedAt.IsZero() {
 		invite.CreatedAt = time.Now()
 	}
+
 	if invite.Status == "" {
 		invite.Status = invites.InviteStatusPending
 	}
+
 	s := appOutgoingInviteToStore(invite)
 	if err := a.s.CreateOutgoingInvite(ctx, s); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
 			return fmt.Errorf("invite already exists: %s", invite.ID)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -47,8 +52,10 @@ func (a *outgoingInviteAdapter) GetByID(ctx context.Context, id string) (*invite
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, invites.ErrInviteNotFound
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingInviteToApp(s), nil
 }
 
@@ -58,8 +65,10 @@ func (a *outgoingInviteAdapter) GetByToken(ctx context.Context, token string) (*
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, invites.ErrTokenNotFound
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingInviteToApp(s), nil
 }
 
@@ -69,10 +78,12 @@ func (a *outgoingInviteAdapter) List(ctx context.Context) ([]*invitesoutgoing.Ou
 	if err != nil {
 		return nil, err
 	}
+
 	result := make([]*invitesoutgoing.OutgoingInvite, 0, len(storeInvites))
 	for _, s := range storeInvites {
 		result = append(result, storeOutgoingInviteToApp(s))
 	}
+
 	return result, nil
 }
 
@@ -87,6 +98,7 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 		if errors.Is(err, store.ErrNotFound) {
 			return invites.ErrInviteNotFound
 		}
+
 		return err
 	}
 
@@ -100,8 +112,10 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 		if errors.Is(err, store.ErrNotFound) {
 			return invites.ErrInviteNotFound
 		}
+
 		return err
 	}
+
 	return nil
 }
 

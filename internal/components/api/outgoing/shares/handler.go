@@ -67,7 +67,9 @@ func NewHandler(
 	if discClient == nil {
 		panic("outgoingshares.NewHandler: discoveryClient must not be nil")
 	}
+
 	logger = logutil.NoopIfNil(logger)
+
 	return &Handler{
 		repo:               repo,
 		discoveryClient:    discClient,
@@ -115,26 +117,32 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		api.WriteBadRequest(w, api.ReasonMissingField, "receiverDomain is required")
 		return
 	}
+
 	if req.ShareWith == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "shareWith is required")
 		return
 	}
+
 	if req.LocalPath == "" {
 		api.WriteBadRequest(w, api.ReasonMissingField, "localPath is required")
 		return
 	}
+
 	if len(req.Permissions) == 0 {
 		api.WriteBadRequest(w, api.ReasonMissingField, "permissions is required")
 		return
 	}
+
 	for _, perm := range req.Permissions {
 		supported := false
+
 		for _, allowed := range spec.SupportedWebDAVPermissions {
 			if perm == allowed {
 				supported = true
 				break
 			}
 		}
+
 		if !supported {
 			api.WriteBadRequest(w, api.ReasonInvalidField, "permissions must be read-only")
 			return
@@ -179,12 +187,15 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		h.logger.Warn("receiver origin resolution failed", "receiver", req.ReceiverDomain)
 		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed,
 			"could not resolve receiver origin")
+
 		return
 	}
+
 	disc, err := h.discoveryClient.Discover(r.Context(), receiverOrigin.baseURL)
 	if err != nil {
 		h.logger.Warn("receiver discovery failed", "receiver", req.ReceiverDomain, "error", err)
 		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed, "could not discover receiver")
+
 		return
 	}
 
@@ -192,6 +203,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	if h.resolver != nil {
 		facts = h.resolver.ResolveFacts(receiverOrigin.peerDomain, disc)
 	}
+
 	mustInclude := mustIncludeTokenExchange(facts, disc)
 	requirements := tokenExchangeRequirements(mustInclude)
 
@@ -201,6 +213,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 			"has_token_endpoint", h.localTokenEndPoint != "")
 		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
 			"local sender is not configured for token exchange")
+
 		return
 	}
 
@@ -209,6 +222,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 			"receiver", req.ReceiverDomain)
 		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
 			"receiver does not advertise exchange-token with tokenEndPoint")
+
 		return
 	}
 
@@ -219,15 +233,19 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 			h.logger.Warn("failed to build absolute webdav uri", "receiver", req.ReceiverDomain, "error", buildErr)
 			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
 				"receiver webdav-receive absolute uri could not be built")
+
 			return
 		}
+
 		if h.peerOrigin == nil || !h.peerOrigin.IsAbsoluteURIAllowed(absURI, req.ReceiverDomain) {
 			h.logger.Warn("absolute webdav uri failed peer authority check",
 				"receiver", req.ReceiverDomain, "uri", absURI)
 			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
 				"receiver webdav-receive absolute uri failed authority check")
+
 			return
 		}
+
 		webdavURI = absURI
 	}
 
@@ -255,6 +273,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	if err := h.sendShareToReceiver(r.Context(), receiverOrigin, disc, payload); err != nil {
 		h.logger.Warn("failed to send share to receiver", "receiver", req.ReceiverDomain, "error", err)
 		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, err.Error())
+
 		return
 	}
 
@@ -281,6 +300,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	if err := h.repo.Create(r.Context(), share); err != nil {
 		h.logger.Error("failed to store outgoing share", "error", err)
 		api.WriteInternalError(w, "share sent but local persistence failed")
+
 		return
 	}
 
@@ -312,6 +332,7 @@ func (h *Handler) validateLocalPath(path string) (string, error) {
 	}
 
 	allowed := false
+
 	for _, prefix := range h.allowedPaths {
 		if strings.HasPrefix(cleanPath, prefix) {
 			allowed = true
@@ -338,6 +359,7 @@ func (h *Handler) sendShareToReceiver(
 	}
 
 	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.peerOrigin)
+
 	resp, err := poster.SendResolved(ctx, outbound.Request{
 		TargetHost:   origin.peerDomain,
 		EndpointPath: "shares",
@@ -362,6 +384,7 @@ func (h *Handler) sendShareToReceiver(
 func generateSharedSecret() string {
 	b := make([]byte, 32)
 	rand.Read(b)
+
 	return base64.URLEncoding.EncodeToString(b)
 }
 
@@ -374,7 +397,9 @@ func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
 	if h.peerOrigin == nil {
 		return resolvedPeerOrigin{}
 	}
+
 	decision := h.peerOrigin.Resolve(peerDomain)
+
 	return resolvedPeerOrigin{
 		baseURL:    decision.BaseURL,
 		peerDomain: decision.PeerDomain,

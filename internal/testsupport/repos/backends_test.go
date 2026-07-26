@@ -14,6 +14,7 @@ func TestBackendListsDerivedFromAllBackends(t *testing.T) {
 	for i, tr := range OpenTestRepos() {
 		openNames[i] = tr.Name
 	}
+
 	if !slices.Equal(openNames, all) {
 		t.Fatalf("OpenTestRepos names = %v, want AllBackends = %v", openNames, all)
 	}

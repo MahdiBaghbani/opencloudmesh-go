@@ -30,6 +30,7 @@ func TestCompatCompiler_EmitDiscoveryCriteriaUsesSpecConstants(t *testing.T) {
 	if len(criteria) != len(want) {
 		t.Fatalf("criteria = %v, want %v", criteria, want)
 	}
+
 	for i := range want {
 		if criteria[i] != want[i] {
 			t.Errorf("criteria[%d] = %q, want %q", i, criteria[i], want[i])
@@ -99,6 +100,7 @@ func TestCompatCompiler_EmitCapabilitiesUsesSpecConstants(t *testing.T) {
 		InvitesEnabled:       true,
 		WayfEnabled:          true,
 	})
+
 	want := []string{
 		spec.CapabilityHTTPSig,
 		spec.CapabilityExchangeToken,
@@ -108,6 +110,7 @@ func TestCompatCompiler_EmitCapabilitiesUsesSpecConstants(t *testing.T) {
 	if len(got) != len(want) {
 		t.Fatalf("capabilities = %v, want %v", got, want)
 	}
+
 	for i := range want {
 		if got[i] != want[i] {
 			t.Errorf("capabilities[%d] = %q, want %q", i, got[i], want[i])
@@ -161,10 +164,12 @@ func TestCompatCompiler_EmitProtocolsUsesSpecConstants(t *testing.T) {
 	if !ok || path != "/webdav/ocm/" {
 		t.Fatalf("webdav role = %q, ok=%v", path, ok)
 	}
+
 	wr, ok := got.WebDAVReceive()
 	if !ok || wr.URI != spec.WebDAVReceiveURIRelative {
 		t.Fatalf("webdav-receive = %+v, ok=%v", wr, ok)
 	}
+
 	if _, ok := got[spec.ProtocolWebDAVReceive]; !ok {
 		t.Fatalf("missing %q key", spec.ProtocolWebDAVReceive)
 	}
@@ -183,6 +188,7 @@ func TestCompatCompiler_EmitProtocolsOmitsWhenEmpty(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("protocols = %v, want single webdav entry", got)
 	}
+
 	if _, ok := got[spec.ProtocolWebDAVReceive]; ok {
 		t.Fatal("did not expect webdav-receive without WebDAVReceiveURI")
 	}
@@ -193,6 +199,7 @@ func TestCompatCompiler_EmitProtocolsOmitsWhenEmpty(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("protocols = %v, want single webdav-receive entry", got)
 	}
+
 	if _, ok := got[spec.ProtocolWebDAV]; ok {
 		t.Fatal("did not expect webdav without WebDAVRoot")
 	}
@@ -214,6 +221,7 @@ func TestCompatCompiler_EmitShareRequirementsUsesSpecConstants(t *testing.T) {
 	if len(got) != 1 || got[0] != spec.RequirementMustExchangeToken {
 		t.Fatalf("EmitShareRequirements(true) = %v, want [%q]", got, spec.RequirementMustExchangeToken)
 	}
+
 	if compiler.EmitShareRequirements(policy.EmitShareRequirementsInput{
 		IncludesTokenExchange: false,
 	}) != nil {
@@ -225,10 +233,12 @@ func TestCompatCompiler_RecognizedShareRequirementsUsesSpecConstants(t *testing.
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 
 	got := compiler.RecognizedShareRequirements()
+
 	want := []string{spec.RequirementMustExchangeToken, spec.RequirementMustUseMFA}
 	if len(got) != len(want) {
 		t.Fatalf("RecognizedShareRequirements = %v, want %v", got, want)
 	}
+
 	for i := range want {
 		if got[i] != want[i] {
 			t.Errorf("got[%d] = %q, want %q", i, got[i], want[i])
@@ -242,6 +252,7 @@ func TestCompatCompiler_LocalProfileDelegatesToResolver(t *testing.T) {
 		RequiresTokenExchangeRequirement: &falseVal,
 	}
 	compiler := policy.NewCompatCompiler(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeGlobal)
+
 	facts := compiler.LocalProfile("host.example")
 	if facts.RequiresTokenExchange {
 		t.Error("expected global peer_compat knob to relax RequiresTokenExchange")

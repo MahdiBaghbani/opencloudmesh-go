@@ -51,6 +51,7 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
 			req.Header.Set("Content-Type", tc.contentType)
+
 			w := httptest.NewRecorder()
 			svc.Handler().ServeHTTP(w, req)
 
@@ -58,6 +59,7 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 				t.Fatalf("expected 400 declared-peer fail-closed on %s (AndPeer wiring), got %d: %s",
 					tc.name, w.Code, w.Body.String())
 			}
+
 			body := w.Body.String()
 			if !strings.Contains(body, "declared peer") && !strings.Contains(body, "invalid declared peer") {
 				t.Fatalf("%s body = %q, want declared-peer error", tc.name, body)

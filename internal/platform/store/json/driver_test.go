@@ -14,6 +14,7 @@ func newJSONDriver(t *testing.T) (store.Driver, string) {
 	tempDir := testutil.TempDataDir(t, "ocm-test-json-*")
 	cfg := &store.DriverConfig{Driver: "json", DataDir: tempDir}
 	d := testutil.OpenDriver(t, cfg)
+
 	return d, tempDir
 }
 
@@ -46,6 +47,7 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatal(err)
 	}
+
 	driver.Close()
 
 	// Reload driver - data should survive
@@ -53,10 +55,12 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 	defer driver2.Close()
 
 	outStore2 := driver2.(store.OutgoingShareStore)
+
 	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderId)
 	if err != nil {
 		t.Fatalf("share not found after restart: %v", err)
 	}
+
 	if got.ProviderId != share.ProviderId {
 		t.Errorf("data corruption: expected %q, got %q", share.ProviderId, got.ProviderId)
 	}

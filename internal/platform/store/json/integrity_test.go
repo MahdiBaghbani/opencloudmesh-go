@@ -3,6 +3,7 @@ package json_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,10 +17,12 @@ import (
 // bypassing the driver's normal write path. Used to inject corrupt state.
 func writePersistedJSON(t *testing.T, dir, filename string, data interface{}) {
 	t.Helper()
+
 	raw, err := json.Marshal(data)
 	if err != nil {
 		t.Fatalf("writePersistedJSON marshal: %v", err)
 	}
+
 	if err := os.WriteFile(filepath.Join(dir, filename), raw, 0600); err != nil {
 		t.Fatalf("writePersistedJSON write %s: %v", filename, err)
 	}
@@ -33,6 +36,7 @@ func writePersistedJSON(t *testing.T, dir, filename string, data interface{}) {
 func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	driver, _ := newJSONDriver(t)
 	defer driver.Close()
+
 	ctx := context.Background()
 
 	outStore := driver.(store.OutgoingShareStore)
@@ -40,6 +44,7 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	share := testutil.NewOutgoingShareFixture()
 	share.WebDAVId = "original-webdav"
 	share.ShareId = "original-share-id"
+
 	share.SharedSecret = "original-secret"
 	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatalf("CreateOutgoingShare: %v", err)
@@ -61,13 +66,15 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	}
 
 	// Old index entries must be gone.
-	if _, err := outStore.GetOutgoingShareByID(ctx, "original-share-id"); err != store.ErrNotFound {
+	if _, err := outStore.GetOutgoingShareByID(ctx, "original-share-id"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("stale shareId index entry survives: expected ErrNotFound, got %v", err)
 	}
-	if _, err := outStore.GetOutgoingShareByWebDAVId(ctx, "original-webdav"); err != store.ErrNotFound {
+
+	if _, err := outStore.GetOutgoingShareByWebDAVId(ctx, "original-webdav"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("stale webdav index entry survives: expected ErrNotFound, got %v", err)
 	}
-	if _, err := outStore.GetOutgoingShareBySharedSecret(ctx, "original-secret"); err != store.ErrNotFound {
+
+	if _, err := outStore.GetOutgoingShareBySharedSecret(ctx, "original-secret"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("stale secret index entry survives: expected ErrNotFound, got %v", err)
 	}
 
@@ -76,6 +83,7 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingShareByWebDAVId(new-webdav): %v", err)
 	}
+
 	if got.ProviderId != share.ProviderId {
 		t.Errorf("wrong share returned: expected %q, got %q", share.ProviderId, got.ProviderId)
 	}
@@ -84,6 +92,7 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingShareByID(new-share-id): %v", err)
 	}
+
 	if got.ProviderId != share.ProviderId {
 		t.Errorf(
 			"wrong share returned via shareId: expected %q, got %q",
@@ -96,6 +105,7 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingShareBySharedSecret(new-secret): %v", err)
 	}
+
 	if got.ProviderId != share.ProviderId {
 		t.Errorf("wrong share returned via secret: expected %q, got %q", share.ProviderId, got.ProviderId)
 	}
@@ -135,6 +145,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVId(t *testing.T) {
 	writePersistedJSON(t, tempDir, "outgoing_shares.json", shares)
 
 	cfg := &store.DriverConfig{Driver: "json", DataDir: tempDir}
+
 	d, err := store.New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -179,6 +190,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareId(t *testing.T) {
 	writePersistedJSON(t, tempDir, "outgoing_shares.json", shares)
 
 	cfg := &store.DriverConfig{Driver: "json", DataDir: tempDir}
+
 	d, err := store.New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -221,6 +233,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingInviteToken(t *testing.T) {
 	writePersistedJSON(t, tempDir, "outgoing_invites.json", invites)
 
 	cfg := &store.DriverConfig{Driver: "json", DataDir: tempDir}
+
 	d, err := store.New(cfg)
 	if err != nil {
 		t.Fatal(err)

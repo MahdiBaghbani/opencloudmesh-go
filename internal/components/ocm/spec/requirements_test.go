@@ -35,6 +35,7 @@ func TestWebDAVHasRequirementUsesConstant(t *testing.T) {
 	if !p.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Error("HasRequirement(RequirementMustExchangeToken) = false, want true")
 	}
+
 	if p.HasRequirement(spec.RequirementMustUseMFA) {
 		t.Error("HasRequirement(RequirementMustUseMFA) = true, want false")
 	}
@@ -47,6 +48,7 @@ func TestWebappHasRequirementUsesConstant(t *testing.T) {
 	if !p.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Error("HasRequirement(RequirementMustExchangeToken) = false, want true")
 	}
+
 	if p.HasRequirement(spec.RequirementMustUseMFA) {
 		t.Error("HasRequirement(RequirementMustUseMFA) = true, want false")
 	}
@@ -75,6 +77,7 @@ func TestRequirementClosedPathNoRawWireLiterals(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
 			}
+
 			content := string(data)
 			for _, lit := range requirementWireLiterals {
 				if strings.Contains(content, lit) {

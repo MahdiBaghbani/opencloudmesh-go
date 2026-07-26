@@ -14,31 +14,39 @@ import (
 
 func TestRegisteredRouteSpecs_IncludesAllCoreServices(t *testing.T) {
 	opts := service.DefaultRouteOpts()
+
 	specs := service.RegisteredRouteSpecs(opts)
 	if len(specs) == 0 {
 		t.Fatal("expected registered route specs")
 	}
 
 	seen := make(map[string]struct{})
+
 	for _, spec := range specs {
 		if spec.ID == "" {
 			t.Errorf("route spec missing ID: %+v", spec)
 		}
+
 		if spec.Service == "" {
 			t.Errorf("route spec %q missing Service", spec.ID)
 		}
+
 		if spec.Pattern == "" {
 			t.Errorf("route spec %q missing Pattern", spec.ID)
 		}
+
 		if spec.SurfaceClass == "" {
 			t.Errorf("route spec %q missing SurfaceClass", spec.ID)
 		}
+
 		if spec.HandlerAuth == "" {
 			t.Errorf("route spec %q missing HandlerAuth", spec.ID)
 		}
+
 		if spec.TrustClass == "" {
 			t.Errorf("route spec %q missing TrustClass", spec.ID)
 		}
+
 		seen[spec.Service] = struct{}{}
 	}
 

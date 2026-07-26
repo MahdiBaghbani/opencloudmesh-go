@@ -48,16 +48,20 @@ func CreateOutgoing(client *http.Client, baseURL, token string) (*OutgoingCreate
 	}
 
 	var resp OutgoingCreateResponse
+
 	status, raw, err := tsession.DoJSON(client, req, &resp)
 	if err != nil {
 		return nil, status, err
 	}
+
 	if status != http.StatusCreated {
 		return nil, status, fmt.Errorf("create outgoing invite: status=%d body=%s", status, raw)
 	}
+
 	if resp.InviteString == "" || resp.Token == "" {
 		return nil, status, fmt.Errorf("create outgoing invite returned empty token or inviteString: %s", raw)
 	}
+
 	return &resp, status, nil
 }
 
@@ -71,38 +75,47 @@ func Import(client *http.Client, baseURL, token, inviteString string) (*ImportRe
 	}
 
 	var resp ImportResponse
+
 	status, raw, err := tsession.DoJSON(client, req, &resp)
 	if err != nil {
 		return nil, status, err
 	}
+
 	if status != http.StatusCreated && status != http.StatusOK {
 		return nil, status, fmt.Errorf("import invite: status=%d body=%s", status, raw)
 	}
+
 	if resp.ID == "" {
 		return nil, status, fmt.Errorf("import invite returned empty id: %s", raw)
 	}
+
 	return &resp, status, nil
 }
 
 // Accept posts to /api/inbox/invites/{id}/accept.
 func Accept(client *http.Client, baseURL, token, inviteID string) (*AcceptResponse, int, error) {
 	path := fmt.Sprintf("/api/inbox/invites/%s/accept", inviteID)
+
 	req, err := tsession.NewRequest(http.MethodPost, baseURL, path, token, nil)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var resp AcceptResponse
+
 	status, raw, err := tsession.DoJSON(client, req, &resp)
 	if err != nil {
 		return nil, status, err
 	}
+
 	if status != http.StatusOK {
 		return nil, status, fmt.Errorf("accept invite: status=%d body=%s", status, raw)
 	}
+
 	if resp.Status != invites.InviteStatusAccepted {
 		return nil, status, fmt.Errorf("accept invite status=%q, want accepted", resp.Status)
 	}
+
 	return &resp, status, nil
 }
 
@@ -114,13 +127,16 @@ func ListInbox(client *http.Client, baseURL, token string) (*InboxListResponse, 
 	}
 
 	var resp InboxListResponse
+
 	status, raw, err := tsession.DoJSON(client, req, &resp)
 	if err != nil {
 		return nil, status, err
 	}
+
 	if status != http.StatusOK {
 		return nil, status, fmt.Errorf("list inbox invites: status=%d body=%s", status, raw)
 	}
+
 	return &resp, status, nil
 }
 
@@ -129,10 +145,12 @@ func FindInboxInvite(list *InboxListResponse, inviteID string) (*InboxInviteView
 	if list == nil {
 		return nil, fmt.Errorf("nil inbox list")
 	}
+
 	for i := range list.Invites {
 		if list.Invites[i].ID == inviteID {
 			return &list.Invites[i], nil
 		}
 	}
+
 	return nil, fmt.Errorf("invite %q not found in inbox list", inviteID)
 }

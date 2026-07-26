@@ -25,6 +25,7 @@ func TestHandleImport_Success(t *testing.T) {
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
 	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -40,6 +41,7 @@ func TestHandleImport_Success(t *testing.T) {
 	if resp.SenderFQDN != "remote.example.com" {
 		t.Errorf("expected senderFqdn remote.example.com, got %s", resp.SenderFQDN)
 	}
+
 	if resp.Status != invites.InviteStatusPending {
 		t.Errorf("expected status pending, got %s", resp.Status)
 	}
@@ -60,6 +62,7 @@ func TestHandleImport_Idempotent(t *testing.T) {
 
 	req1 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req1.Header.Set("Content-Type", "application/json")
+
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
 
@@ -72,6 +75,7 @@ func TestHandleImport_Idempotent(t *testing.T) {
 
 	req2 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req2.Header.Set("Content-Type", "application/json")
+
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
 
@@ -95,6 +99,7 @@ func TestHandleImport_InvalidInviteString(t *testing.T) {
 	body := `{"inviteString":"not-valid-base64!!!"}`
 	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -111,6 +116,7 @@ func TestHandleImport_MissingInviteString(t *testing.T) {
 	body := `{}`
 	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -127,6 +133,7 @@ func TestHandleImport_Unauthenticated(t *testing.T) {
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
 	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -144,6 +151,7 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 	routerA := newTestRouter(t, repo, userA)
 	req1 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req1.Header.Set("Content-Type", "application/json")
+
 	w1 := httptest.NewRecorder()
 	routerA.ServeHTTP(w1, req1)
 
@@ -155,6 +163,7 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 	routerB := newTestRouter(t, repo, userB)
 	req2 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req2.Header.Set("Content-Type", "application/json")
+
 	w2 := httptest.NewRecorder()
 	routerB.ServeHTTP(w2, req2)
 
@@ -168,6 +177,7 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 	if len(invitesA) != 1 {
 		t.Errorf("expected 1 invite for user A, got %d", len(invitesA))
 	}
+
 	if len(invitesB) != 1 {
 		t.Errorf("expected 1 invite for user B, got %d", len(invitesB))
 	}

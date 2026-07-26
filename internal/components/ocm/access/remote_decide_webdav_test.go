@@ -20,6 +20,7 @@ func TestDecideAccessAuth_NilShareFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected nil share to fail closed, got mode %q", decision.Mode)
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonProtocolMismatch {
 		t.Errorf("expected protocol mismatch error, got: %v", err)
@@ -45,6 +46,7 @@ func TestDecideAccessAuth_WebDAVTokenExchange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if decision.Mode != AccessModeTokenExchange {
 		t.Errorf("mode = %q, want %q", decision.Mode, AccessModeTokenExchange)
 	}
@@ -65,6 +67,7 @@ func TestDecideAccessAuth_WebDAVSharedSecret(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if decision.Mode != AccessModeSharedSecret {
 		t.Errorf("mode = %q, want %q", decision.Mode, AccessModeSharedSecret)
 	}
@@ -87,6 +90,7 @@ func TestDecideAccessAuth_WebDAVRequiresButNotCapable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected fail-closed when token exchange required but peer not capable")
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonPeerCapabilityMissing {
 		t.Errorf("expected peer capability missing, got: %v", err)
@@ -113,12 +117,15 @@ func TestDecideAccessAuth_WebDAVRequiresHTTPSigButNotCapable(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected fail-closed when peer requires http-sig but is not capable, got mode %q", decision.Mode)
 	}
+
 	if decision.Mode != AccessModeFailClosed {
 		t.Errorf("mode = %q, want %q", decision.Mode, AccessModeFailClosed)
 	}
+
 	if decision.HTTPStatus != http.StatusForbidden {
 		t.Errorf("HTTPStatus = %d, want %d", decision.HTTPStatus, http.StatusForbidden)
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonSignatureRequired {
 		t.Errorf("expected signature required, got: %v", err)
@@ -161,9 +168,11 @@ func TestDecideAccessAuth_WebDAVSharedSecret_IgnoresMustUseHTTPSig(t *testing.T)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if decision.Mode != AccessModeSharedSecret {
 				t.Errorf("mode = %q, want %q", decision.Mode, AccessModeSharedSecret)
 			}
+
 			if decision.HTTPStatus != http.StatusOK {
 				t.Errorf("HTTPStatus = %d, want %d", decision.HTTPStatus, http.StatusOK)
 			}
@@ -236,6 +245,7 @@ func TestDecideAccessAuth_WebDAVOptionalExchange(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			if decision.Mode != tt.wantMode {
 				t.Errorf("mode = %q, want %q", decision.Mode, tt.wantMode)
 			}

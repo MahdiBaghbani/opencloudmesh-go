@@ -20,8 +20,10 @@ func envMap(env []string) map[string]string {
 			m[key] = ""
 			continue
 		}
+
 		m[key] = value
 	}
+
 	return m
 }
 
@@ -69,11 +71,13 @@ func TestScrubSubprocessEnvRemovesBlocklistedVars(t *testing.T) {
 		if !ok {
 			t.Fatalf("malformed expected kv %q", kv)
 		}
+
 		gotValue, present := got[key]
 		if !present {
 			t.Errorf("scrubSubprocessEnv dropped unrelated env var %q", key)
 			continue
 		}
+
 		if gotValue != value {
 			t.Errorf("scrubSubprocessEnv mutated value for %q: got %q, want %q", key, gotValue, value)
 		}
@@ -103,6 +107,7 @@ func TestScrubSubprocessEnvPreservesAllNonBlocklisted(t *testing.T) {
 	if len(scrubbed) != len(want) {
 		t.Fatalf("scrubSubprocessEnv length = %d, want %d (got %v)", len(scrubbed), len(want), scrubbed)
 	}
+
 	for i, kv := range want {
 		if scrubbed[i] != kv {
 			t.Errorf("scrubSubprocessEnv[%d] = %q, want %q (full: %v)", i, scrubbed[i], kv, scrubbed)
@@ -118,10 +123,12 @@ func TestScrubSubprocessEnvEmptyAndNoop(t *testing.T) {
 	}
 
 	input := []string{"PATH=/usr/bin", "HOME=/tmp"}
+
 	scrubbed := scrubSubprocessEnv(input)
 	if len(scrubbed) != len(input) {
 		t.Fatalf("scrubSubprocessEnv noop length = %d, want %d", len(scrubbed), len(input))
 	}
+
 	for i, kv := range input {
 		if scrubbed[i] != kv {
 			t.Errorf("scrubSubprocessEnv noop[%d] = %q, want %q", i, scrubbed[i], kv)
@@ -138,6 +145,7 @@ func TestHermeticEnvBlocklistContainsUseEnvFallback(t *testing.T) {
 			return
 		}
 	}
+
 	blocklisted := append([]string(nil), hermeticEnvBlocklist...)
 	sort.Strings(blocklisted)
 	t.Errorf("hermeticEnvBlocklist missing %q; current blocklist: %v", want, blocklisted)
@@ -163,6 +171,7 @@ func TestScrubParentConfigEnvRestoresBlocklistedVars(t *testing.T) {
 	for _, k := range hermeticEnvBlocklist {
 		originals[k] = os.Getenv(k)
 	}
+
 	t.Cleanup(func() {
 		for _, k := range hermeticEnvBlocklist {
 			if v, ok := originals[k]; ok && v != "" {
@@ -200,6 +209,7 @@ func TestScrubParentConfigEnvRestoresBlocklistedVars(t *testing.T) {
 	// Restoring must re-apply the prior (sentinel) value for every blocklisted
 	// variable that was set before the scrub.
 	restore()
+
 	for _, k := range hermeticEnvBlocklist {
 		if got := os.Getenv(k); got != sentinel {
 			t.Errorf("after restore, %q = %q; want %q", k, got, sentinel)

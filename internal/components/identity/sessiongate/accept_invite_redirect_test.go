@@ -53,6 +53,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 	}
 
 	redirect := parsed.Query().Get("redirect")
+
 	wantRedirect := "/ui/accept-invite?" + originalQuery
 	if redirect != wantRedirect {
 		t.Fatalf("redirect = %q, want %q", redirect, wantRedirect)
@@ -98,6 +99,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesQueryWithBasePath(t *testing.T) {
 	}
 
 	redirect := parsed.Query().Get("redirect")
+
 	wantRedirect := "/ocm/ui/accept-invite?" + originalQuery
 	if redirect != wantRedirect {
 		t.Fatalf("redirect = %q, want %q", redirect, wantRedirect)

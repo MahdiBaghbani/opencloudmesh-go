@@ -22,6 +22,7 @@ import (
 func TestJSONOutgoingShareIsolation(t *testing.T) {
 	driver, _ := newJSONDriver(t)
 	defer driver.Close()
+
 	ctx := context.Background()
 
 	outStore := driver.(store.OutgoingShareStore)
@@ -43,6 +44,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingShare: %v", err)
 	}
+
 	if got.State != "sent" {
 		t.Errorf("create isolation broken: stored State = %q, want %q", got.State, "sent")
 	}
@@ -54,6 +56,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second GetOutgoingShare: %v", err)
 	}
+
 	if got2.State != "sent" {
 		t.Errorf("get isolation broken: stored State = %q, want %q", got2.State, "sent")
 	}
@@ -63,28 +66,34 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListOutgoingShares: %v", err)
 	}
+
 	var found *store.OutgoingShare
+
 	for _, s := range listed {
 		if s.ProviderId == original.ProviderId {
 			found = s
 			break
 		}
 	}
+
 	if found == nil {
 		t.Fatalf("share not found in list")
 	}
+
 	found.State = "mutated-after-list"
 
 	got3, err := outStore.GetOutgoingShare(ctx, original.ProviderId)
 	if err != nil {
 		t.Fatalf("third GetOutgoingShare: %v", err)
 	}
+
 	if got3.State != "sent" {
 		t.Errorf("list isolation broken: stored State = %q, want %q", got3.State, "sent")
 	}
 
 	// 4. Update path still works correctly.
 	updateCopy := *got3
+
 	updateCopy.State = "accepted"
 	if err := outStore.UpdateOutgoingShare(ctx, &updateCopy); err != nil {
 		t.Fatalf("UpdateOutgoingShare: %v", err)
@@ -94,6 +103,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingShare after update: %v", err)
 	}
+
 	if got4.State != "accepted" {
 		t.Errorf("update did not persist: State = %q, want %q", got4.State, "accepted")
 	}
@@ -112,6 +122,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 func TestJSONIncomingShareIsolation(t *testing.T) {
 	driver, _ := newJSONDriver(t)
 	defer driver.Close()
+
 	ctx := context.Background()
 
 	inStore := driver.(store.IncomingShareStore)
@@ -135,9 +146,11 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient: %v", err)
 	}
+
 	if got.State != "pending" {
 		t.Errorf("create isolation broken: stored State = %q, want %q", got.State, "pending")
 	}
+
 	if got.UserId != "bob" {
 		t.Errorf("create isolation broken: stored UserId = %q, want %q", got.UserId, "bob")
 	}
@@ -150,6 +163,7 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second GetIncomingShareByIDForRecipient: %v", err)
 	}
+
 	if got2.State != "pending" {
 		t.Errorf("get isolation broken: stored State = %q, want %q", got2.State, "pending")
 	}
@@ -159,15 +173,18 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey: %v", err)
 	}
+
 	if byKey.ShareId != "iso-share-1" {
 		t.Errorf("provider-key lookup: unexpected ShareId %q", byKey.ShareId)
 	}
+
 	byKey.State = "mutated-after-provider-key-get"
 
 	got3, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("third GetIncomingShareByIDForRecipient: %v", err)
 	}
+
 	if got3.State != "pending" {
 		t.Errorf(
 			"provider-key get isolation broken: stored State = %q, want %q",
@@ -181,15 +198,18 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListIncomingSharesByRecipient: %v", err)
 	}
+
 	if len(listed) != 1 {
 		t.Fatalf("expected 1 share, got %d", len(listed))
 	}
+
 	listed[0].State = "mutated-after-list"
 
 	got4, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("fourth GetIncomingShareByIDForRecipient: %v", err)
 	}
+
 	if got4.State != "pending" {
 		t.Errorf("list isolation broken: stored State = %q, want %q", got4.State, "pending")
 	}
@@ -203,6 +223,7 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient after update: %v", err)
 	}
+
 	if got5.State != "accepted" {
 		t.Errorf("status update did not persist: State = %q, want %q", got5.State, "accepted")
 	}
@@ -221,6 +242,7 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 func TestJSONIncomingInviteIsolation(t *testing.T) {
 	driver, _ := newJSONDriver(t)
 	defer driver.Close()
+
 	ctx := context.Background()
 
 	inStore := driver.(store.IncomingInviteStore)
@@ -243,9 +265,11 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetIncomingInviteForRecipient: %v", err)
 	}
+
 	if got.Status != "pending" {
 		t.Errorf("create isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
+
 	if got.RecipientUserId != "alice" {
 		t.Errorf(
 			"create isolation broken: stored RecipientUserId = %q, want %q",
@@ -261,6 +285,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second GetIncomingInviteForRecipient: %v", err)
 	}
+
 	if got2.Status != "pending" {
 		t.Errorf("get isolation broken: stored Status = %q, want %q", got2.Status, "pending")
 	}
@@ -270,15 +295,18 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken: %v", err)
 	}
+
 	if byToken.ID != "iso-invite-1" {
 		t.Errorf("token lookup: unexpected ID %q", byToken.ID)
 	}
+
 	byToken.Status = "mutated-after-token-get"
 
 	got3, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
 	if err != nil {
 		t.Fatalf("third GetIncomingInviteForRecipient: %v", err)
 	}
+
 	if got3.Status != "pending" {
 		t.Errorf("token-get isolation broken: stored Status = %q, want %q", got3.Status, "pending")
 	}
@@ -288,15 +316,18 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListIncomingInvites: %v", err)
 	}
+
 	if len(listed) != 1 {
 		t.Fatalf("expected 1 invite, got %d", len(listed))
 	}
+
 	listed[0].Status = "mutated-after-list"
 
 	got4, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
 	if err != nil {
 		t.Fatalf("fourth GetIncomingInviteForRecipient: %v", err)
 	}
+
 	if got4.Status != "pending" {
 		t.Errorf("list isolation broken: stored Status = %q, want %q", got4.Status, "pending")
 	}
@@ -310,6 +341,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetIncomingInviteForRecipient after update: %v", err)
 	}
+
 	if got5.Status != "accepted" {
 		t.Errorf("status update did not persist: Status = %q, want %q", got5.Status, "accepted")
 	}
@@ -319,6 +351,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken after update: %v", err)
 	}
+
 	if byTokenAfterUpdate.Status != "accepted" {
 		t.Errorf(
 			"token lookup after update: Status = %q, want %q",
@@ -343,6 +376,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	driver, _ := newJSONDriver(t)
 	defer driver.Close()
+
 	ctx := context.Background()
 
 	outInvStore := driver.(store.OutgoingInviteStore)
@@ -364,6 +398,7 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingInvite: %v", err)
 	}
+
 	if got.Status != "pending" {
 		t.Errorf("create isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
@@ -375,6 +410,7 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second GetOutgoingInvite: %v", err)
 	}
+
 	if got2.Status != "pending" {
 		t.Errorf("get isolation broken: stored Status = %q, want %q", got2.Status, "pending")
 	}
@@ -384,15 +420,18 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken: %v", err)
 	}
+
 	if byToken.ID != original.ID {
 		t.Errorf("token lookup: unexpected ID %q", byToken.ID)
 	}
+
 	byToken.Status = "mutated-after-token-get"
 
 	got3, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
 	if err != nil {
 		t.Fatalf("third GetOutgoingInvite: %v", err)
 	}
+
 	if got3.Status != "pending" {
 		t.Errorf("token-get isolation broken: stored Status = %q, want %q", got3.Status, "pending")
 	}
@@ -402,21 +441,25 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListOutgoingInvites: %v", err)
 	}
+
 	if len(listed) != 1 {
 		t.Fatalf("expected 1 invite, got %d", len(listed))
 	}
+
 	listed[0].Status = "mutated-after-list"
 
 	got4, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
 	if err != nil {
 		t.Fatalf("fourth GetOutgoingInvite: %v", err)
 	}
+
 	if got4.Status != "pending" {
 		t.Errorf("list isolation broken: stored Status = %q, want %q", got4.Status, "pending")
 	}
 
 	// 5. Update path still works correctly.
 	updateCopy := *got4
+
 	updateCopy.Status = "accepted"
 	if err := outInvStore.UpdateOutgoingInvite(ctx, &updateCopy); err != nil {
 		t.Fatalf("UpdateOutgoingInvite: %v", err)
@@ -426,6 +469,7 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingInvite after update: %v", err)
 	}
+
 	if got5.Status != "accepted" {
 		t.Errorf("update did not persist: Status = %q, want %q", got5.Status, "accepted")
 	}
@@ -435,6 +479,7 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken after update: %v", err)
 	}
+
 	if byTokenAfterUpdate.Status != "accepted" {
 		t.Errorf(
 			"token lookup after update: Status = %q, want %q",

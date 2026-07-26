@@ -21,6 +21,7 @@ func TestFetchListing_Required_SetsVerifiedTrue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if !listing.Verified {
 		t.Error("expected Verified=true for required policy with valid JWS")
 	}
@@ -38,9 +39,11 @@ func TestFetchListing_Optional_UnsignedPayload_Accepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if listing.Verified {
 		t.Error("expected Verified=false for unsigned payload with optional policy")
 	}
+
 	assertListing(t, listing)
 }
 
@@ -58,9 +61,11 @@ func TestFetchListing_Optional_ValidJWS_Verified(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if !listing.Verified {
 		t.Error("expected Verified=true for valid JWS with optional policy")
 	}
+
 	assertListing(t, listing)
 }
 
@@ -92,9 +97,11 @@ func TestFetchListing_Optional_NoKeys_AcceptsAsUnsigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if listing.Verified {
 		t.Error("expected Verified=false with no keys in optional mode")
 	}
+
 	assertListing(t, listing)
 }
 
@@ -109,9 +116,11 @@ func TestFetchListing_Off_Accepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if listing.Verified {
 		t.Error("expected Verified=false for off policy")
 	}
+
 	assertListing(t, listing)
 }
 
@@ -149,6 +158,7 @@ func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error with per-call off policy: %v", err)
 	}
+
 	if listing.Verified {
 		t.Error("expected Verified=false for off policy")
 	}
@@ -180,12 +190,15 @@ func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if !listing.Verified {
 		t.Error("expected Verified=true")
 	}
+
 	if len(listing.Servers) != 3 {
 		t.Fatalf("expected 3 valid servers after filtering, got %d: %v", len(listing.Servers), listing.Servers)
 	}
+
 	expectedURLs := map[string]bool{
 		"https://valid.example.com":           true,
 		"https://also-valid.example.com:9200": true,
@@ -212,6 +225,7 @@ func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
 	}
 
 	signedBody := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+
 	signedTS := serveJWS(t, signedBody)
 	defer signedTS.Close()
 
@@ -219,6 +233,7 @@ func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("JWS-verified listing must be accepted: %v", err)
 	}
+
 	if !listing.Verified {
 		t.Fatal("trust membership consumes only JWS-verified directory listings")
 	}
@@ -232,6 +247,7 @@ func TestFetchListing_URLValidation_UnverifiedListingKeepsAllURLs(t *testing.T) 
 			{URL: "https://has-path.example.com/base/path", DisplayName: "Has Path"},
 		},
 	})
+
 	ts := serveJWS(t, payload)
 	defer ts.Close()
 
@@ -243,9 +259,11 @@ func TestFetchListing_URLValidation_UnverifiedListingKeepsAllURLs(t *testing.T) 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if listing.Verified {
 		t.Error("expected Verified=false for unsigned payload")
 	}
+
 	if len(listing.Servers) != 2 {
 		t.Errorf("expected 2 servers (no filtering for unverified), got %d", len(listing.Servers))
 	}

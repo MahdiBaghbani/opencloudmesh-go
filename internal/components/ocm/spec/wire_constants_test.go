@@ -64,34 +64,33 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		60: {},
 	},
 	"internal/frameworks/service/route_aggregate.go": {
-		113: {},
-		121: {},
+		130: {},
+		138: {},
 	},
 	"internal/frameworks/service/route_opts.go": {
-		47: {},
+		50: {},
 	},
 	"internal/frameworks/service/route_specs.go": {
 		32: {},
 		58: {},
 	},
 	"internal/platform/config/loader.go": {
-		// Line shifted after clarifying the env-overrides precedence comment.
-		687: {},
+		741: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		4: {},
 	},
 	"internal/services/ocm/mount.go": {
-		46: {},
+		48: {},
 	},
 	"internal/services/ocm/ocm.go": {
-		51:  {},
-		133: {},
+		53:  {},
+		136: {},
 	},
 	"internal/services/ocm/routes.go": {
-		29: {},
-		41: {},
-		53: {},
+		31: {},
+		43: {},
+		55: {},
 	},
 	"internal/services/ui/routes.go": {
 		59: {},
@@ -100,9 +99,9 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		19: {},
 	},
 	"internal/services/webdav/webdav.go": {
-		41: {},
-		47: {},
-		61: {},
+		43: {},
+		49: {},
+		63: {},
 	},
 }
 
@@ -113,6 +112,7 @@ func TestWireConstantsOwnedBySpec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
 	}
+
 	if len(violations) > 0 {
 		t.Fatalf("Raw wire literals outside allowlist:\n%s", strings.Join(violations, "\n"))
 	}
@@ -126,15 +126,18 @@ func TestWireConstantsScannerDetectsViolation(t *testing.T) {
 
 func init() { _ = "must-exchange-token" }
 `
+
 	path := filepath.Join(tmp, "pkg", "bad.go")
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatalf("mkdir temp fixture: %v", err)
 	}
+
 	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
 		t.Fatalf("write temp fixture: %v", err)
 	}
 
 	literals := wireLiteralSetAsMap()
+
 	violations, err := scanRawWireLiterals(tmp, literals, wireLiteralAllowlist)
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
@@ -179,6 +182,7 @@ func TestWireConstantsScannerSkipsGeneratedFiles(t *testing.T) {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatalf("mkdir temp fixture %s: %v", tc.dir, err)
 		}
+
 		path := filepath.Join(dir, "pkg.go")
 		if err := os.WriteFile(path, []byte(tc.src), 0644); err != nil {
 			t.Fatalf("write temp fixture %s: %v", tc.dir, err)
@@ -193,11 +197,13 @@ func TestWireConstantsScannerSkipsGeneratedFiles(t *testing.T) {
 	for _, tc := range cases {
 		rel := tc.dir + "/pkg.go"
 		count := 0
+
 		for _, v := range violations {
 			if strings.HasPrefix(v, rel+":") {
 				count++
 			}
 		}
+
 		if tc.skipped {
 			if count != 0 {
 				t.Errorf("expected %s to be skipped, got violations:\n%s", rel, strings.Join(violations, "\n"))
@@ -215,20 +221,24 @@ func wireLiteralSetAsMap() map[string]struct{} {
 	for _, lit := range wireLiteralSet {
 		literals[lit] = struct{}{}
 	}
+
 	return literals
 }
 
 func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist map[string]map[int]struct{}) ([]string, error) {
 	var violations []string
+
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			name := d.Name()
 			if name == ".git" || name == "vendor" || name == "node_modules" {
 				return filepath.SkipDir
 			}
+
 			return nil
 		}
 
@@ -236,16 +246,19 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 		if err != nil {
 			return err
 		}
+
 		rel = filepath.ToSlash(rel)
 
 		if !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
 			return nil
 		}
+
 		if isSpecOwnedProductionFile(rel) {
 			return nil
 		}
 
 		fset := token.NewFileSet()
+
 		f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", rel, err)
@@ -256,6 +269,7 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 		}
 
 		allowed := allowlist[rel]
+
 		ast.Inspect(f, func(n ast.Node) bool {
 			if field, ok := n.(*ast.Field); ok && field.Tag != nil {
 				// Struct tags are raw string syntax but not wire values;
@@ -263,6 +277,7 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 				// produce false positives.
 				return false
 			}
+
 			if imp, ok := n.(*ast.ImportSpec); ok {
 				// Import paths are string literals but never OCM wire values.
 				_ = imp
@@ -280,6 +295,7 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 				// Unquote fails, trim the surrounding backticks.
 				val = strings.Trim(lit.Value, "`")
 			}
+
 			if _, match := literals[val]; !match {
 				return true
 			}
@@ -290,13 +306,16 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 			}
 
 			violations = append(violations, fmt.Sprintf("%s:%d: raw wire literal %q", rel, pos.Line, val))
+
 			return true
 		})
+
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return violations, nil
 }
 
@@ -310,6 +329,7 @@ func isGeneratedFile(f *ast.File) bool {
 			if strings.Contains(c.Text, "Code generated") {
 				return true
 			}
+
 			if constraint.IsGoBuild(c.Text) {
 				expr, err := constraint.Parse(c.Text)
 				if err == nil && hasPositiveGeneratedTag(expr) {
@@ -318,6 +338,7 @@ func isGeneratedFile(f *ast.File) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -332,5 +353,6 @@ func hasPositiveGeneratedTag(expr constraint.Expr) bool {
 	case *constraint.OrExpr:
 		return hasPositiveGeneratedTag(e.X) || hasPositiveGeneratedTag(e.Y)
 	}
+
 	return false
 }

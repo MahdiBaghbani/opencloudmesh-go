@@ -37,6 +37,7 @@ func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
 	if len(resp.Invites) != 1 {
 		t.Fatalf("expected 1 invite for user A, got %d", len(resp.Invites))
 	}
+
 	if resp.Invites[0].ID != invA.ID {
 		t.Errorf("expected invite %s, got %s", invA.ID, resp.Invites[0].ID)
 	}

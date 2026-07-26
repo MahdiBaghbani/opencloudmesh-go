@@ -6,6 +6,7 @@ package outgoing_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 
@@ -38,7 +39,6 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 		TokenEndPoint: server.URL,
 		SharedSecret:  "bad-secret",
 	}, httpSigDiscovery())
-
 	if err == nil {
 		t.Fatal("expected error for invalid grant")
 	}
@@ -54,6 +54,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)
 		}
+
 		got := r.FormValue("grant_type")
 		if got != "authorization_code" {
 			t.Errorf("grant_type = %q, want %q", got, "authorization_code")
@@ -78,10 +79,10 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
 	}, httpSigDiscovery())
-
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
 	}
+
 	if result.AccessToken != "ac-token" {
 		t.Errorf("expected 'ac-token', got %s", result.AccessToken)
 	}
@@ -89,9 +90,11 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 
 // isClassifiedError reports whether err is a ClassifiedError and populates ce.
 func isClassifiedError(err error, ce **reason.ClassifiedError) bool {
-	if e, ok := err.(*reason.ClassifiedError); ok {
+	e := &reason.ClassifiedError{}
+	if errors.As(err, &e) {
 		*ce = e
 		return true
 	}
+
 	return false
 }

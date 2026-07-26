@@ -35,6 +35,7 @@ func createDetailedShareForUser(
 		Requirements:    requirements,
 	}
 	repo.Create(context.Background(), share)
+
 	return share
 }
 
@@ -62,12 +63,15 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	if resp["shareId"] != share.ShareID {
 		t.Errorf("expected shareId %s, got %v", share.ShareID, resp["shareId"])
 	}
+
 	if resp["providerId"] != "prov-detail" {
 		t.Errorf("expected providerId prov-detail, got %v", resp["providerId"])
 	}
+
 	if resp["name"] != share.Name {
 		t.Errorf("expected name %s, got %v", share.Name, resp["name"])
 	}
+
 	if resp["senderHost"] != "sender.example.com" {
 		t.Errorf("expected senderHost sender.example.com, got %v", resp["senderHost"])
 	}
@@ -76,6 +80,7 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	if resp["webdavId"] != "webdav-id-123" {
 		t.Errorf("expected webdavId webdav-id-123, got %v", resp["webdavId"])
 	}
+
 	if resp["webdavUriAbsolutePresent"] != false {
 		t.Errorf("expected webdavUriAbsolutePresent false (no absolute URI), got %v", resp["webdavUriAbsolutePresent"])
 	}
@@ -89,20 +94,25 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	if proto["name"] != "" {
 		t.Errorf("expected protocol.name empty for legacy row, got %v", proto["name"])
 	}
+
 	if _, hasWebapp := proto["webapp"]; hasWebapp {
 		t.Errorf("expected no webapp arm for legacy row, got %v", proto["webapp"])
 	}
+
 	webdav, ok := proto["webdav"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected protocol.webdav to be an object, got %T", proto["webdav"])
 	}
+
 	if webdav["uri"] != "webdav-id-123" {
 		t.Errorf("expected protocol.webdav.uri webdav-id-123, got %v", webdav["uri"])
 	}
+
 	reqs, ok := webdav["requirements"].([]any)
 	if !ok {
 		t.Fatalf("expected requirements to be an array, got %T", webdav["requirements"])
 	}
+
 	if len(reqs) != 1 || reqs[0] != "must-exchange-token" {
 		t.Errorf("expected requirements [must-exchange-token], got %v", reqs)
 	}
@@ -168,6 +178,7 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 	var resp map[string]any
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	proto := resp["protocol"].(map[string]any)
+
 	webdav := proto["webdav"].(map[string]any)
 	if webdav["sharedSecret"] != "[REDACTED]" {
 		t.Errorf("expected sharedSecret [REDACTED], got %v", webdav["sharedSecret"])
@@ -191,6 +202,7 @@ func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 	if strings.Contains(body, "recipientUserID") || strings.Contains(body, "RecipientUserID") {
 		t.Error("response contains RecipientUserID field name -- must not be leaked")
 	}
+
 	if strings.Contains(body, "recipientDisplayName") || strings.Contains(body, "RecipientDisplayName") {
 		t.Error("response contains RecipientDisplayName field name -- must not be leaked")
 	}
@@ -213,10 +225,12 @@ func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 	json.Unmarshal(wA.Body.Bytes(), &respA)
 	protoA := respA["protocol"].(map[string]any)
 	webdavA := protoA["webdav"].(map[string]any)
+
 	reqsA, ok := webdavA["requirements"].([]any)
 	if !ok {
 		t.Fatalf("expected requirements to be an array, got %T", webdavA["requirements"])
 	}
+
 	if len(reqsA) != 1 || reqsA[0] != "must-exchange-token" {
 		t.Errorf("expected requirements [must-exchange-token], got %v", reqsA)
 	}
@@ -232,10 +246,12 @@ func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 	json.Unmarshal(wB.Body.Bytes(), &respB)
 	protoB := respB["protocol"].(map[string]any)
 	webdavB := protoB["webdav"].(map[string]any)
+
 	reqsB, ok := webdavB["requirements"].([]any)
 	if !ok {
 		t.Fatalf("expected requirements to be an array, got %T", webdavB["requirements"])
 	}
+
 	if len(reqsB) != 0 {
 		t.Errorf("expected empty requirements, got %v", reqsB)
 	}
@@ -292,6 +308,7 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected permissions to be an array, got %T (likely null)", webdav["permissions"])
 	}
+
 	if len(perms) != 0 {
 		t.Errorf("expected empty permissions array, got %v", perms)
 	}
@@ -315,7 +332,9 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 	if respA["webdavUriAbsolutePresent"] != true {
 		t.Errorf("expected webdavUriAbsolutePresent true, got %v", respA["webdavUriAbsolutePresent"])
 	}
+
 	protoA := respA["protocol"].(map[string]any)
+
 	webdavA := protoA["webdav"].(map[string]any)
 	if webdavA["uri"] != "https://sender.example.com/webdav/file.txt" {
 		t.Errorf("expected absolute URI in protocol.webdav.uri, got %v", webdavA["uri"])
@@ -334,7 +353,9 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 	if respB["webdavUriAbsolutePresent"] != false {
 		t.Errorf("expected webdavUriAbsolutePresent false, got %v", respB["webdavUriAbsolutePresent"])
 	}
+
 	protoB := respB["protocol"].(map[string]any)
+
 	webdavB := protoB["webdav"].(map[string]any)
 	if webdavB["uri"] != "relative-id-only" {
 		t.Errorf("expected WebDAVID as uri, got %v", webdavB["uri"])
@@ -394,6 +415,7 @@ func TestHandleGetDetail_RendersProtocolNameAndWebappArm(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
 	}
+
 	if proto["name"] != "custom-app" {
 		t.Errorf("expected protocol.name custom-app, got %v", proto["name"])
 	}
@@ -402,20 +424,25 @@ func TestHandleGetDetail_RendersProtocolNameAndWebappArm(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected protocol.webapp to be an object, got %T", proto["webapp"])
 	}
+
 	if webapp["uri"] != "https://app.sender.example.com/launch" {
 		t.Errorf("expected webapp.uri %q, got %v", "https://app.sender.example.com/launch", webapp["uri"])
 	}
+
 	targets, ok := webapp["targets"].([]any)
 	if !ok {
 		t.Fatalf("expected webapp.targets to be an array, got %T", webapp["targets"])
 	}
+
 	if len(targets) != 2 || targets[0] != "blank" || targets[1] != "_self" {
 		t.Errorf("expected webapp.targets [blank _self], got %v", targets)
 	}
+
 	perms, ok := webapp["permissions"].([]any)
 	if !ok {
 		t.Fatalf("expected webapp.permissions to be an array, got %T", webapp["permissions"])
 	}
+
 	if len(perms) != 2 || perms[0] != "view" || perms[1] != "share" {
 		t.Errorf("expected webapp.permissions [view share], got %v", perms)
 	}
@@ -425,6 +452,7 @@ func TestHandleGetDetail_RendersProtocolNameAndWebappArm(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected protocol.webdav to still be present, got %T", proto["webdav"])
 	}
+
 	if webdav["uri"] != "wdid-webapp" {
 		t.Errorf("expected webdav.uri wdid-webapp, got %v", webdav["uri"])
 	}

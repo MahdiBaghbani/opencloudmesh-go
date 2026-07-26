@@ -30,6 +30,7 @@ func (c *CodeFlow) Evaluate() Facts {
 	if c == nil {
 		return Facts{}
 	}
+
 	return Facts{
 		TokenExchangeCapable:             true,
 		RequiresTokenExchange:            boolOrDefaultTrue(c.RequiresTokenExchangeRequirement),
@@ -42,5 +43,6 @@ func boolOrDefaultTrue(v *bool) bool {
 	if v == nil {
 		return true
 	}
+
 	return *v
 }

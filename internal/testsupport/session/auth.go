@@ -16,6 +16,7 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 	if client == nil {
 		client = http.DefaultClient
 	}
+
 	if password == "" {
 		password = defaultAdminPassword
 	}
@@ -45,20 +46,24 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
 		return "", fmt.Errorf("decode login response: %w", err)
 	}
+
 	if parsed.Token == "" {
 		return "", fmt.Errorf("login returned empty token: %s", respBody)
 	}
+
 	return parsed.Token, nil
 }
 
 // NewRequest builds an HTTP request with optional JSON body and bearer auth.
 func NewRequest(method, baseURL, path, token string, payload any) (*http.Request, error) {
 	var body io.Reader
+
 	if payload != nil {
 		encoded, err := json.Marshal(payload)
 		if err != nil {
 			return nil, fmt.Errorf("marshal body: %w", err)
 		}
+
 		body = bytes.NewReader(encoded)
 	}
 
@@ -66,12 +71,15 @@ func NewRequest(method, baseURL, path, token string, payload any) (*http.Request
 	if err != nil {
 		return nil, err
 	}
+
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+
 	return req, nil
 }
 
@@ -91,10 +99,12 @@ func DoJSON(client *http.Client, req *http.Request, dst any) (int, []byte, error
 	if err != nil {
 		return resp.StatusCode, nil, err
 	}
+
 	if dst != nil && len(raw) > 0 {
 		if err := json.Unmarshal(raw, dst); err != nil {
 			return resp.StatusCode, raw, fmt.Errorf("decode response: %w", err)
 		}
 	}
+
 	return resp.StatusCode, raw, nil
 }

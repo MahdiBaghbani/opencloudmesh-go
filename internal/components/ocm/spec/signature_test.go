@@ -15,6 +15,7 @@ func TestSignatureLabelOCM(t *testing.T) {
 	if spec.SignatureLabelOCM != "ocm" {
 		t.Fatalf("SignatureLabelOCM = %q, want %q", spec.SignatureLabelOCM, "ocm")
 	}
+
 	if spec.SignatureLabelOCM != sigparams.SignatureLabelOCM {
 		t.Fatalf("SignatureLabelOCM = %q, want sigparams alias %q",
 			spec.SignatureLabelOCM, sigparams.SignatureLabelOCM)
@@ -35,6 +36,7 @@ func TestSignatureClosedPathNoRawWireLiterals(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
 			}
+
 			if strings.Contains(string(data), `"ocm"`) {
 				t.Errorf("%s still contains raw signature label literal \"ocm\"; use spec.*", rel)
 			}

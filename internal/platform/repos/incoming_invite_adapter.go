@@ -25,19 +25,24 @@ func (a *incomingInviteAdapter) Create(ctx context.Context, invite *invitesinbox
 	if invite.ID == "" {
 		invite.ID = uuid.New().String()
 	}
+
 	if invite.ReceivedAt.IsZero() {
 		invite.ReceivedAt = time.Now()
 	}
+
 	if invite.Status == "" {
 		invite.Status = invites.InviteStatusPending
 	}
+
 	s := appIncomingInviteToStore(invite)
 	if err := a.s.CreateIncomingInvite(ctx, s); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
 			return fmt.Errorf("invite already exists: %w", store.ErrAlreadyExists)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -51,8 +56,10 @@ func (a *incomingInviteAdapter) GetByIDForRecipientUserID(
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, invites.ErrInviteNotFound
 		}
+
 		return nil, err
 	}
+
 	return storeIncomingInviteToApp(s), nil
 }
 
@@ -66,8 +73,10 @@ func (a *incomingInviteAdapter) GetByTokenForRecipientUserID(
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, invites.ErrInviteNotFound
 		}
+
 		return nil, err
 	}
+
 	return storeIncomingInviteToApp(s), nil
 }
 
@@ -79,10 +88,12 @@ func (a *incomingInviteAdapter) ListByRecipientUserID(
 	if err != nil {
 		return nil, err
 	}
+
 	result := make([]*invitesinbox.IncomingInvite, 0, len(storeInvites))
 	for _, s := range storeInvites {
 		result = append(result, storeIncomingInviteToApp(s))
 	}
+
 	return result, nil
 }
 
@@ -96,8 +107,10 @@ func (a *incomingInviteAdapter) UpdateStatusForRecipientUserID(
 		if errors.Is(err, store.ErrNotFound) {
 			return invites.ErrInviteNotFound
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -110,8 +123,10 @@ func (a *incomingInviteAdapter) DeleteForRecipientUserID(
 		if errors.Is(err, store.ErrNotFound) {
 			return invites.ErrInviteNotFound
 		}
+
 		return err
 	}
+
 	return nil
 }
 

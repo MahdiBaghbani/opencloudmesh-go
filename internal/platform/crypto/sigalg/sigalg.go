@@ -106,10 +106,12 @@ func Normalize(alg string) (string, error) {
 	if trimmed == "" {
 		return "", ErrMissingAlgorithm
 	}
+
 	lower := strings.ToLower(trimmed)
 	if _, ok := implemented[lower]; ok {
 		return lower, nil
 	}
+
 	switch strings.ToUpper(trimmed) {
 	case "EDDSA":
 		return Ed25519, nil
@@ -129,6 +131,7 @@ func Normalize(alg string) (string, error) {
 		if IsSymmetric(lower) {
 			return "", fmt.Errorf("%w: %s", ErrSymmetricNotPermitted, lower)
 		}
+
 		return "", fmt.Errorf("sigalg: unsupported signature algorithm %q", trimmed)
 	}
 }
@@ -144,39 +147,47 @@ func DeriveFromJWK(kty, crv, jwkAlg string) (string, error) {
 		if !strings.EqualFold(crv, "Ed25519") {
 			return "", fmt.Errorf("sigalg: unsupported OKP curve %q", crv)
 		}
+
 		if jwkAlg != "" {
 			native, err := Normalize(jwkAlg)
 			if err != nil {
 				return "", err
 			}
+
 			if native != Ed25519 {
 				return "", fmt.Errorf("%w: JWK alg %q incompatible with OKP/Ed25519", ErrAlgorithmMismatch, jwkAlg)
 			}
 		}
+
 		return Ed25519, nil
 	case "EC":
 		_, fromCrv, _, err := ecParamsFromCrv(crv)
 		if err != nil {
 			return "", err
 		}
+
 		if jwkAlg != "" {
 			native, err := Normalize(jwkAlg)
 			if err != nil {
 				return "", err
 			}
+
 			if native != fromCrv {
 				return "", fmt.Errorf("%w: JWK alg %q incompatible with EC/%s", ErrAlgorithmMismatch, jwkAlg, crv)
 			}
 		}
+
 		return fromCrv, nil
 	case "RSA":
 		if jwkAlg == "" {
 			return "", fmt.Errorf("%w: RSA JWK requires alg", ErrAlgorithmUnderdetermined)
 		}
+
 		native, err := Normalize(jwkAlg)
 		if err != nil {
 			return "", err
 		}
+
 		switch native {
 		case RSAPKCS1SHA256, RSAPKCS1SHA384, RSAPKCS1SHA512:
 			return native, nil
@@ -212,6 +223,7 @@ func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 			if nerr != nil {
 				return "", nerr
 			}
+
 			switch native {
 			case RSAPKCS1SHA256, RSAPKCS1SHA384, RSAPKCS1SHA512:
 				return native, nil
@@ -219,6 +231,7 @@ func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 				return "", fmt.Errorf("%w: header alg %q cannot resolve RSA key", ErrAlgorithmUnderdetermined, headerAlg)
 			}
 		}
+
 		return "", err
 	}
 
@@ -226,13 +239,16 @@ func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 	if headerAlg == "" {
 		return derived, nil
 	}
+
 	headerNative, err := Normalize(headerAlg)
 	if err != nil {
 		return "", err
 	}
+
 	if headerNative != derived {
 		return "", fmt.Errorf("%w: Signature-Input alg %q vs JWK-derived %q", ErrAlgorithmMismatch, headerNative, derived)
 	}
+
 	return derived, nil
 }
 
@@ -246,9 +262,11 @@ func ValidateAllowed(alg string, allowed []string) error {
 	if alg == "" {
 		return ErrMissingAlgorithm
 	}
+
 	if IsSymmetric(alg) {
 		return fmt.Errorf("%w: %s", ErrSymmetricNotPermitted, alg)
 	}
+
 	if !IsImplemented(alg) {
 		return fmt.Errorf("%w: %s", ErrNotImplemented, alg)
 	}
@@ -258,6 +276,7 @@ func ValidateAllowed(alg string, allowed []string) error {
 		if err != nil {
 			continue
 		}
+
 		if normalized == alg {
 			return nil
 		}
@@ -272,12 +291,14 @@ func Sign(alg string, privateKey crypto.PrivateKey, message []byte) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
+
 	switch native {
 	case Ed25519:
 		key, ok := privateKey.(ed25519.PrivateKey)
 		if !ok || key == nil {
 			return nil, fmt.Errorf("%w: expected ed25519.PrivateKey", ErrWrongKeyType)
 		}
+
 		return ed25519.Sign(key, message), nil
 	default:
 		return nil, fmt.Errorf("%w: signing for %q", ErrNotImplemented, native)
@@ -290,15 +311,18 @@ func Verify(alg string, publicKey crypto.PublicKey, message, signature []byte) e
 	if err != nil {
 		return err
 	}
+
 	switch native {
 	case Ed25519:
 		key, ok := publicKey.(ed25519.PublicKey)
 		if !ok || key == nil {
 			return fmt.Errorf("%w: expected ed25519.PublicKey", ErrWrongKeyType)
 		}
+
 		if !ed25519.Verify(key, message, signature) {
 			return ErrVerifyFailed
 		}
+
 		return nil
 	case ECDSAP256SHA256:
 		return verifyECDSA(publicKey, elliptic.P256(), sha256.New, 32, message, signature)
@@ -326,23 +350,29 @@ func verifyECDSA(
 	if !ok || key == nil {
 		return fmt.Errorf("%w: expected *ecdsa.PublicKey", ErrWrongKeyType)
 	}
+
 	if key.Curve != curve {
 		got := "nil"
 		if key.Curve != nil {
 			got = key.Curve.Params().Name
 		}
+
 		return fmt.Errorf("%w: got %s want %s", ErrCurveMismatch, got, curve.Params().Name)
 	}
+
 	if len(signature) != coordSize*2 {
 		return fmt.Errorf("%w: ecdsa raw r||s must be %d bytes, got %d", ErrInvalidSignatureEncoding, coordSize*2, len(signature))
 	}
+
 	r := new(big.Int).SetBytes(signature[:coordSize])
 	s := new(big.Int).SetBytes(signature[coordSize:])
 	h := newHash()
+
 	_, _ = h.Write(message)
 	if !ecdsa.Verify(key, h.Sum(nil), r, s) {
 		return ErrVerifyFailed
 	}
+
 	return nil
 }
 
@@ -356,11 +386,14 @@ func verifyRSAPKCS1(
 	if !ok || key == nil {
 		return fmt.Errorf("%w: expected *rsa.PublicKey", ErrWrongKeyType)
 	}
+
 	h := newHash()
+
 	_, _ = h.Write(message)
 	if err := rsa.VerifyPKCS1v15(key, hash, h.Sum(nil), signature); err != nil {
 		return ErrVerifyFailed
 	}
+
 	return nil
 }
 
@@ -382,30 +415,37 @@ func PublicKeyFromJWKFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
 		if !strings.EqualFold(strings.TrimSpace(f.Crv), "Ed25519") {
 			return nil, fmt.Errorf("sigalg: unsupported OKP curve %q", f.Crv)
 		}
+
 		raw, err := decodeBase64URL(f.X)
 		if err != nil {
 			return nil, fmt.Errorf("sigalg: decode Ed25519 x: %w", err)
 		}
+
 		if len(raw) != ed25519.PublicKeySize {
 			return nil, fmt.Errorf("sigalg: Ed25519 x must be %d bytes, got %d", ed25519.PublicKeySize, len(raw))
 		}
+
 		return ed25519.PublicKey(raw), nil
 	case "EC":
 		curve, _, coordSize, err := ecParamsFromCrv(f.Crv)
 		if err != nil {
 			return nil, err
 		}
+
 		xRaw, err := decodeBase64URL(f.X)
 		if err != nil {
 			return nil, fmt.Errorf("sigalg: decode EC x: %w", err)
 		}
+
 		yRaw, err := decodeBase64URL(f.Y)
 		if err != nil {
 			return nil, fmt.Errorf("sigalg: decode EC y: %w", err)
 		}
+
 		if len(xRaw) > coordSize || len(yRaw) > coordSize {
 			return nil, fmt.Errorf("sigalg: EC coordinate too large for %s", f.Crv)
 		}
+
 		pub := &ecdsa.PublicKey{
 			Curve: curve,
 			X:     new(big.Int).SetBytes(xRaw),
@@ -414,27 +454,33 @@ func PublicKeyFromJWKFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
 		if !curve.IsOnCurve(pub.X, pub.Y) {
 			return nil, errors.New("sigalg: EC public key is not on curve")
 		}
+
 		return pub, nil
 	case "RSA":
 		nRaw, err := decodeBase64URL(f.N)
 		if err != nil {
 			return nil, fmt.Errorf("sigalg: decode RSA n: %w", err)
 		}
+
 		eRaw, err := decodeBase64URL(f.E)
 		if err != nil {
 			return nil, fmt.Errorf("sigalg: decode RSA e: %w", err)
 		}
+
 		if len(nRaw) == 0 || len(eRaw) == 0 {
 			return nil, errors.New("sigalg: RSA JWK missing n or e")
 		}
+
 		eBI := new(big.Int).SetBytes(eRaw)
 		if !eBI.IsInt64() {
 			return nil, errors.New("sigalg: RSA exponent too large")
 		}
+
 		ei := eBI.Int64()
 		if ei < 2 || ei > int64(^uint(0)>>1) {
 			return nil, fmt.Errorf("sigalg: invalid RSA exponent")
 		}
+
 		return &rsa.PublicKey{
 			N: new(big.Int).SetBytes(nRaw),
 			E: int(ei),
@@ -471,13 +517,17 @@ func EncodeECDSARawRS(r, s *big.Int, coordSize int) ([]byte, error) {
 	if r == nil || s == nil || coordSize <= 0 {
 		return nil, errors.New("sigalg: invalid ecdsa raw encoding inputs")
 	}
+
 	out := make([]byte, coordSize*2)
 	rBytes := r.Bytes()
+
 	sBytes := s.Bytes()
 	if len(rBytes) > coordSize || len(sBytes) > coordSize {
 		return nil, errors.New("sigalg: ecdsa coordinate overflows fixed size")
 	}
+
 	copy(out[coordSize-len(rBytes):coordSize], rBytes)
 	copy(out[2*coordSize-len(sBytes):], sBytes)
+
 	return out, nil
 }

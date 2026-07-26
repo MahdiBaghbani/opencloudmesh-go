@@ -20,10 +20,12 @@ func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
+
 		d := result.Deps
 		if !d.DiscoveryClient.IsNoopCache() {
 			t.Error("expected NoopCache when SkipDiscoveryCache=true, got a different cache")
 		}
+
 		if d.Cache == nil {
 			t.Fatal("Deps.Cache must be non-nil even when SkipDiscoveryCache=true")
 		}
@@ -32,6 +34,7 @@ func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 	t.Run("SkipDiscoveryCache=false wires shared cache to discovery client", func(t *testing.T) {
 		opts := harnessBuildOpts()
 		opts.SkipDiscoveryCache = false
+
 		result, err := wiring.Build(
 			config.DevConfig(),
 			tslog.DiscardLogger(),
@@ -40,10 +43,12 @@ func TestDiscoveryCacheSkip_WiresClient(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
+
 		d := result.Deps
 		if d.DiscoveryClient.IsNoopCache() {
 			t.Error("discovery client must not use NoopCache when SkipDiscoveryCache=false")
 		}
+
 		if d.Cache == nil {
 			t.Fatal("Deps.Cache must be non-nil when SkipDiscoveryCache=false")
 		}

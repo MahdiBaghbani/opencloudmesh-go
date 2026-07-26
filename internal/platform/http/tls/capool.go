@@ -27,6 +27,7 @@ func BuildRootCAPool(caFile, caDir string) (*x509.CertPool, error) {
 		if err != nil {
 			return nil, fmt.Errorf("tls_root_ca_file: read failed: %w", err)
 		}
+
 		if !pool.AppendCertsFromPEM(data) {
 			return nil, fmt.Errorf("tls_root_ca_file: no valid PEM certificates found")
 		}
@@ -37,26 +38,33 @@ func BuildRootCAPool(caFile, caDir string) (*x509.CertPool, error) {
 		if err != nil {
 			return nil, fmt.Errorf("tls_root_ca_dir: read failed: %w", err)
 		}
+
 		for _, e := range entries {
 			if e.IsDir() || e.Type()&os.ModeSymlink != 0 {
 				continue
 			}
+
 			base := strings.ToLower(e.Name())
 			if !strings.HasSuffix(base, ".pem") && !strings.HasSuffix(base, ".crt") {
 				continue
 			}
+
 			path := filepath.Join(caDir, e.Name())
+
 			fi, err := os.Stat(path)
 			if err != nil {
 				return nil, fmt.Errorf("tls_root_ca_dir: stat %q failed: %w", path, err)
 			}
+
 			if !fi.Mode().IsRegular() {
 				continue
 			}
+
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return nil, fmt.Errorf("tls_root_ca_dir: read %q failed: %w", path, err)
 			}
+
 			if !pool.AppendCertsFromPEM(data) {
 				return nil, fmt.Errorf("tls_root_ca_dir: %q: no valid PEM certificates found", path)
 			}

@@ -16,8 +16,10 @@ import (
 // and that the proxy receives an absolute-form request URI as required by
 // RFC 7230 s5.3.2 for HTTP proxy requests.
 func TestClient_ExplicitProxySuccess(t *testing.T) {
-	var proxyHit atomic.Bool
-	var observedRequestURI, observedMethod, observedHost atomic.Value
+	var (
+		proxyHit                                         atomic.Bool
+		observedRequestURI, observedMethod, observedHost atomic.Value
+	)
 
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHit.Store(true)
@@ -34,6 +36,7 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 
 	const destURL = "http://external.example.invalid/api"
+
 	resp, err := c.Get(context.Background(), destURL)
 	if err != nil {
 		t.Fatalf("expected success through proxy, got: %v", err)
@@ -43,6 +46,7 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if !proxyHit.Load() {
 		t.Error("request did not route through the configured proxy")
 	}
@@ -51,9 +55,11 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 	if got, _ := observedRequestURI.Load().(string); got != destURL {
 		t.Errorf("proxy saw request URI %q, want %q (absolute-form)", got, destURL)
 	}
+
 	if got, _ := observedMethod.Load().(string); got != http.MethodGet {
 		t.Errorf("proxy saw method %q, want GET", got)
 	}
+
 	if got, _ := observedHost.Load().(string); got != "external.example.invalid" {
 		t.Errorf("proxy saw Host header %q, want %q", got, "external.example.invalid")
 	}
@@ -85,6 +91,7 @@ func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
 			t.Errorf("expected SSRF error for %s even with proxy configured", target)
 			continue
 		}
+
 		if !httpclient.IsSSRFError(err) {
 			t.Errorf("expected SSRF error for %s, got: %v", target, err)
 		}
@@ -97,6 +104,7 @@ func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
 // so private-IP destinations are blocked before the proxy is contacted.
 func TestClient_PrivateProxyAllowedInStrictMode(t *testing.T) {
 	var proxyHit atomic.Bool
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHit.Store(true)
 		w.WriteHeader(http.StatusOK)
@@ -119,6 +127,7 @@ func TestClient_PrivateProxyAllowedInStrictMode(t *testing.T) {
 	if !proxyHit.Load() {
 		t.Fatal("private proxy host must be reachable in strict mode (operator-trusted)")
 	}
+
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}

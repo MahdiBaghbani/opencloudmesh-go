@@ -86,10 +86,12 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	if err != nil {
 		return BuildResult{}, fmt.Errorf("derive local public identity: %w", err)
 	}
+
 	cfg.ExternalBasePath = localIdentity.ExternalBasePath
 
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
+
 	var userAuth *identity.UserAuth
 	if opts.FastAuth {
 		userAuth = identity.NewUserAuthFast()
@@ -98,6 +100,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	}
 
 	var keyManager *crypto.KeyManager
+
 	if !opts.SkipCrypto {
 		keyDir := filepath.Dir(cfg.Signature.KeyPath)
 		if keyDir != "" && keyDir != "." {
@@ -105,6 +108,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 				return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
 			}
 		}
+
 		keyManager = crypto.NewKeyManagerWithFragment(
 			cfg.Signature.KeyPath,
 			localIdentity.Origin,
@@ -113,6 +117,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		if err := keyManager.LoadOrGenerate(); err != nil {
 			return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
 		}
+
 		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
 	}
 
@@ -138,6 +143,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	if cacheDriver == "" {
 		cacheDriver = "memory"
 	}
+
 	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)
 	if err != nil {
 		return BuildResult{}, fmt.Errorf("create cache: %w", err)
@@ -149,12 +155,16 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	} else {
 		discoveryCache = cacheInstance
 	}
+
 	discoveryClient := discovery.NewClient(rawHTTPClient, discoveryCache)
 	discoveryClient.SetVersionPolicy(versionPolicy)
 	discoveryClient.SetLogger(logger)
 
-	var trustGroupMgr *peertrust.TrustGroupManager
-	var policyEngine *peertrust.PolicyEngine
+	var (
+		trustGroupMgr *peertrust.TrustGroupManager
+		policyEngine  *peertrust.PolicyEngine
+	)
+
 	if !opts.SkipPeerTrust && cfg.PeerTrust.Enabled {
 		refreshTimeout := time.Duration(outboundCfg.TimeoutMS) * time.Millisecond
 		cacheConfig := peertrust.CacheConfig{
@@ -171,6 +181,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 				logger.Warn("failed to load trust group config", "path", cfgPath, "error", err)
 				continue
 			}
+
 			trustGroupMgr.AddTrustGroup(tgCfg)
 			logger.Info("loaded trust group", "trust_group_id", tgCfg.TrustGroupID, "enabled", tgCfg.Enabled)
 		}
@@ -184,6 +195,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	}
 
 	var signer *crypto.RFC9421Signer
+
 	if keyManager != nil {
 		signerOpts := crypto.RFC9421OptionsFromConfig(cfg.Signature)
 		signer = crypto.NewRFC9421SignerWithOptions(keyManager, signerOpts)

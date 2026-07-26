@@ -69,8 +69,10 @@ type FlagOverrides struct {
 // If ConfigPath is provided but the file is missing, unreadable, or invalid TOML,
 // Load returns an error (fail fast). Unknown/undecoded TOML keys fail the load.
 func Load(opts LoaderOptions) (*Config, error) {
-	var fc fileConfig
-	var md toml.MetaData
+	var (
+		fc fileConfig
+		md toml.MetaData
+	)
 
 	// Load TOML file when a config path is provided.
 	if opts.ConfigPath != "" {
@@ -78,10 +80,12 @@ func Load(opts LoaderOptions) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file %s: %w", opts.ConfigPath, err)
 		}
+
 		md, err = toml.Decode(string(data), &fc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse config file %s: %w", opts.ConfigPath, err)
 		}
+
 		if undecoded := md.Undecoded(); len(undecoded) > 0 {
 			keys := make([]string, 0, len(undecoded))
 			for _, k := range undecoded {
@@ -93,14 +97,17 @@ func Load(opts LoaderOptions) (*Config, error) {
 					strings.HasPrefix(keyStr, "http.interceptors.") {
 					continue
 				}
+
 				if isUnquotedMultiSegmentInstanceKey(k) {
 					return nil, fmt.Errorf(
 						"config file %s contains peer_compat instance host %q that must be a quoted TOML key; unquoted multi-segment hosts are not allowed",
 						opts.ConfigPath, keyStr,
 					)
 				}
+
 				keys = append(keys, keyStr)
 			}
+
 			if len(keys) > 0 {
 				sort.Strings(keys)
 				return nil, fmt.Errorf("config file %s contains unsupported keys: %s", opts.ConfigPath, strings.Join(keys, ", "))
@@ -113,6 +120,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 	if fc.Mode != "" {
 		modeStr = fc.Mode
 	}
+
 	if opts.ModeFlag != "" {
 		modeStr = opts.ModeFlag
 	}
@@ -141,11 +149,13 @@ func Load(opts LoaderOptions) (*Config, error) {
 	if err := normalizePeerMappingConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid peer_compat configuration: %w", err)
 	}
+
 	if err := validatePeerMappingConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid peer_compat configuration: %w", err)
 	}
 
 	applySignatureDefaults(cfg)
+
 	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
 		return nil, err
 	}
@@ -166,9 +176,11 @@ func Load(opts LoaderOptions) (*Config, error) {
 		if !md.IsDefined("tls", "self_signed_dir") {
 			cfg.TLS.SelfSignedDir = filepath.Join(tlsDir, "certs")
 		}
+
 		if !md.IsDefined("tls", "acme", "storage_dir") {
 			cfg.TLS.ACME.StorageDir = filepath.Join(tlsDir, "acme")
 		}
+
 		if !md.IsDefined("signature", "key_path") {
 			cfg.Signature.KeyPath = filepath.Join(tlsDir, "keys", "signing.pem")
 		}
@@ -189,6 +201,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid external_base_path: %w", err)
 	}
+
 	cfg.ExternalBasePath = validatedBasePath
 
 	// Validate outbound TLS CA paths.
@@ -209,15 +222,19 @@ func applySignatureDefaults(cfg *Config) {
 	if cfg.Signature.Label == "" {
 		cfg.Signature.Label = defaults.Label
 	}
+
 	if cfg.Signature.KidFragment == "" {
 		cfg.Signature.KidFragment = defaults.KidFragment
 	}
+
 	if cfg.Signature.CreatedMaxAgeSeconds == 0 {
 		cfg.Signature.CreatedMaxAgeSeconds = defaults.CreatedMaxAgeSeconds
 	}
+
 	if cfg.Signature.CreatedMaxSkewSeconds == 0 {
 		cfg.Signature.CreatedMaxSkewSeconds = defaults.CreatedMaxSkewSeconds
 	}
+
 	if len(cfg.Signature.AllowedAlgorithms) == 0 {
 		cfg.Signature.AllowedAlgorithms = append([]string(nil), defaults.AllowedAlgorithms...)
 	}
@@ -228,9 +245,11 @@ func normalizeAllowedAlgorithm(alg string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if !sigalg.IsImplemented(normalized) {
 		return "", fmt.Errorf("unsupported algorithm %q", alg)
 	}
+
 	return normalized, nil
 }
 
@@ -241,22 +260,28 @@ func NormalizeSignatureAllowedAlgorithms(algorithms []string) ([]string, error) 
 	if len(algorithms) == 0 {
 		return nil, fmt.Errorf("signature.allowed_algorithms must not be empty")
 	}
+
 	normalizedAlgs := make([]string, 0, len(algorithms))
+
 	seen := make(map[string]struct{}, len(algorithms))
 	for _, alg := range algorithms {
 		if strings.TrimSpace(alg) == "" {
 			return nil, fmt.Errorf("signature.allowed_algorithms must not contain empty values")
 		}
+
 		normalized, err := normalizeAllowedAlgorithm(alg)
 		if err != nil {
 			return nil, fmt.Errorf("signature.allowed_algorithms: %w", err)
 		}
+
 		if _, ok := seen[normalized]; ok {
 			continue
 		}
+
 		seen[normalized] = struct{}{}
 		normalizedAlgs = append(normalizedAlgs, normalized)
 	}
+
 	return normalizedAlgs, nil
 }
 
@@ -265,7 +290,9 @@ func normalizeSignatureConfig(sig *SignatureConfig) error {
 	if err != nil {
 		return err
 	}
+
 	sig.AllowedAlgorithms = normalized
+
 	return nil
 }
 
@@ -304,12 +331,15 @@ func validateEnums(cfg *Config) error {
 	if cfg.Signature.Label == "" {
 		return fmt.Errorf("signature.label must not be empty")
 	}
+
 	if cfg.Signature.KidFragment == "" {
 		return fmt.Errorf("signature.kid_fragment must not be empty")
 	}
+
 	if cfg.Signature.CreatedMaxAgeSeconds <= 0 {
 		return fmt.Errorf("signature.created_max_age_seconds must be positive")
 	}
+
 	if cfg.Signature.CreatedMaxSkewSeconds < 0 {
 		return fmt.Errorf("signature.created_max_skew_seconds must be non-negative")
 	}
@@ -350,12 +380,15 @@ func validateEnums(cfg *Config) error {
 		if strings.TrimSpace(path) == "" {
 			return fmt.Errorf("invalid token_exchange.path: must not be empty")
 		}
+
 		if strings.Contains(path, "..") {
 			return fmt.Errorf("invalid token_exchange.path: must not contain '..'")
 		}
+
 		if strings.HasPrefix(path, "/") {
 			return fmt.Errorf("invalid token_exchange.path: must be relative (no leading slash)")
 		}
+
 		if strings.Contains(path, "://") {
 			return fmt.Errorf("invalid token_exchange.path: must not contain a scheme")
 		}
@@ -371,6 +404,7 @@ func validateEnums(cfg *Config) error {
 			cfg.Persistence.Backend,
 		)
 	}
+
 	if cfg.Persistence.Backend != BackendMemory && cfg.Persistence.DataDir == "" {
 		return fmt.Errorf(
 			"persistence.data_dir is required for backend %q",
@@ -382,6 +416,7 @@ func validateEnums(cfg *Config) error {
 	if err != nil {
 		return err
 	}
+
 	cfg.OCM.CompatibilityScope = scope
 
 	switch cfg.OCM.Discovery.PeerAPIVersionPolicy {
@@ -433,15 +468,19 @@ func validateStrictModeGuardrails(cfg *Config) error {
 	if cfg == nil || cfg.Mode != "strict" {
 		return nil
 	}
+
 	if cfg.TLS.Mode == "off" {
 		return fmt.Errorf("mode=strict requires tls.mode!=off")
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		return fmt.Errorf("mode=strict requires outbound_http.ssrf.mode=strict")
 	}
+
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		return fmt.Errorf("mode=strict requires outbound_http.insecure_skip_verify=false")
 	}
+
 	return nil
 }
 
@@ -467,6 +506,7 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 			activePolicy, prefix,
 		)
 	}
+
 	for _, suffix := range policy.AllowPrivateHostSuffixes {
 		if strings.TrimSpace(suffix) == "" {
 			return fmt.Errorf(
@@ -475,24 +515,28 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 			)
 		}
 	}
+
 	if len(policy.AllowPrivateCIDRs) == 0 {
 		return fmt.Errorf(
 			"active ssrf route policy %q requires non-empty %s.allow_private_cidrs",
 			activePolicy, prefix,
 		)
 	}
+
 	if len(policy.AllowedPorts) == 0 {
 		return fmt.Errorf(
 			"active ssrf route policy %q requires non-empty %s.allowed_ports",
 			activePolicy, prefix,
 		)
 	}
+
 	if policy.AllowIPLiterals {
 		return fmt.Errorf(
 			"active ssrf route policy %q requires %s.allow_ip_literals=false",
 			activePolicy, prefix,
 		)
 	}
+
 	for _, cidr := range policy.AllowPrivateCIDRs {
 		if cidr == "0.0.0.0/0" || cidr == "::/0" {
 			return fmt.Errorf(
@@ -500,6 +544,7 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 				activePolicy, cidr, prefix,
 			)
 		}
+
 		if _, _, err := net.ParseCIDR(cidr); err != nil {
 			return fmt.Errorf(
 				"active ssrf route policy %q has invalid CIDR %q in %s.allow_private_cidrs: %w",
@@ -507,6 +552,7 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 			)
 		}
 	}
+
 	for _, port := range policy.AllowedPorts {
 		if port < 1 || port > 65535 {
 			return fmt.Errorf(
@@ -515,6 +561,7 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 			)
 		}
 	}
+
 	return nil
 }
 
@@ -525,6 +572,7 @@ func validateSSRFRoutePolicyGuardrails(cfg *Config) error {
 func validateRatelimitConfig(cfg *Config) error {
 	// Collect available profile names from http.interceptors.ratelimit.profiles
 	profiles := make(map[string]bool)
+
 	if cfg.HTTP.Interceptors != nil {
 		if rlCfg, ok := cfg.HTTP.Interceptors["ratelimit"]; ok {
 			if profilesRaw, ok := rlCfg["profiles"]; ok {
@@ -534,6 +582,7 @@ func validateRatelimitConfig(cfg *Config) error {
 						if _, ok := profile.(map[string]any); !ok {
 							return fmt.Errorf("http.interceptors.ratelimit.profiles.%s must be a map", name)
 						}
+
 						profiles[name] = true
 					}
 				} else {
@@ -660,19 +709,23 @@ func validateOutboundTLSPaths(cfg *Config) error {
 		if err != nil {
 			return fmt.Errorf("outbound_http.tls_root_ca_file: %w", err)
 		}
+
 		if !fi.Mode().IsRegular() {
 			return fmt.Errorf("outbound_http.tls_root_ca_file: %q is not a regular file", cfg.OutboundHTTP.TLSRootCAFile)
 		}
 	}
+
 	if cfg.OutboundHTTP.TLSRootCADir != "" {
 		fi, err := os.Stat(cfg.OutboundHTTP.TLSRootCADir)
 		if err != nil {
 			return fmt.Errorf("outbound_http.tls_root_ca_dir: %w", err)
 		}
+
 		if !fi.IsDir() {
 			return fmt.Errorf("outbound_http.tls_root_ca_dir: %q is not a directory", cfg.OutboundHTTP.TLSRootCADir)
 		}
 	}
+
 	return nil
 }
 
@@ -684,12 +737,15 @@ func isUnquotedMultiSegmentInstanceKey(key toml.Key) bool {
 	if len(key) < 8 {
 		return false
 	}
+
 	if key[0] != "ocm" || key[1] != "peer_compat" || key[2] != "platform" {
 		return false
 	}
+
 	if key[4] != "instance" {
 		return false
 	}
+
 	return len(key) > 7
 }
 
@@ -701,6 +757,7 @@ func normalizePeerMappingConfig(cfg *Config) error {
 	}
 
 	scheme := cfg.PublicScheme()
+
 	cfg.OCM.PeerMapping.scheme = scheme
 	if len(cfg.OCM.PeerMapping.HostPlatform) > 0 {
 		normalized := make(map[string]string, len(cfg.OCM.PeerMapping.HostPlatform))
@@ -709,11 +766,14 @@ func normalizePeerMappingConfig(cfg *Config) error {
 			if err != nil {
 				return fmt.Errorf("host_platform key %q: %w", host, err)
 			}
+
 			if _, exists := normalized[norm]; exists {
 				return fmt.Errorf("duplicate normalized host %q", norm)
 			}
+
 			normalized[norm] = platform
 		}
+
 		cfg.OCM.PeerMapping.HostPlatform = normalized
 	}
 
@@ -721,23 +781,28 @@ func normalizePeerMappingConfig(cfg *Config) error {
 		if len(overlay.Instance) == 0 {
 			continue
 		}
+
 		normalizedInstances := make(map[string]PeerMappingInstanceOverlay, len(overlay.Instance))
 		for host, instance := range overlay.Instance {
 			norm, err := hostport.Normalize(host, scheme)
 			if err != nil {
 				return fmt.Errorf("platform.%s.instance key %q: %w", platformName, host, err)
 			}
+
 			if _, exists := normalizedInstances[norm]; exists {
 				return fmt.Errorf("duplicate normalized host %q", norm)
 			}
+
 			normalizedInstances[norm] = instance
 		}
+
 		cfg.OCM.PeerMapping.Platform[platformName] = PeerPlatformOverlay{
 			IncludesTokenExchangeRequirement: overlay.IncludesTokenExchangeRequirement,
 			RequiresTokenExchangeRequirement: overlay.RequiresTokenExchangeRequirement,
 			Instance:                         normalizedInstances,
 		}
 	}
+
 	return nil
 }
 
@@ -745,19 +810,24 @@ func normalizePeerMappingConfig(cfg *Config) error {
 // and host_platform maps after normalization.
 func validatePeerMappingConfig(cfg *Config) error {
 	seen := make(map[string]struct{})
+
 	for platformName, overlay := range cfg.OCM.PeerMapping.Platform {
 		for host := range overlay.Instance {
 			if _, exists := seen[host]; exists {
 				return fmt.Errorf("duplicate host binding %q (platform %s instance)", host, platformName)
 			}
+
 			seen[host] = struct{}{}
 		}
 	}
+
 	for host, platform := range cfg.OCM.PeerMapping.HostPlatform {
 		if _, exists := seen[host]; exists {
 			return fmt.Errorf("duplicate host binding %q (host_platform maps to %s)", host, platform)
 		}
+
 		seen[host] = struct{}{}
 	}
+
 	return nil
 }

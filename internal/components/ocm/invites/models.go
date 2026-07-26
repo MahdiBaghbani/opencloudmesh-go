@@ -42,8 +42,10 @@ type CreateOutgoingResponse struct {
 // provider FQDN. Provider must not contain scheme.
 // See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L484-L497
 func ParseInviteString(inviteString string) (token, providerFQDN string, err error) {
-	var decoded []byte
-	var decodeErr error
+	var (
+		decoded   []byte
+		decodeErr error
+	)
 	for _, enc := range []*base64.Encoding{
 		base64.URLEncoding,
 		base64.RawURLEncoding,
@@ -54,11 +56,13 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 			break
 		}
 	}
+
 	if decodeErr != nil {
 		return "", "", errors.New("invalid base64 encoding")
 	}
 
 	inner := string(decoded)
+
 	atIdx := strings.LastIndex(inner, "@")
 	if atIdx == -1 {
 		return "", "", errors.New("invalid invite format: missing @")
@@ -70,6 +74,7 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 	if token == "" {
 		return "", "", errors.New("invalid invite format: empty token")
 	}
+
 	if providerFQDN == "" {
 		return "", "", errors.New("invalid invite format: empty provider")
 	}

@@ -47,10 +47,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "ocmaux", "unused_keys", unused)
 	}
@@ -58,11 +60,13 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	auxHandler := ocmauxcomp.NewAuxHandler(inputs.TrustGroupMgr, inputs.DiscoveryClient, log)
 
 	var discoverMiddleware func(http.Handler) http.Handler
+
 	if c.Ratelimit.Profile != "" {
 		profileConfig, err := interceptors.GetProfileConfig(inputs.InterceptorProfiles, "ratelimit", c.Ratelimit.Profile)
 		if err != nil {
 			return nil, fmt.Errorf("ocmaux: %w", err)
 		}
+
 		discoverMiddleware, err = ratelimit.New(inputs.Ratelimit, profileConfig, log)
 		if err != nil {
 			return nil, fmt.Errorf("ocmaux: failed to create ratelimit interceptor: %w", err)
@@ -85,6 +89,7 @@ func validateInputs(in Inputs) error {
 	if in.Ratelimit.KeyFunc == nil {
 		return errors.New("ocmaux: Ratelimit.KeyFunc is required")
 	}
+
 	return nil
 }
 

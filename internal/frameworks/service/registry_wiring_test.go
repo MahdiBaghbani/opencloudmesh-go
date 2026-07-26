@@ -25,6 +25,7 @@ func TestCoreServiceNamesMatchesCoreServices(t *testing.T) {
 // has a wiring builder and that no orphan builders exist.
 func TestCoreServiceBuildersCoverDescriptors(t *testing.T) {
 	descs := service.Descriptors()
+
 	registered := make(map[service.BuildKey]struct{}, len(wiring.RegisteredBuildKeys()))
 	for _, k := range wiring.RegisteredBuildKeys() {
 		registered[k] = struct{}{}
@@ -36,9 +37,11 @@ func TestCoreServiceBuildersCoverDescriptors(t *testing.T) {
 			t.Errorf("descriptor %q has no build key", d.Name)
 			continue
 		}
+
 		if prev, ok := seen[d.Build]; ok {
 			t.Errorf("duplicate build key %q for services %q and %q", d.Build, prev, d.Name)
 		}
+
 		seen[d.Build] = d.Name
 		if _, ok := registered[d.Build]; !ok {
 			t.Errorf("descriptor %q build key %q has no wiring builder", d.Name, d.Build)

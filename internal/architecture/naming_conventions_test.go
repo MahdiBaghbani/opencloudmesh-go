@@ -21,15 +21,18 @@ func TestNoBannedDSAbbreviations(t *testing.T) {
 	allowedSubstrings := []string{"/architecture/"}
 
 	root := modroot.ModuleRoot(t)
+
 	var violations []string
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			return nil
 		}
+
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
@@ -45,6 +48,7 @@ func TestNoBannedDSAbbreviations(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		content := string(data)
 		relPath, _ := filepath.Rel(root, path)
 
@@ -68,6 +72,7 @@ func TestNoBannedDSAbbreviations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk failed: %v", err)
 	}
+
 	if len(violations) > 0 {
 		t.Fatalf("Found banned DS abbreviations (use \"directory service\" or \"directoryservice\"):\n%s",
 			strings.Join(violations, "\n"))
@@ -88,10 +93,12 @@ func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 	}
 
 	var violations []string
+
 	err := filepath.WalkDir(dsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
@@ -100,6 +107,7 @@ func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		content := string(data)
 		relPath, _ := filepath.Rel(root, path)
 
@@ -109,11 +117,13 @@ func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 					relPath+": non-spec JSON tag "+tag)
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk failed: %v", err)
 	}
+
 	if len(violations) > 0 {
 		t.Fatalf("Found non-spec JSON tags in directoryservice (OCM Appendix C, https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#appendix-c-directory-service, uses url and displayName):\n%s",
 			strings.Join(violations, "\n"))
@@ -131,10 +141,12 @@ func TestNoFirstAtOCMAddressParsing(t *testing.T) {
 	}
 
 	var violations []string
+
 	err := filepath.WalkDir(ocmDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() || !strings.HasSuffix(path, ".go") {
 			return nil
 		}
@@ -143,6 +155,7 @@ func TestNoFirstAtOCMAddressParsing(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		content := string(data)
 		relPath, _ := filepath.Rel(root, path)
 
@@ -153,11 +166,13 @@ func TestNoFirstAtOCMAddressParsing(t *testing.T) {
 					relPath+":"+itoa(line)+": first-@ address splitting")
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk failed: %v", err)
 	}
+
 	if len(violations) > 0 {
 		t.Fatalf("Found first-@ OCM address parsing (use the address package):\n%s",
 			strings.Join(violations, "\n"))

@@ -36,6 +36,7 @@ func StartStrictProtocolPairWithOptions(t *testing.T, opts StrictProtocolPairSta
 	if opts.ExtraConfigBuilder == nil {
 		t.Fatal("strict protocol pair requires ExtraConfigBuilder")
 	}
+
 	if opts.TLSRootCAFile == "" {
 		t.Fatal("strict protocol pair requires TLSRootCAFile")
 	}
@@ -46,6 +47,7 @@ func StartStrictProtocolPairWithOptions(t *testing.T, opts StrictProtocolPairSta
 	if err != nil {
 		t.Fatalf("reserve port for strict-pair-1: %v", err)
 	}
+
 	port2, err := getFreePort()
 	if err != nil {
 		t.Fatalf("reserve port for strict-pair-2: %v", err)
@@ -92,6 +94,7 @@ func (p *StrictProtocolPair) Stop(t *testing.T) {
 	if p.Server1 != nil {
 		p.Server1.Stop(t)
 	}
+
 	if p.Server2 != nil {
 		p.Server2.Stop(t)
 	}
@@ -104,6 +107,7 @@ func (p *StrictProtocolPair) DumpLogs(t *testing.T) {
 	if p.Server1 != nil {
 		p.Server1.DumpLogs(t)
 	}
+
 	if p.Server2 != nil {
 		p.Server2.DumpLogs(t)
 	}

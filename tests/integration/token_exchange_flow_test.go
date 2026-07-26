@@ -34,12 +34,14 @@ func TestTokenExchangeFlow(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.txt")
+
 	testContent := []byte("Hello from token exchange test - this is the file content!")
 	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	sender := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "token-flow-sender",
 		Mode: "dev",
@@ -54,6 +56,7 @@ mode = "off"
 	defer receiver.Close()
 
 	token := loginSubprocessAdmin(t, sender)
+
 	status, body := createOutgoingShare(t, sender.BaseURL, token, map[string]any{
 		"receiverDomain": receiver.peerBaseURL,
 		"shareWith":      "bob@" + receiver.peerDomain,
@@ -72,6 +75,7 @@ mode = "off"
 	if err := json.Unmarshal([]byte(body), &created); err != nil {
 		t.Fatalf("failed to decode outgoing share response: %v", err)
 	}
+
 	if created.ProviderID == "" || created.WebDAVID == "" {
 		t.Fatalf("outgoing share response missing providerId/webdavId: %s", body)
 	}
@@ -80,12 +84,15 @@ mode = "off"
 	if captured.ProviderID != created.ProviderID {
 		t.Fatalf("captured providerId %q does not match API response %q", captured.ProviderID, created.ProviderID)
 	}
+
 	if captured.SharedSecret == "" {
 		t.Fatal("captured strict share is missing sharedSecret")
 	}
+
 	if len(captured.Requirements) != 1 || captured.Requirements[0] != spec.RequirementMustExchangeToken {
 		t.Fatalf("expected requirements [%s], got %v", spec.RequirementMustExchangeToken, captured.Requirements)
 	}
+
 	if !captured.SawSignature {
 		t.Fatal("expected outbound /ocm/shares request to be signed for strict receiver")
 	}
@@ -104,6 +111,7 @@ mode = "off"
 		t.Fatalf("failed to call unsigned token endpoint: %v", err)
 	}
 	defer unsignedResp.Body.Close()
+
 	if unsignedResp.StatusCode != http.StatusUnauthorized {
 		respBody, _ := io.ReadAll(unsignedResp.Body)
 		t.Fatalf("expected unsigned token request to be rejected with 401, got %d: %s", unsignedResp.StatusCode, respBody)
@@ -117,7 +125,9 @@ mode = "off"
 	if err != nil {
 		t.Fatalf("failed to create signed token request: %v", err)
 	}
+
 	signedReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	if err := receiver.signer.Sign(signedReq); err != nil {
 		t.Fatalf("failed to sign token request: %v", err)
 	}
@@ -127,6 +137,7 @@ mode = "off"
 		t.Fatalf("failed to call signed token endpoint: %v", err)
 	}
 	defer signedResp.Body.Close()
+
 	if signedResp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(signedResp.Body)
 		t.Fatalf("expected signed token request to succeed, got %d: %s", signedResp.StatusCode, respBody)
@@ -136,15 +147,18 @@ mode = "off"
 	if err := json.NewDecoder(signedResp.Body).Decode(&tokenResp); err != nil {
 		t.Fatalf("failed to decode token response: %v", err)
 	}
+
 	if tokenResp.AccessToken == "" {
 		t.Fatal("signed token exchange returned empty access_token")
 	}
 
 	webdavURL := sender.BaseURL + "/webdav/ocm/" + created.WebDAVID + "/" + url.PathEscape(filepath.Base(testFile))
+
 	webdavReq, err := http.NewRequest(http.MethodGet, webdavURL, nil)
 	if err != nil {
 		t.Fatalf("failed to create WebDAV request: %v", err)
 	}
+
 	webdavReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
 
 	webdavResp, err := http.DefaultClient.Do(webdavReq)
@@ -152,6 +166,7 @@ mode = "off"
 		t.Fatalf("failed to call WebDAV endpoint: %v", err)
 	}
 	defer webdavResp.Body.Close()
+
 	if webdavResp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(webdavResp.Body)
 		t.Fatalf("expected WebDAV bearer access to succeed, got %d: %s", webdavResp.StatusCode, respBody)
@@ -161,6 +176,7 @@ mode = "off"
 	if err != nil {
 		t.Fatalf("failed to read WebDAV response body: %v", err)
 	}
+
 	if !bytes.Equal(gotContent, testContent) {
 		t.Fatalf("unexpected WebDAV body %q, want %q", gotContent, testContent)
 	}
@@ -177,12 +193,15 @@ func TestIETFHarness_WiresCryptoDeps(t *testing.T) {
 	if ts.Deps.KeyManager == nil {
 		t.Fatal("KeyManager must be wired when IETF harness opts are used")
 	}
+
 	if ts.Deps.Signer == nil {
 		t.Fatal("Signer must be wired when IETF harness opts are used")
 	}
+
 	if ts.Deps.SignatureMiddleware == nil {
 		t.Fatal("SignatureMiddleware must be wired when IETF harness opts are used")
 	}
+
 	if ts.Config.Signature.Label != config.DefaultSignatureLabel {
 		t.Fatalf("signature label = %q, want %q", ts.Config.Signature.Label, config.DefaultSignatureLabel)
 	}
@@ -229,7 +248,9 @@ func TestIETFTwoInstance_JWKSRouteAndSignedTokenExchange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create signed token request: %v", err)
 	}
+
 	signedReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	if err := client.Deps.Signer.SignRequest(signedReq, body); err != nil {
 		t.Fatalf("sign token request: %v", err)
 	}
@@ -238,6 +259,7 @@ func TestIETFTwoInstance_JWKSRouteAndSignedTokenExchange(t *testing.T) {
 	if !strings.HasPrefix(sigInput, "ocm=") {
 		t.Fatalf("Signature-Input = %q, want ocm= prefix", sigInput)
 	}
+
 	if signedReq.Header.Get("Signature") == "" {
 		t.Fatal("expected Signature header on signed token request")
 	}
@@ -257,6 +279,7 @@ func TestIETFTwoInstance_JWKSRouteAndSignedTokenExchange(t *testing.T) {
 	if err := json.NewDecoder(signedResp.Body).Decode(&tokenResp); err != nil {
 		t.Fatalf("decode token response: %v", err)
 	}
+
 	if tokenResp.AccessToken == "" {
 		t.Fatal("signed token exchange returned empty access_token")
 	}
@@ -280,13 +303,16 @@ func assertClientJWKS(t *testing.T, client *harness.TestServer, clientHost strin
 	if err := json.NewDecoder(resp.Body).Decode(&set); err != nil {
 		t.Fatalf("decode client JWKS: %v", err)
 	}
+
 	if len(set.Keys) != 1 {
 		t.Fatalf("client JWKS keys = %d, want 1", len(set.Keys))
 	}
+
 	wantKid := client.Deps.KeyManager.GetKeyID()
 	if set.Keys[0].Kid != wantKid {
 		t.Fatalf("client JWKS kid = %q, want %q", set.Keys[0].Kid, wantKid)
 	}
+
 	if !strings.Contains(wantKid, clientHost) {
 		t.Fatalf("keyId %q should reference client host %q", wantKid, clientHost)
 	}
@@ -310,9 +336,11 @@ func assertProviderDiscoveryUsesOCMLabel(t *testing.T, provider *harness.TestSer
 	if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
 		t.Fatalf("decode provider discovery: %v", err)
 	}
+
 	if !disc.RequiresHTTPSig() {
 		t.Fatal("IETF provider discovery should require HTTP signatures")
 	}
+
 	if disc.TokenEndPoint == "" {
 		t.Fatal("IETF provider discovery should advertise tokenEndPoint")
 	}
@@ -331,7 +359,9 @@ func postTokenExchange(t *testing.T, providerBaseURL, clientHost, code string, s
 	if err != nil {
 		t.Fatalf("create token request: %v", err)
 	}
+
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	if sign != nil {
 		if err := sign(req, body); err != nil {
 			t.Fatalf("sign token request: %v", err)
@@ -343,6 +373,7 @@ func postTokenExchange(t *testing.T, providerBaseURL, clientHost, code string, s
 		t.Fatalf("token exchange request failed: %v", err)
 	}
 	defer resp.Body.Close()
+
 	return resp.StatusCode
 }
 
@@ -353,8 +384,10 @@ func hostFromBaseURL(t *testing.T, baseURL string) string {
 	if err != nil {
 		t.Fatalf("parse base URL %q: %v", baseURL, err)
 	}
+
 	if u.Host == "" {
 		t.Fatalf("base URL %q has empty host", baseURL)
 	}
+
 	return u.Host
 }

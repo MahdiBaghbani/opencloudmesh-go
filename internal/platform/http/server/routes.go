@@ -1,8 +1,6 @@
 package server
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
@@ -25,6 +23,7 @@ func GetMountSpecs() []RouteGroup {
 
 func mountSpecsFromDerived(opts service.RouteOpts) []RouteGroup {
 	specs := service.DerivedMountSpecs(opts)
+
 	groups := make([]RouteGroup, len(specs))
 	for i, spec := range specs {
 		groups[i] = RouteGroup{
@@ -34,6 +33,7 @@ func mountSpecsFromDerived(opts service.RouteOpts) []RouteGroup {
 			AtHostRoot:   spec.AtHostRoot,
 		}
 	}
+
 	return groups
 }
 
@@ -47,7 +47,8 @@ func (s *Server) mountService(r chi.Router, svc service.Service, atRoot bool) {
 		return
 	}
 
-	var handler http.Handler = svc.Handler()
+	var handler = svc.Handler()
+
 	prefix := svc.Prefix()
 
 	if atRoot || prefix == "" {

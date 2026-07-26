@@ -59,11 +59,13 @@ func BuildBinary(t *testing.T) string {
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
 	}
+
 	binaryPath := filepath.Join(tempDir, binaryName)
 
 	// Run go build
 	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/opencloudmesh-go")
 	cmd.Dir = findProjectRoot(t)
+
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 
 	output, err := cmd.CombinedOutput()
@@ -97,10 +99,12 @@ func FindProjectRoot(t *testing.T) string {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir
 		}
+
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			t.Fatalf("could not find project root (go.mod)")
 		}
+
 		dir = parent
 	}
 }
@@ -119,6 +123,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	port := cfg.Port
 	if port == 0 {
 		var err error
+
 		port, err = getFreePort()
 		if err != nil {
 			os.RemoveAll(tempDir)
@@ -136,6 +141,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 				t.Fatalf("failed to create directory for extra file %s: %v", relPath, err)
 			}
 		}
+
 		if err := os.WriteFile(absPath, []byte(contents), 0644); err != nil {
 			os.RemoveAll(tempDir)
 			t.Fatalf("failed to write extra file %s: %v", relPath, err)
@@ -144,6 +150,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 
 	// Create config file
 	configPath := filepath.Join(tempDir, "config.toml")
+
 	configContent := generateTOMLConfig(
 		cfg.Name,
 		port,
@@ -172,10 +179,12 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to load effective config for %s: %v", cfg.Name, err)
 	}
+
 	baseURL := localListenerBaseURL(finalCfg.TLS.Mode, port)
 
 	// Create log file
 	logPath := filepath.Join(tempDir, "server.log")
+
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		os.RemoveAll(tempDir)
@@ -233,6 +242,7 @@ func (s *SubprocessServer) Client() *http.Client {
 	if strings.HasPrefix(s.BaseURL, "https://") {
 		return newInsecureHTTPSClient(30 * time.Second)
 	}
+
 	return &http.Client{Timeout: 30 * time.Second}
 }
 
@@ -285,10 +295,12 @@ func (s *SubprocessServer) ReadLog(t *testing.T) string {
 	s.syncLog()
 
 	logPath := filepath.Join(s.TempDir, "server.log")
+
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read logs for %s: %v", s.Name, err)
 	}
+
 	return string(content)
 }
 
@@ -298,16 +310,19 @@ func (s *SubprocessServer) LogContainsAny(needles ...string) bool {
 	s.syncLog()
 
 	logPath := filepath.Join(s.TempDir, "server.log")
+
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		return false
 	}
+
 	logText := string(content)
 	for _, needle := range needles {
 		if needle != "" && strings.Contains(logText, needle) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -318,6 +333,7 @@ func (s *SubprocessServer) DumpLogs(t *testing.T) {
 	s.syncLog()
 
 	logPath := filepath.Join(s.TempDir, "server.log")
+
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Logf("failed to read logs for %s: %v", s.Name, err)
@@ -362,6 +378,7 @@ func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, 
 	if err != nil {
 		return nil, fmt.Errorf("get working directory: %w", err)
 	}
+
 	if err := os.Chdir(dataDir); err != nil {
 		return nil, fmt.Errorf("chdir to data dir %s: %w", dataDir, err)
 	}
@@ -386,23 +403,28 @@ func scrubParentConfigEnv() func() {
 	for _, k := range hermeticEnvBlocklist {
 		block[k] = struct{}{}
 	}
+
 	var saved []string
+
 	for _, kv := range os.Environ() {
 		key, _, ok := strings.Cut(kv, "=")
 		if !ok {
 			continue
 		}
+
 		if _, drop := block[key]; drop {
 			saved = append(saved, kv)
 			_ = os.Unsetenv(key)
 		}
 	}
+
 	return func() {
 		for _, kv := range saved {
 			key, value, ok := strings.Cut(kv, "=")
 			if !ok {
 				continue
 			}
+
 			_ = os.Setenv(key, value)
 		}
 	}
@@ -425,14 +447,17 @@ func scrubSubprocessEnv(env []string) []string {
 	for _, k := range hermeticEnvBlocklist {
 		block[k] = struct{}{}
 	}
+
 	scrubbed := make([]string, 0, len(env))
 	for _, kv := range env {
 		key, _, _ := strings.Cut(kv, "=")
 		if _, drop := block[key]; drop {
 			continue
 		}
+
 		scrubbed = append(scrubbed, kv)
 	}
+
 	return scrubbed
 }
 
@@ -451,6 +476,7 @@ func needsSecureTransport(mode string) bool {
 // generated default public_origin consistent with a test's TLS override.
 func extraTLSMode(extra string) (mode string, hasTLSTable bool) {
 	inTLS := false
+
 	for _, line := range strings.Split(extra, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
@@ -458,14 +484,17 @@ func extraTLSMode(extra string) (mode string, hasTLSTable bool) {
 			if inTLS {
 				hasTLSTable = true
 			}
+
 			continue
 		}
+
 		if inTLS {
 			if key, value, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(key) == "mode" {
 				mode = strings.Trim(strings.TrimSpace(value), `"'`)
 			}
 		}
 	}
+
 	return mode, hasTLSTable
 }
 
@@ -484,19 +513,23 @@ func extraDefinesTLSTable(extra string) bool {
 // keys inside a [table] are ignored.
 func extraDefinesPublicOrigin(extra string) bool {
 	inRootTable := true
+
 	for _, line := range strings.Split(extra, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
 			inRootTable = false
 			continue
 		}
+
 		if !inRootTable {
 			continue
 		}
+
 		if key, _, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(key) == "public_origin" {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -528,10 +561,12 @@ func generateTOMLConfig(name string, port int, dataDir, mode string, disableUseE
 	}
 
 	var publicOrigin string
+
 	originHost := "localhost"
 	if strings.TrimSpace(publicOriginHost) != "" {
 		originHost = strings.TrimSpace(publicOriginHost)
 	}
+
 	if publicOriginSecure {
 		publicOrigin = fmt.Sprintf("https://%s:%d", originHost, port)
 	} else {
@@ -584,6 +619,7 @@ mode = "off"
 	if strings.TrimSpace(bootstrapAdminPassword) != "" {
 		bootstrapAdmin += fmt.Sprintf("password = %q\n", bootstrapAdminPassword)
 	}
+
 	bootstrapAdmin += "\n"
 
 	if secure {
@@ -638,16 +674,19 @@ func splitExtraConfigRootKeys(extra string) (root string, tables string) {
 	lines := strings.Split(extra, "\n")
 	rootLines := make([]string, 0, len(lines))
 	tableStart := -1
+
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			rootLines = append(rootLines, line)
 			continue
 		}
+
 		if strings.HasPrefix(trimmed, "[") {
 			tableStart = i
 			break
 		}
+
 		rootLines = append(rootLines, line)
 	}
 
@@ -662,6 +701,7 @@ func splitExtraConfigRootKeys(extra string) (root string, tables string) {
 			rootLines = rootLines[:len(rootLines)-1]
 			continue
 		}
+
 		break
 	}
 
@@ -682,7 +722,9 @@ func newInsecureHTTPSClient(timeout time.Duration) *http.Client {
 	} else {
 		transport = &http.Transport{}
 	}
+
 	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: transport,
@@ -695,10 +737,12 @@ func newInsecureHTTPSClient(timeout time.Duration) *http.Client {
 // An empty externalBasePath yields the root-mounted /api/healthz.
 func healthEndpointURL(baseURL, externalBasePath string) string {
 	base := strings.TrimSuffix(baseURL, "/")
+
 	bp := strings.Trim(externalBasePath, "/")
 	if bp == "" {
 		return base + "/api/healthz"
 	}
+
 	return base + "/" + bp + "/api/healthz"
 }
 
@@ -719,10 +763,12 @@ func waitForServerReady(healthURL string, timeout time.Duration) error {
 		resp, err := client.Get(healthURL)
 		if err == nil {
 			resp.Body.Close()
+
 			if resp.StatusCode == http.StatusOK {
 				return nil
 			}
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -759,6 +805,7 @@ func (h *TwoInstanceHarness) Stop(t *testing.T) {
 	if h.Server1 != nil {
 		h.Server1.Stop(t)
 	}
+
 	if h.Server2 != nil {
 		h.Server2.Stop(t)
 	}
@@ -771,6 +818,7 @@ func (h *TwoInstanceHarness) DumpLogs(t *testing.T) {
 	if h.Server1 != nil {
 		h.Server1.DumpLogs(t)
 	}
+
 	if h.Server2 != nil {
 		h.Server2.DumpLogs(t)
 	}

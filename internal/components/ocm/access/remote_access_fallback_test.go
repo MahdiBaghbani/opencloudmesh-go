@@ -193,39 +193,54 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var webdavHits atomic.Int32
-			var tokenHits atomic.Int32
+			var (
+				webdavHits atomic.Int32
+				tokenHits  atomic.Int32
+			)
+
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/.well-known/ocm" {
 					disc := tt.discovery(r.Host)
+
 					w.Header().Set("Content-Type", "application/json")
 					_ = json.NewEncoder(w).Encode(disc)
+
 					return
 				}
+
 				if r.URL.Path == "/ocm/token" {
 					tokenHits.Add(1)
+
 					if tt.tokenHandler != nil {
 						tt.tokenHandler(w, r)
 						return
 					}
+
 					http.NotFound(w, r)
+
 					return
 				}
+
 				if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
 					webdavHits.Add(1)
+
 					if r.Header.Get("Authorization") == "Bearer "+tt.wantToken {
 						w.WriteHeader(http.StatusOK)
 						return
 					}
+
 					w.WriteHeader(http.StatusUnauthorized)
+
 					return
 				}
+
 				http.NotFound(w, r)
 			}))
 			defer srv.Close()
 
 			capture := logutil.NewCapturingLogger(slog.LevelInfo)
 			prev := slog.Default()
+
 			slog.SetDefault(capture.Logger)
 			t.Cleanup(func() { slog.SetDefault(prev) })
 
@@ -250,15 +265,19 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 			if result.Response.StatusCode != http.StatusOK {
 				t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)
 			}
+
 			if result.AccessToken != tt.wantToken {
 				t.Errorf("AccessToken = %q, want %q", result.AccessToken, tt.wantToken)
 			}
+
 			if got := webdavHits.Load(); got != 1 {
 				t.Errorf("webdav hits = %d, want 1", got)
 			}
+
 			if got := tokenHits.Load(); got != tt.wantTokenHits {
 				t.Errorf("token exchange attempts = %d, want %d", got, tt.wantTokenHits)
 			}
+
 			if capture.ContainsAny(
 				sharedSecret,
 				"Authorization",
@@ -272,9 +291,11 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 			if capture.ContainsAny(peerOAuthErrors...) {
 				t.Errorf("logs leaked peer OAuth error text: %s", capture.Output())
 			}
+
 			if tt.wantLog && !capture.Contains(fallbackWarning) {
 				t.Errorf("expected fixed fallback warning %q, got: %s", fallbackWarning, capture.Output())
 			}
+
 			if !tt.wantLog && capture.Contains(fallbackWarning) {
 				t.Errorf("unexpected fallback warning, got: %s", capture.Output())
 			}

@@ -22,6 +22,7 @@ func init() {
 					defaultTTL = time.Duration(secs) * time.Second
 				}
 			}
+
 			if v, ok := config["cleanup_interval_seconds"]; ok {
 				if secs, ok := toInt(v); ok && secs > 0 {
 					cleanupInterval = time.Duration(secs) * time.Second
@@ -117,6 +118,7 @@ func (c *Cache) deleteExpired() {
 			delete(c.items, k)
 		}
 	}
+
 	for k, v := range c.counters {
 		if now.After(v.expiresAt) {
 			delete(c.counters, k)
@@ -141,6 +143,7 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	// Return a copy to prevent mutation
 	result := make([]byte, len(item.value))
 	copy(result, item.value)
+
 	return result, nil
 }
 
@@ -171,6 +174,7 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 	defer c.mu.Unlock()
 
 	delete(c.items, key)
+
 	return nil
 }
 
@@ -204,10 +208,12 @@ func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time
 			value:     delta,
 			expiresAt: expiresAt,
 		}
+
 		return delta, expiresAt, nil
 	}
 
 	counter.value += delta
+
 	return counter.value, counter.expiresAt, nil
 }
 
@@ -230,6 +236,7 @@ func (c *Cache) Reset(ctx context.Context, key string) error {
 	defer c.mu.Unlock()
 
 	delete(c.counters, key)
+
 	return nil
 }
 

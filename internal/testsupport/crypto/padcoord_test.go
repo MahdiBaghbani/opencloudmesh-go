@@ -21,6 +21,7 @@ func TestPadCoord(t *testing.T) {
 	}
 
 	want := []byte{0x00, 0x00, 0x01, 0x02, 0x03}
+
 	got = crypto.PadCoord(b, 5)
 	if !bytes.Equal(got, want) {
 		t.Fatalf("PadCoord(%v, 5) = %v, want %v", b, got, want)

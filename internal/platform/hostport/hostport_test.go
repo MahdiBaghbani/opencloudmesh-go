@@ -58,6 +58,7 @@ func TestNormalize(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Normalize(%q, %q) error = %v, wantErr = %v", tt.authority, tt.scheme, err, tt.wantErr)
 			}
+
 			if got != tt.want {
 				t.Errorf("Normalize(%q, %q) = %q, want %q", tt.authority, tt.scheme, got, tt.want)
 			}
@@ -68,19 +69,23 @@ func TestNormalize(t *testing.T) {
 func TestNormalize_Equivalence(t *testing.T) {
 	// Verify that bare host and host with default port produce the same result.
 	bare, err1 := Normalize("example.org", "https")
+
 	withPort, err2 := Normalize("example.org:443", "https")
 	if err1 != nil || err2 != nil {
 		t.Fatalf("unexpected error: bare=%v, withPort=%v", err1, err2)
 	}
+
 	if bare != withPort {
 		t.Errorf("expected equivalent: %q != %q", bare, withPort)
 	}
 
 	bare, err1 = Normalize("example.org", "http")
+
 	withPort, err2 = Normalize("example.org:80", "http")
 	if err1 != nil || err2 != nil {
 		t.Fatalf("unexpected error: bare=%v, withPort=%v", err1, err2)
 	}
+
 	if bare != withPort {
 		t.Errorf("expected equivalent: %q != %q", bare, withPort)
 	}

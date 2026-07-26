@@ -41,6 +41,7 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 				Error:            token.ErrorUnauthorized,
 				ErrorDescription: "signature required",
 			})
+
 			return
 		}
 
@@ -63,10 +64,10 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
 	}, httpSigDiscovery())
-
 	if err != nil {
 		t.Fatalf("Exchange should succeed with signature: %v", err)
 	}
+
 	if result.AccessToken != "signed-token" {
 		t.Errorf("expected 'signed-token', got %s", result.AccessToken)
 	}
@@ -97,10 +98,10 @@ func TestClient_Exchange_SignsWhenReceiverAdvertisesHTTPSig(t *testing.T) {
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
 	}, httpSigDiscovery())
-
 	if err != nil {
 		t.Fatalf("Exchange should succeed with signature: %v", err)
 	}
+
 	if result.AccessToken != "signed-token" {
 		t.Errorf("expected 'signed-token', got %s", result.AccessToken)
 	}

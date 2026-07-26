@@ -17,15 +17,19 @@ func ResolveLoopbackHostname(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("hostname: %v", err)
 	}
+
 	ips, err := net.LookupIP(host)
 	if err != nil {
 		t.Fatalf("lookup %q: %v", host, err)
 	}
+
 	for _, ip := range ips {
 		if v4 := ip.To4(); v4 != nil && v4[0] == 127 {
 			return host
 		}
 	}
+
 	t.Skipf("hostname %q does not resolve to an IPv4 address in 127.0.0.0/8", host)
+
 	return host
 }

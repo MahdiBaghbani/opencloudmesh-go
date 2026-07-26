@@ -50,6 +50,7 @@ func (p *WebDAVProtocol) HasRequirement(req string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -58,11 +59,13 @@ func (p *WebappProtocol) HasRequirement(req string) bool {
 	if p == nil {
 		return false
 	}
+
 	for _, r := range p.Requirements {
 		if r == req {
 			return true
 		}
 	}
+
 	return false
 }
 

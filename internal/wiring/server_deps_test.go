@@ -22,6 +22,7 @@ func TestBuildServerDeps_FailsWithoutSharedDeps(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when shared deps are nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingServerDeps) {
 		t.Fatalf("expected ErrMissingServerDeps, got: %v", err)
 	}
@@ -39,6 +40,7 @@ func TestBuildServerDeps_FailsWithoutRealIP(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when RealIP is nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingRealIP) {
 		t.Fatalf("expected ErrMissingRealIP, got: %v", err)
 	}
@@ -55,6 +57,7 @@ func TestBuildServerDeps_FailsWithoutAuthRepos(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when auth repos are nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingAuthRepos) {
 		t.Fatalf("expected ErrMissingAuthRepos, got: %v", err)
 	}
@@ -73,9 +76,11 @@ func TestBuildServerDeps_SucceedsWithSharedDeps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
+
 	if sd.AuthGate == nil {
 		t.Fatal("expected injected auth gate")
 	}
+
 	if sd.RealIP == nil {
 		t.Fatal("expected injected RealIP")
 	}

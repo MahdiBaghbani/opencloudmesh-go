@@ -37,6 +37,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	assertStrictLiveDiscovery(t, consumer.Name, consumerDisc, consumer.BaseURL)
 
 	testContent := []byte("Step 14 positive protocol proof file content")
+
 	testFile := filepath.Join(t.TempDir(), "protocol-positive.txt")
 	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
 		t.Fatalf("write test file: %v", err)
@@ -68,22 +69,27 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &outgoingCreated); err != nil {
 		t.Fatalf("decode outgoing share response: %v", err)
 	}
+
 	if outgoingCreated.ProviderID == "" || outgoingCreated.WebDAVID == "" {
 		t.Fatalf("outgoing share missing providerId/webdavId: %s", body)
 	}
+
 	if outgoingCreated.Status != "sent" {
 		t.Fatalf("outgoing share status = %q, want sent", outgoingCreated.Status)
 	}
 
 	multiShareID := waitForInboxShareByProvider(t, consumer, consumerToken, outgoingCreated.ProviderID)
+
 	multiDetail := getInboxShareDetail(t, consumer, consumerToken, multiShareID)
 	if multiDetail["providerId"] != outgoingCreated.ProviderID {
 		t.Fatalf("inbox detail providerId = %v, want %s", multiDetail["providerId"], outgoingCreated.ProviderID)
 	}
+
 	proto, ok := multiDetail["protocol"].(map[string]any)
 	if !ok {
 		t.Fatalf("inbox detail protocol missing: %v", multiDetail)
 	}
+
 	if proto["name"] != "multi" {
 		t.Fatalf("inbox detail protocol.name = %v, want multi", proto["name"])
 	}
@@ -99,16 +105,20 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 		webdavSecret,
 	)
 	consumerSigner := subprocessSigner(t, consumer)
+
 	webdavResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner)
 	defer webdavResp.Body.Close()
+
 	if webdavResp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(webdavResp.Body)
+
 		provider.DumpLogs(t)
 		consumer.DumpLogs(t)
 		t.Fatalf("signed webdav inbound share: expected 201, got %d: %s", webdavResp.StatusCode, respBody)
 	}
 
 	webdavShareID := waitForInboxShareByProvider(t, provider, providerToken, webdavProviderID)
+
 	webdavDetail := getInboxShareDetail(t, provider, providerToken, webdavShareID)
 	if webdavDetail["providerId"] != webdavProviderID {
 		t.Fatalf("webdav inbox providerId = %v, want %s", webdavDetail["providerId"], webdavProviderID)
@@ -130,6 +140,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if tokenResp.TokenType != "Bearer" {
 		t.Fatalf("token_type = %q, want Bearer", tokenResp.TokenType)
 	}
+
 	if tokenResp.AccessToken == "" {
 		t.Fatal("token exchange returned empty access_token")
 	}
@@ -141,20 +152,25 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create bearer webdav request: %v", err)
 	}
+
 	bearerReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+
 	bearerResp, err := provider.Client().Do(bearerReq)
 	if err != nil {
 		t.Fatalf("bearer webdav GET: %v", err)
 	}
 	defer bearerResp.Body.Close()
+
 	if bearerResp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(bearerResp.Body)
 		t.Fatalf("bearer webdav: expected 200, got %d: %s", bearerResp.StatusCode, respBody)
 	}
+
 	gotContent, err := io.ReadAll(bearerResp.Body)
 	if err != nil {
 		t.Fatalf("read bearer webdav body: %v", err)
 	}
+
 	if !bytes.Equal(gotContent, testContent) {
 		t.Fatalf("bearer webdav body = %q, want %q", gotContent, testContent)
 	}
@@ -163,12 +179,15 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create shared-secret webdav request: %v", err)
 	}
+
 	secretReq.Header.Set("Authorization", "Bearer "+sharedSecret)
+
 	secretResp, err := provider.Client().Do(secretReq)
 	if err != nil {
 		t.Fatalf("shared-secret webdav GET: %v", err)
 	}
 	defer secretResp.Body.Close()
+
 	if secretResp.StatusCode != http.StatusUnauthorized {
 		respBody, _ := io.ReadAll(secretResp.Body)
 		t.Fatalf("shared-secret webdav: expected 401, got %d: %s", secretResp.StatusCode, respBody)
@@ -181,6 +200,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 
 	dupResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner)
 	defer dupResp.Body.Close()
+
 	if dupResp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(dupResp.Body)
 		t.Fatalf("duplicate webdav inbound share: expected 200, got %d: %s", dupResp.StatusCode, respBody)
@@ -190,6 +210,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot persistence after duplicate: %v", err)
 	}
+
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
 
 	secrets := []string{sharedSecret, webdavSecret, tokenResp.AccessToken}

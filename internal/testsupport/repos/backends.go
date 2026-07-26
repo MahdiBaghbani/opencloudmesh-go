@@ -23,12 +23,15 @@ func AllBackends() []string {
 // It is every AllBackends entry except in-memory storage.
 func DurableBackends() []string {
 	var out []string
+
 	for _, backend := range AllBackends() {
 		if backend == config.BackendMemory {
 			continue
 		}
+
 		out = append(out, backend)
 	}
+
 	return out
 }
 
@@ -41,10 +44,12 @@ type TestRepo struct {
 // OpenTestRepos returns every AllBackends entry with its test open helper.
 func OpenTestRepos() []TestRepo {
 	all := AllBackends()
+
 	repos := make([]TestRepo, 0, len(all))
 	for _, name := range all {
 		repos = append(repos, TestRepo{Name: name, Open: openForBackend(name)})
 	}
+
 	return repos
 }
 
@@ -70,18 +75,21 @@ func openForBackend(name string) func(*testing.T) *platformrepos.Repos {
 // OpenMemory opens an in-memory repos bundle for tests.
 func OpenMemory(t *testing.T) *platformrepos.Repos {
 	t.Helper()
+
 	r, err := platformrepos.New(context.Background(), config.PersistenceConfig{
 		Backend: config.BackendMemory,
 	})
 	if err != nil {
 		t.Fatalf("repos.New(memory): %v", err)
 	}
+
 	return r
 }
 
 // OpenJSON opens a JSON-backed repos bundle in a temp directory.
 func OpenJSON(t *testing.T) *platformrepos.Repos {
 	t.Helper()
+
 	r, err := platformrepos.New(context.Background(), config.PersistenceConfig{
 		Backend: config.BackendJSON,
 		DataDir: t.TempDir(),
@@ -89,12 +97,14 @@ func OpenJSON(t *testing.T) *platformrepos.Repos {
 	if err != nil {
 		t.Fatalf("repos.New(json): %v", err)
 	}
+
 	return r
 }
 
 // OpenDurable opens a durable repos bundle for the given backend in a temp dir.
 func OpenDurable(t *testing.T, backend string) *platformrepos.Repos {
 	t.Helper()
+
 	r, err := platformrepos.New(context.Background(), config.PersistenceConfig{
 		Backend: backend,
 		DataDir: t.TempDir(),
@@ -102,5 +112,6 @@ func OpenDurable(t *testing.T, backend string) *platformrepos.Repos {
 	if err != nil {
 		t.Fatalf("repos.New(%s): %v", backend, err)
 	}
+
 	return r
 }

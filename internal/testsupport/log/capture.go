@@ -16,8 +16,10 @@ type LogCapture struct {
 // capture buffer for substring assertions. Info and Debug records are filtered out.
 func NewLogCapture(t testing.TB) (*slog.Logger, *LogCapture) {
 	t.Helper()
+
 	c := &LogCapture{}
 	logger := slog.New(slog.NewJSONHandler(c, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
 	return logger, c
 }
 

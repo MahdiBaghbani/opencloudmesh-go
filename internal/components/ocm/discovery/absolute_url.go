@@ -7,5 +7,6 @@ func isAbsoluteURL(raw string) bool {
 	if err != nil || u == nil {
 		return false
 	}
+
 	return u.Scheme != "" && u.Host != ""
 }

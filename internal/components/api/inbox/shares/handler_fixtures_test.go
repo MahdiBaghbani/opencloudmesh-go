@@ -26,6 +26,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 		if user == nil {
 			return nil, fmt.Errorf("no authenticated user in context")
 		}
+
 		return user, nil
 	}
 }
@@ -40,6 +41,7 @@ func newTestRouter(repo sharesinbox.IncomingShareRepo, user *identity.User) http
 		r.Post("/{shareId}/accept", h.HandleAccept)
 		r.Post("/{shareId}/decline", h.HandleDecline)
 	})
+
 	return r
 }
 
@@ -57,5 +59,6 @@ func createShareForUser(repo *sharesinbox.MemoryIncomingShareRepo, recipientUser
 		ShareType:       "user",
 	}
 	repo.Create(context.Background(), share)
+
 	return share
 }

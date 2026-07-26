@@ -44,10 +44,12 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 	if err := repo.Create(ctx, share3); err == nil {
 		t.Error("expected error for duplicate providerId from same sender")
 	}
+
 	found, err := repo.GetByProviderID(ctx, "sender1.example.com", "same-id")
 	if err != nil {
 		t.Fatalf("failed to find share: %v", err)
 	}
+
 	if found.ShareID != share1.ShareID {
 		t.Error("wrong share returned for sender1")
 	}
@@ -77,6 +79,7 @@ func TestIncomingRepository_RecipientScoping(t *testing.T) {
 	if len(listA) != 1 {
 		t.Fatalf("user-a: expected 1 share, got %d", len(listA))
 	}
+
 	if listA[0].ShareID != shareA.ShareID {
 		t.Error("user-a: got wrong share")
 	}
@@ -116,6 +119,7 @@ func TestWebDAVProtocol_HasRequirement(t *testing.T) {
 	if !p.HasRequirement("must-exchange-token") {
 		t.Error("expected true for must-exchange-token")
 	}
+
 	if p.HasRequirement("must-use-mfa") {
 		t.Error("expected false for must-use-mfa")
 	}

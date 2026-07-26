@@ -29,6 +29,7 @@ func ParseSignatureInput(header, label string) (Params, error) {
 	if label == "" {
 		return Params{}, errors.New("sigparams: label is required")
 	}
+
 	if strings.TrimSpace(header) == "" {
 		return Params{}, errors.New("sigparams: missing Signature-Input header")
 	}
@@ -54,14 +55,17 @@ func ParseSignatureInput(header, label string) (Params, error) {
 		if !ok {
 			continue
 		}
+
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
+
 		switch key {
 		case "created":
 			created, parseErr := strconv.ParseInt(value, 10, 64)
 			if parseErr != nil {
 				return Params{}, fmt.Errorf("sigparams: invalid created: %w", parseErr)
 			}
+
 			params.Created = created
 		case "keyid":
 			params.KeyID, err = parseStringParam(value)
@@ -85,6 +89,7 @@ func ParseSignature(header, label string) ([]byte, error) {
 	if label == "" {
 		return nil, errors.New("sigparams: label is required")
 	}
+
 	if strings.TrimSpace(header) == "" {
 		return nil, errors.New("sigparams: missing Signature header")
 	}
@@ -103,6 +108,7 @@ func ParseSignature(header, label string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sigparams: invalid signature encoding: %w", err)
 	}
+
 	return raw, nil
 }
 
@@ -114,6 +120,7 @@ func FormatSignatureInput(label string, components []string, created int64, keyI
 	for i, c := range components {
 		quoted[i] = fmt.Sprintf("%q", strings.ToLower(c))
 	}
+
 	out := fmt.Sprintf(
 		`%s=(%s);created=%d;keyid=%q`,
 		label,
@@ -124,7 +131,9 @@ func FormatSignatureInput(label string, components []string, created int64, keyI
 	if algorithm != "" {
 		out += fmt.Sprintf(`;alg=%q`, algorithm)
 	}
+
 	out += fmt.Sprintf(`;tag=%q`, SignatureTagOCM)
+
 	return out
 }
 
@@ -136,6 +145,7 @@ func FormatSignature(label string, signature []byte) string {
 // ListDictionaryMemberLabels returns top-level dictionary member keys in order.
 func ListDictionaryMemberLabels(header string) []string {
 	var labels []string
+
 	for memberStart := 0; memberStart < len(header); {
 		for memberStart < len(header) {
 			ch := header[memberStart]
@@ -143,12 +153,16 @@ func ListDictionaryMemberLabels(header string) []string {
 				memberStart++
 				continue
 			}
+
 			break
 		}
+
 		if memberStart >= len(header) {
 			break
 		}
+
 		memberEnd := scanTopLevelMemberEnd(header, memberStart)
+
 		keyStart := memberStart
 		for keyStart < memberEnd {
 			ch := header[keyStart]
@@ -156,20 +170,25 @@ func ListDictionaryMemberLabels(header string) []string {
 				keyStart++
 				continue
 			}
+
 			break
 		}
+
 		eq := keyStart
 		for eq < memberEnd && header[eq] != '=' {
 			eq++
 		}
+
 		if eq < memberEnd {
 			labels = append(labels, strings.TrimSpace(header[keyStart:eq]))
 		}
+
 		memberStart = memberEnd
 		if memberStart < len(header) && header[memberStart] == ',' {
 			memberStart++
 		}
 	}
+
 	return labels
 }
 
@@ -177,17 +196,21 @@ func ListDictionaryMemberLabels(header string) []string {
 // allowedLabel. Foreign labels are ignored.
 func ValidateExactlyOneLabel(header, allowedLabel string) error {
 	allowedCount := 0
+
 	for _, label := range ListDictionaryMemberLabels(header) {
 		if label == allowedLabel {
 			allowedCount++
 		}
 	}
+
 	if allowedCount == 0 {
 		return fmt.Errorf("sigparams: missing %q dictionary member", allowedLabel)
 	}
+
 	if allowedCount > 1 {
 		return fmt.Errorf("sigparams: multiple %q signatures", allowedLabel)
 	}
+
 	return nil
 }
 
@@ -195,12 +218,15 @@ func ValidateExactlyOneLabel(header, allowedLabel string) error {
 // parameter equals tagValue.
 func CountTags(header, tagValue string) int {
 	count := 0
+
 	visitAllDictionaryMembers(header, func(_ string, entry string) bool {
 		if entryHasTag(entry, tagValue) {
 			count++
 		}
+
 		return true
 	})
+
 	return count
 }
 
@@ -208,18 +234,24 @@ func CountTags(header, tagValue string) int {
 // parameter equals tagValue.
 func FindTaggedLabel(header, tagValue string) (string, error) {
 	var label string
+
 	found := false
+
 	visitAllDictionaryMembers(header, func(l string, entry string) bool {
 		if entryHasTag(entry, tagValue) {
 			label = l
 			found = true
+
 			return false
 		}
+
 		return true
 	})
+
 	if !found {
 		return "", fmt.Errorf("sigparams: no member with tag %q", tagValue)
 	}
+
 	return label, nil
 }
 
@@ -228,24 +260,30 @@ func entryHasTag(entry, tagValue string) bool {
 	if err != nil {
 		return false
 	}
+
 	for _, item := range splitParameters(rest) {
 		key, value, ok := strings.Cut(item, "=")
 		if !ok {
 			continue
 		}
+
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
+
 		if key != "tag" {
 			continue
 		}
+
 		val, err := parseStringParam(value)
 		if err != nil {
 			continue
 		}
+
 		if val == tagValue {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -255,13 +293,16 @@ func entryHasTag(entry, tagValue string) bool {
 // request from a request that attempted an OCM signature but broke.
 func HasOCMTagAttempt(header string) bool {
 	found := false
+
 	visitAllDictionaryMembers(header, func(_ string, entry string) bool {
 		if entryHasOCMTagAttempt(entry) {
 			found = true
 			return false
 		}
+
 		return true
 	})
+
 	return found
 }
 
@@ -269,13 +310,16 @@ func HasOCMTagAttempt(header string) bool {
 // label is the OCM label.
 func HasOCMLabel(header string) bool {
 	found := false
+
 	visitAllDictionaryMembers(header, func(label, _ string) bool {
 		if label == SignatureLabelOCM {
 			found = true
 			return false
 		}
+
 		return true
 	})
+
 	return found
 }
 
@@ -294,6 +338,7 @@ func entryHasOCMTagAttempt(entry string) bool {
 	} else {
 		rest = entry
 	}
+
 	return scanTagOCM(rest)
 }
 
@@ -308,6 +353,7 @@ func scanTagOCM(s string) bool {
 	quoteChar := byte(0)
 	parenDepth := 0
 	inByteSeq := false
+
 	i := 0
 	for i < len(s) {
 		ch := s[i]
@@ -315,20 +361,27 @@ func scanTagOCM(s string) bool {
 			if ch == ':' {
 				inByteSeq = false
 			}
+
 			i++
+
 			continue
 		}
+
 		if inQuote {
 			if ch == '\\' && i+1 < len(s) {
 				i += 2
 				continue
 			}
+
 			if ch == quoteChar {
 				inQuote = false
 			}
+
 			i++
+
 			continue
 		}
+
 		switch ch {
 		case '"', '\'':
 			inQuote = true
@@ -341,11 +394,13 @@ func scanTagOCM(s string) bool {
 			if parenDepth > 0 {
 				parenDepth--
 			}
+
 			i++
 		case ':':
 			if parenDepth == 0 {
 				inByteSeq = true
 			}
+
 			i++
 		case ';':
 			if parenDepth == 0 {
@@ -353,11 +408,13 @@ func scanTagOCM(s string) bool {
 					return true
 				}
 			}
+
 			i++
 		default:
 			i++
 		}
 	}
+
 	return false
 }
 
@@ -367,34 +424,43 @@ func parseTagParameter(s string, start int) (string, bool) {
 	for start < len(s) && (s[start] == ' ' || s[start] == '\t') {
 		start++
 	}
+
 	keyStart := start
+
 	keyEnd := keyStart
 	for keyEnd < len(s) && s[keyEnd] != '=' && s[keyEnd] != ';' && s[keyEnd] != ',' {
 		keyEnd++
 	}
+
 	if strings.TrimSpace(s[keyStart:keyEnd]) != "tag" {
 		return "", false
 	}
+
 	if keyEnd >= len(s) || s[keyEnd] != '=' {
 		return "", false
 	}
+
 	valStart := keyEnd + 1
 	for valStart < len(s) && (s[valStart] == ' ' || s[valStart] == '\t') {
 		valStart++
 	}
+
 	valEnd := valStart
 	if valStart < len(s) && (s[valStart] == '"' || s[valStart] == '\'') {
 		quote := s[valStart]
+
 		valEnd = valStart + 1
 		for valEnd < len(s) {
 			if s[valEnd] == '\\' && valEnd+1 < len(s) {
 				valEnd += 2
 				continue
 			}
+
 			if s[valEnd] == quote {
 				valEnd++ // include closing quote
 				break
 			}
+
 			valEnd++
 		}
 	} else {
@@ -402,6 +468,7 @@ func parseTagParameter(s string, start int) (string, bool) {
 			valEnd++
 		}
 	}
+
 	return s[valStart:valEnd], true
 }
 
@@ -412,15 +479,19 @@ func isOCMTagValue(value string) bool {
 	if value == "" {
 		return false
 	}
+
 	if value == SignatureTagOCM {
 		return true
 	}
+
 	if value[0] == '"' {
 		return strings.HasPrefix(value, `"`+SignatureTagOCM)
 	}
+
 	if value[0] == '\'' {
 		return strings.HasPrefix(value, `'`+SignatureTagOCM)
 	}
+
 	return strings.HasPrefix(value, SignatureTagOCM)
 }
 
@@ -435,12 +506,16 @@ func visitAllDictionaryMembers(header string, fn func(label, entry string) bool)
 				memberStart++
 				continue
 			}
+
 			break
 		}
+
 		if memberStart >= len(header) {
 			return
 		}
+
 		memberEnd := scanTopLevelMemberEnd(header, memberStart)
+
 		keyStart := memberStart
 		for keyStart < memberEnd {
 			ch := header[keyStart]
@@ -448,19 +523,24 @@ func visitAllDictionaryMembers(header string, fn func(label, entry string) bool)
 				keyStart++
 				continue
 			}
+
 			break
 		}
+
 		eq := keyStart
 		for eq < memberEnd && header[eq] != '=' {
 			eq++
 		}
+
 		if eq < memberEnd {
 			label := strings.TrimSpace(header[keyStart:eq])
+
 			entry := strings.TrimSpace(header[eq+1 : memberEnd])
 			if !fn(label, entry) {
 				return
 			}
 		}
+
 		memberStart = memberEnd
 		if memberStart < len(header) && header[memberStart] == ',' {
 			memberStart++
@@ -473,10 +553,12 @@ func visitAllDictionaryMembers(header string, fn func(label, entry string) bool)
 // do not count.
 func CountDictionaryMembers(header, label string) int {
 	count := 0
+
 	visitDictionaryMembers(header, label, func(_, _ int) bool {
 		count++
 		return true
 	})
+
 	return count
 }
 
@@ -488,18 +570,24 @@ func ExtractDictionaryMember(header, label string) (string, error) {
 
 func extractDictionaryEntry(header, label, headerName string) (string, error) {
 	var entry string
+
 	found := false
+
 	visitDictionaryMembers(header, label, func(start, end int) bool {
 		entry = strings.TrimSpace(header[start:end])
 		found = true
+
 		return false
 	})
+
 	if !found {
 		return "", fmt.Errorf("sigparams: label %q not found in %s header", label, headerName)
 	}
+
 	if entry == "" {
 		return "", fmt.Errorf("sigparams: empty entry for label %q", label)
 	}
+
 	return entry, nil
 }
 
@@ -508,6 +596,7 @@ func extractDictionaryEntry(header, label, headerName string) (string, error) {
 // valueEnd) for each member whose key equals label. fn returning false stops.
 func visitDictionaryMembers(header, label string, fn func(start, end int) bool) {
 	prefix := label + "="
+
 	for memberStart := 0; memberStart < len(header); {
 		for memberStart < len(header) {
 			ch := header[memberStart]
@@ -515,12 +604,16 @@ func visitDictionaryMembers(header, label string, fn func(start, end int) bool) 
 				memberStart++
 				continue
 			}
+
 			break
 		}
+
 		if memberStart >= len(header) {
 			return
 		}
+
 		memberEnd := scanTopLevelMemberEnd(header, memberStart)
+
 		keyStart := memberStart
 		for keyStart < memberEnd {
 			ch := header[keyStart]
@@ -528,13 +621,16 @@ func visitDictionaryMembers(header, label string, fn func(start, end int) bool) 
 				keyStart++
 				continue
 			}
+
 			break
 		}
+
 		if keyStart+len(prefix) <= memberEnd && header[keyStart:keyStart+len(prefix)] == prefix {
 			if !fn(keyStart+len(prefix), memberEnd) {
 				return
 			}
 		}
+
 		memberStart = memberEnd
 		if memberStart < len(header) && header[memberStart] == ',' {
 			memberStart++
@@ -549,24 +645,30 @@ func scanTopLevelMemberEnd(header string, start int) int {
 	inQuote := false
 	parenDepth := 0
 	inByteSeq := false
+
 	for i := start; i < len(header); i++ {
 		ch := header[i]
 		if inByteSeq {
 			if ch == ':' {
 				inByteSeq = false
 			}
+
 			continue
 		}
+
 		if inQuote {
 			if ch == '\\' && i+1 < len(header) {
 				i++
 				continue
 			}
+
 			if ch == '"' {
 				inQuote = false
 			}
+
 			continue
 		}
+
 		switch ch {
 		case '"':
 			inQuote = true
@@ -586,6 +688,7 @@ func scanTopLevelMemberEnd(header string, start int) int {
 			}
 		}
 	}
+
 	return len(header)
 }
 
@@ -597,6 +700,7 @@ func parseInnerList(entry string) ([]string, string, error) {
 
 	depth := 0
 	closeIdx := -1
+
 	for i, ch := range entry {
 		switch ch {
 		case '(':
@@ -608,34 +712,41 @@ func parseInnerList(entry string) ([]string, string, error) {
 				break
 			}
 		}
+
 		if closeIdx >= 0 {
 			break
 		}
 	}
+
 	if closeIdx < 0 {
 		return nil, "", errors.New("malformed inner list")
 	}
 
 	inner := strings.TrimSpace(entry[1:closeIdx])
+
 	rest := strings.TrimSpace(entry[closeIdx+1:])
 	if rest != "" && !strings.HasPrefix(rest, ";") {
 		return nil, "", errors.New("parameters must follow inner list")
 	}
 
 	var components []string
+
 	seen := make(map[string]struct{})
+
 	if inner != "" {
 		for _, part := range strings.Fields(inner) {
 			part = strings.Trim(part, `"`)
 			if part == "" {
 				continue
 			}
+
 			c := strings.ToLower(part)
 			if _, dup := seen[c]; dup {
 				// RFC 9421 section 2.3: covered components are ordered-but-distinct;
 				// duplicate identifiers are not meaningful.
 				return nil, "", errors.New("duplicate covered component")
 			}
+
 			seen[c] = struct{}{}
 			components = append(components, c)
 		}
@@ -649,9 +760,11 @@ func splitParameters(rest string) []string {
 	if rest == "" {
 		return nil
 	}
+
 	if strings.HasPrefix(rest, ";") {
 		rest = strings.TrimPrefix(rest, ";")
 	}
+
 	return strings.Split(rest, ";")
 }
 
@@ -659,10 +772,12 @@ func parseStringParam(value string) (string, error) {
 	if len(value) < 2 || !strings.HasPrefix(value, `"`) || !strings.HasSuffix(value, `"`) {
 		return "", fmt.Errorf("expected quoted string, got %q", value)
 	}
+
 	inner := value[1 : len(value)-1]
 	if inner == "" {
 		return "", errors.New("empty string parameter")
 	}
+
 	return inner, nil
 }
 
@@ -676,6 +791,7 @@ func decodeBase64(s string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return raw, nil
 }
 

@@ -53,6 +53,7 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
@@ -68,6 +69,7 @@ func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("invalid", "sender.com")))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
@@ -83,6 +85,7 @@ func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("webdav", ownerHost)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
@@ -98,6 +101,7 @@ func TestCreateShare_AcceptsMultiProtocolName(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi", ownerHost)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 

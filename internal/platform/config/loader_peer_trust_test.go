@@ -10,6 +10,7 @@ import (
 func TestLoad_PeerTrustEnabledNoConfigPathsFails(t *testing.T) {
 	// Clear ambient env override so the peer-trust validation path is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	tempDir, err := os.MkdirTemp("", "config-fed-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -17,6 +18,7 @@ func TestLoad_PeerTrustEnabledNoConfigPathsFails(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	configPath := filepath.Join(tempDir, "config.toml")
+
 	tomlContent := `
 mode = "strict"
 
@@ -32,6 +34,7 @@ config_paths = []
 	if err == nil {
 		t.Fatal("expected error for peer trust enabled with no config_paths")
 	}
+
 	if !strings.Contains(err.Error(), "config_paths must be non-empty") {
 		t.Errorf("expected error about non-empty config_paths, got: %v", err)
 	}
@@ -40,6 +43,7 @@ config_paths = []
 func TestLoad_PeerTrustEnabledNonExistentPathFails(t *testing.T) {
 	// Clear ambient env override so the peer-trust validation path is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	tempDir, err := os.MkdirTemp("", "config-fed-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -47,6 +51,7 @@ func TestLoad_PeerTrustEnabledNonExistentPathFails(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	configPath := filepath.Join(tempDir, "config.toml")
+
 	tomlContent := `
 mode = "strict"
 
@@ -62,6 +67,7 @@ config_paths = ["/nonexistent/path/trust-group.json"]
 	if err == nil {
 		t.Fatal("expected error for non-existent peer trust config path")
 	}
+
 	if !strings.Contains(err.Error(), "not readable") {
 		t.Errorf("expected error about readable path, got: %v", err)
 	}
@@ -70,6 +76,7 @@ config_paths = ["/nonexistent/path/trust-group.json"]
 func TestLoad_PeerTrustEnabledValidPathSucceeds(t *testing.T) {
 	// Clear ambient env override so the peer-trust load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	tempDir, err := os.MkdirTemp("", "config-fed-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -83,6 +90,7 @@ func TestLoad_PeerTrustEnabledValidPathSucceeds(t *testing.T) {
 	}
 
 	configPath := filepath.Join(tempDir, "config.toml")
+
 	tomlContent := `
 mode = "strict"
 
@@ -102,6 +110,7 @@ config_paths = ["` + tgPath + `"]
 	if !cfg.PeerTrust.Enabled {
 		t.Error("expected peer trust to be enabled")
 	}
+
 	if len(cfg.PeerTrust.ConfigPaths) != 1 {
 		t.Errorf("expected 1 config path, got %d", len(cfg.PeerTrust.ConfigPaths))
 	}
@@ -118,6 +127,7 @@ func TestLoad_PeerTrustDisabledNeedsNoConfigPaths(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	configPath := filepath.Join(tempDir, "config.toml")
+
 	tomlContent := `
 mode = "strict"
 

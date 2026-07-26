@@ -39,6 +39,7 @@ func (e *Error) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("%s: %s: %v", e.Reason, e.Message, e.Cause)
 	}
+
 	return fmt.Sprintf("%s: %s", e.Reason, e.Message)
 }
 
@@ -55,6 +56,7 @@ func Extract(err error) string {
 	if errors.As(err, &re) {
 		return re.Reason
 	}
+
 	return ""
 }
 
@@ -153,5 +155,6 @@ func CanonicalFromError(err error) string {
 	if extracted := Extract(err); extracted != "" {
 		return extracted
 	}
+
 	return FromClassified(ClassifyError(err))
 }

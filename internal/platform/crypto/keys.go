@@ -44,9 +44,11 @@ func NewKeyManagerWithFragment(keyPath, publicOrigin, kidFragment string) *KeyMa
 	if err != nil {
 		keyID = keyid.BuildKid(publicOrigin, kidFragment)
 	}
+
 	if kidFragment == "" {
 		kidFragment = keyid.DefaultFragment
 	}
+
 	return &KeyManager{
 		keyPath:     keyPath,
 		keyID:       keyID,
@@ -70,6 +72,7 @@ func (km *KeyManager) LoadOrGenerate() error {
 	if err != nil {
 		return fmt.Errorf("failed to generate signing key: %w", err)
 	}
+
 	km.signingKey = key
 
 	if km.keyPath != "" {
@@ -140,6 +143,7 @@ func (km *KeyManager) saveKey() error {
 	}
 
 	data := pem.EncodeToMemory(block)
+
 	return os.WriteFile(km.keyPath, data, 0600)
 }
 
@@ -148,6 +152,7 @@ func (km *KeyManager) saveKey() error {
 func (km *KeyManager) SetWireKeyID(keyID string) {
 	km.mu.Lock()
 	defer km.mu.Unlock()
+
 	if km.signingKey != nil {
 		km.signingKey.KeyID = keyID
 	}
@@ -157,6 +162,7 @@ func (km *KeyManager) SetWireKeyID(keyID string) {
 func (km *KeyManager) GetSigningKey() *SigningKey {
 	km.mu.RLock()
 	defer km.mu.RUnlock()
+
 	return km.signingKey
 }
 
@@ -164,9 +170,11 @@ func (km *KeyManager) GetSigningKey() *SigningKey {
 func (km *KeyManager) JWKS() jwks.Set {
 	km.mu.RLock()
 	defer km.mu.RUnlock()
+
 	if km.signingKey == nil {
 		return jwks.Set{Keys: []jwks.Key{}}
 	}
+
 	return jwks.SetFromEd25519PublicKey(km.signingKey.KeyID, km.signingKey.PublicKey)
 }
 

@@ -86,6 +86,7 @@ func NewClient(
 	if discoveryClient == nil {
 		panic("access.NewClient: discoveryClient must not be nil")
 	}
+
 	return &Client{
 		httpClient:      httpClient,
 		discoveryClient: discoveryClient,
@@ -117,6 +118,7 @@ func accessHostForDiscovery(share *ShareInfo) string {
 	if share.OwnerHost != "" {
 		return share.OwnerHost
 	}
+
 	return share.SenderHost
 }
 
@@ -130,6 +132,7 @@ func (c *Client) DecideAccessAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 			nil,
 		)
 	}
+
 	if opts.Protocol != ProtocolWebDAV {
 		return failClosedAccessDecision(
 			reason.ReasonProtocolMismatch,
@@ -137,6 +140,7 @@ func (c *Client) DecideAccessAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 			ErrProtocolRequired,
 		)
 	}
+
 	if disc == nil {
 		return failClosedAccessDecision(
 			reason.ReasonDiscoveryFailed,
@@ -167,6 +171,7 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 				nil,
 			)
 		}
+
 		if err := c.checkSignaturePolicy(disc); err != nil {
 			return failClosedAccessDecision(
 				reason.ReasonSignatureRequired,
@@ -174,6 +179,7 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 				err,
 			)
 		}
+
 		return AccessAuthDecision{Mode: AccessModeTokenExchange, HTTPStatus: http.StatusOK}, nil
 	}
 
@@ -184,6 +190,7 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 	if capable {
 		return AccessAuthDecision{Mode: AccessModeExchangeThenFallback, HTTPStatus: http.StatusOK}, nil
 	}
+
 	return AccessAuthDecision{Mode: AccessModeSharedSecret, HTTPStatus: http.StatusOK}, nil
 }
 
@@ -193,6 +200,7 @@ func hasRequirement(reqs []string, target string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -207,6 +215,7 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 			nil,
 		)
 	}
+
 	share := opts.Share
 	if share.Status != ShareStatusAccepted {
 		return nil, ErrShareNotAccepted
@@ -222,6 +231,7 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 
 	discoveryHost := accessHostForDiscovery(share)
 	origin := c.resolvePeerOrigin(discoveryHost)
+
 	disc, err := c.discoveryClient.Discover(ctx, origin.baseURL)
 	if err != nil {
 		return nil, reason.NewClassifiedError(
@@ -256,6 +266,7 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		// retained in the returned error chain. Only a safe fixed warning is
 		// logged; fallback then proceeds with a fresh shared-secret access result.
 		slog.WarnContext(ctx, "optional token exchange failed; falling back to legacy shared-secret access")
+
 		return c.accessSharedSecret(ctx, share, opts, disc)
 	default:
 		return nil, reason.NewClassifiedError(
@@ -282,6 +293,7 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 	if err != nil {
 		return nil, err
 	}
+
 	accessToken := exchangeResult.AccessToken
 
 	webdavURL, err := c.buildWebDAVURL(ctx, share, opts.SubPath, disc)
@@ -293,6 +305,7 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := c.httpClient.Do(ctx, req)
@@ -320,6 +333,7 @@ func (c *Client) accessSharedSecret(ctx context.Context, share *ShareInfo, opts 
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
 
 	resp, err := c.httpClient.Do(ctx, req)
@@ -345,6 +359,7 @@ func (c *Client) checkSignaturePolicy(disc *spec.Discovery) error {
 			nil,
 		)
 	}
+
 	return nil
 }
 
@@ -360,6 +375,7 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 
 	if result.Response.StatusCode != http.StatusOK {
 		result.Response.Body.Close()
+
 		return nil, reason.NewClassifiedError(
 			reason.ReasonRemoteError,
 			"remote server returned error",
@@ -379,6 +395,7 @@ func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath s
 			if subPath != "" {
 				u += "/" + subPath
 			}
+
 			return u, nil
 		}
 	}
@@ -404,6 +421,7 @@ func isAbsoluteWebDAVURI(uri string) bool {
 	if err != nil {
 		return false
 	}
+
 	return u.IsAbs()
 }
 
@@ -418,6 +436,7 @@ type resolvedPeerOrigin struct {
 
 func (c *Client) resolvePeerOrigin(host string) resolvedPeerOrigin {
 	decision := c.peerOrigin.Resolve(host)
+
 	return resolvedPeerOrigin{
 		baseURL: decision.BaseURL,
 	}

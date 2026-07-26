@@ -15,6 +15,7 @@ import (
 func newTestHTTPClient() *httpclient.Client {
 	cfg := tshttp.PermissiveConfig()
 	cfg.MaxRedirects = 0
+
 	return httpclient.New(cfg, nil)
 }
 
@@ -32,6 +33,7 @@ func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
@@ -49,6 +51,7 @@ func TestFetchListing_CompactJWS_RS256(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
@@ -66,6 +69,7 @@ func TestFetchListing_CompactJWS_ES256(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
@@ -83,6 +87,7 @@ func TestFetchListing_FlattenedJSON_Ed25519(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
@@ -102,6 +107,7 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign payload: %v", err)
 	}
+
 	body := []byte(jws.FullSerialize())
 
 	ts := serveJWS(t, body)
@@ -117,6 +123,7 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
@@ -239,6 +246,7 @@ func TestFetchListing_MultipleKeys_SecondMatches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 
@@ -256,6 +264,7 @@ func TestFetchListing_AlgorithmCaseInsensitive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	assertListing(t, listing)
 }
 

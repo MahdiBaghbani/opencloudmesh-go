@@ -34,9 +34,11 @@ func TestBuildDiscovery_EnabledWithProjectedPaths(t *testing.T) {
 	if !disc.Enabled {
 		t.Fatal("expected Enabled=true")
 	}
+
 	if disc.EndPoint != "https://example.com/myapp/ocm" {
 		t.Errorf("EndPoint = %q", disc.EndPoint)
 	}
+
 	path, ok := disc.ResourceTypes[0].Protocols.StringRole("webdav")
 	if !ok || path != "/webdav/ocm/" {
 		t.Errorf("webdav protocol = %q, ok=%v", path, ok)
@@ -53,6 +55,7 @@ func TestBuildDiscovery_TokenExchangeUsesProjectedEndpoint(t *testing.T) {
 	if !disc.HasCapability("exchange-token") {
 		t.Error("expected exchange-token capability")
 	}
+
 	if disc.TokenEndPoint != "https://example.com/app/ocm/exchange" {
 		t.Errorf("TokenEndPoint = %q", disc.TokenEndPoint)
 	}
@@ -72,6 +75,7 @@ func TestBuildDiscovery_CriteriaUseIETFStrings(t *testing.T) {
 	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
 		t.Error("expected must-use-http-sig criterion")
 	}
+
 	if !disc.HasCriteria(spec.CriteriaMustExchangeToken) {
 		t.Error("expected must-exchange-token criterion")
 	}
@@ -88,9 +92,11 @@ func TestBuildDiscovery_OmitsTokenExchangeWhenEndpointEmpty(t *testing.T) {
 	if disc.HasCapability("exchange-token") {
 		t.Error("did not expect exchange-token without token endpoint")
 	}
+
 	if disc.TokenEndPoint != "" {
 		t.Errorf("TokenEndPoint = %q, want empty", disc.TokenEndPoint)
 	}
+
 	if disc.HasCriteria(spec.CriteriaMustExchangeToken) {
 		t.Error("did not expect must-exchange-token without token endpoint")
 	}
@@ -107,6 +113,7 @@ func TestBuildDiscovery_InviteAcceptIndependentFromWAYF(t *testing.T) {
 	if disc.InviteAcceptDialog == "" {
 		t.Error("expected inviteAcceptDialog without invite-wayf")
 	}
+
 	if disc.HasCapability("invite-wayf") {
 		t.Error("did not expect invite-wayf capability")
 	}
@@ -151,6 +158,7 @@ func TestBuildDiscovery_AdvertiseHTTPSigWithoutInlinePublicKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal discovery: %v", err)
 	}
+
 	if strings.Contains(string(out), "publicKey") {
 		t.Fatalf("expected no inline public key material in discovery JSON, got %s", out)
 	}
@@ -174,16 +182,19 @@ func TestBuildDiscovery_ProtocolInventory(t *testing.T) {
 	}, nil)
 
 	protocols := disc.ResourceTypes[0].Protocols
+
 	keys := make([]string, 0, len(protocols))
 	for key := range protocols {
 		keys = append(keys, key)
 	}
+
 	sort.Strings(keys)
 
 	want := []string{"webdav", "webdav-receive"}
 	if len(keys) != len(want) {
 		t.Fatalf("protocol keys = %v, want %v", keys, want)
 	}
+
 	for i, key := range want {
 		if keys[i] != key {
 			t.Fatalf("protocol keys = %v, want %v", keys, want)
@@ -237,57 +248,73 @@ func TestBuildDiscovery_StrictDocument(t *testing.T) {
 	if disc.APIVersion != "1.4.0" {
 		t.Errorf("APIVersion = %q, want 1.4.0", disc.APIVersion)
 	}
+
 	if !disc.Enabled {
 		t.Fatal("expected Enabled=true")
 	}
+
 	if disc.EndPoint != "https://example.com/ocm" {
 		t.Errorf("EndPoint = %q, want an absolute URL", disc.EndPoint)
 	}
+
 	endpointURL, err := url.Parse(disc.EndPoint)
 	if err != nil {
 		t.Fatalf("parse EndPoint: %v", err)
 	}
+
 	tokenURL, err := url.Parse(disc.TokenEndPoint)
 	if err != nil {
 		t.Fatalf("parse TokenEndPoint: %v", err)
 	}
+
 	if tokenURL.Scheme != endpointURL.Scheme || tokenURL.Host != endpointURL.Host {
 		t.Errorf("TokenEndPoint authority = %q, want same authority as EndPoint %q", disc.TokenEndPoint, disc.EndPoint)
 	}
+
 	if !disc.HasCapability("http-sig") {
 		t.Error("expected http-sig capability")
 	}
+
 	if !disc.HasCapability("exchange-token") {
 		t.Error("expected exchange-token capability")
 	}
+
 	if !disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
 		t.Error("expected must-use-http-sig criterion")
 	}
+
 	if !disc.HasCriteria(spec.CriteriaMustExchangeToken) {
 		t.Error("expected must-exchange-token criterion")
 	}
+
 	if len(disc.ResourceTypes) != 2 {
 		t.Fatalf("ResourceTypes = %+v, want file and folder", disc.ResourceTypes)
 	}
+
 	for i, wantName := range []string{"file", "folder"} {
 		if disc.ResourceTypes[i].Name != wantName {
 			t.Errorf("ResourceTypes[%d].Name = %q, want %q", i, disc.ResourceTypes[i].Name, wantName)
 		}
+
 		if len(disc.ResourceTypes[i].ShareTypes) != 1 || disc.ResourceTypes[i].ShareTypes[0] != "user" {
 			t.Errorf("ResourceTypes[%d].ShareTypes = %v, want [user]", i, disc.ResourceTypes[i].ShareTypes)
 		}
 	}
 
 	protocols := disc.ResourceTypes[0].Protocols
+
 	keys := make([]string, 0, len(protocols))
 	for k := range protocols {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
+
 	wantKeys := []string{"webdav", "webdav-receive"}
 	if len(keys) != len(wantKeys) {
 		t.Fatalf("protocol keys = %v, want %v", keys, wantKeys)
 	}
+
 	for i, want := range wantKeys {
 		if keys[i] != want {
 			t.Fatalf("protocol keys = %v, want %v", keys, wantKeys)
@@ -298,6 +325,7 @@ func TestBuildDiscovery_StrictDocument(t *testing.T) {
 	if !ok || webdav != webdavRoot {
 		t.Fatalf("webdav = %q, ok=%v, want uri=%s", webdav, ok, webdavRoot)
 	}
+
 	wr, ok := protocols.WebDAVReceive()
 	if !ok || wr.URI != spec.WebDAVReceiveURIRelative {
 		t.Fatalf("webdav-receive = %+v, ok=%v, want uri=relative", wr, ok)
@@ -315,9 +343,11 @@ func TestBuildDiscovery_MustUseHTTPSig_RequiresAdvertise(t *testing.T) {
 	if !disc.Enabled {
 		t.Fatal("expected enabled discovery with absolute endpoint")
 	}
+
 	if disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
 		t.Error("did not expect must-use-http-sig when AdvertiseHTTPSig is false")
 	}
+
 	if disc.HasCapability("http-sig") {
 		t.Error("did not expect http-sig capability when AdvertiseHTTPSig is false")
 	}

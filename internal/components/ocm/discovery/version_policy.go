@@ -92,6 +92,7 @@ func (p *VersionPolicy) Accept(reported string) (bool, string) {
 	if reported == "" {
 		return false, ""
 	}
+
 	if p == nil {
 		p = NewVersionPolicy()
 	}
@@ -101,11 +102,13 @@ func (p *VersionPolicy) Accept(reported string) (bool, string) {
 		if reported != spec.APIVersionPin {
 			return false, ""
 		}
+
 		return true, p.warn(reported)
 	case APIVersionAtLeast14:
 		if !atLeast14(reported) {
 			return false, ""
 		}
+
 		return true, p.warn(reported)
 	case APIVersionAcceptAny:
 		return true, p.warn(reported)
@@ -125,6 +128,7 @@ func (p *VersionPolicy) warn(reported string) string {
 				reported, spec.APIVersionPin,
 			)
 		}
+
 		return ""
 	case WarnAnyDiff:
 		if reported != spec.APIVersionPin {
@@ -133,6 +137,7 @@ func (p *VersionPolicy) warn(reported string) string {
 				reported, spec.APIVersionPin,
 			)
 		}
+
 		return ""
 	default:
 		return ""
@@ -146,28 +151,36 @@ func compareDotTriple(a, b string) (int, bool) {
 	if !okA {
 		return 0, false
 	}
+
 	mb, miB, pb, okB := parseDotTriple(b)
 	if !okB {
 		return 0, false
 	}
+
 	if ma != mb {
 		if ma < mb {
 			return -1, true
 		}
+
 		return 1, true
 	}
+
 	if mi != miB {
 		if mi < miB {
 			return -1, true
 		}
+
 		return 1, true
 	}
+
 	if pa != pb {
 		if pa < pb {
 			return -1, true
 		}
+
 		return 1, true
 	}
+
 	return 0, true
 }
 
@@ -182,28 +195,35 @@ func parseDotTriple(s string) (major, minor, patch int, ok bool) {
 	if len(parts) != 3 {
 		return 0, 0, 0, false
 	}
+
 	for _, part := range parts {
 		if part == "" {
 			return 0, 0, 0, false
 		}
+
 		for _, c := range part {
 			if c < '0' || c > '9' {
 				return 0, 0, 0, false
 			}
 		}
 	}
+
 	var err error
+
 	major, err = strconv.Atoi(parts[0])
 	if err != nil {
 		return 0, 0, 0, false
 	}
+
 	minor, err = strconv.Atoi(parts[1])
 	if err != nil {
 		return 0, 0, 0, false
 	}
+
 	patch, err = strconv.Atoi(parts[2])
 	if err != nil {
 		return 0, 0, 0, false
 	}
+
 	return major, minor, patch, true
 }

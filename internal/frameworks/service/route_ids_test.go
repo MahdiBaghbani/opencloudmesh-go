@@ -55,16 +55,20 @@ func TestRouteIDSSOT_StaticTokenAndSubtreeDefault(t *testing.T) {
 		t.Run(tokenPath, func(t *testing.T) {
 			opts := service.RouteOpts{TokenExchangePath: tokenPath}
 			rows := service.Routes(opts)
+
 			var tokenRow *service.RouteRow
+
 			for i := range rows {
 				if rows[i].ID == service.RouteIDOCMToken {
 					tokenRow = &rows[i]
 					break
 				}
 			}
+
 			if tokenRow == nil {
 				t.Fatalf("Routes(opts) missing token row for path %q", tokenPath)
 			}
+
 			if tokenRow.ID != service.RouteIDOCMToken {
 				t.Errorf("token row ID = %q, want %q", tokenRow.ID, service.RouteIDOCMToken)
 			}
@@ -82,21 +86,27 @@ func TestDerivedRouteInventory_ExternalBasePath(t *testing.T) {
 	inventory := service.DerivedRouteInventory(opts)
 
 	prefixedServices := map[string]bool{"api": false, "ui": false, "ocm": false}
+
 	for _, row := range inventory {
 		if row.MountAtRoot {
 			if isRootOnlyDiscoveryPath(row.FullPath) {
 				continue
 			}
+
 			t.Errorf("unexpected host-root inventory row %q with external base path", row.FullPath)
+
 			continue
 		}
+
 		if !strings.HasPrefix(row.FullPath, "/ocm/") && row.FullPath != "/ocm" {
 			t.Errorf("inventory row %q FullPath = %q, want /ocm prefix", row.ID, row.FullPath)
 		}
+
 		if _, ok := prefixedServices[row.Service]; ok {
 			prefixedServices[row.Service] = true
 		}
 	}
+
 	for svc, seen := range prefixedServices {
 		if !seen {
 			t.Errorf("missing prefixed inventory row for service %q", svc)

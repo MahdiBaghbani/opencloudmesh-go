@@ -116,15 +116,19 @@ func TestParseInviteString(t *testing.T) {
 				} else if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
 					t.Errorf("error %q does not contain %q", err.Error(), tt.errContains)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
+
 			if token != tt.wantToken {
 				t.Errorf("token = %q, want %q", token, tt.wantToken)
 			}
+
 			if fqdn != tt.wantFQDN {
 				t.Errorf("fqdn = %q, want %q", fqdn, tt.wantFQDN)
 			}
@@ -157,6 +161,7 @@ func TestBuildInviteString(t *testing.T) {
 			if strings.Contains(encoded, "=") {
 				t.Errorf("BuildInviteString(%q, %q) = %q contains padding '='", tt.token, tt.fqdn, encoded)
 			}
+
 			if strings.ContainsAny(encoded, "+/") {
 				t.Errorf("BuildInviteString(%q, %q) = %q contains standard base64 alphabet '+' or '/'", tt.token, tt.fqdn, encoded)
 			}
@@ -165,9 +170,11 @@ func TestBuildInviteString(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ParseInviteString(%q) error: %v", encoded, err)
 			}
+
 			if gotToken != tt.token {
 				t.Errorf("token = %q, want %q", gotToken, tt.token)
 			}
+
 			if gotFQDN != tt.fqdn {
 				t.Errorf("fqdn = %q, want %q", gotFQDN, tt.fqdn)
 			}
@@ -180,13 +187,16 @@ func TestRoundTrip(t *testing.T) {
 	fqdn := "cloud.example.org"
 
 	inviteString := invites.BuildInviteString(token, fqdn)
+
 	gotToken, gotFQDN, err := invites.ParseInviteString(inviteString)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
+
 	if gotToken != token {
 		t.Errorf("token = %q, want %q", gotToken, token)
 	}
+
 	if gotFQDN != fqdn {
 		t.Errorf("fqdn = %q, want %q", gotFQDN, fqdn)
 	}
@@ -197,13 +207,16 @@ func TestRoundTrip_MultipleAtInToken(t *testing.T) {
 	fqdn := "example.com"
 
 	inviteString := invites.BuildInviteString(token, fqdn)
+
 	gotToken, gotFQDN, err := invites.ParseInviteString(inviteString)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if gotToken != token {
 		t.Errorf("token = %q, want %q", gotToken, token)
 	}
+
 	if gotFQDN != fqdn {
 		t.Errorf("fqdn = %q, want %q", gotFQDN, fqdn)
 	}

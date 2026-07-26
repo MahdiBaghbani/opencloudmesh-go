@@ -75,6 +75,7 @@ func (r *PeerMappingResolver) ResolveFacts(host string, disc DiscoveryView) Fact
 		if r.scope == config.CompatibilityScopeScoped {
 			return facts
 		}
+
 		return r.applyGlobalKnobs(facts)
 	}
 
@@ -85,6 +86,7 @@ func (r *PeerMappingResolver) ResolveFacts(host string, disc DiscoveryView) Fact
 	if r.scope == config.CompatibilityScopeScoped {
 		return facts
 	}
+
 	return r.applyGlobalKnobs(facts)
 }
 
@@ -92,10 +94,12 @@ func (r *PeerMappingResolver) applyGlobalKnobs(facts Facts) Facts {
 	if isConfigNil(r.cfg) {
 		return facts
 	}
+
 	includes, requires, http := r.cfg.GlobalKnobs()
 	facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
 	facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
 	facts.RequiresHTTPRequestSignatures = mergeBool(facts.RequiresHTTPRequestSignatures, http)
+
 	return facts
 }
 
@@ -106,10 +110,12 @@ func (r *PeerMappingResolver) applyMappedFacts(facts Facts, platform, norm strin
 		facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
 		facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
 	}
+
 	if includes, requires, ok := r.cfg.InstanceKnobs(platform, norm); ok {
 		facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
 		facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
 	}
+
 	return facts
 }
 
@@ -117,12 +123,15 @@ func (r *PeerMappingResolver) resolvePlatform(host string) (string, bool) {
 	if isConfigNil(r.cfg) {
 		return "", false
 	}
+
 	if platform, ok := r.cfg.PlatformInstanceBinding(host); ok {
 		return platform, true
 	}
+
 	if platform, ok := r.cfg.HostPlatformFor(host); ok {
 		return platform, true
 	}
+
 	return "", false
 }
 
@@ -130,6 +139,7 @@ func mergeBool(base bool, overlay *bool) bool {
 	if overlay == nil {
 		return base
 	}
+
 	return *overlay
 }
 
@@ -141,9 +151,10 @@ func isInterfaceValueNil(v any) bool {
 	if v == nil {
 		return true
 	}
+
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
-	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+	case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
 		return rv.IsNil()
 	default:
 		return false

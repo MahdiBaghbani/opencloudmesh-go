@@ -59,13 +59,16 @@ func TestClientDiscover_RealPeerFixtures(t *testing.T) {
 				json.NewEncoder(w).Encode(raw)
 			})
 			client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
+
 			disc, err := client.Discover(context.Background(), server.URL)
 			if err != nil {
 				t.Fatalf("Discover failed: %v", err)
 			}
+
 			if len(disc.Warnings) == 0 {
 				t.Fatal("expected warnings for real-peer fixture")
 			}
+
 			if fx.apiVersion != spec.APIVersionPin && !hasWarningSubstring(disc.Warnings, "differs from pin") {
 				t.Fatalf("expected differs-from-pin warning, got %v", disc.Warnings)
 			}

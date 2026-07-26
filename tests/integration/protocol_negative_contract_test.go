@@ -27,6 +27,7 @@ func runMalformedDiscoveryBlocksOutboundCase(
 	t.Helper()
 
 	provider := pair.Server1
+
 	if receiver.DiscoveryHits() > 0 {
 		t.Fatal("malformed-discovery peer hit before outgoing share attempt")
 	}
@@ -45,14 +46,17 @@ func runMalformedDiscoveryBlocksOutboundCase(
 		"localPath":      shareFile,
 		"permissions":    []string{"read"},
 	})
+
 	wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
 	if status != wantStatus {
 		provider.DumpLogs(t)
 		t.Fatalf("malformed discovery outgoing share: expected %d, got %d: %s", wantStatus, status, body)
 	}
+
 	if receiver.DiscoveryHits() == 0 {
 		t.Fatal("expected trusted discovery fetch before malformed-discovery rejection")
 	}
+
 	if receiver.PostCount() > 0 {
 		t.Fatalf("expected receiver POST count 0, got %d", receiver.PostCount())
 	}
@@ -61,6 +65,7 @@ func runMalformedDiscoveryBlocksOutboundCase(
 	if err != nil {
 		t.Fatalf("snapshot persistence after malformed discovery: %v", err)
 	}
+
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
 	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
 	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
@@ -78,6 +83,7 @@ func runUnexchangedSharedSecretBearer401Case(
 	consumer := pair.Server2
 
 	testContent := []byte("Step 14 negative shared-secret bearer proof")
+
 	testFile := filepath.Join(t.TempDir(), "protocol-negative-bearer.txt")
 	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
 		t.Fatalf("write test file: %v", err)
@@ -118,16 +124,20 @@ func runUnexchangedSharedSecretBearer401Case(
 
 	fileName := filepath.Base(testFile)
 	webdavURL := provider.BaseURL + "/webdav/ocm/" + outgoingCreated.WebDAVID + "/" + url.PathEscape(fileName)
+
 	req, err := http.NewRequest(http.MethodGet, webdavURL, nil)
 	if err != nil {
 		t.Fatalf("create shared-secret bearer webdav request: %v", err)
 	}
+
 	req.Header.Set("Authorization", "Bearer "+sharedSecret)
+
 	resp, err := provider.Client().Do(req)
 	if err != nil {
 		t.Fatalf("shared-secret bearer webdav GET: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusUnauthorized {
 		respBody, _ := io.ReadAll(resp.Body)
 		t.Fatalf("shared-secret bearer webdav: expected 401, got %d: %s", resp.StatusCode, respBody)
@@ -137,6 +147,7 @@ func runUnexchangedSharedSecretBearer401Case(
 	if err != nil {
 		t.Fatalf("snapshot persistence after shared-secret bearer: %v", err)
 	}
+
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
 	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
 	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
@@ -161,12 +172,14 @@ func startMalformedDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 					Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")},
 				}},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(disc)
 		case "/ocm/shares":
 			if r.Method == http.MethodPost {
 				peer.postCount.Add(1)
 			}
+
 			http.NotFound(w, r)
 		default:
 			http.NotFound(w, r)

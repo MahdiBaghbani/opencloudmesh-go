@@ -78,6 +78,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			if w.Code != http.StatusCreated && w.Code != http.StatusOK {
 				t.Fatalf("expected success status, got %d: %s", w.Code, w.Body.String())
 			}
+
 			if capture.ContainsAny(
 				tt.sharedSecret,
 				tt.authorization,

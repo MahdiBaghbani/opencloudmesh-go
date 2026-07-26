@@ -33,10 +33,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	log = logutil.NoopIfNil(log)
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "webdav", "unused_keys", unused)
 	}

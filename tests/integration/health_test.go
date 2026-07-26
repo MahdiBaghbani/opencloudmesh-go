@@ -14,11 +14,14 @@ import (
 
 func healthPathForConfig(t *testing.T, cfg *config.Config) string {
 	t.Helper()
+
 	opts := service.RouteOptsFromConfig(cfg)
+
 	path, ok := tsrouting.HealthFullPath(opts)
 	if !ok {
 		t.Fatal("Routes(opts) missing api-healthz row")
 	}
+
 	return path
 }
 
@@ -82,7 +85,9 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get discovery at %q: %v", path, err)
 		}
+
 		resp.Body.Close()
+
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("host-root discovery %q returned %d, want 200", path, resp.StatusCode)
 		}
@@ -90,11 +95,14 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 
 	for _, path := range tsrouting.HostRootDiscoveryPaths() {
 		prefixed := ts.BaseURL + "/ocm" + path
+
 		resp, err := http.Get(prefixed)
 		if err != nil {
 			t.Fatalf("failed to get prefixed discovery at %q: %v", prefixed, err)
 		}
+
 		resp.Body.Close()
+
 		if resp.StatusCode == http.StatusOK {
 			t.Errorf("discovery must not be served under external_base_path at %s", prefixed)
 		}
@@ -115,6 +123,7 @@ func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
 	if !strings.HasPrefix(ts.BaseURL, "http://localhost:") {
 		t.Fatalf("BaseURL should target the local listener, got %q", ts.BaseURL)
 	}
+
 	if strings.Contains(ts.BaseURL, "advertised.example.com") {
 		t.Fatalf("BaseURL must not use the advertised PublicOrigin, got %q", ts.BaseURL)
 	}
@@ -124,6 +133,7 @@ func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
 		t.Fatalf("health check against local listener failed: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected healthz 200 from local listener, got %d", resp.StatusCode)
 	}
@@ -164,12 +174,15 @@ func TestDiscoveryEndpoint(t *testing.T) {
 	if !disc.Enabled {
 		t.Error("expected enabled=true")
 	}
+
 	if disc.APIVersion != "1.4.0" {
 		t.Errorf("expected apiVersion '1.4.0', got %q", disc.APIVersion)
 	}
+
 	if disc.Provider != "OpenCloudMesh" {
 		t.Errorf("expected provider 'OpenCloudMesh', got %q", disc.Provider)
 	}
+
 	if len(disc.ResourceTypes) == 0 {
 		t.Error("expected at least one resource type")
 	}

@@ -17,6 +17,7 @@ import (
 func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
+
 	localUser := &identity.User{
 		ID:       "user-empty-email",
 		Username: "empty-email-user",
@@ -25,6 +26,7 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 	if err := partyRepo.Create(context.Background(), localUser); err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
+
 	handler := newTestHandler(repo, partyRepo)
 
 	invite := &invitesoutgoing.OutgoingInvite{
@@ -46,6 +48,7 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
+
 	localUser := &identity.User{
 		ID:          "user-empty-name",
 		Username:    "empty-name-user",
@@ -54,6 +57,7 @@ func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 	if err := partyRepo.Create(context.Background(), localUser); err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
+
 	handler := newTestHandler(repo, partyRepo)
 
 	invite := &invitesoutgoing.OutgoingInvite{
@@ -74,6 +78,7 @@ func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
+
 	localUser := &identity.User{
 		ID:          "user-uuid-123",
 		Username:    "alice",
@@ -105,16 +110,20 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	expectedUserID := address.EncodeFederatedOpaqueID(localUser.ID, testProvider)
 	if resp.UserID != expectedUserID {
 		t.Errorf("userID = %q, want %q (local user, not remote echo)", resp.UserID, expectedUserID)
 	}
+
 	if resp.Email != "alice@example.org" {
 		t.Errorf("email = %q, want %q (local user email)", resp.Email, "alice@example.org")
 	}
+
 	if resp.Name != "Alice A" {
 		t.Errorf("name = %q, want %q (local user display name)", resp.Name, "Alice A")
 	}
+
 	updated, _ := repo.GetByToken(context.Background(), "valid-token")
 	if updated.Status != invites.InviteStatusAccepted {
 		t.Errorf("expected status %s, got %s", invites.InviteStatusAccepted, updated.Status)
@@ -124,6 +133,7 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
+
 	localUser := &identity.User{
 		ID:       "user-uuid-456",
 		Username: "bob",
@@ -151,12 +161,15 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 
 	var resp spec.InviteAcceptedResponse
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Email != "" {
 		t.Errorf("email = %q, want empty string", resp.Email)
 	}
+
 	if resp.Name != "" {
 		t.Errorf("name = %q, want empty string", resp.Name)
 	}
+
 	updated, _ := repo.GetByToken(context.Background(), "valid-token")
 	if updated.Status != invites.InviteStatusAccepted {
 		t.Errorf("expected status %s, got %s", invites.InviteStatusAccepted, updated.Status)

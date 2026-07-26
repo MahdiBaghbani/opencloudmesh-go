@@ -43,6 +43,7 @@ func NewHandler(
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
+
 	return &Handler{
 		repo:                        repo,
 		partyRepo:                   partyRepo,
@@ -61,22 +62,28 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log := appctx.GetLogger(r.Context())
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Warn("failed to read share request body", "error", err)
 		spec.WriteOCMError(w, http.StatusBadRequest, "INVALID_JSON")
+
 		return
 	}
+
 	var rawFields map[string]json.RawMessage
 	if err := json.Unmarshal(body, &rawFields); err != nil {
 		log.Warn("failed to parse share request", "error", err)
 		spec.WriteOCMError(w, http.StatusBadRequest, "INVALID_JSON")
+
 		return
 	}
+
 	var req spec.NewShareRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		log.Warn("failed to decode share request", "error", err)
 		spec.WriteOCMError(w, http.StatusBadRequest, "INVALID_JSON")
+
 		return
 	}
 
@@ -84,6 +91,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if len(validationErrs) > 0 {
 		log.Warn("share validation failed", "errors", len(validationErrs))
 		spec.WriteValidationError(w, "MISSING_REQUIRED_FIELDS", validationErrs)
+
 		return
 	}
 
@@ -93,21 +101,27 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 			if err := spec.ValidateProtocolArms(protocolArms); err != nil {
 				log.Warn("share rejected: unsupported protocol arm")
 				spec.WriteProtocolNotSupported(w)
+
 				return
 			}
 		}
 	}
+
 	if shapeErr := spec.ValidateProtocolShape(req.Protocol); shapeErr != nil {
 		if shapeErr.Message == "UNSUPPORTED" {
 			log.Warn("share rejected: unsupported protocol shape", "field", shapeErr.Name)
 			spec.WriteProtocolNotSupported(w)
+
 			return
 		}
+
 		spec.WriteValidationError(w, "INVALID_PROTOCOL", []spec.ValidationError{*shapeErr})
+
 		return
 	}
 	// localRequires defaults to strict; a non-nil resolver lets peer mapping relax it.
 	localRequires := true
+
 	if h.resolver != nil {
 		if _, senderHost, err := address.Parse(req.Sender); err == nil {
 			localRequires = h.resolver.ResolveFacts(senderHost, nil).RequiresTokenExchange
@@ -118,6 +132,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if webdav != nil {
 		webdavErrs := spec.ValidateWebDAVProtocolWire(webdav)
 		webdavErrs = append(webdavErrs, spec.ValidateWebDAVRequirementsAdmission(localRequires, webdav.Requirements)...)
+
 		webdavErrs = dedupeValidationErrors(webdavErrs)
 		if len(webdavErrs) > 0 {
 			writeProtocolValidationErrors(w, webdavErrs)
@@ -129,6 +144,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if webapp != nil {
 		webappErrs := spec.ValidateWebappProtocolWire(webapp)
 		webappErrs = append(webappErrs, spec.ValidateWebappRequirementsAdmission(localRequires, webapp.Requirements)...)
+
 		webappErrs = dedupeValidationErrors(webappErrs)
 		if len(webappErrs) > 0 {
 			writeProtocolValidationErrors(w, webappErrs)
@@ -139,6 +155,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		// returning 201.
 		log.Warn("share rejected: webapp protocol not supported")
 		spec.WriteProtocolNotSupported(w)
+
 		return
 	}
 
@@ -146,12 +163,15 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if _, _, err := address.Parse(req.Owner); err != nil {
 		formatErrs = append(formatErrs, spec.ValidationError{Name: "owner", Message: "INVALID_FORMAT"})
 	}
+
 	if _, _, err := address.Parse(req.Sender); err != nil {
 		formatErrs = append(formatErrs, spec.ValidationError{Name: "sender", Message: "INVALID_FORMAT"})
 	}
+
 	if len(formatErrs) > 0 {
 		log.Warn("share owner/sender format invalid", "errors", len(formatErrs))
 		spec.WriteValidationError(w, "INVALID_FIELD_FORMAT", formatErrs)
+
 		return
 	}
 
@@ -161,16 +181,20 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		spec.WriteValidationError(w, "INVALID_SHARE_WITH", []spec.ValidationError{
 			{Name: "shareWith", Message: "INVALID_FORMAT"},
 		})
+
 		return
 	}
+
 	normalizedProvider, err := hostport.Normalize(shareWithProvider, h.localScheme)
 	if err != nil {
 		log.Warn("failed to normalize shareWith provider", "provider", shareWithProvider, "error", err)
 		spec.WriteValidationError(w, "PROVIDER_MISMATCH", []spec.ValidationError{
 			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
 		})
+
 		return
 	}
+
 	if !strings.EqualFold(normalizedProvider, h.localProviderFQDNForCompare) {
 		log.Warn("provider mismatch",
 			"share_with_provider", normalizedProvider,
@@ -178,34 +202,42 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		spec.WriteValidationError(w, "PROVIDER_MISMATCH", []spec.ValidationError{
 			{Name: "shareWith", Message: "PROVIDER_MISMATCH"},
 		})
+
 		return
 	}
+
 	resolvedUser, err := h.resolveRecipient(r.Context(), identifier)
 	if err != nil {
 		log.Warn("recipient not found", "identifier", identifier)
 		spec.WriteValidationError(w, "RECIPIENT_NOT_FOUND", []spec.ValidationError{
 			{Name: "shareWith", Message: "NOT_FOUND"},
 		})
+
 		return
 	}
 
 	if req.ShareType != "user" {
 		log.Warn("unsupported share type", "share_type", req.ShareType)
 		spec.WriteShareTypeNotSupported(w)
+
 		return
 	}
+
 	if !spec.IsSupportedResourceType(req.ResourceType) {
 		log.Warn("unsupported resource type", "resource_type", req.ResourceType)
 		spec.WriteResourceTypeNotSupported(w)
+
 		return
 	}
 
 	peerIdentity := inboundsignature.GetPeerIdentity(r.Context())
 	authenticated := peerIdentity != nil && peerIdentity.Authenticated
+
 	senderHost := ExtractSenderHost(req.Sender)
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		senderHost = peerIdentity.AuthorityForCompare
 	}
+
 	if h.policyEngine != nil {
 		decision := h.policyEngine.Evaluate(r.Context(), senderHost, authenticated)
 		if !decision.Allowed {
@@ -213,21 +245,26 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 				"sender", senderHost,
 				"reason", decision.Reason,
 				"authenticated", authenticated)
+
 			translated := reason.TranslatePolicyCode(decision.ReasonCode)
 			if translated == "" {
 				translated = "SENDER_NOT_AUTHORIZED"
 			}
+
 			spec.WriteOCMError(w, reason.OCMStatus(translated), translated)
+
 			return
 		}
 	}
 
 	ownerHost := ""
+
 	ownerProvider := ""
 	if _, parsedOwnerProvider, err := address.Parse(req.Owner); err == nil {
 		ownerProvider = parsedOwnerProvider
 		ownerHost = ownerProvider
 	}
+
 	if ownerHost == "" {
 		ownerHost = senderHost
 	}
@@ -238,13 +275,16 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 			log.Warn("failed to normalize owner provider",
 				"owner_provider", ownerProvider, "error", err)
 			spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+
 			return
 		}
+
 		if peerIdentity.AuthorityForCompare != normalizedOwnerProvider {
 			log.Warn("share owner provider mismatch",
 				"signature_authority", peerIdentity.AuthorityForCompare,
 				"owner_provider", ownerProvider)
 			spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+
 			return
 		}
 	}
@@ -259,19 +299,24 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(spec.CreateShareResponse{
 			RecipientDisplayName: existing.RecipientDisplayName,
 		})
+
 		return
 	}
 
 	webdav = req.Protocol.WebDAV
 	// Persist fields from each protocol arm when present.
-	var webdavURI, webdavSharedSecret string
-	var webdavPermissions, webdavRequirements []string
+	var (
+		webdavURI, webdavSharedSecret         string
+		webdavPermissions, webdavRequirements []string
+	)
+
 	if webdav != nil {
 		webdavURI = webdav.URI
 		webdavSharedSecret = webdav.SharedSecret
 		webdavPermissions = webdav.Permissions
 		webdavRequirements = append([]string(nil), webdav.Requirements...)
 	}
+
 	share := &sharesinbox.IncomingShare{
 		ProviderID:           req.ProviderID,
 		SenderHost:           senderHost,
@@ -299,6 +344,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	if err := h.repo.Create(r.Context(), share); err != nil {
 		log.Error("failed to store share", "error", err)
 		spec.WriteOCMError(w, http.StatusInternalServerError, "STORAGE_ERROR")
+
 		return
 	}
 
@@ -318,16 +364,21 @@ func dedupeValidationErrors(errs []spec.ValidationError) []spec.ValidationError 
 	if len(errs) == 0 {
 		return errs
 	}
+
 	seen := make(map[string]struct{}, len(errs))
+
 	out := make([]spec.ValidationError, 0, len(errs))
 	for _, e := range errs {
 		key := e.Name + "\x00" + e.Message
 		if _, ok := seen[key]; ok {
 			continue
 		}
+
 		seen[key] = struct{}{}
+
 		out = append(out, e)
 	}
+
 	return out
 }
 
@@ -343,6 +394,7 @@ func writeProtocolValidationErrors(w http.ResponseWriter, errs []spec.Validation
 			return
 		}
 	}
+
 	spec.WriteValidationError(w, "INVALID_PROTOCOL", errs)
 }
 
@@ -352,14 +404,17 @@ func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*ide
 	if err == nil {
 		return user, nil
 	}
+
 	user, err = h.partyRepo.GetByUsername(ctx, identifier)
 	if err == nil {
 		return user, nil
 	}
+
 	user, err = h.partyRepo.GetByEmail(ctx, identifier)
 	if err == nil {
 		return user, nil
 	}
+
 	if !strings.Contains(identifier, "@") && address.LooksLikeBase64(identifier) {
 		decodedUserID, decodedIDP, ok := address.DecodeFederatedOpaqueID(identifier)
 		if ok {
@@ -381,5 +436,6 @@ func ExtractSenderHost(sender string) string {
 	if err != nil {
 		return ""
 	}
+
 	return strings.ToLower(provider)
 }

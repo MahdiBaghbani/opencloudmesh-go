@@ -35,6 +35,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			},
 			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
 				t.Helper()
+
 				if service.SessionAuthRequiredForPath("/ocm/api/healthz", opts) {
 					t.Error("expected /ocm/api/healthz public with external base path")
 				}
@@ -60,6 +61,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			},
 			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
 				t.Helper()
+
 				if service.SessionAuthRequiredForPath("/ui/wayf", opts) {
 					t.Error("expected /ui/wayf public when WAYF enabled")
 				}
@@ -85,6 +87,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			},
 			assertAuthPaths: func(t *testing.T, opts service.RouteOpts) {
 				t.Helper()
+
 				if !service.SessionAuthRequiredForPath("/ui/accept-invite", opts) {
 					t.Error("expected /ui/accept-invite protected when invite accept enabled")
 				}
@@ -131,6 +134,7 @@ func TestRouteOptsFromConfig_NonNilBranches(t *testing.T) {
 			if opts != tt.want {
 				t.Errorf("RouteOptsFromConfig() = %+v, want %+v", opts, tt.want)
 			}
+
 			if tt.assertAuthPaths != nil {
 				tt.assertAuthPaths(t, opts)
 			}

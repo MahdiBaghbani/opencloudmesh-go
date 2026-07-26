@@ -30,6 +30,7 @@ func TestService_SharesRequireVerifiedSignature(t *testing.T) {
 		bytes.NewBufferString(`{"shareWith":"user@remote.example","name":"test","providerId":"provider-123","owner":"owner@remote.example","sender":"sender@remote.example","shareType":"user","resourceType":"file","protocol":{"name":"webdav","options":{"sharedSecret":"secret"}}}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -54,6 +55,7 @@ func TestService_InviteAcceptedRequireVerifiedSignature(t *testing.T) {
 		bytes.NewBufferString(`{"recipientProvider":"remote.example","token":"invite-token","userID":"user-1","email":"user@remote.example","name":"Remote User"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -64,8 +66,10 @@ func TestService_InviteAcceptedRequireVerifiedSignature(t *testing.T) {
 }
 
 func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
-	const clientHost = "receiver.example.com"
-	const sharedSecret = "signed-token-secret"
+	const (
+		clientHost   = "receiver.example.com"
+		sharedSecret = "signed-token-secret"
+	)
 
 	signer, pd := hostSigningFixture(t, clientHost)
 
@@ -81,6 +85,7 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	svc, err := New(inputs, map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -92,6 +97,7 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, origin+"/token", bytes.NewReader(body))
 	req.Host = "localhost:9200"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	if err := signer.SignRequest(req, body); err != nil {
 		t.Fatalf("sign request: %v", err)
 	}
@@ -107,6 +113,7 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode token response: %v", err)
 	}
+
 	if resp.AccessToken == "" {
 		t.Fatal("expected non-empty access_token")
 	}
@@ -114,9 +121,11 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 	if spyStore.captured == nil {
 		t.Fatal("expected token store to observe authenticated peer identity")
 	}
+
 	if !spyStore.captured.Authenticated {
 		t.Fatal("expected authenticated peer identity from signature middleware")
 	}
+
 	if spyStore.captured.AuthorityForCompare != clientHost {
 		t.Fatalf("AuthorityForCompare = %q, want %q", spyStore.captured.AuthorityForCompare, clientHost)
 	}
@@ -138,6 +147,7 @@ func TestService_TokenRequireVerifiedSignature(t *testing.T) {
 		bytes.NewBufferString(form),
 	)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)

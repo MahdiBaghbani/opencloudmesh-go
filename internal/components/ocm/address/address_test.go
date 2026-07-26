@@ -89,14 +89,18 @@ func TestParse(t *testing.T) {
 				if err == nil {
 					t.Errorf("Parse(%q) expected error, got id=%q prov=%q", tt.addr, id, prov)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("Parse(%q) unexpected error: %v", tt.addr, err)
 			}
+
 			if id != tt.wantID {
 				t.Errorf("Parse(%q) identifier = %q, want %q", tt.addr, id, tt.wantID)
 			}
+
 			if prov != tt.wantProv {
 				t.Errorf("Parse(%q) provider = %q, want %q", tt.addr, prov, tt.wantProv)
 			}
@@ -187,14 +191,18 @@ func TestParse_IETF_OCMAddressConformance(t *testing.T) {
 				if err == nil {
 					t.Fatalf("Parse(%q) expected error, got id=%q prov=%q", tt.addr, id, prov)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("Parse(%q) unexpected error: %v", tt.addr, err)
 			}
+
 			if id != tt.wantID {
 				t.Errorf("Parse(%q) identifier = %q, want %q", tt.addr, id, tt.wantID)
 			}
+
 			if prov != tt.wantProv {
 				t.Errorf("Parse(%q) provider = %q, want %q", tt.addr, prov, tt.wantProv)
 			}
@@ -237,6 +245,7 @@ func TestEncodeFederatedOpaqueID(t *testing.T) {
 			if strings.Contains(encoded, "=") {
 				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains padding '='", tt.userID, tt.idp, encoded)
 			}
+
 			if strings.ContainsAny(encoded, "+/") {
 				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains standard base64 alphabet '+' or '/'", tt.userID, tt.idp, encoded)
 			}
@@ -245,9 +254,11 @@ func TestEncodeFederatedOpaqueID(t *testing.T) {
 			if !ok {
 				t.Fatalf("DecodeFederatedOpaqueID(%q) failed", encoded)
 			}
+
 			if gotUserID != tt.userID {
 				t.Errorf("round-trip userID = %q, want %q", gotUserID, tt.userID)
 			}
+
 			if gotIDP != tt.idp {
 				t.Errorf("round-trip idp = %q, want %q", gotIDP, tt.idp)
 			}
@@ -259,11 +270,13 @@ func TestDecodeFederatedOpaqueID_AcceptsPaddedAndUnpaddedBase64url(t *testing.T)
 	payload := "alice@example.org"
 	for _, enc := range []*base64.Encoding{base64.URLEncoding, base64.RawURLEncoding} {
 		encoded := enc.EncodeToString([]byte(payload))
+
 		userID, idp, ok := DecodeFederatedOpaqueID(encoded)
 		if !ok {
 			t.Errorf("DecodeFederatedOpaqueID(%q) failed", encoded)
 			continue
 		}
+
 		if userID != "alice" || idp != "example.org" {
 			t.Errorf("DecodeFederatedOpaqueID(%q) = (%q, %q), want (%q, %q)", encoded, userID, idp, "alice", "example.org")
 		}
@@ -355,12 +368,15 @@ func TestDecodeFederatedOpaqueID(t *testing.T) {
 			if ok != tt.wantOK {
 				t.Fatalf("DecodeFederatedOpaqueID(%q) ok = %v, want %v", tt.encoded, ok, tt.wantOK)
 			}
+
 			if !tt.wantOK {
 				return
 			}
+
 			if userID != tt.wantUserID {
 				t.Errorf("DecodeFederatedOpaqueID(%q) userID = %q, want %q", tt.encoded, userID, tt.wantUserID)
 			}
+
 			if idp != tt.wantIDP {
 				t.Errorf("DecodeFederatedOpaqueID(%q) idp = %q, want %q", tt.encoded, idp, tt.wantIDP)
 			}
@@ -383,13 +399,16 @@ func TestEncodeDecode_RoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			encoded := EncodeFederatedOpaqueID(tt.userID, tt.idp)
+
 			gotUserID, gotIDP, ok := DecodeFederatedOpaqueID(encoded)
 			if !ok {
 				t.Fatalf("DecodeFederatedOpaqueID(EncodeFederatedOpaqueID(%q, %q)) failed", tt.userID, tt.idp)
 			}
+
 			if gotUserID != tt.userID {
 				t.Errorf("round-trip userID = %q, want %q", gotUserID, tt.userID)
 			}
+
 			if gotIDP != tt.idp {
 				t.Errorf("round-trip idp = %q, want %q", gotIDP, tt.idp)
 			}
@@ -458,9 +477,11 @@ func TestFormatOutgoingOCMAddressFromUserID(t *testing.T) {
 			if !ok {
 				t.Fatalf("DecodeFederatedOpaqueID(%q) failed", identifier)
 			}
+
 			if gotUserID != tt.userID {
 				t.Errorf("round-trip userID = %q, want %q", gotUserID, tt.userID)
 			}
+
 			if gotIDP != tt.provider {
 				t.Errorf("round-trip idp = %q, want %q", gotIDP, tt.provider)
 			}

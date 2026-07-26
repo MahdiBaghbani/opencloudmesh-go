@@ -58,9 +58,11 @@ func TestReasonMappings(t *testing.T) {
 			if got := reason.OCMStatus(tt.code); got != tt.wantOCM {
 				t.Fatalf("OCMStatus(%q)=%d, want %d", tt.code, got, tt.wantOCM)
 			}
+
 			if got := reason.APIStatus(tt.code); got != tt.wantAPI {
 				t.Fatalf("APIStatus(%q)=%d, want %d", tt.code, got, tt.wantAPI)
 			}
+
 			if got := reason.VerifyCode(tt.code); got != tt.wantVerify {
 				t.Fatalf("VerifyCode(%q)=%q, want %q", tt.code, got, tt.wantVerify)
 			}

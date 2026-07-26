@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +33,9 @@ func (m *mockCounter) Increment(ctx context.Context, key string, delta int64, tt
 	if m.errOnInc != nil {
 		return 0, time.Time{}, m.errOnInc
 	}
+
 	m.counts[key] += delta
+
 	return m.counts[key], m.resetAt, nil
 }
 
@@ -99,6 +100,7 @@ func TestNew_CreatesMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
+
 	if middleware == nil {
 		t.Fatal("expected non-nil middleware")
 	}
@@ -112,6 +114,7 @@ func TestNew_FailsWithoutCache(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when Cache is nil")
 	}
+
 	if !errors.Is(err, ErrMissingCache) {
 		t.Fatalf("expected ErrMissingCache, got: %v", err)
 	}
@@ -125,6 +128,7 @@ func TestNew_FailsWithoutKeyFunc(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when KeyFunc is nil")
 	}
+
 	if !errors.Is(err, ErrMissingKeyFunc) {
 		t.Fatalf("expected ErrMissingKeyFunc, got: %v", err)
 	}
@@ -171,9 +175,11 @@ func TestConfigApplyDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := tt.input
 			c.ApplyDefaults()
+
 			if c.RequestsPerWindow != tt.expected.RequestsPerWindow {
 				t.Errorf("RequestsPerWindow = %d, want %d", c.RequestsPerWindow, tt.expected.RequestsPerWindow)
 			}
+
 			if c.WindowSeconds != tt.expected.WindowSeconds {
 				t.Errorf("WindowSeconds = %d, want %d", c.WindowSeconds, tt.expected.WindowSeconds)
 			}
@@ -183,7 +189,7 @@ func TestConfigApplyDefaults(t *testing.T) {
 
 func TestLimiter_AllowsRequestsUnderLimit(t *testing.T) {
 	counter := newMockCounter()
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	limiter := &Limiter{
 		cache:   counter,
@@ -200,7 +206,7 @@ func TestLimiter_AllowsRequestsUnderLimit(t *testing.T) {
 
 	// First 5 requests should succeed
 	for i := 1; i <= 5; i++ {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
@@ -212,7 +218,7 @@ func TestLimiter_AllowsRequestsUnderLimit(t *testing.T) {
 
 func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 	counter := newMockCounter()
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	limiter := &Limiter{
 		cache:   counter,
@@ -229,7 +235,7 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 
 	// First 2 requests should succeed
 	for i := 1; i <= 2; i++ {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
@@ -239,7 +245,7 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 	}
 
 	// Third request should be rate limited
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -271,6 +277,7 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&envelope); err != nil {
 		t.Errorf("failed to decode error envelope: %v", err)
 	}
+
 	if envelope.Error.ReasonCode != "rate_limited" {
 		t.Errorf("expected reason_code 'rate_limited', got '%s'", envelope.Error.ReasonCode)
 	}
@@ -278,7 +285,7 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 
 func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 	counter := newMockCounter()
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	// Key function returns X-Test-Key header
 	limiter := &Limiter{
@@ -294,30 +301,36 @@ func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 	}))
 
 	// 2 requests from client A should succeed
-	for i := 0; i < 2; i++ {
-		req := httptest.NewRequest("GET", "/test", nil)
+	for i := range 2 {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("X-Test-Key", "client-a")
+
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
+
 		if rec.Code != http.StatusOK {
 			t.Errorf("client-a request %d: expected 200, got %d", i+1, rec.Code)
 		}
 	}
 
 	// 3rd request from client A should be blocked
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-Test-Key", "client-a")
+
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusTooManyRequests {
 		t.Errorf("client-a request 3: expected 429, got %d", rec.Code)
 	}
 
 	// But client B should still be allowed
-	req = httptest.NewRequest("GET", "/test", nil)
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-Test-Key", "client-b")
+
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusOK {
 		t.Errorf("client-b request 1: expected 200, got %d", rec.Code)
 	}
@@ -326,7 +339,7 @@ func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 func TestLimiter_AllowsOnCacheError(t *testing.T) {
 	counter := newMockCounter()
 	counter.errOnInc = context.DeadlineExceeded // Simulate cache error
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	limiter := &Limiter{
 		cache:   counter,
@@ -342,7 +355,7 @@ func TestLimiter_AllowsOnCacheError(t *testing.T) {
 	}))
 
 	// Request should be allowed even though cache fails
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -353,7 +366,7 @@ func TestLimiter_AllowsOnCacheError(t *testing.T) {
 
 func TestWithKeyFunc(t *testing.T) {
 	counter := newMockCounter()
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	original := &Limiter{
 		cache:   counter,
@@ -367,7 +380,7 @@ func TestWithKeyFunc(t *testing.T) {
 	modified := original.WithKeyFunc(customKeyFunc)
 
 	// Original should be unchanged
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	if original.keyFunc(req) != "original" {
 		t.Error("original keyFunc should not be modified")
 	}
@@ -381,6 +394,7 @@ func TestWithKeyFunc(t *testing.T) {
 	if modified.limit != original.limit {
 		t.Error("limit should be copied")
 	}
+
 	if modified.window != original.window {
 		t.Error("window should be copied")
 	}
@@ -396,16 +410,18 @@ func TestNew_WithInputs(t *testing.T) {
 		KeyFunc: realIPExtractor.GetClientIPString,
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	conf := map[string]any{
 		"requests_per_window": int64(10),
 		"window_seconds":      30,
 	}
+
 	middleware, err := New(in, conf, logger)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
+
 	if middleware == nil {
 		t.Fatal("expected non-nil middleware")
 	}
@@ -415,7 +431,7 @@ func TestNew_WithInputs(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.RemoteAddr = "192.168.1.100:12345"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

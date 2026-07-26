@@ -70,22 +70,27 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+tt.authorization)
 			req.Header.Set("Signature", tt.signature)
+
 			w := httptest.NewRecorder()
 			handler.HandleCreate(w, req)
 
 			if w.Code != http.StatusCreated {
 				t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 			}
+
 			if postCount.Load() == 0 {
 				t.Fatal("expected outbound share POST")
 			}
+
 			createdShares, err := repo.List(t.Context())
 			if err != nil {
 				t.Fatalf("list created shares: %v", err)
 			}
+
 			if len(createdShares) != 1 {
 				t.Fatalf("created share count = %d, want 1", len(createdShares))
 			}
+
 			if capture.ContainsAny(
 				tt.authorization,
 				tt.signature,

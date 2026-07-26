@@ -43,6 +43,7 @@ func generateUUIDv7() string {
 	if err != nil {
 		return uuid.New().String()
 	}
+
 	return id.String()
 }
 
@@ -57,6 +58,7 @@ func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingSha
 	if share.ShareID == "" {
 		share.ShareID = generateUUIDv7()
 	}
+
 	key := incomingProviderKey(share.SenderHost, share.ProviderID)
 	if _, exists := r.providerIndex[key]; exists {
 		return fmt.Errorf("share with providerId %s from sender %s already exists", share.ProviderID, share.SenderHost)
@@ -67,11 +69,13 @@ func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingSha
 	share.UpdatedAt = now
 
 	r.shares[share.ShareID] = share
+
 	r.providerIndex[key] = share.ShareID
 	if share.RecipientUserID != "" {
 		if r.byRecipientUserID[share.RecipientUserID] == nil {
 			r.byRecipientUserID[share.RecipientUserID] = make(map[string]struct{})
 		}
+
 		r.byRecipientUserID[share.RecipientUserID][share.ShareID] = struct{}{}
 	}
 
@@ -95,6 +99,7 @@ func (r *MemoryIncomingShareRepo) GetByProviderID(ctx context.Context, senderHos
 	defer r.mu.RUnlock()
 
 	key := incomingProviderKey(senderHost, providerID)
+
 	shareID, exists := r.providerIndex[key]
 	if !exists {
 		return nil, ErrShareNotFound
@@ -145,11 +150,13 @@ func (r *MemoryIncomingShareRepo) DeleteForRecipientUserID(ctx context.Context, 
 	if !exists || share.RecipientUserID != recipientUserID {
 		return ErrShareNotFound
 	}
+
 	key := incomingProviderKey(share.SenderHost, share.ProviderID)
 	delete(r.providerIndex, key)
 
 	if ids, ok := r.byRecipientUserID[share.RecipientUserID]; ok {
 		delete(ids, shareID)
+
 		if len(ids) == 0 {
 			delete(r.byRecipientUserID, share.RecipientUserID)
 		}

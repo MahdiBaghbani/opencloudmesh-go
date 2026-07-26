@@ -39,9 +39,11 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			return nil
 		}
+
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
@@ -55,6 +57,7 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		content := string(data)
 		fileRel, _ := filepath.Rel(root, path)
 
@@ -73,6 +76,7 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk failed: %v", err)
 	}
+
 	if len(violations) > 0 {
 		t.Fatalf("Wire DTO struct definitions found outside internal/components/ocm/spec/ "+
 			"(move them to the spec package):\n%s",

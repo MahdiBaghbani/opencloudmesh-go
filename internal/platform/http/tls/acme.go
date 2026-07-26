@@ -19,12 +19,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 const (
@@ -67,6 +68,7 @@ func (p *HTTP01Provider) nowTime() time.Time {
 	if p.now != nil {
 		return p.now()
 	}
+
 	return time.Now()
 }
 
@@ -75,6 +77,7 @@ func (p *HTTP01Provider) Present(domain, token, keyAuth string) error {
 		keyAuth:   keyAuth,
 		expiresAt: p.nowTime().Add(challengeTokenTTL),
 	})
+
 	return nil
 }
 
@@ -99,6 +102,7 @@ type ACMEManager struct {
 // rootCAs is used for ACME directory communication; nil means system defaults.
 func NewACMEManager(cfg *config.ACMEConfig, logger *slog.Logger, rootCAs *x509.CertPool) *ACMEManager {
 	logger = logutil.NoopIfNil(logger)
+
 	return &ACMEManager{
 		cfg:      cfg,
 		logger:   logger,
@@ -114,6 +118,7 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 	if m.cfg.Domain == "" {
 		return errors.New("ACME domain is required")
 	}
+
 	if m.cfg.Email == "" {
 		return errors.New("ACME email is required")
 	}
@@ -129,6 +134,7 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 		m.cert = cert
 		m.mu.Unlock()
 		m.logger.Info("loaded existing ACME certificate", "domain", m.cfg.Domain)
+
 		return nil
 	}
 
@@ -139,6 +145,7 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load/create ACME user: %w", err)
 	}
+
 	m.user = user
 
 	serverURL := m.cfg.Directory
@@ -177,6 +184,7 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create ACME client: %w", err)
 	}
+
 	m.legoClient = client
 
 	// Server-owned HTTP-01 provider (no lego-managed listener).
@@ -191,6 +199,7 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to register ACME account: %w", err)
 		}
+
 		user.Registration = reg
 		if err := m.saveUser(user); err != nil {
 			m.logger.Warn("failed to save ACME user", "error", err)
@@ -198,6 +207,7 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 	}
 
 	m.logger.Info("obtaining new ACME certificate", "domain", m.cfg.Domain)
+
 	if err := m.obtainCertificate(); err != nil {
 		return fmt.Errorf("failed to obtain certificate: %w", err)
 	}
@@ -213,6 +223,7 @@ func (m *ACMEManager) GetCertificate(hello *cryptotls.ClientHelloInfo) (*cryptot
 	if m.cert == nil {
 		return nil, errors.New("no certificate available")
 	}
+
 	return m.cert, nil
 }
 
@@ -233,31 +244,39 @@ func (m *ACMEManager) ChallengeHandler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
+
 		token := strings.TrimPrefix(r.URL.Path, prefix)
 		if token == "" {
 			http.NotFound(w, r)
 			return
 		}
+
 		if m.provider == nil {
 			http.NotFound(w, r)
 			return
 		}
+
 		rawEntry, ok := m.provider.tokens.Load(token)
 		if !ok {
 			http.NotFound(w, r)
 			return
 		}
+
 		entry, ok := rawEntry.(tokenEntry)
 		if !ok {
 			m.provider.tokens.Delete(token)
 			http.NotFound(w, r)
+
 			return
 		}
+
 		if m.provider.nowTime().After(entry.expiresAt) {
 			m.provider.tokens.Delete(token)
 			http.NotFound(w, r)
+
 			return
 		}
+
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, entry.keyAuth)
 	})
@@ -307,12 +326,14 @@ func (m *ACMEManager) saveUser(user *ACMEUser) error {
 	if err != nil {
 		return err
 	}
+
 	if err := os.WriteFile(userFile, userData, 0600); err != nil {
 		return err
 	}
 
 	// Save key
 	keyPEM := certcrypto.PEMEncode(user.key)
+
 	return os.WriteFile(keyFile, keyPEM, 0600)
 }
 
@@ -324,6 +345,7 @@ func (m *ACMEManager) loadCertificate() (*cryptotls.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &cert, nil
 }
 
@@ -345,6 +367,7 @@ func (m *ACMEManager) obtainCertificate() error {
 	if err := os.WriteFile(certFile, certificates.Certificate, 0644); err != nil {
 		return fmt.Errorf("failed to save certificate: %w", err)
 	}
+
 	if err := os.WriteFile(keyFile, certificates.PrivateKey, 0600); err != nil {
 		return fmt.Errorf("failed to save key: %w", err)
 	}

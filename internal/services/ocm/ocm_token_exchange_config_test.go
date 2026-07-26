@@ -37,6 +37,7 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/token", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
+
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected token route to stay mounted (405 on GET), got %d", w.Code)
 	}
@@ -55,6 +56,7 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 	// to the client_id host so the request reaches the handler and exercises
 	// the enablement check under test, not the signature gate.
 	const clientHost = "raw-config-client.example.com"
+
 	signer, pd := hostSigningFixture(t, clientHost)
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -74,12 +76,14 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 	body := []byte(form)
 	req := httptest.NewRequest(http.MethodPost, cfg.PublicOrigin+"/token", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	if err := signer.SignRequest(req, body); err != nil {
 		t.Fatalf("sign request: %v", err)
 	}
 
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
+
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("expected disabled token exchange without canonical policy, got %d: %s", w.Code, w.Body.String())
 	}

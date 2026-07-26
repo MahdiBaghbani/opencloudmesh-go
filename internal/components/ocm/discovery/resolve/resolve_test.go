@@ -37,9 +37,11 @@ func TestResolve_DerivesEndPointAndWebDAVRoot(t *testing.T) {
 	if built.Params.EndPoint != "https://cloud.example.com/ocm/ocm" {
 		t.Errorf("expected derived endPoint, got %q", built.Params.EndPoint)
 	}
+
 	if built.Params.WebDAVRoot != "/ocm/webdav/ocm/" {
 		t.Errorf("expected derived webdav_root, got %q", built.Params.WebDAVRoot)
 	}
+
 	if built.Params.WebDAVReceiveURI != "relative" {
 		t.Errorf("WebDAVReceiveURI = %q, want relative", built.Params.WebDAVReceiveURI)
 	}
@@ -57,6 +59,7 @@ func TestResolve_SkipsEndPointDerivationWithoutPublicOrigin(t *testing.T) {
 	if built.Params.EndPoint != "" {
 		t.Errorf("expected empty endPoint without Origin, got %q", built.Params.EndPoint)
 	}
+
 	if built.Params.WebDAVRoot != "/ocm/webdav/ocm/" {
 		t.Errorf("expected derived webdav_root, got %q", built.Params.WebDAVRoot)
 	}
@@ -79,6 +82,7 @@ func TestResolve_RawConfigWinsOverDerivationForWebDAVRoot(t *testing.T) {
 	if built.Params.EndPoint != "https://cloud.example.com/ocm/ocm" {
 		t.Errorf("expected derived endPoint, got %q", built.Params.EndPoint)
 	}
+
 	if built.Params.WebDAVRoot != "/explicit/dav/" {
 		t.Errorf("expected explicit webdav_root preserved, got %q", built.Params.WebDAVRoot)
 	}
@@ -215,9 +219,11 @@ func TestResolve_ProtocolRolesInDiscoveryDocument(t *testing.T) {
 	if !disc.Enabled {
 		t.Fatal("expected enabled discovery document")
 	}
+
 	if _, ok := disc.ResourceTypes[0].Protocols.StringRole("webdav"); !ok {
 		t.Error("expected webdav protocol role in discovery document")
 	}
+
 	if _, ok := disc.ResourceTypes[0].Protocols.WebDAVReceive(); !ok {
 		t.Error("expected webdav-receive protocol role in discovery document")
 	}

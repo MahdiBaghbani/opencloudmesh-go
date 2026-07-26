@@ -10,6 +10,7 @@ import (
 func resolveInputs(cfg *config.Config, d *Deps) resolve.ResolveInputs {
 	tokenPath := cfg.TokenExchange.Path
 	resolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping, cfg.OCM.CompatibilityScope)
+
 	return resolve.ResolveInputs{
 		LocalIdentity:     d.LocalIdentity,
 		RouteOpts:         service.RouteOptsFromConfig(cfg),

@@ -26,6 +26,7 @@ func TestOCMAuxDiscover_PastedPathNormalization(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:        "discover-target",
 		Mode:        "dev",
@@ -61,6 +62,7 @@ func TestOCMAuxDiscover_PastedPathNormalization(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if !body.Success {
 		t.Fatal("expected success=true for pasted-path discover")
 	}
@@ -72,6 +74,7 @@ func TestOCMAuxDiscover_BareHostNormalization(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:        "discover-target",
 		Mode:        "dev",
@@ -108,6 +111,7 @@ func TestOCMAuxDiscover_BareHostNormalization(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if body.ReasonCode == "invalid_url" {
 		t.Fatalf("bare host normalized input must not return invalid_url")
 	}
@@ -119,6 +123,7 @@ func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "discover-ssrf",
 		Mode: "strict",
@@ -126,6 +131,7 @@ func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
 	defer srv.Stop(t)
 
 	discoverURL := srv.BaseURL + "/ocm-aux/discover?base=http://10.0.0.1:8080"
+
 	resp, err := srv.Client().Get(discoverURL)
 	if err != nil {
 		srv.DumpLogs(t)
@@ -146,15 +152,19 @@ func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if body.Success {
 		t.Fatal("expected success=false")
 	}
+
 	if body.ReasonCode != "ssrf_blocked" {
 		t.Fatalf("reasonCode = %q, want ssrf_blocked", body.ReasonCode)
 	}
+
 	if body.Error == "" {
 		t.Fatal("expected friendly error message")
 	}
+
 	if strings.Contains(body.Error, "private IP") || strings.Contains(body.Error, "CIDR") {
 		t.Fatalf("user-facing error leaked SSRF details: %q", body.Error)
 	}
@@ -166,6 +176,7 @@ func TestOCMAuxDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "discover-no-dialog-target",
 		Mode: "dev",
@@ -179,6 +190,7 @@ func TestOCMAuxDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 	defer source.Stop(t)
 
 	discoverURL := source.BaseURL + "/ocm-aux/discover?base=" + target.BaseURL
+
 	resp, err := http.Get(discoverURL)
 	if err != nil {
 		source.DumpLogs(t)
@@ -201,12 +213,15 @@ func TestOCMAuxDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if body.Success {
 		t.Fatal("expected success=false")
 	}
+
 	if body.ReasonCode != "no_invite_accept_dialog" {
 		t.Fatalf("reasonCode = %q, want no_invite_accept_dialog", body.ReasonCode)
 	}
+
 	if body.Error == "" {
 		t.Fatal("expected friendly error message")
 	}

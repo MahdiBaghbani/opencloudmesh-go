@@ -39,6 +39,7 @@ func failCurrentUser() func(context.Context) (*identity.User, error) {
 
 func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) {
 	const originWithDefaultPort = "https://example.com:443"
+
 	wantProvider := tslocalid.MustTestIdentity(t, originWithDefaultPort, "").ProviderDomain
 	if wantProvider != "example.com" {
 		t.Fatalf("test setup: ProviderDomain = %q, want example.com", wantProvider)
@@ -61,6 +62,7 @@ func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) 
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if resp.ProviderFQDN != wantProvider {
 		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, wantProvider)
 	}
@@ -84,12 +86,15 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if resp.InviteString == "" {
 		t.Error("inviteString is empty")
 	}
+
 	if resp.Token == "" {
 		t.Error("token is empty")
 	}
+
 	wantProvider := testLocalProvider(t)
 	if resp.ProviderFQDN != wantProvider {
 		t.Errorf("providerFqdn = %q, want %q", resp.ProviderFQDN, wantProvider)
@@ -99,6 +104,7 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to get stored invite: %v", err)
 	}
+
 	if stored.InviteString != resp.InviteString {
 		t.Errorf("stored inviteString mismatch")
 	}
@@ -128,6 +134,7 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get stored invite: %v", err)
 	}
+
 	if stored.CreatedByUserID != "creator-uuid" {
 		t.Errorf("CreatedByUserID = %q, want %q", stored.CreatedByUserID, "creator-uuid")
 	}

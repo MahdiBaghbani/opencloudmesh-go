@@ -14,6 +14,7 @@ import (
 
 type captureTB struct {
 	testing.TB
+
 	fatal bool
 }
 
@@ -21,20 +22,24 @@ func (c *captureTB) Helper() {}
 
 func (c *captureTB) Fatalf(format string, args ...any) {
 	c.fatal = true
+
 	panic("captureTB.Fatalf")
 }
 
 func expectFatal(t *testing.T, fn func(testing.TB)) {
 	t.Helper()
 	stub := &captureTB{TB: t}
+
 	defer func() {
 		if recover() == nil {
 			t.Fatal("expected Fatalf")
 		}
+
 		if !stub.fatal {
 			t.Fatal("expected Fatalf")
 		}
 	}()
+
 	fn(stub)
 }
 
@@ -63,6 +68,7 @@ func TestAssertClassifiedReason_notClassified(t *testing.T) {
 
 func TestAssertClassifiedReason_wrongReason(t *testing.T) {
 	err := ocmreason.NewClassifiedError(ocmreason.ReasonDigestMismatch, "digest mismatch", nil)
+
 	expectFatal(t, func(tb testing.TB) {
 		tsreason.AssertClassifiedReason(tb, err, ocmreason.ReasonSignatureInvalid)
 	})

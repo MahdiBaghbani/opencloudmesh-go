@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,19 +15,24 @@ import (
 
 func newTestAuthHandler(t *testing.T) (*AuthHandler, identity.PartyRepo, identity.SessionRepo, *identity.UserAuth) {
 	t.Helper()
+
 	repo := identity.NewMemoryPartyRepo()
 	sessions := identity.NewMemorySessionRepo()
 	auth := identity.NewUserAuthFast()
+
 	return NewAuthHandler(repo, sessions, auth), repo, sessions, auth
 }
 
 func seedUser(t *testing.T, repo identity.PartyRepo, auth *identity.UserAuth, username, password string) *identity.User {
 	t.Helper()
+
 	ctx := context.Background()
+
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
+
 	user := &identity.User{
 		Username:     username,
 		PasswordHash: hash,
@@ -36,6 +42,7 @@ func seedUser(t *testing.T, repo identity.PartyRepo, auth *identity.UserAuth, us
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("Create user: %v", err)
 	}
+
 	return user
 }
 
@@ -46,6 +53,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	body := `{"username":"alice","password":"secret123"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.Login(w, req)
@@ -61,24 +69,30 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if resp.Token == "" {
 		t.Error("expected non-empty token")
 	}
+
 	if resp.User.ID != user.ID {
 		t.Errorf("user id: got %q, want %q", resp.User.ID, user.ID)
 	}
+
 	if resp.User.Username != "alice" {
 		t.Errorf("username: got %q, want alice", resp.User.Username)
 	}
 
 	cookies := res.Cookies()
+
 	var sessionCookie *http.Cookie
+
 	for _, c := range cookies {
 		if c.Name == "session" {
 			sessionCookie = c
 			break
 		}
 	}
+
 	if sessionCookie == nil || sessionCookie.Value == "" {
 		t.Error("expected session cookie to be set")
 	}
@@ -116,6 +130,7 @@ func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(tt.body))
 			w := httptest.NewRecorder()
 			handler.Login(w, req)
+
 			if w.Code != http.StatusBadRequest {
 				t.Errorf("expected 400, got %d", w.Code)
 			}
@@ -140,6 +155,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 	user := seedUser(t, repo, auth, "alice", "secret123")
 
 	ctx := context.Background()
+
 	session, err := sessions.Create(ctx, user.ID, SessionTTL)
 	if err != nil {
 		t.Fatalf("Create session: %v", err)
@@ -147,6 +163,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
 	req.Header.Set("Authorization", "Bearer "+session.Token)
+
 	w := httptest.NewRecorder()
 	handler.Logout(w, req)
 
@@ -155,7 +172,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 	}
 
 	_, err = sessions.Get(ctx, session.Token)
-	if err != identity.ErrSessionNotFound {
+	if !errors.Is(err, identity.ErrSessionNotFound) {
 		t.Errorf("expected session deleted, got err=%v", err)
 	}
 }
@@ -177,6 +194,7 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 	user := seedUser(t, repo, auth, "alice", "secret123")
 
 	ctx := context.Background()
+
 	session, err := sessions.Create(ctx, user.ID, SessionTTL)
 	if err != nil {
 		t.Fatalf("Create session: %v", err)
@@ -184,6 +202,7 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	req.Header.Set("Authorization", "Bearer "+session.Token)
+
 	w := httptest.NewRecorder()
 	handler.GetCurrentUser(w, req)
 
@@ -199,9 +218,11 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+
 	if resp.ID != user.ID {
 		t.Errorf("id: got %q, want %q", resp.ID, user.ID)
 	}
+
 	if resp.Username != "alice" {
 		t.Errorf("username: got %q, want alice", resp.Username)
 	}
@@ -250,6 +271,7 @@ func TestExtractToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			tt.setup(req)
+
 			got := extractToken(req)
 			if got != tt.want {
 				t.Errorf("extractToken: got %q, want %q", got, tt.want)

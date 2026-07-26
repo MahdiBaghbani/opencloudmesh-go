@@ -26,6 +26,7 @@ func (c *Config) ApplyDefaults() {
 	if c.RequestsPerWindow == 0 {
 		c.RequestsPerWindow = 100
 	}
+
 	if c.WindowSeconds == 0 {
 		c.WindowSeconds = int(cache.TTLRateLimit / time.Second)
 	}
@@ -52,6 +53,7 @@ func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Mid
 	if inputs.Cache == nil {
 		return nil, ErrMissingCache
 	}
+
 	if inputs.KeyFunc == nil {
 		return nil, ErrMissingKeyFunc
 	}
@@ -60,6 +62,7 @@ func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Mid
 	if err := svccfg.Decode(conf, &c); err != nil {
 		return nil, err
 	}
+
 	c.ApplyDefaults()
 
 	limiter := &Limiter{
@@ -77,10 +80,12 @@ func New(inputs Inputs, conf map[string]any, log *slog.Logger) (interceptors.Mid
 func (l *Limiter) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := l.keyFunc(r)
+
 		count, resetAt, err := l.cache.Increment(r.Context(), "ratelimit:"+key, 1, l.window)
 		if err != nil {
 			l.log.Warn("rate limit check failed", "error", err)
 			next.ServeHTTP(w, r)
+
 			return
 		}
 
@@ -89,8 +94,10 @@ func (l *Limiter) Wrap(next http.Handler) http.Handler {
 			if retryAfter < 1 {
 				retryAfter = 1
 			}
+
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 			api.WriteTooManyRequests(w, "too many requests")
+
 			return
 		}
 

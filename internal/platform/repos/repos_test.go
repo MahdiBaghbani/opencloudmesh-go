@@ -24,12 +24,15 @@ func TestNew_MemoryBackend(t *testing.T) {
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")
 	}
+
 	if r.IncomingShares == nil {
 		t.Error("IncomingShares is nil")
 	}
+
 	if r.OutgoingInvites == nil {
 		t.Error("OutgoingInvites is nil")
 	}
+
 	if r.IncomingInvites == nil {
 		t.Error("IncomingInvites is nil")
 	}
@@ -57,12 +60,15 @@ func TestNew_JSONBackend(t *testing.T) {
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")
 	}
+
 	if r.IncomingShares == nil {
 		t.Error("IncomingShares is nil")
 	}
+
 	if r.OutgoingInvites == nil {
 		t.Error("OutgoingInvites is nil")
 	}
+
 	if r.IncomingInvites == nil {
 		t.Error("IncomingInvites is nil")
 	}
@@ -90,12 +96,15 @@ func TestNew_SQLiteBackend(t *testing.T) {
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")
 	}
+
 	if r.IncomingShares == nil {
 		t.Error("IncomingShares is nil")
 	}
+
 	if r.OutgoingInvites == nil {
 		t.Error("OutgoingInvites is nil")
 	}
+
 	if r.IncomingInvites == nil {
 		t.Error("IncomingInvites is nil")
 	}
@@ -123,12 +132,15 @@ func TestNew_MirrorBackend(t *testing.T) {
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")
 	}
+
 	if r.IncomingShares == nil {
 		t.Error("IncomingShares is nil")
 	}
+
 	if r.OutgoingInvites == nil {
 		t.Error("OutgoingInvites is nil")
 	}
+
 	if r.IncomingInvites == nil {
 		t.Error("IncomingInvites is nil")
 	}

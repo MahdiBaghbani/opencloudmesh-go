@@ -16,6 +16,7 @@ import (
 
 func TestFixtures_HarnessWireOptionsMatchIntegrationHarness(t *testing.T) {
 	got := harness.IntegrationBuildOpts()
+
 	want := toBuildOpts(tswiring.HarnessWireOptions)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("IntegrationBuildOpts() = %+v, want %+v", got, want)
@@ -24,10 +25,12 @@ func TestFixtures_HarnessWireOptionsMatchIntegrationHarness(t *testing.T) {
 
 func TestFixtures_IETFWireOptionsMatchIntegrationHarness(t *testing.T) {
 	got := harness.IETFIntegrationBuildOpts()
+
 	want := toBuildOpts(tswiring.IETFWireOptions)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("IETFIntegrationBuildOpts() = %+v, want %+v", got, want)
 	}
+
 	if got.SkipCrypto {
 		t.Fatal("IETF wire options must enable crypto")
 	}
@@ -39,6 +42,7 @@ func TestFixtures_HarnessWireOptionsFixture(t *testing.T) {
 		!fixture.SkipDiscoveryCache {
 		t.Fatalf("harness fixture must enable crypto and keep transport skips, got %+v", fixture)
 	}
+
 	if fixture.OutboundOverride == nil {
 		t.Fatal("harness fixture must include OutboundOverride")
 	}
@@ -51,6 +55,7 @@ func TestFixtures_ProductionZeroValueBuildSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build with zero opts failed: %v", err)
 	}
+
 	if result.Deps == nil {
 		t.Fatal("Build must return explicit Deps in BuildResult")
 	}

@@ -34,9 +34,11 @@ func TestJWKSHandler_ServesLocalKeys(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &set); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
+
 	if len(set.Keys) != 1 {
 		t.Fatalf("keys = %d", len(set.Keys))
 	}
+
 	if set.Keys[0].Kid != km.GetKeyID() {
 		t.Fatalf("kid = %q, want %q", set.Keys[0].Kid, km.GetKeyID())
 	}

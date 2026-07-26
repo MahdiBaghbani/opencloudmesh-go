@@ -17,7 +17,8 @@ func TestClient_DoPreservesInterface(t *testing.T) {
 
 	client := outboundtestutil.NewPermissive(nil)
 
-	req, _ := http.NewRequest("GET", server.URL, nil)
+	req, _ := http.NewRequest(http.MethodGet, server.URL, nil)
+
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("Do() failed: %v", err)

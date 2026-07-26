@@ -19,6 +19,7 @@ func TestBuildCoreServices_FailsWithoutSharedDeps(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when shared deps are nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingServerDeps) {
 		t.Fatalf("expected ErrMissingServerDeps, got: %v", err)
 	}
@@ -36,6 +37,7 @@ func TestBuildCoreServices_FailsWithoutRealIP(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when RealIP is nil")
 	}
+
 	if !errors.Is(err, server.ErrMissingRealIP) {
 		t.Fatalf("expected ErrMissingRealIP before ratelimit wiring, got: %v", err)
 	}

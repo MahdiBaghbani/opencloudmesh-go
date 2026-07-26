@@ -10,6 +10,7 @@ import (
 func testOCMAuxInputs() Inputs {
 	rawHTTP := httpclient.New(nil, nil)
 	realIP := realip.NewTrustedProxies(nil)
+
 	return Inputs{
 		DiscoveryClient: discovery.NewClient(rawHTTP, nil),
 		Ratelimit: ratelimit.Inputs{

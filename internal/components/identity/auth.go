@@ -78,8 +78,10 @@ func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
 		return ErrInvalidPassword
 	}
 
-	var memory, time uint32
-	var threads uint8
+	var (
+		memory, time uint32
+		threads      uint8
+	)
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &time, &threads); err != nil {
 		return ErrInvalidPassword
 	}
@@ -93,6 +95,7 @@ func (a *UserAuth) VerifyPassword(encodedHash, password string) error {
 	if err != nil {
 		return ErrInvalidPassword
 	}
+
 	computedHash := argon2.IDKey([]byte(password), salt, time, memory, threads, uint32(len(expectedHash)))
 	if subtle.ConstantTimeCompare(expectedHash, computedHash) != 1 {
 		return ErrInvalidPassword

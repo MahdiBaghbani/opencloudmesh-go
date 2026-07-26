@@ -46,9 +46,11 @@ func (r *MemoryIncomingInviteRepo) Create(ctx context.Context, invite *IncomingI
 	if invite.ID == "" {
 		invite.ID = uuid.New().String()
 	}
+
 	if invite.ReceivedAt.IsZero() {
 		invite.ReceivedAt = time.Now()
 	}
+
 	if invite.Status == "" {
 		invite.Status = invites.InviteStatusPending
 	}
@@ -58,6 +60,7 @@ func (r *MemoryIncomingInviteRepo) Create(ctx context.Context, invite *IncomingI
 		r.byRecipientUser[invite.RecipientUserID] = append(
 			r.byRecipientUser[invite.RecipientUserID], invite.ID)
 	}
+
 	if invite.Token != "" && invite.RecipientUserID != "" {
 		r.byTokenRecipient[tokenRecipientKey(invite.Token, invite.RecipientUserID)] = invite.ID
 	}
@@ -73,6 +76,7 @@ func (r *MemoryIncomingInviteRepo) GetByIDForRecipientUserID(ctx context.Context
 	if !ok || invite.RecipientUserID != recipientUserID {
 		return nil, invites.ErrInviteNotFound
 	}
+
 	return invite, nil
 }
 
@@ -84,10 +88,12 @@ func (r *MemoryIncomingInviteRepo) GetByTokenForRecipientUserID(ctx context.Cont
 	if !ok {
 		return nil, invites.ErrInviteNotFound
 	}
+
 	invite, ok := r.invites[id]
 	if !ok {
 		return nil, invites.ErrInviteNotFound
 	}
+
 	return invite, nil
 }
 
@@ -96,12 +102,14 @@ func (r *MemoryIncomingInviteRepo) ListByRecipientUserID(ctx context.Context, re
 	defer r.mu.RUnlock()
 
 	ids := r.byRecipientUser[recipientUserID]
+
 	result := make([]*IncomingInvite, 0, len(ids))
 	for _, id := range ids {
 		if invite, ok := r.invites[id]; ok {
 			result = append(result, invite)
 		}
 	}
+
 	return result, nil
 }
 
@@ -113,7 +121,9 @@ func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(ctx context.Co
 	if !ok || invite.RecipientUserID != recipientUserID {
 		return invites.ErrInviteNotFound
 	}
+
 	invite.Status = status
+
 	return nil
 }
 
@@ -125,9 +135,11 @@ func (r *MemoryIncomingInviteRepo) DeleteForRecipientUserID(ctx context.Context,
 	if !ok || invite.RecipientUserID != recipientUserID {
 		return invites.ErrInviteNotFound
 	}
+
 	if invite.Token != "" {
 		delete(r.byTokenRecipient, tokenRecipientKey(invite.Token, invite.RecipientUserID))
 	}
+
 	ids := r.byRecipientUser[invite.RecipientUserID]
 	for i, iid := range ids {
 		if iid == id {
@@ -137,5 +149,6 @@ func (r *MemoryIncomingInviteRepo) DeleteForRecipientUserID(ctx context.Context,
 	}
 
 	delete(r.invites, id)
+
 	return nil
 }

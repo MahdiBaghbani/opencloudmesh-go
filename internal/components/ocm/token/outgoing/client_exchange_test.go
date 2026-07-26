@@ -35,9 +35,11 @@ func TestClient_Exchange_Success_LowercaseBearerTokenType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
 	}
+
 	if result.AccessToken != "test-access-token" {
 		t.Errorf("expected access_token 'test-access-token', got %s", result.AccessToken)
 	}
+
 	if result.TokenType != "bearer" {
 		t.Errorf("expected token_type 'bearer', got %s", result.TokenType)
 	}
@@ -56,12 +58,15 @@ func TestClient_Exchange_Success(t *testing.T) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("ParseForm failed: %v", err)
 		}
+
 		if got := r.FormValue("grant_type"); got != "authorization_code" {
 			t.Errorf("grant_type = %q, want %q", got, "authorization_code")
 		}
+
 		if got := r.FormValue("client_id"); got != "my-instance.example.com" {
 			t.Errorf("client_id = %q, want %q", got, "my-instance.example.com")
 		}
+
 		if got := r.FormValue("code"); got != "test-secret" {
 			t.Errorf("code = %q, want %q", got, "test-secret")
 		}
@@ -90,13 +95,14 @@ func TestClient_Exchange_Success(t *testing.T) {
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
 	}, httpSigDiscovery())
-
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
 	}
+
 	if result.AccessToken != "test-access-token" {
 		t.Errorf("expected access_token 'test-access-token', got %s", result.AccessToken)
 	}
+
 	if result.TokenType != "Bearer" {
 		t.Errorf("expected token_type 'Bearer', got %s", result.TokenType)
 	}
@@ -129,6 +135,7 @@ func TestClient_Exchange_WithoutHTTPSigSendsUnsigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
 	}
+
 	if result.AccessToken != "unsigned-token" {
 		t.Errorf("expected access_token 'unsigned-token', got %s", result.AccessToken)
 	}
@@ -161,6 +168,7 @@ func TestClient_Exchange_NoSignerWithoutHTTPSigSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
 	}
+
 	if result.AccessToken != "unsigned-token" {
 		t.Errorf("expected access_token 'unsigned-token', got %s", result.AccessToken)
 	}
@@ -168,8 +176,10 @@ func TestClient_Exchange_NoSignerWithoutHTTPSigSucceeds(t *testing.T) {
 
 func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
 	tokenEndpointCalled := false
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenEndpointCalled = true
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{
 			AccessToken: "should-not-be-returned",
@@ -198,9 +208,11 @@ func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
+
 	if ce.ReasonCode != reason.ReasonSignatureRequired {
 		t.Fatalf("expected reason %q, got %q (cause=%v err=%v)", reason.ReasonSignatureRequired, ce.ReasonCode, ce.Cause, err)
 	}
+
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when signing precondition fails")
 	}
@@ -208,8 +220,10 @@ func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
 
 func TestClient_Exchange_SignFailureFailClosed(t *testing.T) {
 	tokenEndpointCalled := false
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenEndpointCalled = true
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{
 			AccessToken: "should-not-be-returned",
@@ -238,9 +252,11 @@ func TestClient_Exchange_SignFailureFailClosed(t *testing.T) {
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
+
 	if ce.ReasonCode != reason.ReasonSignatureInvalid {
 		t.Fatalf("expected reason %q, got %q (cause=%v err=%v)", reason.ReasonSignatureInvalid, ce.ReasonCode, ce.Cause, err)
 	}
+
 	if tokenEndpointCalled {
 		t.Fatal("token endpoint should not be called when signing fails")
 	}
@@ -248,11 +264,14 @@ func TestClient_Exchange_SignFailureFailClosed(t *testing.T) {
 
 func TestClient_Exchange_SignedRejection401EmptyBodySingleAttempt(t *testing.T) {
 	var tokenHits atomic.Int32
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenHits.Add(1)
+
 		if r.URL.Path != "/ocm/token" {
 			t.Errorf("request path = %q, want %q", r.URL.Path, "/ocm/token")
 		}
+
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer server.Close()
@@ -270,13 +289,16 @@ func TestClient_Exchange_SignedRejection401EmptyBodySingleAttempt(t *testing.T) 
 	if err == nil {
 		t.Fatal("expected failure for signed 401 with empty body")
 	}
+
 	var ce *reason.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
+
 	if ce.ReasonCode != reason.ReasonSignatureRequired {
 		t.Fatalf("expected reason %q, got %q", reason.ReasonSignatureRequired, ce.ReasonCode)
 	}
+
 	if tokenHits.Load() != 1 {
 		t.Fatalf("hits = %d, want 1", tokenHits.Load())
 	}
@@ -295,6 +317,7 @@ func TestClient_Exchange_RejectsMalformedJSONBody(t *testing.T) {
 
 func TestClient_Exchange_SignedRejection401OAuthErrorSingleAttempt(t *testing.T) {
 	var tokenHits atomic.Int32
+
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenHits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
@@ -319,13 +342,16 @@ func TestClient_Exchange_SignedRejection401OAuthErrorSingleAttempt(t *testing.T)
 	if err == nil {
 		t.Fatal("expected failure for signed 401 with OAuth error body")
 	}
+
 	if tokenHits.Load() != 1 {
 		t.Fatalf("hits = %d, want 1", tokenHits.Load())
 	}
+
 	var ce *reason.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
+
 	if ce.ReasonCode != reason.ReasonSignatureRequired {
 		t.Fatalf("expected reason %q, got %q", reason.ReasonSignatureRequired, ce.ReasonCode)
 	}
@@ -406,10 +432,12 @@ func TestClient_Exchange_RejectsNonPositiveExpiresIn(t *testing.T) {
 
 func exchangeOnServer(t *testing.T, serverURL, secret string, disc *spec.Discovery) (*tokenoutgoing.ExchangeResult, error) {
 	t.Helper()
+
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF: config.SSRFConfig{Mode: "off"},
 	}, nil))
 	client := tokenoutgoing.NewClient(httpClient, &mockSigner{}, "my-instance.example.com")
+
 	return client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: serverURL,
 		SharedSecret:  secret,
@@ -418,13 +446,16 @@ func exchangeOnServer(t *testing.T, serverURL, secret string, disc *spec.Discove
 
 func assertTokenInvalidFormat(t *testing.T, err error) {
 	t.Helper()
+
 	if err == nil {
 		t.Fatal("expected error")
 	}
+
 	var ce *reason.ClassifiedError
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
+
 	if ce.ReasonCode != reason.ReasonTokenInvalidFormat {
 		t.Fatalf("expected reason %q, got %q", reason.ReasonTokenInvalidFormat, ce.ReasonCode)
 	}

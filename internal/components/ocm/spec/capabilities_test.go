@@ -46,9 +46,11 @@ func TestDiscoveryHelpersUseCapabilityConstants(t *testing.T) {
 	if !disc.IsHTTPSigCapable() {
 		t.Error("IsHTTPSigCapable() = false, want true")
 	}
+
 	if !disc.SupportsTokenExchange() {
 		t.Error("SupportsTokenExchange() = false, want true")
 	}
+
 	if disc.HasCapability(spec.CapabilityInvite) {
 		t.Error("HasCapability(CapabilityInvite) = true, want false")
 	}
@@ -79,6 +81,7 @@ func TestCapabilityClosedPathNoRawWireLiterals(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", rel, err)
 			}
+
 			content := string(data)
 			for _, lit := range capabilityWireLiterals {
 				if strings.Contains(content, lit) {

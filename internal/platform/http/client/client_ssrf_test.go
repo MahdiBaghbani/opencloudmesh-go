@@ -112,6 +112,7 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 			if err == nil {
 				t.Error("expected SSRF error for loopback IPv6")
 			}
+
 			if !httpclient.IsSSRFError(err) {
 				t.Errorf("expected SSRF error, got: %v", err)
 			}
@@ -200,6 +201,7 @@ func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 				t.Errorf("expected SSRF error for %s", tt.name)
 				return
 			}
+
 			if !httpclient.IsSSRFError(err) {
 				t.Errorf("expected SSRF error, got: %v", err)
 			}

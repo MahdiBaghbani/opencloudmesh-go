@@ -35,16 +35,19 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	log = logutil.NoopIfNil(log)
 
 	var c Config
+
 	topLevel := make(map[string]any, len(m))
 	for k, v := range m {
 		if k != "ocmprovider" {
 			topLevel[k] = v
 		}
 	}
+
 	unused, err := svccfg.DecodeWithUnused(topLevel, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "wellknown", "unused_keys", unused)
 	}
@@ -79,6 +82,7 @@ func discoveryHandler(
 	if signatureMiddleware == nil {
 		return handler
 	}
+
 	return signatureMiddleware.VerifyOCMRequestIfPresent()(handler)
 }
 
@@ -87,10 +91,12 @@ func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog
 	if err != nil {
 		return err
 	}
+
 	ocm := discoveryHandler(handler, inputs.SignatureMiddleware)
 	s.router.Get(RouteWellKnownOCM, ocm.ServeHTTP)
 	s.router.Get(RouteWellKnownOCMSlash, ocm.ServeHTTP)
 	s.router.Get(RouteWellKnownJWKS, newJWKSHandler(inputs.KeyManager).ServeHTTP)
+
 	return nil
 }
 

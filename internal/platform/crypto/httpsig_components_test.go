@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
@@ -16,10 +17,11 @@ func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	req, err := http.NewRequest("GET", "https://example.com/ocm/discovery", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://example.com/ocm/discovery", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Host = "example.com"
 
 	if err := signer.SignRequest(req, nil); err != nil {
@@ -37,6 +39,7 @@ func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
 	if got := req.Header.Get("Content-Digest"); got != wantDigest {
 		t.Errorf("Content-Digest = %q, want %q", got, wantDigest)
 	}
+
 	if got := req.Header.Get("Content-Length"); got != "0" {
 		t.Errorf("Content-Length = %q, want 0", got)
 	}
@@ -48,10 +51,12 @@ func TestSignRequest_CoversAllComponentsOnNonEmptyBody(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	body := httpsigTestBodyJSON
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Host = "example.com"
 
 	if err := signer.SignRequest(req, body); err != nil {
@@ -95,10 +100,11 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest("GET", "https://example.com/ocm/discovery", nil)
+			req, err := http.NewRequest(http.MethodGet, "https://example.com/ocm/discovery", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			req.Host = "example.com"
 			req.Header.Set(
 				"Content-Digest",
@@ -113,16 +119,20 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 				opts.Now().Unix(),
 				km.GetKeyID(),
 			)
+
 			sigBase, err := crypto.BuildSignatureBase(req, tc.components)
 			if err != nil {
 				t.Fatalf("BuildSignatureBase: %v", err)
 			}
+
 			paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
 			fullBase := sigBase + fmt.Sprintf(`"@signature-params": %s`, paramsRaw)
+
 			sig, err := km.Sign([]byte(fullBase))
 			if err != nil {
 				t.Fatalf("Sign: %v", err)
 			}
+
 			req.Header.Set("Signature-Input", sigInput)
 			req.Header.Set(
 				"Signature",
@@ -148,10 +158,12 @@ func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	components := []string{"@method", "@target-uri", "content-digest", "content-length"}
-	req, err := http.NewRequest("GET", "https://example.com/ocm/discovery", nil)
+
+	req, err := http.NewRequest(http.MethodGet, "https://example.com/ocm/discovery", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Host = "example.com"
 	req.Header.Set(
 		"Content-Digest",
@@ -167,16 +179,20 @@ func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
 		opts.Now().Unix(),
 		km.GetKeyID(),
 	)
+
 	sigBase, err := crypto.BuildSignatureBase(req, components)
 	if err != nil {
 		t.Fatalf("BuildSignatureBase: %v", err)
 	}
+
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
 	fullBase := sigBase + fmt.Sprintf(`"@signature-params": %s`, paramsRaw)
+
 	sig, err := km.Sign([]byte(fullBase))
 	if err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
+
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set(
 		"Signature",

@@ -34,13 +34,16 @@ func TestPersistencePresetDefaults(t *testing.T) {
 func TestPersistenceLoad_DefaultsToMemory(t *testing.T) {
 	// Clear ambient env override so the default backend load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+
 	if cfg.Persistence.Backend != BackendMemory {
 		t.Errorf("expected Backend=%q, got %q", BackendMemory, cfg.Persistence.Backend)
 	}
+
 	if cfg.Persistence.DataDir != "" {
 		t.Errorf("expected empty DataDir for memory, got %q", cfg.Persistence.DataDir)
 	}
@@ -74,6 +77,7 @@ data_dir = "/tmp/ocm-data"
 	if cfg.Persistence.Backend != BackendJSON {
 		t.Errorf("expected Backend=%q, got %q", BackendJSON, cfg.Persistence.Backend)
 	}
+
 	if cfg.Persistence.DataDir != "/tmp/ocm-data" {
 		t.Errorf("expected DataDir=/tmp/ocm-data, got %q", cfg.Persistence.DataDir)
 	}
@@ -107,6 +111,7 @@ data_dir = "/tmp/ocm-mirror"
 	if cfg.Persistence.Backend != BackendMirror {
 		t.Errorf("expected Backend=%q, got %q", BackendMirror, cfg.Persistence.Backend)
 	}
+
 	if cfg.Persistence.DataDir != "/tmp/ocm-mirror" {
 		t.Errorf("expected DataDir=/tmp/ocm-mirror, got %q", cfg.Persistence.DataDir)
 	}
@@ -188,6 +193,7 @@ backend = "memory"
 	if err != nil {
 		t.Fatalf("Load() error = %v (memory backend must not require data_dir)", err)
 	}
+
 	if cfg.Persistence.Backend != BackendMemory {
 		t.Errorf("expected Backend=%q, got %q", BackendMemory, cfg.Persistence.Backend)
 	}
@@ -248,6 +254,7 @@ data_dir = "/some/path"
 	if cfg.Persistence.Backend != BackendJSON {
 		t.Errorf("expected Backend=%q, got %q", BackendJSON, cfg.Persistence.Backend)
 	}
+
 	if cfg.Persistence.DataDir != "/some/path" {
 		t.Errorf("expected DataDir=/some/path, got %q", cfg.Persistence.DataDir)
 	}

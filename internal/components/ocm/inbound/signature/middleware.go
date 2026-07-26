@@ -42,6 +42,7 @@ func GetPeerIdentity(ctx context.Context) *PeerIdentity {
 	if pi, ok := ctx.Value(PeerIdentityKey).(*PeerIdentity); ok {
 		return pi
 	}
+
 	return nil
 }
 
@@ -127,12 +128,14 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			if err != nil {
 				m.logger.Error("failed to read request body", "error", err)
 				http.Error(w, "failed to read body", http.StatusBadRequest)
+
 				return
 			}
 
 			if requireDeclaredPeer && declaredPeerResolver == nil {
 				m.logger.Error("requireDeclaredPeer set without declared peer resolver")
 				http.Error(w, "declared peer required", http.StatusBadRequest)
+
 				return
 			}
 
@@ -143,11 +146,14 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 				if err != nil {
 					m.logger.Warn("failed to resolve declared peer", "error", err)
 					http.Error(w, "invalid declared peer", http.StatusBadRequest)
+
 					return
 				}
+
 				if strings.TrimSpace(declaredPeer) == "" {
 					m.logger.Warn("missing declared peer")
 					http.Error(w, "declared peer required", http.StatusBadRequest)
+
 					return
 				}
 			}
@@ -174,6 +180,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 					if err != nil {
 						m.logger.Error("failed to parse keyId", "keyId", result.KeyID, "error", err)
 						http.Error(w, "invalid signature keyId", http.StatusUnauthorized)
+
 						return
 					}
 
@@ -181,11 +188,13 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 					if compareScheme == "" {
 						compareScheme = m.localScheme
 					}
+
 					keyAuthorityForCompare, err := authorityForCompareFromKid(parsedKid, compareScheme)
 					if err != nil {
 						m.logger.Error("failed to normalize keyId authority",
 							"keyId", result.KeyID, "error", err)
 						http.Error(w, "invalid signature keyId", http.StatusUnauthorized)
+
 						return
 					}
 
@@ -195,13 +204,16 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 							m.logger.Warn("failed to normalize declared peer for comparison",
 								"declared_peer", declaredPeer, "error", err)
 							http.Error(w, "peer identity mismatch", http.StatusForbidden)
+
 							return
 						}
+
 						if normalizedDeclared != keyAuthorityForCompare {
 							m.logger.Warn("peer identity mismatch",
 								"declared", normalizedDeclared,
 								"key_id_authority", keyAuthorityForCompare)
 							http.Error(w, "peer identity mismatch", http.StatusForbidden)
+
 							return
 						}
 					}
@@ -223,6 +235,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 						"keyId", result.KeyID,
 						"reason", result.Reason)
 					http.Error(w, bodyMsg, status)
+
 					return
 				}
 			} else {
@@ -234,6 +247,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			if err := crypto.VerifyContentDigest(r, body); err != nil {
 				m.logger.Warn("content digest verification failed", "error", err)
 				http.Error(w, "content digest mismatch", http.StatusBadRequest)
+
 				return
 			}
 
@@ -254,11 +268,15 @@ func (m *SignatureMiddleware) serveUnsigned(w http.ResponseWriter, r *http.Reque
 		if err := crypto.VerifyContentDigest(r, body); err != nil {
 			m.logger.Warn("content digest verification failed", "error", err)
 			http.Error(w, "content digest mismatch", http.StatusBadRequest)
+
 			return
 		}
+
 		next.ServeHTTP(w, r)
+
 		return
 	}
+
 	m.logger.Warn("signature required", "reason", crypto.ReasonUnsigned)
 	http.Error(w, "signature required", http.StatusUnauthorized)
 }
@@ -267,10 +285,12 @@ func authorityForCompareFromKid(k keyid.Kid, scheme string) (string, error) {
 	if k.Scheme != "" {
 		scheme = k.Scheme
 	}
+
 	normalized, err := hostport.Normalize(k.Authority, scheme)
 	if err != nil {
 		return "", err
 	}
+
 	return normalized, nil
 }
 

@@ -38,6 +38,7 @@ import (
 // case.
 func buildProxyFunc(cfg *config.OutboundHTTPConfig) (func(*http.Request) (*url.URL, error), map[string]struct{}) {
 	trustedHosts := map[string]struct{}{}
+
 	var proxyFunc func(*http.Request) (*url.URL, error)
 
 	switch {
@@ -58,6 +59,7 @@ func buildProxyFunc(cfg *config.OutboundHTTPConfig) (func(*http.Request) (*url.U
 		proxyFunc = func(req *http.Request) (*url.URL, error) {
 			return envProxyFn(req.URL)
 		}
+
 		for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"} {
 			if raw := os.Getenv(key); raw != "" {
 				p, err := url.Parse(raw)
@@ -67,6 +69,7 @@ func buildProxyFunc(cfg *config.OutboundHTTPConfig) (func(*http.Request) (*url.U
 					// the fallback in httpproxy's own parseProxy.
 					p, err = url.Parse("http://" + raw)
 				}
+
 				if err == nil && p.Hostname() != "" {
 					trustedHosts[strings.ToLower(p.Hostname())] = struct{}{}
 				}
@@ -114,12 +117,14 @@ func (c *Client) ssrfCheckedDial(dialer *net.Dialer) func(ctx context.Context, n
 			if host == "" {
 				host = addr
 			}
+
 			if _, trusted := c.trustedProxyHosts[strings.ToLower(host)]; !trusted {
 				if err := c.checkSSRF(ctx, addr); err != nil {
 					return nil, err
 				}
 			}
 		}
+
 		return dialer.DialContext(ctx, network, addr)
 	}
 }

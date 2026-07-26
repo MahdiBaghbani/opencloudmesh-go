@@ -34,6 +34,7 @@ func newTestRouterWithAccess(
 		r.Post("/{shareId}/decline", h.HandleDecline)
 		r.Post("/{shareId}/verify-access", h.HandleVerifyAccess)
 	})
+
 	return r
 }
 
@@ -57,6 +58,7 @@ func createAcceptedShareForUser(
 		SharedSecret:    "secret-" + providerID,
 	}
 	repo.Create(context.Background(), share)
+
 	return share
 }
 
@@ -85,5 +87,6 @@ func createAcceptedWebappShareForUser(
 		WebappPermissions: []string{"view", "share"},
 	}
 	repo.Create(context.Background(), share)
+
 	return share
 }

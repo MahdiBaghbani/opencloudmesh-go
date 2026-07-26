@@ -31,10 +31,12 @@ func AccessLogMiddleware(log *slog.Logger, trustedProxies *realip.TrustedProxies
 				// Fallback: if context logger missing, recompute base fields
 				if !ok {
 					reqID := chimw.GetReqID(r.Context())
+
 					clientIP := "unknown"
 					if trustedProxies != nil {
 						clientIP = trustedProxies.GetClientIPString(r)
 					}
+
 					logger = log.With(
 						"request_id", reqID,
 						"method", r.Method,

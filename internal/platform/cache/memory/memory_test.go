@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 func TestCache_SetGet(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	// Set a value
@@ -25,6 +27,7 @@ func TestCache_SetGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
+
 	if string(val) != "value1" {
 		t.Errorf("expected 'value1', got %q", string(val))
 	}
@@ -33,10 +36,11 @@ func TestCache_SetGet(t *testing.T) {
 func TestCache_GetNotFound(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	_, err := c.Get(ctx, "nonexistent")
-	if err != cache.ErrNotFound {
+	if !errors.Is(err, cache.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
@@ -44,6 +48,7 @@ func TestCache_GetNotFound(t *testing.T) {
 func TestCache_Expiration(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	// Set with very short TTL
@@ -63,7 +68,7 @@ func TestCache_Expiration(t *testing.T) {
 
 	// Should be expired now
 	_, err = c.Get(ctx, "key1")
-	if err != cache.ErrExpired {
+	if !errors.Is(err, cache.ErrExpired) {
 		t.Errorf("expected ErrExpired, got %v", err)
 	}
 
@@ -76,13 +81,14 @@ func TestCache_Expiration(t *testing.T) {
 func TestCache_Delete(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	c.Set(ctx, "key1", []byte("value1"), time.Minute)
 	c.Delete(ctx, "key1")
 
 	_, err := c.Get(ctx, "key1")
-	if err != cache.ErrNotFound {
+	if !errors.Is(err, cache.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
 }
@@ -90,6 +96,7 @@ func TestCache_Delete(t *testing.T) {
 func TestCache_ValueIsolation(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	original := []byte("original")
@@ -117,6 +124,7 @@ func TestCache_ValueIsolation(t *testing.T) {
 func TestCounter_Increment(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	// First increment creates counter
@@ -124,6 +132,7 @@ func TestCounter_Increment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Increment failed: %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("expected 1, got %d", count)
 	}
@@ -153,6 +162,7 @@ func TestCounter_Increment(t *testing.T) {
 func TestCounter_Expiration(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	// Create counter with short TTL
@@ -177,6 +187,7 @@ func TestCounter_Expiration(t *testing.T) {
 func TestCounter_Reset(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	_, _, _ = c.Increment(ctx, "counter1", 100, time.Minute)
@@ -191,6 +202,7 @@ func TestCounter_Reset(t *testing.T) {
 func TestCounter_ResetAt(t *testing.T) {
 	c := memory.New(time.Minute, 0)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	ttl := 30 * time.Second
@@ -201,6 +213,7 @@ func TestCounter_ResetAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Increment failed: %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("expected count 1, got %d", count)
 	}
@@ -213,6 +226,7 @@ func TestCounter_ResetAt(t *testing.T) {
 
 	// Subsequent increments should return the same resetAt (within the same window)
 	time.Sleep(10 * time.Millisecond)
+
 	_, resetAt2, _ := c.Increment(ctx, "counter_resetat", 1, ttl)
 
 	// resetAt2 should be close to original resetAt (not reset)
@@ -220,6 +234,7 @@ func TestCounter_ResetAt(t *testing.T) {
 	if diff < 0 {
 		diff = -diff
 	}
+
 	if diff > time.Second {
 		t.Errorf("resetAt changed unexpectedly: first %v, second %v (diff: %v)", resetAt, resetAt2, diff)
 	}
@@ -229,6 +244,7 @@ func TestCache_CleanupLoop(t *testing.T) {
 	// Create cache with fast cleanup
 	c := memory.New(time.Minute, 50*time.Millisecond)
 	defer c.Close()
+
 	ctx := context.Background()
 
 	// Set items that will expire quickly

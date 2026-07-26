@@ -50,9 +50,11 @@ func ObjectProtocolRole(v any) (ProtocolRole, error) {
 	if err != nil {
 		return ProtocolRole{}, err
 	}
+
 	if len(raw) == 0 || raw[0] != '{' {
 		return ProtocolRole{}, fmt.Errorf("protocol role object must marshal to a JSON object")
 	}
+
 	return ProtocolRole{kind: protocolRoleObject, object: raw}, nil
 }
 
@@ -70,6 +72,7 @@ func (p ProtocolRole) MarshalJSON() ([]byte, error) {
 		if len(p.object) == 0 {
 			return []byte("{}"), nil
 		}
+
 		return p.object, nil
 	default:
 		return nil, fmt.Errorf("invalid protocol role")
@@ -80,22 +83,29 @@ func (p *ProtocolRole) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 || string(data) == "null" {
 		return fmt.Errorf("protocol role cannot be null")
 	}
+
 	if data[0] == '"' {
 		var s string
 		if err := json.Unmarshal(data, &s); err != nil {
 			return err
 		}
+
 		p.kind = protocolRoleString
 		p.string = s
 		p.object = nil
+
 		return nil
 	}
+
 	if data[0] != '{' {
 		return fmt.Errorf("protocol role must be string or object")
 	}
+
 	p.kind = protocolRoleObject
+
 	p.object = append(json.RawMessage(nil), data...)
 	p.string = ""
+
 	return nil
 }
 
@@ -104,6 +114,7 @@ func (p ProtocolRole) StringValue() (string, bool) {
 	if p.kind != protocolRoleString {
 		return "", false
 	}
+
 	return p.string, true
 }
 
@@ -112,10 +123,12 @@ func (p ProtocolRole) WebDAVReceive() (*WebDAVReceive, bool) {
 	if p.kind != protocolRoleObject {
 		return nil, false
 	}
+
 	var wr WebDAVReceive
 	if err := json.Unmarshal(p.object, &wr); err != nil || wr.URI == "" {
 		return nil, false
 	}
+
 	return &wr, true
 }
 
@@ -128,6 +141,7 @@ func (p Protocols) StringRole(name string) (string, bool) {
 	if !ok {
 		return "", false
 	}
+
 	return role.StringValue()
 }
 
@@ -137,5 +151,6 @@ func (p Protocols) WebDAVReceive() (*WebDAVReceive, bool) {
 	if !ok {
 		return nil, false
 	}
+
 	return role.WebDAVReceive()
 }

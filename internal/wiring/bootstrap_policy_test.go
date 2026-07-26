@@ -64,7 +64,7 @@ func TestBuild_SignaturePolicyWiredFromCodeFlow(t *testing.T) {
 
 			body := []byte(`{"test":"data"}`)
 			req := httptest.NewRequest(
-				"POST",
+				http.MethodPost,
 				"https://localhost:9200/ocm/shares",
 				bytes.NewReader(body),
 			)

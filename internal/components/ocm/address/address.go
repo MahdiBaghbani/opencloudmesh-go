@@ -27,6 +27,7 @@ func Parse(addr string) (identifier, provider string, err error) {
 	if identifier == "" {
 		return "", "", fmt.Errorf("invalid OCM address: empty identifier in %q", addr)
 	}
+
 	if provider == "" {
 		return "", "", fmt.Errorf("invalid OCM address: empty provider in %q", addr)
 	}
@@ -34,6 +35,7 @@ func Parse(addr string) (identifier, provider string, err error) {
 	if strings.Contains(provider, "://") {
 		return "", "", fmt.Errorf("invalid OCM address: provider contains scheme in %q", addr)
 	}
+
 	if strings.Contains(provider, "/") {
 		return "", "", fmt.Errorf("invalid OCM address: provider contains path in %q", addr)
 	}
@@ -64,6 +66,7 @@ func DecodeFederatedOpaqueID(encoded string) (userID string, idp string, ok bool
 		}
 
 		payload := string(decoded)
+
 		idx := strings.LastIndex(payload, "@")
 		if idx < 0 || idx == 0 || idx == len(payload)-1 {
 			continue

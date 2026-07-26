@@ -25,6 +25,7 @@ import (
 // test runner.
 func clearProxyEnvVars(t *testing.T) {
 	t.Helper()
+
 	for _, key := range []string{
 		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
 		"http_proxy", "https_proxy", "no_proxy", "all_proxy",
@@ -43,6 +44,7 @@ func clearProxyEnvVars(t *testing.T) {
 // route through the env proxy.
 func TestClient_EnvOverrideEndToEnd_UseEnvFallbackTrue(t *testing.T) {
 	var proxyHit atomic.Bool
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHit.Store(true)
 		w.WriteHeader(http.StatusOK)
@@ -71,6 +73,7 @@ func TestClient_EnvOverrideEndToEnd_UseEnvFallbackTrue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if !cfg.OutboundHTTP.UseEnvFallback {
 		t.Fatal("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK=true must set UseEnvFallback=true")
 	}
@@ -88,6 +91,7 @@ func TestClient_EnvOverrideEndToEnd_UseEnvFallbackTrue(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if !proxyHit.Load() {
 		t.Error("request did not route through the env proxy")
 	}
@@ -111,6 +115,7 @@ func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
 	}
 
 	var proxyHit atomic.Bool
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHit.Store(true)
 		t.Errorf("proxy must not be contacted when use_env_fallback is false: got %s %s",
@@ -125,15 +130,18 @@ func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen on non-loopback IP %s: %v", localIP, err)
 	}
+
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("direct"))
 	}))
 	server.Listener = destListener
+
 	server.Start()
 	defer server.Close()
 
 	dir := t.TempDir()
+
 	configPath := filepath.Join(dir, "config.toml")
 	if err := os.WriteFile(configPath, []byte("mode = \"dev\"\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -154,6 +162,7 @@ func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if cfg.OutboundHTTP.UseEnvFallback {
 		t.Fatal("default must keep UseEnvFallback=false")
 	}
@@ -171,6 +180,7 @@ func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if proxyHit.Load() {
 		t.Error("env proxy must not be contacted when use_env_fallback is false")
 	}

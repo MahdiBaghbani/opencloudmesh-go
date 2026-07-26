@@ -58,6 +58,7 @@ func NewTestClient(t testing.TB, opts ...Option) *ocmdiscovery.Client {
 	for _, opt := range opts {
 		opt(&o)
 	}
+
 	return ocmdiscovery.NewClient(o.httpClient, o.cache)
 }
 
@@ -68,6 +69,7 @@ func InlineKeyDiscoveryDoc(t testing.TB, publicKeyPEM string) map[string]any {
 	t.Helper()
 
 	endpoint := strings.TrimSuffix(defaultInlineKeyServerURL, "/") + "/ocm"
+
 	return map[string]any{
 		"enabled":       true,
 		"apiVersion":    spec.APIVersionPin,
@@ -104,6 +106,7 @@ func NewDiscoveryTestServer(t testing.TB, doc map[string]any) (*httptest.Server,
 		for k, v := range payload {
 			served[k] = v
 		}
+
 		baseURL := "http://" + r.Host
 		served["endPoint"] = strings.TrimSuffix(baseURL, "/") + "/ocm"
 
@@ -113,6 +116,7 @@ func NewDiscoveryTestServer(t testing.TB, doc map[string]any) (*httptest.Server,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+
 		if _, err := w.Write(body); err != nil {
 			panic("write discovery doc: " + err.Error())
 		}
@@ -121,5 +125,6 @@ func NewDiscoveryTestServer(t testing.TB, doc map[string]any) (*httptest.Server,
 
 	cleanup := func() { srv.Close() }
 	t.Cleanup(cleanup)
+
 	return srv, cleanup
 }

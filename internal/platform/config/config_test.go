@@ -62,6 +62,7 @@ func TestConfigPublicScheme(t *testing.T) {
 	if got := (&Config{}).PublicScheme(); got != "https" {
 		t.Errorf("(&Config{}).PublicScheme() = %q, want %q", got, "https")
 	}
+
 	if got := (&Config{PublicOrigin: "http://example.com"}).PublicScheme(); got != "http" {
 		t.Errorf("PublicScheme() = %q, want %q", got, "http")
 	}
@@ -89,6 +90,7 @@ some_key = "value"
 	if err == nil {
 		t.Fatal("expected Load to reject an unknown top-level key")
 	}
+
 	if !strings.Contains(err.Error(), "unsupported keys") {
 		t.Errorf("error = %v, want an unsupported-keys message", err)
 	}

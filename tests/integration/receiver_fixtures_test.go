@@ -45,8 +45,12 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 	t.Helper()
 
 	captures := make(chan strictCodeFlowShareCapture, 1)
-	var srv *httptest.Server
-	var km *crypto.KeyManager
+
+	var (
+		srv *httptest.Server
+		km  *crypto.KeyManager
+	)
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/ocm":
@@ -54,6 +58,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
 				return
 			}
+
 			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
@@ -63,6 +68,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 				Criteria:      []string{spec.CriteriaMustExchangeToken, spec.CriteriaMustUseHTTPSig},
 				TokenEndPoint: srv.URL + "/ocm/token",
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(disc)
 		case jwks.WellKnownPath:
@@ -70,6 +76,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
 				return
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(km.JWKS())
 		case "/ocm/shares":
@@ -78,15 +85,18 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 				http.Error(w, "failed to read share body", http.StatusBadRequest)
 				return
 			}
+
 			var req spec.NewShareRequest
 			if err := json.Unmarshal(body, &req); err != nil {
 				http.Error(w, "failed to parse share body", http.StatusBadRequest)
 				return
 			}
+
 			if req.Protocol.WebDAV == nil {
 				http.Error(w, "missing webdav payload", http.StatusBadRequest)
 				return
 			}
+
 			capture := strictCodeFlowShareCapture{
 				ProviderID:   req.ProviderID,
 				SharedSecret: req.Protocol.WebDAV.SharedSecret,
@@ -97,8 +107,10 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 			case captures <- capture:
 			default:
 				<-captures
+
 				captures <- capture
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"recipientDisplayName":"Strict Receiver"}`))
@@ -112,6 +124,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 		srv.Close()
 		t.Fatalf("failed to create strict receiver signing key: %v", err)
 	}
+
 	km.SetWireKeyID(srv.URL + "#key1")
 
 	parsedURL, err := url.Parse(srv.URL)
@@ -134,6 +147,7 @@ func tlsPeerInput(peerURL string) (baseURL, host string) {
 	if err != nil {
 		return peerURL, strings.TrimPrefix(strings.TrimPrefix(peerURL, "https://"), "http://")
 	}
+
 	return peerURL, parsed.Host
 }
 
@@ -182,8 +196,11 @@ type strictRecordingReceiver struct {
 func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 	t.Helper()
 
-	var srv *httptest.Server
-	var km *crypto.KeyManager
+	var (
+		srv *httptest.Server
+		km  *crypto.KeyManager
+	)
+
 	receiver := &strictRecordingReceiver{}
 
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +210,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
 				return
 			}
+
 			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
@@ -202,6 +220,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 				Criteria:      []string{spec.CriteriaMustExchangeToken, spec.CriteriaMustUseHTTPSig},
 				TokenEndPoint: srv.URL + "/ocm/token",
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(disc)
 		case r.URL.Path == jwks.WellKnownPath:
@@ -209,6 +228,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
 				return
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(km.JWKS())
 		case r.URL.Path == "/ocm/shares" && r.Method == http.MethodPost:
@@ -217,15 +237,18 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 				http.Error(w, "failed to read share body", http.StatusBadRequest)
 				return
 			}
+
 			var req spec.NewShareRequest
 			if err := json.Unmarshal(body, &req); err != nil {
 				http.Error(w, "failed to parse share body", http.StatusBadRequest)
 				return
 			}
+
 			if req.Protocol.WebDAV == nil {
 				http.Error(w, "missing webdav payload", http.StatusBadRequest)
 				return
 			}
+
 			capture := strictRecordingShareCapture{
 				ProviderID:   req.ProviderID,
 				SharedSecret: req.Protocol.WebDAV.SharedSecret,
@@ -233,6 +256,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 				SawSignature: r.Header.Get("Signature") != "",
 				RawBody:      append([]byte(nil), body...),
 			}
+
 			receiver.mu.Lock()
 			receiver.lastShare = capture
 			receiver.mu.Unlock()
@@ -243,10 +267,12 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 			_, _ = w.Write([]byte(`{"recipientDisplayName":"Strict Recording Receiver"}`))
 		case r.URL.Path == "/ocm/token" && r.Method == http.MethodPost:
 			receiver.tokenPostCount.Add(1)
+
 			if err := r.ParseForm(); err != nil {
 				http.Error(w, "invalid token form", http.StatusBadRequest)
 				return
 			}
+
 			receiver.mu.Lock()
 			receiver.lastTokenForm = copyURLValues(r.PostForm)
 			receiver.mu.Unlock()
@@ -262,10 +288,12 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
+
 			if r.Header.Get("Authorization") == "" {
 				http.Error(w, "missing authorization", http.StatusUnauthorized)
 				return
 			}
+
 			receiver.webDAVGetCount.Add(1)
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("strict-recording-webdav-stub"))
@@ -279,6 +307,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 		srv.Close()
 		t.Fatalf("failed to create strict recording receiver signing key: %v", err)
 	}
+
 	km.SetWireKeyID(srv.URL + "#key1")
 
 	parsedURL, err := url.Parse(srv.URL)
@@ -290,6 +319,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 	receiver.server = srv
 	receiver.peerDomain = parsedURL.Host
 	receiver.peerBaseURL = srv.URL
+
 	return receiver
 }
 
@@ -297,10 +327,12 @@ func copyURLValues(src url.Values) url.Values {
 	if src == nil {
 		return nil
 	}
+
 	dst := make(url.Values, len(src))
 	for k, vs := range src {
 		dst[k] = append([]string(nil), vs...)
 	}
+
 	return dst
 }
 
@@ -328,12 +360,15 @@ func assertRecordingReceiverIdle(t *testing.T, receiver *strictRecordingReceiver
 	if receiver == nil {
 		t.Fatal("strict recording receiver is nil")
 	}
+
 	if n := receiver.PostCount(); n > 0 {
 		t.Fatalf("expected recording receiver postCount=0, got %d", n)
 	}
+
 	if n := receiver.TokenPostCount(); n > 0 {
 		t.Fatalf("expected recording receiver tokenPostCount=0, got %d", n)
 	}
+
 	if n := receiver.WebDAVGetCount(); n > 0 {
 		t.Fatalf("expected recording receiver webDAVGetCount=0, got %d", n)
 	}
@@ -342,12 +377,14 @@ func assertRecordingReceiverIdle(t *testing.T, receiver *strictRecordingReceiver
 func (r *strictRecordingReceiver) LastShare() strictRecordingShareCapture {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	return r.lastShare
 }
 
 func (r *strictRecordingReceiver) LastTokenForm() url.Values {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	return copyURLValues(r.lastTokenForm)
 }
 
@@ -357,14 +394,17 @@ func strictRecordingReceiverAllowedPort(t *testing.T, receiver *strictRecordingR
 	if receiver == nil {
 		t.Fatal("strict recording receiver is nil")
 	}
+
 	_, portStr, err := net.SplitHostPort(receiver.peerDomain)
 	if err != nil {
 		t.Fatalf("parse strict recording receiver peer domain %q: %v", receiver.peerDomain, err)
 	}
+
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		t.Fatalf("parse strict recording receiver port %q: %v", portStr, err)
 	}
+
 	return port
 }
 
@@ -389,6 +429,7 @@ func (p *trustedProtocolPeer) Port() int {
 	if p == nil {
 		return 0
 	}
+
 	return p.port
 }
 
@@ -396,6 +437,7 @@ func (p *trustedProtocolPeer) PostCount() int32 {
 	if p == nil {
 		return 0
 	}
+
 	return p.postCount.Load()
 }
 
@@ -403,6 +445,7 @@ func (p *trustedProtocolPeer) DiscoveryHits() int32 {
 	if p == nil {
 		return 0
 	}
+
 	return p.discoveryHits.Load()
 }
 
@@ -412,6 +455,7 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 	moduleRoot := modroot.ModuleRoot(t)
 	certFile := filepath.Join(moduleRoot, "tests", "e2e", "testdata", "tls", "localhost.crt")
 	keyFile := filepath.Join(moduleRoot, "tests", "e2e", "testdata", "tls", "localhost.key")
+
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		t.Fatalf("load trusted protocol peer TLS key pair: %v", err)
@@ -421,6 +465,7 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 	if err != nil {
 		t.Fatalf("listen trusted protocol peer: %v", err)
 	}
+
 	port := listener.Addr().(*net.TCPAddr).Port
 	tlsListener := tls.NewListener(listener, &tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -437,6 +482,7 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 			if r.URL.Path == "/.well-known/ocm" {
 				peer.discoveryHits.Add(1)
 			}
+
 			handler(peer, w, r)
 		}),
 	}
@@ -444,8 +490,10 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 	go func() {
 		_ = peer.server.Serve(tlsListener)
 	}()
+
 	t.Cleanup(func() {
 		peer.Close()
 	})
+
 	return peer
 }

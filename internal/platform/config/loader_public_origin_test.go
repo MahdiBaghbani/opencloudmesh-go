@@ -100,10 +100,12 @@ func TestValidatePublicOrigin_InvalidValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{PublicOrigin: tt.origin}
+
 			err := validatePublicOrigin(cfg)
 			if err == nil {
 				t.Fatalf("validatePublicOrigin(%q) expected error, got nil", tt.origin)
 			}
+
 			if !strings.Contains(err.Error(), tt.wantInErr) {
 				t.Errorf("validatePublicOrigin(%q) error = %q, want substring %q", tt.origin, err.Error(), tt.wantInErr)
 			}
@@ -129,6 +131,7 @@ public_origin = "https://example.com/app"
 	if err == nil {
 		t.Fatal("expected error for public_origin with a path")
 	}
+
 	if !strings.Contains(err.Error(), "public_origin") {
 		t.Errorf("expected error to mention public_origin, got: %v", err)
 	}
@@ -137,7 +140,9 @@ public_origin = "https://example.com/app"
 func TestLoad_PublicOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
 	// Clear ambient env override so the flag validation path is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	origin := "ftp://example.com"
+
 	_, err := Load(LoaderOptions{
 		FlagOverrides: FlagOverrides{
 			PublicOrigin: &origin,
@@ -146,6 +151,7 @@ func TestLoad_PublicOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for ftp scheme in public_origin")
 	}
+
 	if !strings.Contains(err.Error(), "scheme must be http or https") {
 		t.Errorf("expected scheme error, got: %v", err)
 	}

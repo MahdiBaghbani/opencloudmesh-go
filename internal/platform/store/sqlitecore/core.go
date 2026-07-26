@@ -51,6 +51,7 @@ func Open(dataDir string) (*Core, error) {
 		} else if closeErr := sqlDB.Close(); closeErr != nil {
 			return nil, errors.Join(migrErr, closeErr)
 		}
+
 		return nil, migrErr
 	}
 
@@ -62,10 +63,12 @@ func (c *Core) Close() error {
 	if c == nil || c.db == nil {
 		return nil
 	}
+
 	sqlDB, err := c.db.DB()
 	if err != nil {
 		return err
 	}
+
 	return sqlDB.Close()
 }
 
@@ -75,6 +78,7 @@ func normNotFound(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return store.ErrNotFound
 	}
+
 	return err
 }
 
@@ -84,6 +88,7 @@ func normWrite(err error) error {
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return store.ErrAlreadyExists
 	}
+
 	return err
 }
 
@@ -96,36 +101,43 @@ func (c *Core) CreateOutgoingShare(ctx context.Context, share *store.OutgoingSha
 	if err := c.db.WithContext(ctx).Create(share).Error; err != nil {
 		return normWrite(err)
 	}
+
 	return nil
 }
 
 // GetOutgoingShareByID retrieves an outgoing share by its local share id.
 func (c *Core) GetOutgoingShareByID(ctx context.Context, shareId string) (*store.OutgoingShare, error) {
 	var share store.OutgoingShare
+
 	result := c.db.WithContext(ctx).First(&share, "share_id = ?", shareId)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
 // GetOutgoingShare retrieves an outgoing share by providerId.
 func (c *Core) GetOutgoingShare(ctx context.Context, providerId string) (*store.OutgoingShare, error) {
 	var share store.OutgoingShare
+
 	result := c.db.WithContext(ctx).First(&share, "provider_id = ?", providerId)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
 // GetOutgoingShareByWebDAVId retrieves an outgoing share by webdavId.
 func (c *Core) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*store.OutgoingShare, error) {
 	var share store.OutgoingShare
+
 	result := c.db.WithContext(ctx).First(&share, "web_dav_id = ?", webdavId)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
@@ -137,11 +149,14 @@ func (c *Core) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret 
 	if sharedSecret == "" {
 		return nil, store.ErrNotFound
 	}
+
 	var share store.OutgoingShare
+
 	result := c.db.WithContext(ctx).First(&share, "shared_secret = ?", sharedSecret)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
@@ -158,9 +173,11 @@ func (c *Core) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingSha
 	if result.Error != nil {
 		return normWrite(result.Error)
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -170,9 +187,11 @@ func (c *Core) DeleteOutgoingShare(ctx context.Context, providerId string) error
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -182,6 +201,7 @@ func (c *Core) ListOutgoingShares(ctx context.Context) ([]*store.OutgoingShare, 
 	if err := c.db.WithContext(ctx).Find(&shares).Error; err != nil {
 		return nil, err
 	}
+
 	return shares, nil
 }
 
@@ -194,26 +214,31 @@ func (c *Core) CreateIncomingShare(ctx context.Context, share *store.IncomingSha
 	if err := c.db.WithContext(ctx).Create(share).Error; err != nil {
 		return normWrite(err)
 	}
+
 	return nil
 }
 
 // GetIncomingShareByIDForRecipient retrieves an incoming share by shareId scoped to a recipient.
 func (c *Core) GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*store.IncomingShare, error) {
 	var share store.IncomingShare
+
 	result := c.db.WithContext(ctx).First(&share, "share_id = ? AND user_id = ?", shareId, recipientUserId)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
 // GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerId.
 func (c *Core) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*store.IncomingShare, error) {
 	var share store.IncomingShare
+
 	result := c.db.WithContext(ctx).First(&share, "sending_server = ? AND provider_id = ?", sendingServer, providerId)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &share, nil
 }
 
@@ -223,6 +248,7 @@ func (c *Core) ListIncomingSharesByRecipient(ctx context.Context, recipientUserI
 	if err := c.db.WithContext(ctx).Where("user_id = ?", recipientUserId).Find(&shares).Error; err != nil {
 		return nil, err
 	}
+
 	return shares, nil
 }
 
@@ -239,9 +265,11 @@ func (c *Core) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareI
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -253,9 +281,11 @@ func (c *Core) DeleteIncomingShareForRecipient(ctx context.Context, shareId stri
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -268,26 +298,31 @@ func (c *Core) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingI
 	if err := c.db.WithContext(ctx).Create(invite).Error; err != nil {
 		return normWrite(err)
 	}
+
 	return nil
 }
 
 // GetOutgoingInvite retrieves an outgoing invite by id.
 func (c *Core) GetOutgoingInvite(ctx context.Context, id string) (*store.OutgoingInvite, error) {
 	var invite store.OutgoingInvite
+
 	result := c.db.WithContext(ctx).First(&invite, "id = ?", id)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &invite, nil
 }
 
 // GetOutgoingInviteByToken retrieves an outgoing invite by token.
 func (c *Core) GetOutgoingInviteByToken(ctx context.Context, token string) (*store.OutgoingInvite, error) {
 	var invite store.OutgoingInvite
+
 	result := c.db.WithContext(ctx).First(&invite, "token = ?", token)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &invite, nil
 }
 
@@ -304,9 +339,11 @@ func (c *Core) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingI
 	if result.Error != nil {
 		return normWrite(result.Error)
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -316,22 +353,27 @@ func (c *Core) DeleteOutgoingInvite(ctx context.Context, id string) error {
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
 // ListOutgoingInvites returns outgoing invites, optionally filtered by creator userId.
 func (c *Core) ListOutgoingInvites(ctx context.Context, userId string) ([]*store.OutgoingInvite, error) {
 	var invites []*store.OutgoingInvite
+
 	query := c.db.WithContext(ctx)
 	if userId != "" {
 		query = query.Where("created_by_user_id = ?", userId)
 	}
+
 	if err := query.Find(&invites).Error; err != nil {
 		return nil, err
 	}
+
 	return invites, nil
 }
 
@@ -344,26 +386,31 @@ func (c *Core) CreateIncomingInvite(ctx context.Context, invite *store.IncomingI
 	if err := c.db.WithContext(ctx).Create(invite).Error; err != nil {
 		return normWrite(err)
 	}
+
 	return nil
 }
 
 // GetIncomingInviteForRecipient retrieves an incoming invite by id scoped to a recipient.
 func (c *Core) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) (*store.IncomingInvite, error) {
 	var invite store.IncomingInvite
+
 	result := c.db.WithContext(ctx).First(&invite, "id = ? AND recipient_user_id = ?", id, recipientUserId)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &invite, nil
 }
 
 // GetIncomingInviteByToken retrieves an incoming invite by token scoped to a recipient.
 func (c *Core) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*store.IncomingInvite, error) {
 	var invite store.IncomingInvite
+
 	result := c.db.WithContext(ctx).First(&invite, "token = ? AND recipient_user_id = ?", token, recipientUserId)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
+
 	return &invite, nil
 }
 
@@ -381,9 +428,11 @@ func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id st
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -395,9 +444,11 @@ func (c *Core) DeleteIncomingInviteForRecipient(ctx context.Context, id string, 
 	if result.Error != nil {
 		return result.Error
 	}
+
 	if result.RowsAffected == 0 {
 		return store.ErrNotFound
 	}
+
 	return nil
 }
 
@@ -407,6 +458,7 @@ func (c *Core) ListIncomingInvites(ctx context.Context, recipientUserId string) 
 	if err := c.db.WithContext(ctx).Where("recipient_user_id = ?", recipientUserId).Find(&invites).Error; err != nil {
 		return nil, err
 	}
+
 	return invites, nil
 }
 
@@ -416,6 +468,7 @@ func (c *Core) ListAllIncomingShares(ctx context.Context) ([]*store.IncomingShar
 	if err := c.db.WithContext(ctx).Find(&shares).Error; err != nil {
 		return nil, err
 	}
+
 	return shares, nil
 }
 
@@ -425,5 +478,6 @@ func (c *Core) ListAllIncomingInvites(ctx context.Context) ([]*store.IncomingInv
 	if err := c.db.WithContext(ctx).Find(&invites).Error; err != nil {
 		return nil, err
 	}
+
 	return invites, nil
 }

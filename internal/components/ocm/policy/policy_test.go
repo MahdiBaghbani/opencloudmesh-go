@@ -18,21 +18,27 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode string) {
 	if cfg.Mode != mode {
 		t.Errorf("mode = %q, want %q", cfg.Mode, mode)
 	}
+
 	if cfg.PublicOrigin != "https://localhost:9200" {
 		t.Errorf("public origin = %q, want https://localhost:9200", cfg.PublicOrigin)
 	}
+
 	if cfg.ListenAddr != ":9200" {
 		t.Errorf("listen address = %q, want :9200", cfg.ListenAddr)
 	}
+
 	if cfg.TLS.HTTPPort != 9280 || cfg.TLS.HTTPSPort != 9200 {
 		t.Errorf("TLS ports = (%d, %d), want (9280, 9200)", cfg.TLS.HTTPPort, cfg.TLS.HTTPSPort)
 	}
+
 	if cfg.TLS.SelfSignedDir != ".ocm/certs" {
 		t.Errorf("TLS self-signed directory = %q, want .ocm/certs", cfg.TLS.SelfSignedDir)
 	}
+
 	if cfg.OutboundHTTP.TimeoutMS != config.DefaultOutboundTimeoutMS {
 		t.Errorf("outbound timeout = %d, want %d", cfg.OutboundHTTP.TimeoutMS, config.DefaultOutboundTimeoutMS)
 	}
+
 	if cfg.OutboundHTTP.ConnectTimeoutMS != config.DefaultOutboundConnectTimeoutMS {
 		t.Errorf(
 			"outbound connect timeout = %d, want %d",
@@ -40,6 +46,7 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode string) {
 			config.DefaultOutboundConnectTimeoutMS,
 		)
 	}
+
 	if cfg.OutboundHTTP.MaxResponseBytes != config.DefaultMaxResponseBytes {
 		t.Errorf(
 			"outbound max response bytes = %d, want %d",
@@ -47,12 +54,15 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode string) {
 			config.DefaultMaxResponseBytes,
 		)
 	}
+
 	if cfg.Signature.Label != config.DefaultSignatureLabel {
 		t.Errorf("signature label = %q, want %q", cfg.Signature.Label, config.DefaultSignatureLabel)
 	}
+
 	if cfg.Signature.KidFragment != config.DefaultSignatureKidFragment {
 		t.Errorf("signature key fragment = %q, want %q", cfg.Signature.KidFragment, config.DefaultSignatureKidFragment)
 	}
+
 	if cfg.TokenExchange.Path != "token" {
 		t.Errorf("token exchange path = %q, want token", cfg.TokenExchange.Path)
 	}
@@ -60,15 +70,19 @@ func assertCommonPresetShape(t *testing.T, cfg *config.Config, mode string) {
 
 func assertAllFactsTrue(t *testing.T, facts policy.Facts) {
 	t.Helper()
+
 	if !facts.TokenExchangeCapable {
 		t.Error("expected TokenExchangeCapable true")
 	}
+
 	if !facts.RequiresTokenExchange {
 		t.Error("expected RequiresTokenExchange true")
 	}
+
 	if !facts.IncludesTokenExchangeRequirement {
 		t.Error("expected IncludesTokenExchangeRequirement true")
 	}
+
 	if !facts.RequiresHTTPRequestSignatures {
 		t.Error("expected RequiresHTTPRequestSignatures true")
 	}
@@ -81,18 +95,23 @@ func TestStrictPreset_FinalShape(t *testing.T) {
 	}
 
 	assertCommonPresetShape(t, cfg, "strict")
+
 	if cfg.TLS.Mode != "selfsigned" {
 		t.Errorf("TLS mode = %q, want selfsigned", cfg.TLS.Mode)
 	}
+
 	if cfg.TLS.ACME.Directory != "https://acme-v02.api.letsencrypt.org/directory" {
 		t.Errorf("ACME directory = %q, want production directory", cfg.TLS.ACME.Directory)
 	}
+
 	if cfg.TLS.ACME.UseStaging {
 		t.Error("strict preset must not use ACME staging")
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("outbound SSRF mode = %q, want strict", cfg.OutboundHTTP.SSRF.Mode)
 	}
+
 	if cfg.OutboundHTTP.MaxRedirects != config.DefaultOutboundMaxRedirects ||
 		cfg.OutboundHTTP.InsecureSkipVerify ||
 		cfg.OutboundHTTP.UseEnvFallback {
@@ -105,6 +124,7 @@ func TestStrictPreset_FinalShape(t *testing.T) {
 	}
 
 	assertAllFactsTrue(t, policy.NewCodeFlow().Evaluate())
+
 	if cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement != nil ||
 		cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement != nil ||
 		cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures != nil {
@@ -118,6 +138,7 @@ func TestStrictPreset_UseEnvFallbackExplicitOptIn(t *testing.T) {
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "strict-env-fallback.toml")
+
 	content := `mode = "strict"
 
 [outbound_http]
@@ -126,10 +147,12 @@ use_env_fallback = true
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
+
 	cfg, err := config.Load(config.LoaderOptions{ConfigPath: path})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if !cfg.OutboundHTTP.UseEnvFallback {
 		t.Error("explicit use_env_fallback=true must opt in from strict default")
 	}
@@ -142,18 +165,23 @@ func TestDevPreset_FinalShape(t *testing.T) {
 	}
 
 	assertCommonPresetShape(t, cfg, "dev")
+
 	if cfg.TLS.Mode != "off" {
 		t.Errorf("TLS mode = %q, want off", cfg.TLS.Mode)
 	}
+
 	if cfg.TLS.ACME.Directory != "https://acme-staging-v02.api.letsencrypt.org/directory" {
 		t.Errorf("ACME directory = %q, want staging directory", cfg.TLS.ACME.Directory)
 	}
+
 	if !cfg.TLS.ACME.UseStaging {
 		t.Error("dev preset must use ACME staging")
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "off" {
 		t.Errorf("outbound SSRF mode = %q, want off", cfg.OutboundHTTP.SSRF.Mode)
 	}
+
 	if cfg.OutboundHTTP.MaxRedirects != 3 ||
 		!cfg.OutboundHTTP.InsecureSkipVerify ||
 		cfg.OutboundHTTP.UseEnvFallback {
@@ -178,6 +206,7 @@ func TestCodeFlow_EvaluateDefaultsStrict(t *testing.T) {
 // all-false Facts (strict-off).
 func TestCodeFlow_NilSafe(t *testing.T) {
 	var c *policy.CodeFlow
+
 	facts := c.Evaluate()
 	if facts.TokenExchangeCapable || facts.RequiresTokenExchange ||
 		facts.IncludesTokenExchangeRequirement || facts.RequiresHTTPRequestSignatures {
@@ -190,12 +219,15 @@ func TestCodeFlow_LegacyVoluntary_IncludesFalse(t *testing.T) {
 	if facts.IncludesTokenExchangeRequirement {
 		t.Fatal("expected IncludesTokenExchangeRequirement false")
 	}
+
 	if !facts.TokenExchangeCapable {
 		t.Error("expected TokenExchangeCapable true")
 	}
+
 	if !facts.RequiresTokenExchange {
 		t.Error("expected RequiresTokenExchange true")
 	}
+
 	if !facts.RequiresHTTPRequestSignatures {
 		t.Error("expected RequiresHTTPRequestSignatures true")
 	}
@@ -211,11 +243,13 @@ func TestCodeFlow_KnobRelaxationAndEnforcement(t *testing.T) {
 			RequiresTokenExchangeRequirement: &falseVal,
 			RequiresHTTPRequestSignatures:    &falseVal,
 		}
+
 		facts := cf.Evaluate()
 		if facts.IncludesTokenExchangeRequirement || facts.RequiresTokenExchange ||
 			facts.RequiresHTTPRequestSignatures {
 			t.Fatalf("expected relaxed knobs false, got %+v", facts)
 		}
+
 		if !facts.TokenExchangeCapable {
 			t.Error("TokenExchangeCapable must stay true on a non-nil CodeFlow")
 		}
@@ -236,6 +270,7 @@ func TestCodeFlow_ConfigLoadPointers(t *testing.T) {
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "code-flow.toml")
+
 	content := `
 mode = "dev"
 
@@ -252,14 +287,17 @@ requires_http_request_signatures = false
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement == nil ||
 		*cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement {
 		t.Fatalf("includes knob = %v, want false", cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement)
 	}
+
 	if cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement == nil ||
 		!*cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement {
 		t.Fatalf("requires-token knob = %v, want true", cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement)
 	}
+
 	if cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures == nil ||
 		*cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures {
 		t.Fatalf("http-sig knob = %v, want false", cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures)
@@ -270,6 +308,7 @@ requires_http_request_signatures = false
 		RequiresTokenExchangeRequirement: cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement,
 		RequiresHTTPRequestSignatures:    cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures,
 	}
+
 	facts := cf.Evaluate()
 	if facts.IncludesTokenExchangeRequirement || !facts.RequiresTokenExchange ||
 		facts.RequiresHTTPRequestSignatures || !facts.TokenExchangeCapable {
@@ -281,19 +320,23 @@ func TestCodeFlow_UnsetTOMLKeepsNilKnobs(t *testing.T) {
 	// Clear ambient env override so the dev-mode load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
+
 	path := filepath.Join(dir, "empty-code-flow.toml")
 	if err := os.WriteFile(path, []byte("mode = \"dev\"\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
+
 	cfg, err := config.Load(config.LoaderOptions{ConfigPath: path})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement != nil ||
 		cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement != nil ||
 		cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures != nil {
 		t.Fatalf("unset TOML must leave knobs nil, got %+v", cfg.OCM.CodeFlow)
 	}
+
 	assertAllFactsTrue(t, (&policy.CodeFlow{
 		IncludesTokenExchangeRequirement: cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement,
 		RequiresTokenExchangeRequirement: cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement,
@@ -315,6 +358,7 @@ func TestDiscovery_OmitsMustUseHTTPSigWhenRequiresFalse(t *testing.T) {
 	if disc.HasCriteria(spec.CriteriaMustUseHTTPSig) {
 		t.Error("did not expect must-use-http-sig when requires_http_request_signatures is false")
 	}
+
 	if !disc.IsHTTPSigCapable() {
 		t.Error("expected http-sig capability when AdvertiseHTTPSig is true")
 	}

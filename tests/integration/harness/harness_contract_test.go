@@ -33,6 +33,7 @@ mode = "off"
 	if !hasTable {
 		t.Fatal("expected [tls] table")
 	}
+
 	if mode != "off" {
 		t.Fatalf("extraTLSMode mode = %q, want off", mode)
 	}
@@ -41,6 +42,7 @@ mode = "off"
 	if hasTable {
 		t.Fatal("did not expect [tls] table")
 	}
+
 	if mode != "" {
 		t.Fatalf("extraTLSMode mode = %q, want empty", mode)
 	}
@@ -50,6 +52,7 @@ func TestSubprocessConfig_extraDefinesPublicOrigin(t *testing.T) {
 	if !extraDefinesPublicOrigin(`public_origin = "http://example.test"`) {
 		t.Fatal("expected root public_origin to be detected")
 	}
+
 	if extraDefinesPublicOrigin(`[server]
 public_origin = "http://ignored.test"
 `) {
@@ -63,6 +66,7 @@ func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
 		if !strings.Contains(cfg, `mode = "off"`) {
 			t.Fatalf("expected tls off in generated config:\n%s", cfg)
 		}
+
 		if strings.Contains(cfg, `mode = "selfsigned"`) {
 			t.Fatal("did not expect selfsigned TLS for dev mode")
 		}
@@ -79,6 +83,7 @@ func TestSubprocessConfig_generateTOMLConfigTransport(t *testing.T) {
 		extra := `[tls]
 mode = "off"
 `
+
 		cfg := generateTOMLConfig("test", 8080, "/tmp", "strict", false, "", "", "", extra)
 		if strings.Count(cfg, "[tls]") != 1 {
 			t.Fatalf("expected single [tls] table, got:\n%s", cfg)

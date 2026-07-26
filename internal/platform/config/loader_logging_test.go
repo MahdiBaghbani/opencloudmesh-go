@@ -64,6 +64,7 @@ level = "warn"
 	}
 
 	logLevel := "error"
+
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
@@ -99,6 +100,7 @@ level = "verbose"
 	if err == nil {
 		t.Fatal("expected error for invalid logging.level")
 	}
+
 	if !strings.Contains(err.Error(), "invalid logging.level") {
 		t.Errorf("expected logging.level error, got: %v", err)
 	}

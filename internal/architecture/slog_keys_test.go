@@ -58,6 +58,7 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 			}
 
 			fset := token.NewFileSet()
+
 			node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 			if err != nil {
 				return nil
@@ -78,6 +79,7 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 					if allowedExceptions[key] {
 						continue
 					}
+
 					if !snakeCaseRegex.MatchString(key) {
 						relPath, _ := filepath.Rel(root, path)
 						pos := fset.Position(call.Pos())

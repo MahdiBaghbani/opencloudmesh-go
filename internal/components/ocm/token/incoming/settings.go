@@ -22,15 +22,19 @@ func (s *TokenExchangeSettings) Validate() error {
 	if strings.TrimSpace(s.Path) == "" {
 		return errors.New("token_exchange.path must not be empty")
 	}
+
 	if strings.Contains(s.Path, "..") {
 		return errors.New("token_exchange.path must not contain '..'")
 	}
+
 	if strings.HasPrefix(s.Path, "/") {
 		return errors.New("token_exchange.path must be relative (no leading slash)")
 	}
+
 	if strings.Contains(s.Path, "://") {
 		return errors.New("token_exchange.path must not contain a scheme")
 	}
+
 	return nil
 }
 

@@ -47,6 +47,7 @@ func TestACME_SubprocessTwoListeners(t *testing.T) {
 	if err := os.MkdirAll(acmeDir, 0755); err != nil {
 		t.Fatal(err)
 	}
+
 	writeTestCert(t, acmeDir)
 
 	httpPort := getFreeTCPPort(t)
@@ -90,6 +91,7 @@ insecure_skip_verify = true
 
 	// Start subprocess.
 	logPath := filepath.Join(tempDir, "server.log")
+
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		t.Fatal(err)
@@ -108,12 +110,15 @@ insecure_skip_verify = true
 	// Safety net: kill process if the test fails before the explicit
 	// shutdown assertion at the end.
 	var shutdownDone bool
+
 	t.Cleanup(func() {
 		if !shutdownDone {
 			cmd.Process.Kill()
 			cmd.Wait() //nolint:errcheck // best-effort cleanup
 		}
+
 		logFile.Close()
+
 		if t.Failed() {
 			content, _ := os.ReadFile(logPath)
 			t.Logf("=== server logs ===\n%s\n=== end ===", content)
@@ -134,7 +139,9 @@ insecure_skip_verify = true
 	if err != nil {
 		t.Fatalf("challenge request failed: %v", err)
 	}
+
 	resp.Body.Close()
+
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown challenge, got %d", resp.StatusCode)
 	}
@@ -145,15 +152,20 @@ insecure_skip_verify = true
 			return http.ErrUseLastResponse
 		},
 	}
+
 	resp, err = noRedirectClient.Get(fmt.Sprintf("http://%s/some/path?q=1", httpAddr))
 	if err != nil {
 		t.Fatalf("redirect request failed: %v", err)
 	}
+
 	resp.Body.Close()
+
 	if resp.StatusCode != http.StatusPermanentRedirect {
 		t.Errorf("expected 308, got %d", resp.StatusCode)
 	}
+
 	loc := resp.Header.Get("Location")
+
 	wantLoc := fmt.Sprintf("https://127.0.0.1:%d/some/path?q=1", httpsPort)
 	if loc != wantLoc {
 		t.Errorf("redirect Location = %q, want %q", loc, wantLoc)
@@ -163,26 +175,33 @@ insecure_skip_verify = true
 	tlsClient := &http.Client{Transport: &http.Transport{
 		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
 	}}
+
 	resp, err = tlsClient.Get(fmt.Sprintf("https://%s/api/healthz", httpsAddr))
 	if err != nil {
 		t.Fatalf("HTTPS healthz request failed: %v", err)
 	}
+
 	resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 for healthz, got %d", resp.StatusCode)
 	}
 
 	// 4. Clean shutdown: SIGINT triggers graceful exit within 5 seconds.
 	cmd.Process.Signal(os.Interrupt)
+
 	exitDone := make(chan error, 1)
 	go func() { exitDone <- cmd.Wait() }()
+
 	select {
 	case <-exitDone:
 		shutdownDone = true
 	case <-time.After(tshttp.DefaultShutdownWait):
 		cmd.Process.Kill()
 		<-exitDone
+
 		shutdownDone = true
+
 		t.Fatal("server did not exit within 5 seconds after SIGINT")
 	}
 }
@@ -191,10 +210,12 @@ insecure_skip_verify = true
 // and key.pem into dir.
 func writeTestCert(t *testing.T, dir string) {
 	t.Helper()
+
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	now := time.Now()
 	template := x509.Certificate{
@@ -207,6 +228,7 @@ func writeTestCert(t *testing.T, dir string) {
 		DNSNames:     []string{"localhost"},
 		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
 	}
+
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
@@ -219,6 +241,7 @@ func writeTestCert(t *testing.T, dir string) {
 	if err := os.WriteFile(filepath.Join(dir, "cert.pem"), certPEM, 0644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(dir, "key.pem"), keyPEM, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -227,18 +250,22 @@ func writeTestCert(t *testing.T, dir string) {
 // getFreeTCPPort binds to :0, grabs the port, and releases it.
 func getFreeTCPPort(t *testing.T) int {
 	t.Helper()
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("getFreeTCPPort: %v", err)
 	}
+
 	port := l.Addr().(*net.TCPAddr).Port
 	l.Close()
+
 	return port
 }
 
 // waitForTCPListener polls a TCP address until it accepts or timeout expires.
 func waitForTCPListener(t *testing.T, addr string, timeout time.Duration) bool {
 	t.Helper()
+
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
@@ -246,7 +273,9 @@ func waitForTCPListener(t *testing.T, addr string, timeout time.Duration) bool {
 			conn.Close()
 			return true
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	return false
 }

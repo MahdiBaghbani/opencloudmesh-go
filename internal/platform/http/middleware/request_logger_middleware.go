@@ -25,6 +25,7 @@ func RequestLoggerMiddleware(base *slog.Logger, trustedProxies *realip.TrustedPr
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			reqID := chimw.GetReqID(r.Context())
+
 			clientIP := "unknown"
 			if trustedProxies != nil {
 				clientIP = trustedProxies.GetClientIPString(r)

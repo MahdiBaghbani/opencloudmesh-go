@@ -338,6 +338,7 @@ type OutboundHTTPConfig struct {
 func OutboundHTTPConfigStrict() OutboundHTTPConfig {
 	cfg := DefaultOutboundHTTP()
 	cfg.UseEnvFallback = false
+
 	return cfg
 }
 
@@ -347,6 +348,7 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 	if c.HTTP.Services == nil {
 		return nil
 	}
+
 	svcCfg, ok := c.HTTP.Services[serviceName]
 	if !ok {
 		return nil
@@ -356,6 +358,7 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 	for k, v := range svcCfg {
 		result[k] = v
 	}
+
 	return result
 }
 
@@ -363,85 +366,94 @@ func (c *Config) BuildServiceConfig(serviceName string) map[string]any {
 func (c *Config) Redacted() string {
 	var sb strings.Builder
 	sb.WriteString("Config{\n")
-	sb.WriteString(fmt.Sprintf("  Mode: %q,\n", c.Mode))
-	sb.WriteString(fmt.Sprintf("  PublicOrigin: %q,\n", c.PublicOrigin))
-	sb.WriteString(fmt.Sprintf("  ExternalBasePath: %q,\n", c.ExternalBasePath))
-	sb.WriteString(fmt.Sprintf("  ListenAddr: %q,\n", c.ListenAddr))
+	fmt.Fprintf(&sb, "  Mode: %q,\n", c.Mode)
+	fmt.Fprintf(&sb, "  PublicOrigin: %q,\n", c.PublicOrigin)
+	fmt.Fprintf(&sb, "  ExternalBasePath: %q,\n", c.ExternalBasePath)
+	fmt.Fprintf(&sb, "  ListenAddr: %q,\n", c.ListenAddr)
 	sb.WriteString("  Server: {\n")
-	sb.WriteString(fmt.Sprintf("    TrustedProxies: %v,\n", c.Server.TrustedProxies))
+	fmt.Fprintf(&sb, "    TrustedProxies: %v,\n", c.Server.TrustedProxies)
 	sb.WriteString("    BootstrapAdmin: {\n")
-	sb.WriteString(fmt.Sprintf("      Username: %q,\n", c.Server.BootstrapAdmin.Username))
+	fmt.Fprintf(&sb, "      Username: %q,\n", c.Server.BootstrapAdmin.Username)
 	sb.WriteString("      Password: [REDACTED],\n")
 	sb.WriteString("    },\n")
 	sb.WriteString("  },\n")
 	sb.WriteString("  TLS: {\n")
-	sb.WriteString(fmt.Sprintf("    Mode: %q,\n", c.TLS.Mode))
-	sb.WriteString(fmt.Sprintf("    CertFile: %q,\n", c.TLS.CertFile))
-	sb.WriteString(fmt.Sprintf("    KeyFile: %q,\n", c.TLS.KeyFile))
-	sb.WriteString(fmt.Sprintf("    HTTPPort: %d,\n", c.TLS.HTTPPort))
-	sb.WriteString(fmt.Sprintf("    HTTPSPort: %d,\n", c.TLS.HTTPSPort))
-	sb.WriteString(fmt.Sprintf("    SelfSignedDir: %q,\n", c.TLS.SelfSignedDir))
-	sb.WriteString(fmt.Sprintf("    TLSDir: %q,\n", c.TLS.TLSDir))
+	fmt.Fprintf(&sb, "    Mode: %q,\n", c.TLS.Mode)
+	fmt.Fprintf(&sb, "    CertFile: %q,\n", c.TLS.CertFile)
+	fmt.Fprintf(&sb, "    KeyFile: %q,\n", c.TLS.KeyFile)
+	fmt.Fprintf(&sb, "    HTTPPort: %d,\n", c.TLS.HTTPPort)
+	fmt.Fprintf(&sb, "    HTTPSPort: %d,\n", c.TLS.HTTPSPort)
+	fmt.Fprintf(&sb, "    SelfSignedDir: %q,\n", c.TLS.SelfSignedDir)
+	fmt.Fprintf(&sb, "    TLSDir: %q,\n", c.TLS.TLSDir)
 	sb.WriteString("  },\n")
 	sb.WriteString("  OutboundHTTP: {\n")
 	sb.WriteString("    SSRF: {\n")
-	sb.WriteString(fmt.Sprintf("      Mode: %q,\n", c.OutboundHTTP.SSRF.Mode))
+	fmt.Fprintf(&sb, "      Mode: %q,\n", c.OutboundHTTP.SSRF.Mode)
+
 	if c.OutboundHTTP.SSRF.RoutePolicy != "" {
-		sb.WriteString(fmt.Sprintf("      RoutePolicy: %q,\n", c.OutboundHTTP.SSRF.RoutePolicy))
+		fmt.Fprintf(&sb, "      RoutePolicy: %q,\n", c.OutboundHTTP.SSRF.RoutePolicy)
 	}
-	sb.WriteString(fmt.Sprintf("      RoutePoliciesCount: %d,\n", len(c.OutboundHTTP.SSRF.RoutePolicies)))
+
+	fmt.Fprintf(&sb, "      RoutePoliciesCount: %d,\n", len(c.OutboundHTTP.SSRF.RoutePolicies))
 	sb.WriteString("    },\n")
-	sb.WriteString(fmt.Sprintf("    TLSRootCAFile: %q,\n", c.OutboundHTTP.TLSRootCAFile))
-	sb.WriteString(fmt.Sprintf("    TLSRootCADir: %q,\n", c.OutboundHTTP.TLSRootCADir))
-	sb.WriteString(fmt.Sprintf("    TimeoutMS: %d,\n", c.OutboundHTTP.TimeoutMS))
-	sb.WriteString(fmt.Sprintf("    MaxRedirects: %d,\n", c.OutboundHTTP.MaxRedirects))
-	sb.WriteString(fmt.Sprintf("    MaxResponseBytes: %d,\n", c.OutboundHTTP.MaxResponseBytes))
-	sb.WriteString(fmt.Sprintf("    InsecureSkipVerify: %v,\n", c.OutboundHTTP.InsecureSkipVerify))
-	sb.WriteString(fmt.Sprintf("    ProxyURL: %q,\n", c.OutboundHTTP.ProxyURL))
-	sb.WriteString(fmt.Sprintf("    UseEnvFallback: %v,\n", c.OutboundHTTP.UseEnvFallback))
+	fmt.Fprintf(&sb, "    TLSRootCAFile: %q,\n", c.OutboundHTTP.TLSRootCAFile)
+	fmt.Fprintf(&sb, "    TLSRootCADir: %q,\n", c.OutboundHTTP.TLSRootCADir)
+	fmt.Fprintf(&sb, "    TimeoutMS: %d,\n", c.OutboundHTTP.TimeoutMS)
+	fmt.Fprintf(&sb, "    MaxRedirects: %d,\n", c.OutboundHTTP.MaxRedirects)
+	fmt.Fprintf(&sb, "    MaxResponseBytes: %d,\n", c.OutboundHTTP.MaxResponseBytes)
+	fmt.Fprintf(&sb, "    InsecureSkipVerify: %v,\n", c.OutboundHTTP.InsecureSkipVerify)
+	fmt.Fprintf(&sb, "    ProxyURL: %q,\n", c.OutboundHTTP.ProxyURL)
+	fmt.Fprintf(&sb, "    UseEnvFallback: %v,\n", c.OutboundHTTP.UseEnvFallback)
 	sb.WriteString("  },\n")
 	sb.WriteString("  Signature: {\n")
-	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))
-	sb.WriteString(fmt.Sprintf("    Label: %q,\n", c.Signature.Label))
-	sb.WriteString(fmt.Sprintf("    KidFragment: %q,\n", c.Signature.KidFragment))
-	sb.WriteString(fmt.Sprintf("    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds))
-	sb.WriteString(fmt.Sprintf("    CreatedMaxSkewSeconds: %d,\n", c.Signature.CreatedMaxSkewSeconds))
-	sb.WriteString(fmt.Sprintf("    AllowedAlgorithms: %v,\n", c.Signature.AllowedAlgorithms))
+	fmt.Fprintf(&sb, "    KeyPath: %q,\n", c.Signature.KeyPath)
+	fmt.Fprintf(&sb, "    Label: %q,\n", c.Signature.Label)
+	fmt.Fprintf(&sb, "    KidFragment: %q,\n", c.Signature.KidFragment)
+	fmt.Fprintf(&sb, "    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds)
+	fmt.Fprintf(&sb, "    CreatedMaxSkewSeconds: %d,\n", c.Signature.CreatedMaxSkewSeconds)
+	fmt.Fprintf(&sb, "    AllowedAlgorithms: %v,\n", c.Signature.AllowedAlgorithms)
 	sb.WriteString("  },\n")
 	sb.WriteString("  Logging: {\n")
-	sb.WriteString(fmt.Sprintf("    Level: %q,\n", c.Logging.Level))
+	fmt.Fprintf(&sb, "    Level: %q,\n", c.Logging.Level)
 	sb.WriteString("  },\n")
 	sb.WriteString("  TokenExchange: {\n")
-	sb.WriteString(fmt.Sprintf("    Path: %q,\n", c.TokenExchange.Path))
+	fmt.Fprintf(&sb, "    Path: %q,\n", c.TokenExchange.Path)
 	sb.WriteString("  },\n")
 	sb.WriteString("  HTTP: {\n")
-	sb.WriteString(fmt.Sprintf("    ServicesCount: %d,\n", len(c.HTTP.Services)))
+	fmt.Fprintf(&sb, "    ServicesCount: %d,\n", len(c.HTTP.Services))
+
 	if len(c.HTTP.Services) > 0 {
 		sb.WriteString("    Services: [")
+
 		first := true
 		for name := range c.HTTP.Services {
 			if !first {
 				sb.WriteString(", ")
 			}
-			sb.WriteString(fmt.Sprintf("%q", name))
+
+			fmt.Fprintf(&sb, "%q", name)
+
 			first = false
 		}
+
 		sb.WriteString("],\n")
 	}
+
 	sb.WriteString("  },\n")
 	sb.WriteString("  PeerTrust: {\n")
-	sb.WriteString(fmt.Sprintf("    Enabled: %v,\n", c.PeerTrust.Enabled))
-	sb.WriteString(fmt.Sprintf("    ConfigPathsCount: %d,\n", len(c.PeerTrust.ConfigPaths)))
-	sb.WriteString(fmt.Sprintf("    Policy.AllowListCount: %d,\n", len(c.PeerTrust.Policy.AllowList)))
-	sb.WriteString(fmt.Sprintf("    Policy.DenyListCount: %d,\n", len(c.PeerTrust.Policy.DenyList)))
-	sb.WriteString(fmt.Sprintf("    MembershipCache.TTLSeconds: %d,\n", c.PeerTrust.MembershipCache.TTLSeconds))
-	sb.WriteString(fmt.Sprintf("    MembershipCache.MaxStaleSeconds: %d,\n", c.PeerTrust.MembershipCache.MaxStaleSeconds))
+	fmt.Fprintf(&sb, "    Enabled: %v,\n", c.PeerTrust.Enabled)
+	fmt.Fprintf(&sb, "    ConfigPathsCount: %d,\n", len(c.PeerTrust.ConfigPaths))
+	fmt.Fprintf(&sb, "    Policy.AllowListCount: %d,\n", len(c.PeerTrust.Policy.AllowList))
+	fmt.Fprintf(&sb, "    Policy.DenyListCount: %d,\n", len(c.PeerTrust.Policy.DenyList))
+	fmt.Fprintf(&sb, "    MembershipCache.TTLSeconds: %d,\n", c.PeerTrust.MembershipCache.TTLSeconds)
+	fmt.Fprintf(&sb, "    MembershipCache.MaxStaleSeconds: %d,\n", c.PeerTrust.MembershipCache.MaxStaleSeconds)
 	sb.WriteString("  },\n")
 	sb.WriteString("  Persistence: {\n")
-	sb.WriteString(fmt.Sprintf("    Backend: %q,\n", c.Persistence.Backend))
-	sb.WriteString(fmt.Sprintf("    DataDir: %q,\n", c.Persistence.DataDir))
+	fmt.Fprintf(&sb, "    Backend: %q,\n", c.Persistence.Backend)
+	fmt.Fprintf(&sb, "    DataDir: %q,\n", c.Persistence.DataDir)
 	sb.WriteString("  },\n")
 	sb.WriteString("}")
+
 	return sb.String()
 }
 
@@ -460,6 +472,7 @@ func PublicSchemeFromOrigin(publicOrigin string) string {
 	if scheme := SchemeFromOrigin(publicOrigin); scheme != "" {
 		return scheme
 	}
+
 	return "https"
 }
 
@@ -472,9 +485,11 @@ func SchemeFromOrigin(publicOrigin string) string {
 	if publicOrigin == "" {
 		return ""
 	}
+
 	u, err := url.Parse(publicOrigin)
 	if err != nil || u.Scheme == "" {
 		return ""
 	}
+
 	return strings.ToLower(u.Scheme)
 }

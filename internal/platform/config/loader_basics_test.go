@@ -27,6 +27,7 @@ func TestParseMode(t *testing.T) {
 				t.Errorf("ParseMode(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
 				return
 			}
+
 			if got != tt.want {
 				t.Errorf("ParseMode(%q) = %v, want %v", tt.input, got, tt.want)
 			}
@@ -37,6 +38,7 @@ func TestParseMode(t *testing.T) {
 func TestLoad_NoConfigFile(t *testing.T) {
 	// Clear ambient env override so the strict preset defaults are deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -45,6 +47,7 @@ func TestLoad_NoConfigFile(t *testing.T) {
 	if cfg.Mode != "strict" {
 		t.Errorf("expected mode strict, got %s", cfg.Mode)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
@@ -53,6 +56,7 @@ func TestLoad_NoConfigFile(t *testing.T) {
 func TestLoad_ModeFlag(t *testing.T) {
 	// Clear ambient env override so the dev preset shape is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	cfg, err := Load(LoaderOptions{ModeFlag: "dev"})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -61,9 +65,11 @@ func TestLoad_ModeFlag(t *testing.T) {
 	if cfg.Mode != "dev" {
 		t.Errorf("expected mode dev, got %s", cfg.Mode)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "off" {
 		t.Errorf("expected SSRF mode off in dev, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
+
 	if cfg.OutboundHTTP.InsecureSkipVerify != true {
 		t.Errorf("expected InsecureSkipVerify true in dev")
 	}
@@ -72,6 +78,7 @@ func TestLoad_ModeFlag(t *testing.T) {
 func TestLoad_ConfigFile(t *testing.T) {
 	// Clear ambient env override so the TOML-driven values are deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	tomlContent := `
 mode = "dev"
 public_origin = "https://example.com:8443"
@@ -100,24 +107,31 @@ mode = "strict"
 	if cfg.Mode != "dev" {
 		t.Errorf("expected mode dev, got %s", cfg.Mode)
 	}
+
 	if cfg.PublicOrigin != "https://example.com:8443" {
 		t.Errorf("expected origin https://example.com:8443, got %s", cfg.PublicOrigin)
 	}
+
 	if cfg.ListenAddr != ":8443" {
 		t.Errorf("expected listen :8443, got %s", cfg.ListenAddr)
 	}
+
 	if len(cfg.Server.TrustedProxies) != 1 || cfg.Server.TrustedProxies[0] != "10.0.0.0/8" {
 		t.Errorf("expected trusted proxies [10.0.0.0/8], got %v", cfg.Server.TrustedProxies)
 	}
+
 	if cfg.Server.BootstrapAdmin.Username != "root" {
 		t.Errorf("expected admin username root, got %s", cfg.Server.BootstrapAdmin.Username)
 	}
+
 	if cfg.Server.BootstrapAdmin.Password != "secret123" {
 		t.Errorf("expected admin password secret123, got %s", cfg.Server.BootstrapAdmin.Password)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected SSRF mode strict from TOML, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
+
 	if cfg.OutboundHTTP.TimeoutMS != 5000 {
 		t.Errorf("expected timeout 5000, got %d", cfg.OutboundHTTP.TimeoutMS)
 	}
@@ -126,6 +140,7 @@ mode = "strict"
 func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
 	// Clear ambient env override so flag-over-file precedence is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	tomlContent := `
 mode = "dev"
 public_origin = "https://from-toml.com"
@@ -134,6 +149,7 @@ listen_addr = ":9000"
 	configPath := writeTempConfig(t, tomlContent)
 
 	origin := "https://from-flag.com"
+
 	cfg, err := Load(LoaderOptions{
 		ConfigPath: configPath,
 		FlagOverrides: FlagOverrides{
@@ -147,6 +163,7 @@ listen_addr = ":9000"
 	if cfg.PublicOrigin != "https://from-flag.com" {
 		t.Errorf("expected origin from flag, got %s", cfg.PublicOrigin)
 	}
+
 	if cfg.ListenAddr != ":9000" {
 		t.Errorf("expected listen from TOML :9000, got %s", cfg.ListenAddr)
 	}
@@ -155,6 +172,7 @@ listen_addr = ":9000"
 func TestLoad_ModeFlag_OverridesConfigFileMode(t *testing.T) {
 	// Clear ambient env override so the flag-over-file mode win is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	tomlContent := `
 mode = "dev"
 `
@@ -171,6 +189,7 @@ mode = "dev"
 	if cfg.Mode != "strict" {
 		t.Errorf("expected mode strict from flag, got %s", cfg.Mode)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected SSRF mode strict from strict preset, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
@@ -179,10 +198,12 @@ mode = "dev"
 func TestLoad_MissingConfigFile_FailsFast(t *testing.T) {
 	// Clear ambient env override so the read error path is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	_, err := Load(LoaderOptions{ConfigPath: "/nonexistent/path/config.toml"})
 	if err == nil {
 		t.Fatal("expected error for missing config file")
 	}
+
 	if !strings.Contains(err.Error(), "failed to read config file") {
 		t.Errorf("expected read error, got: %v", err)
 	}
@@ -197,6 +218,7 @@ func TestLoad_InvalidTOML_FailsFast(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid TOML")
 	}
+
 	if !strings.Contains(err.Error(), "failed to parse config file") {
 		t.Errorf("expected parse error, got: %v", err)
 	}
@@ -205,6 +227,7 @@ func TestLoad_InvalidTOML_FailsFast(t *testing.T) {
 func TestLoad_InvalidMode_FailsFast(t *testing.T) {
 	// Clear ambient env override so the mode validation path is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	invalidModes := []string{"invalid"}
 	for _, mode := range invalidModes {
 		_, err := Load(LoaderOptions{ModeFlag: mode})
@@ -212,6 +235,7 @@ func TestLoad_InvalidMode_FailsFast(t *testing.T) {
 			t.Errorf("Load(ModeFlag=%q): expected error for invalid mode", mode)
 			continue
 		}
+
 		if !strings.Contains(err.Error(), "invalid mode") {
 			t.Errorf("Load(ModeFlag=%q): expected mode error, got: %v", mode, err)
 		}
@@ -224,12 +248,15 @@ func TestStrictConfig(t *testing.T) {
 	if cfg.Mode != "strict" {
 		t.Errorf("expected mode strict, got %s", cfg.Mode)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected SSRF mode strict, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
+
 	if cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify false in strict")
 	}
+
 	if cfg.OutboundHTTP.MaxRedirects != 1 {
 		t.Errorf("expected MaxRedirects 1 in strict, got %d", cfg.OutboundHTTP.MaxRedirects)
 	}
@@ -241,12 +268,15 @@ func TestDevConfig(t *testing.T) {
 	if cfg.Mode != "dev" {
 		t.Errorf("expected mode dev, got %s", cfg.Mode)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "off" {
 		t.Errorf("expected SSRF mode off, got %s", cfg.OutboundHTTP.SSRF.Mode)
 	}
+
 	if cfg.TLS.Mode != "off" {
 		t.Errorf("expected TLS mode off, got %s", cfg.TLS.Mode)
 	}
+
 	if !cfg.OutboundHTTP.InsecureSkipVerify {
 		t.Error("expected InsecureSkipVerify true in dev")
 	}

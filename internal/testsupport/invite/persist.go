@@ -20,6 +20,7 @@ type persistedOutgoingInvite struct {
 // returns the status for the invite matching token.
 func OutgoingStatus(dataDir, token string) (invites.InviteStatus, string, error) {
 	path := filepath.Join(dataDir, "data", "outgoing_invites.json")
+
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", "", fmt.Errorf("read outgoing invites: %w", err)
@@ -35,5 +36,6 @@ func OutgoingStatus(dataDir, token string) (invites.InviteStatus, string, error)
 			return invites.InviteStatus(inv.Status), inv.AcceptedBy, nil
 		}
 	}
+
 	return "", "", fmt.Errorf("outgoing invite token %q not found in %s", token, path)
 }

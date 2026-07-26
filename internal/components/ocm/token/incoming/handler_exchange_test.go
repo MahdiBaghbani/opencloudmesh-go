@@ -40,6 +40,7 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -47,12 +48,15 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if got := w.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control = %q, want %q", got, "no-store")
 	}
+
 	if got := w.Header().Get("Pragma"); got != "no-cache" {
 		t.Errorf("Pragma = %q, want %q", got, "no-cache")
 	}
+
 	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q, want prefix %q", ct, "application/json")
 	}
@@ -65,9 +69,11 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	if resp.AccessToken == "" {
 		t.Error("access_token is empty")
 	}
+
 	if resp.TokenType != "Bearer" {
 		t.Errorf("token_type = %q, want %q", resp.TokenType, "Bearer")
 	}
+
 	if resp.ExpiresIn <= 0 {
 		t.Errorf("expires_in = %d, want > 0", resp.ExpiresIn)
 	}
@@ -77,6 +83,7 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to get stored token: %v", err)
 	}
+
 	if stored.ShareID != share.ShareID {
 		t.Errorf("stored shareId mismatch")
 	}
@@ -104,6 +111,7 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -116,9 +124,11 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if resp.AccessToken == "" {
 		t.Error("access_token is empty")
 	}
+
 	if resp.TokenType != "Bearer" {
 		t.Errorf("token_type = %q, want %q", resp.TokenType, "Bearer")
 	}

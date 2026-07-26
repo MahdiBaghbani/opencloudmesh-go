@@ -3,19 +3,22 @@ package crypto_test
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	req := httptest.NewRequest("POST", "https://example.com/test", nil)
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/test", nil)
 	req.Header.Set("Date", httpsigStandardDate)
+
 	emptyDigest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))
 	req.Header.Set("Content-Digest", "sha-256=:"+emptyDigest+":")
 	req.Header.Set("Content-Length", "0")
@@ -26,8 +29,10 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
 	fetches := 0
+
 	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
+
 		return sigalg.ResolvedPublicKey{
 			KeyID: keyID, Algorithm: sigalg.Ed25519,
 			JWKKty: "OKP", JWKCrv: "Ed25519",
@@ -36,9 +41,11 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 	if result.Verified {
 		t.Fatal("expected symmetric algorithm rejection")
 	}
+
 	if result.Reason != crypto.ReasonAlgorithmRejected {
 		t.Fatalf("Reason = %q, want %q (err=%v)", result.Reason, crypto.ReasonAlgorithmRejected, result.Error)
 	}
+
 	if fetches != 1 {
 		t.Fatalf("fetches = %d, want 1 after created/components", fetches)
 	}
@@ -97,11 +104,13 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "https://example.com/test", nil)
+			req := httptest.NewRequest(http.MethodPost, "https://example.com/test", nil)
 			req.Header.Set("Date", httpsigStandardDate)
+
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
+
 			if tt.signature != "" {
 				req.Header.Set("Signature", tt.signature)
 			}
@@ -111,9 +120,11 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 			if result.Verified {
 				t.Error("expected Verified=false, got true")
 			}
+
 			if result.Error == nil {
 				t.Fatalf("expected error containing %q, got nil", tt.wantErrSubstr)
 			}
+
 			if !strings.Contains(result.Error.Error(), tt.wantErrSubstr) {
 				t.Errorf("error = %q, want substring %q", result.Error.Error(), tt.wantErrSubstr)
 			}
@@ -124,7 +135,7 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519";tag="ocm"`)
 	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
@@ -136,9 +147,11 @@ func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
 	if result.Verified {
 		t.Fatal("expected failure")
 	}
+
 	if result.Reason != crypto.ReasonMissingCreated {
 		t.Fatalf("Reason=%q want missing_created (err=%v)", result.Reason, result.Error)
 	}
+
 	if fetches != 0 {
 		t.Fatalf("fetches=%d want 0 before created validation", fetches)
 	}
@@ -148,7 +161,7 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	now := time.Now().Unix()
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
@@ -163,9 +176,11 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 	if result.Verified {
 		t.Fatal("expected failure")
 	}
+
 	if result.Reason != crypto.ReasonMissingComponent {
 		t.Fatalf("Reason=%q want missing_component (err=%v)", result.Reason, result.Error)
 	}
+
 	if fetches != 0 {
 		t.Fatalf("fetches=%d want 0 before component validation", fetches)
 	}
@@ -175,7 +190,7 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	now := time.Now().Unix()
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Content-Digest", "sha-256=:AAAA:")
 	req.Header.Set("Content-Length", "2")
@@ -192,9 +207,11 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 	if result.Verified {
 		t.Fatal("expected failure")
 	}
+
 	if result.Reason != crypto.ReasonMalformed {
 		t.Fatalf("Reason=%q want malformed (err=%v)", result.Reason, result.Error)
 	}
+
 	if fetches != 0 {
 		t.Fatalf("fetches=%d want 0 on malformed Signature", fetches)
 	}

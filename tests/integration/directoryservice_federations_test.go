@@ -54,6 +54,7 @@ func TestDirectoryServiceJWSFeedsFederations(t *testing.T) {
 		},
 		Keys: []directoryservice.VerificationKey{fixture.VerificationKey()},
 	}
+
 	trustGroupJSON, err := json.Marshal(trustGroup)
 	if err != nil {
 		t.Fatalf("marshal trust group: %v", err)
@@ -70,6 +71,7 @@ max_stale_seconds = 600
 `
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "ds-federations-test",
 		Mode: "dev",
@@ -81,6 +83,7 @@ max_stale_seconds = 600
 	defer srv.Stop(t)
 
 	federationsURL := srv.BaseURL + "/ocm-aux/federations"
+
 	result, err := pollFederations(t, federationsURL, 15*time.Second)
 	if err != nil {
 		srv.DumpLogs(t)
@@ -90,9 +93,11 @@ max_stale_seconds = 600
 	if len(result) != 1 {
 		t.Fatalf("expected 1 federation, got %d: %+v", len(result), result)
 	}
+
 	if result[0].Federation != "IntegrationFed" {
 		t.Errorf("expected federation IntegrationFed, got %q", result[0].Federation)
 	}
+
 	if len(result[0].Servers) != 2 {
 		t.Fatalf("expected 2 servers from directory listing, got %d", len(result[0].Servers))
 	}
@@ -106,12 +111,15 @@ max_stale_seconds = 600
 	if !ok {
 		t.Fatalf("missing good peer %q in response", goodPeer.URL)
 	}
+
 	if good.DisplayName != "Good Peer" {
 		t.Errorf("good peer displayName = %q, want Good Peer", good.DisplayName)
 	}
+
 	if good.InviteAcceptDialog == "" {
 		t.Error("expected inviteAcceptDialog on good peer")
 	}
+
 	if good.Status != nil {
 		t.Errorf("expected no status on enriched good peer, got %+v", good.Status)
 	}
@@ -120,18 +128,23 @@ max_stale_seconds = 600
 	if !ok {
 		t.Fatalf("missing bad peer %q in response", badPeer.URL)
 	}
+
 	if bad.DisplayName != "Bad Peer" {
 		t.Errorf("bad peer displayName = %q, want Bad Peer", bad.DisplayName)
 	}
+
 	if bad.InviteAcceptDialog != "" {
 		t.Errorf("expected empty inviteAcceptDialog on bad peer, got %q", bad.InviteAcceptDialog)
 	}
+
 	if bad.Status == nil {
 		t.Fatal("expected status on bad peer after discovery failure")
 	}
+
 	if bad.Status.Discovery != "failed" {
 		t.Errorf("expected discovery status failed, got %q", bad.Status.Discovery)
 	}
+
 	if bad.Status.ReasonCode != reason.PeerDiscoveryFailed {
 		t.Errorf("expected reasonCode %q, got %q", reason.PeerDiscoveryFailed, bad.Status.ReasonCode)
 	}
@@ -154,6 +167,7 @@ type federationEntry struct {
 
 func pollFederations(t *testing.T, url string, timeout time.Duration) ([]federationEntry, error) {
 	t.Helper()
+
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(url)
@@ -161,25 +175,33 @@ func pollFederations(t *testing.T, url string, timeout time.Duration) ([]federat
 			time.Sleep(200 * time.Millisecond)
 			continue
 		}
+
 		var result []federationEntry
+
 		decodeErr := json.NewDecoder(resp.Body).Decode(&result)
 		resp.Body.Close()
+
 		if decodeErr == nil && len(result) > 0 && len(result[0].Servers) > 0 {
 			return result, nil
 		}
+
 		time.Sleep(200 * time.Millisecond)
 	}
+
 	return nil, fmt.Errorf("timed out waiting for federations from %s", url)
 }
 
 func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 	t.Helper()
+
 	var srv *httptest.Server
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ocm" {
 			http.NotFound(w, r)
 			return
 		}
+
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"enabled":            true,
 			"apiVersion":         "1.4.0",
@@ -189,16 +211,19 @@ func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 			"criteria":           []any{},
 		})
 	}))
+
 	return srv
 }
 
 func startBrokenOCMPeer(t *testing.T) *httptest.Server {
 	t.Helper()
+
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 }

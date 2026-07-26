@@ -64,15 +64,18 @@ func (d *Driver) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	d.core = core
 
 	if exportErr := d.exportAll(ctx); exportErr != nil {
 		exportErr = fmt.Errorf("failed to export mirror: %w", exportErr)
 		closeErr := d.core.Close()
 		d.core = nil
+
 		if closeErr != nil {
 			return errors.Join(exportErr, closeErr)
 		}
+
 		return exportErr
 	}
 
@@ -96,7 +99,9 @@ func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingS
 	if err := d.core.CreateOutgoingShare(ctx, share); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "CreateOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
+
 	return nil
 }
 
@@ -125,7 +130,9 @@ func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingS
 	if err := d.core.UpdateOutgoingShare(ctx, share); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "UpdateOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
+
 	return nil
 }
 
@@ -134,7 +141,9 @@ func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerId string) err
 	if err := d.core.DeleteOutgoingShare(ctx, providerId); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "DeleteOutgoingShare", d.lockedExport(ctx, d.exportOutgoingShares))
+
 	return nil
 }
 
@@ -150,7 +159,9 @@ func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingS
 	if err := d.core.CreateIncomingShare(ctx, share); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "CreateIncomingShare", d.lockedExport(ctx, d.exportIncomingShares))
+
 	return nil
 }
 
@@ -174,7 +185,9 @@ func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shar
 	if err := d.core.UpdateIncomingShareStatusForRecipient(ctx, shareId, recipientUserId, state); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "UpdateIncomingShareStatusForRecipient", d.lockedExport(ctx, d.exportIncomingShares))
+
 	return nil
 }
 
@@ -183,7 +196,9 @@ func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareId st
 	if err := d.core.DeleteIncomingShareForRecipient(ctx, shareId, recipientUserId); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "DeleteIncomingShareForRecipient", d.lockedExport(ctx, d.exportIncomingShares))
+
 	return nil
 }
 
@@ -194,7 +209,9 @@ func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 	if err := d.core.CreateOutgoingInvite(ctx, invite); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "CreateOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
+
 	return nil
 }
 
@@ -213,7 +230,9 @@ func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 	if err := d.core.UpdateOutgoingInvite(ctx, invite); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "UpdateOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
+
 	return nil
 }
 
@@ -222,7 +241,9 @@ func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
 	if err := d.core.DeleteOutgoingInvite(ctx, id); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "DeleteOutgoingInvite", d.lockedExport(ctx, d.exportOutgoingInvites))
+
 	return nil
 }
 
@@ -238,7 +259,9 @@ func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.Incomin
 	if err := d.core.CreateIncomingInvite(ctx, invite); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "CreateIncomingInvite", d.lockedExport(ctx, d.exportIncomingInvites))
+
 	return nil
 }
 
@@ -258,7 +281,9 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id 
 	if err := d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserId, status); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "UpdateIncomingInviteStatusForRecipient", d.lockedExport(ctx, d.exportIncomingInvites))
+
 	return nil
 }
 
@@ -267,7 +292,9 @@ func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string
 	if err := d.core.DeleteIncomingInviteForRecipient(ctx, id, recipientUserId); err != nil {
 		return err
 	}
+
 	d.logExportError(ctx, "DeleteIncomingInviteForRecipient", d.lockedExport(ctx, d.exportIncomingInvites))
+
 	return nil
 }
 
@@ -301,15 +328,19 @@ func (d *Driver) exportAll(ctx context.Context) error {
 	if err := d.exportOutgoingShares(ctx); err != nil {
 		return err
 	}
+
 	if err := d.exportIncomingShares(ctx); err != nil {
 		return err
 	}
+
 	if err := d.exportOutgoingInvites(ctx); err != nil {
 		return err
 	}
+
 	if err := d.exportIncomingInvites(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -318,6 +349,7 @@ func (d *Driver) exportAll(ctx context.Context) error {
 func (d *Driver) lockedExport(ctx context.Context, fn func(context.Context) error) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
 	return fn(ctx)
 }
 
@@ -356,9 +388,11 @@ func (d *Driver) exportOutgoingInvites(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	for _, invite := range invites {
 		invite.Token = ""
 	}
+
 	return d.writeJSON("outgoing_invites.json", invites)
 }
 
@@ -368,9 +402,11 @@ func (d *Driver) exportIncomingInvites(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	for _, invite := range invites {
 		invite.Token = ""
 	}
+
 	return d.writeJSON("incoming_invites.json", invites)
 }
 
@@ -394,12 +430,14 @@ func (d *Driver) writeJSON(filename string, data interface{}) error {
 	if _, err := f.Write(jsonData); err != nil {
 		f.Close()
 		os.Remove(tempPath)
+
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 
 	if err := f.Sync(); err != nil {
 		f.Close()
 		os.Remove(tempPath)
+
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 

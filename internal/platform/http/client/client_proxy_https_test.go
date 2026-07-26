@@ -34,10 +34,13 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse backend URL: %v", err)
 	}
+
 	wantCONNECTTarget := backendParsed.Host // "127.0.0.1:PORT"
 
-	var connectSeen atomic.Bool
-	var observedCONNECTTarget atomic.Value
+	var (
+		connectSeen           atomic.Bool
+		observedCONNECTTarget atomic.Value
+	)
 
 	// Minimal CONNECT-capable proxy: records CONNECT semantics and tunnels
 	// bytes to the real backend.
@@ -45,8 +48,10 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		if r.Method != http.MethodConnect {
 			t.Errorf("proxy: expected CONNECT, got %s %s", r.Method, r.RequestURI)
 			w.WriteHeader(http.StatusBadRequest)
+
 			return
 		}
+
 		connectSeen.Store(true)
 		// r.RequestURI is "host:port" for CONNECT requests.
 		observedCONNECTTarget.Store(r.RequestURI)
@@ -55,6 +60,7 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		if !ok {
 			t.Error("proxy: hijacking not supported")
 			http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+
 			return
 		}
 
@@ -68,6 +74,7 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		if hijackErr != nil {
 			targetConn.Close()
 			t.Logf("proxy: hijack error: %v", hijackErr)
+
 			return
 		}
 
@@ -75,15 +82,18 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 
 		// Proxy bytes bidirectionally until both sides close.
 		var wg sync.WaitGroup
+
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
 			defer targetConn.Close()
+
 			_, _ = io.Copy(targetConn, clientConn)
 		}()
 		go func() {
 			defer wg.Done()
 			defer clientConn.Close()
+
 			_, _ = io.Copy(clientConn, targetConn)
 		}()
 		// Do not block the handler goroutine: that would cause proxy.Close()
@@ -94,6 +104,7 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 			past := time.Now().Add(-time.Second)
 			_ = clientConn.SetDeadline(past)
 			_ = targetConn.SetDeadline(past)
+
 			wg.Wait()
 		})
 	}))
@@ -101,10 +112,12 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 
 	// Build a cert pool trusting the backend's self-signed TLS certificate.
 	serverCert := backend.TLS.Certificates[0]
+
 	x509Cert, parseErr := x509.ParseCertificate(serverCert.Certificate[0])
 	if parseErr != nil {
 		t.Fatalf("parse backend TLS cert: %v", parseErr)
 	}
+
 	rootCAs := x509.NewCertPool()
 	rootCAs.AddCert(x509Cert)
 
@@ -125,9 +138,11 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if !connectSeen.Load() {
 		t.Error("proxy did not receive a CONNECT request")
 	}
+
 	if got, _ := observedCONNECTTarget.Load().(string); got != wantCONNECTTarget {
 		t.Errorf("CONNECT target: got %q, want %q", got, wantCONNECTTarget)
 	}
@@ -161,6 +176,7 @@ func TestClient_HTTPSPrivateDestinationBlockedWithProxy(t *testing.T) {
 				t.Errorf("expected SSRF error for %s, got nil", target)
 				return
 			}
+
 			if !httpclient.IsSSRFError(err) {
 				t.Errorf("expected SSRF error for %s, got: %v", target, err)
 			}

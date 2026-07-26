@@ -18,6 +18,7 @@ func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 	if _, exists := d.outgoingInvites[invite.ID]; exists {
 		return store.ErrAlreadyExists
 	}
+
 	if invite.Token != "" {
 		if existing, ok := d.outgoingInviteTokenIndex[invite.Token]; ok && existing != invite.ID {
 			return store.ErrAlreadyExists
@@ -32,11 +33,14 @@ func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 	if err := d.saveFile(fileOutgoingInvites, d.outgoingInvites); err != nil {
 		// Rollback: remove the in-memory entry so state stays consistent with disk.
 		delete(d.outgoingInvites, invite.ID)
+
 		if invite.Token != "" {
 			delete(d.outgoingInviteTokenIndex, invite.Token)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -53,6 +57,7 @@ func (d *Driver) GetOutgoingInvite(ctx context.Context, id string) (*store.Outgo
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneOutgoingInvite(invite), nil
 }
 
@@ -69,10 +74,12 @@ func (d *Driver) GetOutgoingInviteByToken(ctx context.Context, token string) (*s
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	invite, ok := d.outgoingInvites[id]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneOutgoingInvite(invite), nil
 }
 
@@ -88,6 +95,7 @@ func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 	if _, exists := d.outgoingInvites[invite.ID]; !exists {
 		return store.ErrNotFound
 	}
+
 	if invite.Token != "" {
 		if existing, ok := d.outgoingInviteTokenIndex[invite.Token]; ok && existing != invite.ID {
 			return store.ErrAlreadyExists
@@ -96,11 +104,14 @@ func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 
 	// Capture old state for rollback.
 	oldInvite := d.outgoingInvites[invite.ID]
+
 	var oldToken string
+
 	for tok, id := range d.outgoingInviteTokenIndex {
 		if id == invite.ID {
 			oldToken = tok
 			delete(d.outgoingInviteTokenIndex, tok)
+
 			break
 		}
 	}
@@ -116,11 +127,14 @@ func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 		if invite.Token != "" {
 			delete(d.outgoingInviteTokenIndex, invite.Token)
 		}
+
 		if oldToken != "" {
 			d.outgoingInviteTokenIndex[oldToken] = invite.ID
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -141,6 +155,7 @@ func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
 	if invite.Token != "" {
 		delete(d.outgoingInviteTokenIndex, invite.Token)
 	}
+
 	delete(d.outgoingInvites, id)
 
 	if err := d.saveFile(fileOutgoingInvites, d.outgoingInvites); err != nil {
@@ -149,8 +164,10 @@ func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
 		if invite.Token != "" {
 			d.outgoingInviteTokenIndex[invite.Token] = id
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -164,10 +181,12 @@ func (d *Driver) ListOutgoingInvites(ctx context.Context, userId string) ([]*sto
 	}
 
 	invites := make([]*store.OutgoingInvite, 0)
+
 	for _, invite := range d.outgoingInvites {
 		if userId == "" || invite.CreatedByUserId == userId {
 			invites = append(invites, cloneOutgoingInvite(invite))
 		}
 	}
+
 	return invites, nil
 }

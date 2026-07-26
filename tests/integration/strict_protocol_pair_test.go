@@ -32,6 +32,7 @@ func startStrictProtocolPairWithExtraAllowedPorts(
 	t.Helper()
 
 	moduleRoot := harness.FindProjectRoot(t)
+
 	opts := harness.StrictProtocolPairStartOptions{
 		ExtraAllowedPorts: extraAllowedPorts,
 		TLSRootCAFile:     tsprotocol.StrictProtocolTLSRootCA(moduleRoot),

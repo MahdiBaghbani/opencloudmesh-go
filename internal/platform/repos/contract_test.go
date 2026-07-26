@@ -14,10 +14,11 @@ import (
 // operations and recipient-scoped access.
 func TestRepoContract(t *testing.T) {
 	for _, tt := range tsrepos.OpenTestRepos() {
-		tt := tt
+
 		t.Run(tt.Name, func(t *testing.T) {
 			r := tt.Open(t)
 			defer r.Close()
+
 			runRepoContract(t, r)
 		})
 	}
@@ -33,7 +34,7 @@ func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
-		backend := backend
+
 		t.Run(backend, func(t *testing.T) {
 			// repos.New internally type-asserts drv.(fullStore); failure here
 			// means the driver is missing at least one store interface.
@@ -43,12 +44,15 @@ func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 			if r.OutgoingShares == nil {
 				t.Fatalf("%s: OutgoingShares is nil", backend)
 			}
+
 			if r.IncomingShares == nil {
 				t.Fatalf("%s: IncomingShares is nil", backend)
 			}
+
 			if r.OutgoingInvites == nil {
 				t.Fatalf("%s: OutgoingInvites is nil", backend)
 			}
+
 			if r.IncomingInvites == nil {
 				t.Fatalf("%s: IncomingInvites is nil", backend)
 			}
@@ -58,12 +62,15 @@ func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 			if _, err := r.OutgoingShares.List(ctx); err != nil {
 				t.Errorf("OutgoingShares.List on empty store: %v", err)
 			}
+
 			if _, err := r.IncomingShares.ListByRecipientUserID(ctx, "contract-user"); err != nil {
 				t.Errorf("IncomingShares.ListByRecipientUserID on empty store: %v", err)
 			}
+
 			if _, err := r.OutgoingInvites.List(ctx); err != nil {
 				t.Errorf("OutgoingInvites.List on empty store: %v", err)
 			}
+
 			if _, err := r.IncomingInvites.ListByRecipientUserID(ctx, "contract-user"); err != nil {
 				t.Errorf("IncomingInvites.ListByRecipientUserID on empty store: %v", err)
 			}

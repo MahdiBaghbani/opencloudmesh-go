@@ -93,6 +93,7 @@ func (m *TLSManager) getOrCreateSelfSigned(hostname string) (*cryptotls.Config, 
 	if cert, err := cryptotls.LoadX509KeyPair(certFile, keyFile); err == nil {
 		m.logger.Info("loaded existing self-signed certificate",
 			"cert_file", certFile)
+
 		return &cryptotls.Config{
 			Certificates: []cryptotls.Certificate{cert},
 			MinVersion:   cryptotls.VersionTLS12,
@@ -174,6 +175,7 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 	if err != nil {
 		return cryptotls.Certificate{}, fmt.Errorf("failed to marshal key: %w", err)
 	}
+
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	if err := os.WriteFile(keyFile, keyPEM, 0600); err != nil {
 		return cryptotls.Certificate{}, fmt.Errorf("failed to write key: %w", err)

@@ -23,6 +23,7 @@ func RouteOptsFromConfig(cfg *config.Config) RouteOpts {
 	if cfg == nil {
 		return opts
 	}
+
 	opts.ExternalBasePath = cfg.ExternalBasePath
 
 	if uiCfg := cfg.BuildServiceConfig("ui"); uiCfg != nil {
@@ -31,6 +32,7 @@ func RouteOptsFromConfig(cfg *config.Config) RouteOpts {
 				opts.WayfEnabled = true
 			}
 		}
+
 		if inviteAccept, ok := uiCfg["invite_accept"].(map[string]any); ok {
 			if enabled, ok := inviteAccept["enabled"].(bool); ok && enabled {
 				opts.InviteAcceptEnabled = true
@@ -40,6 +42,7 @@ func RouteOptsFromConfig(cfg *config.Config) RouteOpts {
 
 	tokenPath := resolveTokenExchangePath(cfg)
 	opts.TokenExchangePath = tokenPath
+
 	return opts
 }
 
@@ -51,9 +54,11 @@ func resolveTokenExchangePath(cfg *config.Config) string {
 			}
 		}
 	}
+
 	if cfg.TokenExchange.Path != "" {
 		return cfg.TokenExchange.Path
 	}
+
 	return "token"
 }
 

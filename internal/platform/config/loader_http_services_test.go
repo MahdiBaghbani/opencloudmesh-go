@@ -45,6 +45,7 @@ path = "auth/token"
 	if !ok {
 		t.Fatal("expected ocmprovider in wellknown config")
 	}
+
 	if ocmProvider["provider"] != "CustomProvider" {
 		t.Errorf("expected provider 'CustomProvider', got %v", ocmProvider["provider"])
 	}
@@ -58,6 +59,7 @@ path = "auth/token"
 	if !ok {
 		t.Fatal("expected token_exchange in ocm config")
 	}
+
 	if tokenExchange["path"] != "auth/token" {
 		t.Errorf("expected path 'auth/token', got %v", tokenExchange["path"])
 	}
@@ -89,12 +91,14 @@ func TestBuildServiceConfig_ReturnsCopyForConfiguredService(t *testing.T) {
 	if result["key1"] != "value1" {
 		t.Errorf("expected key1='value1', got %v", result["key1"])
 	}
+
 	if result["key2"] != 42 {
 		t.Errorf("expected key2=42, got %v", result["key2"])
 	}
 
 	// Verify it's a copy (mutation doesn't affect original)
 	result["key1"] = "modified"
+
 	if cfg.HTTP.Services["testservice"]["key1"] != "value1" {
 		t.Error("BuildServiceConfig should return a copy, not the original map")
 	}
@@ -103,6 +107,7 @@ func TestBuildServiceConfig_ReturnsCopyForConfiguredService(t *testing.T) {
 func TestHTTPConfig_EmptyServicesDoesNotBreakLoading(t *testing.T) {
 	// Clear ambient env override so the default load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)

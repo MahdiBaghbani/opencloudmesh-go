@@ -46,10 +46,12 @@ func (r *Resolver) Resolve(peerInput string) Decision {
 	}
 
 	allowHTTP := r != nil && r.devAllowHTTP
+
 	scheme := "https"
 	if allowHTTP {
 		scheme = "http"
 	}
+
 	switch inputScheme {
 	case "https":
 		scheme = "https"
@@ -86,6 +88,7 @@ func (r *Resolver) IsAbsoluteURIAllowed(absoluteURI, peerInput string) bool {
 	if origin.PeerDomain == "" {
 		return false
 	}
+
 	if uriScheme == "http" && !origin.AllowHTTP {
 		return false
 	}
@@ -114,9 +117,11 @@ func authorityMatch(leftAuthority, rightAuthority, scheme string) bool {
 	if err != nil {
 		return false
 	}
+
 	right, err := hostport.Normalize(rightAuthority, scheme)
 	if err != nil {
 		return false
 	}
+
 	return left == right
 }

@@ -44,11 +44,13 @@ func validWebappShareBody(shareWith, ownerHost, providerID string) string {
 // error must not be swallowed.
 func assertShareNotStored(t *testing.T, repo *sharesinbox.MemoryIncomingShareRepo, senderHost, providerID string) {
 	t.Helper()
+
 	stored, err := repo.GetByProviderID(context.Background(), senderHost, providerID)
 	if err == nil && stored != nil {
 		t.Errorf("share %q from %q must not be persisted, got %+v", providerID, senderHost, stored)
 		return
 	}
+
 	if err != nil && !errors.Is(err, sharesinbox.ErrShareNotFound) {
 		t.Fatalf("unexpected lookup error for share %q from %q: %v", providerID, senderHost, err)
 	}
@@ -62,6 +64,7 @@ func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
 	body := validWebappShareBody("alice@localhost:9200", ownerHost, "webapp-reject")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
@@ -73,6 +76,7 @@ func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
 		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
 	}
@@ -117,6 +121,7 @@ func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
@@ -128,6 +133,7 @@ func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
 		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
 	}
@@ -160,25 +166,31 @@ func TestCreateShare_RejectsWebappMissingURI(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing webapp uri, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "INVALID_PROTOCOL" {
 		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
 	}
+
 	found := false
+
 	for _, e := range resp.ValidationErrors {
 		if e.Name == "protocol.webapp.uri" && e.Message == "REQUIRED" {
 			found = true
 		}
 	}
+
 	if !found {
 		t.Errorf("expected validationError {protocol.webapp.uri, REQUIRED}, got %v", resp.ValidationErrors)
 	}
@@ -209,25 +221,31 @@ func TestCreateShare_RejectsWebappMissingTargets(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing webapp targets, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "INVALID_PROTOCOL" {
 		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
 	}
+
 	found := false
+
 	for _, e := range resp.ValidationErrors {
 		if e.Name == "protocol.webapp.targets" && e.Message == "REQUIRED" {
 			found = true
 		}
 	}
+
 	if !found {
 		t.Errorf("expected validationError {protocol.webapp.targets, REQUIRED}, got %v", resp.ValidationErrors)
 	}
@@ -258,25 +276,31 @@ func TestCreateShare_RejectsWebappMissingPermissions(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing webapp permissions, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "INVALID_PROTOCOL" {
 		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
 	}
+
 	found := false
+
 	for _, e := range resp.ValidationErrors {
 		if e.Name == "protocol.webapp.permissions" && e.Message == "REQUIRED" {
 			found = true
 		}
 	}
+
 	if !found {
 		t.Errorf("expected validationError {protocol.webapp.permissions, REQUIRED}, got %v", resp.ValidationErrors)
 	}
@@ -307,25 +331,31 @@ func TestCreateShare_RejectsWebappMissingSharedSecret(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing webapp sharedSecret, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "INVALID_PROTOCOL" {
 		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
 	}
+
 	found := false
+
 	for _, e := range resp.ValidationErrors {
 		if e.Name == "protocol.webapp.sharedSecret" && e.Message == "REQUIRED" {
 			found = true
 		}
 	}
+
 	if !found {
 		t.Errorf("expected validationError {protocol.webapp.sharedSecret, REQUIRED}, got %v", resp.ValidationErrors)
 	}
@@ -357,16 +387,19 @@ func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("expected 501 for unsupported webapp permission, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
 		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
 	}
@@ -398,20 +431,25 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for must-use-mfa GAP rejection, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "INVALID_PROTOCOL" {
 		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
 	}
+
 	var gapErr *spec.ValidationError
+
 	for i := range resp.ValidationErrors {
 		if resp.ValidationErrors[i].Name == "protocol.webapp.requirements" &&
 			strings.Contains(resp.ValidationErrors[i].Message, "GAP") {
@@ -419,9 +457,11 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 			break
 		}
 	}
+
 	if gapErr == nil {
 		t.Fatalf("expected a GAP-bearing requirements validationError, got %v", resp.ValidationErrors)
 	}
+
 	if !strings.Contains(gapErr.Message, "enforce-mfa") {
 		t.Errorf("GAP error should explain enforce-mfa is not implemented, got %q", gapErr.Message)
 	}
@@ -453,25 +493,31 @@ func TestCreateShare_RejectsWebappMissingMustExchangeToken(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing must-exchange-token, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "INVALID_PROTOCOL" {
 		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
 	}
+
 	found := false
+
 	for _, e := range resp.ValidationErrors {
 		if e.Name == "protocol.webapp.requirements" && e.Message == "REQUIRED" {
 			found = true
 		}
 	}
+
 	if !found {
 		t.Errorf("expected validationError {protocol.webapp.requirements, REQUIRED}, got %v", resp.ValidationErrors)
 	}
@@ -503,16 +549,19 @@ func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("expected 501 for unknown webapp requirement, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
 		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
 	}

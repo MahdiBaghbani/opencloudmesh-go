@@ -31,8 +31,10 @@ func (d *Driver) rebuildIndexes() error {
 					share.WebDAVId, existingPid, providerId,
 				)
 			}
+
 			d.webdavIndex[share.WebDAVId] = providerId
 		}
+
 		if share.ShareId != "" {
 			if existingPid, exists := d.shareIdIndex[share.ShareId]; exists {
 				return fmt.Errorf(
@@ -40,8 +42,10 @@ func (d *Driver) rebuildIndexes() error {
 					share.ShareId, existingPid, providerId,
 				)
 			}
+
 			d.shareIdIndex[share.ShareId] = providerId
 		}
+
 		if share.SharedSecret != "" {
 			if existingPid, exists := d.secretIndex[share.SharedSecret]; exists {
 				return fmt.Errorf(
@@ -49,6 +53,7 @@ func (d *Driver) rebuildIndexes() error {
 					share.SharedSecret, existingPid, providerId,
 				)
 			}
+
 			d.secretIndex[share.SharedSecret] = providerId
 		}
 	}
@@ -61,6 +66,7 @@ func (d *Driver) rebuildIndexes() error {
 				share.SendingServer, share.ProviderId, existingID, shareId,
 			)
 		}
+
 		d.providerIndex[key] = shareId
 	}
 
@@ -72,6 +78,7 @@ func (d *Driver) rebuildIndexes() error {
 					invite.Token, existingID, id,
 				)
 			}
+
 			d.outgoingInviteTokenIndex[invite.Token] = id
 		}
 	}
@@ -85,6 +92,7 @@ func (d *Driver) rebuildIndexes() error {
 					invite.Token, invite.RecipientUserId, existingID, id,
 				)
 			}
+
 			d.incomingInviteTokenUserIndex[key] = id
 		}
 	}

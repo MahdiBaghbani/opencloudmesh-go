@@ -93,6 +93,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 			w := httptest.NewRecorder()
 
 			handler.HandleToken(w, req)
@@ -138,6 +139,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -163,6 +165,7 @@ func TestHandler_NilCodeFlowReturns501(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -256,6 +259,7 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+
 	if resp.Error != token.ErrorInvalidClient {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
 	}

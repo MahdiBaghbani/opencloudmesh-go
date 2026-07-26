@@ -16,10 +16,12 @@ func TestRouteSpecs_SessionPolicy_WayfAndAcceptInvite(t *testing.T) {
 	}
 
 	var wayfSpec, acceptSpec *service.RouteSpec
+
 	for _, spec := range service.RegisteredRouteSpecs(enabled) {
 		if spec.Service != "ui" {
 			continue
 		}
+
 		switch spec.Pattern {
 		case RouteWAYF:
 			wayfSpec = &spec
@@ -35,6 +37,7 @@ func TestRouteSpecs_SessionPolicy_WayfAndAcceptInvite(t *testing.T) {
 	if wayfSpec.SessionPolicy != service.SessionPublicWhenWAYF {
 		t.Errorf("wayf SessionPolicy = %q, want public when WAYF enabled", wayfSpec.SessionPolicy)
 	}
+
 	if acceptSpec.SessionPolicy != service.SessionProtected {
 		t.Errorf("accept-invite SessionPolicy = %q, want protected", acceptSpec.SessionPolicy)
 	}
@@ -74,6 +77,7 @@ func TestRouteSpecs_SessionAuthProjection_WithExternalBasePath(t *testing.T) {
 	if service.SessionAuthRequiredForPath("/ocm/ui/wayf", opts) {
 		t.Error("expected /ocm/ui/wayf public when WAYF enabled")
 	}
+
 	if !service.SessionAuthRequiredForPath("/ocm/ui/accept-invite", opts) {
 		t.Error("expected /ocm/ui/accept-invite protected")
 	}

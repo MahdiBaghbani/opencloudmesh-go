@@ -28,6 +28,7 @@ mode = "block"
 	if err == nil {
 		t.Fatal("expected error for invalid outbound_http.ssrf.mode")
 	}
+
 	if !strings.Contains(err.Error(), "invalid outbound_http.ssrf.mode") {
 		t.Errorf("expected ssrf.mode error, got: %v", err)
 	}
@@ -63,13 +64,16 @@ allow_ip_literals = false
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected ssrf.mode strict, got %q", cfg.OutboundHTTP.SSRF.Mode)
 	}
+
 	policy, ok := cfg.OutboundHTTP.SSRF.RoutePolicies["internal"]
 	if !ok {
 		t.Fatal("expected route policy 'internal' to be defined")
 	}
+
 	if len(policy.AllowPrivateHostSuffixes) != 1 || policy.AllowPrivateHostSuffixes[0] != "svc.cluster.local" {
 		t.Errorf("unexpected allow_private_host_suffixes: %v", policy.AllowPrivateHostSuffixes)
 	}
+
 	if policy.AllowIPLiterals {
 		t.Error("expected allow_ip_literals=false")
 	}
@@ -94,6 +98,7 @@ route_policy = "nonexistent"
 	if err == nil {
 		t.Fatal("expected error for invalid route_policy reference")
 	}
+
 	if !strings.Contains(err.Error(), "nonexistent") {
 		t.Errorf("expected error mentioning policy name, got: %v", err)
 	}
@@ -114,6 +119,7 @@ func TestLoad_SSRF_StrictMode_RejectsOff(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error: mode=strict must reject ssrf.mode=off")
 	}
+
 	if !strings.Contains(err.Error(), "mode=strict requires outbound_http.ssrf.mode=strict") {
 		t.Errorf("expected strict+off rejection error, got: %v", err)
 	}
@@ -138,9 +144,11 @@ func TestLoad_SSRF_StrictMode_StrictWithValidRoutePolicy_Loads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v; strict + valid route policy must load cleanly", err)
 	}
+
 	if cfg.OutboundHTTP.SSRF.Mode != "strict" {
 		t.Errorf("expected outbound_http.ssrf.mode %q, got %q", "strict", cfg.OutboundHTTP.SSRF.Mode)
 	}
+
 	if cfg.OutboundHTTP.SSRF.RoutePolicy != "internal" {
 		t.Errorf("expected outbound_http.ssrf.route_policy %q, got %q", "internal", cfg.OutboundHTTP.SSRF.RoutePolicy)
 	}
@@ -163,6 +171,7 @@ func TestLoad_SSRF_RoutePolicyWithIPLiterals_Fails(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error: allow_ip_literals=true forbidden for active route policy")
 	}
+
 	if !strings.Contains(err.Error(), "allow_ip_literals=false") {
 		t.Errorf("expected allow_ip_literals error, got: %v", err)
 	}
@@ -185,6 +194,7 @@ func TestLoad_SSRF_RoutePolicyWithCatchAllCIDR_Fails(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error: catch-all CIDR 0.0.0.0/0 forbidden for active route policy")
 	}
+
 	if !strings.Contains(err.Error(), "0.0.0.0/0") {
 		t.Errorf("expected catch-all CIDR error, got: %v", err)
 	}
@@ -212,6 +222,7 @@ allow_ip_literals = false
 	if err == nil {
 		t.Fatal("expected error: empty allow_private_cidrs forbidden for active route policy")
 	}
+
 	if !strings.Contains(err.Error(), "allow_private_cidrs") {
 		t.Errorf("expected allow_private_cidrs error, got: %v", err)
 	}
@@ -239,6 +250,7 @@ allow_ip_literals = false
 	if err == nil {
 		t.Fatal("expected error: empty allowed_ports forbidden for active route policy")
 	}
+
 	if !strings.Contains(err.Error(), "allowed_ports") {
 		t.Errorf("expected allowed_ports error, got: %v", err)
 	}
@@ -261,6 +273,7 @@ func TestLoad_SSRF_RoutePolicyMissingHostSuffixes_Fails(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error: empty allow_private_host_suffixes forbidden for active route policy")
 	}
+
 	if !strings.Contains(err.Error(), "allow_private_host_suffixes") {
 		t.Errorf("expected host suffixes error, got: %v", err)
 	}
@@ -283,6 +296,7 @@ func TestLoad_SSRF_RoutePolicyWithInvalidCIDR_Fails(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error: invalid CIDR in allow_private_cidrs should be rejected")
 	}
+
 	if !strings.Contains(err.Error(), "invalid CIDR") {
 		t.Errorf("expected invalid CIDR error, got: %v", err)
 	}
@@ -323,6 +337,7 @@ func TestLoad_SSRF_RoutePolicyWithInvalidPort_Fails(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected error for port %s: should be rejected as out of range", tc.port)
 			}
+
 			if !strings.Contains(err.Error(), tc.wantContain) {
 				t.Errorf("expected %q in error, got: %v", tc.wantContain, err)
 			}
@@ -345,6 +360,7 @@ func TestSSRFRoutePolicy_BlankHostSuffix(t *testing.T) {
 			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
+
 			tomlContent := `mode = "strict"
 
 [outbound_http.ssrf]
@@ -364,9 +380,11 @@ allow_ip_literals = false
 			if err == nil {
 				t.Fatal("expected error for blank entry in allow_private_host_suffixes")
 			}
+
 			if !strings.Contains(err.Error(), "allow_private_host_suffixes") {
 				t.Errorf("expected error to mention allow_private_host_suffixes, got: %v", err)
 			}
+
 			if !strings.Contains(err.Error(), "active ssrf route policy") {
 				t.Errorf("expected error to mention active ssrf route policy, got: %v", err)
 			}

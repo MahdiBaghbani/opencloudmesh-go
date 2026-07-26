@@ -11,9 +11,11 @@ func TestAuthorityFromBaseURL_NormalizesHostAndDefaultPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AuthorityFromBaseURL: %v", err)
 	}
+
 	if scheme != "https" {
 		t.Fatalf("scheme = %q, want https", scheme)
 	}
+
 	if authority != "example.com" {
 		t.Fatalf("authority = %q, want example.com", authority)
 	}
@@ -22,6 +24,7 @@ func TestAuthorityFromBaseURL_NormalizesHostAndDefaultPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AuthorityFromBaseURL http: %v", err)
 	}
+
 	if scheme != "http" || authority != "example.com" {
 		t.Fatalf("http default port = %s %q, want http example.com", scheme, authority)
 	}
@@ -29,6 +32,7 @@ func TestAuthorityFromBaseURL_NormalizesHostAndDefaultPort(t *testing.T) {
 
 func TestURLForAuthority(t *testing.T) {
 	got := jwks.URLForAuthority("https", "example.com")
+
 	want := "https://example.com/.well-known/jwks.json"
 	if got != want {
 		t.Fatalf("URLForAuthority = %q, want %q", got, want)

@@ -46,9 +46,11 @@ func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 	if strings.Contains(body, secret) {
 		t.Errorf("response body must not contain the shared secret, got %q", body)
 	}
+
 	if strings.Contains(body, "code=") {
 		t.Errorf("response body must not contain 'code=', got %q", body)
 	}
+
 	if strings.Contains(body, "sharedSecret") {
 		t.Errorf("response body must not contain 'sharedSecret', got %q", body)
 	}
@@ -86,12 +88,15 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 	if !resp.OK {
 		t.Fatal("expected ok=true")
 	}
+
 	if strings.Contains(resp.ContentType, secret) {
 		t.Errorf("contentType must not contain the shared secret, got %q", resp.ContentType)
 	}
+
 	if strings.Contains(resp.ContentType, "code=") {
 		t.Errorf("contentType must not contain 'code=', got %q", resp.ContentType)
 	}
+
 	if strings.Contains(resp.ContentType, "sharedSecret") {
 		t.Errorf("contentType must not contain 'sharedSecret', got %q", resp.ContentType)
 	}
@@ -129,12 +134,15 @@ func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 	if resp.OK {
 		t.Error("expected ok=false")
 	}
+
 	if resp.ReasonCode != "unreachable" {
 		t.Errorf("expected reasonCode unreachable, got %s", resp.ReasonCode)
 	}
+
 	if strings.Contains(resp.Error, secret) {
 		t.Errorf("error must not contain the shared secret, got %q", resp.Error)
 	}
+
 	if !strings.Contains(resp.Error, "403") {
 		t.Errorf("expected error to mention status code, got %q", resp.Error)
 	}
@@ -184,6 +192,7 @@ func TestHandleVerifyAccess_RedactsCodeAndSharedSecretEvenWithEmptySecret(t *tes
 	if strings.Contains(body, "code=") {
 		t.Errorf("response body must not contain 'code=', got %q", body)
 	}
+
 	if strings.Contains(body, "sharedSecret") {
 		t.Errorf("response body must not contain 'sharedSecret', got %q", body)
 	}

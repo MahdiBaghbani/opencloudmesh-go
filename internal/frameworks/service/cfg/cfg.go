@@ -25,6 +25,7 @@ func Decode(input map[string]any, c any) error {
 	if err != nil {
 		return err
 	}
+
 	if err := decoder.Decode(input); err != nil {
 		return err
 	}
@@ -40,6 +41,7 @@ func Decode(input map[string]any, c any) error {
 // DecodeWithUnused decodes input to c and returns unused keys (sorted).
 func DecodeWithUnused(input map[string]any, c any) ([]string, error) {
 	var md mapstructure.Metadata
+
 	config := &mapstructure.DecoderConfig{
 		Metadata: &md,
 		Result:   c,
@@ -50,6 +52,7 @@ func DecodeWithUnused(input map[string]any, c any) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if err := decoder.Decode(input); err != nil {
 		return nil, err
 	}
@@ -71,8 +74,10 @@ func MustDecodeStrict(input map[string]any, c any) error {
 	if err != nil {
 		return err
 	}
+
 	if len(unused) > 0 {
 		return fmt.Errorf("unused config keys: %v", unused)
 	}
+
 	return nil
 }

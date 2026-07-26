@@ -15,6 +15,7 @@ import (
 // auto-fill, and ErrShareNotFound sentinel for the IncomingShareRepo interface.
 func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	t.Run("CRUD", func(t *testing.T) {
@@ -39,6 +40,7 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByIDForRecipientUserID: %v", err)
 		}
+
 		if got.ShareID != share.ShareID {
 			t.Errorf("ShareID: got %q, want %q", got.ShareID, share.ShareID)
 		}
@@ -47,6 +49,7 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByProviderID: %v", err)
 		}
+
 		if got.ShareID != share.ShareID {
 			t.Errorf("GetByProviderID ShareID: got %q, want %q", got.ShareID, share.ShareID)
 		}
@@ -56,10 +59,12 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		); err != nil {
 			t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
 		}
+
 		got, err = r.IncomingShares.GetByIDForRecipientUserID(ctx, share.ShareID, share.RecipientUserID)
 		if err != nil {
 			t.Fatalf("GetByIDForRecipientUserID after status update: %v", err)
 		}
+
 		if got.Status != sharesinbox.ShareStatusAccepted {
 			t.Errorf("Status after update: got %q, want accepted", got.Status)
 		}
@@ -67,6 +72,7 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err := r.IncomingShares.DeleteForRecipientUserID(ctx, share.ShareID, share.RecipientUserID); err != nil {
 			t.Fatalf("DeleteForRecipientUserID: %v", err)
 		}
+
 		_, err = r.IncomingShares.GetByIDForRecipientUserID(ctx, share.ShareID, share.RecipientUserID)
 		if !errors.Is(err, sharesinbox.ErrShareNotFound) {
 			t.Errorf("GetByIDForRecipientUserID after delete: expected ErrShareNotFound, got %v", err)
@@ -95,13 +101,16 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("ListByRecipientUserID: %v", err)
 		}
+
 		found := false
+
 		for _, s := range shares {
 			if s.ShareID == share.ShareID {
 				found = true
 				break
 			}
 		}
+
 		if !found {
 			t.Errorf("ListByRecipientUserID: created share %q not found in result", share.ShareID)
 		}
@@ -110,6 +119,7 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("ListByRecipientUserID other user: %v", err)
 		}
+
 		for _, s := range others {
 			if s.ShareID == share.ShareID {
 				t.Errorf("ListByRecipientUserID: share %q leaked to other user", share.ShareID)
@@ -180,9 +190,11 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 			CreatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
 			UpdatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
 		}
+
 		if err := r.IncomingShares.Create(ctx, shareA); err != nil {
 			t.Fatalf("Create shareA: %v", err)
 		}
+
 		if err := r.IncomingShares.Create(ctx, shareB); err != nil {
 			t.Fatalf("Create shareB: %v", err)
 		}
@@ -191,6 +203,7 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByProviderID senderHost-A: %v", err)
 		}
+
 		if gotA.ShareID != shareA.ShareID {
 			t.Errorf("GetByProviderID senderHost-A: got ShareID %q, want %q", gotA.ShareID, shareA.ShareID)
 		}
@@ -199,6 +212,7 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByProviderID senderHost-B: %v", err)
 		}
+
 		if gotB.ShareID != shareB.ShareID {
 			t.Errorf("GetByProviderID senderHost-B: got ShareID %q, want %q", gotB.ShareID, shareB.ShareID)
 		}
@@ -216,12 +230,15 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err := r.IncomingShares.Create(ctx, share); err != nil {
 			t.Fatalf("Create: %v", err)
 		}
+
 		if share.ShareID == "" {
 			t.Error("ShareID not auto-filled after Create")
 		}
+
 		if share.CreatedAt.IsZero() {
 			t.Error("CreatedAt not auto-filled after Create")
 		}
+
 		if share.UpdatedAt.IsZero() {
 			t.Error("UpdatedAt not auto-filled after Create")
 		}
@@ -239,6 +256,7 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 // sentinel behaviour for the OutgoingShareRepo interface.
 func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	t.Run("CRUD", func(t *testing.T) {
@@ -262,6 +280,7 @@ func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByID: %v", err)
 		}
+
 		if got.ShareID != share.ShareID {
 			t.Errorf("GetByID ShareID: got %q, want %q", got.ShareID, share.ShareID)
 		}
@@ -270,6 +289,7 @@ func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByProviderID: %v", err)
 		}
+
 		if got.ProviderID != share.ProviderID {
 			t.Errorf("GetByProviderID: got %q, want %q", got.ProviderID, share.ProviderID)
 		}
@@ -278,6 +298,7 @@ func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetByWebDAVID: %v", err)
 		}
+
 		if got.WebDAVID != share.WebDAVID {
 			t.Errorf("GetByWebDAVID: got %q, want %q", got.WebDAVID, share.WebDAVID)
 		}
@@ -286,6 +307,7 @@ func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("GetBySharedSecret: %v", err)
 		}
+
 		if got.SharedSecret != share.SharedSecret {
 			t.Errorf("GetBySharedSecret: got %q, want %q", got.SharedSecret, share.SharedSecret)
 		}
@@ -294,10 +316,12 @@ func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err := r.OutgoingShares.Update(ctx, share); err != nil {
 			t.Fatalf("Update: %v", err)
 		}
+
 		got, err = r.OutgoingShares.GetByID(ctx, share.ShareID)
 		if err != nil {
 			t.Fatalf("GetByID after Update: %v", err)
 		}
+
 		if got.Status != "accepted" {
 			t.Errorf("Status after Update: got %q, want accepted", got.Status)
 		}
@@ -324,13 +348,16 @@ func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err != nil {
 			t.Fatalf("List: %v", err)
 		}
+
 		found := false
+
 		for _, s := range all {
 			if s.ShareID == share.ShareID {
 				found = true
 				break
 			}
 		}
+
 		if !found {
 			t.Errorf("List: created share %q not found in result", share.ShareID)
 		}
@@ -347,9 +374,11 @@ func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err := r.OutgoingShares.Create(ctx, share); err != nil {
 			t.Fatalf("Create: %v", err)
 		}
+
 		if share.ShareID == "" {
 			t.Error("ShareID not auto-filled after Create")
 		}
+
 		if share.CreatedAt.IsZero() {
 			t.Error("CreatedAt not auto-filled after Create")
 		}
@@ -360,10 +389,12 @@ func runOutgoingShareRepoContract(t *testing.T, r *repos.Repos) {
 		if err == nil {
 			t.Error("GetByID nonexistent: expected error, got nil")
 		}
+
 		_, err = r.OutgoingShares.GetByProviderID(ctx, "ct-out-missing-provider")
 		if err == nil {
 			t.Error("GetByProviderID nonexistent: expected error, got nil")
 		}
+
 		_, err = r.OutgoingShares.GetBySharedSecret(ctx, "ct-out-missing-secret")
 		if err == nil {
 			t.Error("GetBySharedSecret nonexistent: expected error, got nil")

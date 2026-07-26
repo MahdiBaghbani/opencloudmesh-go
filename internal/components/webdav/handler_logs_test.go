@@ -36,14 +36,18 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := outgoing.NewMemoryOutgoingShareRepo()
+
 			tmpFile, err := os.CreateTemp("", "webdav-logs-*")
 			if err != nil {
 				t.Fatalf("create temp file: %v", err)
 			}
+
 			t.Cleanup(func() { _ = os.Remove(tmpFile.Name()) })
+
 			if _, err := tmpFile.WriteString("payload"); err != nil {
 				t.Fatalf("write temp file: %v", err)
 			}
+
 			_ = tmpFile.Close()
 
 			share := &outgoing.OutgoingShare{
@@ -72,6 +76,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+share.WebDAVID, nil)
 			req.Header.Set("Authorization", "Bearer "+tt.bearerToken)
+
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 

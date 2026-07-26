@@ -42,8 +42,10 @@ func ClearProxyEnv(t testing.TB) {
 				if err := os.Setenv(key, snap.value); err != nil {
 					t.Errorf("ClearProxyEnv: restore %s: %v", key, err)
 				}
+
 				continue
 			}
+
 			if err := os.Unsetenv(key); err != nil {
 				t.Errorf("ClearProxyEnv: restore unset %s: %v", key, err)
 			}

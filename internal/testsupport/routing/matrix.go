@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
@@ -73,22 +74,25 @@ func ProbePathFromRow(row service.RouteRow) string {
 	if strings.HasSuffix(path, "/*") {
 		return strings.TrimSuffix(path, "/*") + "/matrix-probe"
 	}
+
 	if idx := strings.Index(path, "{"); idx >= 0 {
 		end := strings.Index(path[idx:], "}")
 		if end < 0 {
 			return path
 		}
+
 		return path[:idx] + "matrix-probe" + path[idx+end+1:]
 	}
+
 	return path
 }
 
 // ProbeMethodFromRow returns the HTTP method used to probe route mounting.
 func ProbeMethodFromRow(row service.RouteRow) string {
 	switch row.Method {
-	case "POST":
+	case http.MethodPost:
 		return "POST"
-	case "GET":
+	case http.MethodGet:
 		return "GET"
 	default:
 		return "GET"
@@ -110,6 +114,7 @@ func RowByID(opts service.RouteOpts, id string) (service.RouteRow, bool) {
 			return row, true
 		}
 	}
+
 	return service.RouteRow{}, false
 }
 
@@ -124,6 +129,7 @@ func OCMTokenFullPath(opts service.RouteOpts) (string, bool) {
 	if !ok {
 		return "", false
 	}
+
 	return row.FullPath, true
 }
 
@@ -133,5 +139,6 @@ func HealthFullPath(opts service.RouteOpts) (string, bool) {
 	if !ok {
 		return "", false
 	}
+
 	return row.FullPath, true
 }

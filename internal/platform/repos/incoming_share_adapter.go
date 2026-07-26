@@ -29,20 +29,25 @@ func (a *incomingShareAdapter) Create(ctx context.Context, share *sharesinbox.In
 			share.ShareID = id.String()
 		}
 	}
+
 	now := time.Now()
 	if share.CreatedAt.IsZero() {
 		share.CreatedAt = now
 	}
+
 	if share.UpdatedAt.IsZero() {
 		share.UpdatedAt = now
 	}
+
 	s := appIncomingShareToStore(share)
 	if err := a.s.CreateIncomingShare(ctx, s); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
 			return fmt.Errorf("share already exists: %w", store.ErrAlreadyExists)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -56,8 +61,10 @@ func (a *incomingShareAdapter) GetByIDForRecipientUserID(
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, sharesinbox.ErrShareNotFound
 		}
+
 		return nil, err
 	}
+
 	return storeIncomingShareToApp(s), nil
 }
 
@@ -71,8 +78,10 @@ func (a *incomingShareAdapter) GetByProviderID(
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, sharesinbox.ErrShareNotFound
 		}
+
 		return nil, err
 	}
+
 	return storeIncomingShareToApp(s), nil
 }
 
@@ -84,10 +93,12 @@ func (a *incomingShareAdapter) ListByRecipientUserID(
 	if err != nil {
 		return nil, err
 	}
+
 	result := make([]*sharesinbox.IncomingShare, 0, len(storeShares))
 	for _, s := range storeShares {
 		result = append(result, storeIncomingShareToApp(s))
 	}
+
 	return result, nil
 }
 
@@ -101,8 +112,10 @@ func (a *incomingShareAdapter) UpdateStatusForRecipientUserID(
 		if errors.Is(err, store.ErrNotFound) {
 			return sharesinbox.ErrShareNotFound
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -115,8 +128,10 @@ func (a *incomingShareAdapter) DeleteForRecipientUserID(
 		if errors.Is(err, store.ErrNotFound) {
 			return sharesinbox.ErrShareNotFound
 		}
+
 		return err
 	}
+
 	return nil
 }
 

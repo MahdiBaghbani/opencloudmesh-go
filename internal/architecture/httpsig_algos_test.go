@@ -23,20 +23,25 @@ func TestHTTPSigAlgorithms_AsymmetricOnlyAndSHA256(t *testing.T) {
 		if sigalg.IsSymmetric(alg) {
 			t.Errorf("DefaultAllowed algorithm %q is symmetric", alg)
 		}
+
 		if !sigalg.IsImplemented(alg) {
 			t.Errorf("DefaultAllowed algorithm %q is not implemented", alg)
 		}
 	}
+
 	if !slices.Contains(sigalg.DefaultAllowed(), sigalg.Ed25519) {
 		t.Errorf("DefaultAllowed() = %v, want to contain %q", sigalg.DefaultAllowed(), sigalg.Ed25519)
 	}
+
 	if !sigalg.IsSymmetric("hmac-sha256") {
 		t.Error(`IsSymmetric("hmac-sha256") = false, want true`)
 	}
+
 	err := sigalg.ValidateAllowed("hmac-sha256", sigalg.DefaultAllowed())
 	if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
 		t.Fatalf("ValidateAllowed(\"hmac-sha256\", DefaultAllowed()) = %v, want ErrSymmetricNotPermitted", err)
 	}
+
 	digest := sigalg.SumSHA256([]byte("ocm"))
 	if len(digest) != 32 {
 		t.Errorf("SumSHA256 len = %d, want 32", len(digest))

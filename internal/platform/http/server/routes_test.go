@@ -16,6 +16,7 @@ func TestMountSpecs_FromDerivedProjection(t *testing.T) {
 
 func TestPathMatchesPrefix_ViaServiceProjection(t *testing.T) {
 	opts := service.DefaultRouteOpts()
+
 	cases := []struct {
 		path string
 		want bool

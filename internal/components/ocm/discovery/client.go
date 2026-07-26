@@ -44,6 +44,7 @@ func NewClient(httpClient *httpclient.Client, c cache.Cache) *Client {
 	if c == nil {
 		c = cache.NewDefault()
 	}
+
 	return &Client{
 		httpClient: httpClient,
 		cache:      c,
@@ -56,6 +57,7 @@ func (c *Client) SetVersionPolicy(p *VersionPolicy) {
 	if c == nil {
 		return
 	}
+
 	c.versionPolicy = p
 }
 
@@ -64,6 +66,7 @@ func (c *Client) SetLogger(l *slog.Logger) {
 	if c == nil {
 		return
 	}
+
 	c.logger = l
 }
 
@@ -75,7 +78,9 @@ func (c *Client) IsNoopCache() bool {
 	if c == nil {
 		return false
 	}
+
 	_, ok := c.cache.(*cache.NoopCache)
+
 	return ok
 }
 
@@ -84,12 +89,14 @@ func (c *Client) IsNoopCache() bool {
 // Raw response bytes are cached so normalization runs on every cache read.
 func (c *Client) Discover(ctx context.Context, baseURL string) (*spec.Discovery, error) {
 	baseURL = strings.TrimSuffix(baseURL, "/")
+
 	cacheKey := "discovery:" + baseURL
 	if data, err := c.cache.Get(ctx, cacheKey); err == nil {
 		disc, err := c.normalizeDiscovery(data, discoveryOriginFromURL(baseURL), false)
 		if err == nil {
 			return &disc, nil
 		}
+
 		_ = c.cache.Delete(ctx, cacheKey)
 	}
 
@@ -97,6 +104,7 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*spec.Discovery,
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover OCM at %s: %w", baseURL, err)
 	}
+
 	c.cache.Set(ctx, cacheKey, rawBytes, c.cacheTTL)
 
 	return disc, nil
@@ -108,10 +116,11 @@ func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byt
 		return nil, nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
 			return nil, nil, fmt.Errorf("discovery returned status %d: %w", resp.StatusCode, ErrDiscoveryNotFound)
 		}
+
 		return nil, nil, fmt.Errorf("discovery returned status %d", resp.StatusCode)
 	}
 
@@ -138,6 +147,7 @@ func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string, freshFe
 		if resolveBase == "" {
 			resolveBase = discoveryOrigin
 		}
+
 		disc.InviteAcceptDialog = spec.ResolveInviteAcceptDialog(resolveBase, disc.InviteAcceptDialog)
 	}
 
@@ -146,14 +156,17 @@ func (c *Client) normalizeDiscovery(data []byte, discoveryOrigin string, freshFe
 		if policy == nil {
 			policy = NewVersionPolicy()
 		}
+
 		if err := validateDiscovery(&disc, discoveryOrigin, policy); err != nil {
 			return spec.Discovery{}, err
 		}
+
 		if freshFetch {
 			logger := c.logger
 			if logger == nil {
 				logger = slog.Default()
 			}
+
 			for _, w := range disc.Warnings {
 				logger.Warn("discovery warning", "warning", w)
 			}

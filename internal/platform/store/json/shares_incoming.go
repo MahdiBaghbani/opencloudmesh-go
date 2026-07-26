@@ -19,6 +19,7 @@ func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingS
 	if _, exists := d.incomingShares[share.ShareId]; exists {
 		return store.ErrAlreadyExists
 	}
+
 	key := providerKey(share.SendingServer, share.ProviderId)
 	if _, exists := d.providerIndex[key]; exists {
 		return store.ErrAlreadyExists
@@ -31,8 +32,10 @@ func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingS
 		// Rollback: remove the in-memory entries so state stays consistent with disk.
 		delete(d.incomingShares, share.ShareId)
 		delete(d.providerIndex, key)
+
 		return err
 	}
+
 	return nil
 }
 
@@ -49,6 +52,7 @@ func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareId s
 	if !ok || share.UserId != recipientUserId {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneIncomingShare(share), nil
 }
 
@@ -70,6 +74,7 @@ func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServe
 	if !ok {
 		return nil, store.ErrNotFound
 	}
+
 	return cloneIncomingShare(share), nil
 }
 
@@ -83,11 +88,13 @@ func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUse
 	}
 
 	shares := make([]*store.IncomingShare, 0)
+
 	for _, share := range d.incomingShares {
 		if share.UserId == recipientUserId {
 			shares = append(shares, cloneIncomingShare(share))
 		}
 	}
+
 	return shares, nil
 }
 
@@ -114,8 +121,10 @@ func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shar
 		// Rollback: restore the old field values on the in-place pointer.
 		share.State = oldState
 		share.UpdatedAt = oldUpdatedAt
+
 		return err
 	}
+
 	return nil
 }
 
@@ -141,7 +150,9 @@ func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareId st
 		// Rollback: restore deleted entry and its provider index slot.
 		d.incomingShares[shareId] = share
 		d.providerIndex[key] = shareId
+
 		return err
 	}
+
 	return nil
 }

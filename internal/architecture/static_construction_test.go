@@ -11,6 +11,7 @@ import (
 func TestNoProductionDynamicServiceConstruction(t *testing.T) {
 	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
+
 	violations := callscan.FindProductionCallSites(t, root, productionRoots, "", callscan.ProductionCallSpec{
 		ImportSuffix: "/service",
 		FuncName:     "Get",
@@ -24,6 +25,7 @@ func TestNoProductionDynamicServiceConstruction(t *testing.T) {
 func TestNoProductionDynamicInterceptorConstruction(t *testing.T) {
 	root := modroot.ModuleRoot(t)
 	productionRoots := []string{"cmd", "internal", "tests/integration/harness"}
+
 	violations := callscan.FindProductionCallSites(t, root, productionRoots, "", callscan.ProductionCallSpec{
 		ImportSuffix: "/interceptors",
 		FuncName:     "Get",

@@ -39,12 +39,14 @@ func TestHandleCreate_RejectsReceiverWithoutTokenExchange(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != reason.APIStatus(reason.PeerCapabilityMismatch) {
 		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerCapabilityMismatch), w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 0 {
 		t.Fatalf("expected no remote POST, got %d", postCount.Load())
 	}
@@ -65,19 +67,23 @@ func TestHandleCreate_RejectsNilPeerOrigin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != reason.APIStatus(reason.PeerDiscoveryFailed) {
 		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerDiscoveryFailed), w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 0 {
 		t.Fatalf("expected no remote POST, got %d", postCount.Load())
 	}
+
 	all, err := repo.List(context.Background())
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(all) != 0 {
 		t.Fatalf("expected no stored shares, got %d", len(all))
 	}
@@ -101,25 +107,31 @@ func TestHandleCreate_AbsoluteWebDAVReceiveURI(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 1 {
 		t.Fatalf("expected one POST, got %d", postCount.Load())
 	}
+
 	if captured.Protocol.WebDAV == nil {
 		t.Fatal("expected webdav protocol in captured payload")
 	}
+
 	uri := captured.Protocol.WebDAV.URI
 	if !strings.HasPrefix(uri, srv.URL) {
 		t.Fatalf("expected absolute uri under receiver origin, got %q", uri)
 	}
+
 	if !strings.Contains(uri, "/webdav/ocm/") {
 		t.Fatalf("expected webdav path in uri, got %q", uri)
 	}
+
 	if !captured.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Fatal("expected must-exchange-token requirement on wire payload")
 	}
@@ -144,19 +156,23 @@ func TestHandleCreate_RejectsMismatchedAuthorityAbsoluteWebDAVReceiveURI(t *test
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != reason.APIStatus(reason.PeerDiscoveryFailed) {
 		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerDiscoveryFailed), w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 0 {
 		t.Fatalf("expected no remote POST, got %d", postCount.Load())
 	}
+
 	all, err := repo.List(context.Background())
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(all) != 0 {
 		t.Fatalf("expected no stored shares, got %d", len(all))
 	}
@@ -180,18 +196,22 @@ func TestHandleCreate_RelativeWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if captured.Protocol.WebDAV == nil {
 		t.Fatal("expected webdav protocol in captured payload")
 	}
+
 	if strings.Contains(captured.Protocol.WebDAV.URI, "://") {
 		t.Fatalf("expected bare uuid uri, got %q", captured.Protocol.WebDAV.URI)
 	}
+
 	if !captured.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Fatal("expected must-exchange-token requirement on wire payload")
 	}
@@ -211,18 +231,22 @@ func TestHandleCreate_AbsentWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if captured.Protocol.WebDAV == nil {
 		t.Fatal("expected webdav protocol in captured payload")
 	}
+
 	if strings.Contains(captured.Protocol.WebDAV.URI, "://") {
 		t.Fatalf("expected bare uuid uri, got %q", captured.Protocol.WebDAV.URI)
 	}
+
 	if !captured.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Fatal("expected must-exchange-token requirement on wire payload")
 	}
@@ -231,6 +255,7 @@ func TestHandleCreate_AbsentWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(all) != 1 {
 		t.Fatalf("expected one stored share, got %d", len(all))
 	}
@@ -242,20 +267,26 @@ func makeCapturingReceiverWithWebDAVReceive(
 	webdavRoot string,
 ) (*httptest.Server, *atomic.Int32, *spec.NewShareRequest) {
 	postCount := &atomic.Int32{}
-	var captured spec.NewShareRequest
-	var srv *httptest.Server
+
+	var (
+		captured spec.NewShareRequest
+		srv      *httptest.Server
+	)
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			tokenEndPoint := ""
 			if hasCapability(capabilities, "exchange-token") {
 				tokenEndPoint = srv.URL + "/ocm/token"
 			}
+
 			protocols := spec.Protocols{
 				"webdav": spec.StringProtocolRole(webdavRoot),
 			}
 			if receiveKind != "" {
 				protocols["webdav-receive"] = spec.WebDAVReceiveRole(receiveKind)
 			}
+
 			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
@@ -268,19 +299,27 @@ func makeCapturingReceiverWithWebDAVReceive(
 					Protocols:  protocols,
 				}},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(disc)
+
 			return
 		}
+
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
+
 			_ = json.NewDecoder(r.Body).Decode(&captured)
+
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"ok":true}`))
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
+
 	return srv, postCount, &captured
 }
 
@@ -291,19 +330,23 @@ func makeCapturingReceiverWithMismatchedEndpoint(
 	endpointURL string,
 ) (*httptest.Server, *atomic.Int32) {
 	postCount := &atomic.Int32{}
+
 	var srv *httptest.Server
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			tokenEndPoint := ""
 			if hasCapability(capabilities, "exchange-token") {
 				tokenEndPoint = srv.URL + "/ocm/token"
 			}
+
 			protocols := spec.Protocols{
 				"webdav": spec.StringProtocolRole(webdavRoot),
 			}
 			if receiveKind != "" {
 				protocols["webdav-receive"] = spec.WebDAVReceiveRole(receiveKind)
 			}
+
 			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
@@ -316,17 +359,23 @@ func makeCapturingReceiverWithMismatchedEndpoint(
 					Protocols:  protocols,
 				}},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(disc)
+
 			return
 		}
+
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"ok":true}`))
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
+
 	return srv, postCount
 }

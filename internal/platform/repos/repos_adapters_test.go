@@ -20,6 +20,7 @@ import (
 // not ErrShareNotFound.
 func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 	ctx := context.Background()
+
 	r := tsrepos.OpenJSON(t)
 	defer r.Close()
 
@@ -45,9 +46,11 @@ func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 	if err == nil {
 		t.Fatal("second Create: expected error, got nil")
 	}
+
 	if errors.Is(err, sharesinbox.ErrShareNotFound) {
 		t.Errorf("second Create: got ErrShareNotFound, want a duplicate error")
 	}
+
 	if !errors.Is(err, store.ErrAlreadyExists) {
 		t.Errorf("second Create: expected error wrapping store.ErrAlreadyExists, got %v", err)
 	}
@@ -58,6 +61,7 @@ func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 // not ErrInviteNotFound.
 func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
 	ctx := context.Background()
+
 	r := tsrepos.OpenJSON(t)
 	defer r.Close()
 
@@ -78,9 +82,11 @@ func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
 	if err == nil {
 		t.Fatal("second Create: expected error, got nil")
 	}
+
 	if errors.Is(err, invites.ErrInviteNotFound) {
 		t.Errorf("second Create: got ErrInviteNotFound, want a duplicate error")
 	}
+
 	if !errors.Is(err, store.ErrAlreadyExists) {
 		t.Errorf("second Create: expected error wrapping store.ErrAlreadyExists, got %v", err)
 	}
@@ -90,13 +96,15 @@ func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
 // Create -> GetByID round-trip through all durable backends (json, sqlite, mirror).
 func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 	ctx := context.Background()
+
 	for _, backend := range tsrepos.DurableBackends() {
-		backend := backend
+
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
 
 			sentAt := time.Unix(time.Now().Unix(), 0).UTC()
+
 			share := &sharesoutgoing.OutgoingShare{
 				ShareID:      "sat-" + backend,
 				ProviderID:   "satp-" + backend,
@@ -117,9 +125,11 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetByID: %v", err)
 			}
+
 			if got.SentAt == nil {
 				t.Fatal("SentAt round-trip: got nil, want non-nil")
 			}
+
 			if !got.SentAt.Equal(sentAt) {
 				t.Errorf("SentAt round-trip: got %v, want %v", got.SentAt, sentAt)
 			}
@@ -132,8 +142,9 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 // through durable backends.
 func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 	ctx := context.Background()
+
 	for _, backend := range tsrepos.DurableBackends() {
-		backend := backend
+
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
@@ -161,15 +172,19 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetByID: %v", err)
 			}
+
 			if got.ReceiverEndPoint != share.ReceiverEndPoint {
 				t.Errorf("ReceiverEndPoint: got %q, want %q", got.ReceiverEndPoint, share.ReceiverEndPoint)
 			}
+
 			if got.ShareType != share.ShareType {
 				t.Errorf("ShareType: got %q, want %q", got.ShareType, share.ShareType)
 			}
+
 			if got.Error != share.Error {
 				t.Errorf("Error: got %q, want %q", got.Error, share.Error)
 			}
+
 			if len(got.Requirements) != len(share.Requirements) || got.Requirements[0] != share.Requirements[0] {
 				t.Errorf("Requirements: got %v, want %v", got.Requirements, share.Requirements)
 			}
@@ -183,13 +198,15 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 // outgoing_share_adapter.go storeOutgoingShareToApp.
 func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing.T) {
 	ctx := context.Background()
+
 	for _, backend := range tsrepos.DurableBackends() {
-		backend := backend
+
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
 
 			shareID := "iso-sts-" + backend
+
 			share := &sharesoutgoing.OutgoingShare{
 				ShareID:      shareID,
 				ProviderID:   "iso-sts-p-" + backend,
@@ -210,6 +227,7 @@ func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing
 			if err != nil {
 				t.Fatalf("GetByID: %v", err)
 			}
+
 			if len(got.Requirements) != 1 || got.Requirements[0] != spec.RequirementMustExchangeToken {
 				t.Fatalf("Requirements before mutation: got %v, want [%s]", got.Requirements, spec.RequirementMustExchangeToken)
 			}
@@ -220,6 +238,7 @@ func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing
 			if err != nil {
 				t.Fatalf("reload GetByID: %v", err)
 			}
+
 			if len(reloaded.Requirements) != 1 || reloaded.Requirements[0] != spec.RequirementMustExchangeToken {
 				t.Errorf("Requirements after mutation: got %v, want [%s] (storage corrupted by caller)", reloaded.Requirements, spec.RequirementMustExchangeToken)
 			}
@@ -233,13 +252,15 @@ func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing
 // outgoing_share_adapter.go appOutgoingShareToStore.
 func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing.T) {
 	ctx := context.Background()
+
 	for _, backend := range tsrepos.DurableBackends() {
-		backend := backend
+
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
 
 			shareID := "iso-tss-" + backend
+
 			share := &sharesoutgoing.OutgoingShare{
 				ShareID:      shareID,
 				ProviderID:   "iso-tss-p-" + backend,
@@ -262,6 +283,7 @@ func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing
 			if err != nil {
 				t.Fatalf("reload GetByID: %v", err)
 			}
+
 			if len(reloaded.Requirements) != 1 || reloaded.Requirements[0] != spec.RequirementMustExchangeToken {
 				t.Errorf("Requirements after caller mutation: got %v, want [%s] (storage corrupted by caller)", reloaded.Requirements, spec.RequirementMustExchangeToken)
 			}
@@ -275,8 +297,9 @@ func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing
 func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	exp := int64(9999999)
+
 	for _, backend := range tsrepos.DurableBackends() {
-		backend := backend
+
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
@@ -309,23 +332,29 @@ func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetByIDForRecipientUserID: %v", err)
 			}
+
 			if got.Description != share.Description {
 				t.Errorf("Description: got %q, want %q", got.Description, share.Description)
 			}
+
 			if got.ShareType != share.ShareType {
 				t.Errorf("ShareType: got %q, want %q", got.ShareType, share.ShareType)
 			}
+
 			if got.OwnerDisplayName != share.OwnerDisplayName {
 				t.Errorf("OwnerDisplayName: got %q, want %q", got.OwnerDisplayName, share.OwnerDisplayName)
 			}
+
 			if got.SenderDisplayName != share.SenderDisplayName {
 				t.Errorf("SenderDisplayName: got %q, want %q", got.SenderDisplayName, share.SenderDisplayName)
 			}
+
 			if got.Expiration == nil {
 				t.Error("Expiration: got nil, want non-nil")
 			} else if *got.Expiration != exp {
 				t.Errorf("Expiration: got %d, want %d", *got.Expiration, exp)
 			}
+
 			if len(got.Requirements) != 1 || got.Requirements[0] != "must-exchange-token" {
 				t.Errorf("Requirements: got %v, want [must-exchange-token]", got.Requirements)
 			}

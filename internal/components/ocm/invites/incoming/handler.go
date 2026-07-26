@@ -45,6 +45,7 @@ func NewHandler(
 	if partyRepo == nil {
 		panic("incoming invite handler: partyRepo is required")
 	}
+
 	logger = logutil.NoopIfNil(logger)
 
 	return &Handler{
@@ -81,6 +82,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Warn("failed to read invite-accepted request body", "error", err)
 		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
+
 		return
 	}
 
@@ -88,6 +90,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	if err := json.Unmarshal(body, &rawFields); err != nil {
 		log.Warn("failed to parse invite-accepted request", "error", err)
 		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
+
 		return
 	}
 
@@ -95,14 +98,17 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		h.sendOCMError(w, http.StatusBadRequest, "EMAIL_REQUIRED")
 		return
 	}
+
 	if _, ok := rawFields["name"]; !ok {
 		h.sendOCMError(w, http.StatusBadRequest, "NAME_REQUIRED")
 		return
 	}
+
 	var req spec.InviteAcceptedRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		log.Warn("failed to decode invite-accepted request", "error", err)
 		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
+
 		return
 	}
 
@@ -110,35 +116,46 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		h.sendOCMError(w, http.StatusBadRequest, "RECIPIENT_PROVIDER_REQUIRED")
 		return
 	}
+
 	if strings.Contains(req.RecipientProvider, "://") {
 		h.sendOCMError(w, http.StatusBadRequest, "INVALID_RECIPIENT_PROVIDER")
 		return
 	}
+
 	if req.Token == "" {
 		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_REQUIRED")
 		return
 	}
+
 	if req.UserID == "" {
 		h.sendOCMError(w, http.StatusBadRequest, "USERID_REQUIRED")
 		return
 	}
+
 	ctx := r.Context()
+
 	invite, err := h.outgoingRepo.GetByToken(ctx, req.Token)
 	if err != nil {
 		log.Warn("invite-accepted for unknown token", "recipient_provider", req.RecipientProvider)
 		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_INVALID")
+
 		return
 	}
+
 	if !invite.ExpiresAt.IsZero() && time.Now().After(invite.ExpiresAt) {
 		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_EXPIRED")
 		return
 	}
+
 	if invite.Status == invites.InviteStatusAccepted {
 		log.Info("duplicate invite-accepted", "recipient_provider", req.RecipientProvider)
 		h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
+
 		return
 	}
+
 	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
+
 	normalizedRecipientProvider := req.RecipientProvider
 	if peerIdentity != nil && peerIdentity.Authenticated {
 		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
@@ -146,17 +163,21 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 			log.Warn("failed to normalize recipient provider",
 				"recipient_provider", req.RecipientProvider, "error", err)
 			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+
 			return
 		}
+
 		normalizedRecipientProvider = normalizedRecipient
 		if peerIdentity.AuthorityForCompare != normalizedRecipient {
 			log.Warn("invite-accepted sender mismatch",
 				"signature_authority", peerIdentity.AuthorityForCompare,
 				"recipient_provider", req.RecipientProvider)
 			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+
 			return
 		}
 	}
+
 	if h.policyEngine != nil {
 		decision := h.policyEngine.Evaluate(ctx, normalizedRecipientProvider, peerIdentity != nil && peerIdentity.Authenticated)
 		if !decision.Allowed {
@@ -174,6 +195,7 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	if err := h.outgoingRepo.UpdateStatus(ctx, invite.ID, invites.InviteStatusAccepted, req.RecipientProvider); err != nil {
 		log.Error("failed to update invite status", "id", invite.ID, "error", err)
 		h.sendOCMError(w, http.StatusInternalServerError, "UPDATE_FAILED")
+
 		return
 	}
 
@@ -199,6 +221,7 @@ func (h *Handler) buildInviteAcceptedResponse(
 	if err != nil {
 		log.Error("failed to look up local inviting user",
 			"created_by_user_id", invite.CreatedByUserID, "error", err)
+
 		return spec.InviteAcceptedResponse{}, false
 	}
 

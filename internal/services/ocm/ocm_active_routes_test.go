@@ -19,12 +19,14 @@ func activeOCMPostRouteRows(t *testing.T) []service.RouteRow {
 
 	cfg := config.DevConfig()
 	rows := service.DerivedRouteInventory(service.RouteOptsFromConfig(cfg))
+
 	out := make([]service.RouteRow, 0, len(rows))
 	for _, row := range rows {
 		if row.Service == "ocm" && row.Method == http.MethodPost {
 			out = append(out, row)
 		}
 	}
+
 	return out
 }
 
@@ -32,12 +34,14 @@ func expectedOCMPostPaths(t *testing.T) []string {
 	t.Helper()
 
 	tokenPath := ""
+
 	for _, row := range activeOCMPostRouteRows(t) {
 		if row.ID == service.RouteIDOCMToken {
 			tokenPath = row.FullPath
 			break
 		}
 	}
+
 	if tokenPath == "" {
 		t.Fatal("configured token route is missing")
 	}
@@ -48,6 +52,7 @@ func expectedOCMPostPaths(t *testing.T) []string {
 		tokenPath,
 	}
 	slices.Sort(paths)
+
 	return paths
 }
 
@@ -56,6 +61,7 @@ func TestActiveOCMRoutes(t *testing.T) {
 	for _, row := range activeOCMPostRouteRows(t) {
 		got = append(got, row.FullPath)
 	}
+
 	slices.Sort(got)
 
 	want := expectedOCMPostPaths(t)
@@ -66,6 +72,7 @@ func TestActiveOCMRoutes(t *testing.T) {
 
 func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -75,6 +82,7 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 		t.Run(mountedPath, func(t *testing.T) {
 			contentType := "application/json"
 			body := []byte(`{"shareWith":"user@remote.example","name":"test","providerId":"provider-123","owner":"owner@local.example","sender":"sender@remote.example","shareType":"user","resourceType":"file","protocol":{"name":"webdav"}}`)
+
 			switch mountedPath {
 			case "/ocm" + RouteInviteAccepted:
 				body = []byte(`{"recipientProvider":"remote.example","token":"invite-token","userID":"user-1","email":"user@remote.example","name":"Remote User"}`)
@@ -90,6 +98,7 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 				bytes.NewReader(body),
 			)
 			req.Header.Set("Content-Type", contentType)
+
 			w := httptest.NewRecorder()
 			svc.Handler().ServeHTTP(w, req)
 
@@ -102,6 +111,7 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 
 func TestOCMRequestBodyLimit(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	svc, err := New(setupTestInputsWithOutgoingShareRepo(t), map[string]any{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -114,12 +124,14 @@ func TestOCMRequestBodyLimit(t *testing.T) {
 		bytes.NewReader(body),
 	)
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
 	if w.Code == http.StatusUnauthorized {
 		t.Fatalf("body over 1 MiB returned %d: signature verification happened before required body-limit rejection", w.Code)
 	}
+
 	if w.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("body over 1 MiB returned %d: %s", w.Code, w.Body.String())
 	}

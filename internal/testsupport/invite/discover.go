@@ -26,6 +26,7 @@ func DiscoverProvider(client *http.Client, auxBaseURL, providerBaseURL string) (
 	}
 
 	discoverURL := auxBaseURL + "/ocm-aux/discover?base=" + url.QueryEscape(providerBaseURL)
+
 	resp, err := client.Get(discoverURL)
 	if err != nil {
 		return nil, 0, fmt.Errorf("GET discover: %w", err)
@@ -36,6 +37,7 @@ func DiscoverProvider(client *http.Client, auxBaseURL, providerBaseURL string) (
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("decode discover response: %w", err)
 	}
+
 	return &body, resp.StatusCode, nil
 }
 
@@ -45,6 +47,7 @@ func BuildWAYFRedirectURL(inviteAcceptDialog, token, providerDomain string) stri
 	if strings.Contains(inviteAcceptDialog, "?") {
 		sep = "&"
 	}
+
 	return inviteAcceptDialog + sep +
 		"token=" + url.QueryEscape(token) +
 		"&providerDomain=" + url.QueryEscape(providerDomain)

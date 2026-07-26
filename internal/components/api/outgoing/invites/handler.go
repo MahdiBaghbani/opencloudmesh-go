@@ -36,6 +36,7 @@ func NewHandler(
 	logger *slog.Logger,
 ) *Handler {
 	logger = logutil.NoopIfNil(logger)
+
 	return &Handler{
 		outgoingRepo:  outgoingRepo,
 		localProvider: localProvider,
@@ -71,6 +72,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("failed to generate invite token", "error", err)
 		api.WriteInternalError(w, "failed to generate token")
+
 		return
 	}
 
@@ -89,6 +91,7 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	if err := h.outgoingRepo.Create(ctx, invite); err != nil {
 		h.logger.Error("failed to create invite", "error", err)
 		api.WriteInternalError(w, "failed to create invite")
+
 		return
 	}
 
@@ -109,5 +112,6 @@ func generateToken() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
+
 	return hex.EncodeToString(b), nil
 }

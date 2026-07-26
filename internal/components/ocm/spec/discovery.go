@@ -40,6 +40,7 @@ func (d *Discovery) HasCapability(cap string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -49,6 +50,7 @@ func (d *Discovery) HasCriteria(criterion string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -58,6 +60,7 @@ func (d *Discovery) RequiresHTTPSig() bool {
 	if d == nil {
 		return false
 	}
+
 	return d.HasCriteria(CriteriaMustUseHTTPSig)
 }
 
@@ -66,6 +69,7 @@ func (d *Discovery) IsHTTPSigCapable() bool {
 	if d == nil {
 		return false
 	}
+
 	return d.HasCapability(CapabilityHTTPSig)
 }
 
@@ -92,6 +96,7 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 				break
 			}
 		}
+
 		paths.TokenEndPoint = discoveryPathFromField(inv, "tokenEndPoint", id.Origin)
 	}
 
@@ -114,6 +119,7 @@ func discoveryPathFromField(rows []service.RouteRow, field, origin string) strin
 			}
 		}
 	}
+
 	return ""
 }
 
@@ -123,6 +129,7 @@ func rowByID(rows []service.RouteRow, id string) (service.RouteRow, bool) {
 			return row, true
 		}
 	}
+
 	return service.RouteRow{}, false
 }
 
@@ -131,10 +138,12 @@ func absolutePathFromHostRoot(origin, hostRootPath string) string {
 	if trimmed == "" {
 		return origin
 	}
+
 	joined, err := url.JoinPath(origin, trimmed)
 	if err != nil {
 		return origin + hostRootPath
 	}
+
 	return joined
 }
 
@@ -143,9 +152,11 @@ func webdavRootFromWildcard(fullPath string) string {
 	if root == "" {
 		return "/"
 	}
+
 	if !strings.HasSuffix(root, "/") {
 		root += "/"
 	}
+
 	return root
 }
 
@@ -154,17 +165,21 @@ func ResolveInviteAcceptDialog(baseURL, dialog string) string {
 	if dialog == "" {
 		return ""
 	}
+
 	if strings.HasPrefix(dialog, "http://") || strings.HasPrefix(dialog, "https://") {
 		return dialog
 	}
+
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return dialog
 	}
+
 	ref, err := url.Parse(dialog)
 	if err != nil {
 		return dialog
 	}
+
 	return base.ResolveReference(ref).String()
 }
 
@@ -186,6 +201,7 @@ func (d *Discovery) GetWebDAVPath() string {
 			}
 		}
 	}
+
 	return ""
 }
 
@@ -194,11 +210,13 @@ func (d *Discovery) WebDAVReceiveURIKind() WebDAVReceiveURIKind {
 	if d == nil {
 		return ""
 	}
+
 	for _, rt := range d.ResourceTypes {
 		if wr, ok := rt.Protocols.WebDAVReceive(); ok {
 			return wr.URI
 		}
 	}
+
 	return ""
 }
 

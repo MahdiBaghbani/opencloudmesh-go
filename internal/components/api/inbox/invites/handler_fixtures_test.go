@@ -39,6 +39,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 		if user == nil {
 			return nil, fmt.Errorf("no authenticated user in context")
 		}
+
 		return user, nil
 	}
 }
@@ -75,11 +76,13 @@ func newTestRouterWithDeps(
 		r.Post("/{inviteId}/accept", h.HandleAccept)
 		r.Post("/{inviteId}/decline", h.HandleDecline)
 	})
+
 	return r
 }
 
 func newTestOutboundClients(t *testing.T) (httpclient.HTTPClient, *discovery.Client) {
 	t.Helper()
+
 	outboundCfg := &config.OutboundHTTPConfig{
 		SSRF:               config.SSRFConfig{Mode: "off"},
 		InsecureSkipVerify: true,
@@ -87,6 +90,7 @@ func newTestOutboundClients(t *testing.T) (httpclient.HTTPClient, *discovery.Cli
 	}
 	requestClient := httpclient.NewContextClient(httpclient.New(outboundCfg, nil))
 	discoveryClient := discovery.NewClient(httpclient.New(outboundCfg, nil), nil)
+
 	return requestClient, discoveryClient
 }
 
@@ -95,7 +99,9 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 
 	inviteAcceptedCalls := &atomic.Int32{}
 	sawSignature := &atomic.Int32{}
+
 	var srv *httptest.Server
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/ocm":
@@ -109,9 +115,11 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 			})
 		case "/ocm/invite-accepted":
 			inviteAcceptedCalls.Add(1)
+
 			if r.Header.Get("Signature") != "" {
 				sawSignature.Store(1)
 			}
+
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		default:
@@ -130,6 +138,7 @@ func createInviteForUser(repo *invitesinbox.MemoryIncomingInviteRepo, recipientU
 		Status:          invites.InviteStatusPending,
 	}
 	repo.Create(context.Background(), invite)
+
 	return invite
 }
 

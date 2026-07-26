@@ -42,6 +42,7 @@ func RegisteredBuildKeys() []service.BuildKey {
 	for k := range coreServiceBuilders {
 		keys = append(keys, k)
 	}
+
 	return keys
 }
 
@@ -50,6 +51,7 @@ func CoreServiceNames() []string {
 	for i, d := range service.Descriptors() {
 		names[i] = d.Name
 	}
+
 	return names
 }
 
@@ -57,30 +59,37 @@ func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[st
 	if d == nil {
 		return nil, server.ErrMissingServerDeps
 	}
+
 	if d.RealIP == nil {
 		return nil, server.ErrMissingRealIP
 	}
 
 	descs := service.Descriptors()
+
 	services := make(map[string]service.Service, len(descs))
 	for _, desc := range descs {
 		if desc.Build == "" {
 			return nil, fmt.Errorf("descriptor %q has no build key", desc.Name)
 		}
+
 		build, ok := coreServiceBuilders[desc.Build]
 		if !ok {
 			return nil, fmt.Errorf("no builder registered for service %q (build key %q)", desc.Name, desc.Build)
 		}
+
 		svcCfg := cfg.BuildServiceConfig(desc.Name)
 		if svcCfg == nil {
 			svcCfg = make(map[string]any)
 		}
+
 		svc, err := build(cfg, svcCfg, logger, d)
 		if err != nil {
 			return nil, fmt.Errorf("create service %q: %w", desc.Name, err)
 		}
+
 		services[desc.Name] = svc
 	}
+
 	return services, nil
 }
 
@@ -104,7 +113,9 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	if tokenPath == "" {
 		tokenPath = "token"
 	}
+
 	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping, cfg.OCM.CompatibilityScope)
+
 	return ocm.New(ocm.Inputs{
 		IncomingShareRepo:   d.IncomingShareRepo,
 		OutgoingShareRepo:   d.OutgoingShareRepo,
@@ -125,6 +136,7 @@ func buildOCMAuxService(cfg *config.Config, svcCfg map[string]any, log *slog.Log
 	if cfg.HTTP.Interceptors != nil {
 		profiles = cfg.HTTP.Interceptors
 	}
+
 	return ocmaux.New(ocmaux.Inputs{
 		TrustGroupMgr:       d.TrustGroupMgr,
 		DiscoveryClient:     d.DiscoveryClient,
@@ -145,17 +157,20 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	// discovery, so the API service token endpoint stays in lock-step with the
 	// published discovery document.
 	var rawOCMProvider map[string]any
+
 	if wellknownSvcCfg := cfg.BuildServiceConfig("wellknown"); wellknownSvcCfg != nil {
 		if om, ok := wellknownSvcCfg["ocmprovider"].(map[string]any); ok {
 			rawOCMProvider = om
 		}
 	}
+
 	var providerCfg resolve.ProviderConfig
 	if rawOCMProvider != nil {
 		if err := svccfg.Decode(rawOCMProvider, &providerCfg); err != nil {
 			return nil, fmt.Errorf("api: decode ocm provider config: %w", err)
 		}
 	}
+
 	resolved := resolve.Resolve(&providerCfg, rawOCMProvider, resolveInputs(cfg, d))
 	localTokenEndpoint := resolved.Params.TokenEndPoint
 

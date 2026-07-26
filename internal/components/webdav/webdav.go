@@ -12,11 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/webdav"
+
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
-	"golang.org/x/net/webdav"
 )
 
 // Handler provides WebDAV access to shared files.
@@ -29,6 +30,7 @@ type Handler struct {
 // NewHandler builds a WebDAV handler.
 func NewHandler(outgoingRepo sharesoutgoing.OutgoingShareRepo, tokenStore token.TokenStore, logger *slog.Logger) *Handler {
 	logger = logutil.NoopIfNil(logger)
+
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		tokenStore:   tokenStore,
@@ -42,18 +44,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if webdavID == "" {
 		h.logger.Debug("WebDAV request missing webdav_id", "path", r.URL.Path)
 		http.Error(w, "webdavId required", http.StatusBadRequest)
+
 		return
 	}
 
 	if !isValidWebDAVID(webdavID) {
 		h.logger.Debug("WebDAV request with invalid webdav_id", "webdav_id", webdavID)
 		http.Error(w, "invalid webdavId", http.StatusBadRequest)
+
 		return
 	}
 
 	if isWriteMethod(r.Method) {
 		h.logger.Debug("WebDAV write method rejected", "method", r.Method, "webdav_id", webdavID)
 		http.Error(w, "write operations not supported", http.StatusNotImplemented)
+
 		return
 	}
 
@@ -62,6 +67,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Debug("WebDAV request missing authorization", "webdav_id", webdavID)
 		w.Header().Set("WWW-Authenticate", `Bearer realm="OCM WebDAV"`)
 		http.Error(w, "authorization required", http.StatusUnauthorized)
+
 		return
 	}
 
@@ -71,6 +77,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Debug("WebDAV share not found", "webdav_id", webdavID)
 		http.Error(w, "not found", http.StatusNotFound)
+
 		return
 	}
 
@@ -79,6 +86,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Debug("WebDAV invalid credentials", "webdav_id", webdavID)
 		w.Header().Set("WWW-Authenticate", `Bearer realm="OCM WebDAV"`)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+
 		return
 	}
 
@@ -93,6 +101,7 @@ func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.
 	if h.tokenStore == nil {
 		return false
 	}
+
 	issuedToken, err := h.tokenStore.Get(ctx, token)
 	if err == nil && issuedToken != nil && issuedToken.ShareID == share.ShareID {
 		return true
@@ -114,6 +123,7 @@ func shareRequires(reqs []string, req string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -125,6 +135,7 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, share *share
 	if err != nil {
 		h.logger.Error("WebDAV file stat failed", "path", localPath, "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 
@@ -185,6 +196,7 @@ func isValidWebDAVID(id string) bool {
 		if i == 8 || i == 13 || i == 18 || i == 23 {
 			continue
 		}
+
 		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
 			return false
 		}
@@ -199,6 +211,7 @@ func isWriteMethod(method string) bool {
 	case http.MethodPut, http.MethodDelete, "MKCOL", "MOVE", "COPY", "PROPPATCH":
 		return true
 	}
+
 	return false
 }
 
@@ -267,9 +280,11 @@ func (fs *singleFileFS) Stat(ctx context.Context, name string) (os.FileInfo, err
 	if name == "" {
 		return &virtualDirInfo{name: "/"}, nil
 	}
+
 	if name == filepath.Base(fs.path) {
 		return fs.info, nil
 	}
+
 	return nil, os.ErrNotExist
 }
 
@@ -290,12 +305,14 @@ func (d *virtualDir) Readdir(count int) ([]os.FileInfo, error) {
 		if count <= 0 {
 			return nil, nil
 		}
+
 		return nil, io.EOF
 	}
 
 	if count <= 0 {
 		files := d.files[d.offset:]
 		d.offset = len(d.files)
+
 		return files, nil
 	}
 
@@ -303,8 +320,10 @@ func (d *virtualDir) Readdir(count int) ([]os.FileInfo, error) {
 	if end > len(d.files) {
 		end = len(d.files)
 	}
+
 	files := d.files[d.offset:end]
 	d.offset = end
+
 	return files, nil
 }
 

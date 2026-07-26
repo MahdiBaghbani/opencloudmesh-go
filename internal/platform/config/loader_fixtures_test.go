@@ -11,9 +11,11 @@ import (
 // boilerplate shared across loader tests.
 func writeTempConfig(t *testing.T, toml string) string {
 	t.Helper()
+
 	configPath := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.WriteFile(configPath, []byte(toml), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
+
 	return configPath
 }

@@ -19,6 +19,7 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 			http.Redirect(w, r, "/target", http.StatusFound)
 			return
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -26,15 +27,17 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 	client := outboundtestutil.NewPermissive(nil)
 
 	// Signed request should fail on redirect
-	req, _ := http.NewRequest("GET", server.URL+"/redirect", nil)
-	_, err := client.DoSigned(req)
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/redirect", nil)
 
+	_, err := client.DoSigned(req)
 	if err == nil {
 		t.Fatal("expected error for signed request with redirect")
 	}
+
 	if !httpclient.IsRedirectError(err) {
 		t.Errorf("expected redirect error, got: %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "signed requests cannot follow redirects") {
 		t.Errorf("expected 'signed requests cannot follow redirects' in error, got: %v", err)
 	}
@@ -42,17 +45,22 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 
 func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
 	requestCount := 0
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
+
 		if r.URL.Path == "/start" {
 			http.Redirect(w, r, "/target", http.StatusFound)
 			return
 		}
+
 		if r.URL.Path == "/target" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("reached target"))
+
 			return
 		}
+
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
@@ -68,6 +76,7 @@ func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if requestCount != 2 {
 		t.Errorf("expected 2 requests (original + redirect), got %d", requestCount)
 	}
@@ -86,6 +95,7 @@ func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for too many redirects")
 	}
+
 	if !strings.Contains(err.Error(), "too many redirects") {
 		t.Errorf("expected 'too many redirects' in error, got: %v", err)
 	}
@@ -109,6 +119,7 @@ func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for cross-host redirect")
 	}
+
 	if !strings.Contains(err.Error(), "different host") {
 		t.Errorf("expected 'different host' in error, got: %v", err)
 	}
@@ -130,10 +141,12 @@ func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 
 	// Trust the TLS source's self-signed certificate.
 	serverCert := tlsSource.TLS.Certificates[0]
+
 	x509Cert, err := x509.ParseCertificate(serverCert.Certificate[0])
 	if err != nil {
 		t.Fatalf("parse TLS cert: %v", err)
 	}
+
 	rootCAs := x509.NewCertPool()
 	rootCAs.AddCert(x509Cert)
 
@@ -143,9 +156,11 @@ func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for HTTPS->HTTP redirect downgrade")
 	}
+
 	if !httpclient.IsRedirectError(err) {
 		t.Errorf("expected redirect error, got: %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "redirect from https to http blocked") {
 		t.Errorf("expected downgrade error message, got: %v", err)
 	}
@@ -159,6 +174,7 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 			http.Redirect(w, r, "/target", http.StatusFound)
 			return
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -175,7 +191,7 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", server.URL+"/redirect", nil)
+			req, _ := http.NewRequest(http.MethodGet, server.URL+"/redirect", nil)
 			req.Header.Set(tt.header, "sig=()")
 
 			// Use Do() not DoSigned() - central header detection should still catch it
@@ -183,9 +199,11 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error for signed request with redirect")
 			}
+
 			if !httpclient.IsRedirectError(err) {
 				t.Errorf("expected redirect error, got: %v", err)
 			}
+
 			if !strings.Contains(err.Error(), "signed requests cannot follow redirects") {
 				t.Errorf("expected 'signed requests cannot follow redirects', got: %v", err)
 			}
@@ -197,18 +215,23 @@ func TestRedirectSameHostSemantics(t *testing.T) {
 	// Test same-host redirect checks use relative URLs so the server host is preserved
 	// This tests that relative redirects work correctly and that port normalization applies
 	requestCount := 0
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
+
 		if r.URL.Path == "/start" {
 			// Relative redirect - same host by definition
 			http.Redirect(w, r, "/target", http.StatusFound)
 			return
 		}
+
 		if r.URL.Path == "/target" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("reached"))
+
 			return
 		}
+
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
@@ -221,9 +244,11 @@ func TestRedirectSameHostSemantics(t *testing.T) {
 		t.Fatalf("relative redirect should work: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if requestCount != 2 {
 		t.Errorf("expected 2 requests (start + redirect), got %d", requestCount)
 	}
@@ -248,6 +273,7 @@ func TestRedirectCrossHostBlocked(t *testing.T) {
 	if err == nil {
 		t.Fatal("cross-host redirect should be blocked")
 	}
+
 	if !strings.Contains(err.Error(), "different host") {
 		t.Errorf("expected 'different host' error, got: %v", err)
 	}
@@ -261,12 +287,15 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 			// Build absolute URL with explicit port (should still be same-host)
 			targetURL := "http://" + r.Host + "/target"
 			http.Redirect(w, r, targetURL, http.StatusFound)
+
 			return
 		}
+
 		if r.URL.Path == "/target" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
@@ -278,6 +307,7 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 		t.Fatalf("same-host redirect with explicit port should work: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
@@ -298,15 +328,17 @@ func TestClient_SignedRedirectRejectedWithProxy(t *testing.T) {
 	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, nil)
 
-	req, _ := http.NewRequest("GET", "http://external.example.invalid/resource", nil)
-	_, err := c.DoSigned(req)
+	req, _ := http.NewRequest(http.MethodGet, "http://external.example.invalid/resource", nil)
 
+	_, err := c.DoSigned(req)
 	if err == nil {
 		t.Fatal("expected error for signed request receiving redirect via proxy")
 	}
+
 	if !httpclient.IsRedirectError(err) {
 		t.Errorf("expected redirect error, got: %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "signed requests cannot follow redirects") {
 		t.Errorf("expected 'signed requests cannot follow redirects', got: %v", err)
 	}

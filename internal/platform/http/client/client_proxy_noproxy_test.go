@@ -55,6 +55,7 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 				t.Errorf("expected SSRF error for %s even with NO_PROXY bypass", target)
 				return
 			}
+
 			if !httpclient.IsSSRFError(err) {
 				t.Errorf("expected SSRF error for %s, got: %v", target, err)
 			}
@@ -76,15 +77,18 @@ func findNonLoopbackIPv4() net.IP {
 		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
 			continue
 		}
+
 		addrs, _ := iface.Addrs()
 		for _, addr := range addrs {
 			var ip net.IP
+
 			switch v := addr.(type) {
 			case *net.IPNet:
 				ip = v.IP
 			case *net.IPAddr:
 				ip = v.IP
 			}
+
 			if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.To4() == nil {
 				continue
 			}
@@ -95,6 +99,7 @@ func findNonLoopbackIPv4() net.IP {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -133,11 +138,13 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen on non-loopback IP %s: %v", localIP, err)
 	}
+
 	destSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("direct"))
 	}))
 	destSrv.Listener = destListener
+
 	destSrv.Start()
 	defer destSrv.Close()
 
@@ -170,6 +177,7 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if proxyHit.Load() {
 		t.Error("proxy was contacted despite NO_PROXY matching the destination IP")
 	}

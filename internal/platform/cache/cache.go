@@ -31,6 +31,7 @@ type DriverFactory func(config map[string]any) CacheWithCounter
 func RegisterDriver(name string, factory DriverFactory) {
 	driversMu.Lock()
 	defer driversMu.Unlock()
+
 	drivers[name] = factory
 }
 
@@ -51,7 +52,9 @@ func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounte
 	}
 
 	driversMu.RLock()
+
 	factory, ok := drivers[driver]
+
 	driversMu.RUnlock()
 
 	if !ok {
@@ -60,6 +63,7 @@ func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounte
 
 	// Extract driver-specific config (may be nil)
 	var driverConfig map[string]any
+
 	if driversConfig != nil {
 		if cfg, ok := driversConfig[driver]; ok {
 			if cfgMap, ok := cfg.(map[string]any); ok {
@@ -74,7 +78,9 @@ func NewFromConfig(driver string, driversConfig map[string]any) (CacheWithCounte
 // newByDriver returns a cache for the named driver, panicking if not found.
 func newByDriver(name string, config map[string]any) CacheWithCounter {
 	driversMu.RLock()
+
 	factory, ok := drivers[name]
+
 	driversMu.RUnlock()
 
 	if !ok {

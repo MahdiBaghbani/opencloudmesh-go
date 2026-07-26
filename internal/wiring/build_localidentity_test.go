@@ -20,6 +20,7 @@ func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
+
 	if result.Deps == nil {
 		t.Fatal("Build must return Deps")
 	}
@@ -28,6 +29,7 @@ func TestBuild_LocalIdentityMatchesDerivedSSOT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	if result.Deps.LocalIdentity != want {
 		t.Errorf("Deps.LocalIdentity = %+v, want %+v", result.Deps.LocalIdentity, want)
 	}
@@ -48,9 +50,11 @@ func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
+
 	if result.Deps == nil {
 		t.Fatal("Build must return Deps")
 	}
+
 	if result.Deps.KeyManager == nil {
 		t.Fatal("KeyManager must be non-nil when crypto is enabled and SkipCrypto=false")
 	}
@@ -74,6 +78,7 @@ func TestBuild_KeyIDUsesLocalIdentityOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	if result.Deps.LocalIdentity != want {
 		t.Errorf("Deps.LocalIdentity = %+v, want %+v", result.Deps.LocalIdentity, want)
 	}

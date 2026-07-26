@@ -19,8 +19,9 @@ import (
 // work after reopen. Memory is intentionally excluded (no durable restart).
 func TestDurableRepos_InviteRestart(t *testing.T) {
 	ctx := context.Background()
+
 	for _, backend := range tsrepos.DurableBackends() {
-		backend := backend
+
 		t.Run(backend, func(t *testing.T) {
 			dir := t.TempDir()
 			cfg := config.PersistenceConfig{
@@ -35,6 +36,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 			}
 
 			now := time.Unix(time.Now().Unix(), 0).UTC()
+
 			outInvite := &invitesoutgoing.OutgoingInvite{
 				ID:              "restart-out-" + backend,
 				Token:           "restart-out-token-" + backend,
@@ -78,6 +80,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("OutgoingInvites.GetByID after restart: %v", err)
 			}
+
 			if gotOutByID.Token != outInvite.Token {
 				t.Errorf(
 					"outgoing invite token mismatch: expected %q, got %q",
@@ -90,6 +93,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("OutgoingInvites.GetByToken after restart: %v", err)
 			}
+
 			if gotOut.ID != outInvite.ID {
 				t.Errorf(
 					"outgoing invite ID mismatch: expected %q, got %q",
@@ -104,6 +108,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("IncomingInvites.GetByIDForRecipientUserID after restart: %v", err)
 			}
+
 			if gotIn.Token != inInvite.Token {
 				t.Errorf(
 					"incoming invite token mismatch: expected %q, got %q",
@@ -111,6 +116,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 					gotIn.Token,
 				)
 			}
+
 			if gotIn.RecipientUserID != inInvite.RecipientUserID {
 				t.Errorf(
 					"incoming invite recipient mismatch: expected %q, got %q",
@@ -125,6 +131,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("IncomingInvites.GetByTokenForRecipientUserID after restart: %v", err)
 			}
+
 			if gotInByToken.ID != inInvite.ID {
 				t.Errorf(
 					"incoming invite token index mismatch: expected %q, got %q",

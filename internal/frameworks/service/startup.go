@@ -15,6 +15,7 @@ func ValidatePreBootstrap(cfg *config.Config) error {
 		for name := range cfg.HTTP.Services {
 			names = append(names, name)
 		}
+
 		if unknown, allowed := CheckServiceNames(names); len(unknown) > 0 {
 			return fmt.Errorf(
 				"unknown service names in [http.services]: %s (allowed: %s)",
@@ -23,9 +24,11 @@ func ValidatePreBootstrap(cfg *config.Config) error {
 			)
 		}
 	}
+
 	if err := config.ValidateStrictModeStartupGuardrails(cfg); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -40,14 +43,17 @@ func ValidateBuiltServices(services map[string]Service) error {
 			len(descriptors),
 		)
 	}
+
 	for _, want := range descriptors {
 		svc, ok := services[want.Name]
 		if !ok {
 			return fmt.Errorf("missing built service %q", want.Name)
 		}
+
 		if svc == nil {
 			return fmt.Errorf("built service %q is nil", want.Name)
 		}
+
 		if got := svc.Prefix(); got != want.Prefix {
 			return fmt.Errorf(
 				"service %q prefix = %q, want descriptor prefix %q",
@@ -57,10 +63,12 @@ func ValidateBuiltServices(services map[string]Service) error {
 			)
 		}
 	}
+
 	for name := range services {
 		if _, ok := DescriptorByName(name); !ok {
 			return fmt.Errorf("built service %q has no descriptor", name)
 		}
 	}
+
 	return nil
 }

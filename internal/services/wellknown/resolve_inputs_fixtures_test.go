@@ -11,10 +11,12 @@ import (
 
 func handlerResolveInputs(t *testing.T, origin, basePath string) resolve.ResolveInputs {
 	t.Helper()
+
 	opts := service.RouteOpts{ExternalBasePath: basePath}
 	if basePath == "" {
 		opts = service.DefaultRouteOpts()
 	}
+
 	return resolve.ResolveInputs{
 		LocalIdentity: tslocalid.MustTestIdentity(t, origin, basePath),
 		RouteOpts:     opts,

@@ -2,6 +2,7 @@ package identity_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,9 +18,11 @@ func TestMemorySessionRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
+
 	if session.Token == "" {
 		t.Error("token should be assigned")
 	}
+
 	if session.UserID != "user-123" {
 		t.Errorf("expected userID 'user-123', got %q", session.UserID)
 	}
@@ -29,6 +32,7 @@ func TestMemorySessionRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
+
 	if got.UserID != "user-123" {
 		t.Errorf("expected userID 'user-123', got %q", got.UserID)
 	}
@@ -40,7 +44,7 @@ func TestMemorySessionRepo_CRUD(t *testing.T) {
 
 	// Get should fail after delete
 	_, err = repo.Get(ctx, session.Token)
-	if err != identity.ErrSessionNotFound {
+	if !errors.Is(err, identity.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound, got %v", err)
 	}
 }
@@ -60,7 +64,7 @@ func TestMemorySessionRepo_ExpiredSession(t *testing.T) {
 
 	// Get should return expired error
 	_, err = repo.Get(ctx, session.Token)
-	if err != identity.ErrSessionExpired {
+	if !errors.Is(err, identity.ErrSessionExpired) {
 		t.Errorf("expected ErrSessionExpired, got %v", err)
 	}
 }
@@ -80,11 +84,12 @@ func TestMemorySessionRepo_DeleteByUser(t *testing.T) {
 
 	// Both sessions should be gone
 	_, err := repo.Get(ctx, s1.Token)
-	if err != identity.ErrSessionNotFound {
+	if !errors.Is(err, identity.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound for s1, got %v", err)
 	}
+
 	_, err = repo.Get(ctx, s2.Token)
-	if err != identity.ErrSessionNotFound {
+	if !errors.Is(err, identity.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound for s2, got %v", err)
 	}
 }
@@ -105,6 +110,7 @@ func TestMemorySessionRepo_DeleteExpired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteExpired failed: %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("expected 1 expired session, got %d", count)
 	}

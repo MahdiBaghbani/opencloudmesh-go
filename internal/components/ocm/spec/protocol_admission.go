@@ -42,6 +42,7 @@ func IsSupportedResourceType(resourceType string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -56,6 +57,7 @@ func ValidateProtocolArms(raw map[string]json.RawMessage) error {
 			return errUnsupportedProtocolArm
 		}
 	}
+
 	return nil
 }
 
@@ -68,15 +70,19 @@ func ValidateProtocolShape(p Protocol) *ValidationError {
 	if p.Name == "" {
 		return &ValidationError{Name: "protocol.name", Message: "REQUIRED"}
 	}
+
 	if p.Name != "multi" && p.Name != "webdav" {
 		return &ValidationError{Name: "protocol.name", Message: "UNSUPPORTED"}
 	}
+
 	if p.Name == "webdav" && p.WebDAV == nil {
 		return &ValidationError{Name: "protocol.webdav", Message: "REQUIRED"}
 	}
+
 	if p.Name == "multi" && p.WebDAV == nil && p.Webapp == nil {
 		return &ValidationError{Name: "protocol", Message: "REQUIRED"}
 	}
+
 	return nil
 }
 
@@ -89,12 +95,15 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 	if p == nil {
 		return errs
 	}
+
 	if p.URI == "" {
 		errs = append(errs, ValidationError{Name: "protocol.webdav.uri", Message: "REQUIRED"})
 	}
+
 	if p.SharedSecret == "" {
 		errs = append(errs, ValidationError{Name: "protocol.webdav.sharedSecret", Message: "REQUIRED"})
 	}
+
 	if len(p.Permissions) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webdav.permissions", Message: "REQUIRED"})
 	} else {
@@ -105,6 +114,7 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 			}
 		}
 	}
+
 	if len(p.AccessTypes) > 0 {
 		for _, accessType := range p.AccessTypes {
 			if !isSupportedWebDAVAccessType(accessType) {
@@ -113,12 +123,14 @@ func ValidateWebDAVProtocolWire(p *WebDAVProtocol) []ValidationError {
 			}
 		}
 	}
+
 	for _, req := range p.Requirements {
 		if !isSupportedWebDAVRequirement(req) {
 			errs = append(errs, ValidationError{Name: "protocol.webdav.requirements", Message: "UNSUPPORTED"})
 			break
 		}
 	}
+
 	return errs
 }
 
@@ -130,6 +142,7 @@ func ValidateWebDAVRequirementsAdmission(localRequires bool, reqs []string) []Va
 	if localRequires && len(reqs) == 0 {
 		return []ValidationError{{Name: "protocol.webdav.requirements", Message: "REQUIRED"}}
 	}
+
 	return nil
 }
 
@@ -139,8 +152,10 @@ func ValidateWebDAVProtocol(p *WebDAVProtocol) []ValidationError {
 	if p == nil {
 		return nil
 	}
+
 	errs := ValidateWebDAVProtocolWire(p)
 	errs = append(errs, ValidateWebDAVRequirementsAdmission(true, p.Requirements)...)
+
 	return errs
 }
 
@@ -150,6 +165,7 @@ func isSupportedWebDAVRequirement(req string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -159,6 +175,7 @@ func isSupportedWebDAVAccessType(accessType string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -168,6 +185,7 @@ func isSupportedWebDAVPermission(perm string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -182,12 +200,15 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 	if p == nil {
 		return errs
 	}
+
 	if p.URI == "" {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.uri", Message: "REQUIRED"})
 	}
+
 	if len(p.Targets) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.targets", Message: "REQUIRED"})
 	}
+
 	if len(p.Permissions) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.permissions", Message: "REQUIRED"})
 	} else {
@@ -198,6 +219,7 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 			}
 		}
 	}
+
 	if len(p.Requirements) == 0 {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "REQUIRED"})
 	} else {
@@ -207,20 +229,25 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 					Name:    "protocol.webapp.requirements",
 					Message: "GAP: " + RequirementMustUseMFA + " rejected at admit; enforce-mfa is not implemented yet",
 				})
+
 				continue
 			}
+
 			if !isSupportedWebappRequirement(req) {
 				errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "UNSUPPORTED"})
 				break
 			}
 		}
+
 		if !p.HasRequirement(RequirementMustExchangeToken) {
 			errs = append(errs, ValidationError{Name: "protocol.webapp.requirements", Message: "REQUIRED"})
 		}
 	}
+
 	if p.SharedSecret == "" {
 		errs = append(errs, ValidationError{Name: "protocol.webapp.sharedSecret", Message: "REQUIRED"})
 	}
+
 	return errs
 }
 
@@ -233,6 +260,7 @@ func ValidateWebappRequirementsAdmission(localRequires bool, reqs []string) []Va
 	if localRequires && len(reqs) == 0 {
 		return []ValidationError{{Name: "protocol.webapp.requirements", Message: "REQUIRED"}}
 	}
+
 	return nil
 }
 
@@ -244,13 +272,16 @@ func ValidateWebappProtocol(p *WebappProtocol) []ValidationError {
 	if p == nil {
 		return nil
 	}
+
 	errs := ValidateWebappProtocolWire(p)
 	for _, adm := range ValidateWebappRequirementsAdmission(true, p.Requirements) {
 		if hasExactValidationError(errs, adm) {
 			continue
 		}
+
 		errs = append(errs, adm)
 	}
+
 	return errs
 }
 
@@ -260,6 +291,7 @@ func hasExactValidationError(errs []ValidationError, want ValidationError) bool 
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -269,6 +301,7 @@ func isSupportedWebappPermission(perm string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -278,5 +311,6 @@ func isSupportedWebappRequirement(req string) bool {
 			return true
 		}
 	}
+
 	return false
 }

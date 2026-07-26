@@ -43,10 +43,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	}
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "ocm", "unused_keys", unused)
 	}
@@ -55,6 +57,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	if te, ok := m["token_exchange"].(map[string]any); ok {
 		rawTE = te
 	}
+
 	if _, set := rawTE["path"]; !set {
 		c.TokenExchange.Path = inputs.TokenExchangePath
 		if c.TokenExchange.Path == "" {

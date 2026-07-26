@@ -48,6 +48,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildRootCAPool failed: %v", err)
 	}
+
 	if rootCAPool == nil {
 		t.Fatal("expected non-nil pool")
 	}
@@ -56,22 +57,27 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read CA cert: %v", err)
 	}
+
 	caKeyPEM, err := os.ReadFile(caKeyFile)
 	if err != nil {
 		t.Fatalf("read CA key: %v", err)
 	}
+
 	caCertBlock, _ := pem.Decode(caCertPEM)
 	if caCertBlock == nil {
 		t.Fatal("failed to decode CA cert PEM")
 	}
+
 	caCert, err := x509.ParseCertificate(caCertBlock.Bytes)
 	if err != nil {
 		t.Fatalf("parse CA cert: %v", err)
 	}
+
 	caKeyBlock, _ := pem.Decode(caKeyPEM)
 	if caKeyBlock == nil {
 		t.Fatal("failed to decode CA key PEM")
 	}
+
 	caKeyRaw, err := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
 	if err != nil {
 		caKeyRaw, err = x509.ParsePKCS1PrivateKey(caKeyBlock.Bytes)
@@ -84,10 +90,12 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	serverCertDER, err := createServerCert(caCert, caKeyRaw, serverKey)
 	if err != nil {
 		t.Fatalf("create server cert: %v", err)
 	}
+
 	serverCert, err := tls.X509KeyPair(
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverCertDER}),
 		pemEncodeECKey(serverKey),
@@ -101,6 +109,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer listener.Close()
+
 	port := listener.Addr().(*net.TCPAddr).Port
 
 	srv := &http.Server{
@@ -113,6 +122,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 			w.Write([]byte("ok"))
 		}),
 	}
+
 	go srv.ServeTLS(listener, "", "")
 	defer srv.Close()
 
@@ -126,11 +136,13 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	client := httpclient.New(cfg, rootCAPool)
 
 	url := fmt.Sprintf("https://127.0.0.1:%d/", port)
+
 	resp, err := client.Get(context.Background(), url)
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
@@ -138,7 +150,9 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 
 func getTestDir(t *testing.T) string {
 	t.Helper()
+
 	_, filename, _, _ := runtime.Caller(0)
+
 	return filepath.Dir(filename)
 }
 
@@ -154,6 +168,7 @@ func createServerCert(caCert *x509.Certificate, caKey interface{}, serverKey *ec
 		DNSNames:              []string{"localhost"},
 		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
 	}
+
 	return x509.CreateCertificate(rand.Reader, &template, caCert, &serverKey.PublicKey, caKey)
 }
 

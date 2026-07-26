@@ -10,6 +10,7 @@ import (
 
 func TestValidatePreBootstrap_UnknownServiceName(t *testing.T) {
 	cfg := config.DevConfig()
+
 	cfg.HTTP.Services = map[string]map[string]any{
 		"bogus": {},
 	}
@@ -20,6 +21,7 @@ func TestValidatePreBootstrap_UnknownServiceName(t *testing.T) {
 
 func TestValidatePreBootstrap_ValidServices(t *testing.T) {
 	cfg := config.DevConfig()
+
 	cfg.HTTP.Services = map[string]map[string]any{
 		"api": {},
 	}
@@ -42,6 +44,7 @@ func TestValidateBuiltServices_CountMismatch(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidateBuiltServices() = nil, want count mismatch error")
 	}
+
 	if !strings.Contains(err.Error(), "built service count = 5, want 6 from descriptor table") {
 		t.Fatalf("ValidateBuiltServices() error = %q, want count mismatch message", err)
 	}
@@ -56,6 +59,7 @@ func TestValidateBuiltServices_MissingService(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidateBuiltServices() = nil, want missing service error")
 	}
+
 	if !strings.Contains(err.Error(), `missing built service "webdav"`) {
 		t.Fatalf("ValidateBuiltServices() error = %q, want missing service message", err)
 	}
@@ -69,6 +73,7 @@ func TestValidateBuiltServices_ExtraService(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidateBuiltServices() = nil, want extra service error")
 	}
+
 	if !strings.Contains(err.Error(), `built service "bogus" has no descriptor`) {
 		t.Fatalf("ValidateBuiltServices() error = %q, want extra service message", err)
 	}
@@ -82,6 +87,7 @@ func TestValidateBuiltServices_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidateBuiltServices() = nil, want nil service error")
 	}
+
 	if !strings.Contains(err.Error(), `built service "api" is nil`) {
 		t.Fatalf("ValidateBuiltServices() error = %q, want nil service message", err)
 	}
@@ -95,6 +101,7 @@ func TestValidateBuiltServices_PrefixMismatch(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidateBuiltServices() = nil, want prefix mismatch error")
 	}
+
 	want := `service "ocmaux" prefix = "wrong", want descriptor prefix "ocm-aux"`
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("ValidateBuiltServices() error = %q, want %q", err, want)
@@ -106,6 +113,7 @@ func allBuiltServices() map[string]Service {
 	for _, d := range descriptors {
 		out[d.Name] = &descriptorStub{prefix: d.Prefix}
 	}
+
 	return out
 }
 

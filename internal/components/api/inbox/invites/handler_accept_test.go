@@ -103,6 +103,7 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 
 func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+
 	senderServer, inviteAcceptedCalls, _ := startInviteSenderServer(t)
 	defer senderServer.Close()
 
@@ -126,6 +127,7 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("expected 502 when strict invite-accepted signing has no signer, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if inviteAcceptedCalls.Load() != 0 {
 		t.Fatalf("expected invite-accepted endpoint not to be called, got %d calls", inviteAcceptedCalls.Load())
 	}
@@ -134,6 +136,7 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected invite to remain pending after outbound failure: %v", err)
 	}
+
 	if stored.Status != invites.InviteStatusPending {
 		t.Fatalf("expected pending status after outbound failure, got %s", stored.Status)
 	}
@@ -141,6 +144,7 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 
 func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 	const originWithDefaultPort = "https://example.com:443"
+
 	wantProvider := tslocalid.MustTestIdentity(t, originWithDefaultPort, "").ProviderDomain
 	if wantProvider != "example.com" {
 		t.Fatalf("test setup: ProviderDomain = %q, want example.com", wantProvider)
@@ -148,9 +152,11 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 
 	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	inviteAcceptedCalls := &atomic.Int32{}
+
 	var capturedRecipientProvider string
 
 	var srv *httptest.Server
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/ocm":
@@ -164,13 +170,17 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 			})
 		case "/ocm/invite-accepted":
 			inviteAcceptedCalls.Add(1)
+
 			var body spec.InviteAcceptedRequest
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Errorf("decode invite-accepted body: %v", err)
 				w.WriteHeader(http.StatusBadRequest)
+
 				return
 			}
+
 			capturedRecipientProvider = body.RecipientProvider
+
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		default:
@@ -184,10 +194,12 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
+
 	km := crypto.NewKeyManager("", testPublicOrigin)
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
 	}
+
 	signer := crypto.NewRFC9421Signer(km)
 	h := inboxinvites.NewHandler(
 		repo,
@@ -210,9 +222,11 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if inviteAcceptedCalls.Load() != 1 {
 		t.Fatalf("expected invite-accepted endpoint to be called once, got %d", inviteAcceptedCalls.Load())
 	}
+
 	if capturedRecipientProvider != wantProvider {
 		t.Errorf("RecipientProvider = %q, want %q", capturedRecipientProvider, wantProvider)
 	}

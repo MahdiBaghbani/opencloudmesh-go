@@ -18,11 +18,13 @@ func tokenRoutePattern(opts service.RouteOpts) string {
 	if path == "" {
 		path = "token"
 	}
+
 	return "/" + path
 }
 
 func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 	tokenPattern := tokenRoutePattern(opts)
+
 	return []service.RouteSpec{
 		{
 			ID:             "ocm-shares",

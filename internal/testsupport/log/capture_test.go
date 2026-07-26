@@ -13,6 +13,7 @@ func TestLogCapture_Contains(t *testing.T) {
 	if !capture.Contains("unused config keys") {
 		t.Error("Contains: expected true for present substring")
 	}
+
 	if capture.Contains("absent substring") {
 		t.Error("Contains: expected false for absent substring")
 	}
@@ -35,6 +36,7 @@ func TestLogCapture_FiltersInfoAndDebug(t *testing.T) {
 	if capture.Contains("info should not appear") {
 		t.Error("Contains: expected false for Info message filtered by warn level")
 	}
+
 	if capture.Contains("debug should not appear") {
 		t.Error("Contains: expected false for Debug message filtered by warn level")
 	}

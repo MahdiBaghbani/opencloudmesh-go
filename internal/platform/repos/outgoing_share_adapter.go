@@ -25,16 +25,20 @@ func (a *outgoingShareAdapter) Create(ctx context.Context, share *sharesoutgoing
 		id, _ := uuid.NewV7()
 		share.ShareID = id.String()
 	}
+
 	if share.CreatedAt.IsZero() {
 		share.CreatedAt = time.Now()
 	}
+
 	s := appOutgoingShareToStore(share)
 	if err := a.s.CreateOutgoingShare(ctx, s); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
 			return fmt.Errorf("share already exists: %s", share.ShareID)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -44,8 +48,10 @@ func (a *outgoingShareAdapter) GetByID(ctx context.Context, shareID string) (*sh
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found: %s", shareID)
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingShareToApp(s), nil
 }
 
@@ -55,8 +61,10 @@ func (a *outgoingShareAdapter) GetByProviderID(ctx context.Context, providerID s
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found for providerId: %s", providerID)
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingShareToApp(s), nil
 }
 
@@ -66,8 +74,10 @@ func (a *outgoingShareAdapter) GetByWebDAVID(ctx context.Context, webdavID strin
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found for webdavId: %s", webdavID)
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingShareToApp(s), nil
 }
 
@@ -77,8 +87,10 @@ func (a *outgoingShareAdapter) GetBySharedSecret(ctx context.Context, sharedSecr
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found for sharedSecret")
 		}
+
 		return nil, err
 	}
+
 	return storeOutgoingShareToApp(s), nil
 }
 
@@ -87,10 +99,12 @@ func (a *outgoingShareAdapter) List(ctx context.Context) ([]*sharesoutgoing.Outg
 	if err != nil {
 		return nil, err
 	}
+
 	result := make([]*sharesoutgoing.OutgoingShare, 0, len(storeShares))
 	for _, s := range storeShares {
 		result = append(result, storeOutgoingShareToApp(s))
 	}
+
 	return result, nil
 }
 
@@ -100,8 +114,10 @@ func (a *outgoingShareAdapter) Update(ctx context.Context, share *sharesoutgoing
 		if errors.Is(err, store.ErrNotFound) {
 			return fmt.Errorf("share not found: %s", share.ShareID)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -127,9 +143,9 @@ func storeOutgoingShareToApp(s *store.OutgoingShare) *sharesoutgoing.OutgoingSha
 		Status:           s.State,
 		Error:            s.Error,
 		// Copy the slice so callers cannot mutate the store's backing array.
-		Requirements:     append([]string(nil), s.Requirements...),
-		CreatedAt:        unixToTime(s.CreatedAt),
-		SentAt:           unixToTimePtr(s.UpdatedAt),
+		Requirements: append([]string(nil), s.Requirements...),
+		CreatedAt:    unixToTime(s.CreatedAt),
+		SentAt:       unixToTimePtr(s.UpdatedAt),
 	}
 }
 
@@ -153,8 +169,8 @@ func appOutgoingShareToStore(a *sharesoutgoing.OutgoingShare) *store.OutgoingSha
 		State:            a.Status,
 		Error:            a.Error,
 		// Copy the slice so the store cannot mutate the caller's backing array.
-		Requirements:     append([]string(nil), a.Requirements...),
-		CreatedAt:        timeToUnix(a.CreatedAt),
-		UpdatedAt:        timePtrToUnix(a.SentAt),
+		Requirements: append([]string(nil), a.Requirements...),
+		CreatedAt:    timeToUnix(a.CreatedAt),
+		UpdatedAt:    timePtrToUnix(a.SentAt),
 	}
 }

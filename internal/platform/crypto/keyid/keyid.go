@@ -68,6 +68,7 @@ func Authority(p Parsed) string {
 		if strings.Contains(p.Hostname, ":") {
 			return "[" + p.Hostname + "]"
 		}
+
 		return p.Hostname
 	}
 
@@ -82,12 +83,14 @@ func Authority(p Parsed) string {
 // implementation across the codebase.
 func AuthorityForCompareFromKeyID(p Parsed) string {
 	authority := Authority(p)
+
 	normalized, err := hostport.Normalize(authority, p.Scheme)
 	if err != nil {
 		// Authority was already parsed from a valid keyId URI, so this
 		// should not fail. Fall back to the raw authority on error.
 		return authority
 	}
+
 	return normalized
 }
 

@@ -60,6 +60,7 @@ func TestTokenExchangeRequirements(t *testing.T) {
 	if got := tokenExchangeRequirements(true); len(got) != 1 || got[0] != spec.RequirementMustExchangeToken {
 		t.Errorf("tokenExchangeRequirements(true) = %v, want [%s]", got, spec.RequirementMustExchangeToken)
 	}
+
 	if got := tokenExchangeRequirements(false); got != nil {
 		t.Errorf("tokenExchangeRequirements(false) = %v, want nil", got)
 	}

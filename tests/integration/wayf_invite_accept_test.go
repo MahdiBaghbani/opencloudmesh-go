@@ -56,21 +56,26 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 		bob.DumpLogs(t)
 		t.Fatalf("alice discover bob: %v", err)
 	}
+
 	if status != http.StatusOK {
 		alice.DumpLogs(t)
 		bob.DumpLogs(t)
 		t.Fatalf("discover status = %d, want 200; body success=%v error=%q reason=%q",
 			status, disc.Success, disc.Error, disc.ReasonCode)
 	}
+
 	if !disc.Success {
 		t.Fatalf("discover success=false: %q (%s)", disc.Error, disc.ReasonCode)
 	}
+
 	if disc.InviteAcceptDialogAbsolute == "" {
 		t.Fatal("discover missing inviteAcceptDialogAbsolute")
 	}
+
 	if disc.Discovery == nil || disc.Discovery.InviteAcceptDialog == "" {
 		t.Fatal("discover missing peer inviteAcceptDialog")
 	}
+
 	if !strings.Contains(disc.InviteAcceptDialogAbsolute, bob.BaseURL) &&
 		!strings.Contains(disc.InviteAcceptDialogAbsolute, "/ui/accept-invite") {
 		t.Fatalf("inviteAcceptDialogAbsolute = %q, expected bob accept-invite URL", disc.InviteAcceptDialogAbsolute)
@@ -81,13 +86,16 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 		created.Token,
 		created.ProviderFQDN,
 	)
+
 	redirectParsed, err := url.Parse(redirectURL)
 	if err != nil {
 		t.Fatalf("parse redirect URL: %v", err)
 	}
+
 	if redirectParsed.Query().Get("token") != created.Token {
 		t.Fatalf("redirect token = %q, want %q", redirectParsed.Query().Get("token"), created.Token)
 	}
+
 	if redirectParsed.Query().Get("providerDomain") != created.ProviderFQDN {
 		t.Fatalf("redirect providerDomain = %q, want %q",
 			redirectParsed.Query().Get("providerDomain"), created.ProviderFQDN)
@@ -104,6 +112,7 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 		t.Fatalf("GET bob accept-invite unauthenticated: %v", err)
 	}
 	defer acceptResp.Body.Close()
+
 	_, _ = io.Copy(io.Discard, acceptResp.Body)
 
 	if acceptResp.StatusCode != http.StatusFound {
@@ -115,13 +124,16 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 	if loginLocation == "" {
 		t.Fatal("accept-invite redirect missing Location header")
 	}
+
 	loginURL, err := url.Parse(loginLocation)
 	if err != nil {
 		t.Fatalf("parse login Location: %v", err)
 	}
+
 	if !strings.HasSuffix(loginURL.Path, "/ui/login") {
 		t.Fatalf("expected redirect to login, got path %q", loginURL.Path)
 	}
+
 	returnURL := loginURL.Query().Get("redirect")
 	if returnURL != acceptPath {
 		t.Fatalf("login redirect param = %q, want %q", returnURL, acceptPath)
@@ -150,10 +162,12 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 		bob.DumpLogs(t)
 		t.Fatalf("bob list inbox invites: %v", err)
 	}
+
 	bobInvite, err := tsinvite.FindInboxInvite(list, imported.ID)
 	if err != nil {
 		t.Fatalf("bob inbox missing accepted invite: %v", err)
 	}
+
 	if bobInvite.Status != invites.InviteStatusAccepted {
 		t.Fatalf("bob inbox status = %q, want accepted", bobInvite.Status)
 	}
@@ -163,9 +177,11 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 		alice.DumpLogs(t)
 		t.Fatalf("read alice outgoing invite status: %v", err)
 	}
+
 	if aliceStatus != invites.InviteStatusAccepted {
 		t.Fatalf("alice outgoing status = %q, want accepted", aliceStatus)
 	}
+
 	if acceptedBy == "" {
 		t.Fatal("alice outgoing invite missing accepted_by recipient provider")
 	}

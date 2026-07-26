@@ -59,6 +59,7 @@ func TestNormalize_JOSENames(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Normalize(%q): %v", in, err)
 		}
+
 		if got != want {
 			t.Fatalf("Normalize(%q)=%q, want %q", in, got, want)
 		}
@@ -70,30 +71,37 @@ func TestDeriveFromJWK(t *testing.T) {
 	if err != nil || got != sigalg.Ed25519 {
 		t.Fatalf("OKP: got %q err %v", got, err)
 	}
+
 	got, err = sigalg.DeriveFromJWK("EC", "P-256", "ES256")
 	if err != nil || got != sigalg.ECDSAP256SHA256 {
 		t.Fatalf("EC P-256: got %q err %v", got, err)
 	}
+
 	got, err = sigalg.DeriveFromJWK("EC", "P-384", "")
 	if err != nil || got != sigalg.ECDSAP384SHA384 {
 		t.Fatalf("EC P-384: got %q err %v", got, err)
 	}
+
 	_, err = sigalg.DeriveFromJWK("RSA", "", "")
 	if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
 		t.Fatalf("RSA without alg: got %v", err)
 	}
+
 	got, err = sigalg.DeriveFromJWK("RSA", "", "RS256")
 	if err != nil || got != sigalg.RSAPKCS1SHA256 {
 		t.Fatalf("RSA RS256: got %q err %v", got, err)
 	}
+
 	_, err = sigalg.DeriveFromJWK("OKP", "Ed25519", "ES256")
 	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
 		t.Fatalf("OKP + ES256: got %v, want ErrAlgorithmMismatch", err)
 	}
+
 	_, err = sigalg.DeriveFromJWK("EC", "P-256", "ES384")
 	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
 		t.Fatalf("EC P-256 + ES384: got %v, want ErrAlgorithmMismatch", err)
 	}
+
 	_, err = sigalg.DeriveFromJWK("EC", "P-384", "ES256")
 	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
 		t.Fatalf("EC P-384 + ES256: got %v, want ErrAlgorithmMismatch", err)
@@ -105,22 +113,27 @@ func TestResolveAlgorithm_HeaderOptionalAndAgreement(t *testing.T) {
 	if err != nil || got != sigalg.ECDSAP256SHA256 {
 		t.Fatalf("omit header: got %q err %v", got, err)
 	}
+
 	got, err = sigalg.ResolveAlgorithm("ecdsa-p256-sha256", "EC", "P-256", "ES256")
 	if err != nil || got != sigalg.ECDSAP256SHA256 {
 		t.Fatalf("agree: got %q err %v", got, err)
 	}
+
 	_, err = sigalg.ResolveAlgorithm("ed25519", "EC", "P-256", "ES256")
 	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
 		t.Fatalf("disagree: got %v", err)
 	}
+
 	got, err = sigalg.ResolveAlgorithm("RS256", "RSA", "", "")
 	if err != nil || got != sigalg.RSAPKCS1SHA256 {
 		t.Fatalf("RSA from header: got %q err %v", got, err)
 	}
+
 	_, err = sigalg.ResolveAlgorithm("", "RSA", "", "")
 	if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
 		t.Fatalf("RSA omit both: got %v", err)
 	}
+
 	_, err = sigalg.ResolveAlgorithm("ed25519", "RSA", "", "")
 	if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
 		t.Fatalf("RSA bad header: got %v", err)
@@ -130,10 +143,12 @@ func TestResolveAlgorithm_HeaderOptionalAndAgreement(t *testing.T) {
 func TestSignVerify_Ed25519(t *testing.T) {
 	pub, priv := mustEd25519KeyPair(t)
 	msg := []byte("signature base")
+
 	sig, err := sigalg.Sign(sigalg.Ed25519, priv, msg)
 	if err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
+
 	if err := sigalg.Verify(sigalg.Ed25519, pub, msg, sig); err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
@@ -143,17 +158,21 @@ func TestVerify_ECDSAP256_RawRS(t *testing.T) {
 	priv := mustECDSAKey(t, elliptic.P256())
 	msg := []byte("ocm signature base ecdsa-p256")
 	digest := sha256.Sum256(msg)
+
 	r, s, err := ecdsa.Sign(rand.Reader, priv, digest[:])
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	raw, err := sigalg.EncodeECDSARawRS(r, s, 32)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := sigalg.Verify(sigalg.ECDSAP256SHA256, &priv.PublicKey, msg, raw); err != nil {
 		t.Fatalf("Verify ES256: %v", err)
 	}
+
 	raw[0] ^= 0xff
 	if err := sigalg.Verify(sigalg.ECDSAP256SHA256, &priv.PublicKey, msg, raw); !errors.Is(err, sigalg.ErrVerifyFailed) {
 		t.Fatalf("tampered: got %v", err)
@@ -164,14 +183,17 @@ func TestVerify_ECDSAP384_RawRS(t *testing.T) {
 	priv := mustECDSAKey(t, elliptic.P384())
 	msg := []byte("ocm signature base ecdsa-p384")
 	sum := sha512.Sum384(msg)
+
 	r, s, err := ecdsa.Sign(rand.Reader, priv, sum[:])
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	raw, err := sigalg.EncodeECDSARawRS(r, s, 48)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := sigalg.Verify(sigalg.ECDSAP384SHA384, &priv.PublicKey, msg, raw); err != nil {
 		t.Fatalf("Verify ES384: %v", err)
 	}
@@ -181,10 +203,12 @@ func TestVerify_RS256(t *testing.T) {
 	priv := mustRSAKey(t)
 	msg := []byte("ocm signature base rsa")
 	digest := sha256.Sum256(msg)
+
 	sig, err := rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA256, digest[:])
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := sigalg.Verify(sigalg.RSAPKCS1SHA256, &priv.PublicKey, msg, sig); err != nil {
 		t.Fatalf("Verify RS256: %v", err)
 	}
@@ -195,19 +219,23 @@ func TestVerify_RS384AndRS512(t *testing.T) {
 	msg := []byte("ocm signature base rsa-384-512")
 
 	sum384 := sha512.Sum384(msg)
+
 	sig384, err := rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA384, sum384[:])
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := sigalg.Verify(sigalg.RSAPKCS1SHA384, &priv.PublicKey, msg, sig384); err != nil {
 		t.Fatalf("Verify RS384: %v", err)
 	}
 
 	sum512 := sha512.Sum512(msg)
+
 	sig512, err := rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA512, sum512[:])
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := sigalg.Verify(sigalg.RSAPKCS1SHA512, &priv.PublicKey, msg, sig512); err != nil {
 		t.Fatalf("Verify RS512: %v", err)
 	}
@@ -216,10 +244,12 @@ func TestVerify_RS384AndRS512(t *testing.T) {
 func TestPublicKeyFromJWK_Ed25519(t *testing.T) {
 	pub, _ := mustEd25519KeyPair(t)
 	x := base64.RawURLEncoding.EncodeToString(pub)
+
 	got, err := sigalg.PublicKeyFromJWK("OKP", "Ed25519", x)
 	if err != nil {
 		t.Fatalf("PublicKeyFromJWK: %v", err)
 	}
+
 	if !pub.Equal(got.(ed25519.PublicKey)) {
 		t.Fatal("public key mismatch")
 	}
@@ -229,12 +259,14 @@ func TestPublicKeyFromJWKFields_ECAndRSA(t *testing.T) {
 	ecPriv := mustECDSAKey(t, elliptic.P256())
 	x := base64.RawURLEncoding.EncodeToString(tscrypto.PadCoord(ecPriv.X.Bytes(), 32))
 	y := base64.RawURLEncoding.EncodeToString(tscrypto.PadCoord(ecPriv.Y.Bytes(), 32))
+
 	got, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: "EC", Crv: "P-256", Alg: "ES256", X: x, Y: y,
 	})
 	if err != nil {
 		t.Fatalf("EC: %v", err)
 	}
+
 	ecPub := got.(*ecdsa.PublicKey)
 	if ecPub.X.Cmp(ecPriv.X) != 0 || ecPub.Y.Cmp(ecPriv.Y) != 0 {
 		t.Fatal("EC coordinate mismatch")
@@ -243,12 +275,14 @@ func TestPublicKeyFromJWKFields_ECAndRSA(t *testing.T) {
 	rsaPriv := mustRSAKey(t)
 	n := base64.RawURLEncoding.EncodeToString(rsaPriv.N.Bytes())
 	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(rsaPriv.E)).Bytes())
+
 	got, err = sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: "RSA", Alg: "RS256", N: n, E: e,
 	})
 	if err != nil {
 		t.Fatalf("RSA: %v", err)
 	}
+
 	if got.(*rsa.PublicKey).N.Cmp(rsaPriv.N) != 0 {
 		t.Fatal("RSA n mismatch")
 	}
@@ -264,6 +298,7 @@ func TestVerify_RFC9421_B24_ECDSAP256(t *testing.T) {
 		`"@signature-params": ("@status" "content-type" "content-digest" "content-length");created=1618884473;keyid="test-key-ecc-p256"`
 
 	const signatureB64 = "wNmSUAhwb5LxtOtOpNa6W5xj067m5hFrj0XQ4fvpaCLx0NKocgPquLgyahnzDnDAUy5eCdlYUEkLIj+32oiasw=="
+
 	raw, err := base64.StdEncoding.DecodeString(signatureB64)
 	if err != nil {
 		t.Fatal(err)
@@ -278,6 +313,7 @@ func TestVerify_RFC9421_B24_ECDSAP256(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := sigalg.Verify(sigalg.ECDSAP256SHA256, pub, []byte(signatureBase), raw); err != nil {
 		t.Fatalf("RFC 9421 B.2.4 ECDSA P-256 verify failed: %v", err)
 	}
@@ -298,6 +334,7 @@ func TestIsSymmetric_JOSENames(t *testing.T) {
 			t.Fatalf("IsSymmetric(%q) = false", in)
 		}
 	}
+
 	if sigalg.IsSymmetric("ed25519") || sigalg.IsSymmetric("") {
 		t.Fatal("IsSymmetric should reject asymmetric/empty")
 	}
@@ -314,6 +351,7 @@ func TestValidateAllowed_SkipsInvalidAllowListEntries(t *testing.T) {
 	if err := sigalg.ValidateAllowed("ed25519", []string{"not-an-alg", "ed25519"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	err := sigalg.ValidateAllowed("ed25519", []string{"not-an-alg"})
 	if !errors.Is(err, sigalg.ErrAlgorithmNotAllowed) {
 		t.Fatalf("got %v, want ErrAlgorithmNotAllowed", err)
@@ -324,6 +362,7 @@ func TestIsImplemented(t *testing.T) {
 	if !sigalg.IsImplemented("ed25519") {
 		t.Fatal("ed25519 should be implemented")
 	}
+
 	if sigalg.IsImplemented("ES256") || sigalg.IsImplemented("hs256") || sigalg.IsImplemented("") {
 		t.Fatal("IsImplemented expects native lowercase identifiers only")
 	}
@@ -331,6 +370,7 @@ func TestIsImplemented(t *testing.T) {
 
 func TestSign_NonEd25519NotImplemented(t *testing.T) {
 	priv := mustECDSAKey(t, elliptic.P256())
+
 	_, err := sigalg.Sign(sigalg.ECDSAP256SHA256, priv, []byte(testMsg))
 	if !errors.Is(err, sigalg.ErrNotImplemented) {
 		t.Fatalf("got %v, want ErrNotImplemented", err)
@@ -339,6 +379,7 @@ func TestSign_NonEd25519NotImplemented(t *testing.T) {
 
 func TestSign_WrongKeyType(t *testing.T) {
 	priv := mustRSAKey(t)
+
 	_, err := sigalg.Sign(sigalg.Ed25519, priv, []byte(testMsg))
 	if !errors.Is(err, sigalg.ErrWrongKeyType) {
 		t.Fatalf("got %v, want ErrWrongKeyType", err)
@@ -347,23 +388,29 @@ func TestSign_WrongKeyType(t *testing.T) {
 
 func TestVerify_TypedNilAndWrongKeyType(t *testing.T) {
 	sig := make([]byte, 64)
+
 	err := sigalg.Verify(sigalg.ECDSAP256SHA256, (*ecdsa.PublicKey)(nil), []byte(testMsg), sig)
 	if !errors.Is(err, sigalg.ErrWrongKeyType) {
 		t.Fatalf("typed-nil ecdsa: got %v, want ErrWrongKeyType", err)
 	}
+
 	err = sigalg.Verify(sigalg.RSAPKCS1SHA256, (*rsa.PublicKey)(nil), []byte(testMsg), sig)
 	if !errors.Is(err, sigalg.ErrWrongKeyType) {
 		t.Fatalf("typed-nil rsa: got %v, want ErrWrongKeyType", err)
 	}
+
 	err = sigalg.Verify(sigalg.Ed25519, ed25519.PublicKey(nil), []byte(testMsg), sig)
 	if !errors.Is(err, sigalg.ErrWrongKeyType) {
 		t.Fatalf("typed-nil ed25519: got %v, want ErrWrongKeyType", err)
 	}
+
 	_, edPub := mustEd25519KeyPair(t)
+
 	err = sigalg.Verify(sigalg.ECDSAP256SHA256, edPub, []byte(testMsg), sig)
 	if !errors.Is(err, sigalg.ErrWrongKeyType) {
 		t.Fatalf("wrong type: got %v, want ErrWrongKeyType", err)
 	}
+
 	if errors.Is(err, sigalg.ErrVerifyFailed) {
 		t.Fatal("wrong key type must not be ErrVerifyFailed")
 	}
@@ -378,10 +425,12 @@ func TestSign_TypedNilEd25519(t *testing.T) {
 
 func TestVerify_CurveMismatch(t *testing.T) {
 	priv := mustECDSAKey(t, elliptic.P256())
+
 	err := sigalg.Verify(sigalg.ECDSAP384SHA384, &priv.PublicKey, []byte(testMsg), make([]byte, 96))
 	if !errors.Is(err, sigalg.ErrCurveMismatch) {
 		t.Fatalf("got %v, want ErrCurveMismatch", err)
 	}
+
 	if errors.Is(err, sigalg.ErrVerifyFailed) {
 		t.Fatal("curve mismatch must not be ErrVerifyFailed")
 	}
@@ -405,10 +454,12 @@ func TestVerify_ECDSA_WrongLengthEncoding(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			priv := mustECDSAKey(t, tc.curve)
+
 			err := sigalg.Verify(tc.alg, &priv.PublicKey, []byte(testMsg), make([]byte, tc.badLen))
 			if !errors.Is(err, sigalg.ErrInvalidSignatureEncoding) {
 				t.Fatalf("got %v, want ErrInvalidSignatureEncoding", err)
 			}
+
 			if errors.Is(err, sigalg.ErrVerifyFailed) {
 				t.Fatal("wrong-length encoding must not be ErrVerifyFailed")
 			}
@@ -418,13 +469,16 @@ func TestVerify_ECDSA_WrongLengthEncoding(t *testing.T) {
 
 func TestEncodeECDSARawRS_Errors(t *testing.T) {
 	r := big.NewInt(1)
+
 	s := big.NewInt(1)
 	if _, err := sigalg.EncodeECDSARawRS(nil, s, 32); err == nil {
 		t.Fatal("nil r should error")
 	}
+
 	if _, err := sigalg.EncodeECDSARawRS(r, s, 0); err == nil {
 		t.Fatal("coordSize<=0 should error")
 	}
+
 	tooBig := new(big.Int).Lsh(big.NewInt(1), 8*33)
 	if _, err := sigalg.EncodeECDSARawRS(tooBig, s, 32); err == nil {
 		t.Fatal("overflow should error")
@@ -437,11 +491,13 @@ func TestPublicKeyFromJWKFields_Negative(t *testing.T) {
 	}); err == nil {
 		t.Fatal("bad base64 should error")
 	}
+
 	if _, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: "OKP", Crv: "Ed25519", X: base64.RawURLEncoding.EncodeToString([]byte{1, 2, 3}),
 	}); err == nil {
 		t.Fatal("short Ed25519 x should error")
 	}
+
 	if _, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: "EC", Crv: "P-256",
 		X: base64.RawURLEncoding.EncodeToString(make([]byte, 32)),
@@ -449,6 +505,7 @@ func TestPublicKeyFromJWKFields_Negative(t *testing.T) {
 	}); err == nil {
 		t.Fatal("off-curve EC should error")
 	}
+
 	if _, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: "RSA",
 		N:   base64.RawURLEncoding.EncodeToString([]byte{1}),
@@ -456,6 +513,7 @@ func TestPublicKeyFromJWKFields_Negative(t *testing.T) {
 	}); err == nil {
 		t.Fatal("e=0 should error")
 	}
+
 	oversized := make([]byte, 9)
 	if _, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: "RSA",

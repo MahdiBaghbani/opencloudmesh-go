@@ -15,10 +15,12 @@ func TestNew_RejectsNilSignatureMiddleware(t *testing.T) {
 	if svc != nil {
 		t.Fatal("expected nil service when validation fails")
 	}
+
 	const wantErr = "ocm: SignatureMiddleware is required"
 	if err == nil {
 		t.Fatalf("expected %q, got nil", wantErr)
 	}
+
 	if err.Error() != wantErr {
 		t.Fatalf("error = %q, want %q", err.Error(), wantErr)
 	}
@@ -82,6 +84,7 @@ func TestService_Close(t *testing.T) {
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	var logBuf testLogBuffer
+
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	m := map[string]any{

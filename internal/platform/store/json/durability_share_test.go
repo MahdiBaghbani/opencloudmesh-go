@@ -20,15 +20,19 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 
 	makeDriver := func(t *testing.T, dir string) store.Driver {
 		t.Helper()
+
 		cfg := &store.DriverConfig{Driver: "json", DataDir: dir}
+
 		return testutil.OpenDriver(t, cfg)
 	}
 
 	lockDir := func(t *testing.T, dir string) {
 		t.Helper()
+
 		if err := os.Chmod(dir, 0500); err != nil {
 			t.Fatal(err)
 		}
+
 		t.Cleanup(func() { os.Chmod(dir, 0700) })
 	}
 
@@ -39,6 +43,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 		defer d.Close()
 
 		share := testutil.NewOutgoingShareFixture()
+
 		lockDir(t, dir)
 
 		if err := d.(store.OutgoingShareStore).CreateOutgoingShare(ctx, share); err == nil {
@@ -48,15 +53,19 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 		// Restore write permission and verify primary record and all secondary
 		// indexes are absent (rollback succeeded).
 		os.Chmod(dir, 0700)
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId); err == nil {
 			t.Error("share found in memory after failed create - rollback did not occur")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err == nil {
 			t.Error("shareId index not rolled back after failed create")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err == nil {
 			t.Error("webdavId index not rolled back after failed create")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err == nil {
 			t.Error("sharedSecret index not rolled back after failed create")
 		}
@@ -89,10 +98,12 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 
 		// Restore and verify the old record and all old indexes are intact.
 		os.Chmod(dir, 0700)
+
 		got, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId)
 		if err != nil {
 			t.Fatalf("share missing after failed update: %v", err)
 		}
+
 		if got.State != share.State {
 			t.Errorf(
 				"in-memory state changed after failed update: got %q, want %q",
@@ -100,6 +111,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 				share.State,
 			)
 		}
+
 		if got.ShareId != share.ShareId {
 			t.Errorf(
 				"in-memory shareId changed after failed update: got %q, want %q",
@@ -111,9 +123,11 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err != nil {
 			t.Error("old shareId index entry missing after failed update rollback")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err != nil {
 			t.Error("old webdavId index entry missing after failed update rollback")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err != nil {
 			t.Error("old sharedSecret index entry missing after failed update rollback")
 		}
@@ -121,9 +135,11 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, updated.ShareId); err == nil {
 			t.Error("new shareId index entry present after failed update - rollback incomplete")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, updated.WebDAVId); err == nil {
 			t.Error("new webdavId index entry present after failed update - rollback incomplete")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, updated.SharedSecret); err == nil {
 			t.Error("new sharedSecret index entry present after failed update - rollback incomplete")
 		}
@@ -148,15 +164,19 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 
 		// Restore and verify the share and all indexes are still present.
 		os.Chmod(dir, 0700)
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId); err != nil {
 			t.Errorf("share missing after failed delete - rollback did not occur: %v", err)
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err != nil {
 			t.Error("shareId index entry missing after failed delete rollback")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err != nil {
 			t.Error("webdavId index entry missing after failed delete rollback")
 		}
+
 		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err != nil {
 			t.Error("sharedSecret index entry missing after failed delete rollback")
 		}
@@ -169,6 +189,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 		defer d.Close()
 
 		share := testutil.NewIncomingShareFixture()
+
 		lockDir(t, dir)
 
 		if err := d.(store.IncomingShareStore).CreateIncomingShare(ctx, share); err == nil {
@@ -176,11 +197,13 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 		}
 
 		os.Chmod(dir, 0700)
+
 		if _, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
 			ctx, share.ShareId, share.UserId,
 		); err == nil {
 			t.Error("incoming share found in memory after failed create - rollback did not occur")
 		}
+
 		if _, err := d.(store.IncomingShareStore).GetIncomingShareByProviderKey(
 			ctx, share.SendingServer, share.ProviderId,
 		); err == nil {
@@ -201,6 +224,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 
 		oldState := share.State
 		oldUpdatedAt := share.UpdatedAt
+
 		lockDir(t, dir)
 
 		if err := d.(store.IncomingShareStore).UpdateIncomingShareStatusForRecipient(
@@ -211,12 +235,14 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 
 		// Restore and verify both State and UpdatedAt reverted (rollback succeeded).
 		os.Chmod(dir, 0700)
+
 		got, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
 			ctx, share.ShareId, share.UserId,
 		)
 		if err != nil {
 			t.Fatalf("share missing after failed status update: %v", err)
 		}
+
 		if got.State != oldState {
 			t.Errorf(
 				"in-memory state changed after failed update: got %q, want %q",
@@ -224,6 +250,7 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 				oldState,
 			)
 		}
+
 		if got.UpdatedAt != oldUpdatedAt {
 			t.Errorf(
 				"in-memory UpdatedAt changed after failed update: got %d, want %d",
@@ -254,11 +281,13 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 
 		// Restore and verify the share and provider-key index are still present.
 		os.Chmod(dir, 0700)
+
 		if _, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
 			ctx, share.ShareId, share.UserId,
 		); err != nil {
 			t.Errorf("share missing after failed delete - rollback did not occur: %v", err)
 		}
+
 		if _, err := d.(store.IncomingShareStore).GetIncomingShareByProviderKey(
 			ctx, share.SendingServer, share.ProviderId,
 		); err != nil {

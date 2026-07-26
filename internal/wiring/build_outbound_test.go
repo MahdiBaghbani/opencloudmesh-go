@@ -17,6 +17,7 @@ import (
 func strictSSRFCfg() *config.Config {
 	cfg := config.DevConfig()
 	cfg.OutboundHTTP.SSRF.Mode = "strict"
+
 	return cfg
 }
 
@@ -31,32 +32,39 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
+
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
 		if err != nil {
 			t.Fatalf("failed to build request: %v", err)
 		}
+
 		resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req)
 		if reqErr != nil {
 			t.Fatalf("expected localhost request to succeed with SSRF=off override, got: %v", reqErr)
 		}
+
 		resp.Body.Close()
 	})
 
 	t.Run("without OutboundOverride SSRF=strict blocks localhost request", func(t *testing.T) {
 		opts := harnessBuildOpts()
 		opts.OutboundOverride = nil
+
 		result, err := wiring.Build(strictSSRFCfg(), tslog.DiscardLogger(), opts)
 		if err != nil {
 			t.Fatalf("bootstrap failed: %v", err)
 		}
+
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
 		if err != nil {
 			t.Fatalf("failed to build request: %v", err)
 		}
+
 		_, reqErr := result.Deps.HTTPClient.Do(context.Background(), req)
 		if reqErr == nil {
 			t.Fatal("expected SSRF error blocking localhost, but request succeeded")
 		}
+
 		if !httpclient.IsSSRFError(reqErr) {
 			t.Errorf("expected an SSRF error, got: %v", reqErr)
 		}
@@ -79,6 +87,7 @@ func TestOutbound_BaseConfigTLSRootsWithoutOverride(t *testing.T) {
 
 	opts := harnessBuildOpts()
 	opts.OutboundOverride = nil
+
 	_, err := wiring.Build(cfg, tslog.DiscardLogger(), opts)
 	if err == nil {
 		t.Fatal("bootstrap must fail when cfg.OutboundHTTP.TLSRootCAFile is invalid and no override is set")

@@ -25,6 +25,7 @@ func TestHandleInviteAccepted_TokenInvalid(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 (not 404), got %d", w.Code)
 	}
+
 	if msg := decodeOCMError(t, w); msg != "TOKEN_INVALID" {
 		t.Errorf("expected TOKEN_INVALID, got %q", msg)
 	}
@@ -47,6 +48,7 @@ func TestHandleInviteAccepted_TokenExpired(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+
 	if msg := decodeOCMError(t, w); msg != "TOKEN_EXPIRED" {
 		t.Errorf("expected TOKEN_EXPIRED, got %q", msg)
 	}
@@ -67,6 +69,7 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Errorf("expected 409, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if msg := decodeOCMError(t, w); msg != "INVITE_ALREADY_ACCEPTED" {
 		t.Errorf("expected INVITE_ALREADY_ACCEPTED, got %q", msg)
 	}
@@ -100,6 +103,7 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if msg := decodeOCMError(t, w); msg != "UNTRUSTED_PROVIDER" {
 		t.Errorf("expected UNTRUSTED_PROVIDER, got %q", msg)
 	}
@@ -107,6 +111,7 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 
 type outgoingRepoSpy struct {
 	*invitesoutgoing.MemoryOutgoingInviteRepo
+
 	updateStatusCalled bool
 }
 
@@ -125,6 +130,7 @@ func (r *partyRepoGetFail) Get(_ context.Context, id string) (*identity.User, er
 	if id == r.failID {
 		return nil, errors.New("party lookup failed")
 	}
+
 	return nil, identity.ErrUserNotFound
 }
 
@@ -167,12 +173,15 @@ func TestHandleInviteAccepted_PartyRepoGetFails_InviterIdentityUnavailable(t *te
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for party repo get failure, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if msg := decodeOCMError(t, w); msg != "INVITER_IDENTITY_UNAVAILABLE" {
 		t.Errorf("expected INVITER_IDENTITY_UNAVAILABLE, got %q", msg)
 	}
+
 	if repo.updateStatusCalled {
 		t.Error("UpdateStatus should not have been called")
 	}
+
 	updated, _ := memoryRepo.GetByToken(context.Background(), "party-get-fail-token")
 	if updated.Status != invites.InviteStatusPending {
 		t.Errorf("expected status %s (no mutation), got %s", invites.InviteStatusPending, updated.Status)
@@ -197,9 +206,11 @@ func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for empty creator, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if msg := decodeOCMError(t, w); msg != "INVITER_IDENTITY_UNAVAILABLE" {
 		t.Errorf("expected INVITER_IDENTITY_UNAVAILABLE, got %q", msg)
 	}
+
 	updated, _ := repo.GetByToken(context.Background(), "empty-creator-token")
 	if updated.Status != invites.InviteStatusPending {
 		t.Errorf("expected status %s (no mutation), got %s", invites.InviteStatusPending, updated.Status)
@@ -241,6 +252,7 @@ func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 (empty scheme keeps :443, so no match), got %d: %s", w.Code, w.Body.String())
 	}
+
 	if msg := decodeOCMError(t, w); msg != "UNTRUSTED_PROVIDER" {
 		t.Errorf("expected UNTRUSTED_PROVIDER, got %q", msg)
 	}

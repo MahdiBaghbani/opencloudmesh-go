@@ -23,6 +23,7 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 			disc.APIVersion, policy.Mode, spec.APIVersionPin,
 		)
 	}
+
 	if warn != "" {
 		warnings = append(warnings, warn)
 	}
@@ -30,9 +31,11 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 	if disc.EndPoint == "" {
 		return fmt.Errorf("endPoint is required")
 	}
+
 	if !isAbsoluteURL(disc.EndPoint) {
 		return fmt.Errorf("endPoint must be absolute")
 	}
+
 	if !sameAuthority(disc.EndPoint, discoveryOrigin) {
 		return fmt.Errorf("endPoint authority must match discovery origin")
 	}
@@ -41,13 +44,16 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 	if hasExchangeToken && disc.TokenEndPoint == "" {
 		return fmt.Errorf("%s capability requires tokenEndPoint", spec.CapabilityExchangeToken)
 	}
+
 	if !hasExchangeToken && disc.TokenEndPoint != "" {
 		return fmt.Errorf("tokenEndPoint requires %s capability", spec.CapabilityExchangeToken)
 	}
+
 	if disc.TokenEndPoint != "" {
 		if !isAbsoluteURL(disc.TokenEndPoint) {
 			return fmt.Errorf("tokenEndPoint must be absolute")
 		}
+
 		if !sameAuthority(disc.TokenEndPoint, discoveryOrigin) {
 			return fmt.Errorf("tokenEndPoint authority must match discovery origin")
 		}
@@ -57,6 +63,7 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 		if !isAbsoluteURL(disc.InviteAcceptDialog) {
 			return fmt.Errorf("inviteAcceptDialog must be absolute after normalization")
 		}
+
 		if !sameAuthority(disc.InviteAcceptDialog, discoveryOrigin) {
 			return fmt.Errorf("inviteAcceptDialog authority must match discovery origin")
 		}
@@ -79,15 +86,18 @@ func validateResourceType(rt spec.ResourceType, warnings *[]string) error {
 	if rt.Name == "" {
 		return fmt.Errorf("name is required")
 	}
+
 	for name, role := range rt.Protocols {
 		w, err := validateProtocolRole(name, role)
 		if err != nil {
 			return fmt.Errorf("protocols[%q]: %w", name, err)
 		}
+
 		if w != "" {
 			*warnings = append(*warnings, w)
 		}
 	}
+
 	return nil
 }
 
@@ -102,6 +112,7 @@ func validateProtocolRole(name string, role spec.ProtocolRole) (warning string, 
 		if !ok {
 			return "", fmt.Errorf("must be an object with uri")
 		}
+
 		switch wr.URI {
 		case spec.WebDAVReceiveURIAbsolute, spec.WebDAVReceiveURIRelative:
 		default:
@@ -110,12 +121,14 @@ func validateProtocolRole(name string, role spec.ProtocolRole) (warning string, 
 	default:
 		return fmt.Sprintf("protocol role %q preserved but not locally shape-validated", name), nil
 	}
+
 	return "", nil
 }
 
 func sameAuthority(absoluteURI, discoveryOrigin string) bool {
 	devAllowHTTP := strings.HasPrefix(strings.ToLower(discoveryOrigin), "http://")
 	resolver := peerorigin.NewResolver(devAllowHTTP)
+
 	return resolver.IsAbsoluteURIAllowed(absoluteURI, discoveryOrigin)
 }
 
@@ -124,5 +137,6 @@ func discoveryOriginFromURL(rawURL string) string {
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return strings.TrimSuffix(rawURL, "/")
 	}
+
 	return u.Scheme + "://" + u.Host
 }

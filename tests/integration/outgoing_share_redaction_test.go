@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -46,6 +45,7 @@ func TestOutgoingShareResponseRedactsSharedSecret(t *testing.T) {
 		"localPath":      tmpFile,
 		"permissions":    []string{"read"},
 	}
+
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("failed to marshal payload: %v", err)
@@ -53,27 +53,34 @@ func TestOutgoingShareResponseRedactsSharedSecret(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if captured.Protocol.WebDAV == nil || captured.Protocol.WebDAV.SharedSecret == "" {
 		t.Fatal("receiver did not receive a WebDAV sharedSecret")
 	}
+
 	sharedSecret := captured.Protocol.WebDAV.SharedSecret
 	if strings.Contains(w.Body.String(), sharedSecret) {
 		t.Fatalf("browser-facing response contains sharedSecret %q: %s", sharedSecret, w.Body.String())
 	}
+
 	if strings.Contains(strings.ToLower(w.Body.String()), "sharedsecret") {
 		t.Fatalf("browser-facing response contains sharedSecret field: %s", w.Body.String())
 	}
 }
 
 func makeCapturingReceiverTLSServerForRedaction(capabilities, criteria []string) (*httptest.Server, *spec.NewShareRequest) {
-	var captured spec.NewShareRequest
-	var srv *httptest.Server
+	var (
+		captured spec.NewShareRequest
+		srv      *httptest.Server
+	)
+
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/ocm":
@@ -88,12 +95,14 @@ func makeCapturingReceiverTLSServerForRedaction(capabilities, criteria []string)
 			})
 		case "/ocm/shares":
 			_ = json.NewDecoder(r.Body).Decode(&captured)
+
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"ok":true}`))
 		default:
 			http.NotFound(w, r)
 		}
 	}))
+
 	return srv, &captured
 }
 
@@ -123,20 +132,23 @@ func newOutgoingHandlerForRedaction(t *testing.T, user *identity.User) *outgoing
 	)
 	handler.SetAllowedPaths([]string{"/tmp"})
 	handler.SetPeerOrigin(peerorigin.NewResolver(false))
+
 	return handler
 }
 
 func makeTestSignerForRedaction(t *testing.T) *crypto.RFC9421Signer {
 	t.Helper()
+
 	km := crypto.NewKeyManager("", "https://example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatalf("failed to generate test signing key: %v", err)
 	}
+
 	return crypto.NewRFC9421Signer(km)
 }
 
 func testLoggerForRedaction() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+	return slog.New(slog.DiscardHandler)
 }
 
 type stubResolverForRedaction struct {
@@ -149,12 +161,16 @@ func (r *stubResolverForRedaction) ResolveFacts(host string, disc policy.Discove
 
 func createTempFileForRedaction(t *testing.T, pattern string) string {
 	t.Helper()
+
 	tmpFile, err := os.CreateTemp("/tmp", pattern)
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
+
 	path := tmpFile.Name()
 	_ = tmpFile.Close()
+
 	t.Cleanup(func() { _ = os.Remove(path) })
+
 	return path
 }

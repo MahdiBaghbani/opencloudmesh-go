@@ -7,7 +7,9 @@ func PadCoord(b []byte, size int) []byte {
 	if len(b) >= size {
 		return b
 	}
+
 	out := make([]byte, size)
 	copy(out[size-len(b):], b)
+
 	return out
 }

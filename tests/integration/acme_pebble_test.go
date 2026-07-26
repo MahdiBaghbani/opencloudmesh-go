@@ -42,6 +42,7 @@ func TestACME_PebbleE2E(t *testing.T) {
 	if minicaPEM == "" {
 		t.Skip("PEBBLE_MINICA_PEM not set; point it at pebble.minica.pem")
 	}
+
 	if _, err := os.Stat(minicaPEM); err != nil {
 		t.Skipf("PEBBLE_MINICA_PEM file not found: %v", err)
 	}
@@ -60,6 +61,7 @@ func TestACME_PebbleE2E(t *testing.T) {
 	binaryPath := harness.BuildBinary(t)
 
 	tempDir := t.TempDir()
+
 	acmeDir := filepath.Join(tempDir, "acme")
 	if err := os.MkdirAll(acmeDir, 0755); err != nil {
 		t.Fatal(err)
@@ -68,6 +70,7 @@ func TestACME_PebbleE2E(t *testing.T) {
 	// No pre-generated certs: lego must obtain one from Pebble.
 	// Port 5002 is Pebble's default HTTP-01 validation port.
 	const httpPort = 5002
+
 	httpsPort := getFreeTCPPort(t)
 
 	configPath := filepath.Join(tempDir, "config.toml")
@@ -108,6 +111,7 @@ tls_root_ca_file = %q
 	}
 
 	logPath := filepath.Join(tempDir, "server.log")
+
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		t.Fatal(err)
@@ -124,12 +128,15 @@ tls_root_ca_file = %q
 	}
 
 	var shutdownDone bool
+
 	t.Cleanup(func() {
 		if !shutdownDone {
 			cmd.Process.Kill()
 			cmd.Wait() //nolint:errcheck // best-effort cleanup
 		}
+
 		logFile.Close()
+
 		if t.Failed() {
 			content, _ := os.ReadFile(logPath)
 			t.Logf("=== server logs ===\n%s\n=== end ===", content)
@@ -148,9 +155,11 @@ tls_root_ca_file = %q
 	// 1. Cert files were written by lego after issuance.
 	certFile := filepath.Join(acmeDir, "cert.pem")
 	keyFile := filepath.Join(acmeDir, "key.pem")
+
 	if _, err := os.Stat(certFile); err != nil {
 		t.Errorf("cert.pem not found after issuance: %v", err)
 	}
+
 	if _, err := os.Stat(keyFile); err != nil {
 		t.Errorf("key.pem not found after issuance: %v", err)
 	}
@@ -160,11 +169,14 @@ tls_root_ca_file = %q
 	tlsClient := &http.Client{Transport: &http.Transport{
 		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
 	}}
+
 	resp, err := tlsClient.Get(fmt.Sprintf("https://%s/api/healthz", httpsAddr))
 	if err != nil {
 		t.Fatalf("HTTPS healthz request failed: %v", err)
 	}
+
 	resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 for healthz, got %d", resp.StatusCode)
 	}
@@ -174,7 +186,9 @@ tls_root_ca_file = %q
 	if err != nil {
 		t.Fatalf("challenge request failed: %v", err)
 	}
+
 	resp.Body.Close()
+
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 for bogus challenge, got %d", resp.StatusCode)
 	}
@@ -185,26 +199,33 @@ tls_root_ca_file = %q
 			return http.ErrUseLastResponse
 		},
 	}
+
 	resp, err = noRedirectClient.Get(fmt.Sprintf("http://%s/some/path?q=1", httpAddr))
 	if err != nil {
 		t.Fatalf("redirect request failed: %v", err)
 	}
+
 	resp.Body.Close()
+
 	if resp.StatusCode != http.StatusPermanentRedirect {
 		t.Errorf("expected 308, got %d", resp.StatusCode)
 	}
 
 	// 5. Clean shutdown.
 	cmd.Process.Signal(os.Interrupt)
+
 	exitDone := make(chan error, 1)
 	go func() { exitDone <- cmd.Wait() }()
+
 	select {
 	case <-exitDone:
 		shutdownDone = true
 	case <-time.After(tshttp.DefaultShutdownWait):
 		cmd.Process.Kill()
 		<-exitDone
+
 		shutdownDone = true
+
 		t.Fatal("server did not exit within 5 seconds after SIGINT")
 	}
 }

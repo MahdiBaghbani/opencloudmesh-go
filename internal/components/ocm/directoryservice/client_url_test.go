@@ -54,10 +54,12 @@ func TestMapAlgorithm(t *testing.T) {
 
 func TestParsePublicKey(t *testing.T) {
 	kp := generateEd25519(t)
+
 	pub, err := parsePublicKey(kp.pem)
 	if err != nil {
 		t.Fatalf("parsePublicKey: %v", err)
 	}
+
 	if pub == nil {
 		t.Fatal("expected non-nil public key")
 	}

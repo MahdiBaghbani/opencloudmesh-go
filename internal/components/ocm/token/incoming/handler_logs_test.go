@@ -102,9 +102,11 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 					t.Fatalf("failed to decode response: %v", err)
 				}
+
 				if resp.AccessToken == "" {
 					t.Fatal("access_token is empty")
 				}
+
 				sensitive = append(sensitive, resp.AccessToken)
 			}
 

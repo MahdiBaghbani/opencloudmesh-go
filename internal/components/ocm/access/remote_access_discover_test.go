@@ -15,11 +15,13 @@ import (
 
 func TestAccess_PrefetchSingleDiscover(t *testing.T) {
 	const exchangedToken = "exchanged-access-token"
+
 	var discoverCount atomic.Int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			discoverCount.Add(1)
+
 			disc := spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
@@ -34,28 +36,38 @@ func TestAccess_PrefetchSingleDiscover(t *testing.T) {
 					},
 				},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(disc)
+
 			return
 		}
+
 		if r.URL.Path == "/ocm/token" {
 			if r.Header.Get("Signature") == "" {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"access_token":"` + exchangedToken + `","token_type":"Bearer","expires_in":3600}`))
+
 			return
 		}
+
 		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
 			if r.Header.Get("Authorization") == "Bearer "+exchangedToken {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("file content"))
+
 				return
 			}
+
 			w.WriteHeader(http.StatusUnauthorized)
+
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
@@ -81,6 +93,7 @@ func TestAccess_PrefetchSingleDiscover(t *testing.T) {
 	if result.Response.StatusCode != http.StatusOK {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)
 	}
+
 	if got := discoverCount.Load(); got != 1 {
 		t.Errorf("discovery count = %d, want 1 (prefetch avoids second discover)", got)
 	}

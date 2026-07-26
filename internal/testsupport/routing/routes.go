@@ -29,6 +29,7 @@ func DevOpts() service.RouteOpts {
 func WayfEnabledOpts() service.RouteOpts {
 	opts := DevOpts()
 	opts.WayfEnabled = true
+
 	return opts
 }
 
@@ -36,44 +37,53 @@ func WayfEnabledOpts() service.RouteOpts {
 func InviteAcceptEnabledOpts() service.RouteOpts {
 	opts := DevOpts()
 	opts.InviteAcceptEnabled = true
+
 	return opts
 }
 
 // ProductRoutes returns non-synthetic rows from Routes(opts).
 func ProductRoutes(opts service.RouteOpts) []service.RouteRow {
 	rows := service.Routes(opts)
+
 	out := make([]service.RouteRow, 0, len(rows))
 	for _, row := range rows {
 		if row.Synthetic {
 			continue
 		}
+
 		out = append(out, row)
 	}
+
 	return out
 }
 
 // SyntheticRoutes returns synthetic subtree rows from Routes(opts).
 func SyntheticRoutes(opts service.RouteOpts) []service.RouteRow {
 	rows := service.Routes(opts)
+
 	out := make([]service.RouteRow, 0, len(rows))
 	for _, row := range rows {
 		if !row.Synthetic {
 			continue
 		}
+
 		out = append(out, row)
 	}
+
 	return out
 }
 
 // RoutesBySurface returns product routes with the given surface class.
 func RoutesBySurface(opts service.RouteOpts, surface service.SurfaceClass) []service.RouteRow {
 	rows := ProductRoutes(opts)
+
 	out := make([]service.RouteRow, 0, len(rows))
 	for _, row := range rows {
 		if row.SurfaceClass == surface {
 			out = append(out, row)
 		}
 	}
+
 	return out
 }
 
@@ -96,11 +106,13 @@ func IsKnownOutboundKind(kind service.OutboundProtocolKind) bool {
 	if kind == service.OutboundNone {
 		return false
 	}
+
 	for _, known := range KnownOutboundKinds() {
 		if kind == known {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -111,6 +123,7 @@ func HasDiscoveryField(row service.RouteRow, field string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -120,31 +133,38 @@ func IsOCMProtocolPath(fullPath string, opts service.RouteOpts) bool {
 	if opts.ExternalBasePath != "" {
 		prefix = strings.TrimSuffix(opts.ExternalBasePath, "/") + "/ocm"
 	}
+
 	return fullPath == prefix || strings.HasPrefix(fullPath, prefix+"/")
 }
 
 // PublicSessionPaths returns full paths that should not require session auth.
 func PublicSessionPaths(opts service.RouteOpts) []string {
 	rows := service.DerivedRouteInventory(opts)
+
 	var paths []string
+
 	for _, row := range rows {
 		if row.SessionPolicy == service.SessionPublic ||
 			(row.SessionPolicy == service.SessionPublicWhenWAYF && opts.WayfEnabled) {
 			paths = append(paths, row.FullPath)
 		}
 	}
+
 	return paths
 }
 
 // ProtectedSessionPaths returns full paths that should require session auth.
 func ProtectedSessionPaths(opts service.RouteOpts) []string {
 	rows := service.DerivedRouteInventory(opts)
+
 	var paths []string
+
 	for _, row := range rows {
 		if row.SessionPolicy == service.SessionProtected ||
 			(row.SessionPolicy == service.SessionPublicWhenWAYF && !opts.WayfEnabled) {
 			paths = append(paths, row.FullPath)
 		}
 	}
+
 	return paths
 }

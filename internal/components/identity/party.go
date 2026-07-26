@@ -59,6 +59,7 @@ func (u *User) IsExpired() bool {
 	if u.ExpiresAt == nil {
 		return false
 	}
+
 	return time.Now().After(*u.ExpiresAt)
 }
 
@@ -119,6 +120,7 @@ func hexEncode(src []byte) []byte {
 		dst[i*2] = hexTable[v>>4]
 		dst[i*2+1] = hexTable[v&0x0f]
 	}
+
 	return dst
 }
 
@@ -159,6 +161,7 @@ func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
 	if user.ID == "" {
 		user.ID = UUIDv7()
 	}
+
 	if user.CreatedAt.IsZero() {
 		user.CreatedAt = time.Now()
 	}
@@ -182,7 +185,9 @@ func (r *MemoryPartyRepo) Get(ctx context.Context, id string) (*User, error) {
 	if !ok {
 		return nil, ErrUserNotFound
 	}
+
 	u := *user
+
 	return &u, nil
 }
 
@@ -197,6 +202,7 @@ func (r *MemoryPartyRepo) GetByUsername(ctx context.Context, username string) (*
 
 	user := r.users[id]
 	u := *user
+
 	return &u, nil
 }
 
@@ -216,6 +222,7 @@ func (r *MemoryPartyRepo) GetByEmail(ctx context.Context, email string) (*User, 
 
 	user := r.users[id]
 	u := *user
+
 	return &u, nil
 }
 
@@ -227,6 +234,7 @@ func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 	if !ok {
 		return ErrUserNotFound
 	}
+
 	if existing.Role == RoleSuperAdmin && user.Role != RoleSuperAdmin {
 		return ErrSuperAdminRoleChange
 	}
@@ -236,22 +244,27 @@ func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 		delete(r.byUsername, existing.Username)
 		r.byUsername[user.Username] = user.ID
 	}
+
 	oldNorm := normalizeEmail(existing.Email)
+
 	newNorm := normalizeEmail(user.Email)
 	if oldNorm != newNorm {
 		if oldNorm != "" {
 			delete(r.byEmail, oldNorm)
 		}
+
 		if newNorm != "" {
 			if ownerID, exists := r.byEmail[newNorm]; exists && ownerID != user.ID {
 				return ErrEmailExists
 			}
+
 			r.byEmail[newNorm] = user.ID
 		}
 	}
 
 	u := *user
 	r.users[user.ID] = &u
+
 	return nil
 }
 
@@ -263,15 +276,19 @@ func (r *MemoryPartyRepo) Delete(ctx context.Context, id string) error {
 	if !ok {
 		return ErrUserNotFound
 	}
+
 	if user.Role == RoleSuperAdmin {
 		return ErrSuperAdminProtected
 	}
 
 	delete(r.byUsername, user.Username)
+
 	if norm := normalizeEmail(user.Email); norm != "" {
 		delete(r.byEmail, norm)
 	}
+
 	delete(r.users, id)
+
 	return nil
 }
 
@@ -280,12 +297,14 @@ func (r *MemoryPartyRepo) List(ctx context.Context, realm string) ([]*User, erro
 	defer r.mu.RUnlock()
 
 	var result []*User
+
 	for _, user := range r.users {
 		if realm == "" || user.Realm == realm {
 			u := *user
 			result = append(result, &u)
 		}
 	}
+
 	return result, nil
 }
 
@@ -294,16 +313,21 @@ func (r *MemoryPartyRepo) DeleteExpired(ctx context.Context) (int, error) {
 	defer r.mu.Unlock()
 
 	var count int
+
 	now := time.Now()
 	for id, user := range r.users {
 		if user.ExpiresAt != nil && now.After(*user.ExpiresAt) {
 			delete(r.byUsername, user.Username)
+
 			if norm := normalizeEmail(user.Email); norm != "" {
 				delete(r.byEmail, norm)
 			}
+
 			delete(r.users, id)
+
 			count++
 		}
 	}
+
 	return count, nil
 }

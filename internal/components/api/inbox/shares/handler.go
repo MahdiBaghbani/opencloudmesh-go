@@ -103,6 +103,7 @@ func isAbsoluteWebDAVURI(uri string) bool {
 	if err != nil {
 		return false
 	}
+
 	return u.IsAbs()
 }
 
@@ -185,6 +186,7 @@ func NewHandler(
 	log *slog.Logger,
 ) *Handler {
 	log = logutil.NoopIfNil(log)
+
 	return &Handler{
 		repo:         repo,
 		accessClient: accessClient,
@@ -205,6 +207,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.Error("failed to list inbox shares", "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to list inbox shares")
+
 		return
 	}
 
@@ -239,8 +242,10 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
+
 		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get share")
+
 		return
 	}
 
@@ -250,6 +255,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 			"status":  string(sharesinbox.ShareStatusAccepted),
 			"shareId": shareID,
 		})
+
 		return
 	}
 
@@ -261,6 +267,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, sharesinbox.ShareStatusAccepted); err != nil {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
+
 		return
 	}
 
@@ -291,12 +298,15 @@ func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
+
 		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get share")
+
 		return
 	}
 
 	detail := NewInboxShareDetailView(share)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(detail)
 }
@@ -323,8 +333,10 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
+
 		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get share")
+
 		return
 	}
 
@@ -334,6 +346,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 			"status":  string(sharesinbox.ShareStatusDeclined),
 			"shareId": shareID,
 		})
+
 		return
 	}
 
@@ -345,6 +358,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, sharesinbox.ShareStatusDeclined); err != nil {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
+
 		return
 	}
 
@@ -377,8 +391,10 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
+
 		h.log.Error("failed to get share", "share_id", shareID, "user_id", user.ID, "error", err)
 		api.WriteInternalError(w, "failed to get share")
+
 		return
 	}
 
@@ -425,6 +441,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	if result.Response.StatusCode < 200 || result.Response.StatusCode >= 300 {
 		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable),
 			"remote server returned "+redactPeerValue(result.Response.Status, share.SharedSecret))
+
 		return
 	}
 
@@ -456,6 +473,7 @@ func readBoundedPreview(r io.Reader) ([]byte, bool, error) {
 	if len(buf) > maxPreviewBytes {
 		return buf[:maxPreviewBytes], true, err
 	}
+
 	return buf, false, err
 }
 
@@ -466,8 +484,10 @@ func redactPeerValue(value, secret string) string {
 	if secret != "" {
 		value = strings.ReplaceAll(value, secret, redacted)
 	}
+
 	value = strings.ReplaceAll(value, "code=", "[REDACTED_CODE_PARAM]")
 	value = strings.ReplaceAll(value, "sharedSecret", "[REDACTED_FIELD]")
+
 	return value
 }
 
@@ -487,10 +507,12 @@ func (h *Handler) writeAccessError(w http.ResponseWriter, err error) {
 		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share not accepted")
 		return
 	}
+
 	if errors.Is(err, access.ErrTokenExchangeRequired) {
 		writeVerifyError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.VerifyCode(reason.PeerCapabilityMismatch), "token exchange required but not available")
 		return
 	}
+
 	if errors.Is(err, access.ErrRemoteAccessFailed) {
 		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable), "remote access failed: all methods exhausted")
 		return

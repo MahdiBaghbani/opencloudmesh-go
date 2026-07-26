@@ -44,6 +44,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	if routeOpts.TokenExchangePath == "" {
 		routeOpts.TokenExchangePath = in.TokenExchangePath
 	}
+
 	if routeOpts.TokenExchangePath == "" {
 		routeOpts.TokenExchangePath = "token"
 	}
@@ -67,6 +68,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	if te, ok := rawOCMProvider["token_exchange"].(map[string]any); ok {
 		rawTE = te
 	}
+
 	if _, set := rawTE["path"]; !set && c.TokenExchange.Path == "" {
 		c.TokenExchange.Path = routeOpts.TokenExchangePath
 	} else if c.TokenExchange.Path != "" {
@@ -117,5 +119,6 @@ func resolveFacts(in ResolveInputs) policy.Facts {
 		var disc policy.DiscoveryView = nil
 		return in.Resolver.ResolveFacts(in.LocalIdentity.ProviderDomain, disc)
 	}
+
 	return in.CodeFlow.Evaluate()
 }

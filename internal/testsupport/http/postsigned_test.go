@@ -13,22 +13,28 @@ import (
 )
 
 func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
-	var gotMethod string
-	var gotContentType string
-	var gotSignature string
-	var gotBody []byte
+	var (
+		gotMethod      string
+		gotContentType string
+		gotSignature   string
+		gotBody        []byte
+	)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotContentType = r.Header.Get("Content-Type")
 		gotSignature = r.Header.Get("Signature")
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Errorf("read request body: %v", err)
 			http.Error(w, "read failed", http.StatusInternalServerError)
+
 			return
 		}
+
 		gotBody = body
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"echo":true}`))
@@ -39,6 +45,7 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 	signer := crypto.NewRFC9421Signer(km)
 
 	reqBody := map[string]string{"token": "abc"}
+
 	resp, respBody := tshttp.PostSignedJSON(
 		t,
 		server.Client(),
@@ -52,9 +59,11 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 	if gotMethod != http.MethodPost {
 		t.Fatalf("method = %q, want POST", gotMethod)
 	}
+
 	if gotContentType != "application/json" {
 		t.Fatalf("Content-Type = %q, want application/json", gotContentType)
 	}
+
 	if gotSignature == "" {
 		t.Fatal("expected Signature header on signed request")
 	}
@@ -63,12 +72,15 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal expected body: %v", err)
 	}
+
 	if string(gotBody) != string(wantBody) {
 		t.Fatalf("request body = %q, want %q", gotBody, wantBody)
 	}
+
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusCreated)
 	}
+
 	if string(respBody) != `{"echo":true}` {
 		t.Fatalf("response body = %q, want %q", respBody, `{"echo":true}`)
 	}
@@ -82,6 +94,7 @@ func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(wantBody))
 	}))
@@ -104,9 +117,11 @@ func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read resp.Body: %v", err)
 	}
+
 	if string(fromBody) != string(respBody) {
 		t.Fatalf("resp.Body = %q, want %q from returned bytes", fromBody, respBody)
 	}
+
 	if string(respBody) != wantBody {
 		t.Fatalf("returned body = %q, want %q", respBody, wantBody)
 	}
@@ -117,15 +132,18 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
+
 		if r.Header.Get("Signature") == "" {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
 			return
 		}
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "read failed", http.StatusInternalServerError)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
@@ -136,6 +154,7 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 	signer := crypto.NewRFC9421Signer(km)
 
 	reqBody := map[string]string{"token": "reuse-me"}
+
 	wantBody, err := json.Marshal(reqBody)
 	if err != nil {
 		t.Fatalf("marshal expected body: %v", err)
@@ -166,15 +185,19 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 	if resp1.StatusCode != http.StatusOK {
 		t.Fatalf("first status = %d, want %d", resp1.StatusCode, http.StatusOK)
 	}
+
 	if resp2.StatusCode != http.StatusOK {
 		t.Fatalf("second status = %d, want %d", resp2.StatusCode, http.StatusOK)
 	}
+
 	if string(respBody1) != string(wantBody) {
 		t.Fatalf("first response body = %q, want %q", respBody1, wantBody)
 	}
+
 	if string(respBody2) != string(wantBody) {
 		t.Fatalf("second response body = %q, want %q", respBody2, wantBody)
 	}
+
 	if callCount != 2 {
 		t.Fatalf("server call count = %d, want 2", callCount)
 	}
@@ -188,6 +211,7 @@ func TestPostSignedJSONStatusBody_ReturnsStatusAndBody(t *testing.T) {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte(wantBody))
@@ -208,6 +232,7 @@ func TestPostSignedJSONStatusBody_ReturnsStatusAndBody(t *testing.T) {
 	if status != http.StatusAccepted {
 		t.Fatalf("status = %d, want %d", status, http.StatusAccepted)
 	}
+
 	if string(respBody) != wantBody {
 		t.Fatalf("response body = %q, want %q", respBody, wantBody)
 	}
@@ -219,6 +244,7 @@ func TestPostSignedJSONDecode_UnmarshalsResponse(t *testing.T) {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
@@ -228,6 +254,7 @@ func TestPostSignedJSONDecode_UnmarshalsResponse(t *testing.T) {
 	signer := crypto.NewRFC9421Signer(km)
 
 	var decoded map[string]bool
+
 	status, raw := tshttp.PostSignedJSONDecode(
 		t,
 		server.Client(),
@@ -239,9 +266,11 @@ func TestPostSignedJSONDecode_UnmarshalsResponse(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want %d", status, http.StatusOK)
 	}
+
 	if !decoded["ok"] {
 		t.Fatalf("decoded = %#v, want ok=true", decoded)
 	}
+
 	if string(raw) != `{"ok":true}` {
 		t.Fatalf("raw body = %q, want %q", raw, `{"ok":true}`)
 	}
@@ -253,6 +282,7 @@ func TestPostSignedJSONDecode_NilOutDoesNotPanic(t *testing.T) {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
@@ -272,6 +302,7 @@ func TestPostSignedJSONDecode_NilOutDoesNotPanic(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want %d", status, http.StatusOK)
 	}
+
 	if string(raw) != `{"ok":true}` {
 		t.Fatalf("raw body = %q, want %q", raw, `{"ok":true}`)
 	}
@@ -283,6 +314,7 @@ func TestPostSignedJSONDecode_EmptyBodyDoesNotPanic(t *testing.T) {
 			http.Error(w, "unsigned", http.StatusUnauthorized)
 			return
 		}
+
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
@@ -291,6 +323,7 @@ func TestPostSignedJSONDecode_EmptyBodyDoesNotPanic(t *testing.T) {
 	signer := crypto.NewRFC9421Signer(km)
 
 	var decoded map[string]bool
+
 	status, raw := tshttp.PostSignedJSONDecode(
 		t,
 		server.Client(),
@@ -302,6 +335,7 @@ func TestPostSignedJSONDecode_EmptyBodyDoesNotPanic(t *testing.T) {
 	if status != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", status, http.StatusNoContent)
 	}
+
 	if len(raw) != 0 {
 		t.Fatalf("raw body = %q, want empty", raw)
 	}

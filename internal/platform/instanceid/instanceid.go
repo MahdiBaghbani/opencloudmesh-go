@@ -24,6 +24,7 @@ func NormalizePublicOrigin(publicOrigin string) (string, error) {
 	host := strings.ToLower(u.Host)
 
 	normalized := scheme + "://" + host
+
 	return normalized, nil
 }
 
@@ -55,5 +56,6 @@ func Hostname(publicOrigin string) (string, error) {
 	}
 
 	hostname := u.Hostname() // strips port and brackets from IPv6
+
 	return strings.ToLower(hostname), nil
 }

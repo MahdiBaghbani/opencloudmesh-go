@@ -52,6 +52,7 @@ func New(
 	if sd.RealIP == nil {
 		return nil, ErrMissingRealIP
 	}
+
 	if sd.AuthGate == nil {
 		return nil, ErrMissingAuthGate
 	}
@@ -97,20 +98,24 @@ func (s *Server) Start() error {
 
 	case "static", "selfsigned":
 		tlsManager := tlspkg.NewTLSManager(&s.cfg.TLS, s.logger)
+
 		hostname, err := instanceid.Hostname(s.cfg.PublicOrigin)
 		if err != nil {
 			return fmt.Errorf("failed to derive TLS hostname: %w", err)
 		}
+
 		tlsConfig, err := tlsManager.GetTLSConfig(hostname)
 		if err != nil {
 			return fmt.Errorf("failed to configure TLS: %w", err)
 		}
+
 		if tlsConfig == nil {
 			return fmt.Errorf("TLS config is nil for mode %s", s.cfg.TLS.Mode)
 		}
 
 		s.httpServer.TLSConfig = tlsConfig
 		s.logger.Info("starting server with TLS", "mode", s.cfg.TLS.Mode)
+
 		return s.httpServer.ListenAndServeTLS("", "")
 
 	default:
@@ -127,6 +132,7 @@ func (s *Server) startACME() error {
 	if s.cfg.TLS.HTTPPort == 0 {
 		return errors.New("tls.http_port must be set for ACME mode")
 	}
+
 	if s.cfg.TLS.HTTPSPort == 0 {
 		return errors.New("tls.https_port must be set for ACME mode")
 	}
@@ -165,8 +171,10 @@ func (s *Server) startACME() error {
 		if s.challengeServer == nil {
 			return
 		}
+
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), config.DefaultServerShutdownTimeout)
 		defer cancel()
+
 		if shutdownErr := s.challengeServer.Shutdown(shutdownCtx); shutdownErr != nil && !errors.Is(shutdownErr, http.ErrServerClosed) {
 			_ = s.challengeServer.Close()
 		}
@@ -210,9 +218,12 @@ func (s *Server) startACME() error {
 		if errors.Is(challengeErr, http.ErrServerClosed) {
 			return <-httpsErrCh
 		}
+
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), config.DefaultServerShutdownTimeout)
 		defer cancel()
+
 		_ = s.httpServer.Shutdown(shutdownCtx)
+
 		return fmt.Errorf("challenge server exited unexpectedly: %w", challengeErr)
 	}
 }
@@ -223,7 +234,8 @@ func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 		if h, _, err := net.SplitHostPort(hostOnly); err == nil {
 			hostOnly = h
 		}
-		if strings.Contains(hostOnly, ":") && !(strings.HasPrefix(hostOnly, "[") && strings.HasSuffix(hostOnly, "]")) {
+
+		if strings.Contains(hostOnly, ":") && (!strings.HasPrefix(hostOnly, "[") || !strings.HasSuffix(hostOnly, "]")) {
 			hostOnly = "[" + hostOnly + "]"
 		}
 
@@ -250,10 +262,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	for i := len(s.mountedServices) - 1; i >= 0; i-- {
 		svc := s.mountedServices[i]
+
 		prefix := svc.Prefix()
 		if prefix == "" {
 			prefix = "(root)"
 		}
+
 		if err := svc.Close(); err != nil {
 			s.logger.Warn("service close error",
 				"service", prefix,

@@ -27,11 +27,14 @@ func (s *unsignedMockSigner) Sign(req *http.Request) error {
 
 func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
 	var hits atomic.Int32
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
+
 		if r.Header.Get("Signature") != "" {
 			t.Error("expected unsigned request")
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"error":"invalid_client","error_description":"client authentication failed"}`))
@@ -50,6 +53,7 @@ func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected failure for unsigned 401")
 	}
+
 	if hits.Load() != 1 {
 		t.Fatalf("hits = %d, want 1 (no retry)", hits.Load())
 	}
@@ -58,6 +62,7 @@ func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
+
 	if ce.ReasonCode != reason.ReasonTokenUnauthorized {
 		t.Fatalf("expected reason %q, got %q", reason.ReasonTokenUnauthorized, ce.ReasonCode)
 	}
@@ -65,11 +70,14 @@ func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
 
 func TestClient_Exchange_Signed401FailClosed(t *testing.T) {
 	var hits atomic.Int32
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
+
 		if r.Header.Get("Signature") == "" {
 			t.Error("expected signed request")
 		}
+
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer server.Close()
@@ -86,6 +94,7 @@ func TestClient_Exchange_Signed401FailClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected failure for signed 401")
 	}
+
 	if hits.Load() != 1 {
 		t.Fatalf("hits = %d, want 1 (no retry)", hits.Load())
 	}
@@ -94,6 +103,7 @@ func TestClient_Exchange_Signed401FailClosed(t *testing.T) {
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
+
 	if ce.ReasonCode != reason.ReasonSignatureRequired {
 		t.Fatalf("expected reason %q, got %q", reason.ReasonSignatureRequired, ce.ReasonCode)
 	}
@@ -101,6 +111,7 @@ func TestClient_Exchange_Signed401FailClosed(t *testing.T) {
 
 func TestClient_Exchange_403FailClosed(t *testing.T) {
 	var hits atomic.Int32
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
@@ -121,6 +132,7 @@ func TestClient_Exchange_403FailClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected failure for 403")
 	}
+
 	if hits.Load() != 1 {
 		t.Fatalf("hits = %d, want 1 (no retry)", hits.Load())
 	}
@@ -129,6 +141,7 @@ func TestClient_Exchange_403FailClosed(t *testing.T) {
 	if !isClassifiedError(err, &ce) {
 		t.Fatalf("expected ClassifiedError, got %T", err)
 	}
+
 	if ce.ReasonCode != reason.ReasonTokenForbidden {
 		t.Fatalf("expected reason %q, got %q", reason.ReasonTokenForbidden, ce.ReasonCode)
 	}

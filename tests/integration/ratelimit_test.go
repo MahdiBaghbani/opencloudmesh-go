@@ -27,6 +27,7 @@ profile = "discover"
 `
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:        "ratelimit-ocmaux",
 		Mode:        "dev",
@@ -35,11 +36,13 @@ profile = "discover"
 	defer srv.Stop(t)
 
 	discoverURL := srv.BaseURL + "/ocm-aux/discover?base=" + srv.BaseURL
+
 	resp, err := http.Get(discoverURL)
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
+
 	resp.Body.Close()
 
 	// Second request should be rate-limited (limit is 1).
@@ -54,6 +57,7 @@ profile = "discover"
 		srv.DumpLogs(t)
 		t.Fatalf("expected status 429, got %d", resp.StatusCode)
 	}
+
 	requireRetryAfterPositive(t, resp)
 
 	// Ensure other ocmaux endpoints are not rate limited.
@@ -85,6 +89,7 @@ profile = "login"
 `
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:        "ratelimit-api",
 		Mode:        "dev",
@@ -103,6 +108,7 @@ profile = "login"
 		srv.DumpLogs(t)
 		t.Fatalf("expected status 429, got %d", resp.StatusCode)
 	}
+
 	requireRetryAfterPositive(t, resp)
 
 	// Ensure other API endpoints are not rate limited.
@@ -123,10 +129,12 @@ func postLogin(t *testing.T, url string) *http.Response {
 	t.Helper()
 
 	body := bytes.NewBufferString(`{"username":"admin","password":"wrong"}`)
+
 	resp, err := http.Post(url, "application/json", body)
 	if err != nil {
 		t.Fatalf("failed to POST /api/auth/login: %v", err)
 	}
+
 	return resp
 }
 
@@ -137,10 +145,12 @@ func requireRetryAfterPositive(t *testing.T, resp *http.Response) {
 	if retryAfter == "" {
 		t.Fatalf("expected Retry-After header to be set")
 	}
+
 	seconds, err := strconv.Atoi(retryAfter)
 	if err != nil {
 		t.Fatalf("expected Retry-After to be integer seconds, got %q", retryAfter)
 	}
+
 	if seconds < 1 {
 		t.Fatalf("expected positive Retry-After, got %d", seconds)
 	}

@@ -9,6 +9,7 @@ import (
 func enabledSettings() *tokenincoming.TokenExchangeSettings {
 	s := &tokenincoming.TokenExchangeSettings{}
 	s.ApplyDefaults()
+
 	return s
 }
 

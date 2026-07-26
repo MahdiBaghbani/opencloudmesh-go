@@ -134,6 +134,7 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+
 	session, err := h.sessions.Get(ctx, token)
 	if err != nil {
 		writeJSONError(w, http.StatusUnauthorized, "invalid_session", "session expired or invalid")
@@ -169,6 +170,7 @@ func extractToken(r *http.Request) string {
 	if len(auth) > 7 && auth[:7] == "Bearer " {
 		return auth[7:]
 	}
+
 	cookie, err := r.Cookie("session")
 	if err == nil {
 		return cookie.Value

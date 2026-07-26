@@ -19,10 +19,12 @@ func decodeBase64URL(s string) ([]byte, error) {
 	case 3:
 		padded += "="
 	}
+
 	raw, err := base64.URLEncoding.DecodeString(padded)
 	if err != nil {
 		return nil, err
 	}
+
 	return raw, nil
 }
 

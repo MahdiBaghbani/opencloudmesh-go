@@ -10,6 +10,7 @@ import (
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+
 	// Register durable store drivers via their init() functions.
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/json"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
@@ -35,6 +36,7 @@ func (r *Repos) Close() error {
 	if r.driver == nil {
 		return nil
 	}
+
 	return r.driver.Close()
 }
 

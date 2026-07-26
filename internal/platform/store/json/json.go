@@ -78,12 +78,15 @@ func (d *Driver) Init(ctx context.Context) error {
 	if err := d.loadFile(fileOutgoingShares, &d.outgoingShares); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to load outgoing shares: %w", err)
 	}
+
 	if err := d.loadFile(fileIncomingShares, &d.incomingShares); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to load incoming shares: %w", err)
 	}
+
 	if err := d.loadFile(fileOutgoingInvites, &d.outgoingInvites); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to load outgoing invites: %w", err)
 	}
+
 	if err := d.loadFile(fileIncomingInvites, &d.incomingInvites); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to load incoming invites: %w", err)
 	}
@@ -99,7 +102,9 @@ func (d *Driver) Init(ctx context.Context) error {
 func (d *Driver) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
 	d.closed = true
+
 	return nil
 }
 

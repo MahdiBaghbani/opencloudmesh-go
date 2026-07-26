@@ -45,10 +45,12 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	log = logutil.NoopIfNil(log)
 
 	var c Config
+
 	unused, err := svccfg.DecodeWithUnused(m, &c)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(unused) > 0 {
 		log.Warn("unused config keys", "service", "ui", "unused_keys", unused)
 	}
@@ -67,6 +69,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		r.Get(RouteWAYF, uiHandler.Wayf)
 		log.Info("WAYF UI enabled", "wayf_path", "/ui/wayf")
 	}
+
 	if c.InviteAccept.Enabled {
 		r.Get(RouteAcceptInvite, uiHandler.AcceptInvite)
 		log.Info("invite accept UI enabled", "accept_invite_path", "/ui/accept-invite")

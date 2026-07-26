@@ -42,6 +42,7 @@ func GenerateToken() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
+
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
@@ -106,6 +107,7 @@ func (r *MemorySessionRepo) Delete(ctx context.Context, token string) error {
 	if !ok {
 		return nil
 	}
+
 	tokens := r.byUser[session.UserID]
 	for i, t := range tokens {
 		if t == token {
@@ -115,6 +117,7 @@ func (r *MemorySessionRepo) Delete(ctx context.Context, token string) error {
 	}
 
 	delete(r.sessions, token)
+
 	return nil
 }
 
@@ -126,6 +129,7 @@ func (r *MemorySessionRepo) DeleteByUser(ctx context.Context, userID string) err
 	for _, token := range tokens {
 		delete(r.sessions, token)
 	}
+
 	delete(r.byUser, userID)
 
 	return nil
@@ -136,6 +140,7 @@ func (r *MemorySessionRepo) DeleteExpired(ctx context.Context) (int, error) {
 	defer r.mu.Unlock()
 
 	var count int
+
 	now := time.Now()
 
 	for token, session := range r.sessions {
@@ -147,7 +152,9 @@ func (r *MemorySessionRepo) DeleteExpired(ctx context.Context) (int, error) {
 					break
 				}
 			}
+
 			delete(r.sessions, token)
+
 			count++
 		}
 	}

@@ -25,6 +25,7 @@ type PolicyEngine struct {
 
 func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger *slog.Logger) *PolicyEngine {
 	logger = logutil.NoopIfNil(logger)
+
 	return &PolicyEngine{
 		cfg:           cfg,
 		trustGroupMgr: trustGroupMgr,
@@ -40,6 +41,7 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 
 	if pe.isInList(peerHost, pe.cfg.DenyList) {
 		pe.logger.Warn("peer denied by denylist", "peer", peerHost)
+
 		return &PolicyDecision{
 			Allowed:       false,
 			Reason:        "peer in denylist",
@@ -61,6 +63,7 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 	// When any trust group enforces membership, require verified directory data.
 	if pe.trustGroupMgr != nil {
 		requireVerified := pe.anyEnforcesMembership()
+
 		isMember := pe.trustGroupMgr.IsMember(ctx, peerHost, requireVerified)
 		if isMember {
 			return &PolicyDecision{
@@ -87,6 +90,7 @@ func (pe *PolicyEngine) isInList(host string, list []string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -97,11 +101,13 @@ func (pe *PolicyEngine) anyEnforcesMembership() bool {
 	if pe.trustGroupMgr == nil {
 		return false
 	}
+
 	for _, tg := range pe.trustGroupMgr.GetTrustGroups() {
 		if tg.EnforceMembership {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -109,5 +115,6 @@ func (pe *PolicyEngine) anyEnforcesMembership() bool {
 func (pe *PolicyEngine) UpdatePolicy(cfg *PolicyConfig) {
 	pe.mu.Lock()
 	defer pe.mu.Unlock()
+
 	pe.cfg = cfg
 }

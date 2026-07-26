@@ -20,12 +20,15 @@ func TestNoAdHocPeerOriginSchemeInApprovedCallSites(t *testing.T) {
 	}
 
 	var violations []string
+
 	for _, relPath := range targets {
 		fullPath := filepath.Join(root, relPath)
+
 		data, err := os.ReadFile(fullPath)
 		if err != nil {
 			t.Fatalf("read %s failed: %v", relPath, err)
 		}
+
 		content := string(data)
 		if strings.Contains(content, `"://"`) ||
 			strings.Contains(content, `"https://"`) ||

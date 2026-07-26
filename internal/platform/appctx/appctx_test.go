@@ -18,6 +18,7 @@ func TestWithLogger_And_LoggerFromContext(t *testing.T) {
 	if !ok {
 		t.Fatal("Expected LoggerFromContext to return true")
 	}
+
 	if got != logger {
 		t.Error("Expected same logger instance")
 	}
@@ -30,6 +31,7 @@ func TestLoggerFromContext_NoLogger(t *testing.T) {
 	if ok {
 		t.Error("Expected LoggerFromContext to return false for context without logger")
 	}
+
 	if got != nil {
 		t.Error("Expected nil logger")
 	}
@@ -43,6 +45,7 @@ func TestLoggerFromContext_NilLogger(t *testing.T) {
 	if ok {
 		t.Error("Expected LoggerFromContext to return false for nil logger")
 	}
+
 	if got != nil {
 		t.Error("Expected nil logger")
 	}
@@ -98,9 +101,11 @@ func TestLogger_ActuallyLogs(t *testing.T) {
 	if output == "" {
 		t.Fatal("Expected log output")
 	}
+
 	if !bytes.Contains(buf.Bytes(), []byte("test message")) {
 		t.Errorf("Expected log to contain 'test message', got: %s", output)
 	}
+
 	if !bytes.Contains(buf.Bytes(), []byte("key=value")) {
 		t.Errorf("Expected log to contain 'key=value', got: %s", output)
 	}

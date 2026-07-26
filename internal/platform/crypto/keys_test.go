@@ -23,6 +23,7 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 	if key == nil {
 		t.Fatal("expected signing key to be set")
 	}
+
 	if key.Algorithm != "ed25519" {
 		t.Errorf("expected algorithm ed25519, got %s", key.Algorithm)
 	}
@@ -37,6 +38,7 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 	}
 
 	pem1 := km.GetPublicKeyPEM()
+
 	pem2 := km2.GetPublicKeyPEM()
 	if pem1 != pem2 {
 		t.Error("public keys should match after reload")
@@ -72,7 +74,9 @@ func TestKeyManager_KeyIDUsesProviderDomain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	want := id.ProviderDomain + "#key1"
+
 	km := crypto.NewKeyManager("", id.Origin)
 	if km.GetKeyID() != want {
 		t.Errorf("keyId = %q, want %q", km.GetKeyID(), want)
@@ -89,6 +93,7 @@ func TestKeyManager_JWKS(t *testing.T) {
 	if len(set.Keys) != 1 {
 		t.Fatalf("keys = %d, want 1", len(set.Keys))
 	}
+
 	if set.Keys[0].Kid != km.GetKeyID() {
 		t.Fatalf("kid = %q, want %q", set.Keys[0].Kid, km.GetKeyID())
 	}
@@ -101,6 +106,7 @@ func TestKeyManager_Sign(t *testing.T) {
 	}
 
 	message := []byte("test message")
+
 	sig, err := km.Sign(message)
 	if err != nil {
 		t.Fatalf("Sign failed: %v", err)

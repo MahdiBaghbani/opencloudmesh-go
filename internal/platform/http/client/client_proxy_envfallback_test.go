@@ -30,6 +30,7 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 	}
 
 	var proxyHit atomic.Bool
+
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHit.Store(true)
 		t.Errorf("proxy must not be contacted when use_env_fallback is false: got %s %s",
@@ -44,11 +45,13 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen on non-loopback IP %s: %v", localIP, err)
 	}
+
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("direct"))
 	}))
 	server.Listener = destListener
+
 	server.Start()
 	defer server.Close()
 
@@ -78,6 +81,7 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if proxyHit.Load() {
 		t.Error("env proxy must not be contacted when use_env_fallback is false")
 	}
@@ -123,6 +127,7 @@ func TestClient_UseEnvFallbackEnabled_UsesEnv(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
+
 	if !proxyHit.Load() {
 		t.Error("request did not route through the env proxy")
 	}
@@ -169,6 +174,7 @@ func TestClient_ExplicitProxyOverridesEnv(t *testing.T) {
 	if !explicitHit.Load() {
 		t.Error("request must route through the explicit proxy_url")
 	}
+
 	if envHit.Load() {
 		t.Error("env proxy must not be contacted when explicit proxy_url is set")
 	}

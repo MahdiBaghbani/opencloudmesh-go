@@ -15,6 +15,7 @@ func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	if id.ProviderDomain != "cloud.example.com" {
 		t.Fatalf("ProviderDomain = %q, want cloud.example.com (default port stripped)", id.ProviderDomain)
 	}
@@ -36,6 +37,7 @@ func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
 	if !strings.Contains(body, `const providerDomain = "cloud.example.com"`) {
 		t.Errorf("expected stripped provider domain in WAYF page, got body snippet around providerDomain")
 	}
+
 	if strings.Contains(body, "cloud.example.com:443") {
 		t.Error("expected default port stripped from providerDomain in WAYF page")
 	}
@@ -66,6 +68,7 @@ func TestWayf_NonDefaultPortPreservedInProviderDomain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
+
 	if id.ProviderDomain != "cloud.example.com:9200" {
 		t.Fatalf("ProviderDomain = %q, want cloud.example.com:9200", id.ProviderDomain)
 	}
@@ -103,6 +106,7 @@ func TestNewHandler_UsesValidatedExternalBasePath(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
+
 	if body := w.Body.String(); !strings.Contains(body, "/ocm") {
 		t.Error("expected validated base path in login page")
 	}

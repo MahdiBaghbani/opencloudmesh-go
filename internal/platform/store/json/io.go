@@ -18,10 +18,12 @@ const (
 // loadFile loads a JSON file into the target map.
 func (d *Driver) loadFile(filename string, target interface{}) error {
 	path := filepath.Join(d.dataDir, filename)
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
+
 	return json.Unmarshal(data, target)
 }
 
@@ -44,12 +46,14 @@ func (d *Driver) saveFile(filename string, data interface{}) error {
 	if _, err := f.Write(jsonData); err != nil {
 		f.Close()
 		os.Remove(tempPath)
+
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 
 	if err := f.Sync(); err != nil {
 		f.Close()
 		os.Remove(tempPath)
+
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 

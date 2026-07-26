@@ -33,9 +33,11 @@ func TestWriteError_EnvelopeShape(t *testing.T) {
 	if envelope.Error.Code != "Forbidden" {
 		t.Errorf("expected code 'Forbidden', got %q", envelope.Error.Code)
 	}
+
 	if envelope.Error.ReasonCode != api.ReasonSSRFBlocked {
 		t.Errorf("expected reason_code %q, got %q", api.ReasonSSRFBlocked, envelope.Error.ReasonCode)
 	}
+
 	if envelope.Error.Message != "connection to private IP blocked" {
 		t.Errorf("unexpected message: %q", envelope.Error.Message)
 	}
@@ -70,6 +72,7 @@ func TestWriteUnauthorized(t *testing.T) {
 
 	var envelope api.ErrorEnvelope
 	json.NewDecoder(w.Body).Decode(&envelope)
+
 	if envelope.Error.ReasonCode != api.ReasonSessionExpired {
 		t.Errorf("expected reason_code %q, got %q", api.ReasonSessionExpired, envelope.Error.ReasonCode)
 	}
@@ -94,6 +97,7 @@ func TestWriteTooManyRequests(t *testing.T) {
 
 	var envelope api.ErrorEnvelope
 	json.NewDecoder(w.Body).Decode(&envelope)
+
 	if envelope.Error.ReasonCode != api.ReasonRateLimited {
 		t.Errorf("expected reason_code %q, got %q", api.ReasonRateLimited, envelope.Error.ReasonCode)
 	}

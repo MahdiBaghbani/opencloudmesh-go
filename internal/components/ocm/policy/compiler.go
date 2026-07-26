@@ -31,6 +31,7 @@ func (c *CompatCompiler) Resolver() *PeerMappingResolver {
 	if c == nil {
 		return nil
 	}
+
 	return c.resolver
 }
 
@@ -43,6 +44,7 @@ func (c *CompatCompiler) LocalProfile(host string) Facts {
 	if c == nil || c.resolver == nil {
 		return Facts{}
 	}
+
 	return c.resolver.ResolveFacts(host, nil)
 }
 
@@ -64,13 +66,16 @@ type EmitDiscoveryCriteriaInput struct {
 // facts and build context. Values are spec-owned constants, not raw literals.
 func (c *CompatCompiler) EmitDiscoveryCriteria(in EmitDiscoveryCriteriaInput) []string {
 	_ = c
+
 	var criteria []string
 	if in.Facts.RequiresHTTPRequestSignatures && in.AdvertiseHTTPSig {
 		criteria = append(criteria, spec.CriteriaMustUseHTTPSig)
 	}
+
 	if in.Facts.RequiresTokenExchange && in.Facts.TokenExchangeCapable && in.TokenEndPoint != "" {
 		criteria = append(criteria, spec.CriteriaMustExchangeToken)
 	}
+
 	return criteria
 }
 
@@ -88,19 +93,24 @@ type EmitCapabilitiesInput struct {
 // context. Values are spec-owned constants, not raw literals.
 func (c *CompatCompiler) EmitCapabilities(in EmitCapabilitiesInput) []string {
 	_ = c
+
 	var capabilities []string
 	if in.AdvertiseHTTPSig {
 		capabilities = append(capabilities, spec.CapabilityHTTPSig)
 	}
+
 	if in.TokenExchangeCapable && in.TokenEndPoint != "" {
 		capabilities = append(capabilities, spec.CapabilityExchangeToken)
 	}
+
 	if in.InvitesEnabled {
 		capabilities = append(capabilities, spec.CapabilityInvite)
 	}
+
 	if in.WayfEnabled {
 		capabilities = append(capabilities, spec.CapabilityInviteWAYF)
 	}
+
 	return capabilities
 }
 
@@ -115,13 +125,16 @@ type EmitProtocolsInput struct {
 // and webdav-receive uri kinds are spec-owned constants, not raw literals.
 func (c *CompatCompiler) EmitProtocols(in EmitProtocolsInput) spec.Protocols {
 	_ = c
+
 	protocols := spec.Protocols{}
 	if in.WebDAVRoot != "" {
 		protocols[spec.ProtocolWebDAV] = spec.StringProtocolRole(in.WebDAVRoot)
 	}
+
 	if in.WebDAVReceiveURI != "" {
 		protocols[spec.ProtocolWebDAVReceive] = spec.WebDAVReceiveRole(in.WebDAVReceiveURI)
 	}
+
 	return protocols
 }
 
@@ -142,9 +155,11 @@ type EmitShareRequirementsInput struct {
 // emitted.
 func (c *CompatCompiler) EmitShareRequirements(in EmitShareRequirementsInput) []string {
 	_ = c
+
 	if !in.IncludesTokenExchange {
 		return nil
 	}
+
 	return []string{spec.RequirementMustExchangeToken}
 }
 
@@ -152,6 +167,7 @@ func (c *CompatCompiler) EmitShareRequirements(in EmitShareRequirementsInput) []
 // compiler recognizes. must-use-mfa is listed for GAP rejection only.
 func (c *CompatCompiler) RecognizedShareRequirements() []string {
 	_ = c
+
 	return []string{
 		spec.RequirementMustExchangeToken,
 		spec.RequirementMustUseMFA,

@@ -28,6 +28,7 @@ func (r *hostStubResolver) ResolveFacts(host string, disc policy.DiscoveryView) 
 	if facts, ok := r.overrides[host]; ok {
 		return facts
 	}
+
 	return r.defaultFacts
 }
 
@@ -45,18 +46,22 @@ func TestHandleCreate_LegacyVoluntaryNonCapableReceiver_Returns201(t *testing.T)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 1 {
 		t.Fatalf("expected one POST, got %d", postCount.Load())
 	}
+
 	if captured.Protocol.WebDAV == nil {
 		t.Fatal("expected webdav protocol in captured payload")
 	}
+
 	if captured.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Fatal("expected no must-exchange-token requirement for non-capable receiver")
 	}
@@ -82,18 +87,22 @@ func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 1 {
 		t.Fatalf("expected one POST, got %d", postCount.Load())
 	}
+
 	if captured.Protocol.WebDAV == nil {
 		t.Fatal("expected webdav protocol in captured payload")
 	}
+
 	if !captured.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Fatalf("expected must-exchange-token requirement, got %v", captured.Protocol.WebDAV.Requirements)
 	}
@@ -102,9 +111,11 @@ func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(shares) != 1 {
 		t.Fatalf("expected one stored share, got %d", len(shares))
 	}
+
 	if len(shares[0].Requirements) != 1 || shares[0].Requirements[0] != spec.RequirementMustExchangeToken {
 		t.Fatalf("expected persisted peer-forced share to require must-exchange-token, got %v", shares[0].Requirements)
 	}
@@ -113,10 +124,12 @@ func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
 func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 	matchedSrv, matchedPost, matchedCaptured := makeCapturingReceiverTLSServer([]string{}, []string{})
 	defer matchedSrv.Close()
+
 	matchedHost := matchedSrv.Listener.Addr().String()
 
 	otherSrv, otherPost, _ := makeCapturingReceiverTLSServer([]string{}, []string{})
 	defer otherSrv.Close()
+
 	otherHost := otherSrv.Listener.Addr().String()
 
 	resolver := &hostStubResolver{
@@ -138,18 +151,22 @@ func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-instance-matched-*")
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(matchedHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("matched host: expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if matchedPost.Load() != 1 {
 		t.Fatalf("matched host: expected one POST, got %d", matchedPost.Load())
 	}
+
 	if matchedCaptured.Protocol.WebDAV == nil {
 		t.Fatal("matched host: expected webdav protocol in captured payload")
 	}
+
 	if matchedCaptured.Protocol.WebDAV.HasRequirement(spec.RequirementMustExchangeToken) {
 		t.Fatal("matched host: expected no must-exchange-token requirement")
 	}
@@ -160,9 +177,11 @@ func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(matchedShares) != 1 {
 		t.Fatalf("matched host: expected one stored share, got %d", len(matchedShares))
 	}
+
 	if len(matchedShares[0].Requirements) != 0 {
 		t.Fatalf("matched host: expected empty persisted requirements, got %v", matchedShares[0].Requirements)
 	}
@@ -171,12 +190,14 @@ func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 	tmpFile2 := createTempShareFile(t, "outgoing-instance-other-*")
 	req2 := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(otherHost, tmpFile2)))
 	req2.Header.Set("Content-Type", "application/json")
+
 	w2 := httptest.NewRecorder()
 	handler.HandleCreate(w2, req2)
 
 	if w2.Code != reason.APIStatus(reason.PeerCapabilityMismatch) {
 		t.Fatalf("other host: expected %d, got %d: %s", reason.APIStatus(reason.PeerCapabilityMismatch), w2.Code, w2.Body.String())
 	}
+
 	if otherPost.Load() != 0 {
 		t.Fatalf("other host: expected no remote POST, got %d", otherPost.Load())
 	}
@@ -209,12 +230,14 @@ func TestHandleCreate_LocalSenderNotTokenCapable_NonStrict_Allows(t *testing.T) 
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 1 {
 		t.Fatalf("expected one POST, got %d", postCount.Load())
 	}
@@ -223,9 +246,11 @@ func TestHandleCreate_LocalSenderNotTokenCapable_NonStrict_Allows(t *testing.T) 
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(shares) != 1 {
 		t.Fatalf("expected one stored share, got %d", len(shares))
 	}
+
 	if len(shares[0].Requirements) != 0 {
 		t.Fatalf("expected non-strict share to have empty requirements, got %v", shares[0].Requirements)
 	}
@@ -258,12 +283,14 @@ func TestHandleCreate_LocalSenderNotTokenCapable_Strict_Rejects(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != reason.APIStatus(reason.PeerCapabilityMismatch) {
 		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerCapabilityMismatch), w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 0 {
 		t.Fatalf("expected no remote POST, got %d", postCount.Load())
 	}
@@ -274,6 +301,7 @@ func TestHandleCreate_LocalSenderNotTokenCapable_Strict_Rejects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(shares) != 0 {
 		t.Fatalf("expected no persisted share on strict reject, got %d", len(shares))
 	}
@@ -306,12 +334,14 @@ func TestHandleCreate_LocalSenderMissingTokenEndpoint_NonStrict_Allows(t *testin
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 1 {
 		t.Fatalf("expected one POST, got %d", postCount.Load())
 	}
@@ -320,9 +350,11 @@ func TestHandleCreate_LocalSenderMissingTokenEndpoint_NonStrict_Allows(t *testin
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(shares) != 1 {
 		t.Fatalf("expected one stored share, got %d", len(shares))
 	}
+
 	if len(shares[0].Requirements) != 0 {
 		t.Fatalf("expected non-strict share to have empty requirements, got %v", shares[0].Requirements)
 	}
@@ -346,12 +378,14 @@ func TestHandleCreate_PeerForcedNonCapableReceiver_Rejects(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != reason.APIStatus(reason.PeerCapabilityMismatch) {
 		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerCapabilityMismatch), w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 0 {
 		t.Fatalf("expected no remote POST, got %d", postCount.Load())
 	}
@@ -384,6 +418,7 @@ func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	defer func() {
@@ -391,11 +426,13 @@ func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
 			t.Fatalf("handler panicked with nil resolver: %v", r)
 		}
 	}()
+
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 1 {
 		t.Fatalf("expected one remote POST, got %d", postCount.Load())
 	}
@@ -404,16 +441,18 @@ func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(shares) != 1 {
 		t.Fatalf("expected one stored share, got %d", len(shares))
 	}
+
 	if len(shares[0].Requirements) != 0 {
 		t.Fatalf("expected non-strict nil-resolver share to have empty requirements, got %v", shares[0].Requirements)
 	}
 }
 
 // TestHandleCreate_StrictCapableButEmptyLocalEndpoint_Rejects covers the strict
-// strict gate: the local sender is token-exchange capable and the peer forces
+// gate: the local sender is token-exchange capable and the peer forces
 // must-exchange-token, but the local token endpoint is empty. The strict code
 // flow must reject and must not fall back to the legacy shared-secret path.
 func TestHandleCreate_StrictCapableButEmptyLocalEndpoint_Rejects(t *testing.T) {
@@ -446,19 +485,23 @@ func TestHandleCreate_StrictCapableButEmptyLocalEndpoint_Rejects(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != reason.APIStatus(reason.PeerCapabilityMismatch) {
 		t.Fatalf("expected %d, got %d: %s", reason.APIStatus(reason.PeerCapabilityMismatch), w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 0 {
 		t.Fatalf("expected no remote POST, got %d", postCount.Load())
 	}
+
 	shares, err := repo.List(context.Background())
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(shares) != 0 {
 		t.Fatalf("expected no stored share (no legacy fallback), got %d", len(shares))
 	}
@@ -481,22 +524,27 @@ func TestHandleCreate_StrictPersistsMustExchangeTokenRequirement(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.HandleCreate(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if postCount.Load() != 1 {
 		t.Fatalf("expected one POST, got %d", postCount.Load())
 	}
+
 	shares, err := repo.List(context.Background())
 	if err != nil {
 		t.Fatalf("list shares: %v", err)
 	}
+
 	if len(shares) != 1 {
 		t.Fatalf("expected one stored share, got %d", len(shares))
 	}
+
 	if len(shares[0].Requirements) != 1 || shares[0].Requirements[0] != spec.RequirementMustExchangeToken {
 		t.Fatalf("expected persisted strict share to require must-exchange-token, got %v", shares[0].Requirements)
 	}

@@ -45,9 +45,11 @@ func (t *trackingService) Close() error {
 
 func testServerDeps(t *testing.T, cfg *config.Config, logger *slog.Logger) ServerDeps {
 	t.Helper()
+
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
 	realIP := realip.NewTrustedProxies(nil)
+
 	return ServerDeps{
 		RealIP: realIP,
 		AuthGate: func(requireAuth func(string) bool) func(http.Handler) http.Handler {
@@ -71,6 +73,7 @@ func TestNew_FailsWithMissingServerDeps(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for missing server deps")
 		}
+
 		if !errors.Is(err, ErrMissingRealIP) {
 			t.Errorf("expected ErrMissingRealIP, got: %v", err)
 		}
@@ -78,10 +81,12 @@ func TestNew_FailsWithMissingServerDeps(t *testing.T) {
 
 	t.Run("missing auth gate", func(t *testing.T) {
 		sd := ServerDeps{RealIP: realip.NewTrustedProxies(nil)}
+
 		_, err := New(cfg, logger, nil, sd)
 		if err == nil {
 			t.Fatal("expected error for missing auth gate")
 		}
+
 		if !errors.Is(err, ErrMissingAuthGate) {
 			t.Errorf("expected ErrMissingAuthGate, got: %v", err)
 		}
@@ -96,6 +101,7 @@ func TestNew_SucceedsWithServerDeps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
+
 	if srv == nil {
 		t.Fatal("expected non-nil server")
 	}
@@ -106,6 +112,7 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	var closeOrder []string
+
 	svc1 := &trackingService{name: "svc1", prefix: "svc1", closeOrder: &closeOrder}
 	svc2 := &trackingService{name: "svc2", prefix: "svc2", closeOrder: &closeOrder}
 	svc3 := &trackingService{name: "svc3", prefix: "svc3", closeOrder: &closeOrder}
@@ -131,6 +138,7 @@ func TestShutdown_ClosesServicesInReverseOrder(t *testing.T) {
 	if len(closeOrder) != len(expected) {
 		t.Fatalf("expected %d services closed, got %d: %v", len(expected), len(closeOrder), closeOrder)
 	}
+
 	for i, name := range expected {
 		if closeOrder[i] != name {
 			t.Errorf("close order[%d] = %q, want %q", i, closeOrder[i], name)
@@ -146,12 +154,15 @@ var _ service.Service = (*trackingService)(nil)
 // acceptable for tests.
 func getFreePort(t *testing.T) int {
 	t.Helper()
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("getFreePort: %v", err)
 	}
+
 	port := l.Addr().(*net.TCPAddr).Port
 	l.Close()
+
 	return port
 }
 
@@ -159,10 +170,12 @@ func getFreePort(t *testing.T) int {
 // cert.pem and key.pem in dir. Returns the paths.
 func generateTestCert(t *testing.T, dir string) (certPath, keyPath string) {
 	t.Helper()
+
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	now := time.Now()
 	template := x509.Certificate{
@@ -174,6 +187,7 @@ func generateTestCert(t *testing.T, dir string) (certPath, keyPath string) {
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		DNSNames:     []string{"localhost"},
 	}
+
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
@@ -185,12 +199,15 @@ func generateTestCert(t *testing.T, dir string) (certPath, keyPath string) {
 
 	certPath = filepath.Join(dir, "cert.pem")
 	keyPath = filepath.Join(dir, "key.pem")
+
 	if err := os.WriteFile(certPath, certPEM, 0644); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	return certPath, keyPath
 }
 
@@ -229,9 +246,11 @@ func TestACME_TwoListeners(t *testing.T) {
 	// Wait for both listeners to come up.
 	httpAddr := fmt.Sprintf("127.0.0.1:%d", httpPort)
 	httpsAddr := fmt.Sprintf("127.0.0.1:%d", httpsPort)
+
 	if !waitForListener(t, httpAddr, 3*time.Second) {
 		t.Fatal("HTTP listener did not come up")
 	}
+
 	if !waitForListener(t, httpsAddr, 3*time.Second) {
 		t.Fatal("HTTPS listener did not come up")
 	}
@@ -241,7 +260,9 @@ func TestACME_TwoListeners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("challenge request failed: %v", err)
 	}
+
 	resp.Body.Close()
+
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown challenge token, got %d", resp.StatusCode)
 	}
@@ -250,15 +271,20 @@ func TestACME_TwoListeners(t *testing.T) {
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse // do not follow redirects
 	}}
+
 	resp, err = client.Get(fmt.Sprintf("http://%s/some/path?q=1", httpAddr))
 	if err != nil {
 		t.Fatalf("redirect request failed: %v", err)
 	}
+
 	resp.Body.Close()
+
 	if resp.StatusCode != http.StatusPermanentRedirect {
 		t.Errorf("expected 308, got %d", resp.StatusCode)
 	}
+
 	loc := resp.Header.Get("Location")
+
 	expected := fmt.Sprintf("https://127.0.0.1:%d/some/path?q=1", httpsPort)
 	if loc != expected {
 		t.Errorf("redirect Location = %q, want %q", loc, expected)
@@ -268,10 +294,12 @@ func TestACME_TwoListeners(t *testing.T) {
 	tlsClient := &http.Client{Transport: &http.Transport{
 		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
 	}}
+
 	resp, err = tlsClient.Get(fmt.Sprintf("https://%s/", httpsAddr))
 	if err != nil {
 		t.Fatalf("HTTPS request failed: %v", err)
 	}
+
 	resp.Body.Close()
 	// Any response means the TLS handshake and listener work; the actual
 	// status depends on mounted services (404 is fine with nil service map).
@@ -282,6 +310,7 @@ func TestACME_TwoListeners(t *testing.T) {
 	// 4. Clean shutdown.
 	shutCtx, cancel := context.WithTimeout(context.Background(), tshttp.DefaultShutdownWait)
 	defer cancel()
+
 	if err := srv.Shutdown(shutCtx); err != nil {
 		t.Errorf("shutdown error: %v", err)
 	}
@@ -307,20 +336,24 @@ func TestACME_MissingPorts(t *testing.T) {
 
 	cfg.TLS.HTTPPort = 0
 	cfg.TLS.HTTPSPort = 9443
+
 	srv, err := New(cfg, logger, nil, sd)
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}
+
 	if err := srv.Start(); err == nil {
 		t.Error("expected error for zero HTTPPort")
 	}
 
 	cfg.TLS.HTTPPort = 9080
 	cfg.TLS.HTTPSPort = 0
+
 	srv, err = New(cfg, logger, nil, sd)
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
 	}
+
 	if err := srv.Start(); err == nil {
 		t.Error("expected error for zero HTTPSPort")
 	}
@@ -352,6 +385,7 @@ func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
 	cfg.PublicOrigin = fmt.Sprintf("https://localhost:%d", httpsPort)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
 	srv, err := New(cfg, logger, nil, testServerDeps(t, cfg, logger))
 	if err != nil {
 		t.Fatalf("server creation failed: %v", err)
@@ -387,6 +421,7 @@ func TestHTTPSRedirectHandler_IPv6Host(t *testing.T) {
 	if rec.Code != http.StatusPermanentRedirect {
 		t.Fatalf("status = %d, want 308", rec.Code)
 	}
+
 	if got := rec.Header().Get("Location"); got != "https://[::1]:9443/x?q=1" {
 		t.Fatalf("Location = %q, want %q", got, "https://[::1]:9443/x?q=1")
 	}
@@ -395,6 +430,7 @@ func TestHTTPSRedirectHandler_IPv6Host(t *testing.T) {
 // waitForListener polls a TCP address until it accepts or timeout expires.
 func waitForListener(t *testing.T, addr string, timeout time.Duration) bool {
 	t.Helper()
+
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
@@ -402,21 +438,26 @@ func waitForListener(t *testing.T, addr string, timeout time.Duration) bool {
 			conn.Close()
 			return true
 		}
+
 		time.Sleep(50 * time.Millisecond)
 	}
+
 	return false
 }
 
 func waitForNoListener(t *testing.T, addr string, timeout time.Duration) bool {
 	t.Helper()
+
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
 		if err != nil {
 			return true
 		}
+
 		conn.Close()
 		time.Sleep(50 * time.Millisecond)
 	}
+
 	return false
 }

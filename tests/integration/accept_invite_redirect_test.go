@@ -38,6 +38,7 @@ func TestAcceptInviteRedirectRoundTrip(t *testing.T) {
 		t.Fatalf("GET accept-invite: %v", err)
 	}
 	defer resp.Body.Close()
+
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode != http.StatusFound {
@@ -68,6 +69,7 @@ func TestAcceptInviteRedirectRoundTrip(t *testing.T) {
 		t.Fatalf("GET login: %v", err)
 	}
 	defer loginResp.Body.Close()
+
 	loginBody, err := io.ReadAll(loginResp.Body)
 	if err != nil {
 		t.Fatalf("read login body: %v", err)
@@ -112,6 +114,7 @@ func TestAcceptInviteRedirectRoundTrip_WithExternalBasePath(t *testing.T) {
 		t.Fatalf("GET accept-invite: %v", err)
 	}
 	defer resp.Body.Close()
+
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode != http.StatusFound {

@@ -2,6 +2,7 @@ package realip
 
 import (
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -29,6 +30,7 @@ func TestTrustedProxies_IsTrusted(t *testing.T) {
 			if ip == nil {
 				t.Fatalf("failed to parse IP: %s", tt.ip)
 			}
+
 			got := tp.IsTrusted(ip)
 			if got != tt.trusted {
 				t.Errorf("IsTrusted(%s) = %v, want %v", tt.ip, got, tt.trusted)
@@ -41,7 +43,7 @@ func TestTrustedProxies_GetClientIP_Direct(t *testing.T) {
 	// No trusted proxies
 	tp := NewTrustedProxies(nil)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.168.1.100:12345"
 	req.Header.Set("X-Forwarded-For", "8.8.8.8") // Should be ignored
 
@@ -54,7 +56,7 @@ func TestTrustedProxies_GetClientIP_Direct(t *testing.T) {
 func TestTrustedProxies_GetClientIP_Trusted(t *testing.T) {
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Forwarded-For", "8.8.8.8, 10.0.0.1")
 
@@ -67,7 +69,7 @@ func TestTrustedProxies_GetClientIP_Trusted(t *testing.T) {
 func TestTrustedProxies_GetClientIP_XRealIP(t *testing.T) {
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Real-IP", "1.2.3.4")
 
@@ -80,7 +82,7 @@ func TestTrustedProxies_GetClientIP_XRealIP(t *testing.T) {
 func TestTrustedProxies_GetClientIP_UntrustedIgnoresHeader(t *testing.T) {
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.168.1.100:12345" // Not in trusted range
 	req.Header.Set("X-Forwarded-For", "8.8.8.8")
 
@@ -93,7 +95,7 @@ func TestTrustedProxies_GetClientIP_UntrustedIgnoresHeader(t *testing.T) {
 func TestTrustedProxies_IPv6(t *testing.T) {
 	tp := NewTrustedProxies([]string{"::1/128"})
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "[::1]:12345"
 	req.Header.Set("X-Forwarded-For", "2001:db8::1")
 
@@ -119,6 +121,7 @@ func TestParseRemoteAddr(t *testing.T) {
 			if ip == nil {
 				t.Fatalf("parseRemoteAddr returned nil for %s", tt.addr)
 			}
+
 			if ip.String() != tt.want {
 				t.Errorf("got %s, want %s", ip, tt.want)
 			}
@@ -133,6 +136,7 @@ func TestNewTrustedProxies_SingleIP(t *testing.T) {
 	if !tp.IsTrusted(net.ParseIP("192.168.1.1")) {
 		t.Error("expected 192.168.1.1 to be trusted")
 	}
+
 	if tp.IsTrusted(net.ParseIP("192.168.1.2")) {
 		t.Error("expected 192.168.1.2 to not be trusted")
 	}

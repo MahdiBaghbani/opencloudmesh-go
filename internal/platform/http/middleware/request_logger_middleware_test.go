@@ -44,9 +44,11 @@ func (h *recordingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	for k, v := range h.attrs {
 		nh.attrs[k] = v
 	}
+
 	for _, a := range attrs {
 		nh.attrs[a.Key] = a.Value.Any()
 	}
+
 	return nh
 }
 
@@ -59,6 +61,7 @@ func (h *recordingHandler) WithGroup(name string) slog.Handler {
 	for k, v := range h.attrs {
 		nh.attrs[k] = v
 	}
+
 	return nh
 }
 
@@ -73,8 +76,10 @@ func TestRequestLoggerMiddleware_AttachesRequiredFields(t *testing.T) {
 	logger := slog.New(handler)
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
-	var capturedLogger *slog.Logger
-	var capturedHandler *recordingHandler
+	var (
+		capturedLogger  *slog.Logger
+		capturedHandler *recordingHandler
+	)
 
 	// Create a handler that captures the request-scoped logger
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -83,13 +88,14 @@ func TestRequestLoggerMiddleware_AttachesRequiredFields(t *testing.T) {
 		if rh, ok := capturedLogger.Handler().(*recordingHandler); ok {
 			capturedHandler = rh
 		}
+
 		w.WriteHeader(http.StatusOK)
 	})
 
 	// Wrap with RequestID and RequestLoggerMiddleware
 	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
-	req := httptest.NewRequest("GET", "/test/path", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test/path", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -152,14 +158,16 @@ func TestRequestLoggerMiddleware_ClientIPFromXForwardedFor(t *testing.T) {
 		if rh, ok := capturedLogger.Handler().(*recordingHandler); ok {
 			capturedHandler = rh
 		}
+
 		w.WriteHeader(http.StatusOK)
 	})
 
 	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Forwarded-For", "203.0.113.42")
+
 	rr := httptest.NewRecorder()
 
 	chain.ServeHTTP(rr, req)
@@ -187,13 +195,14 @@ func TestRequestLoggerMiddleware_NilTrustedProxies(t *testing.T) {
 		if rh, ok := capturedLogger.Handler().(*recordingHandler); ok {
 			capturedHandler = rh
 		}
+
 		w.WriteHeader(http.StatusOK)
 	})
 
 	// Pass nil trustedProxies
 	chain := chimw.RequestID(RequestLoggerMiddleware(logger, nil)(nextHandler))
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -223,13 +232,14 @@ func TestRequestLoggerMiddleware_PathOnly_NoQueryString(t *testing.T) {
 		if rh, ok := capturedLogger.Handler().(*recordingHandler); ok {
 			capturedHandler = rh
 		}
+
 		w.WriteHeader(http.StatusOK)
 	})
 
 	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
 	// Request with query string
-	req := httptest.NewRequest("GET", "/test/path?secret=value&token=abc", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test/path?secret=value&token=abc", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 

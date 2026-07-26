@@ -79,10 +79,12 @@ path = "auth/exchange"
 		opts := service.RouteOpts{
 			TokenExchangePath: "auth/exchange",
 		}
+
 		tokenPath, ok := tsrouting.OCMTokenFullPath(opts)
 		if !ok {
 			t.Fatal("Routes(opts) missing token endpoint for auth/exchange")
 		}
+
 		if tokenPath != "/ocm/auth/exchange" {
 			t.Fatalf("aggregate token path = %q, want /ocm/auth/exchange", tokenPath)
 		}
@@ -122,6 +124,7 @@ func TestTokenExchangeNestedPath(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "token-nested-path",
 		Mode: "dev",
@@ -164,10 +167,12 @@ path = "token/v2"
 		opts := service.RouteOpts{
 			TokenExchangePath: "token/v2",
 		}
+
 		tokenPath, ok := tsrouting.OCMTokenFullPath(opts)
 		if !ok {
 			t.Fatal("Routes(opts) missing token endpoint for token/v2")
 		}
+
 		if tokenPath != "/ocm/token/v2" {
 			t.Fatalf("aggregate token path = %q, want /ocm/token/v2", tokenPath)
 		}

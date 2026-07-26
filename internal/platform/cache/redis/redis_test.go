@@ -32,9 +32,11 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Addr != "localhost:6379" {
 		t.Errorf("expected default addr localhost:6379, got %s", cfg.Addr)
 	}
+
 	if cfg.DB != 0 {
 		t.Errorf("expected default DB 0, got %d", cfg.DB)
 	}
+
 	if cfg.Password != "" {
 		t.Errorf("expected empty default password, got %s", cfg.Password)
 	}
@@ -64,6 +66,7 @@ func TestIncrement_ResetAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Increment failed: %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("expected count 1, got %d", count)
 	}
@@ -79,6 +82,7 @@ func TestIncrement_ResetAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second Increment failed: %v", err)
 	}
+
 	if count2 != 2 {
 		t.Errorf("expected count 2, got %d", count2)
 	}
@@ -88,6 +92,7 @@ func TestIncrement_ResetAt(t *testing.T) {
 	if diff < 0 {
 		diff = -diff
 	}
+
 	if diff > 2*time.Second {
 		t.Errorf("resetAt changed unexpectedly: first %v, second %v (diff: %v)", resetAt, resetAt2, diff)
 	}
@@ -115,6 +120,7 @@ func TestIncrement_CounterValue(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Increment %d failed: %v", i, err)
 		}
+
 		if count != int64(i) {
 			t.Errorf("expected count %d, got %d", i, count)
 		}
@@ -125,6 +131,7 @@ func TestIncrement_CounterValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetCount failed: %v", err)
 	}
+
 	if count != 5 {
 		t.Errorf("expected GetCount 5, got %d", count)
 	}
@@ -157,6 +164,7 @@ func TestSetGetDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
+
 	if string(val) != "value1" {
 		t.Errorf("expected 'value1', got %q", string(val))
 	}
@@ -166,6 +174,7 @@ func TestSetGetDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exists failed: %v", err)
 	}
+
 	if !exists {
 		t.Error("expected key to exist")
 	}
@@ -181,6 +190,7 @@ func TestSetGetDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exists after delete failed: %v", err)
 	}
+
 	if exists {
 		t.Error("expected key to not exist after delete")
 	}
@@ -219,6 +229,7 @@ func TestReset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetCount after reset failed: %v", err)
 	}
+
 	if count != 0 {
 		t.Errorf("expected 0 after reset, got %d", count)
 	}

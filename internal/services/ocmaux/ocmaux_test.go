@@ -28,6 +28,7 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if svc == nil {
 		t.Fatal("expected non-nil service")
 	}
@@ -38,6 +39,7 @@ func TestService_Prefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if svc.Prefix() != "ocm-aux" {
 		t.Errorf("expected prefix 'ocm-aux', got %q", svc.Prefix())
 	}
@@ -48,6 +50,7 @@ func TestService_Handler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if svc.Handler() == nil {
 		t.Error("expected non-nil Handler")
 	}
@@ -58,6 +61,7 @@ func TestService_Close(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if err := svc.Close(); err != nil {
 		t.Errorf("unexpected error on Close: %v", err)
 	}
@@ -68,16 +72,20 @@ func TestService_FederationsEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	req := httptest.NewRequest(http.MethodGet, "/federations", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
+
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
 	}
+
 	var result []json.RawMessage
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Errorf("expected valid JSON array response: %v\nbody: %s", err, w.Body.String())
 	}
+
 	if len(result) != 0 {
 		t.Errorf("expected empty array with nil TrustGroupMgr, got %d entries", len(result))
 	}
@@ -88,16 +96,20 @@ func TestService_DiscoverEndpoint_MissingBase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	req := httptest.NewRequest(http.MethodGet, "/discover", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
+
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", w.Code)
 	}
+
 	var resp map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Errorf("expected valid JSON response: %v", err)
 	}
+
 	if resp["success"] != false {
 		t.Error("expected success=false in response")
 	}
@@ -106,13 +118,16 @@ func TestService_DiscoverEndpoint_MissingBase(t *testing.T) {
 func TestService_DiscoverEndpoint_NoDiscoveryClient(t *testing.T) {
 	in := testOCMAuxInputs()
 	in.DiscoveryClient = nil
+
 	svc, err := New(in, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	req := httptest.NewRequest(http.MethodGet, "/discover?base=https://example.com", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
+
 	if w.Code != http.StatusNotImplemented {
 		t.Errorf("expected status 501, got %d", w.Code)
 	}
@@ -120,14 +135,17 @@ func TestService_DiscoverEndpoint_NoDiscoveryClient(t *testing.T) {
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	var logBuf testLogBuffer
+
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	m := map[string]any{
 		"unknown_key": "value",
 	}
+
 	_, err := New(testOCMAuxInputs(), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if !logBuf.contains("unused config keys") {
 		t.Error("expected warning about unused config keys")
 	}

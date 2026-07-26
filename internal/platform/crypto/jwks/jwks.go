@@ -71,6 +71,7 @@ func (s Set) MarshalJSON() ([]byte, error) {
 	if s.Keys == nil {
 		s.Keys = []Key{}
 	}
+
 	return json.Marshal(struct {
 		Keys []Key `json:"keys"`
 	}{Keys: s.Keys})
@@ -93,22 +94,29 @@ var ErrResponseTooLarge = errors.New("jwks: response too large")
 // than "sig" are ignored for verification lookup.
 func (s Set) Find(kid string) (sigalg.ResolvedPublicKey, error) {
 	var matches []Key
+
 	for _, key := range s.Keys {
 		if !keyid.KidMatches(kid, key.Kid) {
 			continue
 		}
+
 		if key.Use != "" && !strings.EqualFold(key.Use, "sig") {
 			continue
 		}
+
 		matches = append(matches, key)
 	}
+
 	if len(matches) == 0 {
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: key %q not found: %w", kid, ErrKeyNotFound)
 	}
+
 	if len(matches) > 1 {
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: ambiguous kid %q (%d matches): %w", kid, len(matches), ErrAmbiguousKid)
 	}
+
 	key := matches[0]
+
 	pub, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: key.Kty,
 		Crv: key.Crv,
@@ -121,14 +129,17 @@ func (s Set) Find(kid string) (sigalg.ResolvedPublicKey, error) {
 	if err != nil {
 		return sigalg.ResolvedPublicKey{}, err
 	}
+
 	alg, err := sigalg.DeriveFromJWK(key.Kty, key.Crv, key.Alg)
 	if err != nil {
 		// RSA without alg: leave Algorithm empty; ResolveAlgorithm can use header.
 		if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
 			return sigalg.ResolvedPublicKey{}, err
 		}
+
 		alg = ""
 	}
+
 	return sigalg.ResolvedPublicKey{
 		KeyID:     key.Kid,
 		Algorithm: alg,
@@ -191,32 +202,40 @@ func NewResolverWithOptions(client HTTPDoer, opts ResolverOptions) (*Resolver, e
 	if client == nil {
 		return nil, ErrNilHTTPClient
 	}
+
 	ttl := opts.TTL
 	if ttl <= 0 {
 		ttl = DefaultCacheTTL
 	}
+
 	minRefetch := opts.MinRefetchInterval
 	if minRefetch == 0 {
 		minRefetch = DefaultMinRefetchInterval
 	}
+
 	if minRefetch < 0 {
 		minRefetch = 0
 	}
+
 	negTTL := opts.NegativeCacheTTL
 	if negTTL == 0 {
 		negTTL = DefaultNegativeCacheTTL
 	}
+
 	if negTTL < 0 {
 		negTTL = 0
 	}
+
 	maxBytes := opts.MaxResponseBytes
 	if maxBytes <= 0 {
 		maxBytes = int64(config.DefaultMaxResponseBytes)
 	}
+
 	now := opts.Now
 	if now == nil {
 		now = time.Now
 	}
+
 	return &Resolver{
 		cache:              map[string]cacheEntry{},
 		negative:           map[string]time.Time{},
@@ -240,6 +259,7 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 	if client == nil {
 		return Set{}, ErrNilHTTPClient
 	}
+
 	if maxBytes <= 0 {
 		maxBytes = int64(config.DefaultMaxResponseBytes)
 	}
@@ -248,6 +268,7 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 	if err != nil {
 		return Set{}, err
 	}
+
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
@@ -264,6 +285,7 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 	if err != nil {
 		return Set{}, fmt.Errorf("jwks: read body: %w", err)
 	}
+
 	if int64(len(body)) > maxBytes {
 		return Set{}, fmt.Errorf("jwks: fetch %s: %w", jwksURL, ErrResponseTooLarge)
 	}
@@ -272,9 +294,11 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 	if err := json.Unmarshal(body, &set); err != nil {
 		return Set{}, fmt.Errorf("jwks: decode JSON: %w", err)
 	}
+
 	if len(set.Keys) == 0 {
 		return Set{}, fmt.Errorf("jwks: empty key set from %s", jwksURL)
 	}
+
 	return set, nil
 }
 
@@ -283,6 +307,7 @@ func URLForAuthority(scheme, authority string) string {
 	if scheme == "" {
 		scheme = "https"
 	}
+
 	return scheme + "://" + authority + WellKnownPath
 }
 
@@ -306,6 +331,7 @@ func (r *Resolver) Resolve(
 	if err == nil {
 		return pub, nil
 	}
+
 	if !errors.Is(err, ErrKeyNotFound) {
 		return sigalg.ResolvedPublicKey{}, err
 	}
@@ -316,10 +342,12 @@ func (r *Resolver) Resolve(
 	if refreshErr != nil {
 		return sigalg.ResolvedPublicKey{}, refreshErr
 	}
+
 	pub, err = set.Find(kid)
 	if errors.Is(err, ErrKeyNotFound) && fresh {
 		r.rememberNegative(jwksURL, kid)
 	}
+
 	return pub, err
 }
 
@@ -330,6 +358,7 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 		r.mu.RLock()
 		entry, ok := r.cache[jwksURL]
 		r.mu.RUnlock()
+
 		if ok && now.Sub(entry.fetchedAt) < r.ttl {
 			return entry.set, false, nil
 		}
@@ -338,6 +367,7 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 		entry, ok := r.cache[jwksURL]
 		lastFetch, haveFetch := r.lastFetchAt[jwksURL]
 		r.mu.RUnlock()
+
 		if ok && r.minRefetchInterval > 0 && haveFetch && now.Sub(lastFetch) < r.minRefetchInterval {
 			// Reuse the cached document while minRefetchInterval applies.
 			return entry.set, false, nil
@@ -348,12 +378,14 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 		set   Set
 		fresh bool
 	}
+
 	v, err, _ := r.group.Do(jwksURL, func() (any, error) {
 		now := r.now()
 		if !forceRefresh {
 			r.mu.RLock()
 			entry, ok := r.cache[jwksURL]
 			r.mu.RUnlock()
+
 			if ok && now.Sub(entry.fetchedAt) < r.ttl {
 				return result{set: entry.set, fresh: false}, nil
 			}
@@ -362,6 +394,7 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 			entry, ok := r.cache[jwksURL]
 			lastFetch, haveFetch := r.lastFetchAt[jwksURL]
 			r.mu.RUnlock()
+
 			if ok && r.minRefetchInterval > 0 && haveFetch && now.Sub(lastFetch) < r.minRefetchInterval {
 				return result{set: entry.set, fresh: false}, nil
 			}
@@ -377,12 +410,15 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 		r.cache[jwksURL] = cacheEntry{set: set, fetchedAt: fetchedAt}
 		r.lastFetchAt[jwksURL] = fetchedAt
 		r.mu.Unlock()
+
 		return result{set: set, fresh: true}, nil
 	})
 	if err != nil {
 		return Set{}, false, err
 	}
+
 	out := v.(result)
+
 	return out.set, out.fresh, nil
 }
 
@@ -394,9 +430,12 @@ func (r *Resolver) negativeHit(jwksURL, kid string) bool {
 	if r.negativeTTL <= 0 {
 		return false
 	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	until, ok := r.negative[negativeKey(jwksURL, kid)]
+
 	return ok && r.now().Before(until)
 }
 
@@ -404,6 +443,7 @@ func (r *Resolver) rememberNegative(jwksURL, kid string) {
 	if r.negativeTTL <= 0 {
 		return
 	}
+
 	r.mu.Lock()
 	r.negative[negativeKey(jwksURL, kid)] = r.now().Add(r.negativeTTL)
 	r.mu.Unlock()
@@ -426,9 +466,11 @@ func (r *Resolver) ResolveKeyID(
 	if err != nil {
 		return sigalg.ResolvedPublicKey{}, err
 	}
+
 	if parsed.Scheme == "" {
 		if ds := strings.ToLower(strings.TrimSpace(defaultScheme)); ds != "" {
 			scheme = ds
+
 			authority, err = hostport.Normalize(strings.TrimSpace(parsed.Authority), scheme)
 			if err != nil {
 				return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: normalize keyid authority: %w", err)
@@ -446,14 +488,17 @@ func AuthorityFromBaseURL(baseURL string) (scheme, authority string, err error) 
 	if err != nil {
 		return "", "", err
 	}
+
 	scheme = strings.ToLower(u.Scheme)
 	if scheme == "" || u.Host == "" {
 		return "", "", fmt.Errorf("jwks: invalid base URL %q", baseURL)
 	}
+
 	authority, err = hostport.Normalize(u.Host, scheme)
 	if err != nil {
 		return "", "", fmt.Errorf("jwks: normalize authority from %q: %w", baseURL, err)
 	}
+
 	return scheme, authority, nil
 }
 

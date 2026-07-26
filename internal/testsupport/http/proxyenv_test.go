@@ -33,6 +33,7 @@ func TestClearProxyEnv_RestoresAfterCleanup(t *testing.T) {
 
 			t.Run("cleared", func(t *testing.T) {
 				tshttp.ClearProxyEnv(t)
+
 				if _, ok := os.LookupEnv(key); ok {
 					t.Fatalf("%s should be unset inside subtest", key)
 				}
@@ -42,6 +43,7 @@ func TestClearProxyEnv_RestoresAfterCleanup(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s should be restored after cleanup", key)
 			}
+
 			if got != value {
 				t.Fatalf("%s = %q, want %q", key, got, value)
 			}
@@ -53,6 +55,7 @@ func TestClearProxyEnv_KeepsUnsetAfterCleanup(t *testing.T) {
 	for _, key := range tshttp.ProxyEnvKeys {
 		t.Run(key, func(t *testing.T) {
 			origVal, origSet := os.LookupEnv(key)
+
 			t.Cleanup(func() {
 				if origSet {
 					_ = os.Setenv(key, origVal)
@@ -60,12 +63,14 @@ func TestClearProxyEnv_KeepsUnsetAfterCleanup(t *testing.T) {
 					_ = os.Unsetenv(key)
 				}
 			})
+
 			if err := os.Unsetenv(key); err != nil {
 				t.Fatalf("unset %s: %v", key, err)
 			}
 
 			t.Run("cleared", func(t *testing.T) {
 				tshttp.ClearProxyEnv(t)
+
 				if _, ok := os.LookupEnv(key); ok {
 					t.Fatalf("%s should be unset inside subtest", key)
 				}

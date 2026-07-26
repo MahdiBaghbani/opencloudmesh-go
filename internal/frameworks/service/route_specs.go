@@ -104,6 +104,7 @@ type RouteOpts struct {
 // the canonical aggregate; rows are not authored independently.
 type RouteRow struct {
 	RouteSpec
+
 	MountAtRoot   bool
 	ServicePrefix string
 	FullPath      string

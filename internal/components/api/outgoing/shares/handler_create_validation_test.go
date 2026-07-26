@@ -22,6 +22,7 @@ func TestHandleCreate_Unauthenticated_Returns401(t *testing.T) {
 	body := `{"receiverDomain":"example.com","shareWith":"user@example.com","localPath":"/tmp/test.txt","permissions":["read"]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -49,6 +50,7 @@ func TestHandleCreate_MissingFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
+
 			w := httptest.NewRecorder()
 
 			handler.HandleCreate(w, req)
@@ -74,6 +76,7 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -93,6 +96,7 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpFile.Name())
+
 	tmpFile.Close()
 
 	body := `{
@@ -104,6 +108,7 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -111,6 +116,7 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if !bytes.Contains(w.Body.Bytes(), []byte("permissions must be read-only")) {
 		t.Fatalf("expected read-only permissions error, got: %s", w.Body.String())
 	}
@@ -139,6 +145,7 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpFile.Name())
+
 	tmpFile.Close()
 
 	body := `{
@@ -150,6 +157,7 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -193,6 +201,7 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 	body := `{"shareWith":"user@example.com","localPath":"/tmp/test.txt","permissions":["read"]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -206,14 +215,17 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
+
 	errObj, ok := resp["error"]
 	if !ok {
 		t.Fatal("error response missing 'error' field (should use api error envelope)")
 	}
+
 	errMap, ok := errObj.(map[string]interface{})
 	if !ok {
 		t.Fatal("error field is not an object")
 	}
+
 	if _, ok := errMap["reason_code"]; !ok {
 		t.Error("error response missing reason_code field (should use api error envelope)")
 	}

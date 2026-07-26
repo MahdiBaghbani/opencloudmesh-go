@@ -15,9 +15,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
-	"gopkg.in/yaml.v3"
 )
 
 func TestSpecPinPresent(t *testing.T) {
@@ -29,6 +30,7 @@ func TestSpecPinPresent(t *testing.T) {
 	if _, err := os.Stat(pinPath); err != nil {
 		t.Fatalf("vendored pin.json not found: %v", err)
 	}
+
 	if _, err := os.Stat(specPath); err != nil {
 		t.Fatalf("vendored spec.yaml not found: %v", err)
 	}
@@ -51,6 +53,7 @@ func TestSpecPinPresent(t *testing.T) {
 	if pin.Commit != "f9a704f63477134701c0b58b29bb6b98949361dc" {
 		t.Errorf("pin.json commit = %q, want f9a704f63477134701c0b58b29bb6b98949361dc", pin.Commit)
 	}
+
 	if pin.Version != "v1.4.0" {
 		t.Errorf("pin.json version = %q, want v1.4.0", pin.Version)
 	}
@@ -68,6 +71,7 @@ func TestSpecPinPresent(t *testing.T) {
 	if err := yaml.Unmarshal(specData, &spec); err != nil {
 		t.Fatalf("failed to parse spec.yaml: %v", err)
 	}
+
 	if spec.Info.Version != "1.4.0" {
 		t.Errorf("spec.yaml info.version = %q, want 1.4.0", spec.Info.Version)
 	}

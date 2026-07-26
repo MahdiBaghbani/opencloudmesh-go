@@ -69,6 +69,7 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	defer h.Stop(t)
 
 	discoverURL := h.Server1.BaseURL + "/ocm-aux/discover?base=" + h.Server2.BaseURL
+
 	resp, err := http.Get(discoverURL)
 	if err != nil {
 		h.DumpLogs(t)
@@ -93,12 +94,15 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	if discoverResp.Success {
 		t.Fatal("expected success=false when peer lacks inviteAcceptDialog")
 	}
+
 	if discoverResp.ReasonCode != "no_invite_accept_dialog" {
 		t.Fatalf("reasonCode = %q, want no_invite_accept_dialog", discoverResp.ReasonCode)
 	}
+
 	if discoverResp.Error == "" {
 		t.Fatal("expected friendly error message")
 	}
+
 	t.Logf("cross-discovery reached peer but helper failed as expected: %s", discoverResp.Error)
 }
 
@@ -111,6 +115,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 
 	// Start a single server with SSRF blocking enabled (strict mode with route-policy governance).
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "ssrf-test",
 		Mode: "strict",
@@ -131,6 +136,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 		t.Run(privateIP, func(t *testing.T) {
 			// Use base= parameter (not peer=)
 			discoverURL := srv.BaseURL + "/ocm-aux/discover?base=" + privateIP
+
 			resp, err := srv.Client().Get(discoverURL)
 			if err != nil {
 				t.Fatalf("failed to call /ocm-aux/discover: %v", err)
@@ -155,9 +161,11 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 			if discoverResp.Success {
 				t.Errorf("expected success=false for SSRF-blocked IP")
 			}
+
 			if discoverResp.Error == "" {
 				t.Errorf("expected non-empty error message for SSRF-blocked IP")
 			}
+
 			t.Logf("SSRF blocked %s: %s", privateIP, discoverResp.Error)
 		})
 	}
@@ -177,17 +185,21 @@ func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("hostname: %v", err)
 	}
+
 	ips, err := net.LookupIP(loopbackHost)
 	if err != nil {
 		t.Fatalf("lookup %q: %v", loopbackHost, err)
 	}
+
 	resolvesLoopback := false
+
 	for _, ip := range ips {
 		if v4 := ip.To4(); v4 != nil && v4[0] == 127 {
 			resolvesLoopback = true
 			break
 		}
 	}
+
 	if !resolvesLoopback {
 		t.Skipf("hostname %q does not resolve to an IPv4 address in 127.0.0.0/8", loopbackHost)
 	}
@@ -225,6 +237,7 @@ allow_ip_literals = false
 	defer source.Stop(t)
 
 	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://%s:%d", source.BaseURL, loopbackHost, target.Port)
+
 	resp, err := noProxyClient(source.Client()).Get(discoverURL)
 	if err != nil {
 		source.DumpLogs(t)
@@ -238,6 +251,7 @@ allow_ip_literals = false
 		target.DumpLogs(t)
 		t.Fatalf("route policy should allow %s:%d, got 403 Forbidden", loopbackHost, target.Port)
 	}
+
 	if resp.StatusCode != http.StatusBadGateway {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
@@ -256,12 +270,15 @@ allow_ip_literals = false
 	if discoverResp.Success {
 		t.Fatal("expected success=false when target lacks inviteAcceptDialog")
 	}
+
 	if discoverResp.ReasonCode != "no_invite_accept_dialog" {
 		t.Fatalf("reasonCode = %q, want no_invite_accept_dialog", discoverResp.ReasonCode)
 	}
+
 	if discoverResp.Error == "" {
 		t.Fatal("expected friendly error message")
 	}
+
 	t.Logf("SSRF route policy allowed %s:%d; discover helper failed as expected: %s", loopbackHost, target.Port, discoverResp.Error)
 }
 
@@ -272,7 +289,9 @@ func noProxyClient(client *http.Client) *http.Client {
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
+
 	clone := *client
+
 	var transport *http.Transport
 	if base, ok := client.Transport.(*http.Transport); ok {
 		transport = base.Clone()
@@ -285,11 +304,14 @@ func noProxyClient(client *http.Client) *http.Client {
 	} else {
 		transport = &http.Transport{}
 	}
+
 	transport.Proxy = nil
+
 	clone.Transport = transport
 	if clone.Timeout == 0 {
 		clone.Timeout = 30 * time.Second
 	}
+
 	return &clone
 }
 
@@ -320,6 +342,7 @@ func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
 	defer source.Stop(t)
 
 	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://127.0.0.1:%d", source.BaseURL, target.Port)
+
 	resp, err := noProxyClient(source.Client()).Get(discoverURL)
 	if err != nil {
 		source.DumpLogs(t)
@@ -345,6 +368,7 @@ func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
 	if discoverResp.Success {
 		t.Error("expected success=false without route policy allowance")
 	}
+
 	t.Logf("SSRF blocked 127.0.0.1:%d without route policy: %s", target.Port, discoverResp.Error)
 }
 
@@ -355,6 +379,7 @@ func TestHealthEndpointSubprocess(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "health-test",
 		Mode: "dev",

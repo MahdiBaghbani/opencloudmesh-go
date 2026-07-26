@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 
 	"github.com/go-jose/go-jose/v4"
@@ -58,6 +59,7 @@ type Client struct {
 // NewClient creates a directory service client. defaultVerificationPolicy is used when per-call policy is empty.
 func NewClient(httpClient *httpclient.Client, defaultVerificationPolicy string, logger *slog.Logger) *Client {
 	logger = logutil.NoopIfNil(logger)
+
 	return &Client{
 		httpClient:                httpClient,
 		defaultVerificationPolicy: defaultVerificationPolicy,
@@ -75,13 +77,14 @@ func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, k
 		return nil, fmt.Errorf("failed to fetch directory service: %w", err)
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("directory service returned status %d", resp.StatusCode)
 	}
 
 	policy := c.effectivePolicy(verificationPolicy)
 
 	var listing *Listing
+
 	switch policy {
 	case "off":
 		listing, err = c.parseUnverified(body)
@@ -90,6 +93,7 @@ func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, k
 	default: // "required" and any unrecognized value
 		listing, err = c.parseWithRequiredVerification(body, keys)
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -105,9 +109,11 @@ func (c *Client) effectivePolicy(override string) string {
 	if override != "" {
 		return override
 	}
+
 	if c.defaultVerificationPolicy != "" {
 		return c.defaultVerificationPolicy
 	}
+
 	return "required"
 }
 
@@ -116,7 +122,9 @@ func (c *Client) parseUnverified(body []byte) (*Listing, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	listing.Verified = false
+
 	return listing, nil
 }
 
@@ -125,7 +133,9 @@ func (c *Client) parseWithRequiredVerification(body []byte, keys []VerificationK
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify directory service response: %w", err)
 	}
+
 	listing.Verified = true
+
 	return listing, nil
 }
 
@@ -140,11 +150,14 @@ func (c *Client) parseWithOptionalVerification(body []byte, keys []VerificationK
 	if err != nil {
 		return c.parseUnverified(body)
 	}
+
 	listing, err := c.verifyJWS(jws, keys)
 	if err != nil {
 		return nil, fmt.Errorf("directory service response has JWS wrapper but verification failed: %w", err)
 	}
+
 	listing.Verified = true
+
 	return listing, nil
 }
 
@@ -182,6 +195,7 @@ func (c *Client) verifyJWS(jws *jose.JSONWebSignature, keys []VerificationKey) (
 		} else {
 			payload, err = jws.Verify(pubKey)
 		}
+
 		if err != nil {
 			continue
 		}
@@ -205,6 +219,7 @@ func (c *Client) filterValidServerURLs(servers []Server) []Server {
 				"url", s.URL, "display_name", s.DisplayName)
 		}
 	}
+
 	return valid
 }
 
@@ -213,26 +228,33 @@ func isValidServerURL(rawURL string) bool {
 	if err != nil {
 		return false
 	}
+
 	if !u.IsAbs() || u.Host == "" {
 		return false
 	}
+
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
+
 	if u.User != nil {
 		return false
 	}
+
 	if u.RawQuery != "" || u.Fragment != "" {
 		return false
 	}
+
 	if u.Path != "" && u.Path != "/" {
 		return false
 	}
+
 	return true
 }
 
 func collectAlgorithms(keys []VerificationKey) []jose.SignatureAlgorithm {
 	seen := make(map[jose.SignatureAlgorithm]bool)
+
 	var result []jose.SignatureAlgorithm
 
 	for _, key := range keys {

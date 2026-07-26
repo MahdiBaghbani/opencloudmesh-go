@@ -24,6 +24,7 @@ func TestMirrorDriver(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(tempDir, "ocm.db")); os.IsNotExist(err) {
 		t.Error("ocm.db not created")
 	}
+
 	if _, err := os.Stat(filepath.Join(tempDir, "mirror")); os.IsNotExist(err) {
 		t.Error("mirror directory not created")
 	}

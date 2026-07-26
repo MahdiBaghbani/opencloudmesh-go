@@ -16,6 +16,7 @@ func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
 		if exchangeDiscoveryHandler(w, r, "token") {
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
@@ -34,6 +35,7 @@ func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected unset protocol to fail closed")
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonProtocolMismatch {
 		t.Errorf("expected protocol mismatch error, got: %v", err)
@@ -58,6 +60,7 @@ func TestAccess_NilDiscoveryFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected nil discovery to fail closed, got mode %q", decision.Mode)
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonDiscoveryFailed {
 		t.Errorf("expected discovery failed error, got: %v", err)
@@ -69,6 +72,7 @@ func TestAccess_NilShareFailsClosed(t *testing.T) {
 		if exchangeDiscoveryHandler(w, r, "token") {
 			return
 		}
+
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
@@ -83,6 +87,7 @@ func TestAccess_NilShareFailsClosed(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected nil share to fail closed")
 	}
+
 	var ce *reason.ClassifiedError
 	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonProtocolMismatch {
 		t.Errorf("expected protocol mismatch error, got: %v", err)

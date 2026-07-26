@@ -2,6 +2,7 @@ package identity_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ func TestUserAuth_HashAndVerify(t *testing.T) {
 	auth := identity.NewUserAuthFast() // Fast params for tests
 
 	password := "secret123"
+
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		t.Fatalf("HashPassword failed: %v", err)
@@ -33,7 +35,7 @@ func TestUserAuth_HashAndVerify(t *testing.T) {
 
 	// Wrong password
 	err = auth.VerifyPassword(hash, "wrongpassword")
-	if err != identity.ErrInvalidPassword {
+	if !errors.Is(err, identity.ErrInvalidPassword) {
 		t.Errorf("expected ErrInvalidPassword, got %v", err)
 	}
 }
@@ -57,19 +59,20 @@ func TestUserAuth_Authenticate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}
+
 	if got.Username != "testuser" {
 		t.Errorf("expected username 'testuser', got %q", got.Username)
 	}
 
 	// Wrong password
 	_, err = auth.Authenticate(ctx, repo, "testuser", "wrongpass")
-	if err != identity.ErrInvalidPassword {
+	if !errors.Is(err, identity.ErrInvalidPassword) {
 		t.Errorf("expected ErrInvalidPassword, got %v", err)
 	}
 
 	// Unknown user
 	_, err = auth.Authenticate(ctx, repo, "unknown", "testpass")
-	if err != identity.ErrUserNotFound {
+	if !errors.Is(err, identity.ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound, got %v", err)
 	}
 }

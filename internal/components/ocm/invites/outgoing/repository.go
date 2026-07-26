@@ -38,15 +38,18 @@ func (r *MemoryOutgoingInviteRepo) Create(ctx context.Context, invite *OutgoingI
 	if invite.ID == "" {
 		invite.ID = uuid.New().String()
 	}
+
 	if invite.CreatedAt.IsZero() {
 		invite.CreatedAt = time.Now()
 	}
+
 	if invite.Status == "" {
 		invite.Status = invites.InviteStatusPending
 	}
 
 	r.invites[invite.ID] = invite
 	r.byToken[invite.Token] = invite.ID
+
 	return nil
 }
 
@@ -58,6 +61,7 @@ func (r *MemoryOutgoingInviteRepo) GetByID(ctx context.Context, id string) (*Out
 	if !ok {
 		return nil, invites.ErrInviteNotFound
 	}
+
 	return invite, nil
 }
 
@@ -69,10 +73,12 @@ func (r *MemoryOutgoingInviteRepo) GetByToken(ctx context.Context, token string)
 	if !ok {
 		return nil, invites.ErrTokenNotFound
 	}
+
 	invite, ok := r.invites[id]
 	if !ok {
 		return nil, invites.ErrInviteNotFound
 	}
+
 	return invite, nil
 }
 
@@ -84,6 +90,7 @@ func (r *MemoryOutgoingInviteRepo) List(ctx context.Context) ([]*OutgoingInvite,
 	for _, invite := range r.invites {
 		result = append(result, invite)
 	}
+
 	return result, nil
 }
 
@@ -95,11 +102,13 @@ func (r *MemoryOutgoingInviteRepo) UpdateStatus(ctx context.Context, id string, 
 	if !ok {
 		return invites.ErrInviteNotFound
 	}
+
 	invite.Status = status
 	if acceptedBy != "" {
 		invite.AcceptedBy = acceptedBy
 		now := time.Now()
 		invite.AcceptedAt = &now
 	}
+
 	return nil
 }

@@ -2,17 +2,18 @@ package crypto_test
 
 import (
 	"bytes"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
 
 	if verifier.HasSignatureHeaders(req) {
 		t.Error("should not have signature headers")
@@ -25,6 +26,7 @@ func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 	if result.Verified {
 		t.Error("should not verify without signature headers")
 	}
+
 	if result.Error == nil {
 		t.Error("should return error for missing headers")
 	}
@@ -33,6 +35,7 @@ func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 	km1 := crypto.NewKeyManager("", "https://example.com")
 	km2 := crypto.NewKeyManager("", "https://attacker.com")
+
 	km1.LoadOrGenerate()
 	km2.LoadOrGenerate()
 
@@ -42,7 +45,7 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test": "data"}`)
-	req, _ := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -76,7 +79,7 @@ func TestHasSignatureHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "/test", nil)
+			req := httptest.NewRequest(http.MethodPost, "/test", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}

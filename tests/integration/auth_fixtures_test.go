@@ -24,6 +24,7 @@ func loginSubprocessAdmin(t *testing.T, srv *harness.SubprocessServer) string {
 	}
 
 	logPath := filepath.Join(srv.TempDir, "server.log")
+
 	logs, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read subprocess log for bootstrap password: %v", err)
@@ -38,6 +39,7 @@ func loginSubprocessAdmin(t *testing.T, srv *harness.SubprocessServer) string {
 	if !ok {
 		t.Fatalf("login failed with logged bootstrap password %q: %s", password, body)
 	}
+
 	return token
 }
 
@@ -51,6 +53,7 @@ func tryLogin(t *testing.T, baseURL, username, password string) (string, string,
 	if err != nil {
 		t.Fatalf("failed to encode login request: %v", err)
 	}
+
 	resp, err := http.Post(baseURL+"/api/auth/login", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		t.Fatalf("failed to call login endpoint: %v", err)
@@ -68,23 +71,29 @@ func tryLogin(t *testing.T, baseURL, username, password string) (string, string,
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		t.Fatalf("failed to parse login response: %v", err)
 	}
+
 	if parsed.Token == "" {
 		return "", string(body), false
 	}
+
 	return parsed.Token, string(body), true
 }
 
 func extractBootstrapPassword(logs string) string {
 	marker := `"password":"`
+
 	start := strings.Index(logs, marker)
 	if start == -1 {
 		return ""
 	}
+
 	start += len(marker)
+
 	end := strings.Index(logs[start:], `"`)
 	if end == -1 {
 		return ""
 	}
+
 	return logs[start : start+end]
 }
 
@@ -98,6 +107,7 @@ func loginAdmin(t *testing.T, baseURL, username, password string) string {
 	if err != nil {
 		t.Fatalf("failed to encode login request: %v", err)
 	}
+
 	resp, err := http.Post(baseURL+"/api/auth/login", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		t.Fatalf("failed to call login endpoint: %v", err)
@@ -115,9 +125,11 @@ func loginAdmin(t *testing.T, baseURL, username, password string) string {
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		t.Fatalf("failed to parse login response: %v", err)
 	}
+
 	if parsed.Token == "" {
 		t.Fatalf("login returned empty token: %s", body)
 	}
+
 	return parsed.Token
 }
 
@@ -128,10 +140,12 @@ func createOutgoingShare(t *testing.T, baseURL, token string, payload map[string
 	if err != nil {
 		t.Fatalf("failed to marshal outgoing share payload: %v", err)
 	}
+
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/shares/outgoing", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("failed to create outgoing share request: %v", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
@@ -140,6 +154,8 @@ func createOutgoingShare(t *testing.T, baseURL, token string, payload map[string
 		t.Fatalf("failed to call outgoing share endpoint: %v", err)
 	}
 	defer resp.Body.Close()
+
 	respBody, _ := io.ReadAll(resp.Body)
+
 	return resp.StatusCode, string(respBody)
 }

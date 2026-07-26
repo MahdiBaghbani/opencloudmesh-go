@@ -88,9 +88,11 @@ func formatPortList(ports []int) string {
 	if len(ports) == 0 {
 		return ""
 	}
+
 	parts := make([]string, len(ports))
 	for i, p := range ports {
 		parts[i] = fmt.Sprintf("%d", p)
 	}
+
 	return strings.Join(parts, ", ")
 }

@@ -23,6 +23,7 @@ func TestDevModeCanonicalPolicy(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "dev-policy",
 		Mode: "dev",
@@ -60,25 +61,30 @@ mode = "off"
 		}
 
 		hasExchangeToken := false
+
 		for _, cap := range disc.Capabilities {
 			if strings.Contains(cap, "exchange-token") {
 				hasExchangeToken = true
 			}
 		}
+
 		if !hasExchangeToken {
 			t.Error("dev mode should advertise exchange-token capability")
 		}
+
 		if disc.TokenEndPoint == "" {
 			t.Error("dev mode should advertise tokenEndPoint")
 		}
 
 		hasHTTPReqSigs := false
+
 		for _, criterion := range disc.Criteria {
 			if criterion == spec.CriteriaMustUseHTTPSig {
 				hasHTTPReqSigs = true
 				break
 			}
 		}
+
 		if !hasHTTPReqSigs {
 			t.Error("dev mode should advertise signature criterion")
 		}
@@ -113,7 +119,9 @@ mode = "off"
 		if err != nil {
 			t.Fatalf("failed to build token request: %v", err)
 		}
+
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 		if err := peer.signer.Sign(req); err != nil {
 			t.Fatalf("failed to sign token request: %v", err)
 		}
@@ -135,6 +143,7 @@ mode = "off"
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			t.Fatalf("failed to decode error: %v", err)
 		}
+
 		if errResp.Error != "unsupported_grant_type" {
 			t.Errorf("expected error=unsupported_grant_type, got %q", errResp.Error)
 		}
@@ -168,7 +177,7 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 				Name:        "criteria-matrix-" + tt.mode,
@@ -183,6 +192,7 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 				t.Fatalf("failed to get discovery: %v", err)
 			}
 			defer resp.Body.Close()
+
 			if resp.StatusCode != http.StatusOK {
 				t.Fatalf("discovery returned %d", resp.StatusCode)
 			}
@@ -194,17 +204,20 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 			if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
 				t.Fatalf("failed to decode discovery: %v", err)
 			}
+
 			if !disc.Enabled {
 				t.Fatalf("discovery should be enabled in %s mode", tt.mode)
 			}
 
 			hasHTTPReqSigs := false
+
 			for _, criterion := range disc.Criteria {
 				if criterion == spec.CriteriaMustUseHTTPSig {
 					hasHTTPReqSigs = true
 					break
 				}
 			}
+
 			if hasHTTPReqSigs != tt.wantHTTPReqSigs {
 				t.Fatalf(
 					"mode %s criteria mismatch: has signature criterion=%v, want %v (criteria=%v)",

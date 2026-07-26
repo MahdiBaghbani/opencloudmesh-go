@@ -23,5 +23,6 @@ func tokenExchangeRequirements(mustInclude bool) []string {
 	if mustInclude {
 		return []string{spec.RequirementMustExchangeToken}
 	}
+
 	return nil
 }

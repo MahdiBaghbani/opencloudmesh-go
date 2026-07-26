@@ -27,13 +27,16 @@ var (
 func Register(name string, factory DriverFactory) {
 	driversMu.Lock()
 	defer driversMu.Unlock()
+
 	drivers[name] = factory
 }
 
 // New creates a driver instance based on the configuration.
 func New(cfg *DriverConfig) (Driver, error) {
 	driversMu.RLock()
+
 	factory, ok := drivers[cfg.Driver]
+
 	driversMu.RUnlock()
 
 	if !ok {
@@ -52,5 +55,6 @@ func AvailableDrivers() []string {
 	for name := range drivers {
 		names = append(names, name)
 	}
+
 	return names
 }

@@ -35,6 +35,7 @@ func (m *mockOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (*s
 	if s, ok := m.shares[shareID]; ok {
 		return s, nil
 	}
+
 	return nil, errNotFound
 }
 
@@ -44,6 +45,7 @@ func (m *mockOutgoingShareRepo) GetByProviderID(ctx context.Context, providerID 
 			return s, nil
 		}
 	}
+
 	return nil, errNotFound
 }
 
@@ -53,6 +55,7 @@ func (m *mockOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID stri
 			return s, nil
 		}
 	}
+
 	return nil, errNotFound
 }
 
@@ -62,6 +65,7 @@ func (m *mockOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSec
 			return s, nil
 		}
 	}
+
 	return nil, errNotFound
 }
 
@@ -70,6 +74,7 @@ func (m *mockOutgoingShareRepo) List(ctx context.Context) ([]*sharesoutgoing.Out
 	for _, s := range m.shares {
 		result = append(result, s)
 	}
+
 	return result, nil
 }
 
@@ -96,9 +101,11 @@ func (m *mockTokenStore) Get(ctx context.Context, accessToken string) (*token.Is
 	if !ok {
 		return nil, token.ErrTokenNotFound
 	}
+
 	if t.IsExpired() {
 		return nil, token.ErrTokenExpired
 	}
+
 	return t, nil
 }
 
@@ -134,6 +141,7 @@ func seedShareWithRequirements(repo *mockOutgoingShareRepo, shareID string, requ
 		Requirements: requirements,
 	}
 	_ = repo.Create(context.Background(), share)
+
 	return share
 }
 
@@ -238,10 +246,12 @@ func TestExtractCredential_RejectsDigest(t *testing.T) {
 
 func assertBearerWWWAuthenticate(t *testing.T, w *httptest.ResponseRecorder) {
 	t.Helper()
+
 	challenge := w.Header().Get("WWW-Authenticate")
 	if challenge != `Bearer realm="OCM WebDAV"` {
 		t.Errorf("WWW-Authenticate = %q, want Bearer-only challenge", challenge)
 	}
+
 	if strings.Contains(challenge, "Basic") {
 		t.Errorf("WWW-Authenticate must not advertise Basic, got %q", challenge)
 	}
@@ -259,11 +269,13 @@ func TestServeHTTP_MissingAuthBearerOnlyChallenge(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
+
 	assertBearerWWWAuthenticate(t, w)
 }
 
 func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 	dir := t.TempDir()
+
 	filePath := filepath.Join(dir, "hello.txt")
 	if err := os.WriteFile(filePath, []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
@@ -280,6 +292,7 @@ func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, nil)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)
 	req.Header.Set("Authorization", "Bearer valid-token")
+
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -295,12 +308,14 @@ func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer invalid-token")
+
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
+
 	assertBearerWWWAuthenticate(t, w)
 }
 
@@ -317,12 +332,14 @@ func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, nil)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer expired-token")
+
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for expired token, got %d", w.Code)
 	}
+
 	assertBearerWWWAuthenticate(t, w)
 }
 
@@ -335,12 +352,14 @@ func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, nil)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for Basic auth, got %d", w.Code)
 	}
+
 	assertBearerWWWAuthenticate(t, w)
 }
 
@@ -349,6 +368,7 @@ func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 // must-exchange-token) authenticates with a sharedSecret Bearer and succeeds.
 func TestServeHTTP_NonStrictSharedSecretSucceeds(t *testing.T) {
 	dir := t.TempDir()
+
 	filePath := filepath.Join(dir, "hello.txt")
 	if err := os.WriteFile(filePath, []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
@@ -362,6 +382,7 @@ func TestServeHTTP_NonStrictSharedSecretSucceeds(t *testing.T) {
 	handler := NewHandler(repo, newMockTokenStore(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)
 	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
+
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

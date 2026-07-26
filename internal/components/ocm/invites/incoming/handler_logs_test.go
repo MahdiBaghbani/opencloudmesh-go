@@ -48,6 +48,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 			partyRepo := identity.NewMemoryPartyRepo()
+
 			_ = partyRepo.Create(context.Background(), &identity.User{
 				ID:          "creator-id",
 				Username:    "alice",
@@ -96,6 +97,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			if w.Code != tt.wantStatus {
 				t.Fatalf("expected %d, got %d: %s", tt.wantStatus, w.Code, w.Body.String())
 			}
+
 			if capture.ContainsAny(
 				tt.inviteToken,
 				tt.authorization,

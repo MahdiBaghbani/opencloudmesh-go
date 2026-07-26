@@ -21,12 +21,14 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 	// Create test file
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "shared-file.txt")
+
 	testContent := []byte("WebDAV test content - verify bytes match!")
 	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "webdav-test",
 		Mode: "dev",
@@ -36,6 +38,7 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 	t.Run("WebDAVEndpointExists", func(t *testing.T) {
 		// Try to access WebDAV endpoint - should require auth
 		req, _ := http.NewRequest(http.MethodGet, srv.BaseURL+"/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
+
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("failed to access WebDAV: %v", err)
@@ -53,6 +56,7 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 	t.Run("WebDAVRequiresAuth", func(t *testing.T) {
 		// The WebDAV endpoint should require authorization
 		req, _ := http.NewRequest(http.MethodGet, srv.BaseURL+"/webdav/ocm/test-id", nil)
+
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("failed to access WebDAV: %v", err)
@@ -62,12 +66,14 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 		// Should require auth or return bad request for invalid ID
 		validCodes := []int{http.StatusUnauthorized, http.StatusBadRequest}
 		found := false
+
 		for _, code := range validCodes {
 			if resp.StatusCode == code {
 				found = true
 				break
 			}
 		}
+
 		if !found {
 			t.Logf("WebDAV returned %d (expected 401 or 400)", resp.StatusCode)
 		}

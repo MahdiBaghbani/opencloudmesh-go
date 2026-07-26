@@ -21,6 +21,7 @@ func (cfg *PeerMappingConfig) PublicScheme() string {
 	if cfg.scheme == "" {
 		return "https"
 	}
+
 	return cfg.scheme
 }
 
@@ -65,10 +66,12 @@ func (c *PeerMappingConfig) PlatformInstanceBinding(host string) (string, bool) 
 		if overlay.Instance == nil {
 			continue
 		}
+
 		if _, ok := overlay.Instance[host]; ok {
 			return platform, true
 		}
 	}
+
 	return "", false
 }
 
@@ -78,6 +81,7 @@ func (c *PeerMappingConfig) PlatformKnobs(platform string) (includes, requires *
 	if !ok {
 		return nil, nil, false
 	}
+
 	return overlay.IncludesTokenExchangeRequirement, overlay.RequiresTokenExchangeRequirement, true
 }
 
@@ -88,9 +92,11 @@ func (c *PeerMappingConfig) InstanceKnobs(platform, host string) (includes, requ
 	if !ok {
 		return nil, nil, false
 	}
+
 	inst, ok := overlay.Instance[host]
 	if !ok {
 		return nil, nil, false
 	}
+
 	return inst.IncludesTokenExchangeRequirement, inst.RequiresTokenExchangeRequirement, true
 }

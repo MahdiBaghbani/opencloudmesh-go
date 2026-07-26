@@ -31,6 +31,7 @@ func PostSignedJSON(
 	if err != nil {
 		t.Fatalf("PostSignedJSON: build request: %v", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	if err := signer.Sign(req); err != nil {
@@ -44,12 +45,15 @@ func PostSignedJSON(
 
 	respBody, readErr := io.ReadAll(resp.Body)
 	closeErr := resp.Body.Close()
+
 	if readErr != nil {
 		t.Fatalf("PostSignedJSON: read response body: %v", readErr)
 	}
+
 	if closeErr != nil {
 		t.Fatalf("PostSignedJSON: close response body: %v", closeErr)
 	}
+
 	resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
 	return resp, respBody
@@ -68,6 +72,7 @@ func PostSignedJSONStatusBody(
 
 	resp, respBody := PostSignedJSON(t, client, signer, http.MethodPost, url, body)
 	defer resp.Body.Close()
+
 	return resp.StatusCode, respBody
 }
 
@@ -90,5 +95,6 @@ func PostSignedJSONDecode(
 			t.Fatalf("PostSignedJSONDecode: unmarshal response: %v", err)
 		}
 	}
+
 	return status, respBody
 }

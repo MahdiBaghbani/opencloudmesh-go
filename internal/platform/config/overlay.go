@@ -127,9 +127,11 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	if fc.PublicOrigin != "" {
 		cfg.PublicOrigin = fc.PublicOrigin
 	}
+
 	if fc.ExternalBasePath != "" {
 		cfg.ExternalBasePath = fc.ExternalBasePath
 	}
+
 	if fc.ListenAddr != "" {
 		cfg.ListenAddr = fc.ListenAddr
 	}
@@ -138,6 +140,7 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if len(fc.Server.TrustedProxies) > 0 {
 			cfg.Server.TrustedProxies = fc.Server.TrustedProxies
 		}
+
 		if fc.Server.BootstrapAdmin != nil {
 			cfg.Server.BootstrapAdmin.Username = fc.Server.BootstrapAdmin.Username
 			cfg.Server.BootstrapAdmin.Password = fc.Server.BootstrapAdmin.Password
@@ -148,33 +151,43 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.TLS.Mode != "" {
 			cfg.TLS.Mode = fc.TLS.Mode
 		}
+
 		if fc.TLS.CertFile != "" {
 			cfg.TLS.CertFile = fc.TLS.CertFile
 		}
+
 		if fc.TLS.KeyFile != "" {
 			cfg.TLS.KeyFile = fc.TLS.KeyFile
 		}
+
 		if fc.TLS.HTTPPort != 0 {
 			cfg.TLS.HTTPPort = fc.TLS.HTTPPort
 		}
+
 		if fc.TLS.HTTPSPort != 0 {
 			cfg.TLS.HTTPSPort = fc.TLS.HTTPSPort
 		}
+
 		if fc.TLS.SelfSignedDir != "" {
 			cfg.TLS.SelfSignedDir = fc.TLS.SelfSignedDir
 		}
+
 		if fc.TLS.TLSDir != "" {
 			cfg.TLS.TLSDir = fc.TLS.TLSDir
 		}
+
 		if fc.TLS.ACME.Email != "" {
 			cfg.TLS.ACME.Email = fc.TLS.ACME.Email
 		}
+
 		if fc.TLS.ACME.Domain != "" {
 			cfg.TLS.ACME.Domain = fc.TLS.ACME.Domain
 		}
+
 		if fc.TLS.ACME.Directory != "" {
 			cfg.TLS.ACME.Directory = fc.TLS.ACME.Directory
 		}
+
 		if fc.TLS.ACME.StorageDir != "" {
 			cfg.TLS.ACME.StorageDir = fc.TLS.ACME.StorageDir
 		}
@@ -187,22 +200,28 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			if fc.OutboundHTTP.SSRF.Mode != "" {
 				cfg.OutboundHTTP.SSRF.Mode = fc.OutboundHTTP.SSRF.Mode
 			}
+
 			if fc.OutboundHTTP.SSRF.RoutePolicy != "" {
 				cfg.OutboundHTTP.SSRF.RoutePolicy = fc.OutboundHTTP.SSRF.RoutePolicy
 			}
+
 			if len(fc.OutboundHTTP.SSRF.RoutePolicies) > 0 {
 				cfg.OutboundHTTP.SSRF.RoutePolicies = fc.OutboundHTTP.SSRF.RoutePolicies
 			}
 		}
+
 		if fc.OutboundHTTP.TimeoutMS != 0 {
 			cfg.OutboundHTTP.TimeoutMS = fc.OutboundHTTP.TimeoutMS
 		}
+
 		if fc.OutboundHTTP.ConnectTimeoutMS != 0 {
 			cfg.OutboundHTTP.ConnectTimeoutMS = fc.OutboundHTTP.ConnectTimeoutMS
 		}
+
 		if fc.OutboundHTTP.MaxRedirects != 0 {
 			cfg.OutboundHTTP.MaxRedirects = fc.OutboundHTTP.MaxRedirects
 		}
+
 		if fc.OutboundHTTP.MaxResponseBytes != 0 {
 			cfg.OutboundHTTP.MaxResponseBytes = fc.OutboundHTTP.MaxResponseBytes
 		}
@@ -211,12 +230,15 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.OutboundHTTP.TLSRootCAFile != "" {
 			cfg.OutboundHTTP.TLSRootCAFile = fc.OutboundHTTP.TLSRootCAFile
 		}
+
 		if fc.OutboundHTTP.TLSRootCADir != "" {
 			cfg.OutboundHTTP.TLSRootCADir = fc.OutboundHTTP.TLSRootCADir
 		}
+
 		if fc.OutboundHTTP.ProxyURL != "" {
 			cfg.OutboundHTTP.ProxyURL = fc.OutboundHTTP.ProxyURL
 		}
+
 		if fc.OutboundHTTP.UseEnvFallback != nil {
 			cfg.OutboundHTTP.UseEnvFallback = *fc.OutboundHTTP.UseEnvFallback
 		}
@@ -226,18 +248,23 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Signature.KeyPath != "" {
 			cfg.Signature.KeyPath = fc.Signature.KeyPath
 		}
+
 		if fc.Signature.Label != "" {
 			cfg.Signature.Label = fc.Signature.Label
 		}
+
 		if fc.Signature.KidFragment != "" {
 			cfg.Signature.KidFragment = fc.Signature.KidFragment
 		}
+
 		if fc.Signature.CreatedMaxAgeSeconds > 0 {
 			cfg.Signature.CreatedMaxAgeSeconds = fc.Signature.CreatedMaxAgeSeconds
 		}
+
 		if fc.Signature.CreatedMaxSkewSeconds > 0 {
 			cfg.Signature.CreatedMaxSkewSeconds = fc.Signature.CreatedMaxSkewSeconds
 		}
+
 		if len(fc.Signature.AllowedAlgorithms) > 0 {
 			cfg.Signature.AllowedAlgorithms = fc.Signature.AllowedAlgorithms
 		}
@@ -247,6 +274,7 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Cache.Driver != "" {
 			cfg.Cache.Driver = fc.Cache.Driver
 		}
+
 		if len(fc.Cache.Drivers) > 0 {
 			cfg.Cache.Drivers = fc.Cache.Drivers
 		}
@@ -257,18 +285,22 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if len(fc.PeerTrust.ConfigPaths) > 0 {
 			cfg.PeerTrust.ConfigPaths = fc.PeerTrust.ConfigPaths
 		}
+
 		if fc.PeerTrust.Policy != nil {
 			if len(fc.PeerTrust.Policy.AllowList) > 0 {
 				cfg.PeerTrust.Policy.AllowList = fc.PeerTrust.Policy.AllowList
 			}
+
 			if len(fc.PeerTrust.Policy.DenyList) > 0 {
 				cfg.PeerTrust.Policy.DenyList = fc.PeerTrust.Policy.DenyList
 			}
 		}
+
 		if fc.PeerTrust.MembershipCache != nil {
 			if fc.PeerTrust.MembershipCache.TTLSeconds > 0 {
 				cfg.PeerTrust.MembershipCache.TTLSeconds = fc.PeerTrust.MembershipCache.TTLSeconds
 			}
+
 			if fc.PeerTrust.MembershipCache.MaxStaleSeconds > 0 {
 				cfg.PeerTrust.MembershipCache.MaxStaleSeconds = fc.PeerTrust.MembershipCache.MaxStaleSeconds
 			}
@@ -292,14 +324,17 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			if cfg.HTTP.Services == nil {
 				cfg.HTTP.Services = make(map[string]map[string]any)
 			}
+
 			for name, svcCfg := range fc.HTTP.Services {
 				cfg.HTTP.Services[name] = svcCfg
 			}
 		}
+
 		if len(fc.HTTP.Interceptors) > 0 {
 			if cfg.HTTP.Interceptors == nil {
 				cfg.HTTP.Interceptors = make(map[string]map[string]any)
 			}
+
 			for name, intCfg := range fc.HTTP.Interceptors {
 				cfg.HTTP.Interceptors[name] = intCfg
 			}
@@ -310,6 +345,7 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.Persistence.Backend != "" {
 			cfg.Persistence.Backend = fc.Persistence.Backend
 		}
+
 		if fc.Persistence.DataDir != "" {
 			cfg.Persistence.DataDir = fc.Persistence.DataDir
 		}
@@ -329,6 +365,7 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.OCM.Discovery.PeerAPIVersionPolicy != "" {
 			cfg.OCM.Discovery.PeerAPIVersionPolicy = fc.OCM.Discovery.PeerAPIVersionPolicy
 		}
+
 		if fc.OCM.Discovery.PeerAPIVersionWarn != "" {
 			cfg.OCM.Discovery.PeerAPIVersionWarn = fc.OCM.Discovery.PeerAPIVersionWarn
 		}
@@ -338,9 +375,11 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.OCM.CodeFlow.IncludesTokenExchangeRequirement != nil {
 			cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement = fc.OCM.CodeFlow.IncludesTokenExchangeRequirement
 		}
+
 		if fc.OCM.CodeFlow.RequiresTokenExchangeRequirement != nil {
 			cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement = fc.OCM.CodeFlow.RequiresTokenExchangeRequirement
 		}
+
 		if fc.OCM.CodeFlow.RequiresHTTPRequestSignatures != nil {
 			cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = fc.OCM.CodeFlow.RequiresHTTPRequestSignatures
 		}
@@ -350,15 +389,19 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.OCM.PeerMapping.IncludesTokenExchangeRequirement != nil {
 			cfg.OCM.PeerMapping.IncludesTokenExchangeRequirement = fc.OCM.PeerMapping.IncludesTokenExchangeRequirement
 		}
+
 		if fc.OCM.PeerMapping.RequiresTokenExchangeRequirement != nil {
 			cfg.OCM.PeerMapping.RequiresTokenExchangeRequirement = fc.OCM.PeerMapping.RequiresTokenExchangeRequirement
 		}
+
 		if fc.OCM.PeerMapping.RequiresHTTPRequestSignatures != nil {
 			cfg.OCM.PeerMapping.RequiresHTTPRequestSignatures = fc.OCM.PeerMapping.RequiresHTTPRequestSignatures
 		}
+
 		if len(fc.OCM.PeerMapping.HostPlatform) > 0 {
 			cfg.OCM.PeerMapping.HostPlatform = fc.OCM.PeerMapping.HostPlatform
 		}
+
 		if len(fc.OCM.PeerMapping.Platform) > 0 {
 			cfg.OCM.PeerMapping.Platform = fc.OCM.PeerMapping.Platform
 		}
@@ -387,8 +430,10 @@ func applyEnvOverrides(cfg *Config) error {
 				raw,
 			)
 		}
+
 		cfg.OutboundHTTP.UseEnvFallback = val
 	}
+
 	return nil
 }
 
@@ -397,21 +442,27 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.ListenAddr != nil && *f.ListenAddr != "" {
 		cfg.ListenAddr = *f.ListenAddr
 	}
+
 	if f.PublicOrigin != nil && *f.PublicOrigin != "" {
 		cfg.PublicOrigin = *f.PublicOrigin
 	}
+
 	if f.ExternalBasePath != nil && *f.ExternalBasePath != "" {
 		cfg.ExternalBasePath = *f.ExternalBasePath
 	}
+
 	if f.AdminUsername != nil && *f.AdminUsername != "" {
 		cfg.Server.BootstrapAdmin.Username = *f.AdminUsername
 	}
+
 	if f.AdminPassword != nil && *f.AdminPassword != "" {
 		cfg.Server.BootstrapAdmin.Password = *f.AdminPassword
 	}
+
 	if f.LoggingLevel != nil && *f.LoggingLevel != "" {
 		cfg.Logging.Level = *f.LoggingLevel
 	}
+
 	if f.TokenExchangePath != nil && *f.TokenExchangePath != "" {
 		cfg.TokenExchange.Path = *f.TokenExchangePath
 	}

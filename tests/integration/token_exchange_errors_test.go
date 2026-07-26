@@ -24,6 +24,7 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 	}
 
 	binaryPath := harness.BuildBinary(t)
+
 	srv := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name: "token-errors",
 		Mode: "dev",
@@ -74,6 +75,7 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := tt.data.Encode()
+
 			req, err := http.NewRequest(
 				http.MethodPost,
 				srv.BaseURL+"/ocm/token",
@@ -82,7 +84,9 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to build token request: %v", err)
 			}
+
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 			if err := peer.signer.Sign(req); err != nil {
 				t.Fatalf("failed to sign token request: %v", err)
 			}
@@ -103,9 +107,11 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 				if err != nil {
 					t.Fatalf("failed to read middleware body: %v", err)
 				}
+
 				if got := strings.TrimSpace(string(respBody)); got != tt.middlewarePlain {
 					t.Fatalf("expected middleware body %q, got %q", tt.middlewarePlain, got)
 				}
+
 				return
 			}
 

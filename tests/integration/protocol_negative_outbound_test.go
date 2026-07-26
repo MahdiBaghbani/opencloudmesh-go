@@ -25,6 +25,7 @@ func runOutboundCrossAuthorityCase(
 	t.Helper()
 
 	provider := pair.Server1
+
 	if receiver.DiscoveryHits() > 0 {
 		t.Fatal("cross-authority peer discovery hit before outgoing share attempt")
 	}
@@ -43,14 +44,17 @@ func runOutboundCrossAuthorityCase(
 		"localPath":      shareFile,
 		"permissions":    []string{"read"},
 	})
+
 	wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
 	if status != wantStatus {
 		provider.DumpLogs(t)
 		t.Fatalf("cross-authority outgoing share: expected %d, got %d: %s", wantStatus, status, body)
 	}
+
 	if receiver.DiscoveryHits() == 0 {
 		t.Fatal("expected discovery fetch before cross-authority rejection")
 	}
+
 	if receiver.PostCount() > 0 {
 		t.Fatalf("expected no outbound /ocm/shares, receiver postCount=%d", receiver.PostCount())
 	}
@@ -59,6 +63,7 @@ func runOutboundCrossAuthorityCase(
 	if err != nil {
 		t.Fatalf("snapshot persistence after cross-authority: %v", err)
 	}
+
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
 	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
 	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
@@ -74,6 +79,7 @@ func runOutboundRedirectSSRFCase(
 	t.Helper()
 
 	provider := pair.Server1
+
 	if receiver.DiscoveryHits() > 0 {
 		t.Fatal("redirect-ssrf peer discovery hit before outgoing share attempt")
 	}
@@ -92,14 +98,17 @@ func runOutboundRedirectSSRFCase(
 		"localPath":      shareFile,
 		"permissions":    []string{"read"},
 	})
+
 	wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
 	if status != wantStatus {
 		provider.DumpLogs(t)
 		t.Fatalf("redirect-ssrf outgoing share: expected %d, got %d: %s", wantStatus, status, body)
 	}
+
 	if receiver.DiscoveryHits() == 0 {
 		t.Fatal("expected discovery fetch before redirect-ssrf rejection")
 	}
+
 	if receiver.PostCount() > 0 {
 		t.Fatalf("expected no outbound /ocm/shares, receiver postCount=%d", receiver.PostCount())
 	}
@@ -108,6 +117,7 @@ func runOutboundRedirectSSRFCase(
 	if err != nil {
 		t.Fatalf("snapshot persistence after redirect-ssrf: %v", err)
 	}
+
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
 	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
 	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
@@ -139,16 +149,19 @@ func runOutboundStaleTrustMembershipCase(
 		"localPath":      shareFile,
 		"permissions":    []string{"read"},
 	})
+
 	wantStatus := http.StatusBadGateway
 	if status != wantStatus {
 		provider.DumpLogs(t)
 		consumer.DumpLogs(t)
 		t.Fatalf("stale-trust outgoing share: expected %d, got %d: %s", wantStatus, status, body)
 	}
+
 	afterSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
 	if err != nil {
 		t.Fatalf("snapshot persistence after stale-trust membership: %v", err)
 	}
+
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
 	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
 	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
@@ -162,6 +175,7 @@ func writeNegativeShareFile(t *testing.T, label string) string {
 	if err := os.WriteFile(path, []byte("negative integration share payload for "+label), 0644); err != nil {
 		t.Fatalf("write share file: %v", err)
 	}
+
 	return path
 }
 
@@ -180,12 +194,14 @@ func startCrossAuthorityDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 				Criteria:      []string{spec.CriteriaMustExchangeToken, spec.CriteriaMustUseHTTPSig},
 				ResourceTypes: []spec.ResourceType{{Name: "file", ShareTypes: []string{"user"}, Protocols: spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")}}},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(disc)
 		case "/ocm/shares":
 			if r.Method == http.MethodPost {
 				peer.postCount.Add(1)
 			}
+
 			http.NotFound(w, r)
 		default:
 			http.NotFound(w, r)
@@ -204,6 +220,7 @@ func startRedirectSSRFDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 			if r.Method == http.MethodPost {
 				peer.postCount.Add(1)
 			}
+
 			http.NotFound(w, r)
 		default:
 			http.NotFound(w, r)

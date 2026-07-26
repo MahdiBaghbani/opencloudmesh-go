@@ -63,19 +63,23 @@ var peerMappingIdent = regexp.MustCompile(`PeerMapping\w*`)
 
 func TestResolvedFindings_BanList(t *testing.T) {
 	root := modroot.ModuleRoot(t)
+
 	var violations []string
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			name := d.Name()
 			if name == ".git" || name == "vendor" || name == "node_modules" {
 				return filepath.SkipDir
 			}
+
 			return nil
 		}
+
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
@@ -84,6 +88,7 @@ func TestResolvedFindings_BanList(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		rel = filepath.ToSlash(rel)
 		if rel == "internal/architecture/resolved_findings_test.go" {
 			return nil
@@ -93,6 +98,7 @@ func TestResolvedFindings_BanList(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		content := string(data)
 
 		for _, token := range bannedTokens {
@@ -105,6 +111,7 @@ func TestResolvedFindings_BanList(t *testing.T) {
 			if peerMappingAllowed(match, rel) {
 				continue
 			}
+
 			violations = append(violations, rel+": banned PeerMapping identifier "+match)
 		}
 
@@ -113,6 +120,7 @@ func TestResolvedFindings_BanList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk failed: %v", err)
 	}
+
 	if len(violations) > 0 {
 		t.Fatalf("Retired identifier regressions:\n%s", strings.Join(violations, "\n"))
 	}
@@ -142,30 +150,37 @@ func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
 		"internal/wiring/resolve_inputs.go",
 		"internal/wiring/services.go",
 	}
+
 	if len(peerMappingAllowlist) == 0 {
 		t.Fatal("PeerMapping allowlist must be non-empty")
 	}
+
 	if len(peerMappingAllowlist) != len(want) {
 		t.Fatalf("PeerMapping allowlist length = %d, want %d; got %v",
 			len(peerMappingAllowlist), len(want), peerMappingAllowlist)
 	}
+
 	got := make(map[string]struct{}, len(peerMappingAllowlist))
 	for _, path := range peerMappingAllowlist {
 		got[path] = struct{}{}
 	}
+
 	for _, path := range want {
 		if _, ok := got[path]; !ok {
 			t.Errorf("PeerMapping allowlist missing %q", path)
 		}
 	}
+
 	for path := range got {
 		found := false
+
 		for _, w := range want {
 			if path == w {
 				found = true
 				break
 			}
 		}
+
 		if !found {
 			t.Errorf("PeerMapping allowlist has unexpected %q", path)
 		}
@@ -178,6 +193,7 @@ func peerMappingAllowed(ident, rel string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -212,10 +228,12 @@ func assertTagBasedIdentification(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test":"data"}`)
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -250,10 +268,12 @@ func assertLabelFreeIdentification(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(verifyOpts)
 
 	body := []byte(`{"test":"data"}`)
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 
 	if err := signer.SignRequest(req, body); err != nil {
@@ -278,7 +298,7 @@ func assertLabelFreeIdentification(t *testing.T) {
 func assertReasonUnsigned(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 
-	req := httptest.NewRequest("POST", "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 	req.Header.Set("Signature-Input", `sig1=("@method" "@target-uri" "date");created=1730815200;keyid="example.com#key1";alg="ed25519"`)
 	req.Header.Set("Signature", "sig1=:AAAA:")
@@ -289,6 +309,7 @@ func assertReasonUnsigned(t *testing.T) {
 	if result.Verified {
 		t.Fatal("expected verification failure")
 	}
+
 	if result.Reason != crypto.ReasonUnsigned {
 		t.Fatalf("Reason = %q, want %q", result.Reason, crypto.ReasonUnsigned)
 	}
@@ -306,10 +327,12 @@ func assertTagIntegrity(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test":"data"}`)
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -341,10 +364,12 @@ func assertGoldenOutput(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	body := []byte(`{"test":"data"}`)
-	req, err := http.NewRequest("POST", "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
+
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -353,6 +378,7 @@ func assertGoldenOutput(t *testing.T) {
 	}
 
 	sigInput := req.Header.Get("Signature-Input")
+
 	goldenRe := regexp.MustCompile(
 		`^ocm=\("@method" "@target-uri" "content-digest" "content-length" "date"\);created=1730815200;keyid="[^"]+";alg="ed25519";tag="ocm"$`,
 	)

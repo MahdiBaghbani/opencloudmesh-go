@@ -21,6 +21,7 @@ func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
 	if err != nil {
 		return &PeerDiscoveryAdapter{}
 	}
+
 	return &PeerDiscoveryAdapter{
 		jwks: resolver,
 	}
@@ -69,6 +70,7 @@ func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID
 	if err != nil {
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup for %q: %w", keyID, err)
 	}
+
 	return resolved, nil
 }
 
@@ -76,5 +78,6 @@ func (p *PeerDiscoveryAdapter) resolvePeerOrigin(host string) peerorigin.Decisio
 	if p.peerOrigin == nil {
 		return peerorigin.Decision{}
 	}
+
 	return p.peerOrigin.Resolve(host)
 }

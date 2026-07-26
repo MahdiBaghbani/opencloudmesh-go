@@ -63,9 +63,12 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					"webdav-uri-unsigned",
 					secret,
 				)
+
 				resp := postJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body)
 				defer resp.Body.Close()
+
 				assertInboundStatus(t, env, resp, http.StatusUnauthorized)
+
 				return []string{secret}
 			},
 		},
@@ -83,9 +86,12 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					"webdav-uri-wrong-authority",
 					secret,
 				)
+
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
 				defer resp.Body.Close()
+
 				assertInboundStatus(t, env, resp, http.StatusForbidden)
+
 				return []string{secret}
 			},
 		},
@@ -103,9 +109,12 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					"webdav-uri-owner-mismatch",
 					secret,
 				)
+
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
 				defer resp.Body.Close()
+
 				assertInboundStatus(t, env, resp, http.StatusForbidden)
+
 				return []string{secret}
 			},
 		},
@@ -123,18 +132,23 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					"webdav-uri-foreign-labels",
 					secret,
 				)
+
 				req, err := http.NewRequest(http.MethodPost, env.consumer.BaseURL+"/ocm/shares", bytes.NewReader(body))
 				if err != nil {
 					t.Fatalf("build POST with foreign labels only: %v", err)
 				}
+
 				req.Header.Set("Content-Type", "application/json")
 				setForeignSignatureLabelsOnly(req)
+
 				resp, err := env.consumer.Client().Do(req)
 				if err != nil {
 					t.Fatalf("POST with foreign labels only: %v", err)
 				}
 				defer resp.Body.Close()
+
 				assertInboundStatus(t, env, resp, http.StatusUnauthorized)
+
 				return []string{secret}
 			},
 		},
@@ -151,21 +165,28 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					"webdav-uri-duplicate-ocm",
 					secret,
 				)
+
 				req, err := http.NewRequest(http.MethodPost, env.consumer.BaseURL+"/ocm/shares", bytes.NewReader(body))
 				if err != nil {
 					t.Fatalf("build signed POST: %v", err)
 				}
+
 				req.Header.Set("Content-Type", "application/json")
+
 				if err := env.signer.SignRequest(req, body); err != nil {
 					t.Fatalf("sign POST: %v", err)
 				}
+
 				duplicateOCMSignatureLabel(req)
+
 				resp, err := env.consumer.Client().Do(req)
 				if err != nil {
 					t.Fatalf("signed POST with duplicate ocm label: %v", err)
 				}
 				defer resp.Body.Close()
+
 				assertInboundStatus(t, env, resp, http.StatusUnauthorized)
+
 				return []string{secret}
 			},
 		},
@@ -194,9 +215,12 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					address.FormatOutgoingOCMAddressFromUserID("step14-owner", env.providerHost),
 					address.FormatOutgoingOCMAddressFromUserID("step14-sender", env.providerHost),
 					secret))
+
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
 				defer resp.Body.Close()
+
 				assertInboundStatus(t, env, resp, http.StatusBadRequest)
+
 				return []string{secret}
 			},
 		},
@@ -227,9 +251,12 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					address.FormatOutgoingOCMAddressFromUserID("step14-owner", env.providerHost),
 					address.FormatOutgoingOCMAddressFromUserID("step14-sender", env.providerHost),
 					secret))
+
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
 				defer resp.Body.Close()
+
 				assertInboundStatus(t, env, resp, http.StatusNotImplemented)
+
 				return []string{secret}
 			},
 		},
@@ -259,16 +286,19 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					address.FormatOutgoingOCMAddressFromUserID("step14-owner", env.providerHost),
 					address.FormatOutgoingOCMAddressFromUserID("step14-sender", env.providerHost),
 					secret))
+
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
 				defer resp.Body.Close()
+
 				assertInboundStatus(t, env, resp, http.StatusNotImplemented)
+
 				return []string{secret}
 			},
 		},
 	}
 
 	for _, tc := range cases {
-		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			beforeSnap, err := tsprotocol.SnapshotPersistence(env.consumer.TempDir)
 			if err != nil {
@@ -281,6 +311,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 			if err != nil {
 				t.Fatalf("snapshot persistence after %s: %v", tc.name, err)
 			}
+
 			assertInboundRejectionInvariants(t, env.consumer, recordingReceiver, beforeSnap, afterSnap, secrets)
 		})
 	}
@@ -307,7 +338,9 @@ func assertInboundStatus(t *testing.T, env inboundNegativeEnv, resp *http.Respon
 	if resp.StatusCode == want {
 		return
 	}
+
 	respBody, _ := io.ReadAll(resp.Body)
+
 	env.provider.DumpLogs(t)
 	env.consumer.DumpLogs(t)
 	t.Fatalf("expected status %d, got %d: %s", want, resp.StatusCode, respBody)
@@ -320,14 +353,18 @@ func postJSONWithClient(t *testing.T, client *http.Client, targetURL string, bod
 	if err != nil {
 		t.Fatalf("build POST: %v", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
+
 	if client == nil {
 		client = http.DefaultClient
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("POST %s: %v", targetURL, err)
 	}
+
 	return resp
 }
 
@@ -354,16 +391,19 @@ func buildInboundShareBodyWithOwnerSender(
 			},
 		},
 	}
+
 	body, err := json.Marshal(payload)
 	if err != nil {
 		panic(err)
 	}
+
 	return body
 }
 
 func setForeignSignatureLabelsOnly(req *http.Request) {
 	foreignSigInput := `sig1=("@method" "@target-uri" "content-digest" "content-length" "date");created=1;keyid="foreign.example#k1";alg="ed25519"`
 	foreignSignature := "sig1=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:"
+
 	req.Header.Set("Signature-Input", foreignSigInput)
 	req.Header.Set("Signature", foreignSignature)
 }

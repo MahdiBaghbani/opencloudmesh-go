@@ -12,6 +12,7 @@ import (
 
 func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
+
 	handler, err := ui.NewHandler(id.ExternalBasePath, false, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
@@ -35,6 +36,7 @@ func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 			t.Errorf("expected login page to include %q for post-login redirect", want)
 		}
 	}
+
 	if !strings.Contains(body, "/ocm") {
 		t.Error("expected base path in login page")
 	}
@@ -42,6 +44,7 @@ func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 
 func TestLogin_AcceptsRedirectQueryForAcceptInvite(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "")
+
 	handler, err := ui.NewHandler(id.ExternalBasePath, true, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)

@@ -24,24 +24,31 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 	if req.ShareWith == "" {
 		errs = append(errs, ValidationError{Name: "shareWith", Message: "REQUIRED"})
 	}
+
 	if req.Name == "" {
 		errs = append(errs, ValidationError{Name: "name", Message: "REQUIRED"})
 	}
+
 	if req.ProviderID == "" {
 		errs = append(errs, ValidationError{Name: "providerId", Message: "REQUIRED"})
 	}
+
 	if req.Owner == "" {
 		errs = append(errs, ValidationError{Name: "owner", Message: "REQUIRED"})
 	}
+
 	if req.Sender == "" {
 		errs = append(errs, ValidationError{Name: "sender", Message: "REQUIRED"})
 	}
+
 	if req.ShareType == "" {
 		errs = append(errs, ValidationError{Name: "shareType", Message: "REQUIRED"})
 	}
+
 	if req.ResourceType == "" {
 		errs = append(errs, ValidationError{Name: "resourceType", Message: "REQUIRED"})
 	}
+
 	if req.Protocol.Name == "" && req.Protocol.WebDAV == nil {
 		errs = append(errs, ValidationError{Name: "protocol", Message: "REQUIRED"})
 	}

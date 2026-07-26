@@ -4,10 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +11,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	sig "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
@@ -31,7 +32,7 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -67,7 +68,7 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 	signer.SignRequest(req, body)
@@ -132,10 +133,11 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 				w.WriteHeader(http.StatusOK)
 			}))
 
-			req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
+			req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
+
 			if tt.signature != "" {
 				req.Header.Set("Signature", tt.signature)
 			}
@@ -221,6 +223,7 @@ func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *
 				if tt.wantCode != http.StatusOK {
 					t.Fatal("handler should not run for rejected request")
 				}
+
 				w.WriteHeader(http.StatusOK)
 			}))
 
@@ -228,15 +231,18 @@ func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
+
 			if tt.signature != "" {
 				req.Header.Set("Signature", tt.signature)
 			}
+
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
 			if w.Code != tt.wantCode {
 				t.Errorf("want status %d, got %d (body: %s)", tt.wantCode, w.Code, w.Body.String())
 			}
+
 			if tt.wantBody != "" && strings.TrimSpace(w.Body.String()) != tt.wantBody {
 				t.Errorf("want body %q, got %q", tt.wantBody, w.Body.String())
 			}
@@ -248,6 +254,7 @@ func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSign
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
 	}
+
 	signer := crypto.NewRFC9421Signer(km)
 
 	cfg := defaultSigTestConfig()
@@ -265,9 +272,10 @@ func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSign
 	}))
 
 	signedBody := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(signedBody))
+	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(signedBody))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
+
 	if err := signer.SignRequest(req, signedBody); err != nil {
 		t.Fatal(err)
 	}
@@ -319,14 +327,16 @@ func TestSignatureMiddleware_RequireSignatureAndPeer_Advertised_UnsignedRejects(
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for advertised unsigned request, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if strings.TrimSpace(w.Body.String()) != "signature required" {
 		t.Fatalf("body = %q, want signature required", w.Body.String())
 	}
@@ -339,5 +349,6 @@ func newStrictSignatureMiddleware(
 ) *sig.SignatureMiddleware {
 	mw := newTestSignatureMiddleware(cfg, pd, publicOrigin, logger)
 	mw.SetLocalHTTPSigPolicy(true, true)
+
 	return mw
 }

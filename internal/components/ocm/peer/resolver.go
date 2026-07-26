@@ -57,6 +57,7 @@ func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (s
 	if req.RecipientProvider == "" {
 		return "", fmt.Errorf("no recipientProvider in invite-accepted request")
 	}
+
 	if strings.Contains(req.RecipientProvider, "://") {
 		return "", fmt.Errorf("invalid recipientProvider in invite-accepted request")
 	}
@@ -69,9 +70,11 @@ func (p *Resolver) ResolveTokenRequest(r *http.Request, body []byte) (string, er
 	if err != nil {
 		return "", err
 	}
+
 	if strings.Contains(clientID, "://") {
 		return "", fmt.Errorf("invalid client_id in token request")
 	}
+
 	return clientID, nil
 }
 
@@ -80,9 +83,11 @@ func parseTokenClientID(body []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse token request: %w", err)
 	}
+
 	clientID := strings.TrimSpace(values.Get("client_id"))
 	if clientID == "" {
 		return "", fmt.Errorf("no client_id in token request")
 	}
+
 	return clientID, nil
 }

@@ -51,14 +51,17 @@ func assertNoUnexpectedNetwork(t *testing.T, servers []*harness.SubprocessServer
 		if srv == nil {
 			continue
 		}
+
 		logText := srv.ReadLog(t)
 		for _, needle := range unexpectedProtocolOutboundNeedles {
 			if !strings.Contains(logText, needle) {
 				continue
 			}
+
 			if logLineAllowed(logText, needle, allowed) {
 				continue
 			}
+
 			srv.DumpLogs(t)
 			t.Fatalf("server %s log contains unexpected PROTOCOL outbound marker %q", srv.Name, needle)
 		}
@@ -85,10 +88,12 @@ func assertNoOutboundFallback(
 		"POST /ocm/shares",
 		"/ocm/shares",
 	}
+
 	for _, srv := range servers {
 		if srv == nil {
 			continue
 		}
+
 		logText := srv.ReadLog(t)
 		for _, needle := range fallbackNeedles {
 			if strings.Contains(logText, needle) && !logLineAllowed(logText, needle, allowed) {
@@ -119,10 +124,12 @@ func assertNoSecretInLogs(t *testing.T, secrets []string, servers ...*harness.Su
 		if secret == "" {
 			continue
 		}
+
 		for _, srv := range servers {
 			if srv == nil {
 				continue
 			}
+
 			if srv.LogContainsAny(secret) {
 				srv.DumpLogs(t)
 				t.Fatalf("server %s log contains secret substring", srv.Name)
@@ -136,12 +143,15 @@ func logLineAllowed(logText, needle string, allowed []string) bool {
 		if !strings.Contains(line, needle) {
 			continue
 		}
+
 		for _, permit := range allowed {
 			if permit != "" && strings.Contains(line, permit) {
 				return true
 			}
 		}
+
 		return false
 	}
+
 	return false
 }

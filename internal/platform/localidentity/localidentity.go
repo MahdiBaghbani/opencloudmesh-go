@@ -109,9 +109,11 @@ func schemeFromOrigin(publicOrigin string) string {
 	if publicOrigin == "" {
 		return ""
 	}
+
 	u, err := url.Parse(publicOrigin)
 	if err != nil || u.Scheme == "" {
 		return ""
 	}
+
 	return strings.ToLower(u.Scheme)
 }

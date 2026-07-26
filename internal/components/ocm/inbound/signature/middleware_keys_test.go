@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
 func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
@@ -20,6 +21,7 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
 	}
+
 	pathfulKid := "sender.example.com/ocm#key1"
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -35,10 +37,11 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
+
 	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
 	req.Header.Set("Content-Digest", digest)
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -51,15 +54,19 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 	)
 	req.Header.Set("Signature-Input", sigInput)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+
 	base, err := crypto.BuildSignatureBase(req, components)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fullBase := base + fmt.Sprintf("\"@signature-params\": %s", paramsRaw)
+
 	sigBytes, err := km.Sign([]byte(fullBase))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sigBytes)))
 
 	w := httptest.NewRecorder()
@@ -75,6 +82,7 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
 	}
+
 	badKid := "[]#key1"
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -90,10 +98,11 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest("POST", "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
+
 	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body)) + ":"
 	req.Header.Set("Content-Digest", digest)
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -106,15 +115,19 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 	)
 	req.Header.Set("Signature-Input", sigInput)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+
 	base, err := crypto.BuildSignatureBase(req, components)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fullBase := base + fmt.Sprintf("\"@signature-params\": %s", paramsRaw)
+
 	sigBytes, err := km.Sign([]byte(fullBase))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sigBytes)))
 
 	w := httptest.NewRecorder()
@@ -123,6 +136,7 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 when authorityForCompareFromKid fails, got %d: %s", w.Code, w.Body.String())
 	}
+
 	if !strings.Contains(w.Body.String(), "invalid signature keyId") {
 		t.Fatalf("body = %q, want invalid signature keyId", w.Body.String())
 	}

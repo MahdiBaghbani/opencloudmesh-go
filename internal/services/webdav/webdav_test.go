@@ -20,10 +20,12 @@ func testLog() *slog.Logger {
 
 func TestNew_SucceedsWithInputs(t *testing.T) {
 	m := map[string]any{}
+
 	svc, err := New(testWebDAVInputs(), m, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if svc == nil {
 		t.Fatal("expected non-nil service")
 	}
@@ -31,10 +33,12 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 
 func TestNew_UsesMinimalInputs(t *testing.T) {
 	m := map[string]any{}
+
 	svc, err := New(testWebDAVInputs(), m, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	s := svc.(*Service)
 	if s.handler == nil {
 		t.Fatal("expected non-nil handler")
@@ -43,6 +47,7 @@ func TestNew_UsesMinimalInputs(t *testing.T) {
 
 func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+
 	strictShare := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-strict-share",
 		WebDAVID:     "11111111-1111-1111-1111-111111111111",
@@ -58,6 +63,7 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 		OutgoingShareRepo: repo,
 		TokenStore:        token.NewMemoryTokenStore(),
 	}
+
 	svc, err := New(in, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -66,6 +72,7 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 	s := svc.(*Service)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+strictShare.WebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer "+strictShare.SharedSecret)
+
 	w := httptest.NewRecorder()
 
 	s.handler.ServeHTTP(w, req)
@@ -80,12 +87,14 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 // must-exchange-token) authenticates with a sharedSecret Bearer and succeeds.
 func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 	dir := t.TempDir()
+
 	filePath := filepath.Join(dir, "hello.txt")
 	if err := os.WriteFile(filePath, []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-non-strict",
 		WebDAVID:     "11111111-1111-1111-1111-111111111111",
@@ -101,6 +110,7 @@ func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 		OutgoingShareRepo: repo,
 		TokenStore:        token.NewMemoryTokenStore(),
 	}
+
 	svc, err := New(in, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -109,6 +119,7 @@ func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 	s := svc.(*Service)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+share.WebDAVID+"/hello.txt", nil)
 	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
+
 	w := httptest.NewRecorder()
 
 	s.handler.ServeHTTP(w, req)
@@ -123,6 +134,7 @@ func TestService_Prefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if svc.Prefix() != "webdav" {
 		t.Errorf("expected prefix 'webdav', got %q", svc.Prefix())
 	}
@@ -133,6 +145,7 @@ func TestService_Handler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if svc.Handler() == nil {
 		t.Error("expected non-nil Handler")
 	}
@@ -143,6 +156,7 @@ func TestService_Close(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if err := svc.Close(); err != nil {
 		t.Errorf("unexpected error on Close: %v", err)
 	}
@@ -154,6 +168,7 @@ func TestService_Close(t *testing.T) {
 
 func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 	var logBuf testLogBuffer
+
 	log := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	m := map[string]any{

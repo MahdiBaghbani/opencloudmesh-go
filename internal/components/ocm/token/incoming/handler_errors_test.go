@@ -3,6 +3,7 @@ package incoming_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,7 @@ func TestHandler_InvalidCode(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -39,6 +41,7 @@ func TestHandler_InvalidCode(t *testing.T) {
 
 	var resp token.OAuthError
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Error != token.ErrorInvalidGrant {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidGrant, resp.Error)
 	}
@@ -67,6 +70,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	w := httptest.NewRecorder()
 
 	handler.HandleToken(w, req)
@@ -77,6 +81,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 
 	var resp token.OAuthError
 	json.NewDecoder(w.Body).Decode(&resp)
+
 	if resp.Error != token.ErrorInvalidClient {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
 	}
@@ -98,7 +103,7 @@ func TestTokenStore_Expiration(t *testing.T) {
 
 	// Try to get it
 	_, err := store.Get(ctx, "expired-token")
-	if err != token.ErrTokenExpired {
+	if !errors.Is(err, token.ErrTokenExpired) {
 		t.Errorf("expected ErrTokenExpired, got %v", err)
 	}
 }

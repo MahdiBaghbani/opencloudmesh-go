@@ -63,6 +63,7 @@ func (e *ClassifiedError) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("%s: %s: %v", e.ReasonCode, e.Message, e.Cause)
 	}
+
 	return fmt.Sprintf("%s: %s", e.ReasonCode, e.Message)
 }
 
@@ -116,15 +117,19 @@ func ClassifyError(err error) string {
 	if containsAny(errStr, "signature required", "missing signature") {
 		return ReasonSignatureRequired
 	}
+
 	if containsAny(errStr, "signature invalid", "signature verification failed", "invalid signature") {
 		return ReasonSignatureInvalid
 	}
+
 	if containsAny(errStr, "signature mismatch", "signer mismatch") {
 		return ReasonSignatureMismatch
 	}
+
 	if containsAny(errStr, "digest mismatch", "content digest mismatch") {
 		return ReasonDigestMismatch
 	}
+
 	if containsAny(errStr, "keyid mismatch", "key id mismatch") {
 		return ReasonKeyIDMismatch
 	}
@@ -133,9 +138,11 @@ func ClassifyError(err error) string {
 	if containsAny(errStr, "token exchange failed") {
 		return ReasonTokenExchangeFailed
 	}
+
 	if containsAny(errStr, "token invalid", "invalid token format") {
 		return ReasonTokenInvalidFormat
 	}
+
 	if containsAny(errStr, "token expired") {
 		return ReasonTokenExpired
 	}
@@ -144,9 +151,11 @@ func ClassifyError(err error) string {
 	if containsAny(errStr, "discovery failed", "discovery error") {
 		return ReasonDiscoveryFailed
 	}
+
 	if containsAny(errStr, "discovery timeout") {
 		return ReasonDiscoveryTimeout
 	}
+
 	if containsAny(errStr, "capability not found", "capability missing") {
 		return ReasonPeerCapabilityMissing
 	}
@@ -155,12 +164,15 @@ func ClassifyError(err error) string {
 	if containsAny(errStr, "connection refused", "no such host", "network unreachable") {
 		return ReasonNetworkError
 	}
+
 	if containsAny(errStr, "peer unreachable", "host unreachable") {
 		return ReasonPeerUnreachable
 	}
+
 	if containsAny(errStr, "ssrf", "private ip", "loopback") {
 		return ReasonSSRFBlocked
 	}
+
 	if containsAny(errStr, "tls", "certificate") {
 		return ReasonTLSError
 	}
@@ -169,6 +181,7 @@ func ClassifyError(err error) string {
 	if containsAny(errStr, "protocol mismatch", "unsupported protocol") {
 		return ReasonProtocolMismatch
 	}
+
 	if containsAny(errStr, "unsupported version", "version mismatch") {
 		return ReasonUnsupportedVersion
 	}
@@ -183,5 +196,6 @@ func containsAny(s string, patterns ...string) bool {
 			return true
 		}
 	}
+
 	return false
 }
