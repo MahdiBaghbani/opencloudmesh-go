@@ -54,6 +54,71 @@ Proof: `internal/services/wellknown/ocm_handler_test.go`
 `internal/components/ocm/discovery/builder_test.go`
 (`TestBuildDiscovery_InviteAcceptIndependentFromWAYF`).
 
+## Discovery subset
+
+ocmgo advertises a deliberate subset of the OCM discovery document. It is a
+WebDAV-centered OCM implementation, not a full OCM server. Field sources and
+route-linked behavior are described in
+[Core document fields](#core-document-fields);
+this section maps what ocmgo publishes against the full OCM-API enumerations.
+
+The IANA OCM Parameters registry group is authoritative for these parameter
+enumerations ([OCM-API registry overview][iana-ocm-params]). The five
+registries are: OCM Resource Types, OCM Protocols, OCM Share Types, OCM Share
+Payloads, and OCM Notification Types.
+
+[iana-ocm-params]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1730-L1738
+
+### Capabilities (4 of 7)
+
+Full OCM capability enumeration (7 total):
+[OCM-API capabilities][ocm-capabilities].
+
+| Capability | ocmgo |
+| ---------- | ----- |
+| `http-sig` | advertised |
+| `exchange-token` | advertised |
+| `invites` | advertised |
+| `invite-wayf` | advertised when WAYF route is enabled |
+| `enforce-mfa` | omitted |
+| `notifications` | omitted |
+| `protocol-object` | omitted |
+
+[ocm-capabilities]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L707-L736
+
+### Criteria (2 of 5)
+
+Full OCM criteria enumeration (5 total):
+[OCM-API criteria][ocm-criteria].
+
+| Criterion | ocmgo |
+| --------- | ----- |
+| `must-use-http-sig` | advertised when HTTP signatures are required |
+| `must-exchange-token` | advertised when token exchange is required |
+| `denylist` | omitted |
+| `allowlist` | omitted |
+| `must-invite` | omitted |
+
+[ocm-criteria]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L737-L762
+
+### Protocol roles (WebDAV send, one receive)
+
+Full OCM protocol role pairs (3 sending/receiving pairs):
+[OCM-API protocol roles][ocm-protocol-roles].
+
+| Role | ocmgo |
+| ---- | ----- |
+| `webdav` (send) | advertised |
+| `webdav-receive` | advertised |
+| `webapp` (send) | omitted |
+| `webapp-receive` | omitted (deliberately removed; inbound webapp shares return 501 because ocmgo does not advertise `webapp-receive`) |
+| `ssh` (send) | omitted |
+| `ssh-receive` | omitted |
+
+[ocm-protocol-roles]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L667-L706
+
+Built by `internal/components/ocm/discovery/builder.go`.
+
 ## Inbound peer discovery
 
 When this server discovers a remote peer (`internal/components/ocm/discovery`
