@@ -170,3 +170,75 @@ func TestDecideAccessAuth_WebDAVSharedSecret_IgnoresMustUseHTTPSig(t *testing.T)
 		})
 	}
 }
+
+func TestDecideAccessAuth_WebDAVOptionalExchange(t *testing.T) {
+	tests := []struct {
+		name          string
+		requirements  []string
+		capabilities  []string
+		tokenEndPoint string
+		criteria      []string
+		wantMode      string
+		wantErr       bool
+	}{
+		{
+			name:          "optional requirement omitted and peer capable",
+			capabilities:  []string{spec.CapabilityExchangeToken},
+			tokenEndPoint: "http://example.com/ocm/token",
+			wantMode:      AccessModeExchangeThenFallback,
+		},
+		{
+			name:         "optional requirement omitted and peer incapable",
+			capabilities: []string{},
+			wantMode:     AccessModeSharedSecret,
+		},
+		{
+			name:          "must-exchange-token present and peer capable",
+			requirements:  []string{spec.RequirementMustExchangeToken},
+			capabilities:  []string{spec.CapabilityExchangeToken},
+			tokenEndPoint: "http://example.com/ocm/token",
+			wantMode:      AccessModeTokenExchange,
+		},
+		{
+			name:         "must-exchange-token present and peer incapable",
+			requirements: []string{spec.RequirementMustExchangeToken},
+			capabilities: []string{},
+			wantMode:     AccessModeFailClosed,
+			wantErr:      true,
+		},
+		{
+			name:          "optional omitted capable peer with unfulfilled signature policy",
+			capabilities:  []string{spec.CapabilityExchangeToken},
+			tokenEndPoint: "http://example.com/ocm/token",
+			criteria:      []string{spec.CriteriaMustUseHTTPSig},
+			wantMode:      AccessModeExchangeThenFallback,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			disc := &spec.Discovery{
+				Enabled:       true,
+				APIVersion:    "1.4.0",
+				EndPoint:      "http://example.com/ocm",
+				Capabilities:  tt.capabilities,
+				TokenEndPoint: tt.tokenEndPoint,
+				Criteria:      tt.criteria,
+			}
+			client := NewClient(nil, &discovery.Client{}, nil, nil)
+
+			decision, err := client.DecideAccessAuth(AccessOptions{
+				Share: &ShareInfo{
+					Requirements: tt.requirements,
+				},
+				Protocol: "webdav",
+			}, disc)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if decision.Mode != tt.wantMode {
+				t.Errorf("mode = %q, want %q", decision.Mode, tt.wantMode)
+			}
+		})
+	}
+}

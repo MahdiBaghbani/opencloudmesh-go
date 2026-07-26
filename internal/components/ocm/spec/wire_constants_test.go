@@ -49,8 +49,8 @@ var wireLiteralSet = []string{
 // wildcards are not allowed.
 var wireLiteralAllowlist = map[string]map[int]struct{}{
 	"internal/components/ocm/access/remote.go": {
-		// ProtocolWebDAV constant; line moved after removing unused webapp-plane imports.
-		30: {},
+		// ProtocolWebDAV constant; line shifted after adding the slog import.
+		31: {},
 	},
 	"internal/components/ocm/outbound/kinds.go": {
 		11: {},

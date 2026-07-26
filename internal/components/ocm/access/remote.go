@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -33,9 +34,10 @@ const (
 
 // Access authorization modes returned by DecideAccessAuth.
 const (
-	AccessModeTokenExchange = "token-exchange"
-	AccessModeSharedSecret  = "shared-secret"
-	AccessModeFailClosed    = "fail-closed"
+	AccessModeTokenExchange        = "token-exchange"
+	AccessModeSharedSecret         = "shared-secret"
+	AccessModeFailClosed           = "fail-closed"
+	AccessModeExchangeThenFallback = "exchange-then-fallback"
 )
 
 var (
@@ -175,6 +177,13 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 		return AccessAuthDecision{Mode: AccessModeTokenExchange, HTTPStatus: http.StatusOK}, nil
 	}
 
+	// When must-exchange-token is omitted but the peer advertises token
+	// exchange, the receiver MAY attempt exchange first and MUST fall back to
+	// legacy shared-secret access if exchange fails.
+	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1523-L1526
+	if capable {
+		return AccessAuthDecision{Mode: AccessModeExchangeThenFallback, HTTPStatus: http.StatusOK}, nil
+	}
 	return AccessAuthDecision{Mode: AccessModeSharedSecret, HTTPStatus: http.StatusOK}, nil
 }
 
@@ -231,6 +240,22 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 	case AccessModeTokenExchange:
 		return c.accessTokenExchange(ctx, share, opts, disc)
 	case AccessModeSharedSecret:
+		return c.accessSharedSecret(ctx, share, opts, disc)
+	case AccessModeExchangeThenFallback:
+		// Attempt token exchange first; on any failure fall back to the
+		// legacy shared-secret bearer. Legacy shared secrets are retained for
+		// backwards compatibility; implementers SHOULD prefer short-lived
+		// tokens when available.
+		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1523-L1526
+		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1927-L1931
+		result, err := c.accessTokenExchange(ctx, share, opts, disc)
+		if err == nil {
+			return result, nil
+		}
+		// On exchange failure the exchange error is discarded, not wrapped or
+		// retained in the returned error chain. Only a safe fixed warning is
+		// logged; fallback then proceeds with a fresh shared-secret access result.
+		slog.WarnContext(ctx, "optional token exchange failed; falling back to legacy shared-secret access")
 		return c.accessSharedSecret(ctx, share, opts, disc)
 	default:
 		return nil, reason.NewClassifiedError(
