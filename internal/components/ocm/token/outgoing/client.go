@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -58,26 +59,32 @@ func NewClient(
 	}
 }
 
-// Exchange performs signed form-urlencoded token exchange with authorization_code.
-func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*ExchangeResult, error) {
-	if c.signer == nil {
-		return nil, reason.NewClassifiedError(
-			reason.ReasonSignatureRequired,
-			"token exchange requires signing",
-			fmt.Errorf("no signer configured"),
-		)
-	}
-
+// Exchange performs form-urlencoded token exchange with authorization_code.
+// It signs the request only when the receiver advertises the http-sig
+// capability; otherwise the request is sent unsigned. A server implementing
+// http-sig MUST use it when interacting with a peer advertising http-sig.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+func (c *Client) Exchange(ctx context.Context, req ExchangeRequest, disc *spec.Discovery) (*ExchangeResult, error) {
 	httpReq, err := c.buildFormRequest(ctx, req, token.GrantTypeAuthorizationCode)
 	if err != nil {
 		return nil, err
 	}
-	if err := c.signer.Sign(httpReq); err != nil {
-		return nil, reason.NewClassifiedError(
-			reason.ReasonSignatureInvalid,
-			"failed to sign request",
-			err,
-		)
+
+	if disc.IsHTTPSigCapable() {
+		if c.signer == nil {
+			return nil, reason.NewClassifiedError(
+				reason.ReasonSignatureRequired,
+				"token exchange requires signing",
+				fmt.Errorf("no signer configured"),
+			)
+		}
+		if err := c.signer.Sign(httpReq); err != nil {
+			return nil, reason.NewClassifiedError(
+				reason.ReasonSignatureInvalid,
+				"failed to sign request",
+				err,
+			)
+		}
 	}
 
 	return c.doRequest(ctx, httpReq)

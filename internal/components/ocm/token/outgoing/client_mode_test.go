@@ -26,9 +26,9 @@ func TestClient_Exchange_NoSignerRejected(t *testing.T) {
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: "https://peer.example.com/token",
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 	if err == nil {
-		t.Fatal("expected error when token exchange has no signer")
+		t.Fatal("expected error when token exchange has no signer for http-sig peer")
 	}
 }
 
@@ -62,7 +62,7 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 
 	if err != nil {
 		t.Fatalf("Exchange should succeed with signature: %v", err)
@@ -72,7 +72,7 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_AlwaysSigns(t *testing.T) {
+func TestClient_Exchange_SignsWhenReceiverAdvertisesHTTPSig(t *testing.T) {
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			t.Error("expected signed token exchange")
@@ -96,7 +96,7 @@ func TestClient_Exchange_AlwaysSigns(t *testing.T) {
 	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 
 	if err != nil {
 		t.Fatalf("Exchange should succeed with signature: %v", err)

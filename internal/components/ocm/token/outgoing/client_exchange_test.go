@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -30,7 +31,7 @@ func TestClient_Exchange_Success_LowercaseBearerTokenType(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := exchangeOnServer(t, server.URL, "test-secret")
+	result, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
 	}
@@ -88,7 +89,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
@@ -98,6 +99,70 @@ func TestClient_Exchange_Success(t *testing.T) {
 	}
 	if result.TokenType != "Bearer" {
 		t.Errorf("expected token_type 'Bearer', got %s", result.TokenType)
+	}
+}
+
+func TestClient_Exchange_WithoutHTTPSigSendsUnsigned(t *testing.T) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Signature") != "" {
+			t.Error("expected unsigned request for peer without http-sig")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "unsigned-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRF: config.SSRFConfig{Mode: "off"},
+	}, nil))
+	client := tokenoutgoing.NewClient(httpClient, &mockSigner{}, "my-instance.example.com")
+
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		SharedSecret:  "test-secret",
+	}, noHTTPSigDiscovery())
+	if err != nil {
+		t.Fatalf("Exchange failed: %v", err)
+	}
+	if result.AccessToken != "unsigned-token" {
+		t.Errorf("expected access_token 'unsigned-token', got %s", result.AccessToken)
+	}
+}
+
+func TestClient_Exchange_NoSignerWithoutHTTPSigSucceeds(t *testing.T) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Signature") != "" {
+			t.Error("expected unsigned request for peer without http-sig")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(token.TokenResponse{
+			AccessToken: "unsigned-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer server.Close()
+
+	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
+		SSRF: config.SSRFConfig{Mode: "off"},
+	}, nil))
+	client := tokenoutgoing.NewClient(httpClient, nil, "my-instance.example.com")
+
+	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
+		TokenEndPoint: server.URL,
+		SharedSecret:  "test-secret",
+	}, noHTTPSigDiscovery())
+	if err != nil {
+		t.Fatalf("Exchange failed: %v", err)
+	}
+	if result.AccessToken != "unsigned-token" {
+		t.Errorf("expected access_token 'unsigned-token', got %s", result.AccessToken)
 	}
 }
 
@@ -124,9 +189,9 @@ func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 	if err == nil {
-		t.Fatal("expected signing failure without signer")
+		t.Fatal("expected signing failure without signer for http-sig peer")
 	}
 
 	var ce *reason.ClassifiedError
@@ -164,7 +229,7 @@ func TestClient_Exchange_SignFailureFailClosed(t *testing.T) {
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 	if err == nil {
 		t.Fatal("expected failure when signing fails")
 	}
@@ -201,7 +266,7 @@ func TestClient_Exchange_SignedRejection401EmptyBodySingleAttempt(t *testing.T) 
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL + "/ocm/token",
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 	if err == nil {
 		t.Fatal("expected failure for signed 401 with empty body")
 	}
@@ -224,7 +289,7 @@ func TestClient_Exchange_RejectsMalformedJSONBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL+"/ocm/token", "test-secret")
+	_, err := exchangeOnServer(t, server.URL+"/ocm/token", "test-secret", httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -250,7 +315,7 @@ func TestClient_Exchange_SignedRejection401OAuthErrorSingleAttempt(t *testing.T)
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 	if err == nil {
 		t.Fatal("expected failure for signed 401 with OAuth error body")
 	}
@@ -279,7 +344,7 @@ func TestClient_Exchange_RejectsOversizeResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -290,7 +355,7 @@ func TestClient_Exchange_RejectsNonJSONContentType(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -305,7 +370,7 @@ func TestClient_Exchange_RejectsEmptyAccessToken(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -320,7 +385,7 @@ func TestClient_Exchange_RejectsNonBearerTokenType(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -335,11 +400,11 @@ func TestClient_Exchange_RejectsNonPositiveExpiresIn(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret")
+	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
-func exchangeOnServer(t *testing.T, serverURL, secret string) (*tokenoutgoing.ExchangeResult, error) {
+func exchangeOnServer(t *testing.T, serverURL, secret string, disc *spec.Discovery) (*tokenoutgoing.ExchangeResult, error) {
 	t.Helper()
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 		SSRF: config.SSRFConfig{Mode: "off"},
@@ -348,7 +413,7 @@ func exchangeOnServer(t *testing.T, serverURL, secret string) (*tokenoutgoing.Ex
 	return client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: serverURL,
 		SharedSecret:  secret,
-	})
+	}, disc)
 }
 
 func assertTokenInvalidFormat(t *testing.T, err error) {

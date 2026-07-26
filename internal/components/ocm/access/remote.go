@@ -278,7 +278,7 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 	exchangeResult, err := c.tokenClient.Exchange(ctx, tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: disc.TokenEndPoint,
 		SharedSecret:  share.SharedSecret,
-	})
+	}, disc)
 	if err != nil {
 		return nil, err
 	}

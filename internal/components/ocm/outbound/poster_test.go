@@ -16,15 +16,17 @@ import (
 )
 
 type captureHTTPClient struct {
-	calls        int
-	gotURL       string
-	gotSignature string
+	calls             int
+	gotURL            string
+	gotSignature      string
+	gotSignatureInput string
 }
 
 func (c *captureHTTPClient) Do(_ context.Context, req *http.Request) (*http.Response, error) {
 	c.calls++
 	c.gotURL = req.URL.String()
 	c.gotSignature = req.Header.Get("Signature")
+	c.gotSignatureInput = req.Header.Get("Signature-Input")
 	return &http.Response{
 		StatusCode: http.StatusCreated,
 		Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
@@ -49,6 +51,14 @@ func httpSigDiscovery() *spec.Discovery {
 	return &spec.Discovery{
 		EndPoint:     "https://peer.example/ocm",
 		Capabilities: []string{"http-sig"},
+	}
+}
+
+// noHTTPSigDiscovery returns a discovery document that does not advertise
+// http-sig.
+func noHTTPSigDiscovery() *spec.Discovery {
+	return &spec.Discovery{
+		EndPoint: "https://peer.example/ocm",
 	}
 }
 
@@ -171,5 +181,55 @@ func TestSendResolved_SignerSignsShares(t *testing.T) {
 	}
 	if hc.gotSignature == "" {
 		t.Fatal("expected signed request with signer configured, got no Signature header")
+	}
+}
+
+func TestSendResolved_PeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
+	hc := &captureHTTPClient{}
+	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
+
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{
+		TargetHost:   "peer.example",
+		EndpointPath: "shares",
+		Kind:         outbound.EndpointShares,
+		Body:         []byte(`{}`),
+	}, outbound.ResolvedPeer{
+		Discovery: noHTTPSigDiscovery(),
+	})
+	if err != nil {
+		t.Fatalf("SendResolved returned error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if hc.calls != 1 {
+		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
+	}
+	if hc.gotSignature != "" || hc.gotSignatureInput != "" {
+		t.Fatalf("expected unsigned request for peer without http-sig, got Signature=%q Signature-Input=%q", hc.gotSignature, hc.gotSignatureInput)
+	}
+}
+
+func TestSendResolved_NoSignerPeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
+	hc := &captureHTTPClient{}
+	poster := outbound.NewPoster(hc, nil, nil, nil)
+
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{
+		TargetHost:   "peer.example",
+		EndpointPath: "shares",
+		Kind:         outbound.EndpointShares,
+		Body:         []byte(`{}`),
+	}, outbound.ResolvedPeer{
+		Discovery: noHTTPSigDiscovery(),
+	})
+	if err != nil {
+		t.Fatalf("SendResolved returned error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if hc.calls != 1 {
+		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
+	}
+	if hc.gotSignature != "" || hc.gotSignatureInput != "" {
+		t.Fatalf("expected unsigned request without signer and without http-sig peer, got Signature=%q Signature-Input=%q", hc.gotSignature, hc.gotSignatureInput)
 	}
 }

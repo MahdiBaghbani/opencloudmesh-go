@@ -160,6 +160,10 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 			peerIdentity := &PeerIdentity{}
 
 			if hasOCMSignature {
+				// A server implementing http-sig MUST verify any signature present
+				// on a received request and reject invalid ones.
+				// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+				// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
 				// Verify signature
 				result := m.verifier.VerifyRequest(r, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 					return m.peerDiscovery.ResolveVerificationKey(r.Context(), keyID)
@@ -241,6 +245,11 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 }
 
 func (m *SignatureMiddleware) serveUnsigned(w http.ResponseWriter, r *http.Request, body []byte, optionalSignature bool, next http.Handler) {
+	// A server MAY accept unsigned requests from a peer not advertising
+	// must-use-http-sig; a server advertising must-use-http-sig MUST reject
+	// unsigned requests.
+	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
 	if optionalSignature || !m.localRequiresHTTPSig() {
 		if err := crypto.VerifyContentDigest(r, body); err != nil {
 			m.logger.Warn("content digest verification failed", "error", err)

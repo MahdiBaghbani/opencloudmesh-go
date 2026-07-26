@@ -85,7 +85,7 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 			result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 				TokenEndPoint: server.URL,
 				SharedSecret:  tt.sharedSecret,
-			})
+			}, httpSigDiscovery())
 			if err != nil {
 				t.Fatalf("token exchange failed: %v", err)
 			}

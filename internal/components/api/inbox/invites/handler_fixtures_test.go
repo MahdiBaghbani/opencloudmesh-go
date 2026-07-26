@@ -104,7 +104,7 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
-				Capabilities:  []string{"exchange-token"},
+				Capabilities:  []string{"exchange-token", "http-sig"},
 				TokenEndPoint: srv.URL + "/ocm/token",
 			})
 		case "/ocm/invite-accepted":

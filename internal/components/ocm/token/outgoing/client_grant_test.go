@@ -37,7 +37,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "bad-secret",
-	})
+	}, httpSigDiscovery())
 
 	if err == nil {
 		t.Fatal("expected error for invalid grant")
@@ -77,7 +77,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 	result, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)

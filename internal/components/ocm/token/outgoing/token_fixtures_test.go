@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
@@ -25,6 +26,20 @@ func (s *mockSigner) Sign(req *http.Request) error {
 	}
 	req.Header.Set("Signature", "mock-signature")
 	return nil
+}
+
+// httpSigDiscovery returns a discovery document that advertises the http-sig
+// capability.
+func httpSigDiscovery() *spec.Discovery {
+	return &spec.Discovery{
+		Capabilities: []string{spec.CapabilityHTTPSig},
+	}
+}
+
+// noHTTPSigDiscovery returns a discovery document that does not advertise
+// http-sig.
+func noHTTPSigDiscovery() *spec.Discovery {
+	return &spec.Discovery{}
 }
 
 func newTokenTestServer(tokenHandler http.HandlerFunc) *httptest.Server {

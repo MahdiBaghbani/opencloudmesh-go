@@ -239,7 +239,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      "http://" + r.Host + "/ocm",
-				Capabilities:  []string{"exchange-token"},
+				Capabilities:  []string{"exchange-token", "http-sig"},
 				TokenEndPoint: "http://" + r.Host + "/ocm/token",
 				ResourceTypes: []spec.ResourceType{
 					{

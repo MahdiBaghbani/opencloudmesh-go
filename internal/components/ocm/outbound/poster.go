@@ -98,7 +98,7 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	if err := p.applySigning(httpReq, req); err != nil {
+	if err := p.applySigning(httpReq, req, peer.Discovery); err != nil {
 		return nil, err
 	}
 
@@ -109,9 +109,17 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 	return resp, nil
 }
 
-func (p *Poster) applySigning(httpReq *http.Request, req Request) error {
+func (p *Poster) applySigning(httpReq *http.Request, req Request, disc *spec.Discovery) error {
 	switch req.Kind {
 	case EndpointShares, EndpointInvites, EndpointTokenExchange:
+		// Only sign when the peer advertises the http-sig capability.
+		// A server implementing http-sig MUST use it when interacting with a
+		// peer advertising http-sig, and MAY interact unsigned with a peer not
+		// advertising http-sig.
+		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+		if !disc.IsHTTPSigCapable() {
+			return nil
+		}
 		if p.signer == nil {
 			return fmt.Errorf("outbound signing requires a configured signer")
 		}

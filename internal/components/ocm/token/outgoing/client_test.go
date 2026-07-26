@@ -46,7 +46,7 @@ func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, noHTTPSigDiscovery())
 	if err == nil {
 		t.Fatal("expected failure for unsigned 401")
 	}
@@ -82,7 +82,7 @@ func TestClient_Exchange_Signed401FailClosed(t *testing.T) {
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 	if err == nil {
 		t.Fatal("expected failure for signed 401")
 	}
@@ -117,7 +117,7 @@ func TestClient_Exchange_403FailClosed(t *testing.T) {
 	_, err := client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: server.URL,
 		SharedSecret:  "test-secret",
-	})
+	}, httpSigDiscovery())
 	if err == nil {
 		t.Fatal("expected failure for 403")
 	}
