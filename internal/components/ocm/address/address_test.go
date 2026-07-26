@@ -223,26 +223,50 @@ func TestEncodeFederatedOpaqueID(t *testing.T) {
 			userID: "unknown",
 			idp:    "localhost:9200",
 		},
+		{
+			name:   "url-safe alphabet user id",
+			userID: "???",
+			idp:    "example.org",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			encoded := EncodeFederatedOpaqueID(tt.userID, tt.idp)
 
+			if strings.Contains(encoded, "=") {
+				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains padding '='", tt.userID, tt.idp, encoded)
+			}
 			if strings.ContainsAny(encoded, "+/") {
-				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains +/ (not base64url)", tt.userID, tt.idp, encoded)
+				t.Errorf("EncodeFederatedOpaqueID(%q, %q) = %q contains standard base64 alphabet '+' or '/'", tt.userID, tt.idp, encoded)
 			}
 
-			decoded, err := base64.URLEncoding.DecodeString(encoded)
-			if err != nil {
-				t.Fatalf("base64url decode of %q failed: %v", encoded, err)
+			gotUserID, gotIDP, ok := DecodeFederatedOpaqueID(encoded)
+			if !ok {
+				t.Fatalf("DecodeFederatedOpaqueID(%q) failed", encoded)
 			}
-
-			wantPayload := tt.userID + "@" + tt.idp
-			if string(decoded) != wantPayload {
-				t.Errorf("decoded payload = %q, want %q", string(decoded), wantPayload)
+			if gotUserID != tt.userID {
+				t.Errorf("round-trip userID = %q, want %q", gotUserID, tt.userID)
+			}
+			if gotIDP != tt.idp {
+				t.Errorf("round-trip idp = %q, want %q", gotIDP, tt.idp)
 			}
 		})
+	}
+}
+
+func TestDecodeFederatedOpaqueID_AcceptsPaddedAndUnpaddedBase64url(t *testing.T) {
+	payload := "alice@example.org"
+	for _, enc := range []*base64.Encoding{base64.URLEncoding, base64.RawURLEncoding} {
+		encoded := enc.EncodeToString([]byte(payload))
+		userID, idp, ok := DecodeFederatedOpaqueID(encoded)
+		if !ok {
+			t.Errorf("DecodeFederatedOpaqueID(%q) failed", encoded)
+			continue
+		}
+		if userID != "alice" || idp != "example.org" {
+			t.Errorf("DecodeFederatedOpaqueID(%q) = (%q, %q), want (%q, %q)", encoded, userID, idp, "alice", "example.org")
+		}
 	}
 }
 
@@ -255,14 +279,14 @@ func TestDecodeFederatedOpaqueID(t *testing.T) {
 		wantOK     bool
 	}{
 		{
-			name:       "padded base64url (canonical emission)",
+			name:       "padded base64url accepted on decode",
 			encoded:    base64.URLEncoding.EncodeToString([]byte("alice@example.org")),
 			wantUserID: "alice",
 			wantIDP:    "example.org",
 			wantOK:     true,
 		},
 		{
-			name:       "raw base64url (unpadded)",
+			name:       "unpadded base64url (RFC 4648 Section 5)",
 			encoded:    base64.RawURLEncoding.EncodeToString([]byte("bob@provider.net")),
 			wantUserID: "bob",
 			wantIDP:    "provider.net",
@@ -273,6 +297,15 @@ func TestDecodeFederatedOpaqueID(t *testing.T) {
 			encoded:    base64.StdEncoding.EncodeToString([]byte("carol@host.example")),
 			wantUserID: "carol",
 			wantIDP:    "host.example",
+			wantOK:     true,
+		},
+		{
+			// 0xFF yields '/' in standard base64, so URLEncoding and RawURLEncoding
+			// reject the string and the lenient decoder reaches StdEncoding.
+			name:       "standard base64 with slash",
+			encoded:    base64.StdEncoding.EncodeToString([]byte("\xffalice@example.org")),
+			wantUserID: "\xffalice",
+			wantIDP:    "example.org",
 			wantOK:     true,
 		},
 		{

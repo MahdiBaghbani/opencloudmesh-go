@@ -39,6 +39,43 @@ func TestParseInviteString(t *testing.T) {
 			wantErr:   false,
 		},
 		{
+			name:      "padded base64url",
+			input:     base64.URLEncoding.EncodeToString([]byte("token@example.com")),
+			wantToken: "token",
+			wantFQDN:  "example.com",
+			wantErr:   false,
+		},
+		{
+			name:      "unpadded base64url",
+			input:     base64.RawURLEncoding.EncodeToString([]byte("token@example.com")),
+			wantToken: "token",
+			wantFQDN:  "example.com",
+			wantErr:   false,
+		},
+		{
+			// 0xFB yields '+' in standard base64, so URLEncoding and RawURLEncoding
+			// reject the string and the lenient decoder reaches StdEncoding.
+			name:      "standard base64 with plus",
+			input:     base64.StdEncoding.EncodeToString([]byte("\xfbtoken@example.com")),
+			wantToken: "\xfbtoken",
+			wantFQDN:  "example.com",
+			wantErr:   false,
+		},
+		{
+			name:      "multiple @ in token padded base64url",
+			input:     base64.URLEncoding.EncodeToString([]byte("user@name@host@example.com")),
+			wantToken: "user@name@host",
+			wantFQDN:  "example.com",
+			wantErr:   false,
+		},
+		{
+			name:      "multiple @ in token unpadded base64url",
+			input:     base64.RawURLEncoding.EncodeToString([]byte("user@name@host@example.com")),
+			wantToken: "user@name@host",
+			wantFQDN:  "example.com",
+			wantErr:   false,
+		},
+		{
 			name:        "invalid base64",
 			input:       "not-valid-base64!!!",
 			wantErr:     true,
@@ -96,19 +133,45 @@ func TestParseInviteString(t *testing.T) {
 }
 
 func TestBuildInviteString(t *testing.T) {
-	token := "mytoken123"
-	fqdn := "example.com:9200"
-
-	result := invites.BuildInviteString(token, fqdn)
-
-	decoded, err := base64.StdEncoding.DecodeString(result)
-	if err != nil {
-		t.Errorf("result is not valid base64: %v", err)
+	tests := []struct {
+		name  string
+		token string
+		fqdn  string
+	}{
+		{
+			name:  "simple token",
+			token: "mytoken123",
+			fqdn:  "example.com",
+		},
+		{
+			name:  "url-safe alphabet token",
+			token: "???",
+			fqdn:  "example.co",
+		},
 	}
 
-	expected := "mytoken123@example.com:9200"
-	if string(decoded) != expected {
-		t.Errorf("decoded = %q, want %q", string(decoded), expected)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			encoded := invites.BuildInviteString(tt.token, tt.fqdn)
+
+			if strings.Contains(encoded, "=") {
+				t.Errorf("BuildInviteString(%q, %q) = %q contains padding '='", tt.token, tt.fqdn, encoded)
+			}
+			if strings.ContainsAny(encoded, "+/") {
+				t.Errorf("BuildInviteString(%q, %q) = %q contains standard base64 alphabet '+' or '/'", tt.token, tt.fqdn, encoded)
+			}
+
+			gotToken, gotFQDN, err := invites.ParseInviteString(encoded)
+			if err != nil {
+				t.Fatalf("ParseInviteString(%q) error: %v", encoded, err)
+			}
+			if gotToken != tt.token {
+				t.Errorf("token = %q, want %q", gotToken, tt.token)
+			}
+			if gotFQDN != tt.fqdn {
+				t.Errorf("fqdn = %q, want %q", gotFQDN, tt.fqdn)
+			}
+		})
 	}
 }
 
@@ -120,6 +183,23 @@ func TestRoundTrip(t *testing.T) {
 	gotToken, gotFQDN, err := invites.ParseInviteString(inviteString)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+	if gotToken != token {
+		t.Errorf("token = %q, want %q", gotToken, token)
+	}
+	if gotFQDN != fqdn {
+		t.Errorf("fqdn = %q, want %q", gotFQDN, fqdn)
+	}
+}
+
+func TestRoundTrip_MultipleAtInToken(t *testing.T) {
+	token := "user@name@host"
+	fqdn := "example.com"
+
+	inviteString := invites.BuildInviteString(token, fqdn)
+	gotToken, gotFQDN, err := invites.ParseInviteString(inviteString)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotToken != token {
 		t.Errorf("token = %q, want %q", gotToken, token)

@@ -43,8 +43,8 @@ func postSignedJSON(t *testing.T, targetURL string, body []byte, signer *crypto.
 
 // TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID verifies that the
 // /ocm/invite-accepted endpoint returns userID as a Reva-style federated
-// opaque ID (base64url-padded encoding of userID@idp), not the old format
-// (base64std(userID)@provider).
+// opaque ID (unpadded base64url encoding of userID@idp per RFC 4648
+// Section 5), not the old format (base64std(userID)@provider).
 func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -114,10 +114,10 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 		t.Errorf("userID = %q, want %q", response.UserID, expectedUserID)
 	}
 
-	// --- Assertion 2: userID must be valid padded base64url ---
-	decoded, err := base64.URLEncoding.DecodeString(response.UserID)
+	// --- Assertion 2: userID must be valid base64url (padding omitted per RFC 4648 Sec 5) ---
+	decoded, err := base64.RawURLEncoding.DecodeString(response.UserID)
 	if err != nil {
-		t.Fatalf("userID %q is not valid padded base64url: %v", response.UserID, err)
+		t.Fatalf("userID %q is not valid base64url: %v", response.UserID, err)
 	}
 
 	// --- Assertion 3: decoded payload must be userID@idp ---
@@ -250,10 +250,10 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 		t.Errorf("recipientDisplayName = %q, want %q", shareResp.RecipientDisplayName, shareUser.DisplayName)
 	}
 
-	// Verify the shareWith identifier is valid padded base64url
-	decoded, err := base64.URLEncoding.DecodeString(encodedID)
+	// Verify the shareWith identifier is valid base64url (padding omitted per RFC 4648 Sec 5)
+	decoded, err := base64.RawURLEncoding.DecodeString(encodedID)
 	if err != nil {
-		t.Errorf("encoded identifier %q is not valid padded base64url: %v", encodedID, err)
+		t.Errorf("encoded identifier %q is not valid base64url: %v", encodedID, err)
 	}
 
 	// Verify the decoded payload has userID@idp structure
@@ -438,8 +438,8 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	if ownerProvider != remoteProvider {
 		t.Errorf("owner provider = %q, want %q", ownerProvider, remoteProvider)
 	}
-	if _, err := base64.URLEncoding.DecodeString(ownerIdent); err != nil {
-		t.Errorf("owner identifier %q is not valid padded base64url: %v", ownerIdent, err)
+	if _, err := base64.RawURLEncoding.DecodeString(ownerIdent); err != nil {
+		t.Errorf("owner identifier %q is not valid base64url: %v", ownerIdent, err)
 	}
 
 	t.Logf("reva-style owner/sender accepted: owner=%q", owner)

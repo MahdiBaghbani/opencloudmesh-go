@@ -41,9 +41,11 @@ func Parse(addr string) (identifier, provider string, err error) {
 	return identifier, provider, nil
 }
 
-// EncodeFederatedOpaqueID produces base64url(userID + "@" + idp) for protocol use.
+// EncodeFederatedOpaqueID produces base64url(userID + "@" + idp) for protocol use,
+// encoded using base64url (RFC 4648 Section 5) with padding omitted.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L127-L130
 func EncodeFederatedOpaqueID(userID string, idp string) string {
-	return base64.URLEncoding.EncodeToString([]byte(userID + "@" + idp))
+	return base64.RawURLEncoding.EncodeToString([]byte(userID + "@" + idp))
 }
 
 // DecodeFederatedOpaqueID decodes base64url; tries padded, raw, then std base64.

@@ -37,10 +37,24 @@ type CreateOutgoingResponse struct {
 	ExpiresAt    time.Time `json:"expiresAt"`
 }
 
-// ParseInviteString decodes base64 invite string; splits on last '@' into token and provider FQDN. Provider must not contain scheme.
+// ParseInviteString decodes a base64url invite string, accepting padded or unpadded
+// base64url and legacy standard base64, then splits on the last '@' into token and
+// provider FQDN. Provider must not contain scheme.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L484-L497
 func ParseInviteString(inviteString string) (token, providerFQDN string, err error) {
-	decoded, err := base64.StdEncoding.DecodeString(inviteString)
-	if err != nil {
+	var decoded []byte
+	var decodeErr error
+	for _, enc := range []*base64.Encoding{
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+		base64.StdEncoding,
+	} {
+		decoded, decodeErr = enc.DecodeString(inviteString)
+		if decodeErr == nil {
+			break
+		}
+	}
+	if decodeErr != nil {
 		return "", "", errors.New("invalid base64 encoding")
 	}
 
@@ -68,7 +82,10 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 	return token, providerFQDN, nil
 }
 
+// BuildInviteString joins token and provider FQDN with '@' and encodes the result
+// using base64url (RFC 4648 Section 5) with padding omitted.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L127-L130
 func BuildInviteString(token, providerFQDN string) string {
 	inner := token + "@" + providerFQDN
-	return base64.StdEncoding.EncodeToString([]byte(inner))
+	return base64.RawURLEncoding.EncodeToString([]byte(inner))
 }
