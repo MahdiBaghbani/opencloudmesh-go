@@ -47,6 +47,15 @@ func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenS
 }
 
 // HandleToken serves POST /ocm/token.
+// The Receiving Server signs the token request; as the Sending Server, ocmgo
+// verifies any present signature and gates unsigned admission on must-use-http-sig
+// through the mounted signature middleware.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1461-L1462
+// Invalid requests receive HTTP 400 with an OAuth 2.0 error code; see
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1495-L1505.
+// Signature applicability is conditional on the peer advertising http-sig; unsigned
+// requests are admitted only when ocmgo does not advertise must-use-http-sig.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
 func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -189,6 +198,12 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 }
 
 // sendOAuthError sends an OAuth-style error response.
+// ocmgo emits invalid_request, invalid_client, invalid_grant, and
+// unsupported_grant_type per https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1495-L1505.
+// ErrorUnauthorized ("unauthorized_client") is defined in
+// internal/components/ocm/spec/token_exchange.go and reserved for future
+// per-client grant-authorization enforcement; there is no current emission
+// path because OCM permits all authenticated receivers to use authorization_code.
 func (h *Handler) sendOAuthError(w http.ResponseWriter, status int, errCode, errDesc string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
