@@ -6,8 +6,9 @@ import (
 )
 
 // CompatCompiler is the SSOT for compiling code-flow facts and OCM wire
-// emissions (discovery criteria, capability-emit, share requirements, and
-// signature label). It wraps the scope-gated peer mapping resolver.
+// emissions (discovery criteria, capability-emit, protocol-emit, share
+// requirements, and signature label). It wraps the scope-gated peer mapping
+// resolver.
 type CompatCompiler struct {
 	resolver *PeerMappingResolver
 }
@@ -101,6 +102,27 @@ func (c *CompatCompiler) EmitCapabilities(in EmitCapabilitiesInput) []string {
 		capabilities = append(capabilities, spec.CapabilityInviteWAYF)
 	}
 	return capabilities
+}
+
+// EmitProtocolsInput carries discovery build context for protocol-emit
+// alongside route-projected WebDAV paths.
+type EmitProtocolsInput struct {
+	WebDAVRoot       string
+	WebDAVReceiveURI spec.WebDAVReceiveURIKind
+}
+
+// EmitProtocols returns discovery protocol roles from build context. Role keys
+// and webdav-receive uri kinds are spec-owned constants, not raw literals.
+func (c *CompatCompiler) EmitProtocols(in EmitProtocolsInput) spec.Protocols {
+	_ = c
+	protocols := spec.Protocols{}
+	if in.WebDAVRoot != "" {
+		protocols[spec.ProtocolWebDAV] = spec.StringProtocolRole(in.WebDAVRoot)
+	}
+	if in.WebDAVReceiveURI != "" {
+		protocols[spec.ProtocolWebDAVReceive] = spec.WebDAVReceiveRole(in.WebDAVReceiveURI)
+	}
+	return protocols
 }
 
 // SignatureLabel returns the RFC 9421 dictionary label for OCM HTTP signatures.

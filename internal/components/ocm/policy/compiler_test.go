@@ -149,6 +149,55 @@ func TestCompatCompiler_EmitCapabilitiesOmitsWhenGated(t *testing.T) {
 	}
 }
 
+func TestCompatCompiler_EmitProtocolsUsesSpecConstants(t *testing.T) {
+	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
+
+	got := compiler.EmitProtocols(policy.EmitProtocolsInput{
+		WebDAVRoot:       "/webdav/ocm/",
+		WebDAVReceiveURI: spec.WebDAVReceiveURIRelative,
+	})
+
+	path, ok := got.StringRole(spec.ProtocolWebDAV)
+	if !ok || path != "/webdav/ocm/" {
+		t.Fatalf("webdav role = %q, ok=%v", path, ok)
+	}
+	wr, ok := got.WebDAVReceive()
+	if !ok || wr.URI != spec.WebDAVReceiveURIRelative {
+		t.Fatalf("webdav-receive = %+v, ok=%v", wr, ok)
+	}
+	if _, ok := got[spec.ProtocolWebDAVReceive]; !ok {
+		t.Fatalf("missing %q key", spec.ProtocolWebDAVReceive)
+	}
+}
+
+func TestCompatCompiler_EmitProtocolsOmitsWhenEmpty(t *testing.T) {
+	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
+
+	if len(compiler.EmitProtocols(policy.EmitProtocolsInput{})) != 0 {
+		t.Fatal("expected empty protocols when inputs are empty")
+	}
+
+	got := compiler.EmitProtocols(policy.EmitProtocolsInput{
+		WebDAVRoot: "/webdav/ocm/",
+	})
+	if len(got) != 1 {
+		t.Fatalf("protocols = %v, want single webdav entry", got)
+	}
+	if _, ok := got[spec.ProtocolWebDAVReceive]; ok {
+		t.Fatal("did not expect webdav-receive without WebDAVReceiveURI")
+	}
+
+	got = compiler.EmitProtocols(policy.EmitProtocolsInput{
+		WebDAVReceiveURI: spec.WebDAVReceiveURIAbsolute,
+	})
+	if len(got) != 1 {
+		t.Fatalf("protocols = %v, want single webdav-receive entry", got)
+	}
+	if _, ok := got[spec.ProtocolWebDAV]; ok {
+		t.Fatal("did not expect webdav without WebDAVRoot")
+	}
+}
+
 func TestCompatCompiler_SignatureLabelUsesSpecConstant(t *testing.T) {
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 	if got := compiler.SignatureLabel(); got != spec.SignatureLabelOCM {

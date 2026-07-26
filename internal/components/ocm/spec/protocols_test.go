@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
@@ -147,6 +148,55 @@ func TestProtocolRole_JSONRoundTrip_CustomProtocol(t *testing.T) {
 func TestProtocolRole_JSONRoundTrip_FullExample(t *testing.T) {
 	const input = `{"protocols":{"webdav":"/remote/dav/ocm/","webdav-receive":{"uri":"absolute"}}}`
 	assertProtocolsRoundTrip(t, input)
+}
+
+func TestProtocolWireValues(t *testing.T) {
+	cases := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{name: "webdav", got: spec.ProtocolWebDAV, want: "webdav"},
+		{name: "webdav-receive", got: spec.ProtocolWebDAVReceive, want: "webdav-receive"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.got != tc.want {
+				t.Errorf("wire value = %q, want %q", tc.got, tc.want)
+			}
+		})
+	}
+}
+
+// protocolClosedPathFiles are production files on the closed migration path.
+// Each must not contain raw protocol wire string literals; use spec.*.
+var protocolClosedPathFiles = []string{
+	"internal/components/ocm/discovery/builder.go",
+	"internal/components/ocm/discovery/validate.go",
+	"internal/components/ocm/policy/compiler.go",
+}
+
+var protocolWireLiterals = []string{
+	`"webdav"`,
+	`"webdav-receive"`,
+}
+
+func TestProtocolClosedPathNoRawWireLiterals(t *testing.T) {
+	root := modroot.ModuleRoot(t)
+	for _, rel := range protocolClosedPathFiles {
+		t.Run(rel, func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+			if err != nil {
+				t.Fatalf("read %s: %v", rel, err)
+			}
+			content := string(data)
+			for _, lit := range protocolWireLiterals {
+				if strings.Contains(content, lit) {
+					t.Errorf("%s still contains raw protocol literal %s; use spec.*", rel, lit)
+				}
+			}
+		})
+	}
 }
 
 func TestDiscovery_GetWebDAVPath_TypedStringRole(t *testing.T) {
