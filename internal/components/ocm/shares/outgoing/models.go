@@ -25,6 +25,7 @@ type OutgoingShare struct {
 	CreatedAt    time.Time  `json:"createdAt"`
 	SentAt       *time.Time `json:"sentAt,omitempty"`
 	Error        string     `json:"error,omitempty"`
+	Requirements []string   `json:"requirements,omitempty"`
 }
 
 type OutgoingShareRequest struct {

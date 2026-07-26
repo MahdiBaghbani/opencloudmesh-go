@@ -126,6 +126,8 @@ func storeOutgoingShareToApp(s *store.OutgoingShare) *sharesoutgoing.OutgoingSha
 		Sender:           s.Sender,
 		Status:           s.State,
 		Error:            s.Error,
+		// Copy the slice so callers cannot mutate the store's backing array.
+		Requirements:     append([]string(nil), s.Requirements...),
 		CreatedAt:        unixToTime(s.CreatedAt),
 		SentAt:           unixToTimePtr(s.UpdatedAt),
 	}
@@ -150,6 +152,8 @@ func appOutgoingShareToStore(a *sharesoutgoing.OutgoingShare) *store.OutgoingSha
 		Sender:           a.Sender,
 		State:            a.Status,
 		Error:            a.Error,
+		// Copy the slice so the store cannot mutate the caller's backing array.
+		Requirements:     append([]string(nil), a.Requirements...),
 		CreatedAt:        timeToUnix(a.CreatedAt),
 		UpdatedAt:        timePtrToUnix(a.SentAt),
 	}

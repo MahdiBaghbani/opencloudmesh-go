@@ -193,8 +193,9 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		facts = h.resolver.ResolveFacts(receiverOrigin.peerDomain, disc)
 	}
 	mustInclude := mustIncludeTokenExchange(facts, disc)
+	requirements := tokenExchangeRequirements(mustInclude)
 
-	if !facts.TokenExchangeCapable || h.localTokenEndPoint == "" {
+	if mustInclude && (!facts.TokenExchangeCapable || h.localTokenEndPoint == "") {
 		h.logger.Warn("local sender is not configured for token exchange",
 			"token_exchange_capable", facts.TokenExchangeCapable,
 			"has_token_endpoint", h.localTokenEndPoint != "")
@@ -234,7 +235,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		URI:          webdavURI,
 		SharedSecret: sharedSecret,
 		Permissions:  req.Permissions,
-		Requirements: tokenExchangeRequirements(mustInclude),
+		Requirements: requirements,
 	}
 
 	payload := spec.NewShareRequest{
@@ -274,6 +275,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		Sender:           sender,
 		Status:           "sent",
 		SentAt:           &now,
+		Requirements:     requirements,
 	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {

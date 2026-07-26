@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
 
@@ -46,6 +48,7 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 		WebDAVID:     "11111111-1111-1111-1111-111111111111",
 		SharedSecret: "strict-share-secret",
 		ReceiverHost: "receiver.example.com",
+		Requirements: []string{spec.RequirementMustExchangeToken},
 	}
 	if err := repo.Create(nil, strictShare); err != nil {
 		t.Fatalf("failed to seed outgoing share: %v", err)
@@ -69,6 +72,49 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for strict share shared-secret access, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestService_NonStrictShareAcceptsSharedSecret covers the Dir A legacy sender
+// fork at the service layer: a non-strict share (Requirements omit
+// must-exchange-token) authenticates with a sharedSecret Bearer and succeeds.
+func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "hello.txt")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-non-strict",
+		WebDAVID:     "11111111-1111-1111-1111-111111111111",
+		SharedSecret: "non-strict-secret",
+		LocalPath:    filePath,
+		ReceiverHost: "receiver.example.com",
+	}
+	if err := repo.Create(nil, share); err != nil {
+		t.Fatalf("failed to seed outgoing share: %v", err)
+	}
+
+	in := Inputs{
+		OutgoingShareRepo: repo,
+		TokenStore:        token.NewMemoryTokenStore(),
+	}
+	svc, err := New(in, map[string]any{}, testLog())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	s := svc.(*Service)
+	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+share.WebDAVID+"/hello.txt", nil)
+	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
+	w := httptest.NewRecorder()
+
+	s.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for non-strict shared-secret access, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

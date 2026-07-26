@@ -13,6 +13,7 @@ import (
 	"time"
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 	"golang.org/x/net/webdav"
@@ -86,16 +87,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serveFile(w, r, share)
 }
 
-// validateCredential validates the token via the token store.
+// validateCredential validates the token via the token store, or accepts the
+// shared secret as a legacy bearer for non-strict shares.
 func (h *Handler) validateCredential(ctx context.Context, share *sharesoutgoing.OutgoingShare, token string) bool {
 	if h.tokenStore == nil {
 		return false
 	}
 	issuedToken, err := h.tokenStore.Get(ctx, token)
-	if err != nil || issuedToken == nil || issuedToken.ShareID != share.ShareID {
-		return false
+	if err == nil && issuedToken != nil && issuedToken.ShareID == share.ShareID {
+		return true
 	}
-	return true
+
+	// Legacy shared-secret bearer is sanctioned for shares that do not
+	// require token exchange.
+	if !shareRequires(share.Requirements, spec.RequirementMustExchangeToken) && token == share.SharedSecret {
+		return true
+	}
+
+	return false
+}
+
+// shareRequires reports whether reqs contains the given requirement.
+func shareRequires(reqs []string, req string) bool {
+	for _, r := range reqs {
+		if r == req {
+			return true
+		}
+	}
+	return false
 }
 
 // serveFile serves share.LocalPath via WebDAV.

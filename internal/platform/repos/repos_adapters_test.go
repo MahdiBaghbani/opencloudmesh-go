@@ -10,6 +10,7 @@ import (
 	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
@@ -127,7 +128,8 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 }
 
 // TestDurable_OutgoingShare_NewFields_RoundTrip verifies that ReceiverEndPoint,
-// ShareType, and Error survive a Create -> GetByID round-trip through durable backends.
+// ShareType, Error, and Requirements survive a Create -> GetByID round-trip
+// through durable backends.
 func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	for _, backend := range tsrepos.DurableBackends() {
@@ -148,6 +150,7 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 				ReceiverEndPoint: "https://peer.example/ocm",
 				ShareType:        "user",
 				Error:            "some error",
+				Requirements:     []string{spec.RequirementMustExchangeToken},
 				CreatedAt:        time.Unix(time.Now().Unix(), 0).UTC(),
 			}
 			if err := r.OutgoingShares.Create(ctx, share); err != nil {
@@ -166,6 +169,101 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 			}
 			if got.Error != share.Error {
 				t.Errorf("Error: got %q, want %q", got.Error, share.Error)
+			}
+			if len(got.Requirements) != len(share.Requirements) || got.Requirements[0] != share.Requirements[0] {
+				t.Errorf("Requirements: got %v, want %v", got.Requirements, share.Requirements)
+			}
+		})
+	}
+}
+
+// TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation verifies
+// that mutating the Requirements slice on an OutgoingShare loaded from storage
+// does not corrupt the stored share. Guards the slice copy at
+// outgoing_share_adapter.go storeOutgoingShareToApp.
+func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing.T) {
+	ctx := context.Background()
+	for _, backend := range tsrepos.DurableBackends() {
+		backend := backend
+		t.Run(backend, func(t *testing.T) {
+			r := tsrepos.OpenDurable(t, backend)
+			defer r.Close()
+
+			shareID := "iso-sts-" + backend
+			share := &sharesoutgoing.OutgoingShare{
+				ShareID:      shareID,
+				ProviderID:   "iso-sts-p-" + backend,
+				SharedSecret: "iso-sts-sec-" + backend,
+				ShareWith:    "bob@peer",
+				Name:         "iso-sts-share",
+				ResourceType: "file",
+				Permissions:  []string{"read"},
+				Status:       "sent",
+				Requirements: []string{spec.RequirementMustExchangeToken},
+				CreatedAt:    time.Unix(time.Now().Unix(), 0).UTC(),
+			}
+			if err := r.OutgoingShares.Create(ctx, share); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+
+			got, err := r.OutgoingShares.GetByID(ctx, shareID)
+			if err != nil {
+				t.Fatalf("GetByID: %v", err)
+			}
+			if len(got.Requirements) != 1 || got.Requirements[0] != spec.RequirementMustExchangeToken {
+				t.Fatalf("Requirements before mutation: got %v, want [%s]", got.Requirements, spec.RequirementMustExchangeToken)
+			}
+			// Mutate the returned slice in place after the copy boundary.
+			got.Requirements[0] = "iso-sts-mutated"
+
+			reloaded, err := r.OutgoingShares.GetByID(ctx, shareID)
+			if err != nil {
+				t.Fatalf("reload GetByID: %v", err)
+			}
+			if len(reloaded.Requirements) != 1 || reloaded.Requirements[0] != spec.RequirementMustExchangeToken {
+				t.Errorf("Requirements after mutation: got %v, want [%s] (storage corrupted by caller)", reloaded.Requirements, spec.RequirementMustExchangeToken)
+			}
+		})
+	}
+}
+
+// TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation verifies
+// that mutating the Requirements slice on the original OutgoingShare after
+// Create does not corrupt the stored share. Guards the slice copy at
+// outgoing_share_adapter.go appOutgoingShareToStore.
+func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing.T) {
+	ctx := context.Background()
+	for _, backend := range tsrepos.DurableBackends() {
+		backend := backend
+		t.Run(backend, func(t *testing.T) {
+			r := tsrepos.OpenDurable(t, backend)
+			defer r.Close()
+
+			shareID := "iso-tss-" + backend
+			share := &sharesoutgoing.OutgoingShare{
+				ShareID:      shareID,
+				ProviderID:   "iso-tss-p-" + backend,
+				SharedSecret: "iso-tss-sec-" + backend,
+				ShareWith:    "carol@peer",
+				Name:         "iso-tss-share",
+				ResourceType: "file",
+				Permissions:  []string{"read"},
+				Status:       "sent",
+				Requirements: []string{spec.RequirementMustExchangeToken},
+				CreatedAt:    time.Unix(time.Now().Unix(), 0).UTC(),
+			}
+			if err := r.OutgoingShares.Create(ctx, share); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+			// Mutate the original slice after persistence crosses the copy boundary.
+			share.Requirements[0] = "iso-tss-mutated"
+
+			reloaded, err := r.OutgoingShares.GetByID(ctx, shareID)
+			if err != nil {
+				t.Fatalf("reload GetByID: %v", err)
+			}
+			if len(reloaded.Requirements) != 1 || reloaded.Requirements[0] != spec.RequirementMustExchangeToken {
+				t.Errorf("Requirements after caller mutation: got %v, want [%s] (storage corrupted by caller)", reloaded.Requirements, spec.RequirementMustExchangeToken)
 			}
 		})
 	}

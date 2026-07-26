@@ -12,6 +12,7 @@ import (
 	"time"
 
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 )
 
@@ -121,11 +122,16 @@ func unexpiredTestToken(accessToken, shareID string) *token.IssuedToken {
 }
 
 func seedShare(repo *mockOutgoingShareRepo, shareID string) *sharesoutgoing.OutgoingShare {
+	return seedShareWithRequirements(repo, shareID, nil)
+}
+
+func seedShareWithRequirements(repo *mockOutgoingShareRepo, shareID string, requirements []string) *sharesoutgoing.OutgoingShare {
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:      shareID,
 		SharedSecret: "secret123",
 		WebDAVID:     testWebDAVID,
 		ReceiverHost: "receiver.example.com",
+		Requirements: requirements,
 	}
 	_ = repo.Create(context.Background(), share)
 	return share
@@ -147,7 +153,7 @@ func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
 	}
 }
 
-func TestValidateCredential_RejectsSharedSecret(t *testing.T) {
+func TestValidateCredential_AcceptsSharedSecretForNonStrict(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
 	share := seedShare(repo, "share-1")
@@ -155,8 +161,21 @@ func TestValidateCredential_RejectsSharedSecret(t *testing.T) {
 	handler := NewHandler(repo, tokenStore, nil)
 
 	authorized := handler.validateCredential(context.Background(), share, share.SharedSecret)
+	if !authorized {
+		t.Error("expected shared-secret authorization to succeed for non-strict share")
+	}
+}
+
+func TestValidateCredential_RejectsSharedSecretForStrict(t *testing.T) {
+	repo := newMockOutgoingShareRepo()
+	tokenStore := newMockTokenStore()
+	share := seedShareWithRequirements(repo, "share-1", []string{spec.RequirementMustExchangeToken})
+
+	handler := NewHandler(repo, tokenStore, nil)
+
+	authorized := handler.validateCredential(context.Background(), share, share.SharedSecret)
 	if authorized {
-		t.Error("expected shared-secret authorization to fail")
+		t.Error("expected shared-secret authorization to fail for strict share")
 	}
 }
 
@@ -323,4 +342,30 @@ func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 		t.Fatalf("expected 401 for Basic auth, got %d", w.Code)
 	}
 	assertBearerWWWAuthenticate(t, w)
+}
+
+// TestServeHTTP_NonStrictSharedSecretSucceeds covers the Dir A legacy sender
+// fork at the HTTP layer: a non-strict share (Requirements omit
+// must-exchange-token) authenticates with a sharedSecret Bearer and succeeds.
+func TestServeHTTP_NonStrictSharedSecretSucceeds(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "hello.txt")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := newMockOutgoingShareRepo()
+	share := seedShare(repo, "share-1")
+	share.LocalPath = filePath
+	_ = repo.Update(context.Background(), share)
+
+	handler := NewHandler(repo, newMockTokenStore(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)
+	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for non-strict shared-secret bearer, got %d: %s", w.Code, w.Body.String())
+	}
 }

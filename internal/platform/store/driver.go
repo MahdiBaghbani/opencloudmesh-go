@@ -80,21 +80,22 @@ type OutgoingShare struct {
 	WebDAVId   string `json:"webdav_id" gorm:"uniqueIndex"`
 	// omitempty for redaction; partial unique index enforces non-empty secret
 	// uniqueness in SQL backends (empty shared secrets are allowed on many rows).
-	SharedSecret     string `json:"shared_secret,omitempty" gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''"`
-	LocalPath        string `json:"local_path"`
-	Owner            string `json:"owner"`
-	Sender           string `json:"sender"`
-	ShareWith        string `json:"share_with"`
-	ReceiverHost     string `json:"receiver_host"`
-	ReceiverEndPoint string `json:"receiver_end_point"`
-	Name             string `json:"name"`
-	ResourceType     string `json:"resource_type"`
-	ShareType        string `json:"share_type"`
-	Permissions      string `json:"permissions"`
-	State            string `json:"state"` // sent, accepted, declined
-	Error            string `json:"error,omitempty"`
-	CreatedAt        int64  `json:"created_at"`
-	UpdatedAt        int64  `json:"updated_at"`
+	SharedSecret     string   `json:"shared_secret,omitempty" gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''"`
+	LocalPath        string   `json:"local_path"`
+	Owner            string   `json:"owner"`
+	Sender           string   `json:"sender"`
+	ShareWith        string   `json:"share_with"`
+	ReceiverHost     string   `json:"receiver_host"`
+	ReceiverEndPoint string   `json:"receiver_end_point"`
+	Name             string   `json:"name"`
+	ResourceType     string   `json:"resource_type"`
+	ShareType        string   `json:"share_type"`
+	Permissions      string   `json:"permissions"`
+	State            string   `json:"state"` // sent, accepted, declined
+	Error            string   `json:"error,omitempty"`
+	Requirements     []string `json:"requirements,omitempty" gorm:"serializer:json"`
+	CreatedAt        int64    `json:"created_at"`
+	UpdatedAt        int64    `json:"updated_at"`
 }
 
 // IncomingShare represents a share received by this instance (receiver-side).
