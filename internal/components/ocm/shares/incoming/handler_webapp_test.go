@@ -13,30 +13,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-// validWebappShareBody builds a valid multi+webapp share request (no webdav
-// arm) targeting the given recipient and using ownerHost for owner+sender.
-func validWebappShareBody(shareWith, ownerHost, providerID string) string {
-	return `{
-		"shareWith": "` + shareWith + `",
-		"name": "webapp-resource",
-		"providerId": "` + providerID + `",
-		"owner": "owner@` + ownerHost + `",
-		"sender": "sender@` + ownerHost + `",
-		"shareType": "user",
-		"resourceType": "file",
-		"protocol": {
-			"name": "multi",
-			"webapp": {
-				"uri": "https://` + ownerHost + `/apps/files/abc",
-				"targets": ["blank"],
-				"permissions": ["view", "read"],
-				"requirements": ["must-exchange-token"],
-				"sharedSecret": "secret123"
-			}
-		}
-	}`
-}
-
 // assertShareNotStored fails the test if the share identified by (senderHost,
 // providerID) is present in the repo, or if the lookup returns an error other
 // than ErrShareNotFound. A rejected admit must not persist; a silent lookup
