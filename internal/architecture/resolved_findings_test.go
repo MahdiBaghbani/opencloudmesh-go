@@ -48,6 +48,7 @@ var peerMappingAllowlist = []string{
 var bannedTokens = []string{
 	// PeerCompat was the old PascalCase type/name; TOML key peer_compat remains.
 	"PeerCompat",
+	// capability-emit is owned by policy.CompatCompiler; do not re-ban here.
 	// ResolveFacts stays as-is (KISS); we are not renaming to PeerProfile or HostFacts.
 	// PeerProfile here guards against that rename churn resurfacing in the tree.
 	"PeerProfile",

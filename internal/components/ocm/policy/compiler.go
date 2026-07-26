@@ -6,8 +6,8 @@ import (
 )
 
 // CompatCompiler is the SSOT for compiling code-flow facts and OCM wire
-// emissions (discovery criteria and share requirements). It wraps the
-// scope-gated peer mapping resolver.
+// emissions (discovery criteria, capability-emit, share requirements, and
+// signature label). It wraps the scope-gated peer mapping resolver.
 type CompatCompiler struct {
 	resolver *PeerMappingResolver
 }
@@ -71,6 +71,42 @@ func (c *CompatCompiler) EmitDiscoveryCriteria(in EmitDiscoveryCriteriaInput) []
 		criteria = append(criteria, spec.CriteriaMustExchangeToken)
 	}
 	return criteria
+}
+
+// EmitCapabilitiesInput carries discovery build context for capability-emit
+// alongside route and key-manager flags.
+type EmitCapabilitiesInput struct {
+	AdvertiseHTTPSig     bool
+	TokenExchangeCapable bool
+	TokenEndPoint        string
+	InvitesEnabled       bool
+	WayfEnabled          bool
+}
+
+// EmitCapabilities returns discovery capability wire values from build
+// context. Values are spec-owned constants, not raw literals.
+func (c *CompatCompiler) EmitCapabilities(in EmitCapabilitiesInput) []string {
+	_ = c
+	var capabilities []string
+	if in.AdvertiseHTTPSig {
+		capabilities = append(capabilities, spec.CapabilityHTTPSig)
+	}
+	if in.TokenExchangeCapable && in.TokenEndPoint != "" {
+		capabilities = append(capabilities, spec.CapabilityExchangeToken)
+	}
+	if in.InvitesEnabled {
+		capabilities = append(capabilities, spec.CapabilityInvite)
+	}
+	if in.WayfEnabled {
+		capabilities = append(capabilities, spec.CapabilityInviteWAYF)
+	}
+	return capabilities
+}
+
+// SignatureLabel returns the RFC 9421 dictionary label for OCM HTTP signatures.
+func (c *CompatCompiler) SignatureLabel() string {
+	_ = c
+	return spec.SignatureLabelOCM
 }
 
 // EmitShareRequirementsInput carries share-arm context for requirement

@@ -89,6 +89,73 @@ func TestCompatCompiler_EmitDiscoveryCriteriaOmitsWhenGated(t *testing.T) {
 	}
 }
 
+func TestCompatCompiler_EmitCapabilitiesUsesSpecConstants(t *testing.T) {
+	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
+
+	got := compiler.EmitCapabilities(policy.EmitCapabilitiesInput{
+		AdvertiseHTTPSig:     true,
+		TokenExchangeCapable: true,
+		TokenEndPoint:        "https://example.com/ocm/token",
+		InvitesEnabled:       true,
+		WayfEnabled:          true,
+	})
+	want := []string{
+		spec.CapabilityHTTPSig,
+		spec.CapabilityExchangeToken,
+		spec.CapabilityInvite,
+		spec.CapabilityInviteWAYF,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("capabilities = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("capabilities[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestCompatCompiler_EmitCapabilitiesOmitsWhenGated(t *testing.T) {
+	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
+
+	got := compiler.EmitCapabilities(policy.EmitCapabilitiesInput{
+		AdvertiseHTTPSig: false,
+	})
+	if len(got) != 0 {
+		t.Fatalf("expected no capabilities when all gates false, got %v", got)
+	}
+
+	got = compiler.EmitCapabilities(policy.EmitCapabilitiesInput{
+		TokenExchangeCapable: true,
+		TokenEndPoint:        "",
+	})
+	if len(got) != 0 {
+		t.Fatalf("expected no exchange-token without token endpoint, got %v", got)
+	}
+
+	got = compiler.EmitCapabilities(policy.EmitCapabilitiesInput{
+		TokenExchangeCapable: false,
+		TokenEndPoint:        "https://example.com/ocm/token",
+	})
+	if len(got) != 0 {
+		t.Fatalf("expected no exchange-token when TokenExchangeCapable is false, got %v", got)
+	}
+
+	got = compiler.EmitCapabilities(policy.EmitCapabilitiesInput{
+		InvitesEnabled: true,
+	})
+	if len(got) != 1 || got[0] != spec.CapabilityInvite {
+		t.Fatalf("capabilities = %v, want [%q]", got, spec.CapabilityInvite)
+	}
+}
+
+func TestCompatCompiler_SignatureLabelUsesSpecConstant(t *testing.T) {
+	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
+	if got := compiler.SignatureLabel(); got != spec.SignatureLabelOCM {
+		t.Fatalf("SignatureLabel() = %q, want %q", got, spec.SignatureLabelOCM)
+	}
+}
+
 func TestCompatCompiler_EmitShareRequirementsUsesSpecConstants(t *testing.T) {
 	compiler := policy.NewCompatCompiler(nil, nil, config.CompatibilityScopeGlobal)
 

@@ -61,6 +61,7 @@ var capabilityClosedPathFiles = []string{
 	"internal/components/ocm/discovery/builder.go",
 	"internal/components/ocm/discovery/validate.go",
 	"internal/components/ocm/access/remote.go",
+	"internal/components/ocm/policy/compiler.go",
 }
 
 var capabilityWireLiterals = []string{
