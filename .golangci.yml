@@ -104,6 +104,11 @@ linters:
       exclude-functions: []
     govet:
       enable-all: true
+      # fieldalignment reorders struct fields; for a wire-protocol library that
+      # marshals OCM JSON in struct-definition order, reordering changes wire
+      # output and breaks positional struct literals. Disabled; not auto-fixed.
+      disable:
+        - fieldalignment
     staticcheck:
       checks:
         - all
