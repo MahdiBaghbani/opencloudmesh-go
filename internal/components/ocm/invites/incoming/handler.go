@@ -58,6 +58,11 @@ func NewHandler(
 }
 
 // HandleInviteAccepted handles POST /ocm/invite-accepted.
+// The mounted signature middleware enforces verify-if-present (rule 3) and
+// unsigned-admission gating (rule 4, conditional on must-use-http-sig), so
+// this handler proceeds only after admission.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L439-L443
 func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
