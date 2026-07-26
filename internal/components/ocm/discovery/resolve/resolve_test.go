@@ -3,8 +3,11 @@ package resolve_test
 import (
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 
@@ -126,5 +129,96 @@ func TestResolve_SkipsInviteAcceptDialogWithoutPublicOrigin(t *testing.T) {
 
 	if built.Params.InviteAcceptDialog != "" {
 		t.Errorf("expected empty inviteAcceptDialog without Origin, got %q", built.Params.InviteAcceptDialog)
+	}
+}
+
+func newPeerMappingResolver(t *testing.T, cfg *config.PeerMappingConfig, scope config.CompatibilityScope) *policy.PeerMappingResolver {
+	t.Helper()
+	return policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, scope)
+}
+
+// TestResolve_GlobalScope_AppliesGlobalKnobs confirms that under global
+// compatibility scope, the global peer_compat knobs still affect the local
+// discovery document.
+func TestResolve_GlobalScope_AppliesGlobalKnobs(t *testing.T) {
+	falseVal := false
+	cfg := &config.PeerMappingConfig{
+		RequiresTokenExchangeRequirement: &falseVal,
+	}
+	in := resolve.ResolveInputs{
+		LocalIdentity: localidentity.Identity{ProviderDomain: "unmapped.example"},
+		Resolver:      newPeerMappingResolver(t, cfg, config.CompatibilityScopeGlobal),
+	}
+
+	built := resolve.Resolve(&resolve.ProviderConfig{}, nil, in)
+
+	if got := built.Params.RequiresTokenExchange; got {
+		t.Errorf("global scope should apply global peer_compat knobs; RequiresTokenExchange = %v, want false", got)
+	}
+}
+
+// TestResolve_ScopedScope_KnobsDoNotLeakToUnmappedHost confirms that under
+// scoped compatibility scope, global peer_compat knobs are not leaked to
+// unmapped hosts in the discovery document.
+func TestResolve_ScopedScope_KnobsDoNotLeakToUnmappedHost(t *testing.T) {
+	falseVal := false
+	cfg := &config.PeerMappingConfig{
+		RequiresTokenExchangeRequirement: &falseVal,
+	}
+	in := resolve.ResolveInputs{
+		LocalIdentity: localidentity.Identity{ProviderDomain: "unmapped.example"},
+		Resolver:      newPeerMappingResolver(t, cfg, config.CompatibilityScopeScoped),
+	}
+
+	built := resolve.Resolve(&resolve.ProviderConfig{}, nil, in)
+
+	if got := built.Params.RequiresTokenExchange; !got {
+		t.Errorf("scoped scope must not leak global knobs to unmapped hosts; RequiresTokenExchange = %v, want true", got)
+	}
+}
+
+// TestResolve_ScopedScope_KnobsApplyToMappedHost confirms that under scoped
+// compatibility scope, peer_compat knobs still apply when the local host is
+// explicitly mapped.
+func TestResolve_ScopedScope_KnobsApplyToMappedHost(t *testing.T) {
+	falseVal := false
+	cfg := &config.PeerMappingConfig{
+		RequiresTokenExchangeRequirement: &falseVal,
+		HostPlatform: map[string]string{
+			"mapped.example": "platform-a",
+		},
+	}
+	in := resolve.ResolveInputs{
+		LocalIdentity: localidentity.Identity{ProviderDomain: "mapped.example"},
+		Resolver:      newPeerMappingResolver(t, cfg, config.CompatibilityScopeScoped),
+	}
+
+	built := resolve.Resolve(&resolve.ProviderConfig{}, nil, in)
+
+	if got := built.Params.RequiresTokenExchange; got {
+		t.Errorf("scoped scope should apply knobs to mapped hosts; RequiresTokenExchange = %v, want false", got)
+	}
+}
+
+// TestResolve_ProtocolRolesInDiscoveryDocument verifies that the resolved
+// discovery document emits the webdav and webdav-receive protocol roles.
+func TestResolve_ProtocolRolesInDiscoveryDocument(t *testing.T) {
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+		RouteOpts:     service.RouteOpts{ExternalBasePath: "/ocm"},
+		Resolver:      newPeerMappingResolver(t, &config.PeerMappingConfig{}, config.CompatibilityScopeGlobal),
+	}
+
+	built := resolve.Resolve(&resolve.ProviderConfig{}, map[string]any{}, in)
+	disc := discovery.BuildDiscovery(built.Params, nil)
+
+	if !disc.Enabled {
+		t.Fatal("expected enabled discovery document")
+	}
+	if _, ok := disc.ResourceTypes[0].Protocols.StringRole("webdav"); !ok {
+		t.Error("expected webdav protocol role in discovery document")
+	}
+	if _, ok := disc.ResourceTypes[0].Protocols.WebDAVReceive(); !ok {
+		t.Error("expected webdav-receive protocol role in discovery document")
 	}
 }

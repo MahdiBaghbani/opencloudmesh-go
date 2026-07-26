@@ -15,4 +15,7 @@ type ResolveInputs struct {
 	TokenExchangePath string
 	KeyManager        *crypto.KeyManager
 	CodeFlow          *policy.CodeFlow
+	// Resolver is the scope-gated peer-mapping resolver that drives discovery
+	// criteria and capabilities. When nil, Resolve falls back to CodeFlow.Evaluate.
+	Resolver *policy.PeerMappingResolver
 }

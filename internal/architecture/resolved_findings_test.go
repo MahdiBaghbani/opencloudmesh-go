@@ -21,6 +21,10 @@ import (
 
 // peerMappingAllowlist lists intentional PeerMapping* successor file paths.
 var peerMappingAllowlist = []string{
+	"internal/components/ocm/discovery/resolve/inputs.go",
+	"internal/components/ocm/discovery/resolve/resolve.go",
+	"internal/components/ocm/discovery/resolve/resolve_routes_test.go",
+	"internal/components/ocm/discovery/resolve/resolve_test.go",
 	"internal/components/ocm/policy/peer_mapping.go",
 	"internal/components/ocm/policy/peer_mapping_test.go",
 	"internal/components/ocm/shares/incoming/handler.go",
@@ -34,6 +38,7 @@ var peerMappingAllowlist = []string{
 	"internal/platform/config/peer_mapping_test.go",
 	"internal/services/ocm/inputs.go",
 	"internal/services/ocm/ocm.go",
+	"internal/wiring/resolve_inputs.go",
 	"internal/wiring/services.go",
 }
 
@@ -113,6 +118,10 @@ func TestResolvedFindings_BanList(t *testing.T) {
 
 func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
 	want := []string{
+		"internal/components/ocm/discovery/resolve/inputs.go",
+		"internal/components/ocm/discovery/resolve/resolve.go",
+		"internal/components/ocm/discovery/resolve/resolve_routes_test.go",
+		"internal/components/ocm/discovery/resolve/resolve_test.go",
 		"internal/components/ocm/policy/peer_mapping.go",
 		"internal/components/ocm/policy/peer_mapping_test.go",
 		"internal/components/ocm/shares/incoming/handler.go",
@@ -126,6 +135,7 @@ func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
 		"internal/platform/config/peer_mapping_test.go",
 		"internal/services/ocm/inputs.go",
 		"internal/services/ocm/ocm.go",
+		"internal/wiring/resolve_inputs.go",
 		"internal/wiring/services.go",
 	}
 	if len(peerMappingAllowlist) == 0 {

@@ -5,6 +5,7 @@ package resolve
 
 import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
@@ -34,7 +35,7 @@ type BuildInputs struct {
 
 // Resolve applies service-local defaults, derives cross-cutting values from
 // ResolveInputs and route inventory when not explicitly set in per-service TOML,
-// maps CodeFlow.Evaluate() facts into build params, and returns the resolved
+// maps the resolved code-flow facts into build params, and returns the resolved
 // discovery build params.
 func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs) BuildInputs {
 	c.ApplyDefaults()
@@ -82,7 +83,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	}
 
 	advertiseHTTPSig := in.KeyManager != nil
-	ev := in.CodeFlow.Evaluate()
+	facts := resolveFacts(in)
 
 	return BuildInputs{
 		Params: discovery.BuildParams{
@@ -95,9 +96,26 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			InvitesEnabled:         routeOpts.InvitesEnabled,
 			WayfEnabled:            routeOpts.WayfEnabled,
 			AdvertiseHTTPSig:       advertiseHTTPSig,
-			TokenExchangeCapable:   ev.TokenExchangeCapable,
-			RequiresTokenExchange:  ev.RequiresTokenExchange,
-			RequiresHTTPSignatures: ev.RequiresHTTPRequestSignatures,
+			TokenExchangeCapable:   facts.TokenExchangeCapable,
+			RequiresTokenExchange:  facts.RequiresTokenExchange,
+			RequiresHTTPSignatures: facts.RequiresHTTPRequestSignatures,
 		},
 	}
+}
+
+// resolveFacts derives the code-flow facts for the local discovery document.
+// When a scope-gated resolver is wired, it is consulted with the local provider
+// domain as the host and the reserved discovery view argument. The discovery
+// view is accepted for signature stability but is not consulted by the current
+// resolver logic. When no resolver is wired, the legacy CodeFlow.Evaluate path
+// is used as a fallback.
+func resolveFacts(in ResolveInputs) policy.Facts {
+	if in.Resolver != nil {
+		// The local provider domain is the host for LocalProfile resolution.
+		// Global peer_compat knobs apply under global scope; under scoped they
+		// apply only when the host is explicitly mapped.
+		var disc policy.DiscoveryView = nil
+		return in.Resolver.ResolveFacts(in.LocalIdentity.ProviderDomain, disc)
+	}
+	return in.CodeFlow.Evaluate()
 }
