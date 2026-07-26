@@ -75,10 +75,12 @@ lint:
 lint-fix:
 	$(GOLANGCI_LINT) run --fix ./...
 
-# Delta vs merge base; does not require full baseline clean.
-LINT_MERGE_BASE ?= master
+# Delta vs pinned lint baseline; does not require full baseline clean.
+# 81fb0ce is this branch's merge-base with master; pinning it keeps lint-new
+# deterministic as master advances.
+LINT_BASE_REF ?= 81fb0ce
 lint-new:
-	$(GOLANGCI_LINT) run --new-from-merge-base=$(LINT_MERGE_BASE) ./...
+	$(GOLANGCI_LINT) run --new-from-rev=$(LINT_BASE_REF) ./...
 
 # govulncheck (reachable graph) + gosec via golangci-lint SSOT (not raw CLI).
 security:
