@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOLANGCI_LINT_VERSION: v2.12.2
+  GOIMPORTS_VERSION: v0.30.0
+
+jobs:
+  fmt-vet:
+    name: fmt + vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
+      - name: Verify formatting
+        run: make fmt-check
+      - name: go vet
+        run: make vet
+      - name: go mod tidy check
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # P1/P2: block NEW issues only. Do NOT pass manual --new* in args while
+      # only-new-issues is true (action throws).
+      # P3 PR: remove only-new-issues: true (full tree gate).
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=5m
+          only-new-issues: true
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # P1/P2 report-only. P2 PR: remove continue-on-error after toolchain pin
+      # + module bumps + govulncheck reachable == 0.
+      - name: govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: go.mod
+        continue-on-error: true
+      - name: Install golangci-lint for SARIF
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
+      # P1/P2 report-only. NO || true (G30). P3 PR: remove --issues-exit-code=0
+      # AND continue-on-error below.
+      - name: gosec SARIF (golangci-lint)
+        run: |
+          golangci-lint run --enable-only=gosec \
+            --output.sarif.path=gosec.sarif \
+            --issues-exit-code=0 ./...
+        continue-on-error: true
+      - name: Upload gosec SARIF
+        if: >-
+          always() &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: gosec.sarif
+          category: gosec
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Unit + integration tests
+        run: make test
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build binary
+        run: make build
+
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    needs: [fmt-vet, lint, security, test, build]
+    if: always()
+    steps:
+      - name: Require blocking jobs
+        run: |
+          test "${{ needs.fmt-vet.result }}" = "success"
+          test "${{ needs.lint.result }}" = "success"
+          test "${{ needs.test.result }}" = "success"
+          test "${{ needs.build.result }}" = "success"
+          # P1: security is report-only; do not require security success.
+          # P2 PR: add: test "${{ needs.security.result }}" = "success"
+          # P3 PR: security must succeed (govulncheck + blocking gosec step)

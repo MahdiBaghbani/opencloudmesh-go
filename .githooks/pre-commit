@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit - fast local gate (index-aware; no golangci-lint).
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Bash 3.2-compatible (no mapfile): collect staged Go paths.
+STAGED_GO=()
+while IFS= read -r line; do
+  STAGED_GO+=("$line")
+done < <(git diff --cached --name-only --diff-filter=ACM -- '*.go' || true) || true
+if ((${#STAGED_GO[@]} == 0)); then
+  exit 0
+fi
+
+fmt_fail=0
+for f in "${STAGED_GO[@]}"; do
+  if git show ":$f" | gofmt -l - | grep -q .; then
+    echo "pre-commit: gofmt needed on staged content: $f"
+    fmt_fail=1
+  fi
+done
+if ((fmt_fail)); then
+  echo "Run: make fmt"
+  exit 1
+fi
+
+imports_fail=0
+for f in "${STAGED_GO[@]}"; do
+  if ! diff -u \
+    <(git show ":$f") \
+    <(git show ":$f" | goimports) >/dev/null 2>&1; then
+    echo "pre-commit: goimports needed on staged content: $f"
+    imports_fail=1
+  fi
+done
+if ((imports_fail)); then
+  echo "Run: make fmt"
+  exit 1
+fi
+
+PKGS=()
+while IFS= read -r line; do
+  PKGS+=("$line")
+done < <(
+  printf '%s\n' "${STAGED_GO[@]}" \
+    | xargs -n1 dirname \
+    | sort -u \
+    | sed 's|^|./|'
+) || true
+
+# Vet index (staged) content for those packages, not dirty working-tree edits.
+TMP_VET="$(mktemp -d "${TMPDIR:-/tmp}/ocmgo-pre-commit-vet.XXXXXX")"
+trap 'rm -rf "$TMP_VET"' EXIT
+
+git checkout-index --prefix="$TMP_VET/" -a
+(
+  cd "$TMP_VET"
+  go vet "${PKGS[@]}"
+)
+
+exit 0

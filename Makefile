@@ -1,11 +1,12 @@
 # OpenCloudMesh server build and test targets.
-.PHONY: build test-go test-integration test-e2e test clean fmt vet tidy
+.PHONY: build test-go test-integration test-e2e test-e2e-install \
+	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new security check ci
 
 # Build the server binary
 build:
 	go build -o bin/opencloudmesh-go ./cmd/opencloudmesh-go
 
-# Run unit tests (excludes integration tests)
+# Run unit tests with race detector (excludes integration tests)
 test-go:
 	go test -race $$(go list ./... | grep -v /tests/integration)
 
@@ -30,9 +31,33 @@ clean:
 	rm -rf tests/e2e/node_modules
 	rm -rf tests/e2e/test-results
 
-# Format code
+# --- Static analysis and security (requires: make tools) ---
+
+GOLANGCI_LINT_VERSION ?= v2.12.2
+GOVULNCHECK_VERSION ?= v1.1.4
+GOIMPORTS_VERSION ?= v0.30.0
+
+GOLANGCI_LINT ?= golangci-lint
+GOVULNCHECK ?= govulncheck
+GOIMPORTS ?= goimports
+
+# Install pinned CLIs into GOBIN (no @latest). gosec runs via golangci-lint
+# SSOT only; no standalone gosec binary (G30).
+tools:
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	go install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
+
+# Mutating format: go fmt + goimports (matches pre-commit hook; G30).
 fmt:
 	go fmt ./...
+	$(GOIMPORTS) -w .
+
+# Fail if any file needs gofmt or goimports (CI-safe; unlike fmt which mutates).
+fmt-check:
+	@command -v $(GOIMPORTS) >/dev/null 2>&1 || (echo "goimports not found; install with: make tools"; exit 1)
+	@test -z "$$(gofmt -l .)" || (echo "gofmt needed; run: make fmt"; exit 1)
+	@test -z "$$($(GOIMPORTS) -l .)" || (echo "goimports needed; run: make fmt"; exit 1)
 
 # Vet code
 vet:
@@ -41,3 +66,27 @@ vet:
 # Tidy dependencies
 tidy:
 	go mod tidy
+
+# Full golangci-lint bar (.golangci.yml from ARTIFACT-v3.1-01).
+lint:
+	$(GOLANGCI_LINT) run ./...
+
+# Auto-fix what golangci-lint can fix (wsl_v5 whitespace; review diff).
+lint-fix:
+	$(GOLANGCI_LINT) run --fix ./...
+
+# Delta vs merge base (agent/PR discipline; does not require full baseline clean).
+LINT_MERGE_BASE ?= master
+lint-new:
+	$(GOLANGCI_LINT) run --new-from-merge-base=$(LINT_MERGE_BASE) ./...
+
+# govulncheck (reachable graph) + gosec via golangci-lint SSOT (not raw CLI).
+security:
+	$(GOVULNCHECK) ./...
+	$(GOLANGCI_LINT) run --enable-only=gosec ./...
+
+# Light local gate during bootstrap: no full lint, no security scan.
+check: fmt-check vet lint-new test-go
+
+# Laptop CI mirror: blocking gates minus tidy (tidy is CI fmt-vet only).
+ci: fmt-check vet lint-new test build
