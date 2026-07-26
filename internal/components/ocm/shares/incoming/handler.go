@@ -134,6 +134,12 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 			writeProtocolValidationErrors(w, webappErrs)
 			return
 		}
+		// ocmgo does not advertise webapp-receive; reject inbound webapp arms
+		// at admit time with 501 (protocol not supported) instead of falsely
+		// returning 201.
+		log.Warn("share rejected: webapp protocol not supported")
+		spec.WriteProtocolNotSupported(w)
+		return
 	}
 
 	var formatErrs []spec.ValidationError
@@ -289,12 +295,6 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		Requirements:         webdavRequirements,
 	}
 	share.ProtocolName = req.Protocol.Name
-	webapp = req.Protocol.Webapp
-	if webapp != nil {
-		share.WebappURI = webapp.URI
-		share.WebappTargets = append([]string(nil), webapp.Targets...)
-		share.WebappPermissions = append([]string(nil), webapp.Permissions...)
-	}
 
 	if err := h.repo.Create(r.Context(), share); err != nil {
 		log.Error("failed to store share", "error", err)

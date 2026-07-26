@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,49 +38,101 @@ func validWebappShareBody(shareWith, ownerHost, providerID string) string {
 	}`
 }
 
-func TestCreateShare_AcceptsValidMultiWebapp(t *testing.T) {
+// assertShareNotStored fails the test if the share identified by (senderHost,
+// providerID) is present in the repo, or if the lookup returns an error other
+// than ErrShareNotFound. A rejected admit must not persist; a silent lookup
+// error must not be swallowed.
+func assertShareNotStored(t *testing.T, repo *sharesinbox.MemoryIncomingShareRepo, senderHost, providerID string) {
+	t.Helper()
+	stored, err := repo.GetByProviderID(context.Background(), senderHost, providerID)
+	if err == nil && stored != nil {
+		t.Errorf("share %q from %q must not be persisted, got %+v", providerID, senderHost, stored)
+		return
+	}
+	if err != nil && !errors.Is(err, sharesinbox.ErrShareNotFound) {
+		t.Fatalf("unexpected lookup error for share %q from %q: %v", providerID, senderHost, err)
+	}
+}
+
+func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	body := validWebappShareBody("alice@localhost:9200", ownerHost, "webapp-ok")
+	body := validWebappShareBody("alice@localhost:9200", ownerHost, "webapp-reject")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201 for valid multi+webapp admit, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 for valid multi+webapp admit, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp spec.CreateShareResponse
+	var resp spec.OCMErrorResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
+		t.Fatalf("failed to decode error response: %v", err)
 	}
-	if resp.RecipientDisplayName != "Alice A" {
-		t.Errorf("expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
+	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
+		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
 	}
 
-	stored, err := repo.GetByProviderID(context.Background(), ownerHost, "webapp-ok")
-	if err != nil {
-		t.Fatalf("expected persisted share, got error: %v", err)
+	assertShareNotStored(t, repo, ownerHost, "webapp-reject")
+}
+
+// TestCreateShare_RejectsMultiArmWithWebappAndWebDAV covers the 501-at-admit
+// path when a share carries both a valid webdav arm and a valid webapp arm.
+// ocmgo does not support inbound webapp receive, so the webapp arm must
+// trigger 501 at admit regardless of a co-present webdav arm, and no share
+// may be persisted.
+func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
+	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	partyRepo := setupTestPartyRepo()
+	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
+
+	body := `{
+		"shareWith": "alice@localhost:9200",
+		"name": "multi-arm-resource",
+		"providerId": "multi-arm-webapp-reject",
+		"owner": "owner@` + ownerHost + `",
+		"sender": "sender@` + ownerHost + `",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {
+			"name": "multi",
+			"webdav": {
+				"uri": "abc123",
+				"sharedSecret": "secret123",
+				"permissions": ["read"],
+				"requirements": ["must-exchange-token"]
+			},
+			"webapp": {
+				"uri": "https://` + ownerHost + `/apps/files/abc",
+				"targets": ["blank"],
+				"permissions": ["view", "read"],
+				"requirements": ["must-exchange-token"],
+				"sharedSecret": "secret123"
+			}
+		}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 for multi-arm admit with webapp, got %d: %s", w.Code, w.Body.String())
 	}
-	if stored.WebDAVID != "" || stored.SharedSecret != "" {
-		t.Errorf("webapp-only admit must not populate WebDAV fields, got WebDAVID=%q SharedSecret=%q", stored.WebDAVID, stored.SharedSecret)
+
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
 	}
-	if stored.ProtocolName != "multi" {
-		t.Errorf("ProtocolName = %q, want %q", stored.ProtocolName, "multi")
+	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
+		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
 	}
-	wantURI := "https://" + ownerHost + "/apps/files/abc"
-	if stored.WebappURI != wantURI {
-		t.Errorf("WebappURI = %q, want %q", stored.WebappURI, wantURI)
-	}
-	if len(stored.WebappTargets) != 1 || stored.WebappTargets[0] != "blank" {
-		t.Errorf("WebappTargets = %v, want [blank]", stored.WebappTargets)
-	}
-	if len(stored.WebappPermissions) != 2 || stored.WebappPermissions[0] != "view" || stored.WebappPermissions[1] != "read" {
-		t.Errorf("WebappPermissions = %v, want [view read]", stored.WebappPermissions)
-	}
+
+	assertShareNotStored(t, repo, ownerHost, "multi-arm-webapp-reject")
 }
 
 func TestCreateShare_RejectsWebappMissingURI(t *testing.T) {

@@ -10,6 +10,22 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
+func TestDecideAccessAuth_NilShareFailsClosed(t *testing.T) {
+	client := NewClient(nil, &discovery.Client{}, nil, nil)
+
+	decision, err := client.DecideAccessAuth(AccessOptions{
+		Share:    nil,
+		Protocol: "webdav",
+	}, &spec.Discovery{})
+	if err == nil {
+		t.Fatalf("expected nil share to fail closed, got mode %q", decision.Mode)
+	}
+	var ce *reason.ClassifiedError
+	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonProtocolMismatch {
+		t.Errorf("expected protocol mismatch error, got: %v", err)
+	}
+}
+
 func TestDecideAccessAuth_WebDAVTokenExchange(t *testing.T) {
 	disc := &spec.Discovery{
 		Enabled:       true,

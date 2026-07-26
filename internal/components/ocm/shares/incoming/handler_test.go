@@ -288,7 +288,7 @@ func TestCreateShare_UnknownHostUsesGlobalStrictAdmission(t *testing.T) {
 	}
 }
 
-func TestCreateShare_PeerOverlayAcceptsWebappForMatchedHost(t *testing.T) {
+func TestCreateShare_PeerOverlayRejectsWebappForMatchedHost(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	const matchedHost = "sender.example.com"
@@ -297,15 +297,26 @@ func TestCreateShare_PeerOverlayAcceptsWebappForMatchedHost(t *testing.T) {
 	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, config.CompatibilityScopeGlobal)
 	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
 
-	body := validWebappShareBody("alice@localhost:9200", matchedHost, "webapp-overlay-accept")
+	body := validWebappShareBody("alice@localhost:9200", matchedHost, "webapp-overlay-reject")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.CreateShare(w, req)
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("matched host: expected 201 for webapp admission, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("matched host: expected 501 for webapp admission, got %d: %s", w.Code, w.Body.String())
 	}
+	var resp spec.OCMErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if resp.Message != "PROTOCOL_NOT_SUPPORTED" {
+		t.Errorf("expected PROTOCOL_NOT_SUPPORTED, got %q", resp.Message)
+	}
+
+	// The rejected webapp share must not be persisted; fail on any lookup
+	// error other than not-found rather than silently swallowing it.
+	assertShareNotStored(t, repo, matchedHost, "webapp-overlay-reject")
 }
 
 func TestCreateShare_UnknownHostRejectsWebappWithGlobalStrictAdmission(t *testing.T) {
