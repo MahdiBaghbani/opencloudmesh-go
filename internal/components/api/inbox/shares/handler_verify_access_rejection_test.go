@@ -15,7 +15,7 @@ import (
 
 func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-cross", "sender.example.com", "file.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-cross", "sender.example.com", "file.txt")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
@@ -62,7 +62,7 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 
 func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
+	share := createAcceptedShareForUser(repo, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {

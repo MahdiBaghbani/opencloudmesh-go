@@ -45,7 +45,7 @@ func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 		t.Fatalf("first Discover failed: %v", err)
 	}
 
-	if !hasWarningSubstring(disc.Warnings, "differs from pin") {
+	if !hasDiffersFromPinWarning(disc.Warnings) {
 		t.Fatalf("expected differs-from-pin warning in result, got %v", disc.Warnings)
 	}
 
@@ -65,7 +65,7 @@ func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 		t.Fatalf("second Discover failed: %v", err)
 	}
 
-	if !hasWarningSubstring(disc2.Warnings, "differs from pin") {
+	if !hasDiffersFromPinWarning(disc2.Warnings) {
 		t.Fatalf("cache hit missing warning in result, got %v", disc2.Warnings)
 	}
 

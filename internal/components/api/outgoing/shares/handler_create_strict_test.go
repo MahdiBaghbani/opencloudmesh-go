@@ -276,7 +276,7 @@ func makeCapturingReceiverWithWebDAVReceive(
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			tokenEndPoint := ""
-			if hasCapability(capabilities, "exchange-token") {
+			if hasExchangeTokenCapability(capabilities) {
 				tokenEndPoint = srv.URL + "/ocm/token"
 			}
 
@@ -336,7 +336,7 @@ func makeCapturingReceiverWithMismatchedEndpoint(
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			tokenEndPoint := ""
-			if hasCapability(capabilities, "exchange-token") {
+			if hasExchangeTokenCapability(capabilities) {
 				tokenEndPoint = srv.URL + "/ocm/token"
 			}
 

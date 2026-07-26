@@ -55,7 +55,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		log.Warn("unused config keys", "service", "ui", "unused_keys", unused)
 	}
 
-	uiHandler, err := ui.NewHandler(inputs.LocalIdentity.ExternalBasePath, c.Wayf.Enabled, inputs.LocalIdentity.ProviderDomain)
+	uiHandler, err := ui.NewHandler(inputs.LocalIdentity.ExternalBasePath, inputs.LocalIdentity.ProviderDomain)
 	if err != nil {
 		return nil, err
 	}

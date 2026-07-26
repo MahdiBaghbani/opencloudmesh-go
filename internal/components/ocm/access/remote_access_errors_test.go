@@ -21,7 +21,7 @@ func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	_, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{
@@ -45,7 +45,7 @@ func TestAccess_UnsetProtocolFailsClosed(t *testing.T) {
 func TestAccess_NilDiscoveryFailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	t.Cleanup(srv.Close)
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	decision, err := client.DecideAccessAuth(AccessOptions{
 		Share: &ShareInfo{
@@ -77,7 +77,7 @@ func TestAccess_NilShareFailsClosed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	_, err := client.Access(context.Background(), AccessOptions{
 		Share:    nil,

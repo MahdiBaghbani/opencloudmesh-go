@@ -97,42 +97,6 @@ func extractBootstrapPassword(logs string) string {
 	return logs[start : start+end]
 }
 
-func loginAdmin(t *testing.T, baseURL, username, password string) string {
-	t.Helper()
-
-	reqBody, err := json.Marshal(map[string]string{
-		"username": username,
-		"password": password,
-	})
-	if err != nil {
-		t.Fatalf("failed to encode login request: %v", err)
-	}
-
-	resp, err := http.Post(baseURL+"/api/auth/login", "application/json", bytes.NewReader(reqBody))
-	if err != nil {
-		t.Fatalf("failed to call login endpoint: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("login failed: status=%d body=%s", resp.StatusCode, body)
-	}
-
-	var parsed struct {
-		Token string `json:"token"`
-	}
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		t.Fatalf("failed to parse login response: %v", err)
-	}
-
-	if parsed.Token == "" {
-		t.Fatalf("login returned empty token: %s", body)
-	}
-
-	return parsed.Token
-}
-
 func createOutgoingShare(t *testing.T, baseURL, token string, payload map[string]any) (int, string) {
 	t.Helper()
 

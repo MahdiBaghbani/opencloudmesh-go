@@ -2,7 +2,6 @@ package incoming
 
 import (
 	"encoding/json"
-	"log/slog"
 	"mime"
 	"net/http"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 // Handler serves POST /ocm/token (token exchange).
@@ -24,15 +22,12 @@ type Handler struct {
 	tokenTTL     time.Duration
 	settings     *TokenExchangeSettings
 	codeFlow     *policy.CodeFlow
-	logger       *slog.Logger
 	localScheme  string // "http" or "https", derived from PublicOrigin
 }
 
 // NewHandler builds a token handler. Settings must have ApplyDefaults() called (done by cfg.Decode).
 // publicOrigin is used for scheme-aware client_id comparison (e.g. host vs host:443).
-func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, codeFlow *policy.CodeFlow, publicOrigin string, logger *slog.Logger) *Handler {
-	logger = logutil.NoopIfNil(logger)
-
+func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenStore, settings *TokenExchangeSettings, codeFlow *policy.CodeFlow, publicOrigin string) *Handler {
 	localScheme := config.PublicSchemeFromOrigin(publicOrigin)
 
 	return &Handler{
@@ -41,7 +36,6 @@ func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenS
 		tokenTTL:     token.DefaultTokenTTL,
 		settings:     settings,
 		codeFlow:     codeFlow,
-		logger:       logger,
 		localScheme:  localScheme,
 	}
 }

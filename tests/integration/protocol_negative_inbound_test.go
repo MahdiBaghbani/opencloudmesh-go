@@ -55,12 +55,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 			wantStatus: http.StatusUnauthorized,
 			act: func(t *testing.T, env inboundNegativeEnv) []string {
 				secret := "step14-neg-unsigned-secret"
-				body := buildSignedInboundShareBody(
-					"admin@"+env.consumerHost,
-					"step14-neg-unsigned",
-					env.providerHost,
-					"webdav",
-					"webdav-uri-unsigned",
+				body := buildSignedInboundShareBody("admin@"+env.consumerHost, "step14-neg-unsigned", env.providerHost, "webdav-uri-unsigned",
 					secret,
 				)
 
@@ -78,12 +73,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 			act: func(t *testing.T, env inboundNegativeEnv) []string {
 				secret := "step14-neg-wrong-authority-secret"
 				wrongHost := "wrong-authority.invalid"
-				body := buildSignedInboundShareBody(
-					"admin@"+env.consumerHost,
-					"step14-neg-wrong-authority",
-					wrongHost,
-					"webdav",
-					"webdav-uri-wrong-authority",
+				body := buildSignedInboundShareBody("admin@"+env.consumerHost, "step14-neg-wrong-authority", wrongHost, "webdav-uri-wrong-authority",
 					secret,
 				)
 
@@ -157,12 +147,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 			wantStatus: http.StatusUnauthorized,
 			act: func(t *testing.T, env inboundNegativeEnv) []string {
 				secret := "step14-neg-duplicate-ocm-secret"
-				body := buildSignedInboundShareBody(
-					"admin@"+env.consumerHost,
-					"step14-neg-duplicate-ocm",
-					env.providerHost,
-					"webdav",
-					"webdav-uri-duplicate-ocm",
+				body := buildSignedInboundShareBody("admin@"+env.consumerHost, "step14-neg-duplicate-ocm", env.providerHost, "webdav-uri-duplicate-ocm",
 					secret,
 				)
 

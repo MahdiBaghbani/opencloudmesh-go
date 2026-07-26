@@ -13,7 +13,6 @@ import (
 
 type ocmHandler struct {
 	data *spec.Discovery
-	log  *slog.Logger
 }
 
 func newOCMHandler(
@@ -21,7 +20,7 @@ func newOCMHandler(
 	rawOCMProvider map[string]any,
 	in resolve.ResolveInputs,
 	log *slog.Logger,
-) (*ocmHandler, error) {
+) *ocmHandler {
 	log = logutil.NoopIfNil(log)
 
 	built := resolve.Resolve(c, rawOCMProvider, in)
@@ -29,8 +28,7 @@ func newOCMHandler(
 
 	return &ocmHandler{
 		data: disc,
-		log:  log,
-	}, nil
+	}
 }
 
 func (h *ocmHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

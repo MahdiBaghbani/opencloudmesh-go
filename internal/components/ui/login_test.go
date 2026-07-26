@@ -13,7 +13,7 @@ import (
 func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm")
 
-	handler, err := ui.NewHandler(id.ExternalBasePath, false, id.ProviderDomain)
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 func TestLogin_AcceptsRedirectQueryForAcceptInvite(t *testing.T) {
 	id := tslocalid.MustTestIdentity(t, "https://cloud.example.com", "")
 
-	handler, err := ui.NewHandler(id.ExternalBasePath, true, id.ProviderDomain)
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}

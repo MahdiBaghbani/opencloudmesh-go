@@ -6,7 +6,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
-	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 // ---- backend selection ----
@@ -154,18 +153,4 @@ func TestNew_UnknownBackend(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown backend, got nil")
 	}
-}
-
-// ---- helpers ----
-
-func newMemoryRepos(t *testing.T) *repos.Repos {
-	return tsrepos.OpenMemory(t)
-}
-
-func newJSONRepos(t *testing.T) *repos.Repos {
-	return tsrepos.OpenJSON(t)
-}
-
-func newDurableRepos(t *testing.T, backend string) *repos.Repos {
-	return tsrepos.OpenDurable(t, backend)
 }

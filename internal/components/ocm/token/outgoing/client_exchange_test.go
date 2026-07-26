@@ -31,7 +31,7 @@ func TestClient_Exchange_Success_LowercaseBearerTokenType(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
+	result, err := exchangeOnServer(t, server.URL, httpSigDiscovery())
 	if err != nil {
 		t.Fatalf("Exchange failed: %v", err)
 	}
@@ -311,7 +311,7 @@ func TestClient_Exchange_RejectsMalformedJSONBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL+"/ocm/token", "test-secret", httpSigDiscovery())
+	_, err := exchangeOnServer(t, server.URL+"/ocm/token", httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -370,7 +370,7 @@ func TestClient_Exchange_RejectsOversizeResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
+	_, err := exchangeOnServer(t, server.URL, httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -381,7 +381,7 @@ func TestClient_Exchange_RejectsNonJSONContentType(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
+	_, err := exchangeOnServer(t, server.URL, httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -396,7 +396,7 @@ func TestClient_Exchange_RejectsEmptyAccessToken(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
+	_, err := exchangeOnServer(t, server.URL, httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -411,7 +411,7 @@ func TestClient_Exchange_RejectsNonBearerTokenType(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
+	_, err := exchangeOnServer(t, server.URL, httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
@@ -426,11 +426,11 @@ func TestClient_Exchange_RejectsNonPositiveExpiresIn(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := exchangeOnServer(t, server.URL, "test-secret", httpSigDiscovery())
+	_, err := exchangeOnServer(t, server.URL, httpSigDiscovery())
 	assertTokenInvalidFormat(t, err)
 }
 
-func exchangeOnServer(t *testing.T, serverURL, secret string, disc *spec.Discovery) (*tokenoutgoing.ExchangeResult, error) {
+func exchangeOnServer(t *testing.T, serverURL string, disc *spec.Discovery) (*tokenoutgoing.ExchangeResult, error) {
 	t.Helper()
 
 	httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
@@ -440,7 +440,7 @@ func exchangeOnServer(t *testing.T, serverURL, secret string, disc *spec.Discove
 
 	return client.Exchange(context.Background(), tokenoutgoing.ExchangeRequest{
 		TokenEndPoint: serverURL,
-		SharedSecret:  secret,
+		SharedSecret:  "test-secret",
 	}, disc)
 }
 

@@ -59,7 +59,6 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				enabledSettings(),
 				enabledCodeFlow(),
 				"https://local.example.com",
-				capture.Logger,
 			)
 
 			if tt.setupShare {

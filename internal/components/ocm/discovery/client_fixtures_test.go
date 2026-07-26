@@ -37,9 +37,9 @@ func newDiscoveryTestServer(t *testing.T, handler func(serverURL string, w http.
 	return srv
 }
 
-func hasWarningSubstring(warnings []string, sub string) bool {
+func hasDiffersFromPinWarning(warnings []string) bool {
 	for _, w := range warnings {
-		if strings.Contains(w, sub) {
+		if strings.Contains(w, "differs from pin") {
 			return true
 		}
 	}

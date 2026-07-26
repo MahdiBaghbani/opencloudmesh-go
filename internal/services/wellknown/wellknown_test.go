@@ -40,9 +40,10 @@ func TestNew_SucceedsWithResolveInputs(t *testing.T) {
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "")}, m, log)
+
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 
 	if svc.Prefix() != "" {
@@ -58,9 +59,9 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 		"ocmprovider": map[string]any{},
 	}
 
-	_, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
+	_, err := New(Inputs{Resolve: handlerResolveInputs(t, "")}, m, log)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 }
 
@@ -102,9 +103,9 @@ func TestService_HandlerReturnsValidResponse(t *testing.T) {
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "")}, m, log)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
@@ -122,9 +123,9 @@ func TestService_Close(t *testing.T) {
 		"ocmprovider": map[string]any{},
 	}
 
-	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "")}, m, log)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 
 	if err := svc.Close(); err != nil {
@@ -138,9 +139,9 @@ func TestService_TrailingSlashPath(t *testing.T) {
 		"ocmprovider": map[string]any{},
 	}
 
-	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "")}, m, log)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm/", nil)
@@ -158,9 +159,9 @@ func TestService_PercentEncodedPath(t *testing.T) {
 		"ocmprovider": map[string]any{},
 	}
 
-	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "")}, m, log)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
@@ -179,9 +180,9 @@ func TestService_APIVersionPinned(t *testing.T) {
 		"ocmprovider": map[string]any{},
 	}
 
-	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "https://example.com", "")}, m, log)
+	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "")}, m, log)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
@@ -228,7 +229,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 
 	signer := crypto.NewRFC9421Signer(km)
 
-	resolveInputs := handlerResolveInputs(t, "https://example.com", "")
+	resolveInputs := handlerResolveInputs(t, "")
 	pd := &mockPeerDiscovery{
 		publicKeys: map[string]sigalg.ResolvedPublicKey{
 			km.GetKeyID(): resolvedKeyFromManager(km),
@@ -284,7 +285,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 		SignatureMiddleware: mw,
 	}, m, testLogger())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 
 	unsignedReq := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)

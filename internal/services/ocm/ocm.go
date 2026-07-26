@@ -76,7 +76,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.LocalIdentity.ProviderDomainCompare,
 		inputs.LocalIdentity.Scheme,
 		inputs.PeerMappingResolver,
-		log,
 	)
 	invitesHandler := invitesincoming.NewHandler(
 		inputs.OutgoingInviteRepo,
@@ -84,7 +83,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.PolicyEngine,
 		inputs.LocalIdentity.ProviderDomain,
 		inputs.LocalIdentity.Scheme,
-		log,
 	)
 	tokenHandler := tokenincoming.NewHandler(
 		inputs.OutgoingShareRepo,
@@ -92,7 +90,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		&c.TokenExchange,
 		inputs.CodeFlow,
 		inputs.LocalIdentity.Origin,
-		log,
 	)
 
 	peerResolver := peer.NewResolver()

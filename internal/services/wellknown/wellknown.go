@@ -87,10 +87,7 @@ func discoveryHandler(
 }
 
 func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) error {
-	handler, err := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
-	if err != nil {
-		return err
-	}
+	handler := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
 
 	ocm := discoveryHandler(handler, inputs.SignatureMiddleware)
 	s.router.Get(RouteWellKnownOCM, ocm.ServeHTTP)

@@ -69,7 +69,7 @@ func TestClientDiscover_RealPeerFixtures(t *testing.T) {
 				t.Fatal("expected warnings for real-peer fixture")
 			}
 
-			if fx.apiVersion != spec.APIVersionPin && !hasWarningSubstring(disc.Warnings, "differs from pin") {
+			if fx.apiVersion != spec.APIVersionPin && !hasDiffersFromPinWarning(disc.Warnings) {
 				t.Fatalf("expected differs-from-pin warning, got %v", disc.Warnings)
 			}
 		})

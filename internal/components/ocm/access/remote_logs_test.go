@@ -63,7 +63,7 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 			}))
 			t.Cleanup(srv.Close)
 
-			client, _ := newExchangeAccessClient(t, srv)
+			client := newExchangeAccessClient(t, srv)
 			share := &ShareInfo{
 				Status:       ShareStatusAccepted,
 				SenderHost:   srv.Listener.Addr().String(),

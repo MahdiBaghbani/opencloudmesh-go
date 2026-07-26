@@ -19,10 +19,7 @@ import (
 func TestNewOCMHandler_DisabledWhenNoEndpoint(t *testing.T) {
 	c := &resolve.ProviderConfig{}
 
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	h := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 
 	if h.data.Enabled {
 		t.Error("expected Enabled=false when endpoint is empty")
@@ -43,15 +40,12 @@ func TestNewOCMHandler_EnabledWithProjectedPaths(t *testing.T) {
 	}
 	raw := map[string]any{"webdav_root": "/webdav/ocm/"}
 
-	h, err := newOCMHandler(
+	h := newOCMHandler(
 		c,
 		raw,
-		handlerResolveInputs(t, "https://example.com", "/myapp"),
+		handlerResolveInputs(t, "/myapp"),
 		testLogger(),
 	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
 	if !h.data.Enabled {
 		t.Error("expected Enabled=true when paths are projected")
@@ -92,13 +86,10 @@ func TestNewOCMHandler_WithKeyManager(t *testing.T) {
 		t.Fatalf("failed to generate key: %v", err)
 	}
 
-	in := handlerResolveInputs(t, "https://example.com", "")
+	in := handlerResolveInputs(t, "")
 	in.KeyManager = km
 
-	h, err := newOCMHandler(c, nil, in, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	h := newOCMHandler(c, nil, in, testLogger())
 
 	found := false
 
@@ -122,10 +113,7 @@ func TestNewOCMHandler_Criteria(t *testing.T) {
 	t.Run("default criteria include token exchange", func(t *testing.T) {
 		c := &resolve.ProviderConfig{}
 
-		h, err := newOCMHandler(c, nil, handlerResolveInputs(t, "https://example.com", ""), testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		h := newOCMHandler(c, nil, handlerResolveInputs(t, ""), testLogger())
 
 		if h.data.Criteria == nil {
 			t.Error("expected Criteria to be non-nil")
@@ -153,10 +141,7 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 			CodeFlow: policy.NewCodeFlow(),
 		}
 
-		h, err := newOCMHandler(c, map[string]any{}, resolveIn, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		h := newOCMHandler(c, map[string]any{}, resolveIn, testLogger())
 
 		if h.data.InviteAcceptDialog != "https://cloud.example.com/ocm/ui/accept-invite" {
 			t.Errorf("expected derived inviteAcceptDialog, got %q", h.data.InviteAcceptDialog)
@@ -180,10 +165,7 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 			"invite_accept_dialog": "https://custom.example.com/accept",
 		}
 
-		h, err := newOCMHandler(c, raw, resolveIn, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		h := newOCMHandler(c, raw, resolveIn, testLogger())
 
 		if h.data.InviteAcceptDialog != "https://custom.example.com/accept" {
 			t.Errorf("expected explicit inviteAcceptDialog preserved, got %q", h.data.InviteAcceptDialog)
@@ -198,10 +180,7 @@ func TestNewOCMHandler_InviteAcceptDialogFromRoutes(t *testing.T) {
 			CodeFlow:      policy.NewCodeFlow(),
 		}
 
-		h, err := newOCMHandler(c, map[string]any{}, resolveIn, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		h := newOCMHandler(c, map[string]any{}, resolveIn, testLogger())
 
 		if h.data.InviteAcceptDialog != "" {
 			t.Errorf("expected empty inviteAcceptDialog when invite accept route inactive, got %q", h.data.InviteAcceptDialog)
@@ -222,10 +201,7 @@ func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
 			CodeFlow: policy.NewCodeFlow(),
 		}
 
-		h, err := newOCMHandler(c, nil, in, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		h := newOCMHandler(c, nil, in, testLogger())
 
 		if !h.data.HasCapability("invite-wayf") {
 			t.Error("expected invite-wayf when WAYF route is enabled")
@@ -243,10 +219,7 @@ func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
 			CodeFlow: policy.NewCodeFlow(),
 		}
 
-		h, err := newOCMHandler(c, nil, in, testLogger())
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		h := newOCMHandler(c, nil, in, testLogger())
 
 		if h.data.HasCapability("invite-wayf") {
 			t.Error("did not expect invite-wayf when WAYF route is inactive")
@@ -256,12 +229,9 @@ func TestNewOCMHandler_InviteWAYFCapabilityFromRoute(t *testing.T) {
 
 func TestNewOCMHandler_TruthfulCapabilitySet(t *testing.T) {
 	c := &resolve.ProviderConfig{}
-	in := handlerResolveInputs(t, "https://example.com", "")
+	in := handlerResolveInputs(t, "")
 
-	h, err := newOCMHandler(c, nil, in, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	h := newOCMHandler(c, nil, in, testLogger())
 
 	got := append([]string(nil), h.data.Capabilities...)
 	sort.Strings(got)

@@ -142,15 +142,6 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 	}
 }
 
-func tlsPeerInput(peerURL string) (baseURL, host string) {
-	parsed, err := url.Parse(peerURL)
-	if err != nil {
-		return peerURL, strings.TrimPrefix(strings.TrimPrefix(peerURL, "https://"), "http://")
-	}
-
-	return peerURL, parsed.Host
-}
-
 func (r *strictCodeFlowReceiver) Close() {
 	if r != nil && r.server != nil {
 		r.server.Close()

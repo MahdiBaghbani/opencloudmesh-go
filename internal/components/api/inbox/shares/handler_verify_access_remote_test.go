@@ -20,7 +20,7 @@ import (
 
 func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-ok", "sender.example.com", "hello.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-ok", "sender.example.com", "hello.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	fileContent := "E2E test file content"
@@ -70,7 +70,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 
 func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-fail", "sender.example.com", "missing.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-fail", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
@@ -104,7 +104,7 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 
 func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-signature", "sender.example.com", "missing.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-signature", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
@@ -134,7 +134,7 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 
 func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-disabled", "sender.example.com", "missing.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-disabled", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
@@ -160,7 +160,7 @@ func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T
 
 func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-big", "sender.example.com", "big.bin")
+	share := createAcceptedShareForUser(repo, "prov-va-big", "sender.example.com", "big.bin")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	bigBody := strings.Repeat("x", 5000)
@@ -201,7 +201,7 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 
 func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-remote-err", "sender.example.com", "forbidden.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-remote-err", "sender.example.com", "forbidden.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {

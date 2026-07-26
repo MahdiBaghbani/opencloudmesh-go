@@ -27,7 +27,3 @@ func decodeBase64URL(s string) ([]byte, error) {
 
 	return raw, nil
 }
-
-func encodeBase64URL(raw []byte) string {
-	return base64.RawURLEncoding.EncodeToString(raw)
-}

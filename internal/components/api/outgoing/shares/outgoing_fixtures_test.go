@@ -17,7 +17,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -48,7 +47,7 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			tokenEndPoint := ""
-			if hasCapability(capabilities, "exchange-token") {
+			if hasExchangeTokenCapability(capabilities) {
 				tokenEndPoint = srv.URL + "/ocm/token"
 			}
 
@@ -92,7 +91,7 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			tokenEndPoint := ""
-			if hasCapability(capabilities, "exchange-token") {
+			if hasExchangeTokenCapability(capabilities) {
 				tokenEndPoint = srv.URL + "/ocm/token"
 			}
 
@@ -128,9 +127,9 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 	return srv, postCount, &captured
 }
 
-func hasCapability(capabilities []string, capability string) bool {
+func hasExchangeTokenCapability(capabilities []string) bool {
 	for _, c := range capabilities {
-		if c == capability {
+		if c == "exchange-token" {
 			return true
 		}
 	}
@@ -144,16 +143,6 @@ func makeTLSClients() (*discovery.Client, *httpclient.ContextClient) {
 	raw := httpclient.New(cfg, nil)
 
 	return discovery.NewClient(raw, nil), httpclient.NewContextClient(raw)
-}
-
-// makeNoCacheTLSClients wires a discovery client with caching disabled so that
-// any discovery call reaches the network, letting tests count discovery hits.
-func makeNoCacheTLSClients() (*discovery.Client, *httpclient.ContextClient) {
-	cfg := tshttp.PermissiveConfig()
-	cfg.InsecureSkipVerify = true
-	raw := httpclient.New(cfg, nil)
-
-	return discovery.NewClient(raw, cache.NewNoopCache()), httpclient.NewContextClient(raw)
 }
 
 func createTempShareFile(t *testing.T, pattern string) string {

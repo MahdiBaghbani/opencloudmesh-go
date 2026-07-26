@@ -15,7 +15,7 @@ import (
 
 func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-webdav", "sender.example.com", "file.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-webdav", "sender.example.com", "file.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 

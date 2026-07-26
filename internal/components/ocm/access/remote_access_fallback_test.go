@@ -244,7 +244,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 			slog.SetDefault(capture.Logger)
 			t.Cleanup(func() { slog.SetDefault(prev) })
 
-			client, _ := newExchangeAccessClient(t, srv)
+			client := newExchangeAccessClient(t, srv)
 
 			result, err := client.Access(context.Background(), AccessOptions{
 				Share: &ShareInfo{

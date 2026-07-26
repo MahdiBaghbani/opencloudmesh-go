@@ -26,11 +26,10 @@ type SigningKey struct {
 
 // KeyManager manages signing keys for an OCM instance.
 type KeyManager struct {
-	mu          sync.RWMutex
-	signingKey  *SigningKey
-	keyPath     string
-	keyID       string
-	kidFragment string
+	mu         sync.RWMutex
+	signingKey *SigningKey
+	keyPath    string
+	keyID      string
 }
 
 // NewKeyManager creates a key manager with the default kid fragment.
@@ -45,14 +44,9 @@ func NewKeyManagerWithFragment(keyPath, publicOrigin, kidFragment string) *KeyMa
 		keyID = keyid.BuildKid(publicOrigin, kidFragment)
 	}
 
-	if kidFragment == "" {
-		kidFragment = keyid.DefaultFragment
-	}
-
 	return &KeyManager{
-		keyPath:     keyPath,
-		keyID:       keyID,
-		kidFragment: kidFragment,
+		keyPath: keyPath,
+		keyID:   keyID,
 	}
 }
 
@@ -178,28 +172,6 @@ func (km *KeyManager) JWKS() jwks.Set {
 	return jwks.SetFromEd25519PublicKey(km.signingKey.KeyID, km.signingKey.PublicKey)
 }
 
-// GetPublicKeyPEM returns the public key in PEM format.
-func (km *KeyManager) GetPublicKeyPEM() string {
-	km.mu.RLock()
-	defer km.mu.RUnlock()
-
-	if km.signingKey == nil {
-		return ""
-	}
-
-	pkix, err := x509.MarshalPKIXPublicKey(km.signingKey.PublicKey)
-	if err != nil {
-		return ""
-	}
-
-	block := &pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: pkix,
-	}
-
-	return string(pem.EncodeToMemory(block))
-}
-
 // GetKeyID returns the stable host#fragment kid.
 func (km *KeyManager) GetKeyID() string {
 	return km.keyID
@@ -215,24 +187,4 @@ func (km *KeyManager) Sign(message []byte) ([]byte, error) {
 	}
 
 	return sigalg.Sign(km.signingKey.Algorithm, km.signingKey.PrivateKey, message)
-}
-
-// ParsePublicKeyPEM parses a PEM-encoded public key.
-func ParsePublicKeyPEM(pemData string) (ed25519.PublicKey, error) {
-	block, _ := pem.Decode([]byte(pemData))
-	if block == nil {
-		return nil, errors.New("no PEM block found")
-	}
-
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse public key: %w", err)
-	}
-
-	edPub, ok := pub.(ed25519.PublicKey)
-	if !ok {
-		return nil, errors.New("not an Ed25519 public key")
-	}
-
-	return edPub, nil
 }

@@ -10,8 +10,3 @@ var routeSpecRegistrars []RouteSpecRegistrar
 func RegisterRouteSpecs(registrar RouteSpecRegistrar) {
 	routeSpecRegistrars = append(routeSpecRegistrars, registrar)
 }
-
-// resetRouteSpecRegistrars clears registrars for tests.
-func resetRouteSpecRegistrars() {
-	routeSpecRegistrars = nil
-}

@@ -20,7 +20,7 @@ func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
 		t.Fatalf("ProviderDomain = %q, want cloud.example.com (default port stripped)", id.ProviderDomain)
 	}
 
-	handler, err := ui.NewHandler(id.ExternalBasePath, true, id.ProviderDomain)
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
 }
 
 func TestWayf_ReadsTokenFromQuery(t *testing.T) {
-	handler, err := ui.NewHandler("", true, "alice.example.com")
+	handler, err := ui.NewHandler("", "alice.example.com")
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestWayf_NonDefaultPortPreservedInProviderDomain(t *testing.T) {
 		t.Fatalf("ProviderDomain = %q, want cloud.example.com:9200", id.ProviderDomain)
 	}
 
-	handler, err := ui.NewHandler(id.ExternalBasePath, true, id.ProviderDomain)
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestNewHandler_UsesValidatedExternalBasePath(t *testing.T) {
 		t.Fatalf("Derive: %v", err)
 	}
 
-	handler, err := ui.NewHandler(id.ExternalBasePath, false, id.ProviderDomain)
+	handler, err := ui.NewHandler(id.ExternalBasePath, id.ProviderDomain)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}

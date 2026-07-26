@@ -53,7 +53,7 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	result, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{
@@ -107,7 +107,7 @@ func TestAccess_ExchangeFailureFailsClosed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	_, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{
@@ -179,7 +179,7 @@ func TestAccess_Bearer401ReturnedAsIs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	result, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{
@@ -227,7 +227,7 @@ func TestAccess_Bearer403ReturnedAsIs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	result, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{
@@ -456,7 +456,7 @@ func TestAccess_TokenExchange403FailsClosed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	_, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{

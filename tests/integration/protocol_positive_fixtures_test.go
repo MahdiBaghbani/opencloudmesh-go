@@ -214,7 +214,7 @@ func postSignedJSONWithClient(
 }
 
 func buildSignedInboundShareBody(
-	shareWith, providerID, senderHost, protocolName, webdavURI, sharedSecret string,
+	shareWith, providerID, senderHost, webdavURI, sharedSecret string,
 ) []byte {
 	owner := address.FormatOutgoingOCMAddressFromUserID("step14-owner", senderHost)
 	sender := address.FormatOutgoingOCMAddressFromUserID("step14-sender", senderHost)
@@ -227,7 +227,7 @@ func buildSignedInboundShareBody(
 		ShareType:    "user",
 		ResourceType: "file",
 		Protocol: spec.Protocol{
-			Name: protocolName,
+			Name: "webdav",
 			WebDAV: &spec.WebDAVProtocol{
 				URI:          webdavURI,
 				SharedSecret: sharedSecret,

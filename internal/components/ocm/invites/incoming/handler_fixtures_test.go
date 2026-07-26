@@ -3,18 +3,14 @@ package incoming_test
 import (
 	"bytes"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 )
-
-var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 const (
 	testProvider = "example.com"
@@ -26,7 +22,7 @@ func newTestHandler(repo invitesoutgoing.OutgoingInviteRepo, partyRepo identity.
 		partyRepo = identity.NewMemoryPartyRepo()
 	}
 
-	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testScheme, testLogger)
+	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testScheme)
 }
 
 func postInviteAccepted(handler *incoming.Handler, body string) *httptest.ResponseRecorder {

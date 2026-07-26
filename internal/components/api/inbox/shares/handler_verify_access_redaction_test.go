@@ -18,7 +18,7 @@ import (
 
 func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-redact", "sender.example.com", "redact.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-redact", "sender.example.com", "redact.txt")
 	secret := share.SharedSecret
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -58,7 +58,7 @@ func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 
 func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-redact-ct", "sender.example.com", "ct.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-redact-ct", "sender.example.com", "ct.txt")
 	secret := share.SharedSecret
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -104,7 +104,7 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 
 func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, userAID, "prov-va-redact-status", "sender.example.com", "err.txt")
+	share := createAcceptedShareForUser(repo, "prov-va-redact-status", "sender.example.com", "err.txt")
 	secret := share.SharedSecret
 
 	userA := &identity.User{ID: userAID, Username: "alice"}

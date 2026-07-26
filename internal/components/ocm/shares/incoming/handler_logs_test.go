@@ -48,7 +48,6 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				"localhost:9200",
 				"https",
 				policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil, config.CompatibilityScopeGlobal),
-				capture.Logger,
 			)
 
 			body := validShareBodyWithOwnerAndSenderHosts(

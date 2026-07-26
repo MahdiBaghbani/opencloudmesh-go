@@ -226,7 +226,7 @@ func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing
 // incorrectly match.
 func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := incoming.NewHandler(repo, identity.NewMemoryPartyRepo(), nil, testProvider, "", testLogger)
+	handler := incoming.NewHandler(repo, identity.NewMemoryPartyRepo(), nil, testProvider, "")
 
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:        "empty-origin-token",

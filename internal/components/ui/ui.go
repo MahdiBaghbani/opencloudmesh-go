@@ -13,14 +13,13 @@ var templateFS embed.FS
 // Handler serves UI pages (login, inbox, outgoing, wayf, accept-invite).
 type Handler struct {
 	basePath       string
-	wayfEnabled    bool
 	providerDomain string // published provider domain for WAYF invite links
 	templates      *template.Template
 }
 
 // NewHandler builds a UI handler. basePath and providerDomain come from the
 // validated local identity contract; basePath is already normalized.
-func NewHandler(basePath string, wayfEnabled bool, providerDomain string) (*Handler, error) {
+func NewHandler(basePath string, providerDomain string) (*Handler, error) {
 	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		return nil, err
@@ -28,7 +27,6 @@ func NewHandler(basePath string, wayfEnabled bool, providerDomain string) (*Hand
 
 	return &Handler{
 		basePath:       basePath,
-		wayfEnabled:    wayfEnabled,
 		providerDomain: providerDomain,
 		templates:      tmpl,
 	}, nil

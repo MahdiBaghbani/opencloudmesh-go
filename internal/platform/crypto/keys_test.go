@@ -37,9 +37,9 @@ func TestKeyManager_LoadOrGenerate(t *testing.T) {
 		t.Fatalf("LoadOrGenerate (reload) failed: %v", err)
 	}
 
-	pem1 := km.GetPublicKeyPEM()
+	pem1 := getPublicKeyPEM(km)
 
-	pem2 := km2.GetPublicKeyPEM()
+	pem2 := getPublicKeyPEM(km2)
 	if pem1 != pem2 {
 		t.Error("public keys should match after reload")
 	}
@@ -123,12 +123,12 @@ func TestParsePublicKeyPEM(t *testing.T) {
 		t.Fatalf("LoadOrGenerate failed: %v", err)
 	}
 
-	pem := km.GetPublicKeyPEM()
+	pem := getPublicKeyPEM(km)
 	if pem == "" {
 		t.Fatal("expected non-empty PEM")
 	}
 
-	pub, err := crypto.ParsePublicKeyPEM(pem)
+	pub, err := parsePublicKeyPEM(pem)
 	if err != nil {
 		t.Fatalf("ParsePublicKeyPEM failed: %v", err)
 	}

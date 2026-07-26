@@ -15,15 +15,12 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 		Provider: "TestProvider",
 	}
 
-	h, err := newOCMHandler(
+	h := newOCMHandler(
 		c,
 		nil,
-		handlerResolveInputs(t, "https://example.com", ""),
+		handlerResolveInputs(t, ""),
 		testLogger(),
 	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()
@@ -60,10 +57,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 	c := &resolve.ProviderConfig{}
 
-	h, err := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	h := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()

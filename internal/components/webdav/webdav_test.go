@@ -128,8 +128,8 @@ func unexpiredTestToken(accessToken, shareID string) *token.IssuedToken {
 	}
 }
 
-func seedShare(repo *mockOutgoingShareRepo, shareID string) *sharesoutgoing.OutgoingShare {
-	return seedShareWithRequirements(repo, shareID, nil)
+func seedShare(repo *mockOutgoingShareRepo) *sharesoutgoing.OutgoingShare {
+	return seedShareWithRequirements(repo, "share-1", nil)
 }
 
 func seedShareWithRequirements(repo *mockOutgoingShareRepo, shareID string, requirements []string) *sharesoutgoing.OutgoingShare {
@@ -148,7 +148,7 @@ func seedShareWithRequirements(repo *mockOutgoingShareRepo, shareID string, requ
 func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShare(repo, "share-1")
+	share := seedShare(repo)
 
 	ctx := context.Background()
 	_ = tokenStore.Store(ctx, unexpiredTestToken("exchanged-token-123", share.ShareID))
@@ -164,7 +164,7 @@ func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
 func TestValidateCredential_AcceptsSharedSecretForNonStrict(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShare(repo, "share-1")
+	share := seedShare(repo)
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -190,7 +190,7 @@ func TestValidateCredential_RejectsSharedSecretForStrict(t *testing.T) {
 func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShare(repo, "share-1")
+	share := seedShare(repo)
 
 	ctx := context.Background()
 	_ = tokenStore.Store(ctx, unexpiredTestToken("bound-to-other-share", "other-share"))
@@ -206,7 +206,7 @@ func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
 func TestValidateCredential_RejectsUnknownToken(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShare(repo, "share-1")
+	share := seedShare(repo)
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -259,7 +259,7 @@ func assertBearerWWWAuthenticate(t *testing.T, w *httptest.ResponseRecorder) {
 
 func TestServeHTTP_MissingAuthBearerOnlyChallenge(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
-	_ = seedShare(repo, "share-1")
+	_ = seedShare(repo)
 	handler := NewHandler(repo, newMockTokenStore(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
@@ -282,7 +282,7 @@ func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 	}
 
 	repo := newMockOutgoingShareRepo()
-	share := seedShare(repo, "share-1")
+	share := seedShare(repo)
 	share.LocalPath = filePath
 	_ = repo.Update(context.Background(), share)
 
@@ -303,7 +303,7 @@ func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 
 func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
-	_ = seedShare(repo, "share-1")
+	_ = seedShare(repo)
 	handler := NewHandler(repo, newMockTokenStore(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
@@ -321,7 +321,7 @@ func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
 
 func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
-	_ = seedShare(repo, "share-1")
+	_ = seedShare(repo)
 	tokenStore := newMockTokenStore()
 	_ = tokenStore.Store(context.Background(), &token.IssuedToken{
 		AccessToken: "expired-token",
@@ -345,7 +345,7 @@ func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
 
 func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
-	share := seedShare(repo, "share-1")
+	share := seedShare(repo)
 	tokenStore := newMockTokenStore()
 	_ = tokenStore.Store(context.Background(), unexpiredTestToken(share.SharedSecret, share.ShareID))
 
@@ -375,7 +375,7 @@ func TestServeHTTP_NonStrictSharedSecretSucceeds(t *testing.T) {
 	}
 
 	repo := newMockOutgoingShareRepo()
-	share := seedShare(repo, "share-1")
+	share := seedShare(repo)
 	share.LocalPath = filePath
 	_ = repo.Update(context.Background(), share)
 

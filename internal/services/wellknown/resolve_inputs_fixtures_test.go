@@ -9,7 +9,7 @@ import (
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
-func handlerResolveInputs(t *testing.T, origin, basePath string) resolve.ResolveInputs {
+func handlerResolveInputs(t *testing.T, basePath string) resolve.ResolveInputs {
 	t.Helper()
 
 	opts := service.RouteOpts{ExternalBasePath: basePath}
@@ -18,7 +18,7 @@ func handlerResolveInputs(t *testing.T, origin, basePath string) resolve.Resolve
 	}
 
 	return resolve.ResolveInputs{
-		LocalIdentity: tslocalid.MustTestIdentity(t, origin, basePath),
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://example.com", basePath),
 		RouteOpts:     opts,
 		CodeFlow:      policy.NewCodeFlow(),
 	}

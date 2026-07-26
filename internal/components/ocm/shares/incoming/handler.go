@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 type Handler struct {
@@ -30,7 +28,6 @@ type Handler struct {
 	resolver                    *policy.PeerMappingResolver
 	localProviderFQDNForCompare string
 	localScheme                 string
-	logger                      *slog.Logger
 }
 
 func NewHandler(
@@ -40,10 +37,7 @@ func NewHandler(
 	localProviderFQDNForCompare string,
 	localScheme string,
 	resolver *policy.PeerMappingResolver,
-	logger *slog.Logger,
 ) *Handler {
-	logger = logutil.NoopIfNil(logger)
-
 	return &Handler{
 		repo:                        repo,
 		partyRepo:                   partyRepo,
@@ -51,7 +45,6 @@ func NewHandler(
 		resolver:                    resolver,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
-		logger:                      logger,
 	}
 }
 

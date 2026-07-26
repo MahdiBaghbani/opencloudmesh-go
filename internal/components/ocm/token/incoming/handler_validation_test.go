@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
@@ -18,10 +16,9 @@ import (
 )
 
 func TestHandler_MissingFields(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	tests := []struct {
 		name string
@@ -56,10 +53,9 @@ func TestHandler_MissingFields(t *testing.T) {
 }
 
 func TestHandler_InvalidGrantType(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	form := url.Values{}
 	form.Set("grant_type", "password")
@@ -88,10 +84,9 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 // TestHandler_UnsupportedGrantType_Rejected proves the strict token contract
 // rejects unknown grant types with unsupported_grant_type.
 func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
@@ -119,10 +114,9 @@ func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
 
 // TestHandler_JSONBody_Rejected proves JSON token request bodies are rejected.
 func TestHandler_JSONBody_Rejected(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	body := `{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"secret-code"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
@@ -145,7 +139,6 @@ func TestHandler_JSONBody_Rejected(t *testing.T) {
 }
 
 func TestHandler_ContentTypeValidation(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	tests := []struct {
 		name               string
@@ -210,7 +203,7 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 			tokenStore := token.NewMemoryTokenStore()
-			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 			sharedSecret := "content-type-secret-" + tt.name
 			if tt.wantStatus == http.StatusOK {

@@ -72,7 +72,6 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				nil,
 				testProvider,
 				testScheme,
-				capture.Logger,
 			)
 
 			body, _ := json.Marshal(map[string]string{

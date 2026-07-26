@@ -142,7 +142,7 @@ func createInviteForUser(repo *invitesinbox.MemoryIncomingInviteRepo, recipientU
 	return invite
 }
 
-func buildInviteString(token, providerFQDN string) string {
-	inner := token + "@" + providerFQDN
+func buildInviteString(token string) string {
+	inner := token + "@" + "remote.example.com"
 	return base64.StdEncoding.EncodeToString([]byte(inner))
 }

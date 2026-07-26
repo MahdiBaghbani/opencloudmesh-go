@@ -60,7 +60,7 @@ func (accessMockSigner) Sign(req *http.Request) error {
 func newExchangeAccessClient(
 	t *testing.T,
 	srv *httptest.Server,
-) (*Client, *httpclient.ContextClient) {
+) *Client {
 	t.Helper()
 
 	discClient, ctxClient := newTestClients(srv.URL)
@@ -72,7 +72,7 @@ func newExchangeAccessClient(
 		peerorigin.NewResolver(true),
 	)
 
-	return client, ctxClient
+	return client
 }
 
 func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToken string) bool {

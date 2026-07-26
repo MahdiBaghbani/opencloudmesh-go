@@ -20,7 +20,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
 type Handler struct {
@@ -28,7 +27,6 @@ type Handler struct {
 	partyRepo    identity.PartyRepo
 	policyEngine *peertrust.PolicyEngine // may be nil when peer trust is disabled
 	providerFQDN string
-	logger       *slog.Logger
 	localScheme  string // scheme from PublicOrigin for comparison normalization
 }
 
@@ -40,20 +38,16 @@ func NewHandler(
 	policyEngine *peertrust.PolicyEngine,
 	localProviderDomain string,
 	localScheme string,
-	logger *slog.Logger,
 ) *Handler {
 	if partyRepo == nil {
 		panic("incoming invite handler: partyRepo is required")
 	}
-
-	logger = logutil.NoopIfNil(logger)
 
 	return &Handler{
 		outgoingRepo: outgoingRepo,
 		partyRepo:    partyRepo,
 		policyEngine: policyEngine,
 		providerFQDN: localProviderDomain,
-		logger:       logger,
 		localScheme:  localScheme,
 	}
 }

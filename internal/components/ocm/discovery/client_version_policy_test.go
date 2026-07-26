@@ -167,7 +167,7 @@ func TestClientDiscover_WarnModesUnderAcceptAny(t *testing.T) {
 					t.Fatalf("Discover failed: %v", err)
 				}
 
-				if !hasWarningSubstring(disc.Warnings, "differs from pin") {
+				if !hasDiffersFromPinWarning(disc.Warnings) {
 					t.Fatalf("expected differs-from-pin warning for %s, got %v", v, disc.Warnings)
 				}
 			})

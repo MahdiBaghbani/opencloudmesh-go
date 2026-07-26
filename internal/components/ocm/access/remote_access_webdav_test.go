@@ -64,7 +64,7 @@ func TestAccess_SharedSecretSuccess(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, _ := newExchangeAccessClient(t, srv)
+	client := newExchangeAccessClient(t, srv)
 
 	result, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{

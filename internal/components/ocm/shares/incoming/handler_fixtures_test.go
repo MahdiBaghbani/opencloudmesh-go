@@ -2,8 +2,6 @@ package incoming_test
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
@@ -12,10 +10,6 @@ import (
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
-
-func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-}
 
 func setupTestPartyRepo() identity.PartyRepo {
 	repo := identity.NewMemoryPartyRepo()

@@ -40,13 +40,13 @@ func newTestRouterWithAccess(
 
 func createAcceptedShareForUser(
 	repo *sharesinbox.MemoryIncomingShareRepo,
-	recipientUserID, providerID, senderHost, name string,
+	providerID, senderHost, name string,
 ) *sharesinbox.IncomingShare {
 	share := &sharesinbox.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
-		ShareWith:       recipientUserID + "@example.com",
-		RecipientUserID: recipientUserID,
+		ShareWith:       userAID + "@example.com",
+		RecipientUserID: userAID,
 		Status:          sharesinbox.ShareStatusAccepted,
 		ResourceType:    "file",
 		Name:            name,

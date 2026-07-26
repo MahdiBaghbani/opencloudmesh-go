@@ -45,7 +45,6 @@ func (c *Config) ApplyDefaults() {}
 type Service struct {
 	router          chi.Router
 	conf            *Config
-	log             *slog.Logger
 	outgoingHandler *outgoingshares.Handler
 }
 
@@ -152,7 +151,6 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	s := &Service{
 		router:          r,
 		conf:            &c,
-		log:             log,
 		outgoingHandler: outgoingHandler,
 	}
 

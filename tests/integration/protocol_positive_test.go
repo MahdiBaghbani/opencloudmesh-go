@@ -96,12 +96,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 
 	webdavProviderID := "step14-webdav-inbound-positive"
 	webdavSecret := "step14-webdav-shared-secret"
-	webdavBody := buildSignedInboundShareBody(
-		"admin@"+providerHost,
-		webdavProviderID,
-		consumerHost,
-		"webdav",
-		"webdav-uri-step14",
+	webdavBody := buildSignedInboundShareBody("admin@"+providerHost, webdavProviderID, consumerHost, "webdav-uri-step14",
 		webdavSecret,
 	)
 	consumerSigner := subprocessSigner(t, consumer)

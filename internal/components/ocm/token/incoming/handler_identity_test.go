@@ -3,11 +3,9 @@ package incoming_test
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
@@ -18,7 +16,6 @@ import (
 )
 
 func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
@@ -75,7 +72,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), tt.publicOrigin, logger)
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), tt.publicOrigin)
 
 			share := &sharesoutgoing.OutgoingShare{
 				ProviderID:   "provider-port-test",
@@ -118,10 +115,9 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 // receiver host and the exchange succeeds. An empty scheme would preserve :443
 // and cause an invalid_client mismatch.
 func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "")
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-empty-origin",
@@ -150,13 +146,12 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 }
 
 func TestHandler_NilCodeFlowReturns501(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 
 	nilCodeFlowSettings := &tokenincoming.TokenExchangeSettings{}
 	nilCodeFlowSettings.ApplyDefaults()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, nilCodeFlowSettings, nil, "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, nilCodeFlowSettings, nil, "https://local.example.com")
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -185,10 +180,9 @@ func TestHandler_NilCodeFlowReturns501(t *testing.T) {
 }
 
 func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-match",
@@ -221,10 +215,9 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 }
 
 func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com", logger)
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-identity-mismatch",

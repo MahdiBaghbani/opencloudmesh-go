@@ -130,7 +130,7 @@ func TestBootstrap_EnsureSuperAdmin(t *testing.T) {
 	}
 
 	// Original super admin should still exist
-	user, err = repo.GetByUsername(ctx, "superadmin")
+	_, err = repo.GetByUsername(ctx, "superadmin")
 	if err != nil {
 		t.Fatalf("super admin not found after second call: %v", err)
 	}
