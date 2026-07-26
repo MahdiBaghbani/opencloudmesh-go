@@ -52,6 +52,12 @@ type ResolvedPublicKey struct {
 	JWKAlg    string
 }
 
+// symmetricAlgorithms lists HMAC algorithms. OCM request signatures must use
+// asymmetric algorithms from the IANA "HTTP Signature Algorithms" registry,
+// ed25519 is RECOMMENDED, and symmetric algorithms such as hmac-sha256 MUST
+// NOT be used.
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L852-L856
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1955-L1956
 var symmetricAlgorithms = map[string]struct{}{
 	"hmac-sha256": {},
 	"hmac-sha384": {},
@@ -445,6 +451,10 @@ func PublicKeyFromJWK(kty, crv, x string) (crypto.PublicKey, error) {
 }
 
 // SumSHA256 returns a SHA-256 digest helper for content-digest construction.
+// OCM content-digest values must use a hash from the IANA "Hash Algorithms for
+// HTTP Digest Fields" registry and implementations must support sha-256.
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L837-L840
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1952-L1953
 func SumSHA256(data []byte) []byte {
 	sum := sha256.Sum256(data)
 	return sum[:]
