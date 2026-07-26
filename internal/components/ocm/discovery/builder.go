@@ -60,7 +60,11 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	disc.ResourceTypes = make([]spec.ResourceType, 0, len(spec.SupportedResourceTypes))
 	for _, rtName := range spec.SupportedResourceTypes {
 		disc.ResourceTypes = append(disc.ResourceTypes, spec.ResourceType{
-			Name:       rtName,
+			Name: rtName,
+			// Core OCM share types are "user" and "group"; "federation" is registered by
+			// OCM-MLS, not core OCM (https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1803-L1805).
+			// ocmgo deliberately does not advertise "federation"; it advertises only "user"
+			// because it does not implement group shares.
 			ShareTypes: []string{"user"},
 			Protocols:  protocols,
 		})
