@@ -25,6 +25,8 @@ var peerMappingAllowlist = []string{
 	"internal/components/ocm/discovery/resolve/resolve.go",
 	"internal/components/ocm/discovery/resolve/resolve_routes_test.go",
 	"internal/components/ocm/discovery/resolve/resolve_test.go",
+	"internal/components/ocm/policy/compiler.go",
+	"internal/components/ocm/policy/compiler_test.go",
 	"internal/components/ocm/policy/peer_mapping.go",
 	"internal/components/ocm/policy/peer_mapping_test.go",
 	"internal/components/ocm/shares/incoming/handler.go",
@@ -44,6 +46,7 @@ var peerMappingAllowlist = []string{
 
 // bannedTokens are residue identifiers that must not return.
 var bannedTokens = []string{
+	// PeerCompat was the old PascalCase type/name; TOML key peer_compat remains.
 	"PeerCompat",
 	// ResolveFacts stays as-is (KISS); we are not renaming to PeerProfile or HostFacts.
 	// PeerProfile here guards against that rename churn resurfacing in the tree.
@@ -122,6 +125,8 @@ func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
 		"internal/components/ocm/discovery/resolve/resolve.go",
 		"internal/components/ocm/discovery/resolve/resolve_routes_test.go",
 		"internal/components/ocm/discovery/resolve/resolve_test.go",
+		"internal/components/ocm/policy/compiler.go",
+		"internal/components/ocm/policy/compiler_test.go",
 		"internal/components/ocm/policy/peer_mapping.go",
 		"internal/components/ocm/policy/peer_mapping_test.go",
 		"internal/components/ocm/shares/incoming/handler.go",

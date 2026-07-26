@@ -48,6 +48,7 @@ func TestDiscoveryHelpersUseCriteriaConstants(t *testing.T) {
 var criteriaClosedPathFiles = []string{
 	"internal/components/ocm/spec/discovery.go",
 	"internal/components/ocm/discovery/builder.go",
+	"internal/components/ocm/policy/compiler.go",
 }
 
 var criteriaWireLiterals = []string{

@@ -59,6 +59,7 @@ var requirementClosedPathFiles = []string{
 	"internal/components/ocm/spec/protocol_admission.go",
 	"internal/components/ocm/access/remote.go",
 	"internal/components/ocm/shares/incoming/handler.go",
+	"internal/components/ocm/policy/compiler.go",
 }
 
 var requirementWireLiterals = []string{
