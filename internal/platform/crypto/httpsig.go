@@ -52,17 +52,29 @@ func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 	if len(allowed) == 0 {
 		allowed = sigalg.DefaultAllowed()
 	}
+	// RequiredComponents is intentionally left empty so signer and verifier
+	// constructors apply role-specific defaults: signers default to
+	// AppendixBCoveredComponents() (which includes date, since the signer
+	// sets a Date header when missing and covers it), while verifiers
+	// default to MandatorySignatureComponents() (date-free, since date is a
+	// SHOULD, not a MUST).
+	// See:
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
 	return RFC9421Options{
-		Label:              label,
-		CreatedMaxAge:      maxAge,
-		CreatedMaxSkew:     maxSkew,
-		AllowedAlgorithms:  append([]string(nil), allowed...),
-		RequiredComponents: AppendixBCoveredComponents(),
-		Now:                time.Now,
+		Label:             label,
+		CreatedMaxAge:     maxAge,
+		CreatedMaxSkew:    maxSkew,
+		AllowedAlgorithms: append([]string(nil), allowed...),
+		Now:               time.Now,
 	}
 }
 
 // AppendixBCoveredComponents returns the OCM IETF Appendix B covered set.
+// This is the signer's default covered set: it includes date because the
+// signer sets a Date header when it is missing and therefore covers it.
+// The signing spec says date is a SHOULD component when a Date header is
+// present. See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
 func AppendixBCoveredComponents() []string {
 	return []string{
 		"@method",
@@ -70,6 +82,23 @@ func AppendixBCoveredComponents() []string {
 		"content-digest",
 		"content-length",
 		"date",
+	}
+}
+
+// MandatorySignatureComponents returns the mandatory components a verifier
+// requires a signature to cover. Verifiers reject signatures that omit any
+// of these components or the created parameter. The date component is only
+// a SHOULD under the signing requirements, so it is excluded from the
+// mandatory reject-on-omit set.
+// See:
+//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
+func MandatorySignatureComponents() []string {
+	return []string{
+		"@method",
+		"@target-uri",
+		"content-digest",
+		"content-length",
 	}
 }
 
@@ -179,13 +208,6 @@ func PresentComponents(req *http.Request, components []string) []string {
 	return actual
 }
 
-// RequiredComponentsForRequest returns the Appendix B covered set that must
-// appear in Signature-Input for this request.
-func RequiredComponentsForRequest(req *http.Request, body []byte) []string {
-	_, _ = req, body
-	return AppendixBCoveredComponents()
-}
-
 // RFC9421Verifier verifies HTTP request signatures per RFC 9421.
 type RFC9421Verifier struct {
 	opts RFC9421Options
@@ -208,7 +230,7 @@ func NewRFC9421VerifierWithOptions(opts RFC9421Options) *RFC9421Verifier {
 		opts.AllowedAlgorithms = sigalg.DefaultAllowed()
 	}
 	if len(opts.RequiredComponents) == 0 {
-		opts.RequiredComponents = AppendixBCoveredComponents()
+		opts.RequiredComponents = MandatorySignatureComponents()
 	}
 	return &RFC9421Verifier{opts: opts}
 }
@@ -306,7 +328,13 @@ func (v *RFC9421Verifier) VerifyRequest(
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: reason, Error: err}
 	}
 
-	expectedComponents := RequiredComponentsForRequest(req, body)
+	// Verifier uses its configured mandatory component set (date-free per
+	// MandatorySignatureComponents). date is a SHOULD, not MUST, so it is
+	// not required here.
+	// See:
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
+	expectedComponents := v.opts.RequiredComponents
 	if err := validateRequiredComponents(params.Components, expectedComponents); err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingComponent, Error: err}
 	}

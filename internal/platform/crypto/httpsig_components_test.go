@@ -7,37 +7,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
-
-func TestRequiredComponentsForRequest(t *testing.T) {
-	req := httptest.NewRequest("GET", "https://example.com/ocm/discovery", nil)
-	req.Header.Set("Date", httpsigStandardDate)
-
-	want := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
-	empty := crypto.RequiredComponentsForRequest(req, nil)
-	if len(empty) != len(want) {
-		t.Fatalf("empty body components = %v, want %v", empty, want)
-	}
-	for i, c := range want {
-		if empty[i] != c {
-			t.Fatalf("empty[%d] = %q, want %q", i, empty[i], c)
-		}
-	}
-
-	body := []byte(`{"x":1}`)
-	withBody := crypto.RequiredComponentsForRequest(req, body)
-	if len(withBody) != len(want) {
-		t.Fatalf("body components = %v, want %v", withBody, want)
-	}
-	for i, c := range want {
-		if withBody[i] != c {
-			t.Fatalf("body[%d] = %q, want %q", i, withBody[i], c)
-		}
-	}
-}
 
 func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
 	km := mustHTTPSigKeyManager(t)
@@ -119,10 +91,6 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 			name:       "missing content-length",
 			components: []string{"@method", "@target-uri", "content-digest", "date"},
 		},
-		{
-			name:       "missing date",
-			components: []string{"@method", "@target-uri", "content-digest", "content-length"},
-		},
 	}
 
 	for _, tc := range tests {
@@ -166,5 +134,57 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 				t.Fatal("expected verification failure when a body component is omitted")
 			}
 		})
+	}
+}
+
+func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
+	// Verifier uses the default/config component policy, which defaults to
+	// the date-free mandatory set; date is a SHOULD, not MUST.
+	// See:
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	components := []string{"@method", "@target-uri", "content-digest", "content-length"}
+	req, err := http.NewRequest("GET", "https://example.com/ocm/discovery", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "example.com"
+	req.Header.Set(
+		"Content-Digest",
+		"sha-256=:"+base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))+":",
+	)
+	req.Header.Set("Content-Length", "0")
+	// Intentionally omit the Date header: date is a SHOULD component, not
+	// mandatory for verification.
+
+	sigInput := fmt.Sprintf(
+		`ocm=("%s");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
+		strings.Join(components, `" "`),
+		opts.Now().Unix(),
+		km.GetKeyID(),
+	)
+	sigBase, err := crypto.BuildSignatureBase(req, components)
+	if err != nil {
+		t.Fatalf("BuildSignatureBase: %v", err)
+	}
+	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+	fullBase := sigBase + fmt.Sprintf(`"@signature-params": %s`, paramsRaw)
+	sig, err := km.Sign([]byte(fullBase))
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	req.Header.Set("Signature-Input", sigInput)
+	req.Header.Set(
+		"Signature",
+		fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)),
+	)
+
+	result := verifier.VerifyRequest(req, nil, httpsigEd25519KeyFetcher(km))
+	if !result.Verified {
+		t.Fatalf("expected verification success when date is omitted: %v", result.Error)
 	}
 }
