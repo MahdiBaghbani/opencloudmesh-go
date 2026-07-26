@@ -7,7 +7,6 @@ package outbound
 type EndpointKind string
 
 const (
-	EndpointShares        EndpointKind = "shares"
-	EndpointInvites       EndpointKind = "invites"
-	EndpointTokenExchange EndpointKind = "token-exchange"
+	EndpointShares  EndpointKind = "shares"
+	EndpointInvites EndpointKind = "invites"
 )

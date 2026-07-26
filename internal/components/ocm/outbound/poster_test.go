@@ -105,27 +105,6 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 	}
 }
 
-func TestSendResolved_NilSignerRejectsTokenExchange(t *testing.T) {
-	hc := &captureHTTPClient{}
-	poster := outbound.NewPoster(hc, nil, nil, nil)
-
-	_, err := poster.SendResolved(context.Background(), outbound.Request{
-		TargetHost:   "peer.example",
-		EndpointPath: "token",
-		Kind:         outbound.EndpointTokenExchange,
-		Body:         []byte(`{}`),
-	}, outbound.ResolvedPeer{
-		Discovery: httpSigDiscovery(),
-	})
-	if err == nil {
-		t.Fatal("expected error when token-exchange dispatch has nil signer")
-	}
-
-	if hc.calls != 0 {
-		t.Fatalf("expected no HTTP send on signing error, got %d calls", hc.calls)
-	}
-}
-
 func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)

@@ -113,7 +113,7 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 
 func (p *Poster) applySigning(httpReq *http.Request, req Request, disc *spec.Discovery) error {
 	switch req.Kind {
-	case EndpointShares, EndpointInvites, EndpointTokenExchange:
+	case EndpointShares, EndpointInvites:
 		// Only sign when the peer advertises the http-sig capability.
 		// A server implementing http-sig MUST use it when interacting with a
 		// peer advertising http-sig, and MAY interact unsigned with a peer not
