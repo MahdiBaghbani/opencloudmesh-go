@@ -327,6 +327,7 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 	}))
 	defer proxy.Close()
 
+	t.Setenv("REQUEST_METHOD", "")
 	t.Setenv("HTTP_PROXY", proxy.URL)
 	t.Setenv("http_proxy", proxy.URL)
 	t.Setenv("HTTPS_PROXY", "")
@@ -349,7 +350,7 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 			[]int{80},
 		),
 	}
-	cfg.ProxyEnvFallback = true
+	cfg.UseEnvFallback = true
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 

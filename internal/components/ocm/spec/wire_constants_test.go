@@ -45,12 +45,11 @@ var wireLiteralSet = []string{
 // wireLiteralAllowlist enumerates file/line exceptions where a raw value from
 // wireLiteralSet appears in production code but is not an OCM wire literal
 // owned by spec (e.g., service identifiers, route/build keys, or constants in
-// packages owned by prior tasks). New exceptions must be added explicitly;
+// packages outside spec that still carry wire-like strings). New exceptions must be added explicitly;
 // wildcards are not allowed.
 var wireLiteralAllowlist = map[string]map[int]struct{}{
 	"internal/components/ocm/access/remote.go": {
-		// ProtocolWebDAV constant; shifted from line 32 to 30 after removing
-		// dead webapp-plane imports (strings, localidentity) in the Q2 fork.
+		// ProtocolWebDAV constant; line moved after removing unused webapp-plane imports.
 		30: {},
 	},
 	"internal/components/ocm/outbound/kinds.go": {
@@ -76,7 +75,8 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		58: {},
 	},
 	"internal/platform/config/loader.go": {
-		668: {},
+		// Line shifted after clarifying the env-overrides precedence comment.
+		687: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		4: {},

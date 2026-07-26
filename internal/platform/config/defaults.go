@@ -36,7 +36,7 @@ const (
 	DefaultPeerTrustCacheMaxStaleSeconds = 604800 // 7 days
 )
 
-// HTTP signature defaults (RFC 9421 / OCM IETF Appendix B).
+// HTTP signature defaults (https://www.rfc-editor.org/rfc/rfc9421.html; OCM Appendix B: https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#L2047).
 const (
 	DefaultSignatureLabel          = sigparams.SignatureLabelOCM
 	DefaultSignatureKidFragment    = "key1"
@@ -67,8 +67,10 @@ func TestHarnessOutboundHTTP() *OutboundHTTPConfig {
 }
 
 // DefaultOutboundHTTP returns the strict preset outbound HTTP baseline.
-// Callers that need non-ambient proxy behavior (for example client.New(nil))
-// should use OutboundHTTPConfigStrict instead.
+// use_env_fallback defaults to false: ambient HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+// are ignored unless the operator explicitly opts in via the config field or
+// its environment-variable override. The returned config is already non-ambient,
+// so callers do not need a separate strict variant to avoid env proxy discovery.
 func DefaultOutboundHTTP() OutboundHTTPConfig {
 	return OutboundHTTPConfig{
 		SSRF:               SSRFConfig{Mode: "strict"},
@@ -77,7 +79,7 @@ func DefaultOutboundHTTP() OutboundHTTPConfig {
 		MaxRedirects:       DefaultOutboundMaxRedirects,
 		MaxResponseBytes:   DefaultMaxResponseBytes,
 		InsecureSkipVerify: false,
-		ProxyEnvFallback:   true,
+		UseEnvFallback:     false,
 	}
 }
 

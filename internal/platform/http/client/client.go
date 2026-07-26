@@ -49,10 +49,10 @@ type Client struct {
 // New creates a new safe HTTP client.
 // Proxy selection precedence:
 //   - cfg.ProxyURL set: all requests route through this explicit proxy; env vars ignored.
-//   - cfg.ProxyURL empty and cfg.ProxyEnvFallback true: HTTP_PROXY, HTTPS_PROXY, and
-//     NO_PROXY env vars are read once at New() time and honored for all requests.
-//     To pick up env changes, recreate the client.
-//   - cfg.ProxyURL empty and cfg.ProxyEnvFallback false: requests go direct; env
+//   - cfg.ProxyURL empty and cfg.UseEnvFallback (use_env_fallback) true:
+//     HTTP_PROXY, HTTPS_PROXY, and NO_PROXY env vars are read once at New() time
+//     and honored for all requests. To pick up env changes, recreate the client.
+//   - cfg.ProxyURL empty and cfg.UseEnvFallback false: requests go direct; env
 //     proxy vars are ignored.
 //
 // Destination SSRF checks always apply in strict mode regardless of proxy routing.

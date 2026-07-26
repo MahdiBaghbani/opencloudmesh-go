@@ -320,23 +320,24 @@ type OutboundHTTPConfig struct {
 	// Must be an absolute http or https URL with no userinfo.
 	// When set, the proxy host is operator-trusted; private and loopback
 	// addresses are permitted.
-	// When set, proxy_url takes precedence over proxy_env_fallback; the
+	// When set, proxy_url takes precedence over use_env_fallback; the
 	// explicit URL is used and environment variables are not consulted.
 	ProxyURL string `toml:"proxy_url"`
 
-	// ProxyEnvFallback enables reading HTTP_PROXY/HTTPS_PROXY/NO_PROXY from
-	// the environment when proxy_url is not set.
-	// Default: true for strict preset, false for dev preset.
-	// Set to false to disable environment-based proxy discovery entirely.
-	ProxyEnvFallback bool `toml:"proxy_env_fallback"`
+	// UseEnvFallback (config key use_env_fallback) enables reading
+	// HTTP_PROXY/HTTPS_PROXY/NO_PROXY from the environment when proxy_url is
+	// not set. Default: false in all presets. Set to true to opt in to
+	// ambient proxy discovery, or set the
+	// OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK environment variable.
+	UseEnvFallback bool `toml:"use_env_fallback"`
 }
 
 // OutboundHTTPConfigStrict returns strict outbound HTTP config for production.
-// ProxyEnvFallback is false so programmatic callers do not inherit ambient env
-// proxy settings unless explicitly configured.
+// UseEnvFallback (use_env_fallback) is false so programmatic callers do not
+// inherit ambient env proxy settings unless explicitly configured.
 func OutboundHTTPConfigStrict() OutboundHTTPConfig {
 	cfg := DefaultOutboundHTTP()
-	cfg.ProxyEnvFallback = false
+	cfg.UseEnvFallback = false
 	return cfg
 }
 
@@ -397,7 +398,7 @@ func (c *Config) Redacted() string {
 	sb.WriteString(fmt.Sprintf("    MaxResponseBytes: %d,\n", c.OutboundHTTP.MaxResponseBytes))
 	sb.WriteString(fmt.Sprintf("    InsecureSkipVerify: %v,\n", c.OutboundHTTP.InsecureSkipVerify))
 	sb.WriteString(fmt.Sprintf("    ProxyURL: %q,\n", c.OutboundHTTP.ProxyURL))
-	sb.WriteString(fmt.Sprintf("    ProxyEnvFallback: %v,\n", c.OutboundHTTP.ProxyEnvFallback))
+	sb.WriteString(fmt.Sprintf("    UseEnvFallback: %v,\n", c.OutboundHTTP.UseEnvFallback))
 	sb.WriteString("  },\n")
 	sb.WriteString("  Signature: {\n")
 	sb.WriteString(fmt.Sprintf("    KeyPath: %q,\n", c.Signature.KeyPath))

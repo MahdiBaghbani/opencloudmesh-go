@@ -26,7 +26,7 @@ const DefaultShutdownWait = config.DefaultTestShutdownWait
 func PermissiveConfig() *config.OutboundHTTPConfig {
 	return &config.OutboundHTTPConfig{
 		SSRF:             config.SSRFConfig{Mode: "off"},
-		ProxyEnvFallback: false,
+		UseEnvFallback:   false,
 		TimeoutMS:        TestOutboundTimeoutMS,
 		ConnectTimeoutMS: TestOutboundConnectMS,
 		MaxRedirects:     config.DefaultOutboundMaxRedirects,

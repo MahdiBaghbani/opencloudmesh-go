@@ -1,5 +1,11 @@
 package config
 
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
 // ssrfFileConfig mirrors SSRFConfig for TOML decoding.
 type ssrfFileConfig struct {
 	Mode          string                           `toml:"mode"`
@@ -8,9 +14,8 @@ type ssrfFileConfig struct {
 }
 
 // outboundHTTPFileConfig mirrors OutboundHTTPConfig for TOML decoding, using
-// *bool for proxy_env_fallback so an omitted key preserves the preset,
-// an explicit false can opt out of a preset that defaults true (e.g. strict),
-// and an explicit true can opt in from a preset that defaults false (e.g. dev).
+// *bool for use_env_fallback so an omitted key preserves the preset and an
+// explicit true can opt in to ambient proxy discovery.
 type outboundHTTPFileConfig struct {
 	SSRF               *ssrfFileConfig `toml:"ssrf"`
 	TimeoutMS          int             `toml:"timeout_ms"`
@@ -21,7 +26,7 @@ type outboundHTTPFileConfig struct {
 	TLSRootCAFile      string          `toml:"tls_root_ca_file"`
 	TLSRootCADir       string          `toml:"tls_root_ca_dir"`
 	ProxyURL           string          `toml:"proxy_url"`
-	ProxyEnvFallback   *bool           `toml:"proxy_env_fallback"`
+	UseEnvFallback     *bool           `toml:"use_env_fallback"`
 }
 
 // persistenceFileConfig holds persistence settings from TOML.
@@ -212,8 +217,8 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		if fc.OutboundHTTP.ProxyURL != "" {
 			cfg.OutboundHTTP.ProxyURL = fc.OutboundHTTP.ProxyURL
 		}
-		if fc.OutboundHTTP.ProxyEnvFallback != nil {
-			cfg.OutboundHTTP.ProxyEnvFallback = *fc.OutboundHTTP.ProxyEnvFallback
+		if fc.OutboundHTTP.UseEnvFallback != nil {
+			cfg.OutboundHTTP.UseEnvFallback = *fc.OutboundHTTP.UseEnvFallback
 		}
 	}
 
@@ -358,6 +363,33 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 			cfg.OCM.PeerMapping.Platform = fc.OCM.PeerMapping.Platform
 		}
 	}
+}
+
+// EnvOutboundHTTPUseEnvFallback is the environment-variable name that overrides
+// the outbound_http.use_env_fallback TOML key at load time via applyEnvOverrides.
+// use_env_fallback has no CLI flag, so the env override sits directly above the
+// TOML value in the precedence order. Exported so callers that scrub or set the
+// environment (for example the integration harness hermetic blocklist) reuse
+// the single canonical name instead of duplicating the raw literal.
+const EnvOutboundHTTPUseEnvFallback = "OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK"
+
+// applyEnvOverrides applies environment-variable overrides onto cfg. An env var
+// overrides the TOML value for its key, and the CLI flag value when a CLI flag
+// exists for that key (use_env_fallback has no CLI flag, so its env override
+// applies directly on top of TOML).
+func applyEnvOverrides(cfg *Config) error {
+	if raw := os.Getenv(EnvOutboundHTTPUseEnvFallback); raw != "" {
+		val, err := strconv.ParseBool(raw)
+		if err != nil {
+			return fmt.Errorf(
+				"invalid %s %q: must be a boolean",
+				EnvOutboundHTTPUseEnvFallback,
+				raw,
+			)
+		}
+		cfg.OutboundHTTP.UseEnvFallback = val
+	}
+	return nil
 }
 
 // overlayFlags applies CLI flag values onto cfg.

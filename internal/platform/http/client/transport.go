@@ -27,7 +27,7 @@ import (
 // buildProxyFunc builds the request-aware proxy function and the set of trusted
 // proxy hosts from the outbound config.
 //
-// Precedence: explicit ProxyURL > env fallback > direct (nil proxy).
+// Precedence: explicit ProxyURL > use_env_fallback > direct (nil proxy).
 //
 // trustedProxyHosts is used at dial time to skip the SSRF check only for
 // dials that go to an operator-trusted proxy host. All other dials -
@@ -42,13 +42,14 @@ func buildProxyFunc(cfg *config.OutboundHTTPConfig) (func(*http.Request) (*url.U
 
 	switch {
 	case cfg.ProxyURL != "":
-		// Explicit proxy wins; env vars are ignored even if ProxyEnvFallback is set.
+		// Explicit proxy wins; env vars are ignored even if use_env_fallback is set.
 		if p, err := url.Parse(cfg.ProxyURL); err == nil {
 			proxyFunc = http.ProxyURL(p)
 			trustedHosts[strings.ToLower(p.Hostname())] = struct{}{}
 		}
-	case cfg.ProxyEnvFallback:
-		// Snapshot the proxy configuration from the environment at New() time.
+	case cfg.UseEnvFallback:
+		// use_env_fallback is enabled: snapshot the proxy configuration from
+		// the environment at New() time.
 		// Both routing and trusted-host extraction use the same snapshot so
 		// their behavior is consistent for the lifetime of this client.
 		// To pick up env changes (proxy or NO_PROXY), recreate the client.

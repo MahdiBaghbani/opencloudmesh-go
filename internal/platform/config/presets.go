@@ -97,7 +97,11 @@ func StrictConfig() *Config {
 		},
 		OCM: OCMConfig{
 			CompatibilityScope: CompatibilityScopeGlobal,
-			Discovery:          DefaultDiscoveryConfig(),
+			// Discovery defaults accept any peer apiVersion with a warning on
+			// differences. This is intentional ocmgo posture, not spec-compliance:
+			// apiVersion is informative in OCM (https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#L626-L629), so
+			// strict-by-default rejection is not required.
+			Discovery: DefaultDiscoveryConfig(),
 		},
 	}
 	if err := normalizeSignatureConfig(&cfg.Signature); err != nil {
@@ -121,7 +125,7 @@ func DevConfig() *Config {
 	cfg.OutboundHTTP.SSRF.Mode = "off"
 	cfg.OutboundHTTP.MaxRedirects = 3
 	cfg.OutboundHTTP.InsecureSkipVerify = true
-	cfg.OutboundHTTP.ProxyEnvFallback = false
+	cfg.OutboundHTTP.UseEnvFallback = false
 	cfg.Logging.Level = "debug"
 	return cfg
 }

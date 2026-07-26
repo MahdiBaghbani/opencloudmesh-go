@@ -204,12 +204,12 @@ func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 
 	// Source: strict mode inherits SSRF strict by default. The route policy explicitly allows the
 	// local hostname, 127.0.0.0/8, and the target's port.
-	// proxy_env_fallback is disabled so ambient HTTP_PROXY/HTTPS_PROXY env vars
+	// use_env_fallback is disabled so ambient HTTP_PROXY/HTTPS_PROXY env vars
 	// cannot interfere with the loopback discovery request.
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                    "ssrf-cidr-source",
-		Mode:                    "strict",
-		DisableProxyEnvFallback: true,
+		Name:                  "ssrf-cidr-source",
+		Mode:                  "strict",
+		DisableUseEnvFallback: true,
 		ExtraConfig: fmt.Sprintf(`
 [outbound_http.ssrf]
 mode = "strict"
@@ -311,11 +311,11 @@ func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
 	defer target.Stop(t)
 
 	// Source: strict mode, no route policy override. 127.0.0.1 stays blocked by
-	// strict SSRF defaults. proxy_env_fallback disabled for a hermetic client call.
+	// strict SSRF defaults. use_env_fallback disabled for a hermetic client call.
 	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:                    "ssrf-control-source",
-		Mode:                    "strict",
-		DisableProxyEnvFallback: true,
+		Name:                  "ssrf-control-source",
+		Mode:                  "strict",
+		DisableUseEnvFallback: true,
 	})
 	defer source.Stop(t)
 

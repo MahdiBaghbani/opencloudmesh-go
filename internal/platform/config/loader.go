@@ -45,12 +45,26 @@ type FlagOverrides struct {
 	TokenExchangePath *string
 }
 
-// Load loads configuration with the following precedence:
+// Load loads configuration with the following precedence (lowest to highest):
 //  1. Determine effective mode: --mode flag > mode in config file > default (strict)
 //  2. Start from mode preset defaults
-//  3. Overlay TOML config file values
-//  4. Overlay CLI flags
-//  5. Validate enum fields
+//  3. Overlay TOML config file values (file overrides preset defaults)
+//  4. Overlay CLI flags (flags override file values)
+//  5. Overlay environment-variable overrides (env overrides both CLI flags
+//     and TOML file values; env is the highest layer)
+//  6. Validate enum fields
+//
+// Per-key precedence, from lowest to highest:
+//   - the mode preset/default applies when the key is absent from the TOML
+//     file, the CLI flags, and the environment;
+//   - the TOML file value overrides the preset/default when set;
+//   - CLI flags override the TOML file value when set (only keys with a flag);
+//   - OCM_CONFIG_* environment variables override the CLI flag value (when a
+//     flag exists for that key) and the TOML value, so env is the highest layer.
+//
+// An empty/unset OCM_CONFIG_* env var leaves the prior layer's value intact;
+// a non-empty env var replaces it. See applyEnvOverrides for the supported
+// variable list, which today includes OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK.
 //
 // If ConfigPath is provided but the file is missing, unreadable, or invalid TOML,
 // Load returns an error (fail fast). Unknown/undecoded TOML keys fail the load.
@@ -118,6 +132,11 @@ func Load(opts LoaderOptions) (*Config, error) {
 
 	// Overlay CLI flag overrides.
 	overlayFlags(cfg, opts.FlagOverrides)
+
+	// Overlay environment-variable overrides.
+	if err := applyEnvOverrides(cfg); err != nil {
+		return nil, err
+	}
 
 	if err := normalizePeerMappingConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid peer_compat configuration: %w", err)

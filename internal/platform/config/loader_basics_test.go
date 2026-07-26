@@ -35,6 +35,8 @@ func TestParseMode(t *testing.T) {
 }
 
 func TestLoad_NoConfigFile(t *testing.T) {
+	// Clear ambient env override so the strict preset defaults are deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -49,6 +51,8 @@ func TestLoad_NoConfigFile(t *testing.T) {
 }
 
 func TestLoad_ModeFlag(t *testing.T) {
+	// Clear ambient env override so the dev preset shape is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{ModeFlag: "dev"})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -66,6 +70,8 @@ func TestLoad_ModeFlag(t *testing.T) {
 }
 
 func TestLoad_ConfigFile(t *testing.T) {
+	// Clear ambient env override so the TOML-driven values are deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	tomlContent := `
 mode = "dev"
 public_origin = "https://example.com:8443"
@@ -118,6 +124,8 @@ mode = "strict"
 }
 
 func TestLoad_Precedence_FlagsOverrideConfigFile(t *testing.T) {
+	// Clear ambient env override so flag-over-file precedence is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	tomlContent := `
 mode = "dev"
 public_origin = "https://from-toml.com"
@@ -145,6 +153,8 @@ listen_addr = ":9000"
 }
 
 func TestLoad_ModeFlag_OverridesConfigFileMode(t *testing.T) {
+	// Clear ambient env override so the flag-over-file mode win is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	tomlContent := `
 mode = "dev"
 `
@@ -167,6 +177,8 @@ mode = "dev"
 }
 
 func TestLoad_MissingConfigFile_FailsFast(t *testing.T) {
+	// Clear ambient env override so the read error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	_, err := Load(LoaderOptions{ConfigPath: "/nonexistent/path/config.toml"})
 	if err == nil {
 		t.Fatal("expected error for missing config file")
@@ -177,6 +189,8 @@ func TestLoad_MissingConfigFile_FailsFast(t *testing.T) {
 }
 
 func TestLoad_InvalidTOML_FailsFast(t *testing.T) {
+	// Clear ambient env override so the parse error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	configPath := writeTempConfig(t, "this is not valid toml [[[")
 
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
@@ -189,6 +203,8 @@ func TestLoad_InvalidTOML_FailsFast(t *testing.T) {
 }
 
 func TestLoad_InvalidMode_FailsFast(t *testing.T) {
+	// Clear ambient env override so the mode validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	invalidModes := []string{"invalid"}
 	for _, mode := range invalidModes {
 		_, err := Load(LoaderOptions{ModeFlag: mode})
@@ -254,7 +270,7 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		{"OutboundHTTP.SSRF.Mode", dev.OutboundHTTP.SSRF.Mode, "off"},
 		{"OutboundHTTP.MaxRedirects", dev.OutboundHTTP.MaxRedirects, 3},
 		{"OutboundHTTP.InsecureSkipVerify", dev.OutboundHTTP.InsecureSkipVerify, true},
-		{"OutboundHTTP.ProxyEnvFallback", dev.OutboundHTTP.ProxyEnvFallback, false},
+		{"OutboundHTTP.UseEnvFallback", dev.OutboundHTTP.UseEnvFallback, false},
 		{"Logging.Level", dev.Logging.Level, "debug"},
 	}
 	for _, d := range deltas {

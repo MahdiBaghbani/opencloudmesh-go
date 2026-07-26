@@ -33,15 +33,15 @@ type SubprocessServer struct {
 
 // SubprocessConfig contains configuration for starting a subprocess server.
 type SubprocessConfig struct {
-	Name                    string
-	Mode                    string            // dev or strict
-	Port                    int               // when non-zero, binds listen_addr to this port
-	DisableProxyEnvFallback bool              // when true, emits proxy_env_fallback = false in [outbound_http]
-	TLSRootCAFile           string            // when set, adds tls_root_ca_file under [outbound_http]
-	BootstrapAdminPassword  string            // when set, adds password under [server.bootstrap_admin]
-	PublicOriginHost        string            // when set, overrides localhost in generated public_origin
-	ExtraConfig             string            // Additional TOML config to append
-	ExtraFiles              map[string]string // Extra files to write to tempDir: {relativePath: contents}
+	Name                   string
+	Mode                   string            // dev or strict
+	Port                   int               // when non-zero, binds listen_addr to this port
+	DisableUseEnvFallback  bool              // when true, emits use_env_fallback = false in [outbound_http]
+	TLSRootCAFile          string            // when set, adds tls_root_ca_file under [outbound_http]
+	BootstrapAdminPassword string            // when set, adds password under [server.bootstrap_admin]
+	PublicOriginHost       string            // when set, overrides localhost in generated public_origin
+	ExtraConfig            string            // Additional TOML config to append
+	ExtraFiles             map[string]string // Extra files to write to tempDir: {relativePath: contents}
 }
 
 // BuildBinary builds the opencloudmesh-go binary for testing.
@@ -149,7 +149,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		port,
 		tempDir,
 		cfg.Mode,
-		cfg.DisableProxyEnvFallback,
+		cfg.DisableUseEnvFallback,
 		cfg.TLSRootCAFile,
 		cfg.BootstrapAdminPassword,
 		cfg.PublicOriginHost,
@@ -187,6 +187,14 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = tempDir
+	// Scrub OCM_CONFIG_* env vars that would override the rendered config at
+	// runtime and break the hermetic intent of the subprocess. The harness
+	// renders every behavior-relevant knob into config.toml; an ambient env
+	// override leaking from the test runner's environment could change the
+	// subprocess's effective config (for example OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK
+	// flipping the env-proxy fallback the test did not ask for). All other env
+	// vars (PATH, HOME, etc.) are inherited unchanged so the binary still runs.
+	cmd.Env = scrubSubprocessEnv(os.Environ())
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
@@ -332,9 +340,23 @@ var subprocessChdirMu sync.Mutex
 // TLS CA paths) resolve against dataDir. We temporarily switch to dataDir while
 // loading so the harness derives the identical effective config -- including the
 // final TLS mode and external base path -- that the running subprocess uses.
+//
+// The load is hermetic against ambient OCM_CONFIG_* environment overrides: the
+// same hermeticEnvBlocklist entries the child-side scrubSubprocessEnv strips
+// from the subprocess env are temporarily unset in the parent process for the
+// duration of config.Load, so the parent derives the effective config solely
+// from the rendered config.toml and the mode preset. This matters because
+// applyEnvOverrides reads os.Getenv directly, so an ambient
+// OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK (or any future OCM_CONFIG_* knob
+// added to the blocklist) set by the test runner could otherwise flip the
+// parent's view of the subprocess's effective config and break the harness's
+// rendered config.toml contract.
 func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, error) {
 	subprocessChdirMu.Lock()
 	defer subprocessChdirMu.Unlock()
+
+	restoreEnv := scrubParentConfigEnv()
+	defer restoreEnv()
 
 	prevDir, err := os.Getwd()
 	if err != nil {
@@ -346,6 +368,72 @@ func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, 
 	defer func() { _ = os.Chdir(prevDir) }()
 
 	return config.Load(config.LoaderOptions{ConfigPath: configPath})
+}
+
+// scrubParentConfigEnv temporarily unsets every OCM_CONFIG_* environment
+// variable in the current process that the harness blocklists, so a parent-side
+// config.Load cannot be influenced by ambient test-runner values. It returns a
+// restore function that re-applies the prior values. Callers must hold
+// subprocessChdirMu while scrubbing and restoring so concurrent harness callers
+// do not race on the process environment; the harness runs serially, but
+// os.Setenv/Unsetenv are process-global and shared with the chdir guard.
+//
+// The parent scrub uses the same hermeticEnvBlocklist as the child-side
+// scrubSubprocessEnv so the two stay in sync: any OCM_CONFIG_* knob added to
+// the blocklist is scrubbed from both the parent load and the child env.
+func scrubParentConfigEnv() func() {
+	block := make(map[string]struct{}, len(hermeticEnvBlocklist))
+	for _, k := range hermeticEnvBlocklist {
+		block[k] = struct{}{}
+	}
+	var saved []string
+	for _, kv := range os.Environ() {
+		key, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		if _, drop := block[key]; drop {
+			saved = append(saved, kv)
+			_ = os.Unsetenv(key)
+		}
+	}
+	return func() {
+		for _, kv := range saved {
+			key, value, ok := strings.Cut(kv, "=")
+			if !ok {
+				continue
+			}
+			_ = os.Setenv(key, value)
+		}
+	}
+}
+
+// hermeticEnvBlocklist is the set of OCM_CONFIG_* environment variables that
+// must not leak from the test runner into a hermetic subprocess. Each entry
+// overrides a config knob at runtime via applyEnvOverrides, so an ambient value
+// could silently change the subprocess's effective config and break the
+// harness's rendered config.toml contract.
+var hermeticEnvBlocklist = []string{
+	config.EnvOutboundHTTPUseEnvFallback,
+}
+
+// scrubSubprocessEnv returns env with the hermetic blocklist entries removed.
+// It preserves all other environment variables (PATH, HOME, etc.) so the binary
+// still runs. Both "KEY=VALUE" and bare "KEY" forms are stripped.
+func scrubSubprocessEnv(env []string) []string {
+	block := make(map[string]struct{}, len(hermeticEnvBlocklist))
+	for _, k := range hermeticEnvBlocklist {
+		block[k] = struct{}{}
+	}
+	scrubbed := make([]string, 0, len(env))
+	for _, kv := range env {
+		key, _, _ := strings.Cut(kv, "=")
+		if _, drop := block[key]; drop {
+			continue
+		}
+		scrubbed = append(scrubbed, kv)
+	}
+	return scrubbed
 }
 
 // needsSecureTransport reports whether the mode requires HTTPS listener transport.
@@ -424,7 +512,7 @@ func extraDefinesPublicOrigin(extra string) bool {
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode string, disableProxyEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
+func generateTOMLConfig(name string, port int, dataDir, mode string, disableUseEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
 	secure := needsSecureTransport(mode)
 
 	// Derive the scheme for the generated default public_origin from the FINAL
@@ -523,8 +611,8 @@ insecure_skip_verify = true
 `
 	}
 
-	if disableProxyEnvFallback {
-		config += "proxy_env_fallback = false\n"
+	if disableUseEnvFallback {
+		config += "use_env_fallback = false\n"
 	}
 
 	if strings.TrimSpace(tlsRootCAFile) != "" {

@@ -95,12 +95,12 @@ func TestStrictPreset_FinalShape(t *testing.T) {
 	}
 	if cfg.OutboundHTTP.MaxRedirects != config.DefaultOutboundMaxRedirects ||
 		cfg.OutboundHTTP.InsecureSkipVerify ||
-		!cfg.OutboundHTTP.ProxyEnvFallback {
+		cfg.OutboundHTTP.UseEnvFallback {
 		t.Errorf(
-			"strict outbound transport = redirects:%d skip_verify:%t proxy_env:%t",
+			"strict outbound transport = redirects:%d skip_verify:%t use_env_fallback:%t",
 			cfg.OutboundHTTP.MaxRedirects,
 			cfg.OutboundHTTP.InsecureSkipVerify,
-			cfg.OutboundHTTP.ProxyEnvFallback,
+			cfg.OutboundHTTP.UseEnvFallback,
 		)
 	}
 
@@ -109,6 +109,29 @@ func TestStrictPreset_FinalShape(t *testing.T) {
 		cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement != nil ||
 		cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures != nil {
 		t.Fatalf("strict preset code-flow knobs must stay unset, got %+v", cfg.OCM.CodeFlow)
+	}
+}
+
+func TestStrictPreset_UseEnvFallbackExplicitOptIn(t *testing.T) {
+	// Strict default is false; explicit use_env_fallback=true opts in.
+	// Clear ambient env override so the TOML opt-in is not silently flipped.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "strict-env-fallback.toml")
+	content := `mode = "strict"
+
+[outbound_http]
+use_env_fallback = true
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := config.Load(config.LoaderOptions{ConfigPath: path})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.OutboundHTTP.UseEnvFallback {
+		t.Error("explicit use_env_fallback=true must opt in from strict default")
 	}
 }
 
@@ -133,12 +156,12 @@ func TestDevPreset_FinalShape(t *testing.T) {
 	}
 	if cfg.OutboundHTTP.MaxRedirects != 3 ||
 		!cfg.OutboundHTTP.InsecureSkipVerify ||
-		cfg.OutboundHTTP.ProxyEnvFallback {
+		cfg.OutboundHTTP.UseEnvFallback {
 		t.Errorf(
-			"dev outbound transport = redirects:%d skip_verify:%t proxy_env:%t",
+			"dev outbound transport = redirects:%d skip_verify:%t use_env_fallback:%t",
 			cfg.OutboundHTTP.MaxRedirects,
 			cfg.OutboundHTTP.InsecureSkipVerify,
-			cfg.OutboundHTTP.ProxyEnvFallback,
+			cfg.OutboundHTTP.UseEnvFallback,
 		)
 	}
 
@@ -209,6 +232,8 @@ func TestCodeFlow_KnobRelaxationAndEnforcement(t *testing.T) {
 }
 
 func TestCodeFlow_ConfigLoadPointers(t *testing.T) {
+	// Clear ambient env override so the dev-mode load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "code-flow.toml")
 	content := `
@@ -253,6 +278,8 @@ requires_http_request_signatures = false
 }
 
 func TestCodeFlow_UnsetTOMLKeepsNilKnobs(t *testing.T) {
+	// Clear ambient env override so the dev-mode load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty-code-flow.toml")
 	if err := os.WriteFile(path, []byte("mode = \"dev\"\n"), 0o600); err != nil {

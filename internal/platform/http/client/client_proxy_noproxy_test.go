@@ -26,6 +26,7 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 	}))
 	defer proxy.Close()
 
+	t.Setenv("REQUEST_METHOD", "")
 	t.Setenv("HTTP_PROXY", proxy.URL)
 	t.Setenv("http_proxy", proxy.URL)
 	t.Setenv("HTTPS_PROXY", "")
@@ -38,7 +39,7 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 	t.Setenv("no_proxy", "192.168.1.1,10.0.0.1,127.0.0.1")
 
 	cfg := outboundtestutil.StrictNoneOutboundConfig()
-	cfg.ProxyEnvFallback = true
+	cfg.UseEnvFallback = true
 	c := httpclient.New(cfg, nil)
 
 	privateTargets := []string{
@@ -143,6 +144,7 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 	destURL := destSrv.URL + "/resource"
 	destHost := localIP.String()
 
+	t.Setenv("REQUEST_METHOD", "")
 	t.Setenv("HTTP_PROXY", proxy.URL)
 	t.Setenv("http_proxy", proxy.URL)
 	t.Setenv("NO_PROXY", destHost)
@@ -154,7 +156,7 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 
 	// SSRF off: destination is a local non-loopback IP used for the routing test.
 	cfg := outboundtestutil.PermissiveConfig()
-	cfg.ProxyEnvFallback = true
+	cfg.UseEnvFallback = true
 	// Construct after setting env so proxy host detection matches the env
 	// proxy configuration used by the transport.
 	c := httpclient.New(cfg, nil)

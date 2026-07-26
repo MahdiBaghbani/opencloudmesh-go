@@ -108,10 +108,10 @@ func startStrictInvitePair(t *testing.T, enableWAYF bool) (*harness.SubprocessSe
 		Mode: "dev",
 		// Dev mode plus StrictInstanceExtraConfig keeps loopback-friendly
 		// transport while static TLS and SSRF-off extra config drive discovery.
-		DisableProxyEnvFallback: true,
-		TLSRootCAFile:           caCert,
-		BootstrapAdminPassword:  "testpassword123",
-		ExtraConfig:             extra,
+		DisableUseEnvFallback:  true,
+		TLSRootCAFile:          caCert,
+		BootstrapAdminPassword: "testpassword123",
+		ExtraConfig:            extra,
 	}
 
 	aliceCfg := cfg

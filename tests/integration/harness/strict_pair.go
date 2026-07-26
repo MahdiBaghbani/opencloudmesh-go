@@ -59,12 +59,12 @@ func StartStrictProtocolPairWithOptions(t *testing.T, opts StrictProtocolPairSta
 	extra := opts.ExtraConfigBuilder(allowedPorts, moduleRoot, loopbackHost)
 
 	base := SubprocessConfig{
-		Mode:                    "strict",
-		DisableProxyEnvFallback: true,
-		TLSRootCAFile:           opts.TLSRootCAFile,
-		BootstrapAdminPassword:  "testpassword123",
-		ExtraConfig:             extra,
-		ExtraFiles:              opts.ExtraFiles,
+		Mode:                   "strict",
+		DisableUseEnvFallback:  true,
+		TLSRootCAFile:          opts.TLSRootCAFile,
+		BootstrapAdminPassword: "testpassword123",
+		ExtraConfig:            extra,
+		ExtraFiles:             opts.ExtraFiles,
 	}
 
 	cfg1 := base
