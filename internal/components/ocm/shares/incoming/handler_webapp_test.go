@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
@@ -436,7 +435,7 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 	handler.CreateShare(w, req)
 
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for must-use-mfa GAP rejection, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 400 for must-use-mfa rejection, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var resp spec.OCMErrorResponse
@@ -448,22 +447,19 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
 	}
 
-	var gapErr *spec.ValidationError
+	wantMsg := "must-use-mfa rejected at admit; MFA enforcement is not supported"
+	var mfaErr *spec.ValidationError
 
 	for i := range resp.ValidationErrors {
 		if resp.ValidationErrors[i].Name == "protocol.webapp.requirements" &&
-			strings.Contains(resp.ValidationErrors[i].Message, "GAP") {
-			gapErr = &resp.ValidationErrors[i]
+			resp.ValidationErrors[i].Message == wantMsg {
+			mfaErr = &resp.ValidationErrors[i]
 			break
 		}
 	}
 
-	if gapErr == nil {
-		t.Fatalf("expected a GAP-bearing requirements validationError, got %v", resp.ValidationErrors)
-	}
-
-	if !strings.Contains(gapErr.Message, "enforce-mfa") {
-		t.Errorf("GAP error should explain enforce-mfa is not implemented, got %q", gapErr.Message)
+	if mfaErr == nil {
+		t.Fatalf("expected requirements validationError %q, got %v", wantMsg, resp.ValidationErrors)
 	}
 }
 

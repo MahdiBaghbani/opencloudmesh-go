@@ -14,7 +14,7 @@ import (
 // TestFederationsEndpoint verifies /ocm-aux/federations returns a valid JSON array
 // when the server is configured with peer trust enabled (but no directory services).
 // With no directory services configured, the response is an empty array.
-// Detailed response shape testing is in internal/components/ocmaux/handler_test.go.
+// Detailed response shape testing is in internal/components/ocmaux/handler_federations_test.go.
 func TestFederationsEndpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")

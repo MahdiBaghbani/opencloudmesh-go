@@ -34,7 +34,7 @@ type RequestSigner interface {
 
 // ExchangeRequest holds token exchange parameters.
 type ExchangeRequest struct {
-	TokenEndPoint string // receiver-advertised tokenEndPoint from discovery
+	TokenEndPoint string // Sending Server tokenEndPoint from peer discovery
 	SharedSecret  string // authorization code (sharedSecret) to exchange
 }
 
@@ -92,7 +92,7 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest, disc *spec.D
 	return c.doRequest(ctx, httpReq)
 }
 
-// buildFormRequest builds a form-urlencoded POST to the receiver tokenEndPoint.
+// buildFormRequest builds a form-urlencoded POST to the Sending Server tokenEndPoint.
 func (c *Client) buildFormRequest(ctx context.Context, req ExchangeRequest, grantType string) (*http.Request, error) {
 	form := url.Values{}
 	form.Set("grant_type", grantType)

@@ -30,7 +30,7 @@ type LoaderOptions struct {
 	// FlagOverrides are CLI flag values that override config file values.
 	FlagOverrides FlagOverrides
 
-	// Logger is reserved for future use.
+	// Logger is accepted but not read by Load.
 	Logger *slog.Logger
 }
 

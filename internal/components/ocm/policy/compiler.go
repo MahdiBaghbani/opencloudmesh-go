@@ -164,7 +164,7 @@ func (c *CompatCompiler) EmitShareRequirements(in EmitShareRequirementsInput) []
 }
 
 // RecognizedShareRequirements lists share requirement wire values the policy
-// compiler recognizes. must-use-mfa is listed for GAP rejection only.
+// compiler recognizes. must-use-mfa is listed for hard-reject at admit only.
 func (c *CompatCompiler) RecognizedShareRequirements() []string {
 	_ = c
 

@@ -212,7 +212,7 @@ func ecParamsFromCrv(crv string) (elliptic.Curve, string, int, error) {
 	}
 }
 
-// ResolveAlgorithm applies RFC 9421 §3.2 steps 6.3-6.5: derive from key, then
+// ResolveAlgorithm applies RFC 9421 section 3.2 steps 6.3-6.5: derive from key, then
 // optionally agree with Signature-Input alg.
 func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 	derived, err := DeriveFromJWK(kty, crv, jwkAlg)

@@ -1,7 +1,6 @@
 package spec
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -41,25 +40,18 @@ func TestWebappProtocolWire_RejectsMustUseMFAWithGapNote(t *testing.T) {
 	p.Requirements = []string{RequirementMustExchangeToken, RequirementMustUseMFA}
 	errs := ValidateWebappProtocolWire(p)
 
-	var gapErr *ValidationError
+	wantMsg := "must-use-mfa rejected at admit; MFA enforcement is not supported"
+	var mfaErr *ValidationError
 
 	for i := range errs {
-		if errs[i].Name == "protocol.webapp.requirements" && strings.Contains(errs[i].Message, "GAP") {
-			gapErr = &errs[i]
+		if errs[i].Name == "protocol.webapp.requirements" && errs[i].Message == wantMsg {
+			mfaErr = &errs[i]
 			break
 		}
 	}
 
-	if gapErr == nil {
-		t.Fatalf("expected a GAP-bearing requirements error, got %v", errs)
-	}
-
-	if !strings.Contains(gapErr.Message, "must-use-mfa") {
-		t.Errorf("GAP error should name must-use-mfa, got %q", gapErr.Message)
-	}
-
-	if !strings.Contains(gapErr.Message, "enforce-mfa") {
-		t.Errorf("GAP error should explain enforce-mfa is not implemented, got %q", gapErr.Message)
+	if mfaErr == nil {
+		t.Fatalf("expected requirements error %q, got %v", wantMsg, errs)
 	}
 }
 

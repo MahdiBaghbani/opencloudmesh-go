@@ -16,10 +16,10 @@ import (
 	tsprotocol "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/protocol"
 )
 
-// TestProtocolPositiveStrictTwoServer is the Step 14 positive proof: strict
-// two-subprocess discovery, signed multi outgoing emission, signed named-webdav
-// inbound admission, same-authority token exchange, Bearer WebDAV content, and
-// duplicate inbound idempotency.
+// TestProtocolPositiveStrictTwoServer covers strict two-subprocess discovery,
+// signed multi outgoing emission, signed named-webdav inbound admission,
+// same-authority token exchange, Bearer WebDAV content, and duplicate inbound
+// idempotency.
 func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -36,7 +36,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	assertStrictLiveDiscovery(t, provider.Name, providerDisc, provider.BaseURL)
 	assertStrictLiveDiscovery(t, consumer.Name, consumerDisc, consumer.BaseURL)
 
-	testContent := []byte("Step 14 positive protocol proof file content")
+	testContent := []byte("strict positive protocol proof file content")
 
 	testFile := filepath.Join(t.TempDir(), "protocol-positive.txt")
 	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
@@ -94,9 +94,9 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 		t.Fatalf("inbox detail protocol.name = %v, want multi", proto["name"])
 	}
 
-	webdavProviderID := "step14-webdav-inbound-positive"
-	webdavSecret := "step14-webdav-shared-secret"
-	webdavBody := buildSignedInboundShareBody("admin@"+providerHost, webdavProviderID, consumerHost, "webdav-uri-step14",
+	webdavProviderID := "webdav-inbound-positive"
+	webdavSecret := "webdav-shared-secret"
+	webdavBody := buildSignedInboundShareBody("admin@"+providerHost, webdavProviderID, consumerHost, "webdav-uri",
 		webdavSecret,
 	)
 	consumerSigner := subprocessSigner(t, consumer)

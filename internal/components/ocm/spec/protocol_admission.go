@@ -31,8 +31,8 @@ var SupportedWebappPermissions = []string{"view", "read", "write", "share"}
 // SupportedWebappRequirements lists the webapp requirement tokens this
 // implementation recognizes. The name is kept for consistency with the other
 // Supported* lists, but only must-exchange-token is admitted; must-use-mfa is
-// listed solely to be hard-rejected at admit with a GAP note, not because it is
-// admitted (enforce-mfa is not implemented yet).
+// listed solely to be hard-rejected at admit because MFA enforcement is not
+// supported.
 var SupportedWebappRequirements = []string{RequirementMustExchangeToken, RequirementMustUseMFA}
 
 // IsSupportedResourceType reports whether resourceType is accepted for share creation.
@@ -62,7 +62,7 @@ func ValidateProtocolArms(raw map[string]json.RawMessage) error {
 }
 
 // ValidateProtocolShape checks the minimal current-purpose protocol shape.
-// The named "webdav" shape requires a webdav arm (legacy behavior). The
+// The named "webdav" shape requires a webdav arm. The
 // "multi" shape requires at least one supported arm: webdav or webapp. This
 // admits a webapp-only arm under "multi" without altering the named "webdav"
 // shape behavior.
@@ -192,8 +192,8 @@ func isSupportedWebDAVPermission(perm string) bool {
 // ValidateWebappProtocolWire checks webapp wire fields: uri, targets,
 // permissions, and sharedSecret are required; permissions must be in
 // SupportedWebappPermissions; unknown requirements return UNSUPPORTED;
-// must-use-mfa is hard-rejected with a GAP note because MFA is not
-// implemented. must-exchange-token remains REQUIRED on the wire; the
+// must-use-mfa is hard-rejected at admit because MFA enforcement is not
+// supported. must-exchange-token remains REQUIRED on the wire; the
 // criteria-aware admission seam does not relax that check.
 func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 	var errs []ValidationError
@@ -227,7 +227,7 @@ func ValidateWebappProtocolWire(p *WebappProtocol) []ValidationError {
 			if req == RequirementMustUseMFA {
 				errs = append(errs, ValidationError{
 					Name:    "protocol.webapp.requirements",
-					Message: "GAP: " + RequirementMustUseMFA + " rejected at admit; enforce-mfa is not implemented yet",
+					Message: RequirementMustUseMFA + " rejected at admit; MFA enforcement is not supported",
 				})
 
 				continue

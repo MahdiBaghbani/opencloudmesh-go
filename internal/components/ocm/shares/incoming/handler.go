@@ -378,7 +378,8 @@ func dedupeValidationErrors(errs []spec.ValidationError) []spec.ValidationError 
 // writeProtocolValidationErrors maps spec protocol validation errors to the
 // shared OCM response taxonomy used by both the webdav and webapp arms: any
 // UNSUPPORTED value yields PROTOCOL_NOT_SUPPORTED (501); all other errors
-// (missing/invalid required fields, GAP rejections) yield INVALID_PROTOCOL
+// (missing/invalid required fields, including must-use-mfa hard-rejects) yield
+// INVALID_PROTOCOL
 // (400) with the validation errors attached so the rejection is observable.
 func writeProtocolValidationErrors(w http.ResponseWriter, errs []spec.ValidationError) {
 	for _, e := range errs {

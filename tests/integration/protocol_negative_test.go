@@ -12,11 +12,11 @@ import (
 // Unit-primary negative tiers are not re-proved here in subprocess integration:
 //   - non-Bearer credential: internal/components/webdav/webdav_test.go TestServeHTTP_BasicAuthRejected401
 //   - expired exchanged token: internal/components/webdav/webdav_test.go TestServeHTTP_BearerWithExpiredTokenFails401
-//   - oversized body: internal/services/ocm/ocm_test.go TestOCMRequestBodyLimit
+//   - oversized body: internal/services/ocm/ocm_active_routes_test.go TestOCMRequestBodyLimit
 //   - stale trust membership refresh: internal/components/ocm/peertrust/membership_test.go
 
-// TestProtocolNegativeStrict is the Step 14 negative proof: strict subprocess
-// rejection classes with persistence, network, fallback, and log invariants.
+// TestProtocolNegativeStrict exercises strict subprocess rejection classes with
+// persistence, network, fallback, and log invariants.
 func TestProtocolNegativeStrict(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")

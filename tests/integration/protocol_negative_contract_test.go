@@ -82,7 +82,7 @@ func runUnexchangedSharedSecretBearer401Case(
 	provider := pair.Server1
 	consumer := pair.Server2
 
-	testContent := []byte("Step 14 negative shared-secret bearer proof")
+	testContent := []byte("strict negative shared-secret bearer proof")
 
 	testFile := filepath.Join(t.TempDir(), "protocol-negative-bearer.txt")
 	if err := os.WriteFile(testFile, testContent, 0644); err != nil {
