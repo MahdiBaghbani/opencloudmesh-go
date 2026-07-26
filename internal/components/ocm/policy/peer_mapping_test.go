@@ -35,7 +35,7 @@ func TestDefaultConfig_ResolveFactsEqualsEvaluate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	resolver := policy.NewPeerMappingResolver(codeFlowFromConfig(cfg), &cfg.OCM.PeerMapping)
+	resolver := policy.NewPeerMappingResolver(codeFlowFromConfig(cfg), &cfg.OCM.PeerMapping, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("any-host.example", nil)
 	want := policy.NewCodeFlow().Evaluate()
 	if facts != want {
@@ -48,7 +48,7 @@ func TestPeerMapping_FailClosedMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	resolver := policy.NewPeerMappingResolver(codeFlowFromConfig(cfg), &cfg.OCM.PeerMapping)
+	resolver := policy.NewPeerMappingResolver(codeFlowFromConfig(cfg), &cfg.OCM.PeerMapping, config.CompatibilityScopeGlobal)
 
 	t.Run("empty config four facts true", func(t *testing.T) {
 		facts := resolver.ResolveFacts("any-host.example", &spec.Discovery{})
@@ -70,7 +70,6 @@ func TestPeerMapping_FailClosedMatrix(t *testing.T) {
 			},
 			Platform: map[string]config.PeerPlatformOverlay{
 				"platform-a": {
-					RequiresHTTPRequestSignatures: &falseVal,
 					Instance: map[string]config.PeerMappingInstanceOverlay{
 						"any-host.example": {
 							RequiresTokenExchangeRequirement: &falseVal,
@@ -79,7 +78,7 @@ func TestPeerMapping_FailClosedMatrix(t *testing.T) {
 				},
 			},
 		}
-		overlayResolver := policy.NewPeerMappingResolver(codeFlowFromConfig(cfg), &overlayCfg)
+		overlayResolver := policy.NewPeerMappingResolver(codeFlowFromConfig(cfg), &overlayCfg, config.CompatibilityScopeGlobal)
 		facts := overlayResolver.ResolveFacts("any-host.example", &spec.Discovery{})
 		if !facts.TokenExchangeCapable {
 			t.Error("TokenExchangeCapable must stay true from global Evaluate on mapped host")
@@ -91,31 +90,31 @@ func TestPeerMapping_InstanceOverridesPlatformOverridesGlobal(t *testing.T) {
 	falseVal := false
 	trueVal := true
 	cfg := config.PeerMappingConfig{
-		RequiresHTTPRequestSignatures: &trueVal,
+		RequiresTokenExchangeRequirement: &trueVal,
 		HostPlatform: map[string]string{
 			"other.example": "platform-a",
 		},
 		Platform: map[string]config.PeerPlatformOverlay{
 			"platform-a": {
-				RequiresHTTPRequestSignatures: &falseVal,
+				RequiresTokenExchangeRequirement: &falseVal,
 				Instance: map[string]config.PeerMappingInstanceOverlay{
 					"host.example": {
-						RequiresHTTPRequestSignatures: &trueVal,
+						RequiresTokenExchangeRequirement: &trueVal,
 					},
 				},
 			},
 		},
 	}
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("host.example", &spec.Discovery{})
-	if !facts.RequiresHTTPRequestSignatures {
-		t.Error("instance true should enforce the knob")
+	if !facts.RequiresTokenExchange {
+		t.Error("instance true should enforce the token-exchange knob")
 	}
 
 	// host mapped to platform but without instance override should use platform value
 	facts = resolver.ResolveFacts("other.example", &spec.Discovery{})
-	if facts.RequiresHTTPRequestSignatures {
-		t.Error("platform false should relax the knob for other host in platform")
+	if facts.RequiresTokenExchange {
+		t.Error("platform false should relax the token-exchange knob for other host in platform")
 	}
 }
 
@@ -127,24 +126,29 @@ func TestPeerMapping_HostPlatformLookup(t *testing.T) {
 		},
 		Platform: map[string]config.PeerPlatformOverlay{
 			"platform-a": {
-				RequiresHTTPRequestSignatures: &falseVal,
+				RequiresTokenExchangeRequirement: &falseVal,
 			},
 		},
 	}
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("host.example", &spec.Discovery{})
-	if facts.RequiresHTTPRequestSignatures {
+	if facts.RequiresTokenExchange {
 		t.Error("host_platform lookup should apply platform overlay")
 	}
 }
 
+// TestPeerMapping_TypedNilDiscoveryFallback confirms that a typed-nil
+// discovery value produces the same facts as a nil discovery value. The disc
+// parameter is currently unused by the scope-gated resolver logic (it is
+// reserved for upcoming discovery-resolve wiring), so both calls resolve the
+// unmapped host through the same global-scope path and must agree.
 func TestPeerMapping_TypedNilDiscoveryFallback(t *testing.T) {
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &config.PeerMappingConfig{})
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &config.PeerMappingConfig{}, config.CompatibilityScopeGlobal)
 	var disc *spec.Discovery
 	facts := resolver.ResolveFacts("unknown.example", disc)
 	want := resolver.ResolveFacts("unknown.example", nil)
 	if facts != want {
-		t.Fatalf("typed-nil discovery should fall back to global facts: got %+v, want %+v", facts, want)
+		t.Fatalf("typed-nil discovery should match nil discovery behavior: got %+v, want %+v", facts, want)
 	}
 }
 
@@ -152,7 +156,7 @@ func TestPeerMapping_TypedNilConfig_NoPanicFallsBackToGlobal(t *testing.T) {
 	globalCodeFlow := policy.NewCodeFlow()
 	var typedNilCfg *config.PeerMappingConfig
 	var cfgSource policy.PeerMappingConfigSource = typedNilCfg
-	resolver := policy.NewPeerMappingResolver(globalCodeFlow, cfgSource)
+	resolver := policy.NewPeerMappingResolver(globalCodeFlow, cfgSource, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("any-host.example", nil)
 	want := globalCodeFlow.Evaluate()
 	if facts != want {
@@ -168,20 +172,20 @@ func TestPeerMapping_NormalizedHostLookup(t *testing.T) {
 		},
 		Platform: map[string]config.PeerPlatformOverlay{
 			"platform-a": {
-				RequiresHTTPRequestSignatures: &falseVal,
+				RequiresTokenExchangeRequirement: &falseVal,
 			},
 		},
 	}
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("host.example:443", &spec.Discovery{})
-	if facts.RequiresHTTPRequestSignatures {
+	if facts.RequiresTokenExchange {
 		t.Error("raw host with default port should resolve to normalized key")
 	}
 }
 
 func TestPeerMapping_GlobalNilInheritsCodeFlowBaseline(t *testing.T) {
 	global := policy.NewCodeFlow()
-	resolver := policy.NewPeerMappingResolver(global, &config.PeerMappingConfig{})
+	resolver := policy.NewPeerMappingResolver(global, &config.PeerMappingConfig{}, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("any-host.example", nil)
 	want := global.Evaluate()
 	if facts != want {
@@ -198,19 +202,19 @@ func TestPeerMapping_InstanceBindingPrecedenceOverHostPlatform(t *testing.T) {
 		},
 		Platform: map[string]config.PeerPlatformOverlay{
 			"platform-a": {
-				RequiresHTTPRequestSignatures: &falseVal,
+				RequiresTokenExchangeRequirement: &falseVal,
 			},
 			"platform-b": {
-				RequiresHTTPRequestSignatures: &trueVal,
+				RequiresTokenExchangeRequirement: &trueVal,
 				Instance: map[string]config.PeerMappingInstanceOverlay{
 					"host.example": {},
 				},
 			},
 		},
 	}
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("host.example", &spec.Discovery{})
-	if !facts.RequiresHTTPRequestSignatures {
+	if !facts.RequiresTokenExchange {
 		t.Error("instance binding should win over host_platform mapping")
 	}
 }
@@ -223,20 +227,127 @@ func TestPeerMapping_MappedHostNilDiscoveryAppliesOverlay(t *testing.T) {
 		},
 		Platform: map[string]config.PeerPlatformOverlay{
 			"platform-a": {
-				RequiresHTTPRequestSignatures: &falseVal,
+				RequiresTokenExchangeRequirement: &falseVal,
 			},
 		},
 	}
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeGlobal)
 	facts := resolver.ResolveFacts("host.example", nil)
-	if facts.RequiresHTTPRequestSignatures {
+	if facts.RequiresTokenExchange {
 		t.Error("mapped host with nil discovery should still apply platform overlay")
 	}
 }
 
-// TestPeerMapping_OverlayTruthTable covers the three relaxable knobs at each
-// ResolveFacts merge tier. Merge order is instance > platform > global config
+// TestPeerMapping_GlobalScope_KnobsApplyToUnmappedHost confirms that under the
+// default global scope, global peer_compat knobs are merged for every host.
+func TestPeerMapping_GlobalScope_KnobsApplyToUnmappedHost(t *testing.T) {
+	falseVal := false
+	cfg := config.PeerMappingConfig{
+		RequiresTokenExchangeRequirement: &falseVal,
+	}
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeGlobal)
+	facts := resolver.ResolveFacts("unmapped.example", nil)
+	if facts.RequiresTokenExchange {
+		t.Error("global scope should apply global knobs to unmapped hosts")
+	}
+}
+
+// TestPeerMapping_ScopedScope_KnobsApplyToMappedHost confirms that under scoped
+// scope, peer_compat knobs still apply to explicitly mapped peers.
+func TestPeerMapping_ScopedScope_KnobsApplyToMappedHost(t *testing.T) {
+	falseVal := false
+	cfg := config.PeerMappingConfig{
+		RequiresTokenExchangeRequirement: &falseVal,
+		HostPlatform: map[string]string{
+			"mapped.example": "platform-a",
+		},
+	}
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeScoped)
+	facts := resolver.ResolveFacts("mapped.example", nil)
+	if facts.RequiresTokenExchange {
+		t.Error("scoped scope should apply global knobs to mapped hosts")
+	}
+}
+
+// TestPeerMapping_ScopedScope_KnobsDoNotApplyToUnmappedHost confirms that under
+// scoped scope, global peer_compat knobs are not leaked to unknown peers.
+func TestPeerMapping_ScopedScope_KnobsDoNotApplyToUnmappedHost(t *testing.T) {
+	falseVal := false
+	cfg := config.PeerMappingConfig{
+		RequiresTokenExchangeRequirement: &falseVal,
+	}
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeScoped)
+	facts := resolver.ResolveFacts("unmapped.example", nil)
+	if !facts.RequiresTokenExchange {
+		t.Error("scoped scope must not leak global knobs to unmapped hosts")
+	}
+}
+
+// TestPeerMapping_ScopedScope_UnmappedHostFallsBackToGlobalFacts confirms that
+// scoped scope still leaves unmapped hosts with the global CodeFlow baseline.
+func TestPeerMapping_ScopedScope_UnmappedHostFallsBackToGlobalFacts(t *testing.T) {
+	cfg := config.PeerMappingConfig{}
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeScoped)
+	facts := resolver.ResolveFacts("unmapped.example", nil)
+	want := policy.NewCodeFlow().Evaluate()
+	if facts != want {
+		t.Fatalf("unmapped host under scoped scope should equal global CodeFlow facts: got %+v, want %+v", facts, want)
+	}
+}
+
+// TestPeerMapping_PerPeerHTTPSigRemoved confirms that the peer_compat overlay
+// no longer carries a per-peer HTTP signature knob. HTTP signature admission is
+// governed by the must-use-http-sig criterion and Applicability rules, not by
+// platform or instance compatibility overrides. The global peer_compat http-sig
+// knob still applies (under the scope gate), but platform/instance cannot touch it.
+func TestPeerMapping_PerPeerHTTPSigRemoved(t *testing.T) {
+	trueVal := true
+	cfg := config.PeerMappingConfig{
+		RequiresHTTPRequestSignatures: &trueVal,
+		HostPlatform: map[string]string{
+			"mapped.example": "platform-a",
+		},
+		Platform: map[string]config.PeerPlatformOverlay{
+			"platform-a": {
+				// No RequiresHTTPRequestSignatures field on the platform overlay.
+			},
+		},
+	}
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &cfg, config.CompatibilityScopeGlobal)
+	facts := resolver.ResolveFacts("mapped.example", nil)
+	if !facts.RequiresHTTPRequestSignatures {
+		t.Error("global peer_compat http-sig knob should still apply to mapped hosts under global scope")
+	}
+
+	// Per-peer http-sig removal: the platform and instance overlay types expose
+	// no RequiresHTTPRequestSignatures field, so a mapped host cannot relax or
+	// enforce http-sig independently of the global knob. With no global http-sig
+	// knob set, the mapped host must inherit the CodeFlow baseline rather than
+	// pick up a per-peer override.
+	peerOnlyCfg := config.PeerMappingConfig{
+		HostPlatform: map[string]string{
+			"mapped.example": "platform-a",
+		},
+		Platform: map[string]config.PeerPlatformOverlay{
+			"platform-a": {
+				RequiresTokenExchangeRequirement: &trueVal,
+			},
+		},
+	}
+	peerOnlyResolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), &peerOnlyCfg, config.CompatibilityScopeGlobal)
+	peerFacts := peerOnlyResolver.ResolveFacts("mapped.example", nil)
+	baseline := policy.NewCodeFlow().Evaluate()
+	if peerFacts.RequiresHTTPRequestSignatures != baseline.RequiresHTTPRequestSignatures {
+		t.Errorf("per-peer overlay must not touch http-sig: got %v, want baseline %v",
+			peerFacts.RequiresHTTPRequestSignatures, baseline.RequiresHTTPRequestSignatures)
+	}
+}
+
+// TestPeerMapping_OverlayTruthTable covers the two relaxable peer_compat knobs
+// at each merge tier. Merge order is instance > platform > global config
 // > CodeFlow baseline; nil inherits the parent value (default true).
+// The global tier also covers the http-sig knob; platform and instance tiers do
+// not carry it because per-peer http-sig overrides were removed.
 func TestPeerMapping_OverlayTruthTable(t *testing.T) {
 	falseVal := false
 	trueVal := true
@@ -261,25 +372,31 @@ func TestPeerMapping_OverlayTruthTable(t *testing.T) {
 		{name: "false_relax", value: &falseVal, want: false},
 		{name: "true_enforce", value: &trueVal, want: true},
 	}
-	fields := []string{fieldIncludes, fieldRequires, fieldHTTP}
-	tiers := []string{"global", "platform", "instance"}
 
-	for _, field := range fields {
-		for _, tier := range tiers {
+	globalFields := []string{fieldIncludes, fieldRequires, fieldHTTP}
+	peerFields := []string{fieldIncludes, fieldRequires}
+	tiers := []struct {
+		name   string
+		fields []string
+		scope  config.CompatibilityScope
+	}{
+		{name: "global", fields: globalFields, scope: config.CompatibilityScopeGlobal},
+		{name: "platform", fields: peerFields, scope: config.CompatibilityScopeGlobal},
+		{name: "instance", fields: peerFields, scope: config.CompatibilityScopeGlobal},
+	}
+
+	for _, tier := range tiers {
+		for _, field := range tier.fields {
 			for _, st := range states {
-				name := field + "/" + tier + "/" + st.name
+				name := field + "/" + tier.name + "/" + st.name
 				t.Run(name, func(t *testing.T) {
-					var global *policy.CodeFlow
+					global := policy.NewCodeFlow()
 					var cfg config.PeerMappingConfig
 
-					switch tier {
+					switch tier.name {
 					case "global":
-						// Global tier is [ocm.peer_compat] top-level knobs over the
-						// CodeFlow baseline.
-						global = policy.NewCodeFlow()
 						cfg = globalConfigWithField(field, st.value)
 					case "platform":
-						global = policy.NewCodeFlow()
 						cfg = config.PeerMappingConfig{
 							HostPlatform: map[string]string{host: platformName},
 							Platform: map[string]config.PeerPlatformOverlay{
@@ -287,7 +404,6 @@ func TestPeerMapping_OverlayTruthTable(t *testing.T) {
 							},
 						}
 					case "instance":
-						global = policy.NewCodeFlow()
 						cfg = config.PeerMappingConfig{
 							Platform: map[string]config.PeerPlatformOverlay{
 								platformName: {
@@ -298,10 +414,10 @@ func TestPeerMapping_OverlayTruthTable(t *testing.T) {
 							},
 						}
 					default:
-						t.Fatalf("unknown tier %q", tier)
+						t.Fatalf("unknown tier %q", tier.name)
 					}
 
-					resolver := policy.NewPeerMappingResolver(global, &cfg)
+					resolver := policy.NewPeerMappingResolver(global, &cfg, tier.scope)
 					facts := resolver.ResolveFacts(host, &spec.Discovery{})
 					got := factForField(field, facts)
 					if got != st.want {
@@ -347,8 +463,6 @@ func platformOverlayWithField(field string, value *bool) config.PeerPlatformOver
 		overlay.IncludesTokenExchangeRequirement = value
 	case "RequiresTokenExchangeRequirement":
 		overlay.RequiresTokenExchangeRequirement = value
-	case "RequiresHTTPRequestSignatures":
-		overlay.RequiresHTTPRequestSignatures = value
 	}
 	return overlay
 }
@@ -360,8 +474,6 @@ func instanceOverlayWithField(field string, value *bool) config.PeerMappingInsta
 		overlay.IncludesTokenExchangeRequirement = value
 	case "RequiresTokenExchangeRequirement":
 		overlay.RequiresTokenExchangeRequirement = value
-	case "RequiresHTTPRequestSignatures":
-		overlay.RequiresHTTPRequestSignatures = value
 	}
 	return overlay
 }

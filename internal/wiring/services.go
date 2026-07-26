@@ -104,7 +104,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	if tokenPath == "" {
 		tokenPath = "token"
 	}
-	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping)
+	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping, cfg.OCM.CompatibilityScope)
 	return ocm.New(ocm.Inputs{
 		IncomingShareRepo:   d.IncomingShareRepo,
 		OutgoingShareRepo:   d.OutgoingShareRepo,
@@ -139,7 +139,7 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		profiles = cfg.HTTP.Interceptors
 	}
 
-	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping)
+	peerMappingResolver := policy.NewPeerMappingResolver(d.CodeFlow, &cfg.OCM.PeerMapping, cfg.OCM.CompatibilityScope)
 
 	// Use the same production provider config that wellknown.New resolves for
 	// discovery, so the API service token endpoint stays in lock-step with the

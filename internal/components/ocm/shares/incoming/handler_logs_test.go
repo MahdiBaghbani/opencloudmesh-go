@@ -11,6 +11,7 @@ import (
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -46,7 +47,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				nil,
 				"localhost:9200",
 				"https",
-				policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil),
+				policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil, config.CompatibilityScopeGlobal),
 				capture.Logger,
 			)
 

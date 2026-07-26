@@ -60,7 +60,7 @@ compatibility_scope = "GLOBAL"
 requires_http_request_signatures = true
 
 [ocm.peer_compat.platform.platform-a.instance."host.example"]
-requires_http_request_signatures = false
+requires_token_exchange_requirement = false
 `
 	configPath := writeTempConfig(t, content)
 	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
@@ -75,9 +75,11 @@ requires_http_request_signatures = false
 	}
 	platform := cfg.OCM.PeerMapping.Platform["platform-a"]
 	instance := platform.Instance["host.example"]
-	if instance.RequiresHTTPRequestSignatures == nil || *instance.RequiresHTTPRequestSignatures {
-		t.Errorf("instance peer_compat requires_http_request_signatures = %v, want false", instance.RequiresHTTPRequestSignatures)
+	if instance.RequiresTokenExchangeRequirement == nil || *instance.RequiresTokenExchangeRequirement {
+		t.Errorf("instance peer_compat requires_token_exchange_requirement = %v, want false", instance.RequiresTokenExchangeRequirement)
 	}
+	// Per-peer HTTP signature knobs were removed from the overlay structs, so the
+	// instance section cannot carry requires_http_request_signatures anymore.
 }
 
 func TestLoad_CompatibilityScope_NonCanonicalCasing(t *testing.T) {

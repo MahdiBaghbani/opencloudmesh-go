@@ -716,7 +716,6 @@ func normalizePeerMappingConfig(cfg *Config) error {
 		cfg.OCM.PeerMapping.Platform[platformName] = PeerPlatformOverlay{
 			IncludesTokenExchangeRequirement: overlay.IncludesTokenExchangeRequirement,
 			RequiresTokenExchangeRequirement: overlay.RequiresTokenExchangeRequirement,
-			RequiresHTTPRequestSignatures:    overlay.RequiresHTTPRequestSignatures,
 			Instance:                         normalizedInstances,
 		}
 	}

@@ -1,4 +1,4 @@
-package config
+package config_test
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm/configfixture"
 )
 
@@ -21,7 +22,7 @@ mode = "block"
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error for invalid outbound_http.ssrf.mode")
 	}
@@ -50,7 +51,7 @@ allow_ip_literals = false
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	cfg, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err != nil {
 		t.Fatalf("Load() error = %v (nested SSRF schema should load)", err)
 	}
@@ -83,7 +84,7 @@ route_policy = "nonexistent"
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error for invalid route_policy reference")
 	}
@@ -101,7 +102,7 @@ func TestLoad_SSRF_StrictMode_RejectsOff(t *testing.T) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error: mode=strict must reject ssrf.mode=off")
 	}
@@ -123,7 +124,7 @@ func TestLoad_SSRF_StrictMode_StrictWithValidRoutePolicy_Loads(t *testing.T) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
+	cfg, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err != nil {
 		t.Fatalf("Load() error = %v; strict + valid route policy must load cleanly", err)
 	}
@@ -146,7 +147,7 @@ func TestLoad_SSRF_RoutePolicyWithIPLiterals_Fails(t *testing.T) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error: allow_ip_literals=true forbidden for active route policy")
 	}
@@ -166,7 +167,7 @@ func TestLoad_SSRF_RoutePolicyWithCatchAllCIDR_Fails(t *testing.T) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error: catch-all CIDR 0.0.0.0/0 forbidden for active route policy")
 	}
@@ -191,7 +192,7 @@ allow_ip_literals = false
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error: empty allow_private_cidrs forbidden for active route policy")
 	}
@@ -216,7 +217,7 @@ allow_ip_literals = false
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error: empty allowed_ports forbidden for active route policy")
 	}
@@ -236,7 +237,7 @@ func TestLoad_SSRF_RoutePolicyMissingHostSuffixes_Fails(t *testing.T) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error: empty allow_private_host_suffixes forbidden for active route policy")
 	}
@@ -256,7 +257,7 @@ func TestLoad_SSRF_RoutePolicyWithInvalidCIDR_Fails(t *testing.T) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err := Load(LoaderOptions{ConfigPath: configPath})
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error: invalid CIDR in allow_private_cidrs should be rejected")
 	}
@@ -294,7 +295,7 @@ func TestLoad_SSRF_RoutePolicyWithInvalidPort_Fails(t *testing.T) {
 				t.Fatalf("failed to write config: %v", err)
 			}
 
-			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 			if err == nil {
 				t.Fatalf("expected error for port %s: should be rejected as out of range", tc.port)
 			}
@@ -333,7 +334,7 @@ allow_ip_literals = false
 				t.Fatalf("failed to write config: %v", err)
 			}
 
-			_, err := Load(LoaderOptions{ConfigPath: configPath})
+			_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
 			if err == nil {
 				t.Fatal("expected error for blank entry in allow_private_host_suffixes")
 			}

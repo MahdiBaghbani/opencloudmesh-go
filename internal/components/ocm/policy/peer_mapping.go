@@ -4,12 +4,14 @@ package policy
 import (
 	"reflect"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 // DiscoveryView is a placeholder for the peer discovery surface the resolver
 // will use once the outbound preflight phase adds peer-discovery accessors.
-// For now ResolveFacts only checks whether a discovery value is present.
+// The disc parameter is accepted and reserved for upcoming discovery-resolve
+// wiring; it is not currently used by the scope-gated logic in ResolveFacts.
 type DiscoveryView interface{}
 
 // PeerMappingConfigSource abstracts the peer mapping data the resolver needs.
@@ -19,8 +21,8 @@ type PeerMappingConfigSource interface {
 	Scheme() string
 	HostPlatformFor(host string) (platform string, ok bool)
 	PlatformInstanceBinding(host string) (platform string, ok bool)
-	PlatformKnobs(platform string) (includes, requires, http *bool, ok bool)
-	InstanceKnobs(platform, host string) (includes, requires, http *bool, ok bool)
+	PlatformKnobs(platform string) (includes, requires *bool, ok bool)
+	InstanceKnobs(platform, host string) (includes, requires *bool, ok bool)
 }
 
 // PeerMappingResolver resolves per-peer code-flow facts from the hierarchical
@@ -28,55 +30,85 @@ type PeerMappingConfigSource interface {
 type PeerMappingResolver struct {
 	global *CodeFlow
 	cfg    PeerMappingConfigSource
+	scope  config.CompatibilityScope
 }
 
-// NewPeerMappingResolver constructs a resolver from the global code-flow policy
-// and a peer mapping config source. Both may be nil; nil falls back to global
-// facts.
-func NewPeerMappingResolver(global *CodeFlow, cfg PeerMappingConfigSource) *PeerMappingResolver {
-	return &PeerMappingResolver{global: global, cfg: cfg}
+// NewPeerMappingResolver constructs a resolver from the global code-flow policy,
+// a peer mapping config source, and a compatibility scope. Both global and cfg may
+// be nil; nil falls back to global facts. The constructor stores scope as given;
+// scope validation and normalization happen at config load, not here.
+func NewPeerMappingResolver(global *CodeFlow, cfg PeerMappingConfigSource, scope config.CompatibilityScope) *PeerMappingResolver {
+	return &PeerMappingResolver{global: global, cfg: cfg, scope: scope}
 }
 
 // ResolveFacts is the public naming SSOT for host-facts resolution; keep this name (see architecture ban list).
 // ResolveFacts returns the code-flow facts for host and optional discovery.
-// Nil discovery, unknown hosts, or empty overlay all fall back to the global
-// CodeFlow Evaluate() facts. TokenExchangeCapable is always taken from the
-// global policy and never modified by the peer overlay.
+// Unknown or unmapped hosts skip platform and instance overlays: under global
+// scope they get the global CodeFlow facts with global knobs; under scoped
+// scope they get the global facts without peer-specific overrides.
+// TokenExchangeCapable is always taken from the global policy and never
+// modified by the peer overlay.
 //
-// Mapped hosts apply platform and instance overlays regardless of discovery
-// state. Discovery is consulted only as a fallback for unmapped hosts.
+// Under global scope, global peer_compat knobs apply to every host.
+// Under scoped scope, peer_compat knobs (global, platform, and instance) apply
+// only to explicitly mapped peers. Unmapped peers receive the global CodeFlow
+// facts without any peer_compat overlay.
+//
+// The disc parameter is accepted for signature stability and reserved for
+// upcoming discovery-resolve wiring. It is not consulted by the current
+// scope-gated logic; mapped hosts apply platform and instance overlays based
+// solely on host-key resolution, and unmapped hosts fall back to the global
+// CodeFlow facts (or global knobs under global scope).
 func (r *PeerMappingResolver) ResolveFacts(host string, disc DiscoveryView) Facts {
 	facts := Facts{}
 	if r.global != nil {
 		facts = r.global.Evaluate()
 	}
 
-	if !isConfigNil(r.cfg) {
-		includes, requires, http := r.cfg.GlobalKnobs()
-		facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
-		facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
-		facts.RequiresHTTPRequestSignatures = mergeBool(facts.RequiresHTTPRequestSignatures, http)
-
-		norm, err := hostport.Normalize(host, r.cfg.Scheme())
-		if err == nil {
-			if platform, ok := r.resolvePlatform(norm); ok {
-				if includes, requires, http, ok := r.cfg.PlatformKnobs(platform); ok {
-					facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
-					facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
-					facts.RequiresHTTPRequestSignatures = mergeBool(facts.RequiresHTTPRequestSignatures, http)
-				}
-				if includes, requires, http, ok := r.cfg.InstanceKnobs(platform, norm); ok {
-					facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
-					facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
-					facts.RequiresHTTPRequestSignatures = mergeBool(facts.RequiresHTTPRequestSignatures, http)
-				}
-				return facts
-			}
-		}
+	if isConfigNil(r.cfg) {
+		return facts
 	}
 
-	if isDiscoveryNil(disc) {
+	norm, err := hostport.Normalize(host, r.cfg.Scheme())
+	if err != nil {
+		// Unnormalizable hosts are treated as unmapped.
+		if r.scope == config.CompatibilityScopeScoped {
+			return facts
+		}
+		return r.applyGlobalKnobs(facts)
+	}
+
+	if platform, mapped := r.resolvePlatform(norm); mapped {
+		return r.applyMappedFacts(facts, platform, norm)
+	}
+
+	if r.scope == config.CompatibilityScopeScoped {
 		return facts
+	}
+	return r.applyGlobalKnobs(facts)
+}
+
+func (r *PeerMappingResolver) applyGlobalKnobs(facts Facts) Facts {
+	if isConfigNil(r.cfg) {
+		return facts
+	}
+	includes, requires, http := r.cfg.GlobalKnobs()
+	facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
+	facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
+	facts.RequiresHTTPRequestSignatures = mergeBool(facts.RequiresHTTPRequestSignatures, http)
+	return facts
+}
+
+func (r *PeerMappingResolver) applyMappedFacts(facts Facts, platform, norm string) Facts {
+	facts = r.applyGlobalKnobs(facts)
+
+	if includes, requires, ok := r.cfg.PlatformKnobs(platform); ok {
+		facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
+		facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
+	}
+	if includes, requires, ok := r.cfg.InstanceKnobs(platform, norm); ok {
+		facts.IncludesTokenExchangeRequirement = mergeBool(facts.IncludesTokenExchangeRequirement, includes)
+		facts.RequiresTokenExchange = mergeBool(facts.RequiresTokenExchange, requires)
 	}
 	return facts
 }
@@ -99,10 +131,6 @@ func mergeBool(base bool, overlay *bool) bool {
 		return base
 	}
 	return *overlay
-}
-
-func isDiscoveryNil(disc DiscoveryView) bool {
-	return isInterfaceValueNil(disc)
 }
 
 func isConfigNil(cfg PeerMappingConfigSource) bool {

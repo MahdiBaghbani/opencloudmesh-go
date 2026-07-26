@@ -28,7 +28,7 @@ mode = "dev"
 "example.com" = "platform-a"
 
 [ocm.peer_compat.platform.platform-a.instance."example.com"]
-requires_http_request_signatures = false
+requires_token_exchange_requirement = false
 `
 	configPath := writeTempConfig(t, content)
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
@@ -45,7 +45,7 @@ func TestPeerMapping_UnquotedMultiSegmentInstanceRejected(t *testing.T) {
 mode = "dev"
 
 [ocm.peer_compat.platform.platform-a.instance.example.com]
-requires_http_request_signatures = false
+requires_token_exchange_requirement = false
 `
 	configPath := writeTempConfig(t, content)
 	_, err := Load(LoaderOptions{ConfigPath: configPath})
@@ -66,7 +66,7 @@ public_origin = "https://example.com"
 "host.example:443" = "platform-a"
 
 [ocm.peer_compat.platform.platform-b.instance."other.example:443"]
-requires_http_request_signatures = false
+requires_token_exchange_requirement = false
 `
 	configPath := writeTempConfig(t, content)
 	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
@@ -111,7 +111,7 @@ requires_token_exchange_requirement = true
 requires_http_request_signatures = true
 
 [ocm.peer_compat.platform.platform-a]
-requires_http_request_signatures = false
+requires_token_exchange_requirement = false
 
 [ocm.peer_compat.platform.platform-a.instance."host.example"]
 requires_token_exchange_requirement = false
@@ -127,12 +127,16 @@ requires_token_exchange_requirement = false
 	if cfg.OCM.PeerMapping.RequiresTokenExchangeRequirement == nil || !*cfg.OCM.PeerMapping.RequiresTokenExchangeRequirement {
 		t.Errorf("global requires-token knob = %v, want true", cfg.OCM.PeerMapping.RequiresTokenExchangeRequirement)
 	}
+	if cfg.OCM.PeerMapping.RequiresHTTPRequestSignatures == nil || !*cfg.OCM.PeerMapping.RequiresHTTPRequestSignatures {
+		t.Errorf("global requires-http-sig knob = %v, want true", cfg.OCM.PeerMapping.RequiresHTTPRequestSignatures)
+	}
 	platform := cfg.OCM.PeerMapping.Platform["platform-a"]
-	if platform.RequiresHTTPRequestSignatures == nil || *platform.RequiresHTTPRequestSignatures {
-		t.Errorf("platform requires-http-sig knob = %v, want false", platform.RequiresHTTPRequestSignatures)
+	if platform.RequiresTokenExchangeRequirement == nil || *platform.RequiresTokenExchangeRequirement {
+		t.Errorf("platform requires-token knob = %v, want false", platform.RequiresTokenExchangeRequirement)
 	}
 	instance := platform.Instance["host.example"]
 	if instance.RequiresTokenExchangeRequirement == nil || *instance.RequiresTokenExchangeRequirement {
 		t.Errorf("instance requires-token knob = %v, want false", instance.RequiresTokenExchangeRequirement)
 	}
+	// Platform and instance overlays no longer carry a per-peer HTTP signature knob.
 }

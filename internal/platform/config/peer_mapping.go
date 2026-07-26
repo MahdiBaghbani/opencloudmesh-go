@@ -30,19 +30,21 @@ func (cfg *PeerMappingConfig) Scheme() string {
 }
 
 // PeerPlatformOverlay holds platform-level knobs and per-instance overrides.
+// HTTP request signature admission is governed by the must-use-http-sig
+// criterion and Applicability rules, not by per-peer compatibility knobs.
 type PeerPlatformOverlay struct {
 	IncludesTokenExchangeRequirement *bool `toml:"includes_token_exchange_requirement"`
 	RequiresTokenExchangeRequirement *bool `toml:"requires_token_exchange_requirement"`
-	RequiresHTTPRequestSignatures    *bool `toml:"requires_http_request_signatures"`
 
 	Instance map[string]PeerMappingInstanceOverlay `toml:"instance"`
 }
 
 // PeerMappingInstanceOverlay holds instance-level knob overrides.
+// HTTP request signature admission is governed by the must-use-http-sig
+// criterion and Applicability rules, not by per-peer compatibility knobs.
 type PeerMappingInstanceOverlay struct {
 	IncludesTokenExchangeRequirement *bool `toml:"includes_token_exchange_requirement"`
 	RequiresTokenExchangeRequirement *bool `toml:"requires_token_exchange_requirement"`
-	RequiresHTTPRequestSignatures    *bool `toml:"requires_http_request_signatures"`
 }
 
 // GlobalKnobs returns the global tier knobs.
@@ -71,24 +73,24 @@ func (c *PeerMappingConfig) PlatformInstanceBinding(host string) (string, bool) 
 }
 
 // PlatformKnobs returns the platform-level knobs, if the platform is defined.
-func (c *PeerMappingConfig) PlatformKnobs(platform string) (includes, requires, http *bool, ok bool) {
+func (c *PeerMappingConfig) PlatformKnobs(platform string) (includes, requires *bool, ok bool) {
 	overlay, ok := c.Platform[platform]
 	if !ok {
-		return nil, nil, nil, false
+		return nil, nil, false
 	}
-	return overlay.IncludesTokenExchangeRequirement, overlay.RequiresTokenExchangeRequirement, overlay.RequiresHTTPRequestSignatures, true
+	return overlay.IncludesTokenExchangeRequirement, overlay.RequiresTokenExchangeRequirement, true
 }
 
 // InstanceKnobs returns the instance-level knobs for a platform and host, if
 // both are defined.
-func (c *PeerMappingConfig) InstanceKnobs(platform, host string) (includes, requires, http *bool, ok bool) {
+func (c *PeerMappingConfig) InstanceKnobs(platform, host string) (includes, requires *bool, ok bool) {
 	overlay, ok := c.Platform[platform]
 	if !ok {
-		return nil, nil, nil, false
+		return nil, nil, false
 	}
 	inst, ok := overlay.Instance[host]
 	if !ok {
-		return nil, nil, nil, false
+		return nil, nil, false
 	}
-	return inst.IncludesTokenExchangeRequirement, inst.RequiresTokenExchangeRequirement, inst.RequiresHTTPRequestSignatures, true
+	return inst.IncludesTokenExchangeRequirement, inst.RequiresTokenExchangeRequirement, true
 }

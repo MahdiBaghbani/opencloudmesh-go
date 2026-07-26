@@ -112,7 +112,7 @@ func TestCreateShare_NilResolver_RejectsEmptyWebappRequirements(t *testing.T) {
 func TestCreateShare_ResolverWithNoPeerOverlay_RejectsEmptyWebDAVRequirements(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
-	handler := newTestHandlerWithResolver(repo, partyRepo, policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil))
+	handler := newTestHandlerWithResolver(repo, partyRepo, policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil, config.CompatibilityScopeGlobal))
 
 	body := `{
 		"shareWith": "alice@localhost:9200",
@@ -193,7 +193,7 @@ func TestCreateShare_PeerOverlayOmitsRequirementForMatchedHost(t *testing.T) {
 	const unmatchedHost = "other.example.com"
 
 	cfg := peerMappingConfigWithInstanceRequires(matchedHost, false)
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, config.CompatibilityScopeGlobal)
 	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
 
 	bodyFor := func(host string) string {
@@ -249,7 +249,7 @@ func TestCreateShare_UnknownHostUsesGlobalStrictAdmission(t *testing.T) {
 	const boundHost = "other.example.com"
 
 	cfg := peerMappingConfigWithInstanceRequires(boundHost, false)
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, config.CompatibilityScopeGlobal)
 	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
 
 	body := `{
@@ -294,7 +294,7 @@ func TestCreateShare_PeerOverlayAcceptsWebappForMatchedHost(t *testing.T) {
 	const matchedHost = "sender.example.com"
 
 	cfg := peerMappingConfigWithInstanceRequires(matchedHost, false)
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, config.CompatibilityScopeGlobal)
 	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
 
 	body := validWebappShareBody("alice@localhost:9200", matchedHost, "webapp-overlay-accept")
@@ -315,7 +315,7 @@ func TestCreateShare_UnknownHostRejectsWebappWithGlobalStrictAdmission(t *testin
 	const unknownHost = "unknown.example.com"
 
 	cfg := peerMappingConfigWithInstanceRequires(matchedHost, false)
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, config.CompatibilityScopeGlobal)
 	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
 
 	body := `{
@@ -368,7 +368,7 @@ func TestCreateShare_MalformedSender_KeepsStrictRequirements(t *testing.T) {
 	partyRepo := setupTestPartyRepo()
 	const relaxedHost = "relaxed.example.com"
 	cfg := peerMappingConfigWithInstanceRequires(relaxedHost, false)
-	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg)
+	resolver := policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, config.CompatibilityScopeGlobal)
 	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
 
 	body := `{
