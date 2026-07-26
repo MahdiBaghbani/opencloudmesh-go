@@ -8,6 +8,8 @@ import (
 )
 
 func TestLoad_TLSDir_Absent_NoChange(t *testing.T) {
+	// Clear ambient env override so the TLS path load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// No tls_dir in TOML; paths stay at preset defaults
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -38,6 +40,8 @@ public_origin = "https://localhost:9200"
 }
 
 func TestLoad_TLSDir_NotInTOML_NoDerivation(t *testing.T) {
+	// Clear ambient env override so the TLS path load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// Even with [tls] present, derivation must not run unless tls_dir key is present.
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -71,6 +75,8 @@ mode = "selfsigned"
 }
 
 func TestLoad_TLSDir_Present_DerivesDefaults(t *testing.T) {
+	// Clear ambient env override so the TLS path derivation load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// tls_dir set; derives self_signed_dir, acme.storage_dir, signature.key_path
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -104,6 +110,8 @@ tls_dir = "/data/tls"
 }
 
 func TestLoad_TLSDir_ExplicitOverride(t *testing.T) {
+	// Clear ambient env override so the explicit-override load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// tls_dir set but self_signed_dir also explicitly set; uses explicit value
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -132,6 +140,8 @@ self_signed_dir = "/custom/certs"
 }
 
 func TestLoad_TLSDir_EmptyString_Fails(t *testing.T) {
+	// Clear ambient env override so the empty-tls_dir validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 	tomlContent := `mode = "strict"
@@ -154,6 +164,8 @@ tls_dir = ""
 }
 
 func TestLoad_TLSDir_WhitespaceOnly_Fails(t *testing.T) {
+	// Clear ambient env override so the whitespace-tls_dir validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 	tomlContent := `mode = "strict"
@@ -176,6 +188,8 @@ tls_dir = "   "
 }
 
 func TestLoad_TLSRootCAFile_Valid(t *testing.T) {
+	// Clear ambient env override so the TLS root CA load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	caFile := filepath.Join(dir, "ca.pem")
 	if err := os.WriteFile(caFile, []byte("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n"), 0644); err != nil {
@@ -202,6 +216,8 @@ tls_root_ca_file = "` + caFile + `"
 }
 
 func TestLoad_TLSRootCAFile_Missing_Fails(t *testing.T) {
+	// Clear ambient env override so the missing-CA validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 	tomlContent := `mode = "strict"
@@ -224,6 +240,8 @@ tls_root_ca_file = "/nonexistent/ca.pem"
 }
 
 func TestLoad_TLSRootCADir_NotDirectory_Fails(t *testing.T) {
+	// Clear ambient env override so the not-a-dir validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "not-a-dir")
 	if err := os.WriteFile(filePath, []byte("x"), 0644); err != nil {

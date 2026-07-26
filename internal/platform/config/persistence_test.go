@@ -32,6 +32,8 @@ func TestPersistencePresetDefaults(t *testing.T) {
 // TestPersistenceLoad_DefaultsToMemory verifies that Load() without a config
 // file returns the memory backend (strict preset default).
 func TestPersistenceLoad_DefaultsToMemory(t *testing.T) {
+	// Clear ambient env override so the default backend load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -47,6 +49,8 @@ func TestPersistenceLoad_DefaultsToMemory(t *testing.T) {
 // TestPersistenceLoad_OverlayFromTOML verifies that a persistence section in
 // TOML overlays the preset defaults correctly.
 func TestPersistenceLoad_OverlayFromTOML(t *testing.T) {
+	// Clear ambient env override so the persistence overlay load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -78,6 +82,8 @@ data_dir = "/tmp/ocm-data"
 // TestPersistenceLoad_MirrorOverlay verifies mirror backend config loads without
 // a mirror subsection.
 func TestPersistenceLoad_MirrorOverlay(t *testing.T) {
+	// Clear ambient env override so the mirror overlay load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -109,6 +115,8 @@ data_dir = "/tmp/ocm-mirror"
 // TestPersistenceLoad_UnknownBackendFails verifies that an unknown backend
 // value fails validation with a clear error. No silent fallback to memory.
 func TestPersistenceLoad_UnknownBackendFails(t *testing.T) {
+	// Clear ambient env override so the unknown-backend validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -137,6 +145,8 @@ func TestPersistenceLoad_DataDirRequiredForDurableBackends(t *testing.T) {
 
 	for _, backend := range durableBackends {
 		t.Run(backend, func(t *testing.T) {
+			// Clear ambient env override so each durable-backend validation is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			tomlPath := filepath.Join(dir, "config.toml")
 
@@ -158,6 +168,8 @@ func TestPersistenceLoad_DataDirRequiredForDurableBackends(t *testing.T) {
 // TestPersistenceLoad_MemoryNoDataDirRequired verifies that the memory
 // backend does not require data_dir.
 func TestPersistenceLoad_MemoryNoDataDirRequired(t *testing.T) {
+	// Clear ambient env override so the memory backend load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -185,6 +197,8 @@ backend = "memory"
 // empty `backend = ""` in TOML fails with a clear error and is not silently
 // treated as an absent key that would fall back to the preset memory value.
 func TestPersistenceLoad_ExplicitEmptyBackendFails(t *testing.T) {
+	// Clear ambient env override so the empty-backend validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 
@@ -208,6 +222,8 @@ backend = ""
 // TestPersistenceLoad_OverlayPreservesUnchangedFields verifies that a partial
 // persistence overlay does not reset unrelated preset fields.
 func TestPersistenceLoad_OverlayPreservesUnchangedFields(t *testing.T) {
+	// Clear ambient env override so the overlay load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 

@@ -6,6 +6,8 @@ import (
 )
 
 func TestLoad_CompatibilityScope_DefaultGlobal(t *testing.T) {
+	// Clear ambient env override so the default scope load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -16,6 +18,8 @@ func TestLoad_CompatibilityScope_DefaultGlobal(t *testing.T) {
 }
 
 func TestLoad_CompatibilityScope_ScopedFromFile(t *testing.T) {
+	// Clear ambient env override so the TOML scope load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 
@@ -33,6 +37,8 @@ compatibility_scope = "scoped"
 }
 
 func TestLoad_CompatibilityScope_InvalidRejected(t *testing.T) {
+	// Clear ambient env override so the validation error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 
@@ -50,6 +56,8 @@ compatibility_scope = "unbounded"
 }
 
 func TestLoad_CompatibilityScope_OverlayDoesNotBreakOCMSection(t *testing.T) {
+	// Clear ambient env override so the overlay load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 
@@ -83,6 +91,8 @@ requires_token_exchange_requirement = false
 }
 
 func TestLoad_CompatibilityScope_NonCanonicalCasing(t *testing.T) {
+	// Clear ambient env override so the casing-normalization load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 

@@ -11,6 +11,8 @@ import (
 )
 
 func TestLoad_InvalidNestedSSRFMode_FailsFast(t *testing.T) {
+	// Clear ambient env override so the SSRF validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -32,6 +34,8 @@ mode = "block"
 }
 
 func TestLoad_SSRF_NestedSchemaLoads(t *testing.T) {
+	// Clear ambient env override so the SSRF load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -72,6 +76,8 @@ allow_ip_literals = false
 }
 
 func TestLoad_SSRF_InvalidRoutePolicyRef_Fails(t *testing.T) {
+	// Clear ambient env override so the route-policy validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -94,6 +100,8 @@ route_policy = "nonexistent"
 }
 
 func TestLoad_SSRF_StrictMode_RejectsOff(t *testing.T) {
+	// Clear ambient env override so the strict-mode guardrail path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -112,6 +120,8 @@ func TestLoad_SSRF_StrictMode_RejectsOff(t *testing.T) {
 }
 
 func TestLoad_SSRF_StrictMode_StrictWithValidRoutePolicy_Loads(t *testing.T) {
+	// Clear ambient env override so the strict + route-policy load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -137,6 +147,8 @@ func TestLoad_SSRF_StrictMode_StrictWithValidRoutePolicy_Loads(t *testing.T) {
 }
 
 func TestLoad_SSRF_RoutePolicyWithIPLiterals_Fails(t *testing.T) {
+	// Clear ambient env override so the IP-literal validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -157,6 +169,8 @@ func TestLoad_SSRF_RoutePolicyWithIPLiterals_Fails(t *testing.T) {
 }
 
 func TestLoad_SSRF_RoutePolicyWithCatchAllCIDR_Fails(t *testing.T) {
+	// Clear ambient env override so the catch-all CIDR validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -177,6 +191,8 @@ func TestLoad_SSRF_RoutePolicyWithCatchAllCIDR_Fails(t *testing.T) {
 }
 
 func TestLoad_SSRF_RoutePolicyEmptyCIDRs_Fails(t *testing.T) {
+	// Clear ambient env override so the empty-CIDR validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -202,6 +218,8 @@ allow_ip_literals = false
 }
 
 func TestLoad_SSRF_RoutePolicyEmptyAllowedPorts_Fails(t *testing.T) {
+	// Clear ambient env override so the empty-ports validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -227,6 +245,8 @@ allow_ip_literals = false
 }
 
 func TestLoad_SSRF_RoutePolicyMissingHostSuffixes_Fails(t *testing.T) {
+	// Clear ambient env override so the missing-suffix validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -247,6 +267,8 @@ func TestLoad_SSRF_RoutePolicyMissingHostSuffixes_Fails(t *testing.T) {
 }
 
 func TestLoad_SSRF_RoutePolicyWithInvalidCIDR_Fails(t *testing.T) {
+	// Clear ambient env override so the invalid-CIDR validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -285,6 +307,8 @@ func TestLoad_SSRF_RoutePolicyWithInvalidPort_Fails(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// Clear ambient env override so the invalid-port validation path is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
 
@@ -317,6 +341,8 @@ func TestSSRFRoutePolicy_BlankHostSuffix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Clear ambient env override so the blank-suffix validation path is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
 			tomlContent := `mode = "strict"

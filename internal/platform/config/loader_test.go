@@ -38,6 +38,8 @@ func TestConfig_Redacted(t *testing.T) {
 }
 
 func TestLoad_StrictModeSignatureIETFDefaults(t *testing.T) {
+	// Clear ambient env override so the strict-mode signature load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{ModeFlag: "strict"})
 	if err != nil {
 		t.Fatalf("Load: %v", err)

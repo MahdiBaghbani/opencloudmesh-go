@@ -70,6 +70,8 @@ func TestConfigPublicScheme(t *testing.T) {
 // TestLoader_RejectsUnknownKeys locks the strict-decoder contract: a config
 // file with an unknown top-level key fails to load.
 func TestLoader_RejectsUnknownKeys(t *testing.T) {
+	// Clear ambient env override so the unknown-key rejection path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 

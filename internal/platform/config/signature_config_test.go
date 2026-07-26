@@ -41,6 +41,8 @@ func TestDefaultSignatureConfig_IETFDefaults(t *testing.T) {
 }
 
 func TestRFC9421OptionsFromConfig_NonDefaults(t *testing.T) {
+	// Clear ambient env override so the signature load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 	tomlContent := `
@@ -112,6 +114,8 @@ label = "custom-label"
 }
 
 func TestLoad_NormalizesAndDedupesAllowedAlgorithms(t *testing.T) {
+	// Clear ambient env override so the algorithm normalization load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
 	tomlContent := `
@@ -183,6 +187,8 @@ func TestNormalizeSignatureAllowedAlgorithms_RejectsEmpty(t *testing.T) {
 }
 
 func TestLoad_EmptyAllowedAlgorithmsKeepsDefaults(t *testing.T) {
+	// Clear ambient env override so the empty-array load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// TOML empty array does not overlay (len==0), so preset defaults remain.
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "config.toml")
@@ -225,6 +231,8 @@ func TestLoad_RejectsInvalidAllowedAlgorithms(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Clear ambient env override so each rejection case load is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			tomlPath := filepath.Join(dir, "config.toml")
 			tomlContent := `

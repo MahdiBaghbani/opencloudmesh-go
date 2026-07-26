@@ -8,6 +8,8 @@ import (
 )
 
 func TestLoad_UnknownKeys_Fail(t *testing.T) {
+	// Clear ambient env override so the unknown-keys validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -37,6 +39,8 @@ random_key = "value"
 }
 
 func TestLoad_InvalidTLSMode_FailsFast(t *testing.T) {
+	// Clear ambient env override so the TLS mode validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -58,6 +62,8 @@ mode = "letsencrypt"
 }
 
 func TestLoad_InvalidExternalBasePath_FailsFast(t *testing.T) {
+	// Clear ambient env override so the base-path validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -80,6 +86,8 @@ external_base_path = "ocm"
 }
 
 func TestLoad_ValidEnumValues_Succeeds(t *testing.T) {
+	// Clear ambient env override so the enum load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 

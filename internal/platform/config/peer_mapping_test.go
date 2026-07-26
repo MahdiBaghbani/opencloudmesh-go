@@ -6,6 +6,8 @@ import (
 )
 
 func TestPeerMapping_EmptyTOML_KnobsNil(t *testing.T) {
+	// Clear ambient env override so the empty-TOML load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -21,6 +23,8 @@ func TestPeerMapping_EmptyTOML_KnobsNil(t *testing.T) {
 }
 
 func TestPeerMapping_DuplicateHostBindingRejected(t *testing.T) {
+	// Clear ambient env override so the duplicate-binding validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 
@@ -41,6 +45,8 @@ requires_token_exchange_requirement = false
 }
 
 func TestPeerMapping_UnquotedMultiSegmentInstanceRejected(t *testing.T) {
+	// Clear ambient env override so the unquoted-key validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 
@@ -58,6 +64,8 @@ requires_token_exchange_requirement = false
 }
 
 func TestPeerMapping_NormalizesHostKeys(t *testing.T) {
+	// Clear ambient env override so the host-key normalization load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 public_origin = "https://example.com"
@@ -83,6 +91,8 @@ requires_token_exchange_requirement = false
 }
 
 func TestPeerMapping_NormalizedCollisionRejected(t *testing.T) {
+	// Clear ambient env override so the collision validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 public_origin = "https://example.com"
@@ -102,6 +112,8 @@ public_origin = "https://example.com"
 }
 
 func TestPeerMapping_KnobsLoadAsPointers(t *testing.T) {
+	// Clear ambient env override so the knob-pointer load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	content := `
 mode = "dev"
 

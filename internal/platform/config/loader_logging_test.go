@@ -22,6 +22,8 @@ func TestLoggingConfig_DefaultsPerMode(t *testing.T) {
 }
 
 func TestLoad_LoggingConfig_FromTOML(t *testing.T) {
+	// Clear ambient env override so the logging load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -46,6 +48,8 @@ level = "warn"
 }
 
 func TestLoad_LoggingConfig_FlagsOverrideTOML(t *testing.T) {
+	// Clear ambient env override so the flag-over-TOML precedence is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -76,6 +80,8 @@ level = "warn"
 }
 
 func TestLoad_LoggingConfig_InvalidLevel_FailsFast(t *testing.T) {
+	// Clear ambient env override so the validation error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -103,6 +109,8 @@ func TestLoad_LoggingConfig_AllValidLevels(t *testing.T) {
 
 	for _, level := range validLevels {
 		t.Run(level, func(t *testing.T) {
+			// Clear ambient env override so each level load is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
 

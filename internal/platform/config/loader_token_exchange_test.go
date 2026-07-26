@@ -20,6 +20,8 @@ func TestTokenExchangeConfig_DefaultsPerMode(t *testing.T) {
 }
 
 func TestLoad_TokenExchangeConfig_FromTOML(t *testing.T) {
+	// Clear ambient env override so the token exchange load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -44,6 +46,8 @@ path = "token/v2"
 }
 
 func TestLoad_TokenExchangeConfig_FlagOverridesTOMLPath(t *testing.T) {
+	// Clear ambient env override so the flag-over-TOML precedence is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -85,6 +89,8 @@ func TestLoad_TokenExchangeConfig_InvalidPath_FailsFast(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Clear ambient env override so the invalid-path validation is deterministic.
+			t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "config.toml")
 
@@ -110,6 +116,8 @@ path = "` + tt.path + `"
 }
 
 func TestLoad_TokenExchangeConfig_DefaultPathWhenSectionMissing(t *testing.T) {
+	// Clear ambient env override so the default path load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)

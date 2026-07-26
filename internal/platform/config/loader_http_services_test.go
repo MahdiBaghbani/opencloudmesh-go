@@ -7,6 +7,8 @@ import (
 )
 
 func TestLoad_HTTPServices_FromTOML(t *testing.T) {
+	// Clear ambient env override so the HTTP services load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -99,6 +101,8 @@ func TestBuildServiceConfig_ReturnsCopyForConfiguredService(t *testing.T) {
 }
 
 func TestHTTPConfig_EmptyServicesDoesNotBreakLoading(t *testing.T) {
+	// Clear ambient env override so the default load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)

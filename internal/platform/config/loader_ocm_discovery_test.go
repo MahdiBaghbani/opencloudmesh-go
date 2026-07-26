@@ -8,6 +8,8 @@ import (
 )
 
 func TestLoad_OCMDiffDiscovery_DefaultOmitted(t *testing.T) {
+	// Clear ambient env override so the discovery default load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -21,6 +23,8 @@ func TestLoad_OCMDiffDiscovery_DefaultOmitted(t *testing.T) {
 }
 
 func TestLoad_OCMDiffDiscovery_ExplicitEmptyDefaults(t *testing.T) {
+	// Clear ambient env override so the explicit-empty load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 	tomlContent := `
@@ -53,6 +57,8 @@ func TestLoad_OCMDiffDiscovery_ValidEnumCombinations(t *testing.T) {
 	for _, policy := range policies {
 		for _, warn := range warns {
 			t.Run(policy+"/"+warn, func(t *testing.T) {
+				// Clear ambient env override so each enum combination load is deterministic.
+				t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 				dir := t.TempDir()
 				configPath := filepath.Join(dir, "config.toml")
 				tomlContent := `
@@ -82,6 +88,8 @@ peer_api_version_warn = "` + warn + `"
 }
 
 func TestLoad_OCMDiffDiscovery_InvalidPolicy(t *testing.T) {
+	// Clear ambient env override so the validation error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 	tomlContent := `
@@ -104,6 +112,8 @@ peer_api_version_policy = "maybe"
 }
 
 func TestLoad_OCMDiffDiscovery_InvalidWarn(t *testing.T) {
+	// Clear ambient env override so the validation error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 	tomlContent := `

@@ -8,6 +8,8 @@ import (
 )
 
 func TestLoad_CacheDriverDefaultsToMemory(t *testing.T) {
+	// Clear ambient env override so the strict preset cache default is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// Without a cache section, cache.driver should be empty (will default to memory at runtime)
 	cfg, err := Load(LoaderOptions{})
 	if err != nil {
@@ -21,6 +23,8 @@ func TestLoad_CacheDriverDefaultsToMemory(t *testing.T) {
 }
 
 func TestLoad_CacheDriverMemoryValid(t *testing.T) {
+	// Clear ambient env override so the cache driver load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	tempDir, err := os.MkdirTemp("", "config-cache-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -49,6 +53,8 @@ driver = "memory"
 }
 
 func TestLoad_CacheDriverRedisValid(t *testing.T) {
+	// Clear ambient env override so the cache driver load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	tempDir, err := os.MkdirTemp("", "config-cache-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -77,6 +83,8 @@ driver = "redis"
 }
 
 func TestLoad_CacheDriverUnknownFails(t *testing.T) {
+	// Clear ambient env override so the cache driver validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	tempDir, err := os.MkdirTemp("", "config-cache-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)

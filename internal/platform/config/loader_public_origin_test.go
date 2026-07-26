@@ -112,6 +112,8 @@ func TestValidatePublicOrigin_InvalidValues(t *testing.T) {
 }
 
 func TestLoad_PublicOrigin_InvalidViaConfigFile_FailsFast(t *testing.T) {
+	// Clear ambient env override so the validation error path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -133,6 +135,8 @@ public_origin = "https://example.com/app"
 }
 
 func TestLoad_PublicOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
+	// Clear ambient env override so the flag validation path is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	origin := "ftp://example.com"
 	_, err := Load(LoaderOptions{
 		FlagOverrides: FlagOverrides{
@@ -148,6 +152,8 @@ func TestLoad_PublicOrigin_InvalidViaFlag_FailsFast(t *testing.T) {
 }
 
 func TestLoad_PublicOrigin_ValidViaConfigFile_Succeeds(t *testing.T) {
+	// Clear ambient env override so the public_origin load is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
