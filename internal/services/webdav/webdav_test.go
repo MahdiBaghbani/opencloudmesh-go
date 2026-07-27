@@ -39,7 +39,11 @@ func TestNew_UsesMinimalInputs(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	s := svc.(*Service)
+	s, ok := svc.(*Service)
+	if !ok {
+		t.Fatal("expected s type *Service")
+	}
+
 	if s.handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
@@ -69,7 +73,11 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	s := svc.(*Service)
+	s, ok := svc.(*Service)
+	if !ok {
+		t.Fatal("expected s type *Service")
+	}
+
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+strictShare.WebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer "+strictShare.SharedSecret)
 
@@ -116,7 +124,11 @@ func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	s := svc.(*Service)
+	s, ok := svc.(*Service)
+	if !ok {
+		t.Fatal("expected s type *Service")
+	}
+
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+share.WebDAVID+"/hello.txt", nil)
 	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
 

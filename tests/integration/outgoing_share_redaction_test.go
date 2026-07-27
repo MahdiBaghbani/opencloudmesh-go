@@ -85,6 +85,7 @@ func makeCapturingReceiverTLSServerForRedaction(capabilities, criteria []string)
 		switch r.URL.Path {
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
@@ -94,9 +95,11 @@ func makeCapturingReceiverTLSServerForRedaction(capabilities, criteria []string)
 				TokenEndPoint: srv.URL + "/ocm/token",
 			})
 		case "/ocm/shares":
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewDecoder(r.Body).Decode(&captured)
 
 			w.WriteHeader(http.StatusCreated)
+			//nolint:errcheck // test stub handler: response write
 			_, _ = w.Write([]byte(`{"ok":true}`))
 		default:
 			http.NotFound(w, r)
@@ -168,8 +171,10 @@ func createTempFileForRedaction(t *testing.T, pattern string) string {
 	}
 
 	path := tmpFile.Name()
+	//nolint:errcheck // test cleanup: temp file close
 	_ = tmpFile.Close()
 
+	//nolint:errcheck // test cleanup: temp file removal
 	t.Cleanup(func() { _ = os.Remove(path) })
 
 	return path

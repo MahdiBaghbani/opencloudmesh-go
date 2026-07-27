@@ -39,7 +39,7 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 
 			if r.Header.Get("Authorization") == "Bearer "+exchangedToken {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("file content"))
+				_, _ = w.Write([]byte("file content")) //nolint:errcheck // test mock handler: response write
 
 				return
 			}
@@ -70,7 +70,7 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer result.Response.Body.Close()
+	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if result.Response.StatusCode != http.StatusOK {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)
@@ -98,7 +98,7 @@ func TestAccess_ExchangeFailureFailsClosed(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -195,7 +195,7 @@ func TestAccess_Bearer401ReturnedAsIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer result.Response.Body.Close()
+	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if result.Response.StatusCode != http.StatusUnauthorized {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusUnauthorized)
@@ -243,7 +243,7 @@ func TestAccess_Bearer403ReturnedAsIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer result.Response.Body.Close()
+	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if result.Response.StatusCode != http.StatusForbidden {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusForbidden)
@@ -275,7 +275,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -286,18 +286,18 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 				return
 			}
 
-			_ = r.ParseForm()
+			_ = r.ParseForm() //nolint:errcheck // test mock handler: parse form
 
 			tokenGrantType = r.FormValue("grant_type")
 			if tokenGrantType != "authorization_code" {
 				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"wrong grant"}`))
+				_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"wrong grant"}`)) //nolint:errcheck // test mock handler: response write
 
 				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"access_token":"owner-token","token_type":"Bearer","expires_in":3600}`))
+			_, _ = w.Write([]byte(`{"access_token":"owner-token","token_type":"Bearer","expires_in":3600}`)) //nolint:errcheck // test mock handler: response write
 
 			return
 		}
@@ -309,7 +309,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
+			_, _ = w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 
 			return
 		}
@@ -337,7 +337,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected access error: %v", err)
 	}
-	defer result.Response.Body.Close()
+	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if tokenGrantType != "authorization_code" {
 		t.Fatalf("expected strict authorization_code grant_type, got %q", tokenGrantType)
@@ -369,7 +369,7 @@ func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -378,7 +378,7 @@ func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 			tokenHits.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte(`{"error":"invalid_client","error_description":"client authentication failed"}`))
+			_, _ = w.Write([]byte(`{"error":"invalid_client","error_description":"client authentication failed"}`)) //nolint:errcheck // test mock handler: response write
 
 			return
 		}
@@ -438,7 +438,7 @@ func TestAccess_TokenExchange403FailsClosed(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -447,7 +447,7 @@ func TestAccess_TokenExchange403FailsClosed(t *testing.T) {
 			tokenHits.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
-			_, _ = w.Write([]byte(`{"error":"access_denied","error_description":"token exchange denied"}`))
+			_, _ = w.Write([]byte(`{"error":"access_denied","error_description":"token exchange denied"}`)) //nolint:errcheck // test mock handler: response write
 
 			return
 		}

@@ -90,7 +90,7 @@ func TestRoutesMountOrder(t *testing.T) {
 		t.Fatalf("mount order = %v, want %v", mountOrder, want)
 	}
 
-	_ = srv.Shutdown(context.Background())
+	_ = srv.Shutdown(context.Background()) //nolint:errcheck // test server cleanup after mount order assertion
 }
 
 func TestRoutesShutdownOrder(t *testing.T) {

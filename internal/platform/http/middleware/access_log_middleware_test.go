@@ -137,7 +137,7 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	// Create a simple handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("hello"))
+		w.Write([]byte("hello")) //nolint:errcheck // test mock handler: response write
 	})
 
 	// Build the middleware chain as in routes.go

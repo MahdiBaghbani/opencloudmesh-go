@@ -28,7 +28,9 @@ func TestHandleDiscover_MissingBase(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp["success"] != false {
 		t.Error("expected success=false")
@@ -50,7 +52,10 @@ func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
 		ReasonCode string `json:"reasonCode"`
 	}
 
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
 	if resp.ReasonCode != reason.PeerDiscoveryDisabled {
 		t.Errorf("expected reasonCode %q, got %q", reason.PeerDiscoveryDisabled, resp.ReasonCode)
 	}
@@ -61,7 +66,7 @@ func TestHandleDiscover_Success(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
+			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -123,7 +128,7 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
+			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",

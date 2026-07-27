@@ -26,7 +26,7 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 	// HTTPS backend - the final TLS destination reached through the tunnel.
 	backend := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("tls-backend-ok"))
+		_, _ = w.Write([]byte("tls-backend-ok")) //nolint:errcheck // test handler response write
 	}))
 	defer backend.Close()
 
@@ -72,13 +72,13 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 
 		clientConn, _, hijackErr := hijacker.Hijack()
 		if hijackErr != nil {
-			targetConn.Close()
+			targetConn.Close() //nolint:errcheck // test proxy cleanup after hijack failure
 			t.Logf("proxy: hijack error: %v", hijackErr)
 
 			return
 		}
 
-		_, _ = fmt.Fprint(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n")
+		_, _ = fmt.Fprint(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n") //nolint:errcheck // test CONNECT tunnel handshake
 
 		// Proxy bytes bidirectionally until both sides close.
 		var wg sync.WaitGroup
@@ -86,15 +86,15 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			defer targetConn.Close()
+			defer targetConn.Close() //nolint:errcheck // test tunnel relay teardown
 
-			_, _ = io.Copy(targetConn, clientConn)
+			_, _ = io.Copy(targetConn, clientConn) //nolint:errcheck // test tunnel byte relay
 		}()
 		go func() {
 			defer wg.Done()
-			defer clientConn.Close()
+			defer clientConn.Close() //nolint:errcheck // test tunnel relay teardown
 
-			_, _ = io.Copy(clientConn, targetConn)
+			_, _ = io.Copy(clientConn, targetConn) //nolint:errcheck // test tunnel byte relay
 		}()
 		// Do not block the handler goroutine: that would cause proxy.Close()
 		// (and therefore the test) to hang while the client holds the tunnel
@@ -102,8 +102,8 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		// expires both connections so the io.Copy goroutines unblock promptly.
 		t.Cleanup(func() {
 			past := time.Now().Add(-time.Second)
-			_ = clientConn.SetDeadline(past)
-			_ = targetConn.SetDeadline(past)
+			_ = clientConn.SetDeadline(past) //nolint:errcheck // test tunnel teardown force close
+			_ = targetConn.SetDeadline(past) //nolint:errcheck // test tunnel teardown force close
 
 			wg.Wait()
 		})
@@ -133,7 +133,7 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HTTPS through CONNECT proxy failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -143,7 +143,7 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		t.Error("proxy did not receive a CONNECT request")
 	}
 
-	if got, _ := observedCONNECTTarget.Load().(string); got != wantCONNECTTarget {
+	if got, ok := observedCONNECTTarget.Load().(string); !ok || got != wantCONNECTTarget {
 		t.Errorf("CONNECT target: got %q, want %q", got, wantCONNECTTarget)
 	}
 }

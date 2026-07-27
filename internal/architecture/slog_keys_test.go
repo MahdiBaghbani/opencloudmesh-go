@@ -64,6 +64,11 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 				return nil
 			}
 
+			relPath, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+
 			ast.Inspect(node, func(n ast.Node) bool {
 				call, ok := n.(*ast.CallExpr)
 				if !ok {
@@ -81,7 +86,6 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 					}
 
 					if !snakeCaseRegex.MatchString(key) {
-						relPath, _ := filepath.Rel(root, path)
 						pos := fset.Position(call.Pos())
 						violations = append(violations,
 							relPath+":"+itoa(pos.Line)+": slog key \""+key+"\" is not snake_case")

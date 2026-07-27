@@ -110,10 +110,15 @@ mode = "off"
 	if err != nil {
 		t.Fatalf("failed to call unsigned token endpoint: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer unsignedResp.Body.Close()
 
 	if unsignedResp.StatusCode != http.StatusUnauthorized {
-		respBody, _ := io.ReadAll(unsignedResp.Body)
+		respBody, err := io.ReadAll(unsignedResp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected unsigned token request to be rejected with 401, got %d: %s", unsignedResp.StatusCode, respBody)
 	}
 
@@ -136,10 +141,15 @@ mode = "off"
 	if err != nil {
 		t.Fatalf("failed to call signed token endpoint: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer signedResp.Body.Close()
 
 	if signedResp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(signedResp.Body)
+		respBody, err := io.ReadAll(signedResp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected signed token request to succeed, got %d: %s", signedResp.StatusCode, respBody)
 	}
 
@@ -165,10 +175,15 @@ mode = "off"
 	if err != nil {
 		t.Fatalf("failed to call WebDAV endpoint: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer webdavResp.Body.Close()
 
 	if webdavResp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(webdavResp.Body)
+		respBody, err := io.ReadAll(webdavResp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected WebDAV bearer access to succeed, got %d: %s", webdavResp.StatusCode, respBody)
 	}
 
@@ -268,10 +283,15 @@ func TestIETFTwoInstance_JWKSRouteAndSignedTokenExchange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("signed token exchange request failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer signedResp.Body.Close()
 
 	if signedResp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(signedResp.Body)
+		respBody, err := io.ReadAll(signedResp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("signed token exchange = %d, want 200: %s", signedResp.StatusCode, respBody)
 	}
 
@@ -292,10 +312,15 @@ func assertClientJWKS(t *testing.T, client *harness.TestServer, clientHost strin
 	if err != nil {
 		t.Fatalf("fetch client JWKS: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("client JWKS status = %d, want 200: %s", resp.StatusCode, body)
 	}
 
@@ -325,10 +350,15 @@ func assertProviderDiscoveryUsesOCMLabel(t *testing.T, provider *harness.TestSer
 	if err != nil {
 		t.Fatalf("fetch provider discovery: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("provider discovery status = %d, want 200: %s", resp.StatusCode, body)
 	}
 
@@ -372,6 +402,7 @@ func postTokenExchange(t *testing.T, providerBaseURL, clientHost, code string, s
 	if err != nil {
 		t.Fatalf("token exchange request failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	return resp.StatusCode

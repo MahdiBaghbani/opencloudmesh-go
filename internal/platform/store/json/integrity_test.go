@@ -35,11 +35,11 @@ func writePersistedJSON(t *testing.T, dir, filename string, data interface{}) {
 // called; the driver must still derive and remove all old keys.
 func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	share := testutil.NewOutgoingShareFixture()
 	share.WebDAVId = "original-webdav"
@@ -119,7 +119,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVId(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp directory remove
 
 	if err := os.MkdirAll(tempDir, 0700); err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVId(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
 
 	if err := d.Init(context.Background()); err == nil {
 		t.Fatal("expected Init to fail for duplicate outgoing-share WebDAVId, but it succeeded")
@@ -164,7 +164,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareId(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp directory remove
 
 	if err := os.MkdirAll(tempDir, 0700); err != nil {
 		t.Fatal(err)
@@ -195,7 +195,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareId(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
 
 	if err := d.Init(context.Background()); err == nil {
 		t.Fatal("expected Init to fail for duplicate outgoing-share ShareId, but it succeeded")
@@ -209,7 +209,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingInviteToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp directory remove
 
 	if err := os.MkdirAll(tempDir, 0700); err != nil {
 		t.Fatal(err)
@@ -238,7 +238,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingInviteToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
 
 	if err := d.Init(context.Background()); err == nil {
 		t.Fatal("expected Init to fail for duplicate outgoing-invite Token, but it succeeded")

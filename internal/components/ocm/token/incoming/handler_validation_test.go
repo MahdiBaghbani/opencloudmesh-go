@@ -43,7 +43,9 @@ func TestHandler_MissingFields(t *testing.T) {
 			}
 
 			var resp token.OAuthError
-			json.NewDecoder(w.Body).Decode(&resp)
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Fatalf("Decode: %v", err)
+			}
 
 			if resp.Error != token.ErrorInvalidRequest {
 				t.Errorf("expected error %q, got %q", token.ErrorInvalidRequest, resp.Error)
@@ -74,7 +76,9 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 	}
 
 	var resp token.OAuthError
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Error != token.ErrorUnsupportedGrantType {
 		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
@@ -105,7 +109,9 @@ func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
 	}
 
 	var resp token.OAuthError
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Error != token.ErrorUnsupportedGrantType {
 		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
@@ -131,7 +137,9 @@ func TestHandler_JSONBody_Rejected(t *testing.T) {
 	}
 
 	var resp token.OAuthError
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Error != token.ErrorInvalidRequest {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidRequest, resp.Error)
@@ -213,7 +221,9 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 					ReceiverHost: "receiver.example.com",
 					LocalPath:    "/tmp/test.txt",
 				}
-				shareRepo.Create(context.Background(), share)
+				if err := shareRepo.Create(context.Background(), share); err != nil {
+					t.Fatalf("Create: %v", err)
+				}
 			}
 
 			form := url.Values{}

@@ -196,6 +196,7 @@ func startCrossAuthorityDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(disc)
 		case "/ocm/shares":
 			if r.Method == http.MethodPost {

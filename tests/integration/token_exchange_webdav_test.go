@@ -37,12 +37,16 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 
 	t.Run("WebDAVEndpointExists", func(t *testing.T) {
 		// Try to access WebDAV endpoint - should require auth
-		req, _ := http.NewRequest(http.MethodGet, srv.BaseURL+"/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.BaseURL+"/webdav/ocm/550e8400-e29b-41d4-a716-446655440000", nil)
+		if err != nil {
+			t.Fatalf("create request: %v", err)
+		}
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("failed to access WebDAV: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		// Should return 401 (unauthorized) not 404
@@ -55,12 +59,16 @@ func TestWebDAVWithBearerToken(t *testing.T) {
 
 	t.Run("WebDAVRequiresAuth", func(t *testing.T) {
 		// The WebDAV endpoint should require authorization
-		req, _ := http.NewRequest(http.MethodGet, srv.BaseURL+"/webdav/ocm/test-id", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.BaseURL+"/webdav/ocm/test-id", nil)
+		if err != nil {
+			t.Fatalf("create request: %v", err)
+		}
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("failed to access WebDAV: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		// Should require auth or return bad request for invalid ID

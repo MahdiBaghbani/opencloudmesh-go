@@ -31,7 +31,10 @@ import (
 func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 	// Create a key manager and signer
 	km := crypto.NewKeyManager("", "https://sender.example.com")
-	km.LoadOrGenerate()
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate: %v", err)
+	}
+
 	signer := crypto.NewRFC9421Signer(km)
 
 	cfg := defaultSigTestConfig()
@@ -85,7 +88,10 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 	// Use explicit :443 in the sender's external origin so the keyId includes it.
 	km := crypto.NewKeyManager("", "https://sender.example.com:443")
-	km.LoadOrGenerate()
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate: %v", err)
+	}
+
 	signer := crypto.NewRFC9421Signer(km)
 
 	cfg := defaultSigTestConfig()
@@ -287,12 +293,12 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 		switch r.URL.Path {
 		case jwks.WellKnownPath:
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{
+			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{ //nolint:errcheck // test mock handler: JSON encode
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
 			}}})
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
 				"enabled":      true,
 				"apiVersion":   "1.4.0",
 				"endPoint":     srv.URL + "/ocm",

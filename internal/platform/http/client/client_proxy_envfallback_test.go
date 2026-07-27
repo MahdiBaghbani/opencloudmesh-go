@@ -48,7 +48,7 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("direct"))
+		_, _ = w.Write([]byte("direct")) //nolint:errcheck // test handler response write
 	}))
 	server.Listener = destListener
 
@@ -76,7 +76,7 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected direct connection, got error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -96,7 +96,7 @@ func TestClient_UseEnvFallbackEnabled_UsesEnv(t *testing.T) {
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHit.Store(true)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("via-env-proxy"))
+		_, _ = w.Write([]byte("via-env-proxy")) //nolint:errcheck // test handler response write
 	}))
 	defer proxy.Close()
 
@@ -122,7 +122,7 @@ func TestClient_UseEnvFallbackEnabled_UsesEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success through env proxy, got: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -169,7 +169,7 @@ func TestClient_ExplicitProxyOverridesEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success through explicit proxy, got: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if !explicitHit.Load() {
 		t.Error("request must route through the explicit proxy_url")

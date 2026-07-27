@@ -73,7 +73,7 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 				}
 
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(token.TokenResponse{
+				_ = json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
 					AccessToken: tt.accessToken,
 					TokenType:   "Bearer",
 					ExpiresIn:   3600,

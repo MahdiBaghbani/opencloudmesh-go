@@ -57,6 +57,7 @@ max_stale_seconds = 600
 		srv.DumpLogs(t)
 		t.Fatalf("failed to get /ocm-aux/federations: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -94,6 +95,7 @@ func TestFederationsEndpointWithoutFederation(t *testing.T) {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to get /ocm-aux/federations: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

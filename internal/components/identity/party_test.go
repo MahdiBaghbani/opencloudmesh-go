@@ -58,7 +58,11 @@ func TestMemoryPartyRepo_CRUD(t *testing.T) {
 		t.Fatalf("Update failed: %v", err)
 	}
 
-	got, _ = repo.Get(ctx, user.ID)
+	got, err = repo.Get(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+
 	if got.DisplayName != "Alice Updated" {
 		t.Errorf("expected updated display name")
 	}
@@ -140,7 +144,11 @@ func TestMemoryPartyRepo_DeleteExpired(t *testing.T) {
 	}
 
 	// Verify only non-expired remains
-	users, _ := repo.List(ctx, "")
+	users, err := repo.List(ctx, "")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if len(users) != 1 {
 		t.Errorf("expected 1 user remaining, got %d", len(users))
 	}

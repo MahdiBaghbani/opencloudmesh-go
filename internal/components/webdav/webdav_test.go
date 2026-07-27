@@ -140,7 +140,7 @@ func seedShareWithRequirements(repo *mockOutgoingShareRepo, shareID string, requ
 		ReceiverHost: "receiver.example.com",
 		Requirements: requirements,
 	}
-	_ = repo.Create(context.Background(), share)
+	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
 
 	return share
 }
@@ -151,7 +151,7 @@ func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
 	share := seedShare(repo)
 
 	ctx := context.Background()
-	_ = tokenStore.Store(ctx, unexpiredTestToken("exchanged-token-123", share.ShareID))
+	_ = tokenStore.Store(ctx, unexpiredTestToken("exchanged-token-123", share.ShareID)) //nolint:errcheck // test fixture seed
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -193,7 +193,7 @@ func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
 	share := seedShare(repo)
 
 	ctx := context.Background()
-	_ = tokenStore.Store(ctx, unexpiredTestToken("bound-to-other-share", "other-share"))
+	_ = tokenStore.Store(ctx, unexpiredTestToken("bound-to-other-share", "other-share")) //nolint:errcheck // test fixture seed
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -284,10 +284,10 @@ func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	share := seedShare(repo)
 	share.LocalPath = filePath
-	_ = repo.Update(context.Background(), share)
+	_ = repo.Update(context.Background(), share) //nolint:errcheck // test fixture seed
 
 	tokenStore := newMockTokenStore()
-	_ = tokenStore.Store(context.Background(), unexpiredTestToken("valid-token", share.ShareID))
+	_ = tokenStore.Store(context.Background(), unexpiredTestToken("valid-token", share.ShareID)) //nolint:errcheck // test fixture seed
 
 	handler := NewHandler(repo, tokenStore, nil)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)
@@ -323,7 +323,7 @@ func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	_ = seedShare(repo)
 	tokenStore := newMockTokenStore()
-	_ = tokenStore.Store(context.Background(), &token.IssuedToken{
+	_ = tokenStore.Store(context.Background(), &token.IssuedToken{ //nolint:errcheck // test fixture seed
 		AccessToken: "expired-token",
 		ShareID:     "share-1",
 		ExpiresAt:   time.Now().Add(-time.Hour),
@@ -347,7 +347,7 @@ func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	share := seedShare(repo)
 	tokenStore := newMockTokenStore()
-	_ = tokenStore.Store(context.Background(), unexpiredTestToken(share.SharedSecret, share.ShareID))
+	_ = tokenStore.Store(context.Background(), unexpiredTestToken(share.SharedSecret, share.ShareID)) //nolint:errcheck // test fixture seed
 
 	handler := NewHandler(repo, tokenStore, nil)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
@@ -377,7 +377,7 @@ func TestServeHTTP_NonStrictSharedSecretSucceeds(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	share := seedShare(repo)
 	share.LocalPath = filePath
-	_ = repo.Update(context.Background(), share)
+	_ = repo.Update(context.Background(), share) //nolint:errcheck // test fixture seed
 
 	handler := NewHandler(repo, newMockTokenStore(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)

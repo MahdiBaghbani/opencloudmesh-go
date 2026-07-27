@@ -16,13 +16,13 @@ import (
 func setupTestPartyRepo() identity.PartyRepo {
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
-	repo.Create(ctx, &identity.User{
+	repo.Create(ctx, &identity.User{ //nolint:errcheck // test fixture seed without testing.T
 		ID:          "user-a-uuid",
 		Username:    "alice",
 		Email:       "alice@example.org",
 		DisplayName: "Alice A",
 	})
-	repo.Create(ctx, &identity.User{
+	repo.Create(ctx, &identity.User{ //nolint:errcheck // test fixture seed without testing.T
 		ID:          "user-b-uuid",
 		Username:    "bob",
 		Email:       "bob@example.org",

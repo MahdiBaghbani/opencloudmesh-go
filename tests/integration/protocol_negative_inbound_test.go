@@ -60,6 +60,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 				)
 
 				resp := postJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body)
+				//nolint:errcheck // test cleanup: response body close
 				defer resp.Body.Close()
 
 				assertInboundStatus(t, env, resp, http.StatusUnauthorized)
@@ -78,6 +79,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 				)
 
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
+				//nolint:errcheck // test cleanup: response body close
 				defer resp.Body.Close()
 
 				assertInboundStatus(t, env, resp, http.StatusForbidden)
@@ -101,6 +103,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 				)
 
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
+				//nolint:errcheck // test cleanup: response body close
 				defer resp.Body.Close()
 
 				assertInboundStatus(t, env, resp, http.StatusForbidden)
@@ -135,6 +138,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 				if err != nil {
 					t.Fatalf("POST with foreign labels only: %v", err)
 				}
+				//nolint:errcheck // test cleanup: response body close
 				defer resp.Body.Close()
 
 				assertInboundStatus(t, env, resp, http.StatusUnauthorized)
@@ -168,6 +172,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 				if err != nil {
 					t.Fatalf("signed POST with duplicate ocm label: %v", err)
 				}
+				//nolint:errcheck // test cleanup: response body close
 				defer resp.Body.Close()
 
 				assertInboundStatus(t, env, resp, http.StatusUnauthorized)
@@ -202,6 +207,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					secret))
 
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
+				//nolint:errcheck // test cleanup: response body close
 				defer resp.Body.Close()
 
 				assertInboundStatus(t, env, resp, http.StatusBadRequest)
@@ -238,6 +244,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					secret))
 
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
+				//nolint:errcheck // test cleanup: response body close
 				defer resp.Body.Close()
 
 				assertInboundStatus(t, env, resp, http.StatusNotImplemented)
@@ -273,6 +280,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 					secret))
 
 				resp := postSignedJSONWithClient(t, env.consumer.Client(), env.consumer.BaseURL+"/ocm/shares", body, env.signer)
+				//nolint:errcheck // test cleanup: response body close
 				defer resp.Body.Close()
 
 				assertInboundStatus(t, env, resp, http.StatusNotImplemented)
@@ -323,7 +331,10 @@ func assertInboundStatus(t *testing.T, env inboundNegativeEnv, resp *http.Respon
 		return
 	}
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
 
 	env.provider.DumpLogs(t)
 	env.consumer.DumpLogs(t)

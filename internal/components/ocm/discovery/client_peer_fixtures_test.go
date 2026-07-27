@@ -56,7 +56,7 @@ func TestClientDiscover_RealPeerFixtures(t *testing.T) {
 						},
 					},
 				})
-				json.NewEncoder(w).Encode(raw)
+				json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 			})
 			client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 

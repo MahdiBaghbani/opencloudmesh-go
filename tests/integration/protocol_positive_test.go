@@ -102,10 +102,14 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	consumerSigner := subprocessSigner(t, consumer)
 
 	webdavResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner)
+	//nolint:errcheck // test cleanup: response body close
 	defer webdavResp.Body.Close()
 
 	if webdavResp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(webdavResp.Body)
+		respBody, err := io.ReadAll(webdavResp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
 
 		provider.DumpLogs(t)
 		consumer.DumpLogs(t)
@@ -154,10 +158,15 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bearer webdav GET: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer bearerResp.Body.Close()
 
 	if bearerResp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(bearerResp.Body)
+		respBody, err := io.ReadAll(bearerResp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("bearer webdav: expected 200, got %d: %s", bearerResp.StatusCode, respBody)
 	}
 
@@ -181,10 +190,15 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("shared-secret webdav GET: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer secretResp.Body.Close()
 
 	if secretResp.StatusCode != http.StatusUnauthorized {
-		respBody, _ := io.ReadAll(secretResp.Body)
+		respBody, err := io.ReadAll(secretResp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("shared-secret webdav: expected 401, got %d: %s", secretResp.StatusCode, respBody)
 	}
 
@@ -194,10 +208,15 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	}
 
 	dupResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner)
+	//nolint:errcheck // test cleanup: response body close
 	defer dupResp.Body.Close()
 
 	if dupResp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(dupResp.Body)
+		respBody, err := io.ReadAll(dupResp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("duplicate webdav inbound share: expected 200, got %d: %s", dupResp.StatusCode, respBody)
 	}
 

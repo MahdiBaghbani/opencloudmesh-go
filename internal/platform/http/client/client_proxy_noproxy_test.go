@@ -72,13 +72,21 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 // by TestClient_NOProxy_RoutingBypass to obtain a destination IP that Go's
 // env-driven proxy logic does not special-case the way it does for loopback.
 func findNonLoopbackIPv4() net.IP {
-	ifaces, _ := net.Interfaces()
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+
 	for _, iface := range ifaces {
 		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
 			continue
 		}
 
-		addrs, _ := iface.Addrs()
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
 		for _, addr := range addrs {
 			var ip net.IP
 
@@ -94,7 +102,7 @@ func findNonLoopbackIPv4() net.IP {
 			}
 			// Confirm we can actually bind a listener on this address.
 			if l, err := net.Listen("tcp", ip.String()+":0"); err == nil {
-				l.Close()
+				l.Close() //nolint:errcheck // test bind probe listener cleanup
 				return ip.To4()
 			}
 		}
@@ -141,7 +149,7 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 
 	destSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("direct"))
+		_, _ = w.Write([]byte("direct")) //nolint:errcheck // test handler response write
 	}))
 	destSrv.Listener = destListener
 
@@ -172,7 +180,7 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected direct connection via NO_PROXY bypass, got error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)

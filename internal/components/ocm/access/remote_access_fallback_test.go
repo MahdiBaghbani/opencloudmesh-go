@@ -61,7 +61,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 			},
 			tokenHandler: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"access_token":"exchanged-token","token_type":"Bearer","expires_in":3600}`))
+				_, _ = w.Write([]byte(`{"access_token":"exchanged-token","token_type":"Bearer","expires_in":3600}`)) //nolint:errcheck // test mock handler: response write
 			},
 			wantToken:     "exchanged-token",
 			wantTokenHits: 1,
@@ -87,7 +87,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 			tokenHandler: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
+				_, _ = w.Write([]byte(`{"error":"invalid_client"}`)) //nolint:errcheck // test mock handler: response write
 			},
 			wantToken:     sharedSecret,
 			wantLog:       true,
@@ -114,7 +114,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 			tokenHandler: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+				_, _ = w.Write([]byte(`{"error":"invalid_grant"}`)) //nolint:errcheck // test mock handler: response write
 			},
 			wantToken:     sharedSecret,
 			wantLog:       true,
@@ -141,7 +141,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 			tokenHandler: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write([]byte(`{"error":"invalid_request"}`))
+				_, _ = w.Write([]byte(`{"error":"invalid_request"}`)) //nolint:errcheck // test mock handler: response write
 			},
 			wantToken:     sharedSecret,
 			wantLog:       true,
@@ -203,7 +203,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 					disc := tt.discovery(r.Host)
 
 					w.Header().Set("Content-Type", "application/json")
-					_ = json.NewEncoder(w).Encode(disc)
+					_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 					return
 				}
@@ -260,7 +260,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			defer result.Response.Body.Close()
+			defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 			if result.Response.StatusCode != http.StatusOK {
 				t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)

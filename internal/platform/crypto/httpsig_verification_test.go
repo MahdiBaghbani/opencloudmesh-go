@@ -36,8 +36,13 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 	km1 := crypto.NewKeyManager("", "https://example.com")
 	km2 := crypto.NewKeyManager("", "https://attacker.com")
 
-	km1.LoadOrGenerate()
-	km2.LoadOrGenerate()
+	if err := km1.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate km1: %v", err)
+	}
+
+	if err := km2.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate km2: %v", err)
+	}
 
 	opts := httpsigFixedOptions()
 
@@ -45,11 +50,18 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"test": "data"}`)
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/json")
 
-	signer.SignRequest(req, body)
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
 
 	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{

@@ -301,7 +301,7 @@ func makeCapturingReceiverWithWebDAVReceive(
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -309,10 +309,10 @@ func makeCapturingReceiverWithWebDAVReceive(
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 
-			_ = json.NewDecoder(r.Body).Decode(&captured)
+			_ = json.NewDecoder(r.Body).Decode(&captured) //nolint:errcheck // test mock handler: JSON decode
 
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`))
+			_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
 
 			return
 		}
@@ -361,7 +361,7 @@ func makeCapturingReceiverWithMismatchedEndpoint(
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -369,7 +369,7 @@ func makeCapturingReceiverWithMismatchedEndpoint(
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`))
+			_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
 
 			return
 		}

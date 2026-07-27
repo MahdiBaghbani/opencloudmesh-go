@@ -25,7 +25,11 @@ var testListing = Listing{
 }
 
 func testPayload() []byte {
-	b, _ := json.Marshal(testListing)
+	b, err := json.Marshal(testListing)
+	if err != nil {
+		panic(err)
+	}
+
 	return b
 }
 
@@ -34,7 +38,7 @@ func serveJWS(t *testing.T, body []byte) *httptest.Server {
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
+		_, _ = w.Write(body) //nolint:errcheck // test mock handler: response write
 	}))
 }
 

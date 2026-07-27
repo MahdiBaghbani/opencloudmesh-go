@@ -33,6 +33,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get health endpoint: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -65,6 +66,7 @@ func TestHealthEndpointWithExternalBasePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get health endpoint: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -86,6 +88,7 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 			t.Fatalf("failed to get discovery at %q: %v", path, err)
 		}
 
+		//nolint:errcheck // test cleanup: response body close
 		resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -101,6 +104,7 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 			t.Fatalf("failed to get prefixed discovery at %q: %v", prefixed, err)
 		}
 
+		//nolint:errcheck // test cleanup: response body close
 		resp.Body.Close()
 
 		if resp.StatusCode == http.StatusOK {
@@ -132,6 +136,7 @@ func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("health check against local listener failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -147,6 +152,7 @@ func TestDiscoveryEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get discovery: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

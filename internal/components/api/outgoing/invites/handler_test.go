@@ -128,7 +128,9 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 	}
 
 	var resp invites.CreateOutgoingResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	stored, err := repo.GetByToken(context.Background(), resp.Token)
 	if err != nil {

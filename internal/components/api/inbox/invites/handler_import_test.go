@@ -71,7 +71,9 @@ func TestHandleImport_Idempotent(t *testing.T) {
 	}
 
 	var resp1 inboxinvites.InviteImportResponse
-	json.Unmarshal(w1.Body.Bytes(), &resp1)
+	if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	req2 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req2.Header.Set("Content-Type", "application/json")
@@ -84,7 +86,9 @@ func TestHandleImport_Idempotent(t *testing.T) {
 	}
 
 	var resp2 inboxinvites.InviteImportResponse
-	json.Unmarshal(w2.Body.Bytes(), &resp2)
+	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp1.ID != resp2.ID {
 		t.Errorf("idempotent import should return same ID: got %s vs %s", resp1.ID, resp2.ID)
@@ -171,8 +175,15 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 		t.Fatalf("user B import: expected 201, got %d: %s", w2.Code, w2.Body.String())
 	}
 
-	invitesA, _ := repo.ListByRecipientUserID(context.Background(), userAID)
-	invitesB, _ := repo.ListByRecipientUserID(context.Background(), userBID)
+	invitesA, err := repo.ListByRecipientUserID(context.Background(), userAID)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	invitesB, err := repo.ListByRecipientUserID(context.Background(), userBID)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	if len(invitesA) != 1 {
 		t.Errorf("expected 1 invite for user A, got %d", len(invitesA))

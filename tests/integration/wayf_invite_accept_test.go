@@ -111,8 +111,10 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 		bob.DumpLogs(t)
 		t.Fatalf("GET bob accept-invite unauthenticated: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer acceptResp.Body.Close()
 
+	//nolint:errcheck // test cleanup: drain response body
 	_, _ = io.Copy(io.Discard, acceptResp.Body)
 
 	if acceptResp.StatusCode != http.StatusFound {

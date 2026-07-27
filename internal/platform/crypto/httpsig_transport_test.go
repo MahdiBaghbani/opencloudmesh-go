@@ -42,7 +42,7 @@ func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("client.Do: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if !strings.Contains(gotSignatureInput, `"content-length"`) {
 		t.Fatalf("server-observed Signature-Input = %q, want content-length coverage for an empty body", gotSignatureInput)

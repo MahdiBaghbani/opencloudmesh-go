@@ -42,13 +42,13 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				t.Fatalf("create temp file: %v", err)
 			}
 
-			t.Cleanup(func() { _ = os.Remove(tmpFile.Name()) })
+			t.Cleanup(func() { _ = os.Remove(tmpFile.Name()) }) //nolint:errcheck // test cleanup: temp path removal
 
 			if _, err := tmpFile.WriteString("payload"); err != nil {
 				t.Fatalf("write temp file: %v", err)
 			}
 
-			_ = tmpFile.Close()
+			_ = tmpFile.Close() //nolint:errcheck // test cleanup: resource close
 
 			share := &outgoing.OutgoingShare{
 				ShareID:      "share-logs",

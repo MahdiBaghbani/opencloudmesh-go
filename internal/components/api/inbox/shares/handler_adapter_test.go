@@ -18,7 +18,7 @@ func TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm(
 	ctx := context.Background()
 
 	r := tsrepos.OpenJSON(t)
-	defer r.Close()
+	defer r.Close() //nolint:errcheck // test cleanup: repository close
 
 	repo := r.IncomingShares
 

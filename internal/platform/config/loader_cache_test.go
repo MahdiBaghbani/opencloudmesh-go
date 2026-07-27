@@ -30,7 +30,7 @@ func TestLoad_CacheDriverMemoryValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	configPath := filepath.Join(tempDir, "config.toml")
 
@@ -62,7 +62,7 @@ func TestLoad_CacheDriverRedisValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	configPath := filepath.Join(tempDir, "config.toml")
 
@@ -94,7 +94,7 @@ func TestLoad_CacheDriverUnknownFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	configPath := filepath.Join(tempDir, "config.toml")
 

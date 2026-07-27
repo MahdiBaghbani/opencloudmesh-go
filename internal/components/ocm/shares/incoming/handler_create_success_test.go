@@ -31,7 +31,9 @@ func TestCreateShare_Success_ResolvesById(t *testing.T) {
 	}
 
 	var resp spec.CreateShareResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.RecipientDisplayName != "Alice A" {
 		t.Errorf("expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
@@ -56,7 +58,9 @@ func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
 	}
 
 	var resp spec.CreateShareResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.RecipientDisplayName != "Alice A" {
 		t.Errorf("expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
@@ -110,7 +114,9 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 	}
 
 	var resp spec.CreateShareResponse
-	json.NewDecoder(w2.Body).Decode(&resp)
+	if err := json.NewDecoder(w2.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.RecipientDisplayName != "Alice A" {
 		t.Errorf("duplicate response: expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)
@@ -166,7 +172,9 @@ func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
 	}
 
 	var resp spec.CreateShareResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.RecipientDisplayName != "Alice A" {
 		t.Errorf("expected recipientDisplayName 'Alice A', got %q", resp.RecipientDisplayName)

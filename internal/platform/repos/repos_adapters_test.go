@@ -22,7 +22,11 @@ func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 	ctx := context.Background()
 
 	r := tsrepos.OpenJSON(t)
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	}()
 
 	share := &sharesinbox.IncomingShare{
 		ShareID:         "dup1",
@@ -63,7 +67,11 @@ func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
 	ctx := context.Background()
 
 	r := tsrepos.OpenJSON(t)
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	}()
 
 	invite := &invitesinbox.IncomingInvite{
 		ID:              "dup-ii1",
@@ -100,7 +108,11 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
-			defer r.Close()
+			defer func() {
+				if err := r.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
 
 			sentAt := time.Unix(time.Now().Unix(), 0).UTC()
 
@@ -145,7 +157,11 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
-			defer r.Close()
+			defer func() {
+				if err := r.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
 
 			share := &sharesoutgoing.OutgoingShare{
 				ShareID:          "nf-out-" + backend,
@@ -200,7 +216,11 @@ func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
-			defer r.Close()
+			defer func() {
+				if err := r.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
 
 			shareID := "iso-sts-" + backend
 
@@ -253,7 +273,11 @@ func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
-			defer r.Close()
+			defer func() {
+				if err := r.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
 
 			shareID := "iso-tss-" + backend
 
@@ -297,7 +321,11 @@ func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
-			defer r.Close()
+			defer func() {
+				if err := r.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
 
 			share := &sharesinbox.IncomingShare{
 				ShareID:           "nf-in-" + backend,

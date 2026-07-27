@@ -30,7 +30,9 @@ func TestCreateShare_MissingRequiredFields(t *testing.T) {
 	}
 
 	var resp spec.OCMErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Message != "MISSING_REQUIRED_FIELDS" {
 		t.Errorf("expected message MISSING_REQUIRED_FIELDS, got %q", resp.Message)
@@ -68,7 +70,9 @@ func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
 	}
 
 	var resp spec.OCMErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Message != "INVALID_FIELD_FORMAT" {
 		t.Errorf("expected INVALID_FIELD_FORMAT, got %q", resp.Message)
@@ -105,7 +109,9 @@ func TestCreateShare_ProviderMismatch(t *testing.T) {
 	}
 
 	var resp spec.OCMErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Message != "PROVIDER_MISMATCH" {
 		t.Errorf("expected PROVIDER_MISMATCH, got %q", resp.Message)
@@ -139,7 +145,9 @@ func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
 	}
 
 	var resp spec.OCMErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Message != "SHARE_TYPE_NOT_SUPPORTED" {
 		t.Errorf("expected SHARE_TYPE_NOT_SUPPORTED, got %q", resp.Message)
@@ -164,7 +172,9 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 	}
 
 	var resp spec.OCMErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Message != "RECIPIENT_NOT_FOUND" {
 		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
@@ -230,7 +240,9 @@ func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	}
 
 	var resp spec.OCMErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Message != "RECIPIENT_NOT_FOUND" {
 		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)
@@ -259,7 +271,9 @@ func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
 	}
 
 	var resp spec.OCMErrorResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Message != "RECIPIENT_NOT_FOUND" {
 		t.Errorf("expected RECIPIENT_NOT_FOUND, got %q", resp.Message)

@@ -30,7 +30,7 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	}
 
 	driver := testutil.OpenDriver(t, cfg)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	// Make the mirror dir read-only so all subsequent JSON export attempts fail.
 	mirrorDir := filepath.Join(tempDir, "mirror")
@@ -38,9 +38,11 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Cleanup(func() { os.Chmod(mirrorDir, 0700) })
+	t.Cleanup(func() {
+		os.Chmod(mirrorDir, 0700) //nolint:errcheck // test cleanup: restore directory permissions
+	})
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 	share := testutil.NewOutgoingShareFixture()
 
 	// The mutator must return nil even though the export step fails.
@@ -80,7 +82,7 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 
 	driver := testutil.OpenDriver(t, cfg)
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	// Create a share
 	share := testutil.NewOutgoingShareFixture()
@@ -88,7 +90,7 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	driver.Close()
+	driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	// Corrupt the JSON file
 	jsonPath := filepath.Join(tempDir, "mirror", "outgoing_shares.json")
@@ -98,9 +100,9 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 
 	// Reload driver - should still work because it reads from SQLite, not JSON
 	driver2 := testutil.OpenDriver(t, cfg)
-	defer driver2.Close()
+	defer driver2.Close() //nolint:errcheck // test cleanup: driver close
 
-	outStore2 := driver2.(store.OutgoingShareStore)
+	outStore2 := requireOutgoingShareStore(t, driver2)
 
 	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderId)
 	if err != nil {

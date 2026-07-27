@@ -45,7 +45,9 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if !resp.OK {
 		t.Error("expected ok=true")
@@ -91,7 +93,9 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp.OK {
 		t.Error("expected ok=false")
@@ -125,7 +129,9 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp.ReasonCode != "policy_denied" {
 		t.Errorf("expected reasonCode policy_denied, got %s", resp.ReasonCode)
@@ -151,7 +157,9 @@ func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp.ReasonCode != "discovery_disabled" {
 		t.Errorf("expected reasonCode discovery_disabled, got %s", resp.ReasonCode)
@@ -184,7 +192,9 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if !resp.OK {
 		t.Error("expected ok=true")
@@ -225,7 +235,9 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp.OK {
 		t.Error("expected ok=false")

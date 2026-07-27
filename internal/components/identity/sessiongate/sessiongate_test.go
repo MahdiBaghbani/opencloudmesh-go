@@ -206,7 +206,12 @@ func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
 		if rh, ok := handlerLogger.Handler().(*recordingHandler); ok {
 			capturedHandler = rh
 			if uid, exists := rh.getAttr("user_id"); exists {
-				capturedUserID = uid.(string)
+				userID, ok := uid.(string)
+				if !ok {
+					t.Fatal("expected user_id string attribute")
+				}
+
+				capturedUserID = userID
 			}
 		}
 
@@ -301,7 +306,7 @@ func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 	})
 
 	r := chi.NewRouter()

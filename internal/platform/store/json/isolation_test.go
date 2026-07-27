@@ -21,11 +21,11 @@ import (
 //  4. Update path works correctly after isolation is applied.
 func TestJSONOutgoingShareIsolation(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	original := testutil.NewOutgoingShareFixture()
 	original.ShareId = "iso-out-share-1"
@@ -121,11 +121,11 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 //  4. Status-only update still works after the isolation change.
 func TestJSONIncomingShareIsolation(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	inStore := driver.(store.IncomingShareStore)
+	inStore := requireIncomingShareStore(t, driver)
 
 	original := testutil.NewIncomingShareFixture()
 	original.ShareId = "iso-share-1"
@@ -241,11 +241,11 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 //  4. Status-only update still works after the isolation change.
 func TestJSONIncomingInviteIsolation(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	inStore := driver.(store.IncomingInviteStore)
+	inStore := requireIncomingInviteStore(t, driver)
 
 	original := testutil.NewIncomingInviteFixture()
 	original.ID = "iso-invite-1"
@@ -375,11 +375,11 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 //  5. Update path still works correctly after isolation is applied.
 func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outInvStore := driver.(store.OutgoingInviteStore)
+	outInvStore := requireOutgoingInviteStore(t, driver)
 
 	original := testutil.NewOutgoingInviteFixture()
 	original.ID = "iso-out-invite-1"

@@ -376,8 +376,10 @@ func doProbe(t *testing.T, baseURL, method, path string, body io.Reader) int {
 	if err != nil {
 		t.Fatalf("failed %s %s: %v", method, path, err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
+	//nolint:errcheck // test cleanup: drain response body
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	return resp.StatusCode

@@ -34,7 +34,7 @@ func createDetailedShareForUser(
 		SharedSecret:    sharedSecret,
 		Requirements:    requirements,
 	}
-	repo.Create(context.Background(), share)
+	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
 
 	return share
 }
@@ -176,10 +176,20 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	proto := resp["protocol"].(map[string]any)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
-	webdav := proto["webdav"].(map[string]any)
+	proto, ok := resp["protocol"].(map[string]any)
+	if !ok {
+		t.Fatal("expected proto type map[string]any")
+	}
+
+	webdav, ok := proto["webdav"].(map[string]any)
+	if !ok {
+		t.Fatal("expected webdav type map[string]any")
+	}
+
 	if webdav["sharedSecret"] != "[REDACTED]" {
 		t.Errorf("expected sharedSecret [REDACTED], got %v", webdav["sharedSecret"])
 	}
@@ -222,9 +232,19 @@ func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 	router.ServeHTTP(wA, reqA)
 
 	var respA map[string]any
-	json.Unmarshal(wA.Body.Bytes(), &respA)
-	protoA := respA["protocol"].(map[string]any)
-	webdavA := protoA["webdav"].(map[string]any)
+	if err := json.Unmarshal(wA.Body.Bytes(), &respA); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	protoA, ok := respA["protocol"].(map[string]any)
+	if !ok {
+		t.Fatal("expected protoA type map[string]any")
+	}
+
+	webdavA, ok := protoA["webdav"].(map[string]any)
+	if !ok {
+		t.Fatal("expected webdavA type map[string]any")
+	}
 
 	reqsA, ok := webdavA["requirements"].([]any)
 	if !ok {
@@ -243,9 +263,19 @@ func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 	router.ServeHTTP(wB, reqB)
 
 	var respB map[string]any
-	json.Unmarshal(wB.Body.Bytes(), &respB)
-	protoB := respB["protocol"].(map[string]any)
-	webdavB := protoB["webdav"].(map[string]any)
+	if err := json.Unmarshal(wB.Body.Bytes(), &respB); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	protoB, ok := respB["protocol"].(map[string]any)
+	if !ok {
+		t.Fatal("expected protoB type map[string]any")
+	}
+
+	webdavB, ok := protoB["webdav"].(map[string]any)
+	if !ok {
+		t.Fatal("expected webdavB type map[string]any")
+	}
 
 	reqsB, ok := webdavB["requirements"].([]any)
 	if !ok {
@@ -272,6 +302,7 @@ func TestHandleGetDetail_Unauthenticated(t *testing.T) {
 
 func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
+
 	share := &sharesinbox.IncomingShare{
 		ProviderID:      "prov-nilperms",
 		SenderHost:      "sender.example.com",
@@ -286,7 +317,9 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 		WebDAVID:        "wdid",
 		SharedSecret:    "secret",
 	}
-	repo.Create(context.Background(), share)
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
@@ -300,9 +333,19 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	proto := resp["protocol"].(map[string]any)
-	webdav := proto["webdav"].(map[string]any)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	proto, ok := resp["protocol"].(map[string]any)
+	if !ok {
+		t.Fatal("expected proto type map[string]any")
+	}
+
+	webdav, ok := proto["webdav"].(map[string]any)
+	if !ok {
+		t.Fatal("expected webdav type map[string]any")
+	}
 
 	perms, ok := webdav["permissions"].([]any)
 	if !ok {
@@ -327,15 +370,24 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 	router.ServeHTTP(wA, reqA)
 
 	var respA map[string]any
-	json.Unmarshal(wA.Body.Bytes(), &respA)
+	if err := json.Unmarshal(wA.Body.Bytes(), &respA); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if respA["webdavUriAbsolutePresent"] != true {
 		t.Errorf("expected webdavUriAbsolutePresent true, got %v", respA["webdavUriAbsolutePresent"])
 	}
 
-	protoA := respA["protocol"].(map[string]any)
+	protoA, ok := respA["protocol"].(map[string]any)
+	if !ok {
+		t.Fatal("expected protoA type map[string]any")
+	}
 
-	webdavA := protoA["webdav"].(map[string]any)
+	webdavA, ok := protoA["webdav"].(map[string]any)
+	if !ok {
+		t.Fatal("expected webdavA type map[string]any")
+	}
+
 	if webdavA["uri"] != "https://sender.example.com/webdav/file.txt" {
 		t.Errorf("expected absolute URI in protocol.webdav.uri, got %v", webdavA["uri"])
 	}
@@ -348,15 +400,24 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 	router.ServeHTTP(wB, reqB)
 
 	var respB map[string]any
-	json.Unmarshal(wB.Body.Bytes(), &respB)
+	if err := json.Unmarshal(wB.Body.Bytes(), &respB); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if respB["webdavUriAbsolutePresent"] != false {
 		t.Errorf("expected webdavUriAbsolutePresent false, got %v", respB["webdavUriAbsolutePresent"])
 	}
 
-	protoB := respB["protocol"].(map[string]any)
+	protoB, ok := respB["protocol"].(map[string]any)
+	if !ok {
+		t.Fatal("expected protoB type map[string]any")
+	}
 
-	webdavB := protoB["webdav"].(map[string]any)
+	webdavB, ok := protoB["webdav"].(map[string]any)
+	if !ok {
+		t.Fatal("expected webdavB type map[string]any")
+	}
+
 	if webdavB["uri"] != "relative-id-only" {
 		t.Errorf("expected WebDAVID as uri, got %v", webdavB["uri"])
 	}

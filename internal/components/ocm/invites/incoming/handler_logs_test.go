@@ -49,20 +49,25 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 			partyRepo := identity.NewMemoryPartyRepo()
 
-			_ = partyRepo.Create(context.Background(), &identity.User{
+			if err := partyRepo.Create(context.Background(), &identity.User{
 				ID:          "creator-id",
 				Username:    "alice",
 				DisplayName: "Alice",
-			})
+			}); err != nil {
+				t.Fatalf("Create user: %v", err)
+			}
+
 			if tt.seedInvite {
-				_ = repo.Create(context.Background(), &invitesoutgoing.OutgoingInvite{
+				if err := repo.Create(context.Background(), &invitesoutgoing.OutgoingInvite{
 					ID:              "invite-id",
 					Token:           tt.inviteToken,
 					ProviderFQDN:    testProvider,
 					CreatedByUserID: "creator-id",
 					Status:          invites.InviteStatusPending,
 					ExpiresAt:       time.Now().Add(time.Hour),
-				})
+				}); err != nil {
+					t.Fatalf("Create invite: %v", err)
+				}
 			}
 
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
@@ -74,13 +79,17 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				testScheme,
 			)
 
-			body, _ := json.Marshal(map[string]string{
+			body, err := json.Marshal(map[string]string{
 				"recipientProvider": testProvider,
 				"token":             tt.inviteToken,
 				"userID":            "user-123",
 				"email":             "bob@example.com",
 				"name":              "Bob",
 			})
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+
 			req := httptest.NewRequest(
 				http.MethodPost,
 				"/ocm/invite-accepted",

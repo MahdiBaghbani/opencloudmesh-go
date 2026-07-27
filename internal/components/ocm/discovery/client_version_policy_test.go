@@ -19,7 +19,7 @@ func TestClientDiscover_AcceptsLowerAPIVersionWithWarning(t *testing.T) {
 		raw["apiVersion"] = "1.2.2"
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -53,7 +53,7 @@ func TestClientDiscover_RejectsAPIVersionUnderExactPolicy(t *testing.T) {
 		raw["apiVersion"] = "1.2.2"
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -79,7 +79,7 @@ func TestClientDiscover_VersionPolicyModes(t *testing.T) {
 		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 			raw := validDiscoveryPayload(serverURL, nil)
 			raw["apiVersion"] = "1.3.0"
-			json.NewEncoder(w).Encode(raw)
+			json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 		})
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 		client.SetVersionPolicy(&discovery.VersionPolicy{
@@ -104,7 +104,7 @@ func TestClientDiscover_VersionPolicyModes(t *testing.T) {
 				server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 					raw := validDiscoveryPayload(serverURL, nil)
 					raw["apiVersion"] = v
-					json.NewEncoder(w).Encode(raw)
+					json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 				})
 				client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 				client.SetVersionPolicy(policy)
@@ -118,7 +118,7 @@ func TestClientDiscover_VersionPolicyModes(t *testing.T) {
 		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 			raw := validDiscoveryPayload(serverURL, nil)
 			raw["apiVersion"] = "1.3.0"
-			json.NewEncoder(w).Encode(raw)
+			json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 		})
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 		client.SetVersionPolicy(policy)
@@ -134,7 +134,7 @@ func TestClientDiscover_VersionPolicyModes(t *testing.T) {
 				server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 					raw := validDiscoveryPayload(serverURL, nil)
 					raw["apiVersion"] = v
-					json.NewEncoder(w).Encode(raw)
+					json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 				})
 
 				client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
@@ -157,7 +157,7 @@ func TestClientDiscover_WarnModesUnderAcceptAny(t *testing.T) {
 				server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 					raw := validDiscoveryPayload(serverURL, nil)
 					raw["apiVersion"] = v
-					json.NewEncoder(w).Encode(raw)
+					json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 				})
 				client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 				client.SetVersionPolicy(policy)
@@ -179,7 +179,7 @@ func TestClientDiscover_WarnModesUnderAcceptAny(t *testing.T) {
 		serverLow := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 			raw := validDiscoveryPayload(serverURL, nil)
 			raw["apiVersion"] = "1.3.0"
-			json.NewEncoder(w).Encode(raw)
+			json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 		})
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 		client.SetVersionPolicy(policy)
@@ -196,7 +196,7 @@ func TestClientDiscover_WarnModesUnderAcceptAny(t *testing.T) {
 		serverHigh := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 			raw := validDiscoveryPayload(serverURL, nil)
 			raw["apiVersion"] = "2.0.0"
-			json.NewEncoder(w).Encode(raw)
+			json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 		})
 		client2 := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 		client2.SetVersionPolicy(policy)
@@ -218,7 +218,7 @@ func TestClientDiscover_WarnModesUnderAcceptAny(t *testing.T) {
 		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
 			raw := validDiscoveryPayload(serverURL, nil)
 			raw["apiVersion"] = "1.3.0"
-			json.NewEncoder(w).Encode(raw)
+			json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 		})
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 		client.SetVersionPolicy(policy)

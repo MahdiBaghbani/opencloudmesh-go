@@ -25,7 +25,7 @@ func TestClientDiscover_NormalizesRelativeInviteAcceptDialog(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -57,7 +57,7 @@ func TestClientDiscover_NormalizesRelativeInviteAcceptDialogWithoutEndPoint(t *t
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -84,7 +84,7 @@ func TestClientDiscover_RejectsCrossAuthorityInviteAcceptDialog(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)

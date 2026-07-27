@@ -34,7 +34,12 @@ func TestResolver_Resolve(t *testing.T) {
 		t.Fatalf("Resolve: %v", err)
 	}
 
-	if !pub.Equal(got.PublicKey.(ed25519.PublicKey)) {
+	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("expected ed25519 public key")
+	}
+
+	if !pub.Equal(gotPub) {
 		t.Fatal("key mismatch")
 	}
 }
@@ -76,7 +81,12 @@ func TestResolver_ResolveKeyID_CanonicalizesAuthority(t *testing.T) {
 		t.Fatalf("ResolveKeyID default-port: %v", err)
 	}
 
-	if !pub.Equal(got.PublicKey.(ed25519.PublicKey)) {
+	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("expected ed25519 public key")
+	}
+
+	if !pub.Equal(gotPub) {
 		t.Fatal("key mismatch")
 	}
 
@@ -91,7 +101,12 @@ func TestResolver_ResolveKeyID_CanonicalizesAuthority(t *testing.T) {
 		t.Fatalf("ResolveKeyID absolute http: %v", err)
 	}
 
-	if !pub.Equal(got.PublicKey.(ed25519.PublicKey)) {
+	gotPub, ok = got.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("expected ed25519 public key")
+	}
+
+	if !pub.Equal(gotPub) {
 		t.Fatal("absolute URI key mismatch")
 	}
 

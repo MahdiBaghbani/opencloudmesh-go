@@ -50,7 +50,11 @@ func TestNoBannedDSAbbreviations(t *testing.T) {
 		}
 
 		content := string(data)
-		relPath, _ := filepath.Rel(root, path)
+
+		relPath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
 
 		if locs := standaloneDS.FindAllStringIndex(content, -1); len(locs) > 0 {
 			for _, loc := range locs {
@@ -109,7 +113,11 @@ func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 		}
 
 		content := string(data)
-		relPath, _ := filepath.Rel(root, path)
+
+		relPath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
 
 		for _, tag := range bannedTags {
 			if strings.Contains(content, tag) {
@@ -157,7 +165,11 @@ func TestNoFirstAtOCMAddressParsing(t *testing.T) {
 		}
 
 		content := string(data)
-		relPath, _ := filepath.Rel(root, path)
+
+		relPath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
 
 		if locs := pattern.FindAllStringIndex(content, -1); len(locs) > 0 {
 			for _, loc := range locs {

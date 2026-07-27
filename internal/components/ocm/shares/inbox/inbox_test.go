@@ -58,13 +58,16 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 func TestIncomingRepository_RecipientScoping(t *testing.T) {
 	repo := inbox.NewMemoryIncomingShareRepo()
 	ctx := context.Background()
+
 	shareA := &inbox.IncomingShare{
 		ProviderID:      "p1",
 		SenderHost:      "sender.com",
 		RecipientUserID: "user-a",
 		Status:          inbox.ShareStatusPending,
 	}
-	repo.Create(ctx, shareA)
+	if err := repo.Create(ctx, shareA); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	shareB := &inbox.IncomingShare{
 		ProviderID:      "p2",
@@ -72,10 +75,16 @@ func TestIncomingRepository_RecipientScoping(t *testing.T) {
 		RecipientUserID: "user-b",
 		Status:          inbox.ShareStatusPending,
 	}
-	repo.Create(ctx, shareB)
+	if err := repo.Create(ctx, shareB); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	// User A should only see their share
-	listA, _ := repo.ListByRecipientUserID(ctx, "user-a")
+	listA, err := repo.ListByRecipientUserID(ctx, "user-a")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if len(listA) != 1 {
 		t.Fatalf("user-a: expected 1 share, got %d", len(listA))
 	}
@@ -85,13 +94,17 @@ func TestIncomingRepository_RecipientScoping(t *testing.T) {
 	}
 
 	// User B should only see their share
-	listB, _ := repo.ListByRecipientUserID(ctx, "user-b")
+	listB, err := repo.ListByRecipientUserID(ctx, "user-b")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if len(listB) != 1 {
 		t.Fatalf("user-b: expected 1 share, got %d", len(listB))
 	}
 
 	// User A cannot get user B's share
-	_, err := repo.GetByIDForRecipientUserID(ctx, shareB.ShareID, "user-a")
+	_, err = repo.GetByIDForRecipientUserID(ctx, shareB.ShareID, "user-a")
 	if err == nil {
 		t.Error("expected error when user-a tries to access user-b's share")
 	}

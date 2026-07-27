@@ -22,11 +22,15 @@ func TestHTTP01Provider_PresentAndCleanUp(t *testing.T) {
 		t.Fatalf("Present(tok2): %v", err)
 	}
 
-	if v, ok := p.tokens.Load("tok1"); !ok || v.(tokenEntry).keyAuth != "keyAuth1" {
+	if v, ok := p.tokens.Load("tok1"); !ok {
+		t.Errorf("tok1: got %v, ok=%v; want keyAuth1, true", v, ok)
+	} else if entry, ok := v.(tokenEntry); !ok || entry.keyAuth != "keyAuth1" {
 		t.Errorf("tok1: got %v, ok=%v; want keyAuth1, true", v, ok)
 	}
 
-	if v, ok := p.tokens.Load("tok2"); !ok || v.(tokenEntry).keyAuth != "keyAuth2" {
+	if v, ok := p.tokens.Load("tok2"); !ok {
+		t.Errorf("tok2: got %v, ok=%v; want keyAuth2, true", v, ok)
+	} else if entry, ok := v.(tokenEntry); !ok || entry.keyAuth != "keyAuth2" {
 		t.Errorf("tok2: got %v, ok=%v; want keyAuth2, true", v, ok)
 	}
 
@@ -39,7 +43,9 @@ func TestHTTP01Provider_PresentAndCleanUp(t *testing.T) {
 		t.Error("tok1 should be deleted after CleanUp")
 	}
 
-	if v, ok := p.tokens.Load("tok2"); !ok || v.(tokenEntry).keyAuth != "keyAuth2" {
+	if v, ok := p.tokens.Load("tok2"); !ok {
+		t.Errorf("tok2 after tok1 cleanup: got %v, ok=%v; want keyAuth2, true", v, ok)
+	} else if entry, ok := v.(tokenEntry); !ok || entry.keyAuth != "keyAuth2" {
 		t.Errorf("tok2 after tok1 cleanup: got %v, ok=%v; want keyAuth2, true", v, ok)
 	}
 }

@@ -41,7 +41,11 @@ func TestOCMPackagesDoNotImportAPI(t *testing.T) {
 		}
 
 		content := string(data)
-		fileRel, _ := filepath.Rel(root, path)
+
+		fileRel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
 
 		for i, line := range strings.Split(content, "\n") {
 			trimmed := strings.TrimSpace(line)

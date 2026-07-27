@@ -40,7 +40,7 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 
 	driver := testutil.OpenDriver(t, cfg)
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	// Create a share
 	share := testutil.NewOutgoingShareFixture()
@@ -48,13 +48,13 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	driver.Close()
+	driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	// Reload driver - data should survive
 	driver2 := testutil.OpenDriver(t, cfg)
-	defer driver2.Close()
+	defer driver2.Close() //nolint:errcheck // test cleanup: driver close
 
-	outStore2 := driver2.(store.OutgoingShareStore)
+	outStore2 := requireOutgoingShareStore(t, driver2)
 
 	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderId)
 	if err != nil {

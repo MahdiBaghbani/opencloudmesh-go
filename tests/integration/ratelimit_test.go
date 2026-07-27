@@ -43,6 +43,7 @@ profile = "discover"
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
 
+	//nolint:errcheck // test cleanup: response body close
 	resp.Body.Close()
 
 	// Second request should be rate-limited (limit is 1).
@@ -51,6 +52,7 @@ profile = "discover"
 		srv.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusTooManyRequests {
@@ -66,6 +68,7 @@ profile = "discover"
 		srv.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/federations: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -99,9 +102,11 @@ profile = "login"
 
 	loginURL := srv.BaseURL + "/api/auth/login"
 	resp := postLogin(t, loginURL)
+	//nolint:errcheck // test cleanup: response body close
 	resp.Body.Close()
 
 	resp = postLogin(t, loginURL)
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusTooManyRequests {
@@ -117,6 +122,7 @@ profile = "login"
 		srv.DumpLogs(t)
 		t.Fatalf("failed to call /api/healthz: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

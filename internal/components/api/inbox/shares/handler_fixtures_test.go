@@ -58,7 +58,7 @@ func createShareForUser(repo *sharesinbox.MemoryIncomingShareRepo, recipientUser
 		Sender:          "sender@sender.example.com",
 		ShareType:       "user",
 	}
-	repo.Create(context.Background(), share)
+	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
 
 	return share
 }

@@ -50,6 +50,7 @@ path = "auth/exchange"
 		if err != nil {
 			t.Fatalf("failed to get discovery: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -103,6 +104,7 @@ path = "auth/exchange"
 		if err != nil {
 			t.Fatalf("failed to call per-service token endpoint: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		// Should return 400 (invalid_grant for nonexistent code), not 404
@@ -111,7 +113,11 @@ path = "auth/exchange"
 		}
 
 		if resp.StatusCode != http.StatusBadRequest {
-			body, _ := io.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("read response body: %v", err)
+			}
+
 			t.Logf("per-service path returned %d (expected 400): %s", resp.StatusCode, body)
 		}
 	})
@@ -144,6 +150,7 @@ path = "token/v2"
 		if err != nil {
 			t.Fatalf("failed to get discovery: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -191,6 +198,7 @@ path = "token/v2"
 		if err != nil {
 			t.Fatalf("failed to call nested token endpoint: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		// Should return 400 (invalid_grant for nonexistent code), not 404
@@ -199,7 +207,11 @@ path = "token/v2"
 		}
 
 		if resp.StatusCode != http.StatusBadRequest {
-			body, _ := io.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("read response body: %v", err)
+			}
+
 			t.Logf("nested path returned %d (expected 400): %s", resp.StatusCode, body)
 		}
 	})
@@ -224,6 +236,7 @@ path = "token/v2"
 		if err != nil {
 			t.Fatalf("failed to call default token endpoint: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		// Should return 404 because the route is now at /ocm/token/v2

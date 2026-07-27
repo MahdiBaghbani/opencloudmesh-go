@@ -59,7 +59,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	handler.Login(w, req)
 
 	res := w.Result()
-	defer res.Body.Close()
+	defer res.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", res.StatusCode, w.Body.String())

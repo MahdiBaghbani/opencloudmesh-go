@@ -20,7 +20,7 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 	}
 
 	driver := testutil.OpenDriver(t, cfg)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	inStore, ok := driver.(store.IncomingInviteStore)
 	if !ok {
@@ -86,11 +86,11 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 // uses exact recipient matching: empty or wrong recipientUserId yields no results.
 func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	inStore := driver.(store.IncomingInviteStore)
+	inStore := requireIncomingInviteStore(t, driver)
 
 	invite := &store.IncomingInvite{
 		ID:              "scope-test-invite",
@@ -142,11 +142,11 @@ func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingShareCreateConflictingShareId(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	first := testutil.NewOutgoingShareFixture()
 	first.ProviderId = "provider-a"
@@ -183,11 +183,11 @@ func TestJSONOutgoingShareCreateConflictingShareId(t *testing.T) {
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingShareUpdateConflictingShareId(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	first := testutil.NewOutgoingShareFixture()
 	first.ProviderId = "provider-x"
@@ -233,11 +233,11 @@ func TestJSONOutgoingShareUpdateConflictingShareId(t *testing.T) {
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingShareCreateConflictingWebDAVId(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	first := testutil.NewOutgoingShareFixture()
 	first.ProviderId = "provider-a"
@@ -274,11 +274,11 @@ func TestJSONOutgoingShareCreateConflictingWebDAVId(t *testing.T) {
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingShareUpdateConflictingWebDAVId(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	first := testutil.NewOutgoingShareFixture()
 	first.ProviderId = "provider-m"
@@ -324,11 +324,11 @@ func TestJSONOutgoingShareUpdateConflictingWebDAVId(t *testing.T) {
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outInvStore := driver.(store.OutgoingInviteStore)
+	outInvStore := requireOutgoingInviteStore(t, driver)
 
 	first := testutil.NewOutgoingInviteFixture()
 	first.ID = "invite-a"
@@ -363,11 +363,11 @@ func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingInviteUpdateConflictingToken(t *testing.T) {
 	driver, _ := newJSONDriver(t)
-	defer driver.Close()
+	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
 
-	outInvStore := driver.(store.OutgoingInviteStore)
+	outInvStore := requireOutgoingInviteStore(t, driver)
 
 	first := testutil.NewOutgoingInviteFixture()
 	first.ID = "invite-p"

@@ -136,10 +136,15 @@ func runUnexchangedSharedSecretBearer401Case(
 	if err != nil {
 		t.Fatalf("shared-secret bearer webdav GET: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusUnauthorized {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("shared-secret bearer webdav: expected 401, got %d: %s", resp.StatusCode, respBody)
 	}
 
@@ -174,6 +179,7 @@ func startMalformedDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(disc)
 		case "/ocm/shares":
 			if r.Method == http.MethodPost {

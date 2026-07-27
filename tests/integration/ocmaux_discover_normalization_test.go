@@ -48,6 +48,7 @@ func TestOCMAuxDiscover_PastedPathNormalization(t *testing.T) {
 		target.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -97,6 +98,7 @@ func TestOCMAuxDiscover_BareHostNormalization(t *testing.T) {
 		target.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusBadRequest {
@@ -137,6 +139,7 @@ func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
 		srv.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusForbidden {
@@ -197,6 +200,7 @@ func TestOCMAuxDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 		target.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadGateway {

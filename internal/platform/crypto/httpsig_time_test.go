@@ -23,7 +23,12 @@ func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
 	body := []byte(`{"test": "data"}`)
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	req.Host = "example.com"
 
 	if err := signer.SignRequest(req, body); err != nil {
@@ -98,7 +103,11 @@ func TestRFC9421_VerifyCreatedBoundaryAtMaxSkew(t *testing.T) {
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	body := httpsigTestBodyJSON
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
@@ -135,7 +144,11 @@ func TestRFC9421_VerifyCreatedBoundaryAtMaxAge(t *testing.T) {
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	body := httpsigTestBodyJSON
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {

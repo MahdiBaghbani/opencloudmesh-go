@@ -81,7 +81,9 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 				ReceiverHost: tt.receiverHost,
 				LocalPath:    "/tmp/test.txt",
 			}
-			shareRepo.Create(context.Background(), share)
+			if err := shareRepo.Create(context.Background(), share); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
 
 			form := url.Values{}
 			form.Set("grant_type", "authorization_code")
@@ -126,7 +128,9 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -191,7 +195,9 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -226,7 +232,9 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")

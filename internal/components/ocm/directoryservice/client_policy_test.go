@@ -165,7 +165,7 @@ func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
 }
 
 func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing.T) {
-	payload, _ := json.Marshal(Listing{
+	payload, err := json.Marshal(Listing{
 		Federation: "test-federation",
 		Servers: []Server{
 			{URL: "https://valid.example.com", DisplayName: "Valid"},
@@ -177,6 +177,10 @@ func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing
 			{URL: "ftp://wrong-scheme.example.com", DisplayName: "Wrong Scheme"},
 		},
 	})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, payload)
 
@@ -240,13 +244,16 @@ func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
 }
 
 func TestFetchListing_URLValidation_UnverifiedListingKeepsAllURLs(t *testing.T) {
-	payload, _ := json.Marshal(Listing{
+	payload, err := json.Marshal(Listing{
 		Federation: "test-federation",
 		Servers: []Server{
 			{URL: "https://valid.example.com", DisplayName: "Valid"},
 			{URL: "https://has-path.example.com/base/path", DisplayName: "Has Path"},
 		},
 	})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
 
 	ts := serveJWS(t, payload)
 	defer ts.Close()

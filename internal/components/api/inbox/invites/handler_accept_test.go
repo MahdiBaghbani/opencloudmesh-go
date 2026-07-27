@@ -55,7 +55,9 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	repo := invitesinbox.NewMemoryIncomingInviteRepo()
 	invite := createInviteForUser(repo, userAID, "idem-accept-token", "sender.example.com")
 
-	repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusAccepted)
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusAccepted); err != nil {
+		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
@@ -74,7 +76,9 @@ func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
 	invite := createInviteForUser(repo, userAID, "conflict-token", "sender.example.com")
 
 	// Decline normally deletes; manually set declined to test accept-after-decline returns 409
-	repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusDeclined)
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusDeclined); err != nil {
+		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
@@ -161,7 +165,7 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
@@ -182,7 +186,7 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 			capturedRecipientProvider = body.RecipientProvider
 
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`)) //nolint:errcheck // test mock handler: response write
 		default:
 			http.NotFound(w, r)
 		}

@@ -20,7 +20,9 @@ func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
 		ID:       "user-uuid-789",
 		Username: "charlie",
 	}
-	partyRepo.Create(context.Background(), localUser)
+	if err := partyRepo.Create(context.Background(), localUser); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	handler := newTestHandler(repo, partyRepo)
 
@@ -31,7 +33,9 @@ func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, `{"token":"field-test-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
 

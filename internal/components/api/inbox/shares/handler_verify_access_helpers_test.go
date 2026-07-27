@@ -57,7 +57,7 @@ func createAcceptedShareForUser(
 		WebDAVID:        "webdav-id-" + providerID,
 		SharedSecret:    "secret-" + providerID,
 	}
-	repo.Create(context.Background(), share)
+	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
 
 	return share
 }
@@ -86,7 +86,7 @@ func createAcceptedWebappShareForUser(
 		WebappTargets:     []string{"blank", "_self"},
 		WebappPermissions: []string{"view", "share"},
 	}
-	repo.Create(context.Background(), share)
+	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
 
 	return share
 }

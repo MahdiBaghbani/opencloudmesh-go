@@ -89,7 +89,7 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
@@ -162,7 +162,7 @@ func TestSendResolved_SignerSignsShares(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
@@ -188,7 +188,7 @@ func TestSendResolved_PeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
@@ -214,7 +214,7 @@ func TestSendResolved_NoSignerPeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)

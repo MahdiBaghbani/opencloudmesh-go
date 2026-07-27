@@ -41,7 +41,9 @@ func TestHandleInviteAccepted_TokenExpired(t *testing.T) {
 		ExpiresAt:    time.Now().Add(-1 * time.Hour),
 		Status:       invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, validAcceptedBody("expired-token"))
 
@@ -63,7 +65,9 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 		ProviderFQDN: testProvider,
 		Status:       invites.InviteStatusAccepted,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, validAcceptedBody("accepted-token"))
 	if w.Code != http.StatusConflict {
@@ -85,7 +89,9 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 		ExpiresAt:    time.Now().Add(24 * time.Hour),
 		Status:       invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	body := validAcceptedBody("trust-token")
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
@@ -166,7 +172,9 @@ func TestHandleInviteAccepted_PartyRepoGetFails_InviterIdentityUnavailable(t *te
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, `{"token":"party-get-fail-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
 
@@ -182,7 +190,11 @@ func TestHandleInviteAccepted_PartyRepoGetFails_InviterIdentityUnavailable(t *te
 		t.Error("UpdateStatus should not have been called")
 	}
 
-	updated, _ := memoryRepo.GetByToken(context.Background(), "party-get-fail-token")
+	updated, err := memoryRepo.GetByToken(context.Background(), "party-get-fail-token")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if updated.Status != invites.InviteStatusPending {
 		t.Errorf("expected status %s (no mutation), got %s", invites.InviteStatusPending, updated.Status)
 	}
@@ -192,6 +204,7 @@ func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
+
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:           "empty-creator-token",
 		ProviderFQDN:    testProvider,
@@ -199,7 +212,9 @@ func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, `{"token":"empty-creator-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
 
@@ -211,7 +226,11 @@ func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing
 		t.Errorf("expected INVITER_IDENTITY_UNAVAILABLE, got %q", msg)
 	}
 
-	updated, _ := repo.GetByToken(context.Background(), "empty-creator-token")
+	updated, err := repo.GetByToken(context.Background(), "empty-creator-token")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if updated.Status != invites.InviteStatusPending {
 		t.Errorf("expected status %s (no mutation), got %s", invites.InviteStatusPending, updated.Status)
 	}
@@ -234,7 +253,9 @@ func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 		ExpiresAt:    time.Now().Add(24 * time.Hour),
 		Status:       invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	body := `{"recipientProvider":"other.com:443","token":"empty-origin-token","userID":"u@host","email":"e","name":"n"}`
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))

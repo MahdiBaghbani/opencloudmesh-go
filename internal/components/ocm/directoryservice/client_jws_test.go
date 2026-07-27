@@ -181,9 +181,14 @@ func TestFetchListing_InactiveKey(t *testing.T) {
 
 func TestFetchListing_MissingFederationField(t *testing.T) {
 	kp := generateEd25519(t)
-	payload, _ := json.Marshal(map[string]any{
+
+	payload, err := json.Marshal(map[string]any{
 		"servers": []map[string]string{{"url": "https://a.example.com", "displayName": "A"}},
 	})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
 	body := signCompact(t, jose.EdDSA, kp.priv, payload)
 
 	ts := serveJWS(t, body)
@@ -192,7 +197,7 @@ func TestFetchListing_MissingFederationField(t *testing.T) {
 	client := NewClient(newTestHTTPClient(), "required", nil)
 	keys := []VerificationKey{{KeyID: "k1", PublicKeyPEM: kp.pem, Algorithm: "Ed25519", Active: true}}
 
-	_, err := client.FetchListing(t.Context(), ts.URL, keys, "")
+	_, err = client.FetchListing(t.Context(), ts.URL, keys, "")
 	if err == nil {
 		t.Fatal("expected error for missing federation field, got nil")
 	}

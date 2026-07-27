@@ -30,6 +30,7 @@ func TestDiscoveryRoutesMatchRouteInventory(t *testing.T) {
 			if err != nil {
 				t.Fatalf("discovery GET failed: %v", err)
 			}
+			//nolint:errcheck // test cleanup: response body close
 			defer resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {

@@ -122,7 +122,7 @@ func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET discovery: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)

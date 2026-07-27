@@ -73,7 +73,11 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("repos.New(%s) session 2: %v", backend, err)
 			}
-			defer r2.Close()
+			defer func() {
+				if err := r2.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
 
 			gotOutByID, err := r2.OutgoingInvites.GetByID(ctx, outInvite.ID)
 			if err != nil {

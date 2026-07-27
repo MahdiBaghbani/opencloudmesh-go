@@ -50,6 +50,7 @@ mode = "selfsigned"
 	if err != nil {
 		t.Fatalf("health check against overridden TLS listener failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -92,6 +93,7 @@ mode = "selfsigned"
 	if err != nil {
 		t.Fatalf("failed to get discovery: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

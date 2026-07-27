@@ -59,7 +59,9 @@ func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
 	}
 
 	var resp inboxshares.InboxListResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if len(resp.Shares) != 0 {
 		t.Errorf("expected empty list for user B, got %d shares", len(resp.Shares))
@@ -80,6 +82,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 }
 func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
+
 	share := &sharesinbox.IncomingShare{
 		ProviderID:           "prov-sensitive",
 		SenderHost:           "sender.example.com",
@@ -94,7 +97,9 @@ func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
 		Sender:               "sender@sender.example.com",
 		ShareType:            "user",
 	}
-	repo.Create(context.Background(), share)
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)

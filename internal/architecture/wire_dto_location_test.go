@@ -48,7 +48,11 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(ocmDir, path)
+		relPath, err := filepath.Rel(ocmDir, path)
+		if err != nil {
+			return err
+		}
+
 		if strings.HasPrefix(filepath.ToSlash(relPath), "spec/") {
 			return nil
 		}
@@ -59,7 +63,11 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 		}
 
 		content := string(data)
-		fileRel, _ := filepath.Rel(root, path)
+
+		fileRel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
 
 		for i, pat := range patterns {
 			if locs := pat.FindAllStringIndex(content, -1); len(locs) > 0 {

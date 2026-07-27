@@ -250,7 +250,12 @@ func TestPublicKeyFromJWK_Ed25519(t *testing.T) {
 		t.Fatalf("PublicKeyFromJWK: %v", err)
 	}
 
-	if !pub.Equal(got.(ed25519.PublicKey)) {
+	gotPub, ok := got.(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("expected ed25519 public key")
+	}
+
+	if !pub.Equal(gotPub) {
 		t.Fatal("public key mismatch")
 	}
 }
@@ -267,7 +272,11 @@ func TestPublicKeyFromJWKFields_ECAndRSA(t *testing.T) {
 		t.Fatalf("EC: %v", err)
 	}
 
-	ecPub := got.(*ecdsa.PublicKey)
+	ecPub, ok := got.(*ecdsa.PublicKey)
+	if !ok {
+		t.Fatal("expected ecPub type *ecdsa.PublicKey")
+	}
+
 	if ecPub.X.Cmp(ecPriv.X) != 0 || ecPub.Y.Cmp(ecPriv.Y) != 0 {
 		t.Fatal("EC coordinate mismatch")
 	}
@@ -283,7 +292,12 @@ func TestPublicKeyFromJWKFields_ECAndRSA(t *testing.T) {
 		t.Fatalf("RSA: %v", err)
 	}
 
-	if got.(*rsa.PublicKey).N.Cmp(rsaPriv.N) != 0 {
+	rsaPub, ok := got.(*rsa.PublicKey)
+	if !ok {
+		t.Fatal("expected RSA public key")
+	}
+
+	if rsaPub.N.Cmp(rsaPriv.N) != 0 {
 		t.Fatal("RSA n mismatch")
 	}
 }

@@ -74,8 +74,15 @@ func TestMemorySessionRepo_DeleteByUser(t *testing.T) {
 	ctx := context.Background()
 
 	// Create multiple sessions for same user
-	s1, _ := repo.Create(ctx, "user-123", time.Hour)
-	s2, _ := repo.Create(ctx, "user-123", time.Hour)
+	s1, err := repo.Create(ctx, "user-123", time.Hour)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	s2, err := repo.Create(ctx, "user-123", time.Hour)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	// Delete all sessions for user
 	if err := repo.DeleteByUser(ctx, "user-123"); err != nil {
@@ -83,7 +90,7 @@ func TestMemorySessionRepo_DeleteByUser(t *testing.T) {
 	}
 
 	// Both sessions should be gone
-	_, err := repo.Get(ctx, s1.Token)
+	_, err = repo.Get(ctx, s1.Token)
 	if !errors.Is(err, identity.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound for s1, got %v", err)
 	}
@@ -99,11 +106,18 @@ func TestMemorySessionRepo_DeleteExpired(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a session that will expire immediately
-	repo.Create(ctx, "user-123", time.Millisecond)
+	_, err := repo.Create(ctx, "user-123", time.Millisecond)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
 	time.Sleep(10 * time.Millisecond)
 
 	// Create a session that won't expire
-	s2, _ := repo.Create(ctx, "user-456", time.Hour)
+	s2, err := repo.Create(ctx, "user-456", time.Hour)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	// Delete expired
 	count, err := repo.DeleteExpired(ctx)

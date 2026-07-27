@@ -37,7 +37,7 @@ func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":"invalid_client","error_description":"client authentication failed"}`))
+		w.Write([]byte(`{"error":"invalid_client","error_description":"client authentication failed"}`)) //nolint:errcheck // test mock handler: response write
 	}))
 	defer server.Close()
 
@@ -116,7 +116,7 @@ func TestClient_Exchange_403FailClosed(t *testing.T) {
 		hits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"error":"access_denied","error_description":"token exchange denied"}`))
+		w.Write([]byte(`{"error":"access_denied","error_description":"token exchange denied"}`)) //nolint:errcheck // test mock handler: response write
 	}))
 	defer server.Close()
 

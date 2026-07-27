@@ -83,7 +83,9 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if !resp.OK {
 		t.Fatal("expected ok=true")
@@ -129,7 +131,9 @@ func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp.OK {
 		t.Error("expected ok=false")
@@ -150,6 +154,7 @@ func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 
 func TestHandleVerifyAccess_RedactsCodeAndSharedSecretEvenWithEmptySecret(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
+
 	share := &sharesinbox.IncomingShare{
 		ProviderID:      "prov-va-empty-secret",
 		SenderHost:      "sender.example.com",
@@ -165,7 +170,9 @@ func TestHandleVerifyAccess_RedactsCodeAndSharedSecretEvenWithEmptySecret(t *tes
 		WebDAVID:        "webdav-id-empty",
 		SharedSecret:    "",
 	}
-	repo.Create(context.Background(), share)
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	leakyBody := "redirect?code=abc&sharedSecret=xyz"

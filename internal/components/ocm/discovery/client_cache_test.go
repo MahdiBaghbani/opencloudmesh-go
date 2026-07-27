@@ -66,7 +66,7 @@ func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
 		raw := validDiscoveryPayload(serverURL, nil)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	})
 
 	c := cache.NewDefault()
@@ -129,7 +129,7 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc)
+			json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -174,7 +174,7 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	}))
 	defer server.Close()
 

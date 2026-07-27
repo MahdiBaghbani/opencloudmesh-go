@@ -43,7 +43,7 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 			t.Fatalf("expected localhost request to succeed with SSRF=off override, got: %v", reqErr)
 		}
 
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck // test cleanup: response body close
 	})
 
 	t.Run("without OutboundOverride SSRF=strict blocks localhost request", func(t *testing.T) {

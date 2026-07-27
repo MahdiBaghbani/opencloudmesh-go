@@ -75,6 +75,7 @@ func BuildBinary(t *testing.T) string {
 
 	// Register cleanup
 	t.Cleanup(func() {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 	})
 
@@ -126,6 +127,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 
 		port, err = getFreePort()
 		if err != nil {
+			//nolint:errcheck // test cleanup: best-effort temp dir removal
 			os.RemoveAll(tempDir)
 			t.Fatalf("failed to get free port: %v", err)
 		}
@@ -137,12 +139,14 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		// Ensure parent directory exists
 		if dir := filepath.Dir(absPath); dir != tempDir {
 			if err := os.MkdirAll(dir, 0755); err != nil {
+				//nolint:errcheck // test cleanup: best-effort temp dir removal
 				os.RemoveAll(tempDir)
 				t.Fatalf("failed to create directory for extra file %s: %v", relPath, err)
 			}
 		}
 
 		if err := os.WriteFile(absPath, []byte(contents), 0644); err != nil {
+			//nolint:errcheck // test cleanup: best-effort temp dir removal
 			os.RemoveAll(tempDir)
 			t.Fatalf("failed to write extra file %s: %v", relPath, err)
 		}
@@ -163,6 +167,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		cfg.ExtraConfig,
 	)
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to write config file: %v", err)
 	}
@@ -176,6 +181,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	// under. See localListenerBaseURL in harness.go for the in-process parallel.
 	finalCfg, err := loadEffectiveSubprocessConfig(configPath, tempDir)
 	if err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to load effective config for %s: %v", cfg.Name, err)
 	}
@@ -187,6 +193,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 
 	logFile, err := os.Create(logPath)
 	if err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create log file: %v", err)
 	}
@@ -206,7 +213,9 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	cmd.Env = scrubSubprocessEnv(os.Environ())
 
 	if err := cmd.Start(); err != nil {
+		//nolint:errcheck // test cleanup: log file close
 		logFile.Close()
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to start subprocess: %v", err)
 	}
@@ -252,6 +261,7 @@ func (s *SubprocessServer) Stop(t *testing.T) {
 
 	if s.cmd != nil && s.cmd.Process != nil {
 		// Send interrupt signal for graceful shutdown
+		//nolint:errcheck // test cleanup: subprocess shutdown
 		s.cmd.Process.Signal(os.Interrupt)
 
 		// Wait with timeout
@@ -265,16 +275,19 @@ func (s *SubprocessServer) Stop(t *testing.T) {
 			// Process exited
 		case <-time.After(config.DefaultTestShutdownWait):
 			// Force kill
+			//nolint:errcheck // test cleanup: subprocess shutdown
 			s.cmd.Process.Kill()
 			<-done
 		}
 	}
 
 	if s.logFile != nil {
+		//nolint:errcheck // test cleanup: log file close
 		s.logFile.Close()
 	}
 
 	if s.TempDir != "" {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(s.TempDir)
 	}
 }
@@ -283,6 +296,7 @@ func (s *SubprocessServer) Stop(t *testing.T) {
 // redirected from the subprocess.
 func (s *SubprocessServer) syncLog() {
 	if s.logFile != nil {
+		//nolint:errcheck // test helper: best-effort log sync before read
 		_ = s.logFile.Sync()
 	}
 }
@@ -382,6 +396,7 @@ func loadEffectiveSubprocessConfig(configPath, dataDir string) (*config.Config, 
 	if err := os.Chdir(dataDir); err != nil {
 		return nil, fmt.Errorf("chdir to data dir %s: %w", dataDir, err)
 	}
+	//nolint:errcheck // test cleanup: restore working directory
 	defer func() { _ = os.Chdir(prevDir) }()
 
 	return config.Load(config.LoaderOptions{ConfigPath: configPath})
@@ -414,6 +429,7 @@ func scrubParentConfigEnv() func() {
 
 		if _, drop := block[key]; drop {
 			saved = append(saved, kv)
+			//nolint:errcheck // test env scrub: restore is best-effort
 			_ = os.Unsetenv(key)
 		}
 	}
@@ -425,6 +441,7 @@ func scrubParentConfigEnv() func() {
 				continue
 			}
 
+			//nolint:errcheck // test env scrub: restore is best-effort
 			_ = os.Setenv(key, value)
 		}
 	}
@@ -762,6 +779,7 @@ func waitForServerReady(healthURL string, timeout time.Duration) error {
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(healthURL)
 		if err == nil {
+			//nolint:errcheck // test cleanup: response body close
 			resp.Body.Close()
 
 			if resp.StatusCode == http.StatusOK {

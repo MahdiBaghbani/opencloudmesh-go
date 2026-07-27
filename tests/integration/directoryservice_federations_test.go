@@ -179,6 +179,7 @@ func pollFederations(t *testing.T, url string, timeout time.Duration) ([]federat
 		var result []federationEntry
 
 		decodeErr := json.NewDecoder(resp.Body).Decode(&result)
+		//nolint:errcheck // test cleanup: response body close
 		resp.Body.Close()
 
 		if decodeErr == nil && len(result) > 0 && len(result[0].Servers) > 0 {
@@ -202,6 +203,7 @@ func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 			return
 		}
 
+		//nolint:errcheck // test stub handler: JSON encode/decode
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"enabled":            true,
 			"apiVersion":         "1.4.0",

@@ -71,7 +71,9 @@ func TestWriteUnauthorized(t *testing.T) {
 	}
 
 	var envelope api.ErrorEnvelope
-	json.NewDecoder(w.Body).Decode(&envelope)
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if envelope.Error.ReasonCode != api.ReasonSessionExpired {
 		t.Errorf("expected reasonCode %q, got %q", api.ReasonSessionExpired, envelope.Error.ReasonCode)
@@ -96,7 +98,9 @@ func TestWriteTooManyRequests(t *testing.T) {
 	}
 
 	var envelope api.ErrorEnvelope
-	json.NewDecoder(w.Body).Decode(&envelope)
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if envelope.Error.ReasonCode != api.ReasonRateLimited {
 		t.Errorf("expected reasonCode %q, got %q", api.ReasonRateLimited, envelope.Error.ReasonCode)

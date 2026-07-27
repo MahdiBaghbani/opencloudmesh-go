@@ -39,7 +39,7 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/ocm/token" {
-					_ = r.ParseForm()
+					_ = r.ParseForm() //nolint:errcheck // test mock handler: parse form
 					if got := r.FormValue("code"); got != tt.sharedSecret {
 						t.Errorf("token exchange code = %q, want %q", got, tt.sharedSecret)
 					}
@@ -80,7 +80,7 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 			if err != nil {
 				t.Fatalf("access failed: %v", err)
 			}
-			defer result.Response.Body.Close()
+			defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 			if result.AccessToken != tt.accessToken {
 				t.Fatalf("access token = %q, want %q", result.AccessToken, tt.accessToken)

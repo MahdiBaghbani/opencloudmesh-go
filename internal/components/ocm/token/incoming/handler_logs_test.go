@@ -69,7 +69,9 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 					ReceiverHost: tt.clientID,
 					LocalPath:    "/tmp/test.txt",
 				}
-				shareRepo.Create(context.Background(), share)
+				if err := shareRepo.Create(context.Background(), share); err != nil {
+					t.Fatalf("Create: %v", err)
+				}
 			}
 
 			form := url.Values{}

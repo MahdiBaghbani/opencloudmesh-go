@@ -61,7 +61,7 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -69,7 +69,7 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`))
+			_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
 
 			return
 		}
@@ -105,7 +105,7 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc)
+			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -113,10 +113,10 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 
-			_ = json.NewDecoder(r.Body).Decode(&captured)
+			_ = json.NewDecoder(r.Body).Decode(&captured) //nolint:errcheck // test mock handler: JSON decode
 
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`))
+			_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
 
 			return
 		}
@@ -154,9 +154,9 @@ func createTempShareFile(t *testing.T, pattern string) string {
 	}
 
 	path := tmpFile.Name()
-	_ = tmpFile.Close()
+	_ = tmpFile.Close() //nolint:errcheck // test cleanup: resource close
 
-	t.Cleanup(func() { _ = os.Remove(path) })
+	t.Cleanup(func() { _ = os.Remove(path) }) //nolint:errcheck // test cleanup: temp path removal
 
 	return path
 }

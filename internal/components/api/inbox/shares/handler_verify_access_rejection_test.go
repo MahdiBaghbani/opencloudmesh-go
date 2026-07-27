@@ -53,7 +53,9 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp.ReasonCode != "share_not_accepted" {
 		t.Errorf("expected reasonCode share_not_accepted, got %s", resp.ReasonCode)
@@ -80,7 +82,9 @@ func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
 	}
 
 	var resp inboxshares.VerifyAccessResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if resp.ReasonCode != "unsafe_path" {
 		t.Errorf("expected reasonCode unsafe_path, got %s", resp.ReasonCode)

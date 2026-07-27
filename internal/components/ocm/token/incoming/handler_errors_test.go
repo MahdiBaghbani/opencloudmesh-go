@@ -37,7 +37,9 @@ func TestHandler_InvalidCode(t *testing.T) {
 	}
 
 	var resp token.OAuthError
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Error != token.ErrorInvalidGrant {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidGrant, resp.Error)
@@ -57,7 +59,9 @@ func TestHandler_ClientMismatch(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		LocalPath:    "/tmp/test.txt",
 	}
-	shareRepo.Create(context.Background(), share)
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -76,7 +80,9 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	}
 
 	var resp token.OAuthError
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Error != token.ErrorInvalidClient {
 		t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
@@ -95,7 +101,9 @@ func TestTokenStore_Expiration(t *testing.T) {
 	// Manually set to expired
 	expired.ExpiresAt = expired.IssuedAt // already expired
 
-	store.Store(ctx, expired)
+	if err := store.Store(ctx, expired); err != nil {
+		t.Fatalf("Store: %v", err)
+	}
 
 	// Try to get it
 	_, err := store.Get(ctx, "expired-token")

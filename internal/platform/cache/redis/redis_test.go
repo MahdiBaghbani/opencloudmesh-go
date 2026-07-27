@@ -55,7 +55,7 @@ func TestIncrement_ResetAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
 	}
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 	ttl := 30 * time.Second
@@ -110,7 +110,7 @@ func TestIncrement_CounterValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
 	}
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
@@ -149,7 +149,7 @@ func TestSetGetDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
 	}
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
@@ -208,7 +208,7 @@ func TestReset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
 	}
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 

@@ -33,7 +33,7 @@ func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	})
 
 	c := cache.NewDefault()
@@ -89,7 +89,7 @@ func TestClientDiscover_WarningsOwnershipAndJSONOmission(t *testing.T) {
 				},
 			},
 		})
-		json.NewEncoder(w).Encode(raw)
+		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
 	})
 
 	c := cache.NewDefault()

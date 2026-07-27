@@ -36,7 +36,11 @@ func TestTestsupportOnlyImportedFromTestFiles(t *testing.T) {
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(root, path)
+		relPath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+
 		relPath = filepath.ToSlash(relPath)
 
 		if strings.HasPrefix(relPath, "internal/testsupport/") {

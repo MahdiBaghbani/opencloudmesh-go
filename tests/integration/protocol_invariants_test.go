@@ -109,8 +109,16 @@ func assertPersistenceUnchanged(t *testing.T, before, after tsprotocol.Persisten
 	t.Helper()
 
 	if !tsprotocol.SnapshotEqual(before, after) {
-		b, _ := tsprotocol.CanonicalSnapshotBytes(before)
-		a, _ := tsprotocol.CanonicalSnapshotBytes(after)
+		b, err := tsprotocol.CanonicalSnapshotBytes(before)
+		if err != nil {
+			t.Fatalf("canonical snapshot before: %v", err)
+		}
+
+		a, err := tsprotocol.CanonicalSnapshotBytes(after)
+		if err != nil {
+			t.Fatalf("canonical snapshot after: %v", err)
+		}
+
 		t.Fatalf("persistence changed\nbefore: %s\nafter: %s", string(b), string(a))
 	}
 }

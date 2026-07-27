@@ -15,7 +15,7 @@ func TestLoad_PeerTrustEnabledNoConfigPathsFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	configPath := filepath.Join(tempDir, "config.toml")
 
@@ -48,7 +48,7 @@ func TestLoad_PeerTrustEnabledNonExistentPathFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	configPath := filepath.Join(tempDir, "config.toml")
 
@@ -81,7 +81,7 @@ func TestLoad_PeerTrustEnabledValidPathSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	// Create a valid trust group config file
 	tgPath := filepath.Join(tempDir, "trust-group.json")
@@ -124,7 +124,7 @@ func TestLoad_PeerTrustDisabledNeedsNoConfigPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	configPath := filepath.Join(tempDir, "config.toml")
 

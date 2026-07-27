@@ -14,7 +14,7 @@ func TestHealthHandler(t *testing.T) {
 	HealthHandler(w, req)
 
 	res := w.Result()
-	defer res.Body.Close()
+	defer res.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if res.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", res.StatusCode)

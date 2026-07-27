@@ -32,7 +32,7 @@ func sharedSecretDiscoveryHandler(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(disc)
+	_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 	return true
 }
@@ -50,7 +50,7 @@ func TestAccess_SharedSecretSuccess(t *testing.T) {
 
 			if r.Header.Get("Authorization") == "Bearer shared-secret" {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("file content"))
+				_, _ = w.Write([]byte("file content")) //nolint:errcheck // test mock handler: response write
 
 				return
 			}
@@ -79,7 +79,7 @@ func TestAccess_SharedSecretSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer result.Response.Body.Close()
+	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if result.Response.StatusCode != http.StatusOK {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)

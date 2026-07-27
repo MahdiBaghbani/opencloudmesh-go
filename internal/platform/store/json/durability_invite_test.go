@@ -42,7 +42,9 @@ func lockDir(t *testing.T, dir string) {
 		t.Fatal(err)
 	}
 
-	t.Cleanup(func() { os.Chmod(dir, 0700) })
+	t.Cleanup(func() {
+		os.Chmod(dir, 0700) //nolint:errcheck // test cleanup: restore directory permissions
+	})
 }
 
 func testCreateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
@@ -51,24 +53,26 @@ func testCreateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-*")
 
 	d := makeDriver(t, dir)
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
+
+	outInvStore := requireOutgoingInviteStore(t, d)
 
 	invite := testutil.NewOutgoingInviteFixture()
 
 	lockDir(t, dir)
 
-	if err := d.(store.OutgoingInviteStore).CreateOutgoingInvite(ctx, invite); err == nil {
+	if err := outInvStore.CreateOutgoingInvite(ctx, invite); err == nil {
 		t.Fatal("expected error from CreateOutgoingInvite with read-only dir, got nil")
 	}
 
 	// Restore write permission and verify the invite is NOT in-memory (rollback succeeded).
-	os.Chmod(dir, 0700)
+	restoreDirPerms(t, dir)
 
-	if _, err := d.(store.OutgoingInviteStore).GetOutgoingInvite(ctx, invite.ID); err == nil {
+	if _, err := outInvStore.GetOutgoingInvite(ctx, invite.ID); err == nil {
 		t.Error("invite found in memory after failed create - rollback did not occur")
 	}
 
-	if _, err := d.(store.OutgoingInviteStore).GetOutgoingInviteByToken(ctx, invite.Token); err == nil {
+	if _, err := outInvStore.GetOutgoingInviteByToken(ctx, invite.Token); err == nil {
 		t.Error("invite token index not rolled back after failed create")
 	}
 }
@@ -79,10 +83,12 @@ func testUpdateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-*")
 
 	d := makeDriver(t, dir)
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
+
+	outInvStore := requireOutgoingInviteStore(t, d)
 
 	invite := testutil.NewOutgoingInviteFixture()
-	if err := d.(store.OutgoingInviteStore).CreateOutgoingInvite(ctx, invite); err != nil {
+	if err := outInvStore.CreateOutgoingInvite(ctx, invite); err != nil {
 		t.Fatalf("setup CreateOutgoingInvite: %v", err)
 	}
 
@@ -91,14 +97,14 @@ func testUpdateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 
 	lockDir(t, dir)
 
-	if err := d.(store.OutgoingInviteStore).UpdateOutgoingInvite(ctx, &updated); err == nil {
+	if err := outInvStore.UpdateOutgoingInvite(ctx, &updated); err == nil {
 		t.Fatal("expected error from UpdateOutgoingInvite with read-only dir, got nil")
 	}
 
 	// Restore and verify the old value is still present (rollback succeeded).
-	os.Chmod(dir, 0700)
+	restoreDirPerms(t, dir)
 
-	got, err := d.(store.OutgoingInviteStore).GetOutgoingInvite(ctx, invite.ID)
+	got, err := outInvStore.GetOutgoingInvite(ctx, invite.ID)
 	if err != nil {
 		t.Fatalf("invite missing after failed update: %v", err)
 	}
@@ -111,11 +117,11 @@ func testUpdateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 		)
 	}
 
-	if _, err := d.(store.OutgoingInviteStore).GetOutgoingInviteByToken(ctx, invite.Token); err != nil {
+	if _, err := outInvStore.GetOutgoingInviteByToken(ctx, invite.Token); err != nil {
 		t.Error("old token index entry missing after failed update rollback")
 	}
 
-	if _, err := d.(store.OutgoingInviteStore).GetOutgoingInviteByToken(ctx, updated.Token); err == nil {
+	if _, err := outInvStore.GetOutgoingInviteByToken(ctx, updated.Token); err == nil {
 		t.Error("new token index entry present after failed update - rollback incomplete")
 	}
 }
@@ -126,27 +132,29 @@ func testDeleteOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-*")
 
 	d := makeDriver(t, dir)
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
+
+	outInvStore := requireOutgoingInviteStore(t, d)
 
 	invite := testutil.NewOutgoingInviteFixture()
-	if err := d.(store.OutgoingInviteStore).CreateOutgoingInvite(ctx, invite); err != nil {
+	if err := outInvStore.CreateOutgoingInvite(ctx, invite); err != nil {
 		t.Fatalf("setup CreateOutgoingInvite: %v", err)
 	}
 
 	lockDir(t, dir)
 
-	if err := d.(store.OutgoingInviteStore).DeleteOutgoingInvite(ctx, invite.ID); err == nil {
+	if err := outInvStore.DeleteOutgoingInvite(ctx, invite.ID); err == nil {
 		t.Fatal("expected error from DeleteOutgoingInvite with read-only dir, got nil")
 	}
 
 	// Restore and verify the invite is still present (rollback succeeded).
-	os.Chmod(dir, 0700)
+	restoreDirPerms(t, dir)
 
-	if _, err := d.(store.OutgoingInviteStore).GetOutgoingInvite(ctx, invite.ID); err != nil {
+	if _, err := outInvStore.GetOutgoingInvite(ctx, invite.ID); err != nil {
 		t.Errorf("invite missing after failed delete - rollback did not occur: %v", err)
 	}
 
-	if _, err := d.(store.OutgoingInviteStore).GetOutgoingInviteByToken(ctx, invite.Token); err != nil {
+	if _, err := outInvStore.GetOutgoingInviteByToken(ctx, invite.Token); err != nil {
 		t.Error("token index entry missing after failed delete rollback")
 	}
 }
@@ -157,25 +165,27 @@ func testCreateIncomingInviteRollback(t *testing.T, ctx context.Context) {
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-*")
 
 	d := makeDriver(t, dir)
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
+
+	inInvStore := requireIncomingInviteStore(t, d)
 
 	invite := testutil.NewIncomingInviteFixture()
 
 	lockDir(t, dir)
 
-	if err := d.(store.IncomingInviteStore).CreateIncomingInvite(ctx, invite); err == nil {
+	if err := inInvStore.CreateIncomingInvite(ctx, invite); err == nil {
 		t.Fatal("expected error from CreateIncomingInvite with read-only dir, got nil")
 	}
 
-	os.Chmod(dir, 0700)
+	restoreDirPerms(t, dir)
 
-	if _, err := d.(store.IncomingInviteStore).GetIncomingInviteForRecipient(
+	if _, err := inInvStore.GetIncomingInviteForRecipient(
 		ctx, invite.ID, invite.RecipientUserId,
 	); err == nil {
 		t.Error("incoming invite found in memory after failed create - rollback did not occur")
 	}
 
-	if _, err := d.(store.IncomingInviteStore).GetIncomingInviteByToken(
+	if _, err := inInvStore.GetIncomingInviteByToken(
 		ctx, invite.Token, invite.RecipientUserId,
 	); err == nil {
 		t.Error("incoming invite token index not rolled back after failed create")
@@ -188,10 +198,12 @@ func testUpdateIncomingInviteStatusRollback(t *testing.T, ctx context.Context) {
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-*")
 
 	d := makeDriver(t, dir)
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
+
+	inInvStore := requireIncomingInviteStore(t, d)
 
 	invite := testutil.NewIncomingInviteFixture()
-	if err := d.(store.IncomingInviteStore).CreateIncomingInvite(ctx, invite); err != nil {
+	if err := inInvStore.CreateIncomingInvite(ctx, invite); err != nil {
 		t.Fatalf("setup CreateIncomingInvite: %v", err)
 	}
 
@@ -199,15 +211,15 @@ func testUpdateIncomingInviteStatusRollback(t *testing.T, ctx context.Context) {
 
 	lockDir(t, dir)
 
-	if err := d.(store.IncomingInviteStore).UpdateIncomingInviteStatusForRecipient(
+	if err := inInvStore.UpdateIncomingInviteStatusForRecipient(
 		ctx, invite.ID, invite.RecipientUserId, "new-status",
 	); err == nil {
 		t.Fatal("expected error from UpdateIncomingInviteStatusForRecipient with read-only dir, got nil")
 	}
 
-	os.Chmod(dir, 0700)
+	restoreDirPerms(t, dir)
 
-	got, err := d.(store.IncomingInviteStore).GetIncomingInviteForRecipient(
+	got, err := inInvStore.GetIncomingInviteForRecipient(
 		ctx, invite.ID, invite.RecipientUserId,
 	)
 	if err != nil {
@@ -229,30 +241,32 @@ func testDeleteIncomingInviteRollback(t *testing.T, ctx context.Context) {
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-*")
 
 	d := makeDriver(t, dir)
-	defer d.Close()
+	defer d.Close() //nolint:errcheck // test cleanup: driver close
+
+	inInvStore := requireIncomingInviteStore(t, d)
 
 	invite := testutil.NewIncomingInviteFixture()
-	if err := d.(store.IncomingInviteStore).CreateIncomingInvite(ctx, invite); err != nil {
+	if err := inInvStore.CreateIncomingInvite(ctx, invite); err != nil {
 		t.Fatalf("setup CreateIncomingInvite: %v", err)
 	}
 
 	lockDir(t, dir)
 
-	if err := d.(store.IncomingInviteStore).DeleteIncomingInviteForRecipient(
+	if err := inInvStore.DeleteIncomingInviteForRecipient(
 		ctx, invite.ID, invite.RecipientUserId,
 	); err == nil {
 		t.Fatal("expected error from DeleteIncomingInviteForRecipient with read-only dir, got nil")
 	}
 
-	os.Chmod(dir, 0700)
+	restoreDirPerms(t, dir)
 
-	if _, err := d.(store.IncomingInviteStore).GetIncomingInviteForRecipient(
+	if _, err := inInvStore.GetIncomingInviteForRecipient(
 		ctx, invite.ID, invite.RecipientUserId,
 	); err != nil {
 		t.Errorf("invite missing after failed delete - rollback did not occur: %v", err)
 	}
 
-	if _, err := d.(store.IncomingInviteStore).GetIncomingInviteByToken(
+	if _, err := inInvStore.GetIncomingInviteByToken(
 		ctx, invite.Token, invite.RecipientUserId,
 	); err != nil {
 		t.Error("token-user index entry missing after failed delete rollback")

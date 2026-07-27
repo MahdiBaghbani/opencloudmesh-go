@@ -12,7 +12,7 @@ func TestLoadTrustGroupConfig_ValidTrustGroupID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
@@ -36,7 +36,7 @@ func TestLoadTrustGroupConfig_FederationIDUnknownField_Fails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
@@ -64,7 +64,7 @@ func TestLoadTrustGroupConfig_TrailingJSONRejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
@@ -95,7 +95,7 @@ func TestLoadTrustGroupConfig_InvalidVerification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
@@ -119,7 +119,7 @@ func TestLoadTrustGroupConfig_ValidVerification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
 
 	path := filepath.Join(tempDir, "trust-group.json")
 

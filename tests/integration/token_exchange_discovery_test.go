@@ -40,6 +40,7 @@ mode = "off"
 			srv.DumpLogs(t)
 			t.Fatalf("failed to get discovery: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -95,6 +96,7 @@ mode = "off"
 		if err != nil {
 			t.Fatalf("health check failed: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -130,10 +132,15 @@ mode = "off"
 		if err != nil {
 			t.Fatalf("failed to call token endpoint: %v", err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusBadRequest {
-			body, _ := io.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("read response body: %v", err)
+			}
+
 			t.Fatalf("expected 400 for invalid grant_type, got %d: %s", resp.StatusCode, body)
 		}
 
@@ -190,6 +197,7 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 				srv.DumpLogs(t)
 				t.Fatalf("failed to get discovery: %v", err)
 			}
+			//nolint:errcheck // test cleanup: response body close
 			defer resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {

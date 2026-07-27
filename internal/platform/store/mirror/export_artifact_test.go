@@ -24,7 +24,7 @@ func TestMirrorDriverSecretRedaction(t *testing.T) {
 
 	driver := testutil.OpenDriver(t, cfg)
 
-	outStore := driver.(store.OutgoingShareStore)
+	outStore := requireOutgoingShareStore(t, driver)
 
 	share := testutil.NewOutgoingShareFixture()
 
@@ -44,7 +44,7 @@ func TestMirrorDriverSecretRedaction(t *testing.T) {
 		t.Error("shared secret must not appear in mirror JSON export")
 	}
 
-	driver.Close()
+	driver.Close() //nolint:errcheck // test cleanup: driver close
 }
 
 // TestMirrorInviteExportOnInit verifies that Init exports both invite surfaces
@@ -64,7 +64,9 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 	outInvite.ID = "mirror-out-id"
 
 	outInvite.Token = "mirror-out-token"
-	if err := driver.(store.OutgoingInviteStore).CreateOutgoingInvite(ctx, outInvite); err != nil {
+
+	outInvStore := requireOutgoingInviteStore(t, driver)
+	if err := outInvStore.CreateOutgoingInvite(ctx, outInvite); err != nil {
 		t.Fatalf("create outgoing invite: %v", err)
 	}
 
@@ -72,14 +74,16 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 	inInvite.ID = "mirror-in-id"
 
 	inInvite.Token = "mirror-in-token"
-	if err := driver.(store.IncomingInviteStore).CreateIncomingInvite(ctx, inInvite); err != nil {
+
+	inInvStore := requireIncomingInviteStore(t, driver)
+	if err := inInvStore.CreateIncomingInvite(ctx, inInvite); err != nil {
 		t.Fatalf("create incoming invite: %v", err)
 	}
 
-	driver.Close()
+	driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	driver2 := testutil.OpenDriver(t, cfg)
-	defer driver2.Close()
+	defer driver2.Close() //nolint:errcheck // test cleanup: driver close
 
 	mirrorDir := filepath.Join(tempDir, "mirror")
 

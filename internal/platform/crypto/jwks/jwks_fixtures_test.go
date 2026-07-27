@@ -48,7 +48,7 @@ func mustSchemeAuthority(t *testing.T, baseURL string) (scheme, authority string
 func jwksJSONHandler(set jwks.Set) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set)
+		_ = json.NewEncoder(w).Encode(set) //nolint:errcheck // test mock handler: JSON encode
 	}
 }
 
@@ -69,10 +69,10 @@ func twoKeyRotationHandler(version *atomic.Int32, key1Pub, key2Pub ed25519.Publi
 		w.Header().Set("Content-Type", "application/json")
 
 		if version.Load() == 0 {
-			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(testJWKSKey1, key1Pub))
+			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(testJWKSKey1, key1Pub)) //nolint:errcheck // test mock handler: JSON encode
 			return
 		}
 
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(testJWKSKey2, key2Pub))
+		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(testJWKSKey2, key2Pub)) //nolint:errcheck // test mock handler: JSON encode
 	}
 }

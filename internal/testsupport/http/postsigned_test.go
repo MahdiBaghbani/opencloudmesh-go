@@ -37,7 +37,7 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"echo":true}`))
+		_, _ = w.Write([]byte(`{"echo":true}`)) //nolint:errcheck // test mock handler: response write
 	}))
 	defer server.Close()
 
@@ -54,7 +54,7 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 		server.URL+"/ocm/shares",
 		reqBody,
 	)
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if gotMethod != http.MethodPost {
 		t.Fatalf("method = %q, want POST", gotMethod)
@@ -96,7 +96,7 @@ func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(wantBody))
+		_, _ = w.Write([]byte(wantBody)) //nolint:errcheck // test mock handler: response write
 	}))
 	defer server.Close()
 
@@ -111,7 +111,7 @@ func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
 		server.URL,
 		map[string]string{"ping": "pong"},
 	)
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	fromBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -146,7 +146,7 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(body)
+		_, _ = w.Write(body) //nolint:errcheck // test mock handler: response write
 	}))
 	defer server.Close()
 
@@ -170,7 +170,7 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 		server.URL,
 		reqBody,
 	)
-	defer resp1.Body.Close()
+	defer resp1.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	resp2, respBody2 := tshttp.PostSignedJSON(
 		t,
@@ -180,7 +180,7 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 		server.URL,
 		reqBody,
 	)
-	defer resp2.Body.Close()
+	defer resp2.Body.Close() //nolint:errcheck // test cleanup: resource close
 
 	if resp1.StatusCode != http.StatusOK {
 		t.Fatalf("first status = %d, want %d", resp1.StatusCode, http.StatusOK)
@@ -214,7 +214,7 @@ func TestPostSignedJSONStatusBody_ReturnsStatusAndBody(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte(wantBody))
+		_, _ = w.Write([]byte(wantBody)) //nolint:errcheck // test mock handler: response write
 	}))
 	defer server.Close()
 
@@ -246,7 +246,7 @@ func TestPostSignedJSONDecode_UnmarshalsResponse(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true}`))
+		_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
 	}))
 	defer server.Close()
 
@@ -284,7 +284,7 @@ func TestPostSignedJSONDecode_NilOutDoesNotPanic(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true}`))
+		_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
 	}))
 	defer server.Close()
 

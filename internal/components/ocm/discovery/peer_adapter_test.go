@@ -32,10 +32,10 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		switch r.URL.Path {
 		case jwks.WellKnownPath:
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(km.JWKS())
+			_ = json.NewEncoder(w).Encode(km.JWKS()) //nolint:errcheck // test mock handler: JSON encode
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
@@ -108,12 +108,12 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 		switch r.URL.Path {
 		case jwks.WellKnownPath:
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{
+			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{ //nolint:errcheck // test mock handler: JSON encode
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
 			}}})
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
@@ -177,7 +177,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub))
+		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub)) //nolint:errcheck // test mock handler: JSON encode
 	}))
 	defer srv.Close()
 
@@ -234,7 +234,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_PreservesExplicitHTTPSKid(t
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub))
+		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub)) //nolint:errcheck // test mock handler: JSON encode
 	}))
 	defer srv.Close()
 
@@ -281,7 +281,7 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("ignored#key1", pub))
+		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("ignored#key1", pub)) //nolint:errcheck // test mock handler: JSON encode
 	}))
 	defer srv.Close()
 
@@ -357,7 +357,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == jwks.WellKnownPath {
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"keys":[`))
+				_, _ = w.Write([]byte(`{"keys":[`)) //nolint:errcheck // test mock handler: response write
 
 				return
 			}
@@ -391,7 +391,7 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 		srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == jwks.WellKnownPath {
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(otherKM.JWKS())
+				_ = json.NewEncoder(w).Encode(otherKM.JWKS()) //nolint:errcheck // test mock handler: JSON encode
 
 				return
 			}

@@ -12,7 +12,7 @@ import (
 
 func TestCache_SetGet(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
@@ -35,7 +35,7 @@ func TestCache_SetGet(t *testing.T) {
 
 func TestCache_GetNotFound(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
@@ -47,7 +47,7 @@ func TestCache_GetNotFound(t *testing.T) {
 
 func TestCache_Expiration(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
@@ -58,7 +58,11 @@ func TestCache_Expiration(t *testing.T) {
 	}
 
 	// Should exist initially
-	exists, _ := c.Exists(ctx, "key1")
+	exists, err := c.Exists(ctx, "key1")
+	if err != nil {
+		t.Fatalf("Exists failed: %v", err)
+	}
+
 	if !exists {
 		t.Error("key should exist initially")
 	}
@@ -72,7 +76,11 @@ func TestCache_Expiration(t *testing.T) {
 		t.Errorf("expected ErrExpired, got %v", err)
 	}
 
-	exists, _ = c.Exists(ctx, "key1")
+	exists, err = c.Exists(ctx, "key1")
+	if err != nil {
+		t.Fatalf("Exists failed: %v", err)
+	}
+
 	if exists {
 		t.Error("expired key should not exist")
 	}
@@ -80,12 +88,17 @@ func TestCache_Expiration(t *testing.T) {
 
 func TestCache_Delete(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
-	c.Set(ctx, "key1", []byte("value1"), time.Minute)
-	c.Delete(ctx, "key1")
+	if err := c.Set(ctx, "key1", []byte("value1"), time.Minute); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	if err := c.Delete(ctx, "key1"); err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
 
 	_, err := c.Get(ctx, "key1")
 	if !errors.Is(err, cache.ErrNotFound) {
@@ -95,18 +108,24 @@ func TestCache_Delete(t *testing.T) {
 
 func TestCache_ValueIsolation(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
 	original := []byte("original")
-	c.Set(ctx, "key1", original, time.Minute)
+	if err := c.Set(ctx, "key1", original, time.Minute); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
 
 	// Modify original
 	original[0] = 'X'
 
 	// Cached value should be unchanged
-	val, _ := c.Get(ctx, "key1")
+	val, err := c.Get(ctx, "key1")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+
 	if string(val) != "original" {
 		t.Errorf("cache value was mutated: %q", string(val))
 	}
@@ -115,7 +134,11 @@ func TestCache_ValueIsolation(t *testing.T) {
 	val[0] = 'Y'
 
 	// Cached value should still be unchanged
-	val2, _ := c.Get(ctx, "key1")
+	val2, err := c.Get(ctx, "key1")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+
 	if string(val2) != "original" {
 		t.Errorf("cache value was mutated via returned slice: %q", string(val2))
 	}
@@ -123,7 +146,7 @@ func TestCache_ValueIsolation(t *testing.T) {
 
 func TestCounter_Increment(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
@@ -143,7 +166,11 @@ func TestCounter_Increment(t *testing.T) {
 	}
 
 	// Second increment adds to it (same window, same resetAt)
-	count, resetAt2, _ := c.Increment(ctx, "counter1", 5, time.Minute)
+	count, resetAt2, err := c.Increment(ctx, "counter1", 5, time.Minute)
+	if err != nil {
+		t.Fatalf("Increment failed: %v", err)
+	}
+
 	if count != 6 {
 		t.Errorf("expected 6, got %d", count)
 	}
@@ -153,7 +180,11 @@ func TestCounter_Increment(t *testing.T) {
 	}
 
 	// GetCount should return same value
-	count, _ = c.GetCount(ctx, "counter1")
+	count, err = c.GetCount(ctx, "counter1")
+	if err != nil {
+		t.Fatalf("GetCount failed: %v", err)
+	}
+
 	if count != 6 {
 		t.Errorf("expected 6, got %d", count)
 	}
@@ -161,24 +192,35 @@ func TestCounter_Increment(t *testing.T) {
 
 func TestCounter_Expiration(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
 	// Create counter with short TTL
-	_, _, _ = c.Increment(ctx, "counter1", 10, 10*time.Millisecond)
+	_, _, err := c.Increment(ctx, "counter1", 10, 10*time.Millisecond)
+	if err != nil {
+		t.Fatalf("Increment failed: %v", err)
+	}
 
 	// Wait for expiration
 	time.Sleep(20 * time.Millisecond)
 
 	// Counter should be reset
-	count, _ := c.GetCount(ctx, "counter1")
+	count, err := c.GetCount(ctx, "counter1")
+	if err != nil {
+		t.Fatalf("GetCount failed: %v", err)
+	}
+
 	if count != 0 {
 		t.Errorf("expected 0 after expiration, got %d", count)
 	}
 
 	// New increment should start fresh
-	count, _, _ = c.Increment(ctx, "counter1", 1, time.Minute)
+	count, _, err = c.Increment(ctx, "counter1", 1, time.Minute)
+	if err != nil {
+		t.Fatalf("Increment failed: %v", err)
+	}
+
 	if count != 1 {
 		t.Errorf("expected 1 after expired increment, got %d", count)
 	}
@@ -186,14 +228,24 @@ func TestCounter_Expiration(t *testing.T) {
 
 func TestCounter_Reset(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
-	_, _, _ = c.Increment(ctx, "counter1", 100, time.Minute)
-	c.Reset(ctx, "counter1")
+	_, _, err := c.Increment(ctx, "counter1", 100, time.Minute)
+	if err != nil {
+		t.Fatalf("Increment failed: %v", err)
+	}
 
-	count, _ := c.GetCount(ctx, "counter1")
+	if err := c.Reset(ctx, "counter1"); err != nil {
+		t.Fatalf("Reset failed: %v", err)
+	}
+
+	count, err := c.GetCount(ctx, "counter1")
+	if err != nil {
+		t.Fatalf("GetCount failed: %v", err)
+	}
+
 	if count != 0 {
 		t.Errorf("expected 0 after reset, got %d", count)
 	}
@@ -201,7 +253,7 @@ func TestCounter_Reset(t *testing.T) {
 
 func TestCounter_ResetAt(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
@@ -227,7 +279,10 @@ func TestCounter_ResetAt(t *testing.T) {
 	// Subsequent increments should return the same resetAt (within the same window)
 	time.Sleep(10 * time.Millisecond)
 
-	_, resetAt2, _ := c.Increment(ctx, "counter_resetat", 1, ttl)
+	_, resetAt2, err := c.Increment(ctx, "counter_resetat", 1, ttl)
+	if err != nil {
+		t.Fatalf("Increment failed: %v", err)
+	}
 
 	// resetAt2 should be close to original resetAt (not reset)
 	diff := resetAt2.Sub(resetAt)
@@ -243,20 +298,32 @@ func TestCounter_ResetAt(t *testing.T) {
 func TestCache_CleanupLoop(t *testing.T) {
 	// Create cache with fast cleanup
 	c := memory.New(time.Minute, 50*time.Millisecond)
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // test cleanup: resource close
 
 	ctx := context.Background()
 
 	// Set items that will expire quickly
-	c.Set(ctx, "expire1", []byte("v1"), 10*time.Millisecond)
-	c.Set(ctx, "expire2", []byte("v2"), 10*time.Millisecond)
-	c.Set(ctx, "keep", []byte("v3"), time.Minute)
+	if err := c.Set(ctx, "expire1", []byte("v1"), 10*time.Millisecond); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	if err := c.Set(ctx, "expire2", []byte("v2"), 10*time.Millisecond); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	if err := c.Set(ctx, "keep", []byte("v3"), time.Minute); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
 
 	// Wait for cleanup to run
 	time.Sleep(100 * time.Millisecond)
 
 	// Expired items should be gone, keep should remain
-	exists, _ := c.Exists(ctx, "keep")
+	exists, err := c.Exists(ctx, "keep")
+	if err != nil {
+		t.Fatalf("Exists failed: %v", err)
+	}
+
 	if !exists {
 		t.Error("'keep' should still exist")
 	}

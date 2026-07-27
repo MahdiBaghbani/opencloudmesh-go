@@ -46,7 +46,7 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	t.Cleanup(func() { _ = svc.Close() })
+	t.Cleanup(func() { _ = svc.Close() }) //nolint:errcheck // test cleanup: repository close
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
 	rec := httptest.NewRecorder()
@@ -90,7 +90,7 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	t.Cleanup(func() { _ = svc.Close() })
+	t.Cleanup(func() { _ = svc.Close() }) //nolint:errcheck // test cleanup: repository close
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
 	rec := httptest.NewRecorder()
@@ -126,7 +126,7 @@ func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	t.Cleanup(func() { _ = svc.Close() })
+	t.Cleanup(func() { _ = svc.Close() }) //nolint:errcheck // test cleanup: repository close
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
 	rec := httptest.NewRecorder()

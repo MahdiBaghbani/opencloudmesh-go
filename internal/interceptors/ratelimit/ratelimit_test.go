@@ -201,7 +201,7 @@ func TestLimiter_AllowsRequestsUnderLimit(t *testing.T) {
 
 	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 	}))
 
 	// First 5 requests should succeed
@@ -230,7 +230,7 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 
 	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 	}))
 
 	// First 2 requests should succeed
@@ -351,7 +351,7 @@ func TestLimiter_AllowsOnCacheError(t *testing.T) {
 
 	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 	}))
 
 	// Request should be allowed even though cache fails

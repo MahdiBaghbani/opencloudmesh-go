@@ -27,7 +27,7 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 		observedMethod.Store(r.Method)
 		observedHost.Store(r.Host)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("via-proxy"))
+		_, _ = w.Write([]byte("via-proxy")) //nolint:errcheck // test handler response write
 	}))
 	defer proxy.Close()
 
@@ -41,7 +41,7 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success through proxy, got: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -52,15 +52,15 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 	}
 	// HTTP proxying must send the full destination URL as the request target
 	// (absolute-form), not just the path.
-	if got, _ := observedRequestURI.Load().(string); got != destURL {
+	if got, ok := observedRequestURI.Load().(string); !ok || got != destURL {
 		t.Errorf("proxy saw request URI %q, want %q (absolute-form)", got, destURL)
 	}
 
-	if got, _ := observedMethod.Load().(string); got != http.MethodGet {
+	if got, ok := observedMethod.Load().(string); !ok || got != http.MethodGet {
 		t.Errorf("proxy saw method %q, want GET", got)
 	}
 
-	if got, _ := observedHost.Load().(string); got != "external.example.invalid" {
+	if got, ok := observedHost.Load().(string); !ok || got != "external.example.invalid" {
 		t.Errorf("proxy saw Host header %q, want %q", got, "external.example.invalid")
 	}
 }
@@ -122,7 +122,7 @@ func TestClient_PrivateProxyAllowedInStrictMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success through private proxy in strict mode, got: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if !proxyHit.Load() {
 		t.Fatal("private proxy host must be reachable in strict mode (operator-trusted)")

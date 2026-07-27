@@ -46,13 +46,19 @@ func TestUserAuth_Authenticate(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a user
-	hash, _ := auth.HashPassword("testpass")
+	hash, err := auth.HashPassword("testpass")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	user := &identity.User{
 		Username:     "testuser",
 		PasswordHash: hash,
 		Role:         "user",
 	}
-	repo.Create(ctx, user)
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	// Successful auth
 	got, err := auth.Authenticate(ctx, repo, "testuser", "testpass")

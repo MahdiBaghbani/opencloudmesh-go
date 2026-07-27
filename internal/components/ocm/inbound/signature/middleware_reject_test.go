@@ -44,10 +44,14 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 	// Create two different key managers
 	kmSender := crypto.NewKeyManager("", "https://sender.example.com")
-	kmSender.LoadOrGenerate()
+	if err := kmSender.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate sender: %v", err)
+	}
 
 	kmAttacker := crypto.NewKeyManager("", "https://attacker.example.com")
-	kmAttacker.LoadOrGenerate()
+	if err := kmAttacker.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate attacker: %v", err)
+	}
 
 	signer := crypto.NewRFC9421Signer(kmSender)
 
@@ -71,7 +75,10 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
-	signer.SignRequest(req, body)
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)

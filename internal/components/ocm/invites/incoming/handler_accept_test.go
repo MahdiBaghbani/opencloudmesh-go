@@ -36,7 +36,9 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"empty-email-token","userID":"u@host","email":"","name":"n"}`)
 
@@ -67,7 +69,9 @@ func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"empty-name-token","userID":"u@host","email":"e","name":""}`)
 
@@ -98,7 +102,9 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, `{"token":"valid-token","recipientProvider":"other.com","userID":"remote-user@other.com","email":"remote@other.com","name":"Remote User"}`)
 
@@ -124,7 +130,11 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 		t.Errorf("name = %q, want %q (local user display name)", resp.Name, "Alice A")
 	}
 
-	updated, _ := repo.GetByToken(context.Background(), "valid-token")
+	updated, err := repo.GetByToken(context.Background(), "valid-token")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if updated.Status != invites.InviteStatusAccepted {
 		t.Errorf("expected status %s, got %s", invites.InviteStatusAccepted, updated.Status)
 	}
@@ -151,7 +161,9 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 
 	w := postInviteAccepted(handler, `{"token":"valid-token","recipientProvider":"other.com","userID":"u@host","email":"e","name":"n"}`)
 
@@ -160,7 +172,9 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 	}
 
 	var resp spec.InviteAcceptedResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
 
 	if resp.Email != "" {
 		t.Errorf("email = %q, want empty string", resp.Email)
@@ -170,7 +184,11 @@ func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
 		t.Errorf("name = %q, want empty string", resp.Name)
 	}
 
-	updated, _ := repo.GetByToken(context.Background(), "valid-token")
+	updated, err := repo.GetByToken(context.Background(), "valid-token")
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if updated.Status != invites.InviteStatusAccepted {
 		t.Errorf("expected status %s, got %s", invites.InviteStatusAccepted, updated.Status)
 	}

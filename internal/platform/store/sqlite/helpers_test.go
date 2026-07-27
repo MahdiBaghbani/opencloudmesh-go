@@ -1,0 +1,18 @@
+package sqlite_test
+
+import (
+	"testing"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+)
+
+func requireOutgoingShareStore(t *testing.T, d store.Driver) store.OutgoingShareStore {
+	t.Helper()
+
+	s, ok := d.(store.OutgoingShareStore)
+	if !ok {
+		t.Fatal("driver does not implement OutgoingShareStore")
+	}
+
+	return s
+}

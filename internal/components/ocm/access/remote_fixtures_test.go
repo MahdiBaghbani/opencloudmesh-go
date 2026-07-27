@@ -31,7 +31,7 @@ func newTestDiscoveryServer() *httptest.Server {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc)
+			json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -98,7 +98,7 @@ func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToke
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(disc)
+		_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
 
 		return true
 	}
@@ -109,10 +109,10 @@ func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToke
 			return true
 		}
 
-		_ = r.ParseForm()
+		_ = r.ParseForm() //nolint:errcheck // test mock handler: parse form
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"` + accessToken + `","token_type":"Bearer","expires_in":3600}`))
+		_, _ = w.Write([]byte(`{"access_token":"` + accessToken + `","token_type":"Bearer","expires_in":3600}`)) //nolint:errcheck // test mock handler: response write
 
 		return true
 	}

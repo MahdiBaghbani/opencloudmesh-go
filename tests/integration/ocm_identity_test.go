@@ -101,10 +101,15 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	}
 
 	resp := postSignedJSON(t, ts.BaseURL+"/ocm/invite-accepted", body, peer.signer)
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -242,10 +247,15 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	}
 
 	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -343,10 +353,15 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	}
 
 	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadRequest {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected 400 for IDP mismatch, got %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -428,10 +443,15 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	}
 
 	resp := postSignedJSON(t, ts.BaseURL+"/ocm/shares", body, peer.signer)
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, string(respBody))
 	}
 

@@ -92,6 +92,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	// Find a free port
 	port, err := getFreePort()
 	if err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to find free port: %v", err)
 	}
@@ -109,6 +110,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	// Fail-fast checks that must run before any side-effecting bootstrap
 	// (mirrors main.go: impossible startup state must never cause partial startup).
 	if err := validatePreBootstrapStartup(cfg); err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("pre-bootstrap startup validation rejected: %v", err)
 	}
@@ -121,12 +123,14 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	// Wire via wiring.Build using the caller-selected harness build options.
 	buildResult, err := wiring.Build(cfg, logger, buildOpts)
 	if err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap dependencies: %v", err)
 	}
 
 	d := buildResult.Deps
 	if d == nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatal(wiring.ErrMsgNilDepsAfterBuild)
 	}
@@ -140,29 +144,34 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 		Role:        "admin",
 	}
 	if _, err := bootstrap.Run(context.Background(), adminUser, nil); err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to bootstrap users: %v", err)
 	}
 
 	services, err := wiring.BuildCoreServices(cfg, logger, d)
 	if err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create core services: %v", err)
 	}
 
 	if err := service.ValidateBuiltServices(services); err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("built service validation rejected: %v", err)
 	}
 
 	serverDeps, err := wiring.BuildServerDeps(cfg, logger, d)
 	if err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to build server deps: %v", err)
 	}
 
 	srv, err := server.New(cfg, logger, services, serverDeps)
 	if err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to create server: %v", err)
 	}
@@ -185,6 +194,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	// App endpoints (including /api/healthz) mount under ExternalBasePath when
 	// set, so the readiness probe must target that path, not bare root.
 	if err := waitForServerReady(healthEndpointURL(baseURL, cfg.ExternalBasePath), 5*time.Second); err != nil {
+		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("server failed to start: %v", err)
 	}
@@ -266,7 +276,9 @@ func getFreePort() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	//nolint:errcheck // test cleanup: ephemeral listener close
 	defer listener.Close()
 
+	//nolint:errcheck // test helper: ephemeral TCP listener address
 	return listener.Addr().(*net.TCPAddr).Port, nil
 }

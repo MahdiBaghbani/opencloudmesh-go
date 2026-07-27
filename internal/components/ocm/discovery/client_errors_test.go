@@ -42,7 +42,7 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte("{not-json"))
+			w.Write([]byte("{not-json")) //nolint:errcheck // test mock handler: response write
 		}))
 		defer server.Close()
 
@@ -65,7 +65,7 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 				return
 			}
 
-			json.NewEncoder(w).Encode(map[string]any{
+			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
 				"enabled":       false,
 				"apiVersion":    "1.4.0",
 				"resourceTypes": []any{},

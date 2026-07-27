@@ -108,8 +108,10 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	//nolint:errcheck // test cleanup: ephemeral listener close
 	defer listener.Close()
 
+	//nolint:errcheck // test helper: ephemeral TCP listener address
 	port := listener.Addr().(*net.TCPAddr).Port
 
 	srv := &http.Server{
@@ -119,11 +121,14 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 		},
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
+			//nolint:errcheck // test stub handler: response write
 			w.Write([]byte("ok"))
 		}),
 	}
 
+	//nolint:errcheck // test stub server: ServeTLS runs in background goroutine
 	go srv.ServeTLS(listener, "", "")
+	//nolint:errcheck // test cleanup: test HTTP server close
 	defer srv.Close()
 
 	time.Sleep(50 * time.Millisecond)
@@ -141,6 +146,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -173,6 +179,10 @@ func createServerCert(caCert *x509.Certificate, caKey interface{}, serverKey *ec
 }
 
 func pemEncodeECKey(key *ecdsa.PrivateKey) []byte {
-	der, _ := x509.MarshalECPrivateKey(key)
+	der, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		panic(err)
+	}
+
 	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
 }

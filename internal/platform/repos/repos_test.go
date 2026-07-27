@@ -18,7 +18,11 @@ func TestNew_MemoryBackend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(memory) error = %v", err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	}()
 
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")

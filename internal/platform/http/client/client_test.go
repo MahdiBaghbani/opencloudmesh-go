@@ -17,13 +17,16 @@ func TestClient_DoPreservesInterface(t *testing.T) {
 
 	client := outboundtestutil.NewPermissive(nil)
 
-	req, _ := http.NewRequest(http.MethodGet, server.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("Do() failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)

@@ -58,9 +58,14 @@ func tryLogin(t *testing.T, baseURL, username, password string) (string, string,
 	if err != nil {
 		t.Fatalf("failed to call login endpoint: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return "", string(body), false
 	}
@@ -117,9 +122,13 @@ func createOutgoingShare(t *testing.T, baseURL, token string, payload map[string
 	if err != nil {
 		t.Fatalf("failed to call outgoing share endpoint: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
 
 	return resp.StatusCode, string(respBody)
 }

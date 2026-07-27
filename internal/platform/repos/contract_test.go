@@ -16,7 +16,11 @@ func TestRepoContract(t *testing.T) {
 	for _, tt := range tsrepos.OpenTestRepos() {
 		t.Run(tt.Name, func(t *testing.T) {
 			r := tt.Open(t)
-			defer r.Close()
+			defer func() {
+				if err := r.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
 
 			runRepoContract(t, r)
 		})
@@ -37,7 +41,11 @@ func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 			// repos.New internally type-asserts drv.(fullStore); failure here
 			// means the driver is missing at least one store interface.
 			r := tsrepos.OpenDurable(t, backend)
-			defer r.Close()
+			defer func() {
+				if err := r.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
 
 			if r.OutgoingShares == nil {
 				t.Fatalf("%s: OutgoingShares is nil", backend)

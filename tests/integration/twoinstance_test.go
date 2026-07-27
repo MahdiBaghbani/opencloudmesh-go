@@ -34,6 +34,7 @@ func TestTwoInstanceDiscovery(t *testing.T) {
 			h.DumpLogs(t)
 			t.Fatalf("failed to get discovery from %s: %v", srv.Name, err)
 		}
+		//nolint:errcheck // test cleanup: response body close
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -75,6 +76,7 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 		h.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadGateway {
@@ -141,6 +143,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 			}
+			//nolint:errcheck // test cleanup: response body close
 			defer resp.Body.Close()
 
 			// Assert 403 Forbidden - SSRF protection should block private IPs
@@ -244,6 +247,7 @@ allow_ip_literals = false
 		target.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusForbidden {
@@ -349,6 +353,7 @@ func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
 		target.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusForbidden {
@@ -391,6 +396,7 @@ func TestHealthEndpointSubprocess(t *testing.T) {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to get health: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {

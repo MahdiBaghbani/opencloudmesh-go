@@ -24,15 +24,23 @@ func TestContentDigest(t *testing.T) {
 	}
 
 	km := crypto.NewKeyManager("", "https://example.com")
-	km.LoadOrGenerate()
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatalf("LoadOrGenerate: %v", err)
+	}
 
 	opts := crypto.DefaultRFC9421Options()
 	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	req2, _ := http.NewRequest(http.MethodPost, "https://example.com/test", bytes.NewReader(body))
+	req2, err := http.NewRequest(http.MethodPost, "https://example.com/test", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	req2.Host = "example.com"
-	signer.SignRequest(req2, body)
+	if err := signer.SignRequest(req2, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
 
 	if err := crypto.VerifyContentDigest(req2, body); err != nil {
 		t.Errorf("verification should pass with correct body: %v", err)
@@ -101,7 +109,11 @@ func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testin
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := httpsigTestBodyJSON
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
@@ -136,7 +148,11 @@ func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testin
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := httpsigTestBodyJSON
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {
@@ -196,7 +212,11 @@ func TestVerifyRequest_RejectsContentDigestMismatch(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := httpsigTestBodyJSON
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
 
 	req.Host = "example.com"
 	if err := signer.SignRequest(req, body); err != nil {

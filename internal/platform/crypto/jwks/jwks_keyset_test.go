@@ -30,7 +30,12 @@ func TestSetFromEd25519PublicKey_Find(t *testing.T) {
 		t.Fatalf("Algorithm = %q", got.Algorithm)
 	}
 
-	if !pub.Equal(got.PublicKey.(ed25519.PublicKey)) {
+	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("expected ed25519 public key")
+	}
+
+	if !pub.Equal(gotPub) {
 		t.Fatal("public key mismatch")
 	}
 }

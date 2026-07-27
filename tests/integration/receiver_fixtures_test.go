@@ -70,6 +70,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(disc)
 		case jwks.WellKnownPath:
 			if km == nil {
@@ -78,6 +79,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(km.JWKS())
 		case "/ocm/shares":
 			body, err := io.ReadAll(r.Body)
@@ -113,6 +115,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
+			//nolint:errcheck // test stub handler: response write
 			_, _ = w.Write([]byte(`{"recipientDisplayName":"Strict Receiver"}`))
 		default:
 			http.NotFound(w, r)
@@ -213,6 +216,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(disc)
 		case r.URL.Path == jwks.WellKnownPath:
 			if km == nil {
@@ -221,6 +225,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(km.JWKS())
 		case r.URL.Path == "/ocm/shares" && r.Method == http.MethodPost:
 			body, err := io.ReadAll(r.Body)
@@ -255,6 +260,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
+			//nolint:errcheck // test stub handler: response write
 			_, _ = w.Write([]byte(`{"recipientDisplayName":"Strict Recording Receiver"}`))
 		case r.URL.Path == "/ocm/token" && r.Method == http.MethodPost:
 			receiver.tokenPostCount.Add(1)
@@ -269,6 +275,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 			receiver.mu.Unlock()
 
 			w.Header().Set("Content-Type", "application/json")
+			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(spec.TokenResponse{
 				AccessToken: "recording-receiver-access-token",
 				TokenType:   "Bearer",
@@ -287,6 +294,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 
 			receiver.webDAVGetCount.Add(1)
 			w.WriteHeader(http.StatusOK)
+			//nolint:errcheck // test stub handler: response write
 			_, _ = w.Write([]byte("strict-recording-webdav-stub"))
 		default:
 			http.NotFound(w, r)
@@ -412,6 +420,7 @@ type trustedProtocolPeer struct {
 
 func (p *trustedProtocolPeer) Close() {
 	if p != nil && p.server != nil {
+		//nolint:errcheck // test cleanup: test fixture server shutdown
 		_ = p.server.Close()
 	}
 }
@@ -457,6 +466,7 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 		t.Fatalf("listen trusted protocol peer: %v", err)
 	}
 
+	//nolint:errcheck // test helper: ephemeral TCP listener address
 	port := listener.Addr().(*net.TCPAddr).Port
 	tlsListener := tls.NewListener(listener, &tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -479,6 +489,7 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 	}
 
 	go func() {
+		//nolint:errcheck // test cleanup: test fixture server shutdown
 		_ = peer.server.Serve(tlsListener)
 	}()
 

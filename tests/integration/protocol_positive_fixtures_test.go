@@ -29,6 +29,7 @@ func fetchDiscovery(t *testing.T, srv *harness.SubprocessServer) spec.Discovery 
 		srv.DumpLogs(t)
 		t.Fatalf("%s discovery GET: %v", srv.Name, err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -257,8 +258,8 @@ func waitForInboxShareByProvider(
 		shares := listInboxShares(t, srv, token)
 		for _, share := range shares {
 			if share["providerId"] == providerID {
-				shareID, _ := share["shareId"].(string)
-				if shareID != "" {
+				shareID, ok := share["shareId"].(string)
+				if ok && shareID != "" {
 					return shareID
 				}
 			}
@@ -287,10 +288,15 @@ func listInboxShares(t *testing.T, srv *harness.SubprocessServer, token string) 
 	if err != nil {
 		t.Fatalf("inbox list GET: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("inbox list status = %d: %s", resp.StatusCode, body)
 	}
 
@@ -318,10 +324,15 @@ func getInboxShareDetail(t *testing.T, srv *harness.SubprocessServer, token, sha
 	if err != nil {
 		t.Fatalf("inbox detail GET: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("inbox detail status = %d: %s", resp.StatusCode, body)
 	}
 
@@ -409,9 +420,14 @@ func tryLoginWithClient(t *testing.T, client *http.Client, baseURL, username, pa
 	if err != nil {
 		t.Fatalf("login POST: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return "", string(body), false
 	}
@@ -455,9 +471,13 @@ func createOutgoingShareWithClient(
 	if err != nil {
 		t.Fatalf("outgoing share POST: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
 
 	return resp.StatusCode, string(respBody)
 }
@@ -495,10 +515,15 @@ func exchangeSignedAuthorizationCode(
 	if err != nil {
 		t.Fatalf("token exchange POST: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
 		t.Fatalf("token exchange status = %d: %s", resp.StatusCode, respBody)
 	}
 

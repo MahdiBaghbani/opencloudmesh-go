@@ -95,9 +95,9 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck // test cleanup: temp path removal
 
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck // test cleanup: resource close
 
 	body := `{
 		"receiverDomain": "example.com",
@@ -144,9 +144,9 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck // test cleanup: temp path removal
 
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck // test cleanup: resource close
 
 	body := `{
 		"receiverDomain": "receiver.example.com",

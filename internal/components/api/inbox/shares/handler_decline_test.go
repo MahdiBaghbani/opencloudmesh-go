@@ -25,7 +25,11 @@ func TestHandleDecline_Success(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	updated, _ := repo.GetByIDForRecipientUserID(context.Background(), share.ShareID, userAID)
+	updated, err := repo.GetByIDForRecipientUserID(context.Background(), share.ShareID, userAID)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
 	if updated.Status != sharesinbox.ShareStatusDeclined {
 		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusDeclined, updated.Status)
 	}
@@ -51,7 +55,9 @@ func TestHandleDecline_ConflictForAcceptedShare(t *testing.T) {
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-acc-dec", "sender.example.com")
 
-	repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted)
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted); err != nil {
+		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)

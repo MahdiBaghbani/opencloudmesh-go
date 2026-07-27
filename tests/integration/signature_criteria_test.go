@@ -68,6 +68,7 @@ func postUnsignedToken(t *testing.T, baseURL string) (int, string) {
 	if err != nil {
 		t.Fatalf("post unsigned token request: %v", err)
 	}
+	//nolint:errcheck // test cleanup: response body close
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)

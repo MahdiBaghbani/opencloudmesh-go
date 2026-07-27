@@ -80,7 +80,12 @@ func TestResolver_RefetchesOnKidMiss(t *testing.T) {
 		t.Fatalf("Resolve key2 after rotation: %v", err)
 	}
 
-	if !key2Pub.Equal(got.PublicKey.(ed25519.PublicKey)) {
+	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("expected ed25519 public key")
+	}
+
+	if !key2Pub.Equal(gotPub) {
 		t.Fatal("expected rotated key2 public key")
 	}
 }
@@ -94,7 +99,7 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if fetches.Add(1) == 1 {
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(set)
+			_ = json.NewEncoder(w).Encode(set) //nolint:errcheck // test mock handler: JSON encode
 
 			return
 		}
@@ -191,7 +196,12 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 		t.Fatalf("Resolve key2 after cooldown: %v", err)
 	}
 
-	if !key2Pub.Equal(got.PublicKey.(ed25519.PublicKey)) {
+	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("expected ed25519 public key")
+	}
+
+	if !key2Pub.Equal(gotPub) {
 		t.Fatal("expected rotated key2 after cooldown")
 	}
 
@@ -267,7 +277,7 @@ func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
 		startOnce.Do(func() { close(started) })
 		<-release
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set)
+		_ = json.NewEncoder(w).Encode(set) //nolint:errcheck // test mock handler: JSON encode
 	}))
 	defer srv.Close()
 

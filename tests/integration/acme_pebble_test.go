@@ -123,6 +123,7 @@ tls_root_ca_file = %q
 	cmd.Dir = tempDir
 
 	if err := cmd.Start(); err != nil {
+		//nolint:errcheck // test cleanup: log file close
 		logFile.Close()
 		t.Fatalf("failed to start binary: %v", err)
 	}
@@ -131,14 +132,20 @@ tls_root_ca_file = %q
 
 	t.Cleanup(func() {
 		if !shutdownDone {
+			//nolint:errcheck // test cleanup: subprocess shutdown
 			cmd.Process.Kill()
 			cmd.Wait() //nolint:errcheck // best-effort cleanup
 		}
 
+		//nolint:errcheck // test cleanup: log file close
 		logFile.Close()
 
 		if t.Failed() {
-			content, _ := os.ReadFile(logPath)
+			content, err := os.ReadFile(logPath)
+			if err != nil {
+				t.Fatalf("read file: %v", err)
+			}
+
 			t.Logf("=== server logs ===\n%s\n=== end ===", content)
 		}
 	})
@@ -146,7 +153,11 @@ tls_root_ca_file = %q
 	// ACME issuance can take several seconds; use a longer timeout.
 	httpsAddr := fmt.Sprintf("127.0.0.1:%d", httpsPort)
 	if !waitForTCPListener(t, httpsAddr, 30*time.Second) {
-		content, _ := os.ReadFile(logPath)
+		content, err := os.ReadFile(logPath)
+		if err != nil {
+			t.Fatalf("read file: %v", err)
+		}
+
 		t.Fatalf("HTTPS listener did not come up on %s\n=== logs ===\n%s", httpsAddr, content)
 	}
 
@@ -175,6 +186,7 @@ tls_root_ca_file = %q
 		t.Fatalf("HTTPS healthz request failed: %v", err)
 	}
 
+	//nolint:errcheck // test cleanup: response body close
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -187,6 +199,7 @@ tls_root_ca_file = %q
 		t.Fatalf("challenge request failed: %v", err)
 	}
 
+	//nolint:errcheck // test cleanup: response body close
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNotFound {
@@ -205,6 +218,7 @@ tls_root_ca_file = %q
 		t.Fatalf("redirect request failed: %v", err)
 	}
 
+	//nolint:errcheck // test cleanup: response body close
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusPermanentRedirect {
@@ -212,6 +226,7 @@ tls_root_ca_file = %q
 	}
 
 	// 5. Clean shutdown.
+	//nolint:errcheck // test cleanup: subprocess shutdown
 	cmd.Process.Signal(os.Interrupt)
 
 	exitDone := make(chan error, 1)
@@ -221,6 +236,7 @@ tls_root_ca_file = %q
 	case <-exitDone:
 		shutdownDone = true
 	case <-time.After(tshttp.DefaultShutdownWait):
+		//nolint:errcheck // test cleanup: subprocess shutdown
 		cmd.Process.Kill()
 		<-exitDone
 

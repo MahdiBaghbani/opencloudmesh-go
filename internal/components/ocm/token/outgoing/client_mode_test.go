@@ -37,7 +37,7 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 		if r.Header.Get("Signature") == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(token.OAuthError{
+			json.NewEncoder(w).Encode(token.OAuthError{ //nolint:errcheck // test mock handler: JSON encode
 				Error:            token.ErrorUnauthorized,
 				ErrorDescription: "signature required",
 			})
@@ -46,7 +46,7 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{
+		json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
 			AccessToken: "signed-token",
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,
@@ -80,7 +80,7 @@ func TestClient_Exchange_SignsWhenReceiverAdvertisesHTTPSig(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{
+		json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
 			AccessToken: "signed-token",
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,

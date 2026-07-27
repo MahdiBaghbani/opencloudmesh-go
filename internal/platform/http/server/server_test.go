@@ -160,8 +160,14 @@ func getFreePort(t *testing.T) int {
 		t.Fatalf("getFreePort: %v", err)
 	}
 
-	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatal("getFreePort: expected TCP address")
+	}
+
+	port := addr.Port
+
+	l.Close() //nolint:errcheck // test bind probe listener cleanup
 
 	return port
 }
@@ -176,7 +182,11 @@ func generateTestCert(t *testing.T, dir string) (certPath, keyPath string) {
 		t.Fatal(err)
 	}
 
-	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	now := time.Now()
 	template := x509.Certificate{
 		SerialNumber: serial,
@@ -194,7 +204,12 @@ func generateTestCert(t *testing.T, dir string) (certPath, keyPath string) {
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyDER, _ := x509.MarshalECPrivateKey(key)
+
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 
 	certPath = filepath.Join(dir, "cert.pem")
@@ -261,7 +276,7 @@ func TestACME_TwoListeners(t *testing.T) {
 		t.Fatalf("challenge request failed: %v", err)
 	}
 
-	resp.Body.Close()
+	resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown challenge token, got %d", resp.StatusCode)
@@ -277,7 +292,7 @@ func TestACME_TwoListeners(t *testing.T) {
 		t.Fatalf("redirect request failed: %v", err)
 	}
 
-	resp.Body.Close()
+	resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusPermanentRedirect {
 		t.Errorf("expected 308, got %d", resp.StatusCode)
@@ -300,7 +315,7 @@ func TestACME_TwoListeners(t *testing.T) {
 		t.Fatalf("HTTPS request failed: %v", err)
 	}
 
-	resp.Body.Close()
+	resp.Body.Close() //nolint:errcheck // test response body close
 	// Any response means the TLS handshake and listener work; the actual
 	// status depends on mounted services (404 is fine with nil service map).
 	if resp.TLS == nil {
@@ -371,7 +386,7 @@ func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to pre-bind HTTPS port: %v", err)
 	}
-	defer httpsBlocker.Close()
+	defer httpsBlocker.Close() //nolint:errcheck // test port blocker cleanup
 
 	cfg := config.DevConfig()
 	cfg.TLS.Mode = "acme"
@@ -435,7 +450,7 @@ func waitForListener(t *testing.T, addr string, timeout time.Duration) bool {
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
 		if err == nil {
-			conn.Close()
+			conn.Close() //nolint:errcheck // test dial probe connection cleanup
 			return true
 		}
 
@@ -455,7 +470,7 @@ func waitForNoListener(t *testing.T, addr string, timeout time.Duration) bool {
 			return true
 		}
 
-		conn.Close()
+		conn.Close() //nolint:errcheck // test dial probe connection cleanup
 		time.Sleep(50 * time.Millisecond)
 	}
 

@@ -59,7 +59,9 @@ func TestHandleList_EmptyForUserWithNoInvites(t *testing.T) {
 	}
 
 	var resp inboxinvites.InboxListResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
 
 	if len(resp.Invites) != 0 {
 		t.Errorf("expected empty list for user B, got %d invites", len(resp.Invites))

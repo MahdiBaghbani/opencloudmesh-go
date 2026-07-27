@@ -56,8 +56,15 @@ func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
 	}))
 	defer server.Close()
 
-	u, _ := url.Parse(server.URL)
-	port, _ := strconv.Atoi(u.Port())
+	u, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("parse server URL: %v", err)
+	}
+
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		t.Fatalf("parse server port: %v", err)
+	}
 
 	cfg := outboundtestutil.StrictNoneOutboundConfig()
 	cfg.TimeoutMS = 5000
@@ -81,7 +88,7 @@ func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
 		t.Fatalf("expected successful request, got: %v", err)
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -390,8 +397,15 @@ func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
 	defer server.Close()
 
 	// Extract the actual port httptest chose so the route policy can allow it.
-	u, _ := url.Parse(server.URL)
-	port, _ := strconv.Atoi(u.Port())
+	u, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("parse server URL: %v", err)
+	}
+
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		t.Fatalf("parse server port: %v", err)
+	}
 
 	cfg := outboundtestutil.StrictNoneOutboundConfig()
 	cfg.TimeoutMS = 5000
@@ -410,7 +424,7 @@ func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected redirect to be followed with matching route policy, got: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test response body close
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)

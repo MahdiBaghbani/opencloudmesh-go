@@ -103,6 +103,7 @@ insecure_skip_verify = true
 	cmd.Dir = tempDir
 
 	if err := cmd.Start(); err != nil {
+		//nolint:errcheck // test cleanup: log file close
 		logFile.Close()
 		t.Fatalf("failed to start binary: %v", err)
 	}
@@ -113,14 +114,20 @@ insecure_skip_verify = true
 
 	t.Cleanup(func() {
 		if !shutdownDone {
+			//nolint:errcheck // test cleanup: subprocess shutdown
 			cmd.Process.Kill()
 			cmd.Wait() //nolint:errcheck // best-effort cleanup
 		}
 
+		//nolint:errcheck // test cleanup: log file close
 		logFile.Close()
 
 		if t.Failed() {
-			content, _ := os.ReadFile(logPath)
+			content, err := os.ReadFile(logPath)
+			if err != nil {
+				t.Fatalf("read file: %v", err)
+			}
+
 			t.Logf("=== server logs ===\n%s\n=== end ===", content)
 		}
 	})
@@ -128,7 +135,11 @@ insecure_skip_verify = true
 	// Wait for HTTPS listener to come up.
 	httpsAddr := fmt.Sprintf("127.0.0.1:%d", httpsPort)
 	if !waitForTCPListener(t, httpsAddr, 15*time.Second) {
-		content, _ := os.ReadFile(logPath)
+		content, err := os.ReadFile(logPath)
+		if err != nil {
+			t.Fatalf("read file: %v", err)
+		}
+
 		t.Fatalf("HTTPS listener did not come up on %s\n=== logs ===\n%s", httpsAddr, content)
 	}
 
@@ -140,6 +151,7 @@ insecure_skip_verify = true
 		t.Fatalf("challenge request failed: %v", err)
 	}
 
+	//nolint:errcheck // test cleanup: response body close
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNotFound {
@@ -158,6 +170,7 @@ insecure_skip_verify = true
 		t.Fatalf("redirect request failed: %v", err)
 	}
 
+	//nolint:errcheck // test cleanup: response body close
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusPermanentRedirect {
@@ -181,6 +194,7 @@ insecure_skip_verify = true
 		t.Fatalf("HTTPS healthz request failed: %v", err)
 	}
 
+	//nolint:errcheck // test cleanup: response body close
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -188,6 +202,7 @@ insecure_skip_verify = true
 	}
 
 	// 4. Clean shutdown: SIGINT triggers graceful exit within 5 seconds.
+	//nolint:errcheck // test cleanup: subprocess shutdown
 	cmd.Process.Signal(os.Interrupt)
 
 	exitDone := make(chan error, 1)
@@ -197,6 +212,7 @@ insecure_skip_verify = true
 	case <-exitDone:
 		shutdownDone = true
 	case <-time.After(tshttp.DefaultShutdownWait):
+		//nolint:errcheck // test cleanup: subprocess shutdown
 		cmd.Process.Kill()
 		<-exitDone
 
@@ -216,7 +232,11 @@ func writeTestCert(t *testing.T, dir string) {
 		t.Fatal(err)
 	}
 
-	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		t.Fatalf("rand.Int: %v", err)
+	}
+
 	now := time.Now()
 	template := x509.Certificate{
 		SerialNumber: serial,
@@ -235,7 +255,12 @@ func writeTestCert(t *testing.T, dir string) {
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyDER, _ := x509.MarshalECPrivateKey(key)
+
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatalf("x509.MarshalECPrivateKey: %v", err)
+	}
+
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 
 	if err := os.WriteFile(filepath.Join(dir, "cert.pem"), certPEM, 0644); err != nil {
@@ -256,7 +281,9 @@ func getFreeTCPPort(t *testing.T) int {
 		t.Fatalf("getFreeTCPPort: %v", err)
 	}
 
+	//nolint:errcheck // test helper: ephemeral TCP listener address
 	port := l.Addr().(*net.TCPAddr).Port
+	//nolint:errcheck // test cleanup: ephemeral listener close
 	l.Close()
 
 	return port
@@ -270,6 +297,7 @@ func waitForTCPListener(t *testing.T, addr string, timeout time.Duration) bool {
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
 		if err == nil {
+			//nolint:errcheck // test probe: connection close after dial check
 			conn.Close()
 			return true
 		}

@@ -25,7 +25,7 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 
 	discServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
+			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -66,7 +66,7 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
+			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -223,7 +223,7 @@ func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{
+			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
 				"enabled":       true,
 				"apiVersion":    "1.4.0",
 				"endPoint":      serverURL + "/ocm",

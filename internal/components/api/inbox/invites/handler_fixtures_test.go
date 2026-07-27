@@ -106,7 +106,7 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 		switch r.URL.Path {
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
@@ -121,7 +121,7 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 			}
 
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`)) //nolint:errcheck // test mock handler: response write
 		default:
 			http.NotFound(w, r)
 		}
@@ -137,7 +137,7 @@ func createInviteForUser(repo *invitesinbox.MemoryIncomingInviteRepo, recipientU
 		RecipientUserID: recipientUserID,
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite)
+	repo.Create(context.Background(), invite) //nolint:errcheck // test fixture seed without testing.T
 
 	return invite
 }
