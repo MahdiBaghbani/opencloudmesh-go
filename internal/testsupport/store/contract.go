@@ -1044,6 +1044,7 @@ func runOutgoingShareDuplicateSharedSecret(
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
+
 	createOutgoingShare(t, ctx, s, noSecret1)
 	createOutgoingShare(t, ctx, s, noSecret2)
 }

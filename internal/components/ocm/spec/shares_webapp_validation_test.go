@@ -177,6 +177,7 @@ func TestWebappProtocol_RejectsMustUseMFAWithGapNote(t *testing.T) {
 	errs := ValidateWebappProtocol(p)
 
 	wantMsg := "must-use-mfa rejected at admit; MFA enforcement is not supported"
+
 	var mfaErr *ValidationError
 
 	for i := range errs {

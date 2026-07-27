@@ -101,8 +101,7 @@ func TestRoutePolicyWiring_SyntheticRowsHaveSurfaceClass(t *testing.T) {
 func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProductRoutes(opts) {
-		//nolint:exhaustive // test asserts only the httpsig case; other auth modes are covered by the default assertion
-		switch row.HandlerAuth {
+		switch row.HandlerAuth { //nolint:exhaustive // test asserts only the httpsig case; other auth modes are covered by the default assertion
 		case service.HandlerAuthRequiredHTTPSig:
 			if row.SurfaceClass != service.SurfaceProtocol {
 				t.Errorf("route %q HandlerAuth %q on surface %q, want protocol", row.ID, row.HandlerAuth, row.SurfaceClass)
@@ -126,8 +125,7 @@ func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 func TestRoutePolicyWiring_ProtocolRoutesHavePeerTrustClass(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProtocolRoutes(opts) {
-		//nolint:exhaustive // test asserts only peer-required; TrustPeerNone is covered by the default error assertion
-		switch row.TrustClass {
+		switch row.TrustClass { //nolint:exhaustive // test asserts only peer-required; TrustPeerNone is covered by the default error assertion
 		case service.TrustPeerRequired:
 		default:
 			t.Errorf("protocol route %q TrustClass = %q, want peer-trust-required", row.ID, row.TrustClass)
@@ -157,8 +155,7 @@ func TestRoutePolicyWiring_APIRoutesAreFirstPartySession(t *testing.T) {
 			t.Errorf("api route %q TrustClass = %q, want peer-trust-none", row.ID, row.TrustClass)
 		}
 
-		//nolint:exhaustive // test asserts first-party-session auth modes; httpsig and bearer are covered by the default error assertion
-		switch row.HandlerAuth {
+		switch row.HandlerAuth { //nolint:exhaustive // test asserts first-party session auth modes; httpsig and bearer are covered by the default error assertion
 		case service.HandlerAuthNone,
 			service.HandlerAuthCurrentUser,
 			service.HandlerAuthRateLimitOnly:

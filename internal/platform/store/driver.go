@@ -123,12 +123,12 @@ type IncomingShare struct {
 	// Requirements. Legacy rows leave these empty.
 	WebappPermissions string   `json:"webappPermissions,omitempty"`
 	WebappURI         string   `json:"webappUri,omitempty"`
-	WebappTargets     []string `gorm:"serializer:json"              json:"webappTargets,omitempty"`
+	WebappTargets     []string `gorm:"serializer:json"             json:"webappTargets,omitempty"`
 	ProtocolName      string   `json:"protocolName,omitempty"`
 	State             string   `json:"state"` // pending, accepted, declined
-	UserId            string   `gorm:"index"                        json:"userId"`
+	UserId            string   `gorm:"index"                       json:"userId"`
 	OwnerHost         string   `json:"ownerHost"`
-	Requirements      []string `gorm:"serializer:json"              json:"requirements,omitempty"`
+	Requirements      []string `gorm:"serializer:json"             json:"requirements,omitempty"`
 	// Expiration is a Unix epoch; 0 means no expiration.
 	Expiration int64 `json:"expiration,omitempty"`
 	CreatedAt  int64 `json:"createdAt"`
@@ -137,12 +137,12 @@ type IncomingShare struct {
 
 // OutgoingInvite is the persistence model for outgoing invites (initiator-side).
 type OutgoingInvite struct {
-	ID              string `gorm:"primaryKey"                json:"id"`
-	Token           string `gorm:"uniqueIndex"               json:"token"`
+	ID              string `gorm:"primaryKey"               json:"id"`
+	Token           string `gorm:"uniqueIndex"              json:"token"`
 	ProviderFQDN    string `json:"providerFqdn"`
 	InviteString    string `json:"inviteString"`
 	RecipientEmail  string `json:"recipientEmail,omitempty"`
-	CreatedByUserId string `gorm:"index"                     json:"createdByUserId"`
+	CreatedByUserId string `gorm:"index"                    json:"createdByUserId"`
 	Status          string `json:"status"` // pending, accepted, declined, expired
 	AcceptedBy      string `json:"acceptedBy,omitempty"`
 	ExpiresAt       int64  `json:"expiresAt"`

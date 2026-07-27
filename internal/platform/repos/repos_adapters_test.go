@@ -98,7 +98,6 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
-
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
@@ -144,7 +143,6 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
-
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
@@ -200,7 +198,6 @@ func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
-
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
@@ -254,7 +251,6 @@ func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
-
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()
@@ -299,7 +295,6 @@ func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 	exp := int64(9999999)
 
 	for _, backend := range tsrepos.DurableBackends() {
-
 		t.Run(backend, func(t *testing.T) {
 			r := tsrepos.OpenDurable(t, backend)
 			defer r.Close()

@@ -104,10 +104,12 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 
 	if password == "" {
 		var err error
+
 		password, err = generateRandomPassword()
 		if err != nil {
 			return err
 		}
+
 		passwordGenerated = true
 	}
 

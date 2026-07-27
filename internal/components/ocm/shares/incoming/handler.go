@@ -50,6 +50,7 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	localRequires := true
+
 	if h.resolver != nil {
 		if _, senderHost, err := address.Parse(req.Sender); err == nil {
 			localRequires = h.resolver.ResolveFacts(senderHost).RequiresTokenExchange

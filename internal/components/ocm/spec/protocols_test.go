@@ -233,7 +233,6 @@ func TestProtocolsDiscoveryProductionUsesSpecConstants(t *testing.T) {
 		"internal/components/ocm/discovery/validate.go",
 	}
 	for _, rel := range files {
-
 		t.Run(rel, func(t *testing.T) {
 			path := filepath.Join(root, rel)
 

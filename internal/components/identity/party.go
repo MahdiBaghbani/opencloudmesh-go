@@ -98,9 +98,11 @@ func UUIDv7() (string, error) {
 
 	now := time.Now().UnixMilli()
 	binary.BigEndian.PutUint64(uuid[0:8], uint64(now)<<16)
+
 	if _, err := rand.Read(uuid[6:]); err != nil {
 		return "", fmt.Errorf("failed to read random bytes for UUIDv7: %w", err)
 	}
+
 	uuid[6] = (uuid[6] & 0x0f) | 0x70 // Version 7
 	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant
 
@@ -166,6 +168,7 @@ func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
 		if err != nil {
 			return fmt.Errorf("failed to generate user id: %w", err)
 		}
+
 		user.ID = id
 	}
 

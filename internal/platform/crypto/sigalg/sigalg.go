@@ -388,6 +388,7 @@ func verifyECDSA(
 	if _, err := h.Write(message); err != nil {
 		return fmt.Errorf("%w: failed to hash message: %w", ErrVerifyFailed, err)
 	}
+
 	if !ecdsa.Verify(key, h.Sum(nil), r, s) {
 		return ErrVerifyFailed
 	}
@@ -411,6 +412,7 @@ func verifyRSAPKCS1(
 	if _, err := h.Write(message); err != nil {
 		return fmt.Errorf("%w: failed to hash message: %w", ErrVerifyFailed, err)
 	}
+
 	if err := rsa.VerifyPKCS1v15(key, hash, h.Sum(nil), signature); err != nil {
 		return ErrVerifyFailed
 	}

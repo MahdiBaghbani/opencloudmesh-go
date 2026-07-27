@@ -353,10 +353,13 @@ func (state *tagScanState) stepByteSeq(i *int, ch byte) bool {
 	if !state.inByteSeq {
 		return false
 	}
+
 	if ch == ':' {
 		state.inByteSeq = false
 	}
+
 	*i++
+
 	return true
 }
 
@@ -364,14 +367,18 @@ func (state *tagScanState) stepQuote(s string, i *int, ch byte) bool {
 	if !state.inQuote {
 		return false
 	}
+
 	if ch == '\\' && *i+1 < len(s) {
 		*i += 2
 		return true
 	}
+
 	if ch == state.quoteChar {
 		state.inQuote = false
 	}
+
 	*i++
+
 	return true
 }
 
@@ -388,11 +395,13 @@ func (state *tagScanState) stepUnquoted(s string, i *int, ch byte) bool {
 		if state.parenDepth > 0 {
 			state.parenDepth--
 		}
+
 		*i++
 	case ':':
 		if state.parenDepth == 0 {
 			state.inByteSeq = true
 		}
+
 		*i++
 	case ';':
 		if state.parenDepth == 0 {
@@ -400,10 +409,12 @@ func (state *tagScanState) stepUnquoted(s string, i *int, ch byte) bool {
 				return true
 			}
 		}
+
 		*i++
 	default:
 		*i++
 	}
+
 	return false
 }
 
@@ -415,15 +426,18 @@ func scanTagOCM(s string) bool {
 	}
 
 	state := tagScanState{}
+
 	i := 0
 	for i < len(s) {
 		ch := s[i]
 		if state.stepByteSeq(&i, ch) {
 			continue
 		}
+
 		if state.stepQuote(s, &i, ch) {
 			continue
 		}
+
 		if state.stepUnquoted(s, &i, ch) {
 			return true
 		}
@@ -436,6 +450,7 @@ func scanTagOCM(s string) bool {
 // It returns the raw value and true if the parameter key is "tag".
 func parseTagParameter(s string, start int) (string, bool) {
 	start = skipSpacesTabs(s, start)
+
 	keyEnd, ok := scanTagKey(s, start)
 	if !ok {
 		return "", false
@@ -677,10 +692,13 @@ func (state *topLevelScanState) stepByteSeq(i *int, ch byte) bool {
 	if !state.inByteSeq {
 		return false
 	}
+
 	if ch == ':' {
 		state.inByteSeq = false
 	}
+
 	*i++
+
 	return true
 }
 
@@ -688,14 +706,17 @@ func (state *topLevelScanState) stepQuote(header string, i *int, ch byte) bool {
 	if !state.inQuote {
 		return false
 	}
+
 	if ch == '\\' && *i+1 < len(header) {
 		*i += 2
 	} else {
 		if ch == '"' {
 			state.inQuote = false
 		}
+
 		*i++
 	}
+
 	return true
 }
 
@@ -718,7 +739,9 @@ func (state *topLevelScanState) stepUnquoted(i *int, ch byte) bool {
 			return true
 		}
 	}
+
 	*i++
+
 	return false
 }
 
@@ -727,15 +750,18 @@ func (state *topLevelScanState) stepUnquoted(i *int, ch byte) bool {
 // values are skipped so commas inside them do not split members.
 func scanTopLevelMemberEnd(header string, start int) int {
 	state := topLevelScanState{}
+
 	i := start
 	for i < len(header) {
 		ch := header[i]
 		if state.stepByteSeq(&i, ch) {
 			continue
 		}
+
 		if state.stepQuote(header, &i, ch) {
 			continue
 		}
+
 		if state.stepUnquoted(&i, ch) {
 			return i
 		}

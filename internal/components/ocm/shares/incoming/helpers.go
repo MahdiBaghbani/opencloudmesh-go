@@ -251,6 +251,7 @@ func (h *Handler) authenticateSenderAndResolveOwner(
 	}
 
 	ownerHost := ""
+
 	ownerProvider := ""
 	if _, parsedOwnerProvider, err := address.Parse(req.Owner); err == nil {
 		ownerProvider = parsedOwnerProvider
@@ -302,6 +303,7 @@ func (h *Handler) storeIncomingShare(
 			"sender", senderHost)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+
 		if err := json.NewEncoder(w).Encode(spec.CreateShareResponse{
 			RecipientDisplayName: existing.RecipientDisplayName,
 		}); err != nil {
@@ -312,6 +314,7 @@ func (h *Handler) storeIncomingShare(
 	}
 
 	webdav := req.Protocol.WebDAV
+
 	var (
 		webdavURI, webdavSharedSecret         string
 		webdavPermissions, webdavRequirements []string
@@ -362,6 +365,7 @@ func (h *Handler) storeIncomingShare(
 		"recipient_user_id", share.RecipientUserID)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+
 	if err := json.NewEncoder(w).Encode(spec.CreateShareResponse{
 		RecipientDisplayName: share.RecipientDisplayName,
 	}); err != nil {

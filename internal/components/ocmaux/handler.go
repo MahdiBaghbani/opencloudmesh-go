@@ -128,6 +128,7 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		h.logger.Error("failed to encode federations", "error", err)
 	}
@@ -229,6 +230,7 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		h.logger.Error("failed to encode discover response", "error", err)
 	}

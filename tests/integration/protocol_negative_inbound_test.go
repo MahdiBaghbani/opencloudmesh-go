@@ -283,7 +283,6 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 	}
 
 	for _, tc := range cases {
-
 		t.Run(tc.name, func(t *testing.T) {
 			beforeSnap, err := tsprotocol.SnapshotPersistence(env.consumer.TempDir)
 			if err != nil {

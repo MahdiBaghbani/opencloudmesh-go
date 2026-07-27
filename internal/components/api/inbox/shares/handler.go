@@ -311,6 +311,7 @@ func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 	detail := NewInboxShareDetailView(share)
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(detail); err != nil {
 		h.log.Error("failed to encode share detail", "error", err)
 	}
@@ -347,6 +348,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	if share.Status == sharesinbox.ShareStatusDeclined {
 		w.Header().Set("Content-Type", "application/json")
+
 		if err := json.NewEncoder(w).Encode(map[string]string{
 			"status":  string(sharesinbox.ShareStatusDeclined),
 			"shareId": shareID,
@@ -370,6 +372,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":  string(sharesinbox.ShareStatusDeclined),
 		"shareId": shareID,
@@ -463,6 +466,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:                      true,
 		HTTPStatus:              result.Response.StatusCode,

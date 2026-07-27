@@ -204,6 +204,7 @@ allow_ip_literals = true
 	if !strings.Contains(msg, "allow_ip_literals=false") {
 		t.Errorf("expected allow_ip_literals error first, got: %v", err)
 	}
+
 	if strings.Contains(msg, "forbids catch-all CIDR") {
 		t.Errorf("expected allow_ip_literals error before catch-all CIDR, got: %v", err)
 	}

@@ -410,6 +410,7 @@ func (r *Resolver) cachedSet(jwksURL string, forceRefresh bool, now time.Time) (
 		if now.Sub(entry.fetchedAt) < r.ttl {
 			return entry.set, true
 		}
+
 		return Set{}, false
 	}
 

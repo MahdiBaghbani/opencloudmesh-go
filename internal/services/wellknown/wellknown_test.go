@@ -41,7 +41,6 @@ func TestNew_SucceedsWithResolveInputs(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	svc, err := New(Inputs{Resolve: handlerResolveInputs(t, "")}, m, log)
-
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

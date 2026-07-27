@@ -186,6 +186,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+
 	if err := json.NewEncoder(w).Encode(map[string]string{
 		"shareId":    share.ShareID,
 		"providerId": share.ProviderID,
@@ -258,6 +259,7 @@ func (h *Handler) sendShareToReceiver(
 		if readErr != nil {
 			return fmt.Errorf("receiver returned status %d: %w", resp.StatusCode, readErr)
 		}
+
 		return fmt.Errorf("receiver returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 

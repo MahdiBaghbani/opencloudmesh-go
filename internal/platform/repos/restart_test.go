@@ -21,7 +21,6 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 	ctx := context.Background()
 
 	for _, backend := range tsrepos.DurableBackends() {
-
 		t.Run(backend, func(t *testing.T) {
 			dir := t.TempDir()
 			cfg := config.PersistenceConfig{

@@ -701,12 +701,14 @@ func parseContentDigestHeader(header string) ([]contentDigestEntry, error) {
 		}
 
 		memberEnd := scanContentDigestMemberEnd(header, memberStart)
+
 		entry, err := parseContentDigestEntry(header[memberStart:memberEnd])
 		if err != nil {
 			return nil, err
 		}
 
 		entries = append(entries, entry)
+
 		memberStart = memberEnd
 		if memberStart < len(header) && header[memberStart] == ',' {
 			memberStart++

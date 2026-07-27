@@ -228,6 +228,7 @@ func Load(opts LoaderOptions) (*Config, error) {
 	// Load TOML file when a config path is provided.
 	if opts.ConfigPath != "" {
 		var err error
+
 		fc, md, err = readConfigFile(opts.ConfigPath)
 		if err != nil {
 			return nil, err
@@ -514,7 +515,6 @@ func validateDiscoveryPolicies(cfg *Config) error {
 // validateEnums validates enum-like config fields and returns an error for invalid values.
 func validateEnums(cfg *Config) error {
 	// mode is already validated by ParseMode before we get here
-
 	validators := []func(*Config) error{
 		validateTLSMode,
 		validateSSRFMode,
@@ -597,6 +597,7 @@ func validateSSRFRoutePolicyCIDREmpty(activePolicy, prefix string, policy SSRFRo
 			activePolicy, prefix,
 		)
 	}
+
 	return nil
 }
 
@@ -616,6 +617,7 @@ func validateSSRFRoutePolicyCIDRContent(activePolicy, prefix string, policy SSRF
 			)
 		}
 	}
+
 	return nil
 }
 
@@ -626,6 +628,7 @@ func validateSSRFRoutePolicyPortsEmpty(activePolicy, prefix string, policy SSRFR
 			activePolicy, prefix,
 		)
 	}
+
 	return nil
 }
 

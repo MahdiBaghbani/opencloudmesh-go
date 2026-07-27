@@ -424,6 +424,7 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 	}
 
 	wantMsg := "must-use-mfa rejected at admit; MFA enforcement is not supported"
+
 	var mfaErr *spec.ValidationError
 
 	for i := range resp.ValidationErrors {

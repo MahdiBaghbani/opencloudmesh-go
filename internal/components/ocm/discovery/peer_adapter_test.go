@@ -274,9 +274,7 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var srv *httptest.Server
-
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != jwks.WellKnownPath {
 			http.NotFound(w, r)
 			return

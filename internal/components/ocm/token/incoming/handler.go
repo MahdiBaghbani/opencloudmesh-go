@@ -246,6 +246,7 @@ func (h *Handler) issueTokenResponse(w http.ResponseWriter, r *http.Request, req
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
+
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Error("failed to encode token response", "error", err)
 	}

@@ -139,7 +139,6 @@ func TestHandler_JSONBody_Rejected(t *testing.T) {
 }
 
 func TestHandler_ContentTypeValidation(t *testing.T) {
-
 	tests := []struct {
 		name               string
 		contentType        string

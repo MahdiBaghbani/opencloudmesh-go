@@ -118,6 +118,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(InboxListResponse{Invites: views}); err != nil {
 		h.log.Error("failed to encode inbox invites", "error", err)
 	}
@@ -153,6 +154,7 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 	existing, err := h.incomingRepo.GetByTokenForRecipientUserID(ctx, token, user.ID)
 	if err == nil && existing != nil {
 		w.Header().Set("Content-Type", "application/json")
+
 		if err := json.NewEncoder(w).Encode(InviteImportResponse{
 			ID:         existing.ID,
 			SenderFQDN: existing.SenderFQDN,
@@ -181,6 +183,7 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+
 	if err := json.NewEncoder(w).Encode(InviteImportResponse{
 		ID:         invite.ID,
 		SenderFQDN: invite.SenderFQDN,
@@ -222,6 +225,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	if invite.Status == invites.InviteStatusAccepted {
 		w.Header().Set("Content-Type", "application/json")
+
 		if err := json.NewEncoder(w).Encode(map[string]string{
 			"status":   string(invites.InviteStatusAccepted),
 			"inviteId": inviteID,
@@ -253,6 +257,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	h.log.Info("invite accepted", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":   string(invites.InviteStatusAccepted),
 		"inviteId": inviteID,
@@ -292,6 +297,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	if invite.Status == invites.InviteStatusDeclined {
 		w.Header().Set("Content-Type", "application/json")
+
 		if err := json.NewEncoder(w).Encode(map[string]string{
 			"status":   string(invites.InviteStatusDeclined),
 			"inviteId": inviteID,
@@ -314,6 +320,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	h.log.Info("invite declined", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":   string(invites.InviteStatusDeclined),
 		"inviteId": inviteID,
@@ -361,6 +368,7 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 		if readErr != nil {
 			return fmt.Errorf("invite-accepted rejected with status %d: %w", resp.StatusCode, readErr)
 		}
+
 		return fmt.Errorf("invite-accepted rejected with status %d: %s", resp.StatusCode, string(respBody))
 	}
 

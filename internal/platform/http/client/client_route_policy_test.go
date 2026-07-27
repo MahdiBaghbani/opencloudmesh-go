@@ -80,6 +80,7 @@ func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected successful request, got: %v", err)
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
