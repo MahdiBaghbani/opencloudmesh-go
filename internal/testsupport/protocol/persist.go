@@ -15,22 +15,22 @@ const (
 
 // RedactedOutgoingShare is a persistence-safe view of one outgoing share row.
 type RedactedOutgoingShare struct {
-	ProviderID      string `json:"provider_id"`
-	ShareID         string `json:"share_id,omitempty"`
-	WebDAVID        string `json:"webdav_id,omitempty"`
+	ProviderID      string `json:"providerId"`
+	ShareID         string `json:"shareId,omitempty"`
+	WebDAVID        string `json:"webdavId,omitempty"`
 	State           string `json:"state"`
-	ReceiverHost    string `json:"receiver_host,omitempty"`
-	HasSharedSecret bool   `json:"has_shared_secret"`
+	ReceiverHost    string `json:"receiverHost,omitempty"`
+	HasSharedSecret bool   `json:"hasSharedSecret"`
 }
 
 // RedactedIncomingShare is a persistence-safe view of one incoming share row.
 type RedactedIncomingShare struct {
-	ShareID         string `json:"share_id"`
-	ProviderID      string `json:"provider_id"`
-	SendingServer   string `json:"sending_server,omitempty"`
+	ShareID         string `json:"shareId"`
+	ProviderID      string `json:"providerId"`
+	SendingServer   string `json:"sendingServer,omitempty"`
 	State           string `json:"state"`
-	UserID          string `json:"user_id,omitempty"`
-	HasSharedSecret bool   `json:"has_shared_secret"`
+	UserID          string `json:"userId,omitempty"`
+	HasSharedSecret bool   `json:"hasSharedSecret"`
 }
 
 // SharePersistenceSnapshot captures redacted share JSON persistence for stable
@@ -41,9 +41,9 @@ type SharePersistenceSnapshot struct {
 }
 
 // TokenPersistenceSnapshot captures redacted token-exchange code presence derived
-// from outgoing share shared_secret fields (there is no separate token JSON file).
+// from outgoing share sharedSecret fields (there is no separate token JSON file).
 type TokenPersistenceSnapshot struct {
-	OutgoingCodes map[string]bool `json:"outgoing_codes"`
+	OutgoingCodes map[string]bool `json:"outgoingCodes"`
 }
 
 // PersistenceSnapshot combines share and derived token-exchange fingerprints.
@@ -53,21 +53,21 @@ type PersistenceSnapshot struct {
 }
 
 type rawOutgoingShare struct {
-	ShareID      string `json:"share_id"`
-	ProviderID   string `json:"provider_id"`
-	WebDAVID     string `json:"webdav_id"`
-	SharedSecret string `json:"shared_secret"`
-	ReceiverHost string `json:"receiver_host"`
+	ShareID      string `json:"shareId"`
+	ProviderID   string `json:"providerId"`
+	WebDAVID     string `json:"webdavId"`
+	SharedSecret string `json:"sharedSecret"`
+	ReceiverHost string `json:"receiverHost"`
 	State        string `json:"state"`
 }
 
 type rawIncomingShare struct {
-	ShareID       string `json:"share_id"`
-	ProviderID    string `json:"provider_id"`
-	SendingServer string `json:"sending_server"`
-	SharedSecret  string `json:"shared_secret"`
+	ShareID       string `json:"shareId"`
+	ProviderID    string `json:"providerId"`
+	SendingServer string `json:"sendingServer"`
+	SharedSecret  string `json:"sharedSecret"`
 	State         string `json:"state"`
-	UserID        string `json:"user_id"`
+	UserID        string `json:"userId"`
 }
 
 // SnapshotPersistence reads dataDir/data share JSON files and returns redacted

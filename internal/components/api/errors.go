@@ -51,11 +51,11 @@ type ErrorEnvelope struct {
 	Error ErrorDetail `json:"error"`
 }
 
-// ErrorDetail holds code, reason_code, and message for API errors.
+// ErrorDetail holds code, reasonCode, and message for API errors.
 type ErrorDetail struct {
-	Code       string `json:"code"`        // HTTP status text (e.g., "forbidden")
-	ReasonCode string `json:"reason_code"` // Deterministic reason code
-	Message    string `json:"message"`     // Human-readable message
+	Code       string `json:"code"`       // HTTP status text (e.g., "forbidden")
+	ReasonCode string `json:"reasonCode"` // Deterministic reason code
+	Message    string `json:"message"`    // Human-readable message
 }
 
 // WriteError sends a standardized JSON error envelope.

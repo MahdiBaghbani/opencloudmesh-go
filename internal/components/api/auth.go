@@ -33,11 +33,11 @@ type LoginRequest struct {
 
 type LoginResponse struct {
 	Token     string `json:"token"`
-	ExpiresAt string `json:"expires_at"`
+	ExpiresAt string `json:"expiresAt"`
 	User      struct {
 		ID          string `json:"id"`
 		Username    string `json:"username"`
-		DisplayName string `json:"display_name"`
+		DisplayName string `json:"displayName"`
 		Role        string `json:"role"`
 	} `json:"user"`
 }
@@ -151,7 +151,7 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	resp := struct {
 		ID          string `json:"id"`
 		Username    string `json:"username"`
-		DisplayName string `json:"display_name"`
+		DisplayName string `json:"displayName"`
 		Email       string `json:"email,omitempty"`
 		Role        string `json:"role"`
 	}{

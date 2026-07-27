@@ -344,7 +344,7 @@ func readOutgoingSharedSecret(t *testing.T, srv *harness.SubprocessServer, provi
 	}
 
 	var byProvider map[string]struct {
-		SharedSecret string `json:"shared_secret"`
+		SharedSecret string `json:"sharedSecret"`
 	}
 	if err := json.Unmarshal(raw, &byProvider); err != nil {
 		t.Fatalf("decode outgoing shares: %v", err)

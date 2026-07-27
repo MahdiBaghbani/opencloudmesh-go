@@ -13,7 +13,7 @@ import (
 type persistedOutgoingInvite struct {
 	Token      string `json:"token"`
 	Status     string `json:"status"`
-	AcceptedBy string `json:"accepted_by,omitempty"`
+	AcceptedBy string `json:"acceptedBy,omitempty"`
 }
 
 // OutgoingStatus reads json persistence at dataDir/data/outgoing_invites.json and

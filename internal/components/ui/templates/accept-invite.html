@@ -266,7 +266,7 @@
 
             if (!importResp.ok) {
               const errObj = importData.error || importData;
-              const reason = errObj.reason_code || "";
+              const reason = errObj.reasonCode || "";
               const msg = errObj.message || "Import failed.";
               errorEl.textContent = msg;
               if (reason) {

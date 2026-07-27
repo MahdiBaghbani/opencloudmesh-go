@@ -85,7 +85,7 @@ func TestLoad_PeerTrustEnabledValidPathSucceeds(t *testing.T) {
 
 	// Create a valid trust group config file
 	tgPath := filepath.Join(tempDir, "trust-group.json")
-	if err := os.WriteFile(tgPath, []byte(`{"trust_group_id":"test"}`), 0644); err != nil {
+	if err := os.WriteFile(tgPath, []byte(`{"trustGroupId":"test"}`), 0644); err != nil {
 		t.Fatalf("failed to write trust group config: %v", err)
 	}
 

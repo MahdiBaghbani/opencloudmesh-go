@@ -11,7 +11,7 @@ type DriverConfig struct {
 	Driver string `json:"driver"`
 
 	// DataDir is the directory for data files (json files, sqlite db)
-	DataDir string `json:"data_dir"`
+	DataDir string `json:"dataDir"`
 }
 
 // DriverFactory is a function that creates a driver instance.

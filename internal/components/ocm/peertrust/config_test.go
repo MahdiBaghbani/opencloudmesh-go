@@ -16,7 +16,7 @@ func TestLoadTrustGroupConfig_ValidTrustGroupID(t *testing.T) {
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
-	data := `{"trust_group_id":"sciencemesh-prod","enabled":true,"enforce_membership":false,"directory_services":[],"keys":[]}`
+	data := `{"trustGroupId":"sciencemesh-prod","enabled":true,"enforceMembership":false,"directoryServices":[],"keys":[]}`
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestLoadTrustGroupConfig_ValidTrustGroupID(t *testing.T) {
 	}
 
 	if cfg.TrustGroupID != "sciencemesh-prod" {
-		t.Errorf("expected trust_group_id 'sciencemesh-prod', got %q", cfg.TrustGroupID)
+		t.Errorf("expected trustGroupId 'sciencemesh-prod', got %q", cfg.TrustGroupID)
 	}
 }
 
@@ -40,7 +40,7 @@ func TestLoadTrustGroupConfig_FederationIDUnknownField_Fails(t *testing.T) {
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
-	data := `{"federation_id":"test-group","enabled":true,"directory_services":[],"keys":[]}`
+	data := `{"federation_id":"test-group","enabled":true,"directoryServices":[],"keys":[]}`
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestLoadTrustGroupConfig_TrailingJSONRejected(t *testing.T) {
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
-	data := `{"trust_group_id":"test","enabled":true,"directory_services":[],"keys":[]}{"extra":"trailing"}`
+	data := `{"trustGroupId":"test","enabled":true,"directoryServices":[],"keys":[]}{"extra":"trailing"}`
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestLoadTrustGroupConfig_InvalidVerification(t *testing.T) {
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
-	data := `{"trust_group_id":"test","enabled":true,"directory_services":[{"url":"https://ds.example.com","enabled":true,"verification":"bogus"}],"keys":[]}`
+	data := `{"trustGroupId":"test","enabled":true,"directoryServices":[{"url":"https://ds.example.com","enabled":true,"verification":"bogus"}],"keys":[]}`
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestLoadTrustGroupConfig_ValidVerification(t *testing.T) {
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
-	data := `{"trust_group_id":"test","enabled":true,"directory_services":[{"url":"https://ds.example.com","enabled":true,"verification":"optional"}],"keys":[]}`
+	data := `{"trustGroupId":"test","enabled":true,"directoryServices":[{"url":"https://ds.example.com","enabled":true,"verification":"optional"}],"keys":[]}`
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}

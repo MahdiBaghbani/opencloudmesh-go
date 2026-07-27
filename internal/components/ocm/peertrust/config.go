@@ -12,11 +12,11 @@ import (
 
 // TrustGroupConfig defines a single trust group (K2 format).
 type TrustGroupConfig struct {
-	TrustGroupID      string                             `json:"trust_group_id"`
-	DirectoryServices []directoryservice.EndpointConfig  `json:"directory_services"`
+	TrustGroupID      string                             `json:"trustGroupId"`
+	DirectoryServices []directoryservice.EndpointConfig  `json:"directoryServices"`
 	Keys              []directoryservice.VerificationKey `json:"keys"`
 	Enabled           bool                               `json:"enabled"`
-	EnforceMembership bool                               `json:"enforce_membership"`
+	EnforceMembership bool                               `json:"enforceMembership"`
 }
 
 // LoadTrustGroupConfig loads a trust group config from a K2 JSON file.
@@ -45,7 +45,7 @@ func LoadTrustGroupConfig(path string) (*TrustGroupConfig, error) {
 		case "", "required", "optional", "off":
 			// valid
 		default:
-			return nil, fmt.Errorf("trust group config %s: directory_services[%d] has invalid verification value %q (must be required, optional, or off)", path, i, ds.Verification)
+			return nil, fmt.Errorf("trust group config %s: directoryServices[%d] has invalid verification value %q (must be required, optional, or off)", path, i, ds.Verification)
 		}
 	}
 
@@ -54,6 +54,6 @@ func LoadTrustGroupConfig(path string) (*TrustGroupConfig, error) {
 
 // PolicyConfig defines the trust policy settings.
 type PolicyConfig struct {
-	AllowList []string `json:"allow_list"`
-	DenyList  []string `json:"deny_list"`
+	AllowList []string `json:"allowList"`
+	DenyList  []string `json:"denyList"`
 }

@@ -75,92 +75,92 @@ type IncomingInviteStore interface {
 
 // OutgoingShare represents a share created by this instance (sender-side).
 type OutgoingShare struct {
-	ShareId    string `gorm:"uniqueIndex" json:"share_id"`    // sender-local identity (UUIDv7)
-	ProviderId string `gorm:"primaryKey"  json:"provider_id"` // provider-assigned share id
-	WebDAVId   string `gorm:"uniqueIndex" json:"webdav_id"`
+	ShareId    string `gorm:"uniqueIndex" json:"shareId"`    // sender-local identity (UUIDv7)
+	ProviderId string `gorm:"primaryKey"  json:"providerId"` // provider-assigned share id
+	WebDAVId   string `gorm:"uniqueIndex" json:"webdavId"`
 	// omitempty for redaction; partial unique index enforces non-empty secret
 	// uniqueness in SQL backends (empty shared secrets are allowed on many rows).
-	SharedSecret     string   `gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''" json:"shared_secret,omitempty"`
-	LocalPath        string   `json:"local_path"`
+	SharedSecret     string   `gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''" json:"sharedSecret,omitempty"`
+	LocalPath        string   `json:"localPath"`
 	Owner            string   `json:"owner"`
 	Sender           string   `json:"sender"`
-	ShareWith        string   `json:"share_with"`
-	ReceiverHost     string   `json:"receiver_host"`
-	ReceiverEndPoint string   `json:"receiver_end_point"`
+	ShareWith        string   `json:"shareWith"`
+	ReceiverHost     string   `json:"receiverHost"`
+	ReceiverEndPoint string   `json:"receiverEndPoint"`
 	Name             string   `json:"name"`
-	ResourceType     string   `json:"resource_type"`
-	ShareType        string   `json:"share_type"`
+	ResourceType     string   `json:"resourceType"`
+	ShareType        string   `json:"shareType"`
 	Permissions      string   `json:"permissions"`
 	State            string   `json:"state"` // sent, accepted, declined
 	Error            string   `json:"error,omitempty"`
 	Requirements     []string `gorm:"serializer:json"                                                  json:"requirements,omitempty"`
-	CreatedAt        int64    `json:"created_at"`
-	UpdatedAt        int64    `json:"updated_at"`
+	CreatedAt        int64    `json:"createdAt"`
+	UpdatedAt        int64    `json:"updatedAt"`
 }
 
 // IncomingShare represents a share received by this instance (receiver-side).
-// The composite unique index on (sending_server, provider_id) enforces that one
+// The composite unique index on (sendingServer, providerId) enforces that one
 // provider-key pair can be stored at most once, matching GetIncomingShareByProviderKey
 // singular semantics.
 type IncomingShare struct {
-	ShareId           string `gorm:"primaryKey"                                   json:"share_id"`       // receiver-local id (UUIDv7)
-	SendingServer     string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"sending_server"` // sender's host
-	ProviderId        string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"provider_id"`    // sender's share id
-	WebDAVId          string `json:"webdav_id,omitempty"`                                                // relative or absolute webdav URI
-	SharedSecret      string `json:"shared_secret,omitempty"`                                            // omitempty for redaction
+	ShareId           string `gorm:"primaryKey"                                   json:"shareId"`       // receiver-local id (UUIDv7)
+	SendingServer     string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"sendingServer"` // sender's host
+	ProviderId        string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"providerId"`    // sender's share id
+	WebDAVId          string `json:"webdavId,omitempty"`                                                // relative or absolute webdav URI
+	SharedSecret      string `json:"sharedSecret,omitempty"`                                            // omitempty for redaction
 	Owner             string `json:"owner"`
 	Sender            string `json:"sender"`
-	ShareWith         string `json:"share_with"`
+	ShareWith         string `json:"shareWith"`
 	Name              string `json:"name"`
 	Description       string `json:"description,omitempty"`
-	ResourceType      string `json:"resource_type"`
-	ShareType         string `json:"share_type"`
-	OwnerDisplayName  string `json:"owner_display_name,omitempty"`
-	SenderDisplayName string `json:"sender_display_name,omitempty"`
+	ResourceType      string `json:"resourceType"`
+	ShareType         string `json:"shareType"`
+	OwnerDisplayName  string `json:"ownerDisplayName,omitempty"`
+	SenderDisplayName string `json:"senderDisplayName,omitempty"`
 	Permissions       string `json:"permissions"`
 	// Webapp arm columns. WebappPermissions mirrors the comma-joined
 	// Permissions pattern; WebappTargets uses the json serializer like
 	// Requirements. Legacy rows leave these empty.
-	WebappPermissions string   `json:"webapp_permissions,omitempty"`
-	WebappURI         string   `json:"webapp_uri,omitempty"`
-	WebappTargets     []string `gorm:"serializer:json"              json:"webapp_targets,omitempty"`
-	ProtocolName      string   `json:"protocol_name,omitempty"`
+	WebappPermissions string   `json:"webappPermissions,omitempty"`
+	WebappURI         string   `json:"webappUri,omitempty"`
+	WebappTargets     []string `gorm:"serializer:json"              json:"webappTargets,omitempty"`
+	ProtocolName      string   `json:"protocolName,omitempty"`
 	State             string   `json:"state"` // pending, accepted, declined
-	UserId            string   `gorm:"index"                        json:"user_id"`
-	OwnerHost         string   `json:"owner_host"`
+	UserId            string   `gorm:"index"                        json:"userId"`
+	OwnerHost         string   `json:"ownerHost"`
 	Requirements      []string `gorm:"serializer:json"              json:"requirements,omitempty"`
 	// Expiration is a Unix epoch; 0 means no expiration.
 	Expiration int64 `json:"expiration,omitempty"`
-	CreatedAt  int64 `json:"created_at"`
-	UpdatedAt  int64 `json:"updated_at"`
+	CreatedAt  int64 `json:"createdAt"`
+	UpdatedAt  int64 `json:"updatedAt"`
 }
 
 // OutgoingInvite is the persistence model for outgoing invites (initiator-side).
 type OutgoingInvite struct {
 	ID              string `gorm:"primaryKey"                json:"id"`
 	Token           string `gorm:"uniqueIndex"               json:"token"`
-	ProviderFQDN    string `json:"provider_fqdn"`
-	InviteString    string `json:"invite_string"`
-	RecipientEmail  string `json:"recipient_email,omitempty"`
-	CreatedByUserId string `gorm:"index"                     json:"created_by_user_id"`
+	ProviderFQDN    string `json:"providerFqdn"`
+	InviteString    string `json:"inviteString"`
+	RecipientEmail  string `json:"recipientEmail,omitempty"`
+	CreatedByUserId string `gorm:"index"                     json:"createdByUserId"`
 	Status          string `json:"status"` // pending, accepted, declined, expired
-	AcceptedBy      string `json:"accepted_by,omitempty"`
-	ExpiresAt       int64  `json:"expires_at"`
-	CreatedAt       int64  `json:"created_at"`
-	UpdatedAt       int64  `json:"updated_at"`
-	AcceptedAt      int64  `json:"accepted_at,omitempty"` // unix epoch; 0 = not yet accepted
+	AcceptedBy      string `json:"acceptedBy,omitempty"`
+	ExpiresAt       int64  `json:"expiresAt"`
+	CreatedAt       int64  `json:"createdAt"`
+	UpdatedAt       int64  `json:"updatedAt"`
+	AcceptedAt      int64  `json:"acceptedAt,omitempty"` // unix epoch; 0 = not yet accepted
 }
 
 // IncomingInvite is the persistence model for incoming invites (acceptor-side).
-// The composite unique index on (token, recipient_user_id) enforces that one
+// The composite unique index on (token, recipientUserId) enforces that one
 // recipient can accept any given token at most once.
 type IncomingInvite struct {
 	ID              string `gorm:"primaryKey"                                       json:"id"`
 	Token           string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"token"`
-	InviteString    string `json:"invite_string"`
-	SenderFQDN      string `json:"sender_fqdn"`
-	RecipientUserId string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"recipient_user_id"`
+	InviteString    string `json:"inviteString"`
+	SenderFQDN      string `json:"senderFqdn"`
+	RecipientUserId string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"recipientUserId"`
 	Status          string `json:"status"` // pending, accepted
-	ReceivedAt      int64  `json:"received_at"`
-	UpdatedAt       int64  `json:"updated_at"`
+	ReceivedAt      int64  `json:"receivedAt"`
+	UpdatedAt       int64  `json:"updatedAt"`
 }

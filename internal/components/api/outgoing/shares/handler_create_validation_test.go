@@ -226,7 +226,7 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 		t.Fatal("error field is not an object")
 	}
 
-	if _, ok := errMap["reason_code"]; !ok {
-		t.Error("error response missing reason_code field (should use api error envelope)")
+	if _, ok := errMap["reasonCode"]; !ok {
+		t.Error("error response missing reasonCode field (should use api error envelope)")
 	}
 }

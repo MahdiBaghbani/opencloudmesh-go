@@ -13,10 +13,10 @@ import (
 // strictProtocolTrustGroupFixtureJSON is the empty-directory-services trust-group
 // fixture for VariantPeerTrustStaleMembership integration tests.
 const strictProtocolTrustGroupFixtureJSON = `{
-	"trust_group_id": "strict-protocol-pair",
+	"trustGroupId": "strict-protocol-pair",
 	"enabled": true,
-	"enforce_membership": false,
-	"directory_services": [],
+	"enforceMembership": false,
+	"directoryServices": [],
 	"keys": []
 }`
 

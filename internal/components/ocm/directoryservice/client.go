@@ -28,8 +28,8 @@ type EndpointConfig struct {
 
 // VerificationKey is a public key for JWS verification.
 type VerificationKey struct {
-	KeyID        string `json:"key_id"`
-	PublicKeyPEM string `json:"public_key_pem"`
+	KeyID        string `json:"keyId"`
+	PublicKeyPEM string `json:"publicKeyPem"`
 	Algorithm    string `json:"algorithm"` // RS256, ES256, Ed25519
 	Active       bool   `json:"active"`
 }

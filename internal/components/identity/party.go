@@ -32,16 +32,16 @@ const (
 
 // User represents a party in the system.
 type User struct {
-	ID           string     `json:"id"`           // UUIDv7
-	Username     string     `json:"username"`     // Unique login name
-	Email        string     `json:"email"`        // Optional email
-	DisplayName  string     `json:"display_name"` // Human-readable name
-	PasswordHash string     `json:"-"`            // bcrypt hash, never serialized
-	Role         string     `json:"role"`         // admin, user, probe
-	Realm        string     `json:"realm"`        // Isolation realm for probe users
-	StorageRoot  string     `json:"storage_root"` // User's storage root path
-	CreatedAt    time.Time  `json:"created_at"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"` // For probe users
+	ID           string     `json:"id"`          // UUIDv7
+	Username     string     `json:"username"`    // Unique login name
+	Email        string     `json:"email"`       // Optional email
+	DisplayName  string     `json:"displayName"` // Human-readable name
+	PasswordHash string     `json:"-"`           // bcrypt hash, never serialized
+	Role         string     `json:"role"`        // admin, user, probe
+	Realm        string     `json:"realm"`       // Isolation realm for probe users
+	StorageRoot  string     `json:"storageRoot"` // User's storage root path
+	CreatedAt    time.Time  `json:"createdAt"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty"` // For probe users
 }
 
 func (u *User) IsProbe() bool {

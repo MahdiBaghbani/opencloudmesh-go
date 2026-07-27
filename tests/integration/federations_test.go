@@ -22,10 +22,10 @@ func TestFederationsEndpoint(t *testing.T) {
 
 	// K2 JSON config: trust group enabled but no directory services to fetch from
 	trustGroupJSON := `{
-		"trust_group_id": "test-federation-001",
+		"trustGroupId": "test-federation-001",
 		"enabled": true,
-		"enforce_membership": false,
-		"directory_services": [],
+		"enforceMembership": false,
+		"directoryServices": [],
 		"keys": []
 	}`
 

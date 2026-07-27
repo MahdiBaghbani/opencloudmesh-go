@@ -270,7 +270,7 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 	var envelope struct {
 		Error struct {
 			Code       string `json:"code"`
-			ReasonCode string `json:"reason_code"`
+			ReasonCode string `json:"reasonCode"`
 			Message    string `json:"message"`
 		} `json:"error"`
 	}
@@ -279,7 +279,7 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 	}
 
 	if envelope.Error.ReasonCode != "rate_limited" {
-		t.Errorf("expected reason_code 'rate_limited', got '%s'", envelope.Error.ReasonCode)
+		t.Errorf("expected reasonCode 'rate_limited', got '%s'", envelope.Error.ReasonCode)
 	}
 }
 

@@ -5,13 +5,13 @@ package spec
 type InviteAcceptedRequest struct {
 	RecipientProvider string `json:"recipientProvider"`
 	Token             string `json:"token"`
-	UserID            string `json:"userID"`
+	UserID            string `json:"userID"` //nolint:tagliatelle // OCM-API spec mandates 'userID' (capital ID), not camelCase 'userId'
 	Email             string `json:"email"`
 	Name              string `json:"name"`
 }
 
 type InviteAcceptedResponse struct {
-	UserID string `json:"userID"`
+	UserID string `json:"userID"` //nolint:tagliatelle // OCM-API spec mandates 'userID' (capital ID), not camelCase 'userId'
 	Email  string `json:"email"`
 	Name   string `json:"name"`
 }
