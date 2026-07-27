@@ -5,6 +5,7 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MahdiBaghbani/opencloudmesh-go)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE.md)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FMahdiBaghbani%2Fopencloudmesh-go.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FMahdiBaghbani%2Fopencloudmesh-go?ref=badge_shield)
 
 OpenCloudMesh Go is a Go server for Open Cloud Mesh (OCM). It focuses on a
 pinned, practical slice of the protocol: discovery, user shares, invite flows,
@@ -261,3 +262,6 @@ something in the docs is unclear or wrong, that is worth an issue too.
 
 Licensed under the GNU Affero General Public License v3.0 or later
 (AGPL-3.0-or-later). See [LICENSE.md](LICENSE.md).
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FMahdiBaghbani%2Fopencloudmesh-go.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FMahdiBaghbani%2Fopencloudmesh-go?ref=badge_large)
