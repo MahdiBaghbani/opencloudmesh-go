@@ -66,6 +66,8 @@ allow_ip_literals = false
 `, tlsCert, tlsKey, opts.LoopbackHost, formatPortList(opts.AllowedPorts))
 
 	switch opts.Variant {
+	case VariantProtocolPair:
+		// no variant-specific block; base config suffices
 	case VariantPeerTrustStaleMembership:
 		cfg += `
 [peer_trust]

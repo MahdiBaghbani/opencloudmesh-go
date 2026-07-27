@@ -106,6 +106,7 @@ func (c *Client) isStrictMode() bool {
 func (c *Client) Get(ctx context.Context, urlStr string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 	if err != nil {
+		//nolint:errorlint // inner err intentionally formatted with %v (not wrapped) to keep it out of the error chain; outer sentinel wrapped via %w
 		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
 	}
 
@@ -186,6 +187,7 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 
 	redirectURL, err := url.Parse(location)
 	if err != nil {
+		//nolint:errorlint // inner err intentionally formatted with %v (not wrapped) to keep it out of the error chain; outer sentinel wrapped via %w
 		return nil, fmt.Errorf("%w: invalid Location: %v", ErrRedirectBlocked, err)
 	}
 
@@ -212,6 +214,7 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	//nolint:gosec // redirect URL is same-host validated and re-checked by checkSSRFURL in strict mode before Do()
 	newReq, err := http.NewRequestWithContext(ctx, origReq.Method, redirectURL.String(), nil)
 	if err != nil {
+		//nolint:errorlint // inner err intentionally formatted with %v (not wrapped) to keep it out of the error chain; outer sentinel wrapped via %w
 		return nil, fmt.Errorf("%w: %v", ErrRedirectBlocked, err)
 	}
 

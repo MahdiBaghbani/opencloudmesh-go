@@ -91,6 +91,7 @@ func (c *Client) checkSSRFHostPort(ctx context.Context, host, port string) error
 	// Fail closed if any private IP fails policy.
 	ipAddrs, err := c.getResolver().LookupIPAddr(ctx, host)
 	if err != nil {
+		//nolint:errorlint // inner err intentionally formatted with %v (not wrapped) to keep it out of the error chain; outer sentinel wrapped via %w
 		return fmt.Errorf("%w: %s: %v", ErrHostUnresolvable, host, err)
 	}
 

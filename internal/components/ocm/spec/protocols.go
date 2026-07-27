@@ -69,6 +69,7 @@ func WebDAVReceiveRole(uri WebDAVReceiveURIKind) ProtocolRole {
 }
 
 func (p ProtocolRole) MarshalJSON() ([]byte, error) {
+	//nolint:exhaustive // protocolRoleUnset (zero value) intentionally handled by the default invalid-role error
 	switch p.kind {
 	case protocolRoleString:
 		return json.Marshal(p.string)

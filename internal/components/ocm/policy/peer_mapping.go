@@ -139,6 +139,7 @@ func isInterfaceValueNil(v any) bool {
 	}
 
 	rv := reflect.ValueOf(v)
+	//nolint:exhaustive // reflect.Kind switch intentionally handles only nil-able kinds; all other kinds default to false (non-nil)
 	switch rv.Kind() {
 	case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
 		return rv.IsNil()

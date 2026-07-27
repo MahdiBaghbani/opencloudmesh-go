@@ -101,6 +101,7 @@ func TestRoutePolicyWiring_SyntheticRowsHaveSurfaceClass(t *testing.T) {
 func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProductRoutes(opts) {
+		//nolint:exhaustive // test asserts only the httpsig case; other auth modes are covered by the default assertion
 		switch row.HandlerAuth {
 		case service.HandlerAuthRequiredHTTPSig:
 			if row.SurfaceClass != service.SurfaceProtocol {
@@ -125,6 +126,7 @@ func TestRoutePolicyWiring_HTTPsigHandlerAuthOnlyOnOCMProtocol(t *testing.T) {
 func TestRoutePolicyWiring_ProtocolRoutesHavePeerTrustClass(t *testing.T) {
 	opts := tsrouting.DevOpts()
 	for _, row := range tsrouting.ProtocolRoutes(opts) {
+		//nolint:exhaustive // test asserts only peer-required; TrustPeerNone is covered by the default error assertion
 		switch row.TrustClass {
 		case service.TrustPeerRequired:
 		default:
@@ -155,6 +157,7 @@ func TestRoutePolicyWiring_APIRoutesAreFirstPartySession(t *testing.T) {
 			t.Errorf("api route %q TrustClass = %q, want peer-trust-none", row.ID, row.TrustClass)
 		}
 
+		//nolint:exhaustive // test asserts first-party-session auth modes; httpsig and bearer are covered by the default error assertion
 		switch row.HandlerAuth {
 		case service.HandlerAuthNone,
 			service.HandlerAuthCurrentUser,
