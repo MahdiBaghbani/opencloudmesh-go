@@ -9,8 +9,10 @@ import (
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
-// TestJSONInviteReopenDurability verifies that both invite surfaces persist
-// and reload correctly after the JSON driver is closed and reopened.
+// TestJSONShareSaveFailureRollback verifies that when saveFile fails the
+// in-memory share state is not left in a mutated state (no split-brain).
+// The failure is injected by making the data directory read-only after Init,
+// mirroring the pattern used by TestJSONInviteSaveFailureRollback.
 func TestJSONShareSaveFailureRollback(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("cannot test read-only dir as root")
@@ -18,280 +20,299 @@ func TestJSONShareSaveFailureRollback(t *testing.T) {
 
 	ctx := context.Background()
 
-	makeDriver := func(t *testing.T, dir string) store.Driver {
-		t.Helper()
+	t.Run("CreateOutgoingShare", func(t *testing.T) { testCreateOutgoingShareRollback(t, ctx) })
+	t.Run("UpdateOutgoingShare", func(t *testing.T) { testUpdateOutgoingShareRollback(t, ctx) })
+	t.Run("DeleteOutgoingShare", func(t *testing.T) { testDeleteOutgoingShareRollback(t, ctx) })
+	t.Run("CreateIncomingShare", func(t *testing.T) { testCreateIncomingShareRollback(t, ctx) })
+	t.Run("UpdateIncomingShareStatusForRecipient", func(t *testing.T) { testUpdateIncomingShareStatusRollback(t, ctx) })
+	t.Run("DeleteIncomingShareForRecipient", func(t *testing.T) { testDeleteIncomingShareRollback(t, ctx) })
+}
 
-		cfg := &store.DriverConfig{Driver: "json", DataDir: dir}
+func makeShareDriver(t *testing.T, dir string) store.Driver {
+	t.Helper()
 
-		return testutil.OpenDriver(t, cfg)
+	cfg := &store.DriverConfig{Driver: "json", DataDir: dir}
+
+	return testutil.OpenDriver(t, cfg)
+}
+
+func lockShareDir(t *testing.T, dir string) {
+	t.Helper()
+
+	if err := os.Chmod(dir, 0500); err != nil {
+		t.Fatal(err)
 	}
 
-	lockDir := func(t *testing.T, dir string) {
-		t.Helper()
+	t.Cleanup(func() { os.Chmod(dir, 0700) })
+}
 
-		if err := os.Chmod(dir, 0500); err != nil {
-			t.Fatal(err)
-		}
+func testCreateOutgoingShareRollback(t *testing.T, ctx context.Context) {
+	t.Helper()
 
-		t.Cleanup(func() { os.Chmod(dir, 0700) })
+	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-share-*")
+
+	d := makeShareDriver(t, dir)
+	defer d.Close()
+
+	share := testutil.NewOutgoingShareFixture()
+
+	lockShareDir(t, dir)
+
+	if err := d.(store.OutgoingShareStore).CreateOutgoingShare(ctx, share); err == nil {
+		t.Fatal("expected error from CreateOutgoingShare with read-only dir, got nil")
 	}
 
-	t.Run("CreateOutgoingShare", func(t *testing.T) {
-		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-share-*")
+	// Restore write permission and verify primary record and all secondary
+	// indexes are absent (rollback succeeded).
+	os.Chmod(dir, 0700)
 
-		d := makeDriver(t, dir)
-		defer d.Close()
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId); err == nil {
+		t.Error("share found in memory after failed create - rollback did not occur")
+	}
 
-		share := testutil.NewOutgoingShareFixture()
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err == nil {
+		t.Error("shareId index not rolled back after failed create")
+	}
 
-		lockDir(t, dir)
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err == nil {
+		t.Error("webdavId index not rolled back after failed create")
+	}
 
-		if err := d.(store.OutgoingShareStore).CreateOutgoingShare(ctx, share); err == nil {
-			t.Fatal("expected error from CreateOutgoingShare with read-only dir, got nil")
-		}
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err == nil {
+		t.Error("sharedSecret index not rolled back after failed create")
+	}
+}
 
-		// Restore write permission and verify primary record and all secondary
-		// indexes are absent (rollback succeeded).
-		os.Chmod(dir, 0700)
+func testUpdateOutgoingShareRollback(t *testing.T, ctx context.Context) {
+	t.Helper()
 
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId); err == nil {
-			t.Error("share found in memory after failed create - rollback did not occur")
-		}
+	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-share-*")
 
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err == nil {
-			t.Error("shareId index not rolled back after failed create")
-		}
+	d := makeShareDriver(t, dir)
+	defer d.Close()
 
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err == nil {
-			t.Error("webdavId index not rolled back after failed create")
-		}
+	share := testutil.NewOutgoingShareFixture()
+	if err := d.(store.OutgoingShareStore).CreateOutgoingShare(ctx, share); err != nil {
+		t.Fatalf("setup CreateOutgoingShare: %v", err)
+	}
 
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err == nil {
-			t.Error("sharedSecret index not rolled back after failed create")
-		}
-	})
+	// Use distinct new values for all three index fields so we can verify
+	// neither the primary record nor any index entry was swapped.
+	updated := *share
+	updated.ShareId = "new-share-id"
+	updated.WebDAVId = "new-webdav-id"
+	updated.SharedSecret = "new-secret"
+	updated.State = "accepted"
 
-	t.Run("UpdateOutgoingShare", func(t *testing.T) {
-		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-share-*")
+	lockShareDir(t, dir)
 
-		d := makeDriver(t, dir)
-		defer d.Close()
+	if err := d.(store.OutgoingShareStore).UpdateOutgoingShare(ctx, &updated); err == nil {
+		t.Fatal("expected error from UpdateOutgoingShare with read-only dir, got nil")
+	}
 
-		share := testutil.NewOutgoingShareFixture()
-		if err := d.(store.OutgoingShareStore).CreateOutgoingShare(ctx, share); err != nil {
-			t.Fatalf("setup CreateOutgoingShare: %v", err)
-		}
+	// Restore and verify the old record and all old indexes are intact.
+	os.Chmod(dir, 0700)
 
-		// Use distinct new values for all three index fields so we can verify
-		// neither the primary record nor any index entry was swapped.
-		updated := *share
-		updated.ShareId = "new-share-id"
-		updated.WebDAVId = "new-webdav-id"
-		updated.SharedSecret = "new-secret"
-		updated.State = "accepted"
+	got, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId)
+	if err != nil {
+		t.Fatalf("share missing after failed update: %v", err)
+	}
 
-		lockDir(t, dir)
-
-		if err := d.(store.OutgoingShareStore).UpdateOutgoingShare(ctx, &updated); err == nil {
-			t.Fatal("expected error from UpdateOutgoingShare with read-only dir, got nil")
-		}
-
-		// Restore and verify the old record and all old indexes are intact.
-		os.Chmod(dir, 0700)
-
-		got, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId)
-		if err != nil {
-			t.Fatalf("share missing after failed update: %v", err)
-		}
-
-		if got.State != share.State {
-			t.Errorf(
-				"in-memory state changed after failed update: got %q, want %q",
-				got.State,
-				share.State,
-			)
-		}
-
-		if got.ShareId != share.ShareId {
-			t.Errorf(
-				"in-memory shareId changed after failed update: got %q, want %q",
-				got.ShareId,
-				share.ShareId,
-			)
-		}
-		// Old indexes must still resolve.
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err != nil {
-			t.Error("old shareId index entry missing after failed update rollback")
-		}
-
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err != nil {
-			t.Error("old webdavId index entry missing after failed update rollback")
-		}
-
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err != nil {
-			t.Error("old sharedSecret index entry missing after failed update rollback")
-		}
-		// New indexes must NOT resolve.
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, updated.ShareId); err == nil {
-			t.Error("new shareId index entry present after failed update - rollback incomplete")
-		}
-
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, updated.WebDAVId); err == nil {
-			t.Error("new webdavId index entry present after failed update - rollback incomplete")
-		}
-
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, updated.SharedSecret); err == nil {
-			t.Error("new sharedSecret index entry present after failed update - rollback incomplete")
-		}
-	})
-
-	t.Run("DeleteOutgoingShare", func(t *testing.T) {
-		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-share-*")
-
-		d := makeDriver(t, dir)
-		defer d.Close()
-
-		share := testutil.NewOutgoingShareFixture()
-		if err := d.(store.OutgoingShareStore).CreateOutgoingShare(ctx, share); err != nil {
-			t.Fatalf("setup CreateOutgoingShare: %v", err)
-		}
-
-		lockDir(t, dir)
-
-		if err := d.(store.OutgoingShareStore).DeleteOutgoingShare(ctx, share.ProviderId); err == nil {
-			t.Fatal("expected error from DeleteOutgoingShare with read-only dir, got nil")
-		}
-
-		// Restore and verify the share and all indexes are still present.
-		os.Chmod(dir, 0700)
-
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId); err != nil {
-			t.Errorf("share missing after failed delete - rollback did not occur: %v", err)
-		}
-
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err != nil {
-			t.Error("shareId index entry missing after failed delete rollback")
-		}
-
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err != nil {
-			t.Error("webdavId index entry missing after failed delete rollback")
-		}
-
-		if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err != nil {
-			t.Error("sharedSecret index entry missing after failed delete rollback")
-		}
-	})
-
-	t.Run("CreateIncomingShare", func(t *testing.T) {
-		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-share-*")
-
-		d := makeDriver(t, dir)
-		defer d.Close()
-
-		share := testutil.NewIncomingShareFixture()
-
-		lockDir(t, dir)
-
-		if err := d.(store.IncomingShareStore).CreateIncomingShare(ctx, share); err == nil {
-			t.Fatal("expected error from CreateIncomingShare with read-only dir, got nil")
-		}
-
-		os.Chmod(dir, 0700)
-
-		if _, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
-			ctx, share.ShareId, share.UserId,
-		); err == nil {
-			t.Error("incoming share found in memory after failed create - rollback did not occur")
-		}
-
-		if _, err := d.(store.IncomingShareStore).GetIncomingShareByProviderKey(
-			ctx, share.SendingServer, share.ProviderId,
-		); err == nil {
-			t.Error("provider-key index not rolled back after failed create")
-		}
-	})
-
-	t.Run("UpdateIncomingShareStatusForRecipient", func(t *testing.T) {
-		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-share-*")
-
-		d := makeDriver(t, dir)
-		defer d.Close()
-
-		share := testutil.NewIncomingShareFixture()
-		if err := d.(store.IncomingShareStore).CreateIncomingShare(ctx, share); err != nil {
-			t.Fatalf("setup CreateIncomingShare: %v", err)
-		}
-
-		oldState := share.State
-		oldUpdatedAt := share.UpdatedAt
-
-		lockDir(t, dir)
-
-		if err := d.(store.IncomingShareStore).UpdateIncomingShareStatusForRecipient(
-			ctx, share.ShareId, share.UserId, "accepted",
-		); err == nil {
-			t.Fatal("expected error from UpdateIncomingShareStatusForRecipient with read-only dir, got nil")
-		}
-
-		// Restore and verify both State and UpdatedAt reverted (rollback succeeded).
-		os.Chmod(dir, 0700)
-
-		got, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
-			ctx, share.ShareId, share.UserId,
+	if got.State != share.State {
+		t.Errorf(
+			"in-memory state changed after failed update: got %q, want %q",
+			got.State,
+			share.State,
 		)
-		if err != nil {
-			t.Fatalf("share missing after failed status update: %v", err)
-		}
+	}
 
-		if got.State != oldState {
-			t.Errorf(
-				"in-memory state changed after failed update: got %q, want %q",
-				got.State,
-				oldState,
-			)
-		}
+	if got.ShareId != share.ShareId {
+		t.Errorf(
+			"in-memory shareId changed after failed update: got %q, want %q",
+			got.ShareId,
+			share.ShareId,
+		)
+	}
+	// Old indexes must still resolve.
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err != nil {
+		t.Error("old shareId index entry missing after failed update rollback")
+	}
 
-		if got.UpdatedAt != oldUpdatedAt {
-			t.Errorf(
-				"in-memory UpdatedAt changed after failed update: got %d, want %d",
-				got.UpdatedAt,
-				oldUpdatedAt,
-			)
-		}
-	})
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err != nil {
+		t.Error("old webdavId index entry missing after failed update rollback")
+	}
 
-	t.Run("DeleteIncomingShareForRecipient", func(t *testing.T) {
-		dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-share-*")
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err != nil {
+		t.Error("old sharedSecret index entry missing after failed update rollback")
+	}
+	// New indexes must NOT resolve.
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, updated.ShareId); err == nil {
+		t.Error("new shareId index entry present after failed update - rollback incomplete")
+	}
 
-		d := makeDriver(t, dir)
-		defer d.Close()
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, updated.WebDAVId); err == nil {
+		t.Error("new webdavId index entry present after failed update - rollback incomplete")
+	}
 
-		share := testutil.NewIncomingShareFixture()
-		if err := d.(store.IncomingShareStore).CreateIncomingShare(ctx, share); err != nil {
-			t.Fatalf("setup CreateIncomingShare: %v", err)
-		}
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, updated.SharedSecret); err == nil {
+		t.Error("new sharedSecret index entry present after failed update - rollback incomplete")
+	}
+}
 
-		lockDir(t, dir)
+func testDeleteOutgoingShareRollback(t *testing.T, ctx context.Context) {
+	t.Helper()
 
-		if err := d.(store.IncomingShareStore).DeleteIncomingShareForRecipient(
-			ctx, share.ShareId, share.UserId,
-		); err == nil {
-			t.Fatal("expected error from DeleteIncomingShareForRecipient with read-only dir, got nil")
-		}
+	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-share-*")
 
-		// Restore and verify the share and provider-key index are still present.
-		os.Chmod(dir, 0700)
+	d := makeShareDriver(t, dir)
+	defer d.Close()
 
-		if _, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
-			ctx, share.ShareId, share.UserId,
-		); err != nil {
-			t.Errorf("share missing after failed delete - rollback did not occur: %v", err)
-		}
+	share := testutil.NewOutgoingShareFixture()
+	if err := d.(store.OutgoingShareStore).CreateOutgoingShare(ctx, share); err != nil {
+		t.Fatalf("setup CreateOutgoingShare: %v", err)
+	}
 
-		if _, err := d.(store.IncomingShareStore).GetIncomingShareByProviderKey(
-			ctx, share.SendingServer, share.ProviderId,
-		); err != nil {
-			t.Error("provider-key index entry missing after failed delete rollback")
-		}
-	})
+	lockShareDir(t, dir)
+
+	if err := d.(store.OutgoingShareStore).DeleteOutgoingShare(ctx, share.ProviderId); err == nil {
+		t.Fatal("expected error from DeleteOutgoingShare with read-only dir, got nil")
+	}
+
+	// Restore and verify the share and all indexes are still present.
+	os.Chmod(dir, 0700)
+
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShare(ctx, share.ProviderId); err != nil {
+		t.Errorf("share missing after failed delete - rollback did not occur: %v", err)
+	}
+
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByID(ctx, share.ShareId); err != nil {
+		t.Error("shareId index entry missing after failed delete rollback")
+	}
+
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err != nil {
+		t.Error("webdavId index entry missing after failed delete rollback")
+	}
+
+	if _, err := d.(store.OutgoingShareStore).GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err != nil {
+		t.Error("sharedSecret index entry missing after failed delete rollback")
+	}
+}
+
+func testCreateIncomingShareRollback(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-share-*")
+
+	d := makeShareDriver(t, dir)
+	defer d.Close()
+
+	share := testutil.NewIncomingShareFixture()
+
+	lockShareDir(t, dir)
+
+	if err := d.(store.IncomingShareStore).CreateIncomingShare(ctx, share); err == nil {
+		t.Fatal("expected error from CreateIncomingShare with read-only dir, got nil")
+	}
+
+	os.Chmod(dir, 0700)
+
+	if _, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
+		ctx, share.ShareId, share.UserId,
+	); err == nil {
+		t.Error("incoming share found in memory after failed create - rollback did not occur")
+	}
+
+	if _, err := d.(store.IncomingShareStore).GetIncomingShareByProviderKey(
+		ctx, share.SendingServer, share.ProviderId,
+	); err == nil {
+		t.Error("provider-key index not rolled back after failed create")
+	}
+}
+
+func testUpdateIncomingShareStatusRollback(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-share-*")
+
+	d := makeShareDriver(t, dir)
+	defer d.Close()
+
+	share := testutil.NewIncomingShareFixture()
+	if err := d.(store.IncomingShareStore).CreateIncomingShare(ctx, share); err != nil {
+		t.Fatalf("setup CreateIncomingShare: %v", err)
+	}
+
+	oldState := share.State
+	oldUpdatedAt := share.UpdatedAt
+
+	lockShareDir(t, dir)
+
+	if err := d.(store.IncomingShareStore).UpdateIncomingShareStatusForRecipient(
+		ctx, share.ShareId, share.UserId, "accepted",
+	); err == nil {
+		t.Fatal("expected error from UpdateIncomingShareStatusForRecipient with read-only dir, got nil")
+	}
+
+	// Restore and verify both State and UpdatedAt reverted (rollback succeeded).
+	os.Chmod(dir, 0700)
+
+	got, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
+		ctx, share.ShareId, share.UserId,
+	)
+	if err != nil {
+		t.Fatalf("share missing after failed status update: %v", err)
+	}
+
+	if got.State != oldState {
+		t.Errorf(
+			"in-memory state changed after failed update: got %q, want %q",
+			got.State,
+			oldState,
+		)
+	}
+
+	if got.UpdatedAt != oldUpdatedAt {
+		t.Errorf(
+			"in-memory UpdatedAt changed after failed update: got %d, want %d",
+			got.UpdatedAt,
+			oldUpdatedAt,
+		)
+	}
+}
+
+func testDeleteIncomingShareRollback(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-share-*")
+
+	d := makeShareDriver(t, dir)
+	defer d.Close()
+
+	share := testutil.NewIncomingShareFixture()
+	if err := d.(store.IncomingShareStore).CreateIncomingShare(ctx, share); err != nil {
+		t.Fatalf("setup CreateIncomingShare: %v", err)
+	}
+
+	lockShareDir(t, dir)
+
+	if err := d.(store.IncomingShareStore).DeleteIncomingShareForRecipient(
+		ctx, share.ShareId, share.UserId,
+	); err == nil {
+		t.Fatal("expected error from DeleteIncomingShareForRecipient with read-only dir, got nil")
+	}
+
+	// Restore and verify the share and provider-key index are still present.
+	os.Chmod(dir, 0700)
+
+	if _, err := d.(store.IncomingShareStore).GetIncomingShareByIDForRecipient(
+		ctx, share.ShareId, share.UserId,
+	); err != nil {
+		t.Errorf("share missing after failed delete - rollback did not occur: %v", err)
+	}
+
+	if _, err := d.(store.IncomingShareStore).GetIncomingShareByProviderKey(
+		ctx, share.SendingServer, share.ProviderId,
+	); err != nil {
+		t.Error("provider-key index entry missing after failed delete rollback")
+	}
 }

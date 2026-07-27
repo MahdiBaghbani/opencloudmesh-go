@@ -181,14 +181,18 @@ func extractWebDAVID(path string) string {
 
 // isValidWebDAVID validates webdavId (UUID format, no path traversal).
 func isValidWebDAVID(id string) bool {
-	if strings.Contains(id, "..") || strings.Contains(id, "/") || strings.Contains(id, "\\") {
+	if hasDangerousWebDAVChars(id) || len(id) != 36 {
 		return false
 	}
 
-	if len(id) != 36 {
-		return false
-	}
+	return isValidUUIDFormat(id)
+}
 
+func hasDangerousWebDAVChars(id string) bool {
+	return strings.Contains(id, "..") || strings.Contains(id, "/") || strings.Contains(id, "\\")
+}
+
+func isValidUUIDFormat(id string) bool {
 	if id[8] != '-' || id[13] != '-' || id[18] != '-' || id[23] != '-' {
 		return false
 	}
@@ -198,12 +202,16 @@ func isValidWebDAVID(id string) bool {
 			continue
 		}
 
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+		if !isHexDigit(c) {
 			return false
 		}
 	}
 
 	return true
+}
+
+func isHexDigit(c rune) bool {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 }
 
 // isWriteMethod returns true if the HTTP method is a write operation.

@@ -28,6 +28,32 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 		warnings = append(warnings, warn)
 	}
 
+	if err := validateDiscoveryEndpoint(disc, discoveryOrigin); err != nil {
+		return err
+	}
+
+	if err := validateDiscoveryTokenEndpoint(disc, discoveryOrigin); err != nil {
+		return err
+	}
+
+	if err := validateDiscoveryInviteDialog(disc, discoveryOrigin); err != nil {
+		return err
+	}
+
+	for i, rt := range disc.ResourceTypes {
+		if err := validateResourceType(rt, &warnings); err != nil {
+			return fmt.Errorf("resourceTypes[%d]: %w", i, err)
+		}
+	}
+
+	if len(warnings) > 0 {
+		disc.Warnings = append(disc.Warnings, warnings...)
+	}
+
+	return nil
+}
+
+func validateDiscoveryEndpoint(disc *spec.Discovery, discoveryOrigin string) error {
 	if disc.EndPoint == "" {
 		return fmt.Errorf("endPoint is required")
 	}
@@ -40,6 +66,10 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 		return fmt.Errorf("endPoint authority must match discovery origin")
 	}
 
+	return nil
+}
+
+func validateDiscoveryTokenEndpoint(disc *spec.Discovery, discoveryOrigin string) error {
 	hasExchangeToken := disc.HasCapability(spec.CapabilityExchangeToken)
 	if hasExchangeToken && disc.TokenEndPoint == "" {
 		return fmt.Errorf("%s capability requires tokenEndPoint", spec.CapabilityExchangeToken)
@@ -49,34 +79,32 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 		return fmt.Errorf("tokenEndPoint requires %s capability", spec.CapabilityExchangeToken)
 	}
 
-	if disc.TokenEndPoint != "" {
-		if !isAbsoluteURL(disc.TokenEndPoint) {
-			return fmt.Errorf("tokenEndPoint must be absolute")
-		}
-
-		if !sameAuthority(disc.TokenEndPoint, discoveryOrigin) {
-			return fmt.Errorf("tokenEndPoint authority must match discovery origin")
-		}
+	if disc.TokenEndPoint == "" {
+		return nil
 	}
 
-	if disc.InviteAcceptDialog != "" {
-		if !isAbsoluteURL(disc.InviteAcceptDialog) {
-			return fmt.Errorf("inviteAcceptDialog must be absolute after normalization")
-		}
-
-		if !sameAuthority(disc.InviteAcceptDialog, discoveryOrigin) {
-			return fmt.Errorf("inviteAcceptDialog authority must match discovery origin")
-		}
+	if !isAbsoluteURL(disc.TokenEndPoint) {
+		return fmt.Errorf("tokenEndPoint must be absolute")
 	}
 
-	for i, rt := range disc.ResourceTypes {
-		if err := validateResourceType(rt, &warnings); err != nil {
-			return fmt.Errorf("resourceTypes[%d]: %w", i, err)
-		}
+	if !sameAuthority(disc.TokenEndPoint, discoveryOrigin) {
+		return fmt.Errorf("tokenEndPoint authority must match discovery origin")
 	}
 
-	if len(warnings) > 0 {
-		disc.Warnings = append(disc.Warnings, warnings...)
+	return nil
+}
+
+func validateDiscoveryInviteDialog(disc *spec.Discovery, discoveryOrigin string) error {
+	if disc.InviteAcceptDialog == "" {
+		return nil
+	}
+
+	if !isAbsoluteURL(disc.InviteAcceptDialog) {
+		return fmt.Errorf("inviteAcceptDialog must be absolute after normalization")
+	}
+
+	if !sameAuthority(disc.InviteAcceptDialog, discoveryOrigin) {
+		return fmt.Errorf("inviteAcceptDialog authority must match discovery origin")
 	}
 
 	return nil

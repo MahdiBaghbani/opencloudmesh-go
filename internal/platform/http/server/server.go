@@ -129,74 +129,33 @@ func (s *Server) startACME() error {
 		host = s.cfg.ListenAddr
 	}
 
-	if s.cfg.TLS.HTTPPort == 0 {
-		return errors.New("tls.http_port must be set for ACME mode")
-	}
-
-	if s.cfg.TLS.HTTPSPort == 0 {
-		return errors.New("tls.https_port must be set for ACME mode")
-	}
-
-	if s.cfg.PublicOrigin != "" {
-		if originURL, parseErr := url.Parse(s.cfg.PublicOrigin); parseErr == nil && originURL.Host != "" {
-			if _, portStr, splitErr := net.SplitHostPort(originURL.Host); splitErr == nil && portStr != "" {
-				if originPort, convErr := strconv.Atoi(portStr); convErr == nil && originPort != s.cfg.TLS.HTTPSPort {
-					return fmt.Errorf("public_origin port %d does not match tls.https_port %d", originPort, s.cfg.TLS.HTTPSPort)
-				}
-			}
-		}
+	if err := validateACMEConfig(s.cfg); err != nil {
+		return err
 	}
 
 	acmeMgr := tlspkg.NewACMEManager(&s.cfg.TLS.ACME, s.logger, s.RootCAPool)
 
-	challengeMux := http.NewServeMux()
-	challengeMux.Handle("/.well-known/acme-challenge/", acmeMgr.ChallengeHandler())
-	challengeMux.Handle("/", newHTTPSRedirectHandler(s.cfg.TLS.HTTPSPort))
-
-	httpAddr := net.JoinHostPort(host, strconv.Itoa(s.cfg.TLS.HTTPPort))
-	s.challengeServer = &http.Server{
-		Addr:         httpAddr,
-		Handler:      challengeMux,
-		ReadTimeout:  config.DefaultChallengeReadTimeout,
-		WriteTimeout: config.DefaultChallengeWriteTimeout,
-		IdleTimeout:  config.DefaultChallengeIdleTimeout,
-	}
-
-	challengeListener, err := net.Listen("tcp", httpAddr)
+	challengeServer, challengeListener, err := s.startChallengeServer(acmeMgr, host)
 	if err != nil {
-		return fmt.Errorf("challenge listener bind failed on %s: %w", httpAddr, err)
-	}
-
-	closeChallengeServer := func() {
-		if s.challengeServer == nil {
-			return
-		}
-
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), config.DefaultServerShutdownTimeout)
-		defer cancel()
-
-		if shutdownErr := s.challengeServer.Shutdown(shutdownCtx); shutdownErr != nil && !errors.Is(shutdownErr, http.ErrServerClosed) {
-			//nolint:errcheck // best-effort cleanup; error is not actionable
-			s.challengeServer.Close()
-		}
+		return err
 	}
 
 	challengeErrCh := make(chan error, 1)
 	go func() {
-		challengeErrCh <- s.challengeServer.Serve(challengeListener)
+		challengeErrCh <- challengeServer.Serve(challengeListener)
 	}()
 
 	if initErr := acmeMgr.Init(context.Background()); initErr != nil {
-		closeChallengeServer()
+		s.closeChallengeServer()
 		return fmt.Errorf("ACME initialization failed: %w", initErr)
 	}
 
 	s.httpServer.Addr = net.JoinHostPort(host, strconv.Itoa(s.cfg.TLS.HTTPSPort))
 	s.httpServer.TLSConfig = acmeMgr.GetTLSConfig()
 
-	httpsListener, err := net.Listen("tcp", s.httpServer.Addr)
+	httpsListener, err := net.Listen("tcp", s.httpServer.Addr) //nolint:noctx // listener is bound once at server startup; no caller-supplied shutdown context is available here
 	if err != nil {
-		closeChallengeServer()
+		s.closeChallengeServer()
 		return fmt.Errorf("https listener bind failed on %s: %w", s.httpServer.Addr, err)
 	}
 
@@ -206,14 +165,91 @@ func (s *Server) startACME() error {
 	}()
 
 	s.logger.Info("starting ACME server",
-		"http_addr", httpAddr,
+		"http_addr", challengeServer.Addr,
 		"https_addr", s.httpServer.Addr,
 		"domain", s.cfg.TLS.ACME.Domain,
 	)
 
+	return s.runACMEServers(httpsErrCh, challengeErrCh)
+}
+
+func validateACMEConfig(cfg *config.Config) error {
+	if cfg.TLS.HTTPPort == 0 {
+		return errors.New("tls.http_port must be set for ACME mode")
+	}
+
+	if cfg.TLS.HTTPSPort == 0 {
+		return errors.New("tls.https_port must be set for ACME mode")
+	}
+
+	if cfg.PublicOrigin == "" {
+		return nil
+	}
+
+	originURL, parseErr := url.Parse(cfg.PublicOrigin)
+	if parseErr != nil || originURL.Host == "" {
+		return nil
+	}
+
+	_, portStr, splitErr := net.SplitHostPort(originURL.Host)
+	if splitErr != nil || portStr == "" {
+		return nil
+	}
+
+	originPort, convErr := strconv.Atoi(portStr)
+	if convErr != nil {
+		return nil
+	}
+
+	if originPort != cfg.TLS.HTTPSPort {
+		return fmt.Errorf("public_origin port %d does not match tls.https_port %d", originPort, cfg.TLS.HTTPSPort)
+	}
+
+	return nil
+}
+
+func (s *Server) startChallengeServer(acmeMgr *tlspkg.ACMEManager, host string) (*http.Server, net.Listener, error) {
+	challengeMux := http.NewServeMux()
+	challengeMux.Handle("/.well-known/acme-challenge/", acmeMgr.ChallengeHandler())
+	challengeMux.Handle("/", newHTTPSRedirectHandler(s.cfg.TLS.HTTPSPort))
+
+	httpAddr := net.JoinHostPort(host, strconv.Itoa(s.cfg.TLS.HTTPPort))
+	challengeServer := &http.Server{
+		Addr:         httpAddr,
+		Handler:      challengeMux,
+		ReadTimeout:  config.DefaultChallengeReadTimeout,
+		WriteTimeout: config.DefaultChallengeWriteTimeout,
+		IdleTimeout:  config.DefaultChallengeIdleTimeout,
+	}
+
+	s.challengeServer = challengeServer
+
+	challengeListener, err := net.Listen("tcp", httpAddr) //nolint:noctx // listener is bound once at server startup; no caller-supplied shutdown context is available here
+	if err != nil {
+		return nil, nil, fmt.Errorf("challenge listener bind failed on %s: %w", httpAddr, err)
+	}
+
+	return challengeServer, challengeListener, nil
+}
+
+func (s *Server) closeChallengeServer() {
+	if s.challengeServer == nil {
+		return
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), config.DefaultServerShutdownTimeout)
+	defer cancel()
+
+	if shutdownErr := s.challengeServer.Shutdown(shutdownCtx); shutdownErr != nil && !errors.Is(shutdownErr, http.ErrServerClosed) {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		s.challengeServer.Close()
+	}
+}
+
+func (s *Server) runACMEServers(httpsErrCh, challengeErrCh chan error) error {
 	select {
 	case httpsErr := <-httpsErrCh:
-		closeChallengeServer()
+		s.closeChallengeServer()
 		return httpsErr
 	case challengeErr := <-challengeErrCh:
 		if errors.Is(challengeErr, http.ErrServerClosed) {

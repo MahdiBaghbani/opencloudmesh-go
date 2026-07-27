@@ -96,174 +96,33 @@ func (h *Handler) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
 
 // HandleCreate handles POST /api/shares/outgoing.
 func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	req, user, ok := h.parseOutgoingRequest(w, r)
+	if !ok {
 		return
 	}
 
-	user, err := h.currentUser(r.Context())
-	if err != nil {
-		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+	cleanPath, resourceType, name, ok := h.resolveLocalResource(w, r, req)
+	if !ok {
 		return
 	}
 
-	var req sharesoutgoing.OutgoingShareRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		api.WriteBadRequest(w, api.ReasonBadRequest, "failed to parse request")
+	providerID, webdavID, sharedSecret, ok := h.generateShareIdentifiers(w, r)
+	if !ok {
 		return
 	}
 
-	if req.ReceiverDomain == "" {
-		api.WriteBadRequest(w, api.ReasonMissingField, "receiverDomain is required")
+	origin, disc, requirements, ok := h.resolveReceiverAndRequirements(w, r, req)
+	if !ok {
 		return
 	}
 
-	if req.ShareWith == "" {
-		api.WriteBadRequest(w, api.ReasonMissingField, "shareWith is required")
-		return
-	}
-
-	if req.LocalPath == "" {
-		api.WriteBadRequest(w, api.ReasonMissingField, "localPath is required")
-		return
-	}
-
-	if len(req.Permissions) == 0 {
-		api.WriteBadRequest(w, api.ReasonMissingField, "permissions is required")
-		return
-	}
-
-	for _, perm := range req.Permissions {
-		supported := false
-
-		for _, allowed := range spec.SupportedWebDAVPermissions {
-			if perm == allowed {
-				supported = true
-				break
-			}
-		}
-
-		if !supported {
-			api.WriteBadRequest(w, api.ReasonInvalidField, "permissions must be read-only")
-			return
-		}
-	}
-
-	cleanPath, err := h.validateLocalPath(req.LocalPath)
-	if err != nil {
-		api.WriteBadRequest(w, api.ReasonInvalidField, err.Error())
-		return
-	}
-
-	stat, err := os.Stat(cleanPath)
-	if err != nil {
-		api.WriteBadRequest(w, api.ReasonInvalidField, "file does not exist")
-		return
-	}
-
-	resourceType := req.ResourceType
-	if resourceType == "" {
-		if stat.IsDir() {
-			resourceType = "folder"
-		} else {
-			resourceType = "file"
-		}
-	}
-
-	name := req.Name
-	if name == "" {
-		name = filepath.Base(cleanPath)
-	}
-
-	providerID, err := uuid.NewV7()
-	if err != nil {
-		h.logger.Error("failed to generate provider id", "error", err)
-		api.WriteInternalError(w, "failed to create share")
-		return
-	}
-
-	webdavID, err := uuid.NewV7()
-	if err != nil {
-		h.logger.Error("failed to generate webdav id", "error", err)
-		api.WriteInternalError(w, "failed to create share")
-		return
-	}
-	sharedSecret, err := generateSharedSecret()
-	if err != nil {
-		h.logger.Error("failed to generate shared secret", "error", err)
-		api.WriteInternalError(w, "failed to create share")
-
+	webdavURI, ok := h.buildWebDAVURI(w, r, req, webdavID, disc)
+	if !ok {
 		return
 	}
 
 	owner := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
-
-	receiverOrigin := h.resolvePeerOrigin(req.ReceiverDomain)
-	if receiverOrigin.baseURL == "" || receiverOrigin.peerDomain == "" {
-		h.logger.Warn("receiver origin resolution failed", "receiver", req.ReceiverDomain)
-		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed,
-			"could not resolve receiver origin")
-
-		return
-	}
-
-	disc, err := h.discoveryClient.Discover(r.Context(), receiverOrigin.baseURL)
-	if err != nil {
-		h.logger.Warn("receiver discovery failed", "receiver", req.ReceiverDomain, "error", err)
-		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed, "could not discover receiver")
-
-		return
-	}
-
-	facts := policy.Facts{}
-	if h.resolver != nil {
-		facts = h.resolver.ResolveFacts(receiverOrigin.peerDomain)
-	}
-
-	mustInclude := mustIncludeTokenExchange(facts, disc)
-	requirements := tokenExchangeRequirements(mustInclude)
-
-	if mustInclude && h.localTokenEndPoint == "" {
-		h.logger.Warn("local sender is not configured for token exchange",
-			"has_token_endpoint", h.localTokenEndPoint != "")
-		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
-			"local sender is not configured for token exchange")
-
-		return
-	}
-
-	if mustInclude && !disc.SupportsTokenExchange() {
-		h.logger.Warn("receiver lacks token-exchange capability",
-			"receiver", req.ReceiverDomain)
-		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
-			"receiver does not advertise exchange-token with tokenEndPoint")
-
-		return
-	}
-
-	webdavURI := webdavID.String()
-	if disc.WebDAVReceiveURIKind() == spec.WebDAVReceiveURIAbsolute {
-		absURI, buildErr := disc.BuildWebDAVURL(webdavID.String())
-		if buildErr != nil {
-			h.logger.Warn("failed to build absolute webdav uri", "receiver", req.ReceiverDomain, "error", buildErr)
-			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
-				"receiver webdav-receive absolute uri could not be built")
-
-			return
-		}
-
-		if h.peerOrigin == nil || !h.peerOrigin.IsAbsoluteURIAllowed(absURI, req.ReceiverDomain) {
-			h.logger.Warn("absolute webdav uri failed peer authority check",
-				"receiver", req.ReceiverDomain, "uri", absURI)
-			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
-				"receiver webdav-receive absolute uri failed authority check")
-
-			return
-		}
-
-		webdavURI = absURI
-	}
 
 	webdavProto := &spec.WebDAVProtocol{
 		URI:          webdavURI,
@@ -286,7 +145,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if err := h.sendShareToReceiver(r.Context(), receiverOrigin, disc, payload); err != nil {
+	if err := h.sendShareToReceiver(r.Context(), origin, disc, payload); err != nil {
 		h.logger.Warn("failed to send share to receiver", "receiver", req.ReceiverDomain, "error", err)
 		api.WriteError(w, http.StatusBadGateway, reason.PeerUnreachable, err.Error())
 
@@ -299,7 +158,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		WebDAVID:         webdavID.String(),
 		SharedSecret:     sharedSecret,
 		LocalPath:        cleanPath,
-		ReceiverHost:     receiverOrigin.peerDomain,
+		ReceiverHost:     origin.peerDomain,
 		ReceiverEndPoint: disc.EndPoint,
 		ShareWith:        req.ShareWith,
 		Name:             name,
@@ -430,4 +289,204 @@ func (h *Handler) resolvePeerOrigin(peerDomain string) resolvedPeerOrigin {
 		baseURL:    decision.BaseURL,
 		peerDomain: decision.PeerDomain,
 	}
+}
+
+func (h *Handler) parseOutgoingRequest(w http.ResponseWriter, r *http.Request) (sharesoutgoing.OutgoingShareRequest, *identity.User, bool) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
+		return sharesoutgoing.OutgoingShareRequest{}, nil, false
+	}
+
+	user, err := h.currentUser(r.Context())
+	if err != nil {
+		api.WriteUnauthorized(w, api.ReasonUnauthenticated, "authentication required")
+
+		return sharesoutgoing.OutgoingShareRequest{}, nil, false
+	}
+
+	var req sharesoutgoing.OutgoingShareRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.WriteBadRequest(w, api.ReasonBadRequest, "failed to parse request")
+
+		return sharesoutgoing.OutgoingShareRequest{}, nil, false
+	}
+
+	if req.ReceiverDomain == "" {
+		api.WriteBadRequest(w, api.ReasonMissingField, "receiverDomain is required")
+
+		return sharesoutgoing.OutgoingShareRequest{}, nil, false
+	}
+
+	if req.ShareWith == "" {
+		api.WriteBadRequest(w, api.ReasonMissingField, "shareWith is required")
+
+		return sharesoutgoing.OutgoingShareRequest{}, nil, false
+	}
+
+	if req.LocalPath == "" {
+		api.WriteBadRequest(w, api.ReasonMissingField, "localPath is required")
+
+		return sharesoutgoing.OutgoingShareRequest{}, nil, false
+	}
+
+	if len(req.Permissions) == 0 {
+		api.WriteBadRequest(w, api.ReasonMissingField, "permissions is required")
+
+		return sharesoutgoing.OutgoingShareRequest{}, nil, false
+	}
+
+	for _, perm := range req.Permissions {
+		supported := false
+
+		for _, allowed := range spec.SupportedWebDAVPermissions {
+			if perm == allowed {
+				supported = true
+
+				break
+			}
+		}
+
+		if !supported {
+			api.WriteBadRequest(w, api.ReasonInvalidField, "permissions must be read-only")
+
+			return sharesoutgoing.OutgoingShareRequest{}, nil, false
+		}
+	}
+
+	return req, user, true
+}
+
+func (h *Handler) resolveLocalResource(w http.ResponseWriter, r *http.Request, req sharesoutgoing.OutgoingShareRequest) (string, string, string, bool) {
+	cleanPath, err := h.validateLocalPath(req.LocalPath)
+	if err != nil {
+		api.WriteBadRequest(w, api.ReasonInvalidField, err.Error())
+
+		return "", "", "", false
+	}
+
+	stat, err := os.Stat(cleanPath)
+	if err != nil {
+		api.WriteBadRequest(w, api.ReasonInvalidField, "file does not exist")
+
+		return "", "", "", false
+	}
+
+	resourceType := req.ResourceType
+	if resourceType == "" {
+		if stat.IsDir() {
+			resourceType = "folder"
+		} else {
+			resourceType = "file"
+		}
+	}
+
+	name := req.Name
+	if name == "" {
+		name = filepath.Base(cleanPath)
+	}
+
+	return cleanPath, resourceType, name, true
+}
+
+func (h *Handler) generateShareIdentifiers(w http.ResponseWriter, r *http.Request) (uuid.UUID, uuid.UUID, string, bool) {
+	providerID, err := uuid.NewV7()
+	if err != nil {
+		h.logger.Error("failed to generate provider id", "error", err)
+		api.WriteInternalError(w, "failed to create share")
+
+		return uuid.UUID{}, uuid.UUID{}, "", false
+	}
+
+	webdavID, err := uuid.NewV7()
+	if err != nil {
+		h.logger.Error("failed to generate webdav id", "error", err)
+		api.WriteInternalError(w, "failed to create share")
+
+		return uuid.UUID{}, uuid.UUID{}, "", false
+	}
+
+	sharedSecret, err := generateSharedSecret()
+	if err != nil {
+		h.logger.Error("failed to generate shared secret", "error", err)
+		api.WriteInternalError(w, "failed to create share")
+
+		return uuid.UUID{}, uuid.UUID{}, "", false
+	}
+
+	return providerID, webdavID, sharedSecret, true
+}
+
+func (h *Handler) resolveReceiverAndRequirements(w http.ResponseWriter, r *http.Request, req sharesoutgoing.OutgoingShareRequest) (resolvedPeerOrigin, *spec.Discovery, []string, bool) {
+	origin := h.resolvePeerOrigin(req.ReceiverDomain)
+	if origin.baseURL == "" || origin.peerDomain == "" {
+		h.logger.Warn("receiver origin resolution failed", "receiver", req.ReceiverDomain)
+		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed,
+			"could not resolve receiver origin")
+
+		return resolvedPeerOrigin{}, nil, nil, false
+	}
+
+	disc, err := h.discoveryClient.Discover(r.Context(), origin.baseURL)
+	if err != nil {
+		h.logger.Warn("receiver discovery failed", "receiver", req.ReceiverDomain, "error", err)
+		api.WriteError(w, reason.APIStatus(reason.PeerDiscoveryFailed), reason.PeerDiscoveryFailed,
+			"could not discover receiver")
+
+		return resolvedPeerOrigin{}, nil, nil, false
+	}
+
+	facts := policy.Facts{}
+	if h.resolver != nil {
+		facts = h.resolver.ResolveFacts(origin.peerDomain)
+	}
+
+	mustInclude := mustIncludeTokenExchange(facts, disc)
+	requirements := tokenExchangeRequirements(mustInclude)
+
+	if mustInclude && h.localTokenEndPoint == "" {
+		h.logger.Warn("local sender is not configured for token exchange",
+			"has_token_endpoint", h.localTokenEndPoint != "")
+		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+			"local sender is not configured for token exchange")
+
+		return resolvedPeerOrigin{}, nil, nil, false
+	}
+
+	if mustInclude && !disc.SupportsTokenExchange() {
+		h.logger.Warn("receiver lacks token-exchange capability", "receiver", req.ReceiverDomain)
+		api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+			"receiver does not advertise exchange-token with tokenEndPoint")
+
+		return resolvedPeerOrigin{}, nil, nil, false
+	}
+
+	return origin, disc, requirements, true
+}
+
+func (h *Handler) buildWebDAVURI(w http.ResponseWriter, r *http.Request, req sharesoutgoing.OutgoingShareRequest, webdavID uuid.UUID, disc *spec.Discovery) (string, bool) {
+	webdavURI := webdavID.String()
+	if disc.WebDAVReceiveURIKind() == spec.WebDAVReceiveURIAbsolute {
+		absURI, buildErr := disc.BuildWebDAVURL(webdavID.String())
+		if buildErr != nil {
+			h.logger.Warn("failed to build absolute webdav uri", "receiver", req.ReceiverDomain, "error", buildErr)
+			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+				"receiver webdav-receive absolute uri could not be built")
+
+			return "", false
+		}
+
+		if h.peerOrigin == nil || !h.peerOrigin.IsAbsoluteURIAllowed(absURI, req.ReceiverDomain) {
+			h.logger.Warn("absolute webdav uri failed peer authority check",
+				"receiver", req.ReceiverDomain, "uri", absURI)
+			api.WriteError(w, reason.APIStatus(reason.PeerCapabilityMismatch), reason.PeerCapabilityMismatch,
+				"receiver webdav-receive absolute uri failed authority check")
+
+			return "", false
+		}
+
+		webdavURI = absURI
+	}
+
+	return webdavURI, true
 }

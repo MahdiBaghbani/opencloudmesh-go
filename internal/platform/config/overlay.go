@@ -122,6 +122,351 @@ type bootstrapAdmin struct {
 	Password string `toml:"password"`
 }
 
+func overlayServerConfig(cfg *Config, fc *serverConfig) {
+	if fc == nil {
+		return
+	}
+
+	if len(fc.TrustedProxies) > 0 {
+		cfg.Server.TrustedProxies = fc.TrustedProxies
+	}
+
+	if fc.BootstrapAdmin != nil {
+		cfg.Server.BootstrapAdmin.Username = fc.BootstrapAdmin.Username
+		cfg.Server.BootstrapAdmin.Password = fc.BootstrapAdmin.Password
+	}
+}
+
+func overlayTLSConfig(cfg *Config, fc *TLSConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.Mode != "" {
+		cfg.TLS.Mode = fc.Mode
+	}
+
+	if fc.CertFile != "" {
+		cfg.TLS.CertFile = fc.CertFile
+	}
+
+	if fc.KeyFile != "" {
+		cfg.TLS.KeyFile = fc.KeyFile
+	}
+
+	if fc.HTTPPort != 0 {
+		cfg.TLS.HTTPPort = fc.HTTPPort
+	}
+
+	if fc.HTTPSPort != 0 {
+		cfg.TLS.HTTPSPort = fc.HTTPSPort
+	}
+
+	if fc.SelfSignedDir != "" {
+		cfg.TLS.SelfSignedDir = fc.SelfSignedDir
+	}
+
+	if fc.TLSDir != "" {
+		cfg.TLS.TLSDir = fc.TLSDir
+	}
+
+	if fc.ACME.Email != "" {
+		cfg.TLS.ACME.Email = fc.ACME.Email
+	}
+
+	if fc.ACME.Domain != "" {
+		cfg.TLS.ACME.Domain = fc.ACME.Domain
+	}
+
+	if fc.ACME.Directory != "" {
+		cfg.TLS.ACME.Directory = fc.ACME.Directory
+	}
+
+	if fc.ACME.StorageDir != "" {
+		cfg.TLS.ACME.StorageDir = fc.ACME.StorageDir
+	}
+	// UseStaging is a bool, we overlay it if ACME section is present
+	cfg.TLS.ACME.UseStaging = fc.ACME.UseStaging
+}
+
+func overlayOutboundHTTPSSRFConfig(cfg *Config, fc *ssrfFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.Mode != "" {
+		cfg.OutboundHTTP.SSRF.Mode = fc.Mode
+	}
+
+	if fc.RoutePolicy != "" {
+		cfg.OutboundHTTP.SSRF.RoutePolicy = fc.RoutePolicy
+	}
+
+	if len(fc.RoutePolicies) > 0 {
+		cfg.OutboundHTTP.SSRF.RoutePolicies = fc.RoutePolicies
+	}
+}
+
+func overlayOutboundHTTPConfig(cfg *Config, fc *outboundHTTPFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	overlayOutboundHTTPSSRFConfig(cfg, fc.SSRF)
+
+	if fc.TimeoutMS != 0 {
+		cfg.OutboundHTTP.TimeoutMS = fc.TimeoutMS
+	}
+
+	if fc.ConnectTimeoutMS != 0 {
+		cfg.OutboundHTTP.ConnectTimeoutMS = fc.ConnectTimeoutMS
+	}
+
+	if fc.MaxRedirects != 0 {
+		cfg.OutboundHTTP.MaxRedirects = fc.MaxRedirects
+	}
+
+	if fc.MaxResponseBytes != 0 {
+		cfg.OutboundHTTP.MaxResponseBytes = fc.MaxResponseBytes
+	}
+	// InsecureSkipVerify is a bool, overlay always when section present
+	cfg.OutboundHTTP.InsecureSkipVerify = fc.InsecureSkipVerify
+
+	if fc.TLSRootCAFile != "" {
+		cfg.OutboundHTTP.TLSRootCAFile = fc.TLSRootCAFile
+	}
+
+	if fc.TLSRootCADir != "" {
+		cfg.OutboundHTTP.TLSRootCADir = fc.TLSRootCADir
+	}
+
+	if fc.ProxyURL != "" {
+		cfg.OutboundHTTP.ProxyURL = fc.ProxyURL
+	}
+
+	if fc.UseEnvFallback != nil {
+		cfg.OutboundHTTP.UseEnvFallback = *fc.UseEnvFallback
+	}
+}
+
+func overlaySignatureConfig(cfg *Config, fc *SignatureConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.KeyPath != "" {
+		cfg.Signature.KeyPath = fc.KeyPath
+	}
+
+	if fc.Label != "" {
+		cfg.Signature.Label = fc.Label
+	}
+
+	if fc.KidFragment != "" {
+		cfg.Signature.KidFragment = fc.KidFragment
+	}
+
+	if fc.CreatedMaxAgeSeconds > 0 {
+		cfg.Signature.CreatedMaxAgeSeconds = fc.CreatedMaxAgeSeconds
+	}
+
+	if fc.CreatedMaxSkewSeconds > 0 {
+		cfg.Signature.CreatedMaxSkewSeconds = fc.CreatedMaxSkewSeconds
+	}
+
+	if len(fc.AllowedAlgorithms) > 0 {
+		cfg.Signature.AllowedAlgorithms = fc.AllowedAlgorithms
+	}
+}
+
+func overlayCacheConfig(cfg *Config, fc *cacheConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.Driver != "" {
+		cfg.Cache.Driver = fc.Driver
+	}
+
+	if len(fc.Drivers) > 0 {
+		cfg.Cache.Drivers = fc.Drivers
+	}
+}
+
+func overlayPeerTrustConfig(cfg *Config, fc *peerTrustConfig) {
+	if fc == nil {
+		return
+	}
+
+	cfg.PeerTrust.Enabled = fc.Enabled
+	if len(fc.ConfigPaths) > 0 {
+		cfg.PeerTrust.ConfigPaths = fc.ConfigPaths
+	}
+
+	if fc.Policy != nil {
+		if len(fc.Policy.AllowList) > 0 {
+			cfg.PeerTrust.Policy.AllowList = fc.Policy.AllowList
+		}
+
+		if len(fc.Policy.DenyList) > 0 {
+			cfg.PeerTrust.Policy.DenyList = fc.Policy.DenyList
+		}
+	}
+
+	if fc.MembershipCache != nil {
+		if fc.MembershipCache.TTLSeconds > 0 {
+			cfg.PeerTrust.MembershipCache.TTLSeconds = fc.MembershipCache.TTLSeconds
+		}
+
+		if fc.MembershipCache.MaxStaleSeconds > 0 {
+			cfg.PeerTrust.MembershipCache.MaxStaleSeconds = fc.MembershipCache.MaxStaleSeconds
+		}
+	}
+}
+
+func overlayLoggingConfig(cfg *Config, fc *loggingConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.Level != "" {
+		cfg.Logging.Level = fc.Level
+	}
+}
+
+func overlayTokenExchangeConfig(cfg *Config, fc *tokenExchangeConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.Path != "" {
+		cfg.TokenExchange.Path = fc.Path
+	}
+}
+
+func overlayHTTPConfig(cfg *Config, fc *httpFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	if len(fc.Services) > 0 {
+		if cfg.HTTP.Services == nil {
+			cfg.HTTP.Services = make(map[string]map[string]any)
+		}
+
+		for name, svcCfg := range fc.Services {
+			cfg.HTTP.Services[name] = svcCfg
+		}
+	}
+
+	if len(fc.Interceptors) > 0 {
+		if cfg.HTTP.Interceptors == nil {
+			cfg.HTTP.Interceptors = make(map[string]map[string]any)
+		}
+
+		for name, intCfg := range fc.Interceptors {
+			cfg.HTTP.Interceptors[name] = intCfg
+		}
+	}
+}
+
+func overlayPersistenceConfig(cfg *Config, fc *persistenceFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.Backend != "" {
+		cfg.Persistence.Backend = fc.Backend
+	}
+
+	if fc.DataDir != "" {
+		cfg.Persistence.DataDir = fc.DataDir
+	}
+}
+
+func overlayOCMCompatibilityScope(cfg *Config, scope string) {
+	if scope == "" {
+		return
+	}
+
+	parsed, err := ParseCompatibilityScope(scope)
+	if err != nil {
+		// Keep the raw value so validateEnums can report the invalid input.
+		cfg.OCM.CompatibilityScope = CompatibilityScope(scope)
+	} else {
+		cfg.OCM.CompatibilityScope = parsed
+	}
+}
+
+func overlayOCMDiscoveryConfig(cfg *Config, fc *discoveryFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.PeerAPIVersionPolicy != "" {
+		cfg.OCM.Discovery.PeerAPIVersionPolicy = fc.PeerAPIVersionPolicy
+	}
+
+	if fc.PeerAPIVersionWarn != "" {
+		cfg.OCM.Discovery.PeerAPIVersionWarn = fc.PeerAPIVersionWarn
+	}
+}
+
+func overlayOCMCodeFlowConfig(cfg *Config, fc *CodeFlowConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.IncludesTokenExchangeRequirement != nil {
+		cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement = fc.IncludesTokenExchangeRequirement
+	}
+
+	if fc.RequiresTokenExchangeRequirement != nil {
+		cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement = fc.RequiresTokenExchangeRequirement
+	}
+
+	if fc.RequiresHTTPRequestSignatures != nil {
+		cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = fc.RequiresHTTPRequestSignatures
+	}
+}
+
+func overlayOCMPeerMappingConfig(cfg *Config, fc *PeerMappingConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.IncludesTokenExchangeRequirement != nil {
+		cfg.OCM.PeerMapping.IncludesTokenExchangeRequirement = fc.IncludesTokenExchangeRequirement
+	}
+
+	if fc.RequiresTokenExchangeRequirement != nil {
+		cfg.OCM.PeerMapping.RequiresTokenExchangeRequirement = fc.RequiresTokenExchangeRequirement
+	}
+
+	if fc.RequiresHTTPRequestSignatures != nil {
+		cfg.OCM.PeerMapping.RequiresHTTPRequestSignatures = fc.RequiresHTTPRequestSignatures
+	}
+
+	if len(fc.HostPlatform) > 0 {
+		cfg.OCM.PeerMapping.HostPlatform = fc.HostPlatform
+	}
+
+	if len(fc.Platform) > 0 {
+		cfg.OCM.PeerMapping.Platform = fc.Platform
+	}
+}
+
+func overlayOCMConfig(cfg *Config, fc *ocmFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	overlayOCMCompatibilityScope(cfg, fc.CompatibilityScope)
+	overlayOCMDiscoveryConfig(cfg, fc.Discovery)
+	overlayOCMCodeFlowConfig(cfg, fc.CodeFlow)
+	overlayOCMPeerMappingConfig(cfg, fc.PeerMapping)
+}
+
 // overlayFileConfig applies TOML file values onto cfg.
 func overlayFileConfig(cfg *Config, fc *fileConfig) {
 	if fc.PublicOrigin != "" {
@@ -136,276 +481,17 @@ func overlayFileConfig(cfg *Config, fc *fileConfig) {
 		cfg.ListenAddr = fc.ListenAddr
 	}
 
-	if fc.Server != nil {
-		if len(fc.Server.TrustedProxies) > 0 {
-			cfg.Server.TrustedProxies = fc.Server.TrustedProxies
-		}
-
-		if fc.Server.BootstrapAdmin != nil {
-			cfg.Server.BootstrapAdmin.Username = fc.Server.BootstrapAdmin.Username
-			cfg.Server.BootstrapAdmin.Password = fc.Server.BootstrapAdmin.Password
-		}
-	}
-
-	if fc.TLS != nil {
-		if fc.TLS.Mode != "" {
-			cfg.TLS.Mode = fc.TLS.Mode
-		}
-
-		if fc.TLS.CertFile != "" {
-			cfg.TLS.CertFile = fc.TLS.CertFile
-		}
-
-		if fc.TLS.KeyFile != "" {
-			cfg.TLS.KeyFile = fc.TLS.KeyFile
-		}
-
-		if fc.TLS.HTTPPort != 0 {
-			cfg.TLS.HTTPPort = fc.TLS.HTTPPort
-		}
-
-		if fc.TLS.HTTPSPort != 0 {
-			cfg.TLS.HTTPSPort = fc.TLS.HTTPSPort
-		}
-
-		if fc.TLS.SelfSignedDir != "" {
-			cfg.TLS.SelfSignedDir = fc.TLS.SelfSignedDir
-		}
-
-		if fc.TLS.TLSDir != "" {
-			cfg.TLS.TLSDir = fc.TLS.TLSDir
-		}
-
-		if fc.TLS.ACME.Email != "" {
-			cfg.TLS.ACME.Email = fc.TLS.ACME.Email
-		}
-
-		if fc.TLS.ACME.Domain != "" {
-			cfg.TLS.ACME.Domain = fc.TLS.ACME.Domain
-		}
-
-		if fc.TLS.ACME.Directory != "" {
-			cfg.TLS.ACME.Directory = fc.TLS.ACME.Directory
-		}
-
-		if fc.TLS.ACME.StorageDir != "" {
-			cfg.TLS.ACME.StorageDir = fc.TLS.ACME.StorageDir
-		}
-		// UseStaging is a bool, we overlay it if ACME section is present
-		cfg.TLS.ACME.UseStaging = fc.TLS.ACME.UseStaging
-	}
-
-	if fc.OutboundHTTP != nil {
-		if fc.OutboundHTTP.SSRF != nil {
-			if fc.OutboundHTTP.SSRF.Mode != "" {
-				cfg.OutboundHTTP.SSRF.Mode = fc.OutboundHTTP.SSRF.Mode
-			}
-
-			if fc.OutboundHTTP.SSRF.RoutePolicy != "" {
-				cfg.OutboundHTTP.SSRF.RoutePolicy = fc.OutboundHTTP.SSRF.RoutePolicy
-			}
-
-			if len(fc.OutboundHTTP.SSRF.RoutePolicies) > 0 {
-				cfg.OutboundHTTP.SSRF.RoutePolicies = fc.OutboundHTTP.SSRF.RoutePolicies
-			}
-		}
-
-		if fc.OutboundHTTP.TimeoutMS != 0 {
-			cfg.OutboundHTTP.TimeoutMS = fc.OutboundHTTP.TimeoutMS
-		}
-
-		if fc.OutboundHTTP.ConnectTimeoutMS != 0 {
-			cfg.OutboundHTTP.ConnectTimeoutMS = fc.OutboundHTTP.ConnectTimeoutMS
-		}
-
-		if fc.OutboundHTTP.MaxRedirects != 0 {
-			cfg.OutboundHTTP.MaxRedirects = fc.OutboundHTTP.MaxRedirects
-		}
-
-		if fc.OutboundHTTP.MaxResponseBytes != 0 {
-			cfg.OutboundHTTP.MaxResponseBytes = fc.OutboundHTTP.MaxResponseBytes
-		}
-		// InsecureSkipVerify is a bool, overlay always when section present
-		cfg.OutboundHTTP.InsecureSkipVerify = fc.OutboundHTTP.InsecureSkipVerify
-		if fc.OutboundHTTP.TLSRootCAFile != "" {
-			cfg.OutboundHTTP.TLSRootCAFile = fc.OutboundHTTP.TLSRootCAFile
-		}
-
-		if fc.OutboundHTTP.TLSRootCADir != "" {
-			cfg.OutboundHTTP.TLSRootCADir = fc.OutboundHTTP.TLSRootCADir
-		}
-
-		if fc.OutboundHTTP.ProxyURL != "" {
-			cfg.OutboundHTTP.ProxyURL = fc.OutboundHTTP.ProxyURL
-		}
-
-		if fc.OutboundHTTP.UseEnvFallback != nil {
-			cfg.OutboundHTTP.UseEnvFallback = *fc.OutboundHTTP.UseEnvFallback
-		}
-	}
-
-	if fc.Signature != nil {
-		if fc.Signature.KeyPath != "" {
-			cfg.Signature.KeyPath = fc.Signature.KeyPath
-		}
-
-		if fc.Signature.Label != "" {
-			cfg.Signature.Label = fc.Signature.Label
-		}
-
-		if fc.Signature.KidFragment != "" {
-			cfg.Signature.KidFragment = fc.Signature.KidFragment
-		}
-
-		if fc.Signature.CreatedMaxAgeSeconds > 0 {
-			cfg.Signature.CreatedMaxAgeSeconds = fc.Signature.CreatedMaxAgeSeconds
-		}
-
-		if fc.Signature.CreatedMaxSkewSeconds > 0 {
-			cfg.Signature.CreatedMaxSkewSeconds = fc.Signature.CreatedMaxSkewSeconds
-		}
-
-		if len(fc.Signature.AllowedAlgorithms) > 0 {
-			cfg.Signature.AllowedAlgorithms = fc.Signature.AllowedAlgorithms
-		}
-	}
-
-	if fc.Cache != nil {
-		if fc.Cache.Driver != "" {
-			cfg.Cache.Driver = fc.Cache.Driver
-		}
-
-		if len(fc.Cache.Drivers) > 0 {
-			cfg.Cache.Drivers = fc.Cache.Drivers
-		}
-	}
-
-	if fc.PeerTrust != nil {
-		cfg.PeerTrust.Enabled = fc.PeerTrust.Enabled
-		if len(fc.PeerTrust.ConfigPaths) > 0 {
-			cfg.PeerTrust.ConfigPaths = fc.PeerTrust.ConfigPaths
-		}
-
-		if fc.PeerTrust.Policy != nil {
-			if len(fc.PeerTrust.Policy.AllowList) > 0 {
-				cfg.PeerTrust.Policy.AllowList = fc.PeerTrust.Policy.AllowList
-			}
-
-			if len(fc.PeerTrust.Policy.DenyList) > 0 {
-				cfg.PeerTrust.Policy.DenyList = fc.PeerTrust.Policy.DenyList
-			}
-		}
-
-		if fc.PeerTrust.MembershipCache != nil {
-			if fc.PeerTrust.MembershipCache.TTLSeconds > 0 {
-				cfg.PeerTrust.MembershipCache.TTLSeconds = fc.PeerTrust.MembershipCache.TTLSeconds
-			}
-
-			if fc.PeerTrust.MembershipCache.MaxStaleSeconds > 0 {
-				cfg.PeerTrust.MembershipCache.MaxStaleSeconds = fc.PeerTrust.MembershipCache.MaxStaleSeconds
-			}
-		}
-	}
-
-	if fc.Logging != nil {
-		if fc.Logging.Level != "" {
-			cfg.Logging.Level = fc.Logging.Level
-		}
-	}
-
-	if fc.TokenExchange != nil {
-		if fc.TokenExchange.Path != "" {
-			cfg.TokenExchange.Path = fc.TokenExchange.Path
-		}
-	}
-
-	if fc.HTTP != nil {
-		if len(fc.HTTP.Services) > 0 {
-			if cfg.HTTP.Services == nil {
-				cfg.HTTP.Services = make(map[string]map[string]any)
-			}
-
-			for name, svcCfg := range fc.HTTP.Services {
-				cfg.HTTP.Services[name] = svcCfg
-			}
-		}
-
-		if len(fc.HTTP.Interceptors) > 0 {
-			if cfg.HTTP.Interceptors == nil {
-				cfg.HTTP.Interceptors = make(map[string]map[string]any)
-			}
-
-			for name, intCfg := range fc.HTTP.Interceptors {
-				cfg.HTTP.Interceptors[name] = intCfg
-			}
-		}
-	}
-
-	if fc.Persistence != nil {
-		if fc.Persistence.Backend != "" {
-			cfg.Persistence.Backend = fc.Persistence.Backend
-		}
-
-		if fc.Persistence.DataDir != "" {
-			cfg.Persistence.DataDir = fc.Persistence.DataDir
-		}
-	}
-
-	if fc.OCM != nil && fc.OCM.CompatibilityScope != "" {
-		scope, err := ParseCompatibilityScope(fc.OCM.CompatibilityScope)
-		if err != nil {
-			// Keep the raw value so validateEnums can report the invalid input.
-			cfg.OCM.CompatibilityScope = CompatibilityScope(fc.OCM.CompatibilityScope)
-		} else {
-			cfg.OCM.CompatibilityScope = scope
-		}
-	}
-
-	if fc.OCM != nil && fc.OCM.Discovery != nil {
-		if fc.OCM.Discovery.PeerAPIVersionPolicy != "" {
-			cfg.OCM.Discovery.PeerAPIVersionPolicy = fc.OCM.Discovery.PeerAPIVersionPolicy
-		}
-
-		if fc.OCM.Discovery.PeerAPIVersionWarn != "" {
-			cfg.OCM.Discovery.PeerAPIVersionWarn = fc.OCM.Discovery.PeerAPIVersionWarn
-		}
-	}
-
-	if fc.OCM != nil && fc.OCM.CodeFlow != nil {
-		if fc.OCM.CodeFlow.IncludesTokenExchangeRequirement != nil {
-			cfg.OCM.CodeFlow.IncludesTokenExchangeRequirement = fc.OCM.CodeFlow.IncludesTokenExchangeRequirement
-		}
-
-		if fc.OCM.CodeFlow.RequiresTokenExchangeRequirement != nil {
-			cfg.OCM.CodeFlow.RequiresTokenExchangeRequirement = fc.OCM.CodeFlow.RequiresTokenExchangeRequirement
-		}
-
-		if fc.OCM.CodeFlow.RequiresHTTPRequestSignatures != nil {
-			cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures = fc.OCM.CodeFlow.RequiresHTTPRequestSignatures
-		}
-	}
-
-	if fc.OCM != nil && fc.OCM.PeerMapping != nil {
-		if fc.OCM.PeerMapping.IncludesTokenExchangeRequirement != nil {
-			cfg.OCM.PeerMapping.IncludesTokenExchangeRequirement = fc.OCM.PeerMapping.IncludesTokenExchangeRequirement
-		}
-
-		if fc.OCM.PeerMapping.RequiresTokenExchangeRequirement != nil {
-			cfg.OCM.PeerMapping.RequiresTokenExchangeRequirement = fc.OCM.PeerMapping.RequiresTokenExchangeRequirement
-		}
-
-		if fc.OCM.PeerMapping.RequiresHTTPRequestSignatures != nil {
-			cfg.OCM.PeerMapping.RequiresHTTPRequestSignatures = fc.OCM.PeerMapping.RequiresHTTPRequestSignatures
-		}
-
-		if len(fc.OCM.PeerMapping.HostPlatform) > 0 {
-			cfg.OCM.PeerMapping.HostPlatform = fc.OCM.PeerMapping.HostPlatform
-		}
-
-		if len(fc.OCM.PeerMapping.Platform) > 0 {
-			cfg.OCM.PeerMapping.Platform = fc.OCM.PeerMapping.Platform
-		}
-	}
+	overlayServerConfig(cfg, fc.Server)
+	overlayTLSConfig(cfg, fc.TLS)
+	overlayOutboundHTTPConfig(cfg, fc.OutboundHTTP)
+	overlaySignatureConfig(cfg, fc.Signature)
+	overlayCacheConfig(cfg, fc.Cache)
+	overlayPeerTrustConfig(cfg, fc.PeerTrust)
+	overlayLoggingConfig(cfg, fc.Logging)
+	overlayTokenExchangeConfig(cfg, fc.TokenExchange)
+	overlayHTTPConfig(cfg, fc.HTTP)
+	overlayPersistenceConfig(cfg, fc.Persistence)
+	overlayOCMConfig(cfg, fc.OCM)
 }
 
 // EnvOutboundHTTPUseEnvFallback is the environment-variable name that overrides

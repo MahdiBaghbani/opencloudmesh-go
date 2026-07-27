@@ -145,58 +145,74 @@ func DeriveFromJWK(kty, crv, jwkAlg string) (string, error) {
 
 	switch kty {
 	case "OKP":
-		if !strings.EqualFold(crv, "Ed25519") {
-			return "", fmt.Errorf("sigalg: unsupported OKP curve %q", crv)
-		}
-
-		if jwkAlg != "" {
-			native, err := Normalize(jwkAlg)
-			if err != nil {
-				return "", err
-			}
-
-			if native != Ed25519 {
-				return "", fmt.Errorf("%w: JWK alg %q incompatible with OKP/Ed25519", ErrAlgorithmMismatch, jwkAlg)
-			}
-		}
-
-		return Ed25519, nil
+		return deriveFromJWKOKP(crv, jwkAlg)
 	case "EC":
-		_, _, fromCrv, _, err := ecParamsFromCrv(crv)
-		if err != nil {
-			return "", err
-		}
-
-		if jwkAlg != "" {
-			native, err := Normalize(jwkAlg)
-			if err != nil {
-				return "", err
-			}
-
-			if native != fromCrv {
-				return "", fmt.Errorf("%w: JWK alg %q incompatible with EC/%s", ErrAlgorithmMismatch, jwkAlg, crv)
-			}
-		}
-
-		return fromCrv, nil
+		return deriveFromJWKEC(crv, jwkAlg)
 	case "RSA":
-		if jwkAlg == "" {
-			return "", fmt.Errorf("%w: RSA JWK requires alg", ErrAlgorithmUnderdetermined)
-		}
-
-		native, err := Normalize(jwkAlg)
-		if err != nil {
-			return "", err
-		}
-
-		switch native {
-		case RSAPKCS1SHA256, RSAPKCS1SHA384, RSAPKCS1SHA512:
-			return native, nil
-		default:
-			return "", fmt.Errorf("sigalg: unsupported RSA algorithm %q", jwkAlg)
-		}
+		return deriveFromJWKRSA(jwkAlg)
 	default:
 		return "", fmt.Errorf("sigalg: unsupported JWK kty %q", kty)
+	}
+}
+
+func deriveFromJWKOKP(crv, jwkAlg string) (string, error) {
+	if !strings.EqualFold(crv, "Ed25519") {
+		return "", fmt.Errorf("sigalg: unsupported OKP curve %q", crv)
+	}
+
+	if jwkAlg == "" {
+		return Ed25519, nil
+	}
+
+	native, err := Normalize(jwkAlg)
+	if err != nil {
+		return "", err
+	}
+
+	if native != Ed25519 {
+		return "", fmt.Errorf("%w: JWK alg %q incompatible with OKP/Ed25519", ErrAlgorithmMismatch, jwkAlg)
+	}
+
+	return Ed25519, nil
+}
+
+func deriveFromJWKEC(crv, jwkAlg string) (string, error) {
+	_, _, fromCrv, _, err := ecParamsFromCrv(crv)
+	if err != nil {
+		return "", err
+	}
+
+	if jwkAlg == "" {
+		return fromCrv, nil
+	}
+
+	native, err := Normalize(jwkAlg)
+	if err != nil {
+		return "", err
+	}
+
+	if native != fromCrv {
+		return "", fmt.Errorf("%w: JWK alg %q incompatible with EC/%s", ErrAlgorithmMismatch, jwkAlg, crv)
+	}
+
+	return fromCrv, nil
+}
+
+func deriveFromJWKRSA(jwkAlg string) (string, error) {
+	if jwkAlg == "" {
+		return "", fmt.Errorf("%w: RSA JWK requires alg", ErrAlgorithmUnderdetermined)
+	}
+
+	native, err := Normalize(jwkAlg)
+	if err != nil {
+		return "", err
+	}
+
+	switch native {
+	case RSAPKCS1SHA256, RSAPKCS1SHA384, RSAPKCS1SHA512:
+		return native, nil
+	default:
+		return "", fmt.Errorf("sigalg: unsupported RSA algorithm %q", jwkAlg)
 	}
 }
 
@@ -417,91 +433,103 @@ type JWKPublicKeyFields struct {
 func PublicKeyFromJWKFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
 	switch strings.ToUpper(strings.TrimSpace(f.Kty)) {
 	case "OKP":
-		if !strings.EqualFold(strings.TrimSpace(f.Crv), "Ed25519") {
-			return nil, fmt.Errorf("sigalg: unsupported OKP curve %q", f.Crv)
-		}
-
-		raw, err := decodeBase64URL(f.X)
-		if err != nil {
-			return nil, fmt.Errorf("sigalg: decode Ed25519 x: %w", err)
-		}
-
-		if len(raw) != ed25519.PublicKeySize {
-			return nil, fmt.Errorf("sigalg: Ed25519 x must be %d bytes, got %d", ed25519.PublicKeySize, len(raw))
-		}
-
-		return ed25519.PublicKey(raw), nil
+		return publicKeyFromOKPFields(f)
 	case "EC":
-		curve, ecdhCurve, _, coordSize, err := ecParamsFromCrv(f.Crv)
-		if err != nil {
-			return nil, err
-		}
-
-		xRaw, err := decodeBase64URL(f.X)
-		if err != nil {
-			return nil, fmt.Errorf("sigalg: decode EC x: %w", err)
-		}
-
-		yRaw, err := decodeBase64URL(f.Y)
-		if err != nil {
-			return nil, fmt.Errorf("sigalg: decode EC y: %w", err)
-		}
-
-		if len(xRaw) > coordSize || len(yRaw) > coordSize {
-			return nil, fmt.Errorf("sigalg: EC coordinate too large for %s", f.Crv)
-		}
-
-		// Validate the point with crypto/ecdh; NIST NewPublicKey accepts the
-		// uncompressed encoding 0x04 || x || y and performs the on-curve check
-		// previously done by the deprecated crypto/elliptic Curve.IsOnCurve.
-		point := make([]byte, 1+2*coordSize)
-		point[0] = 0x04
-		copy(point[1+coordSize-len(xRaw):1+coordSize], xRaw)
-		copy(point[1+2*coordSize-len(yRaw):1+2*coordSize], yRaw)
-
-		if _, err := ecdhCurve.NewPublicKey(point); err != nil {
-			return nil, errors.New("sigalg: EC public key is not on curve")
-		}
-
-		pub := &ecdsa.PublicKey{
-			Curve: curve,
-			X:     new(big.Int).SetBytes(xRaw),
-			Y:     new(big.Int).SetBytes(yRaw),
-		}
-
-		return pub, nil
+		return publicKeyFromECFields(f)
 	case "RSA":
-		nRaw, err := decodeBase64URL(f.N)
-		if err != nil {
-			return nil, fmt.Errorf("sigalg: decode RSA n: %w", err)
-		}
-
-		eRaw, err := decodeBase64URL(f.E)
-		if err != nil {
-			return nil, fmt.Errorf("sigalg: decode RSA e: %w", err)
-		}
-
-		if len(nRaw) == 0 || len(eRaw) == 0 {
-			return nil, errors.New("sigalg: RSA JWK missing n or e")
-		}
-
-		eBI := new(big.Int).SetBytes(eRaw)
-		if !eBI.IsInt64() {
-			return nil, errors.New("sigalg: RSA exponent too large")
-		}
-
-		ei := eBI.Int64()
-		if ei < 2 || ei > int64(^uint(0)>>1) {
-			return nil, fmt.Errorf("sigalg: invalid RSA exponent")
-		}
-
-		return &rsa.PublicKey{
-			N: new(big.Int).SetBytes(nRaw),
-			E: int(ei),
-		}, nil
+		return publicKeyFromRSAFields(f)
 	default:
 		return nil, fmt.Errorf("sigalg: unsupported JWK kty %q", f.Kty)
 	}
+}
+
+func publicKeyFromOKPFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
+	if !strings.EqualFold(strings.TrimSpace(f.Crv), "Ed25519") {
+		return nil, fmt.Errorf("sigalg: unsupported OKP curve %q", f.Crv)
+	}
+
+	raw, err := decodeBase64URL(f.X)
+	if err != nil {
+		return nil, fmt.Errorf("sigalg: decode Ed25519 x: %w", err)
+	}
+
+	if len(raw) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("sigalg: Ed25519 x must be %d bytes, got %d", ed25519.PublicKeySize, len(raw))
+	}
+
+	return ed25519.PublicKey(raw), nil
+}
+
+func publicKeyFromECFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
+	curve, ecdhCurve, _, coordSize, err := ecParamsFromCrv(f.Crv)
+	if err != nil {
+		return nil, err
+	}
+
+	xRaw, err := decodeBase64URL(f.X)
+	if err != nil {
+		return nil, fmt.Errorf("sigalg: decode EC x: %w", err)
+	}
+
+	yRaw, err := decodeBase64URL(f.Y)
+	if err != nil {
+		return nil, fmt.Errorf("sigalg: decode EC y: %w", err)
+	}
+
+	if len(xRaw) > coordSize || len(yRaw) > coordSize {
+		return nil, fmt.Errorf("sigalg: EC coordinate too large for %s", f.Crv)
+	}
+
+	// Validate the point with crypto/ecdh; NIST NewPublicKey accepts the
+	// uncompressed encoding 0x04 || x || y and performs the on-curve check
+	// previously done by the deprecated crypto/elliptic Curve.IsOnCurve.
+	point := make([]byte, 1+2*coordSize)
+	point[0] = 0x04
+	copy(point[1+coordSize-len(xRaw):1+coordSize], xRaw)
+	copy(point[1+2*coordSize-len(yRaw):1+2*coordSize], yRaw)
+
+	if _, err := ecdhCurve.NewPublicKey(point); err != nil {
+		return nil, errors.New("sigalg: EC public key is not on curve")
+	}
+
+	pub := &ecdsa.PublicKey{
+		Curve: curve,
+		X:     new(big.Int).SetBytes(xRaw),
+		Y:     new(big.Int).SetBytes(yRaw),
+	}
+
+	return pub, nil
+}
+
+func publicKeyFromRSAFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
+	nRaw, err := decodeBase64URL(f.N)
+	if err != nil {
+		return nil, fmt.Errorf("sigalg: decode RSA n: %w", err)
+	}
+
+	eRaw, err := decodeBase64URL(f.E)
+	if err != nil {
+		return nil, fmt.Errorf("sigalg: decode RSA e: %w", err)
+	}
+
+	if len(nRaw) == 0 || len(eRaw) == 0 {
+		return nil, errors.New("sigalg: RSA JWK missing n or e")
+	}
+
+	eBI := new(big.Int).SetBytes(eRaw)
+	if !eBI.IsInt64() {
+		return nil, errors.New("sigalg: RSA exponent too large")
+	}
+
+	ei := eBI.Int64()
+	if ei < 2 || ei > int64(^uint(0)>>1) {
+		return nil, fmt.Errorf("sigalg: invalid RSA exponent")
+	}
+
+	return &rsa.PublicKey{
+		N: new(big.Int).SetBytes(nRaw),
+		E: int(ei),
+	}, nil
 }
 
 // PublicKeyFromJWK resolves an Ed25519 public key from a base64url-encoded x

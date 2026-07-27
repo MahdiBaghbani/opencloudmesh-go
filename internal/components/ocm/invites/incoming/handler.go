@@ -59,134 +59,30 @@ func NewHandler(
 // See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
 // See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L439-L443
 func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	req, ok := h.parseInviteAcceptedRequest(w, r)
+	if !ok {
+		return
+	}
+
+	invite, ok := h.lookupAndValidateInvite(w, r, req)
+	if !ok {
+		return
+	}
+
+	if !h.verifyInviteSenderAndPolicy(w, r, req) {
 		return
 	}
 
 	log := appctx.GetLogger(r.Context())
 
-	ct := r.Header.Get("Content-Type")
-	if !strings.HasPrefix(ct, "application/json") {
-		h.sendOCMError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE")
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Warn("failed to read invite-accepted request body", "error", err)
-		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
-
-		return
-	}
-
-	var rawFields map[string]json.RawMessage
-	if err := json.Unmarshal(body, &rawFields); err != nil {
-		log.Warn("failed to parse invite-accepted request", "error", err)
-		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
-
-		return
-	}
-
-	if _, ok := rawFields["email"]; !ok {
-		h.sendOCMError(w, http.StatusBadRequest, "EMAIL_REQUIRED")
-		return
-	}
-
-	if _, ok := rawFields["name"]; !ok {
-		h.sendOCMError(w, http.StatusBadRequest, "NAME_REQUIRED")
-		return
-	}
-
-	var req spec.InviteAcceptedRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		log.Warn("failed to decode invite-accepted request", "error", err)
-		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
-
-		return
-	}
-
-	if req.RecipientProvider == "" {
-		h.sendOCMError(w, http.StatusBadRequest, "RECIPIENT_PROVIDER_REQUIRED")
-		return
-	}
-
-	if strings.Contains(req.RecipientProvider, "://") {
-		h.sendOCMError(w, http.StatusBadRequest, "INVALID_RECIPIENT_PROVIDER")
-		return
-	}
-
-	if req.Token == "" {
-		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_REQUIRED")
-		return
-	}
-
-	if req.UserID == "" {
-		h.sendOCMError(w, http.StatusBadRequest, "USERID_REQUIRED")
-		return
-	}
-
-	ctx := r.Context()
-
-	invite, err := h.outgoingRepo.GetByToken(ctx, req.Token)
-	if err != nil {
-		log.Warn("invite-accepted for unknown token", "recipient_provider", req.RecipientProvider)
-		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_INVALID")
-
-		return
-	}
-
-	if !invite.ExpiresAt.IsZero() && time.Now().After(invite.ExpiresAt) {
-		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_EXPIRED")
-		return
-	}
-
-	if invite.Status == invites.InviteStatusAccepted {
-		log.Info("duplicate invite-accepted", "recipient_provider", req.RecipientProvider)
-		h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
-
-		return
-	}
-
-	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
-
-	normalizedRecipientProvider := req.RecipientProvider
-	if peerIdentity != nil && peerIdentity.Authenticated {
-		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
-		if err != nil {
-			log.Warn("failed to normalize recipient provider",
-				"recipient_provider", req.RecipientProvider, "error", err)
-			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
-
-			return
-		}
-
-		normalizedRecipientProvider = normalizedRecipient
-		if peerIdentity.AuthorityForCompare != normalizedRecipient {
-			log.Warn("invite-accepted sender mismatch",
-				"signature_authority", peerIdentity.AuthorityForCompare,
-				"recipient_provider", req.RecipientProvider)
-			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
-
-			return
-		}
-	}
-
-	if h.policyEngine != nil {
-		decision := h.policyEngine.Evaluate(ctx, normalizedRecipientProvider, peerIdentity != nil && peerIdentity.Authenticated)
-		if !decision.Allowed {
-			h.sendOCMError(w, http.StatusForbidden, "INVITE_RECEIVER_NOT_TRUSTED")
-			return
-		}
-	}
-
-	response, ok := h.buildInviteAcceptedResponse(ctx, invite, log)
+	response, ok := h.buildInviteAcceptedResponse(r.Context(), invite, log)
 	if !ok {
 		h.sendOCMError(w, http.StatusInternalServerError, "INVITER_IDENTITY_UNAVAILABLE")
+
 		return
 	}
 
-	if err := h.outgoingRepo.UpdateStatus(ctx, invite.ID, invites.InviteStatusAccepted, req.RecipientProvider); err != nil {
+	if err := h.outgoingRepo.UpdateStatus(r.Context(), invite.ID, invites.InviteStatusAccepted, req.RecipientProvider); err != nil {
 		log.Error("failed to update invite status", "id", invite.ID, "error", err)
 		h.sendOCMError(w, http.StatusInternalServerError, "UPDATE_FAILED")
 
@@ -210,6 +106,7 @@ func (h *Handler) buildInviteAcceptedResponse(
 ) (spec.InviteAcceptedResponse, bool) {
 	if invite.CreatedByUserID == "" {
 		log.Error("invite-accepted missing local inviting user id", "invite_id", invite.ID)
+
 		return spec.InviteAcceptedResponse{}, false
 	}
 
@@ -235,4 +132,151 @@ func (h *Handler) sendOCMError(w http.ResponseWriter, status int, message string
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": message,
 	})
+}
+
+func (h *Handler) parseInviteAcceptedRequest(w http.ResponseWriter, r *http.Request) (spec.InviteAcceptedRequest, bool) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	log := appctx.GetLogger(r.Context())
+
+	ct := r.Header.Get("Content-Type")
+	if !strings.HasPrefix(ct, "application/json") {
+		h.sendOCMError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Warn("failed to read invite-accepted request body", "error", err)
+		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &rawFields); err != nil {
+		log.Warn("failed to parse invite-accepted request", "error", err)
+		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	if _, ok := rawFields["email"]; !ok {
+		h.sendOCMError(w, http.StatusBadRequest, "EMAIL_REQUIRED")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	if _, ok := rawFields["name"]; !ok {
+		h.sendOCMError(w, http.StatusBadRequest, "NAME_REQUIRED")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	var req spec.InviteAcceptedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		log.Warn("failed to decode invite-accepted request", "error", err)
+		h.sendOCMError(w, http.StatusBadRequest, "INVALID_BODY")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	if req.RecipientProvider == "" {
+		h.sendOCMError(w, http.StatusBadRequest, "RECIPIENT_PROVIDER_REQUIRED")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	if strings.Contains(req.RecipientProvider, "://") {
+		h.sendOCMError(w, http.StatusBadRequest, "INVALID_RECIPIENT_PROVIDER")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	if req.Token == "" {
+		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_REQUIRED")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	if req.UserID == "" {
+		h.sendOCMError(w, http.StatusBadRequest, "USERID_REQUIRED")
+
+		return spec.InviteAcceptedRequest{}, false
+	}
+
+	return req, true
+}
+
+func (h *Handler) lookupAndValidateInvite(w http.ResponseWriter, r *http.Request, req spec.InviteAcceptedRequest) (*invitesoutgoing.OutgoingInvite, bool) {
+	log := appctx.GetLogger(r.Context())
+	ctx := r.Context()
+
+	invite, err := h.outgoingRepo.GetByToken(ctx, req.Token)
+	if err != nil {
+		log.Warn("invite-accepted for unknown token", "recipient_provider", req.RecipientProvider)
+		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_INVALID")
+
+		return nil, false
+	}
+
+	if !invite.ExpiresAt.IsZero() && time.Now().After(invite.ExpiresAt) {
+		h.sendOCMError(w, http.StatusBadRequest, "TOKEN_EXPIRED")
+
+		return nil, false
+	}
+
+	if invite.Status == invites.InviteStatusAccepted {
+		log.Info("duplicate invite-accepted", "recipient_provider", req.RecipientProvider)
+		h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
+
+		return nil, false
+	}
+
+	return invite, true
+}
+
+func (h *Handler) verifyInviteSenderAndPolicy(w http.ResponseWriter, r *http.Request, req spec.InviteAcceptedRequest) bool {
+	log := appctx.GetLogger(r.Context())
+	ctx := r.Context()
+
+	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
+
+	normalizedRecipientProvider := req.RecipientProvider
+	if peerIdentity != nil && peerIdentity.Authenticated {
+		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
+		if err != nil {
+			log.Warn("failed to normalize recipient provider",
+				"recipient_provider", req.RecipientProvider, "error", err)
+			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+
+			return false
+		}
+
+		normalizedRecipientProvider = normalizedRecipient
+		if peerIdentity.AuthorityForCompare != normalizedRecipient {
+			log.Warn("invite-accepted sender mismatch",
+				"signature_authority", peerIdentity.AuthorityForCompare,
+				"recipient_provider", req.RecipientProvider)
+			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+
+			return false
+		}
+	}
+
+	if h.policyEngine != nil {
+		decision := h.policyEngine.Evaluate(ctx, normalizedRecipientProvider, peerIdentity != nil && peerIdentity.Authenticated)
+		if !decision.Allowed {
+			h.sendOCMError(w, http.StatusForbidden, "INVITE_RECEIVER_NOT_TRUSTED")
+
+			return false
+		}
+	}
+
+	return true
 }

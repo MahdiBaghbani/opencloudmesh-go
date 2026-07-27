@@ -92,33 +92,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
 
-	var userAuth *identity.UserAuth
-	if opts.FastAuth {
-		userAuth = identity.NewUserAuthFast()
-	} else {
-		userAuth = identity.NewUserAuth()
-	}
+	userAuth := buildUserAuth(opts)
 
-	var keyManager *crypto.KeyManager
-
-	if !opts.SkipCrypto {
-		keyDir := filepath.Dir(cfg.Signature.KeyPath)
-		if keyDir != "" && keyDir != "." {
-			if err := os.MkdirAll(keyDir, 0700); err != nil {
-				return BuildResult{}, fmt.Errorf("create key directory %q: %w", keyDir, err)
-			}
-		}
-
-		keyManager = crypto.NewKeyManagerWithFragment(
-			cfg.Signature.KeyPath,
-			localIdentity.Origin,
-			cfg.Signature.KidFragment,
-		)
-		if err := keyManager.LoadOrGenerate(); err != nil {
-			return BuildResult{}, fmt.Errorf("initialize signing key: %w", err)
-		}
-
-		logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
+	keyManager, err := buildKeyManager(cfg, localIdentity, opts, logger)
+	if err != nil {
+		return BuildResult{}, err
 	}
 
 	facts := codeFlow.Evaluate()
@@ -126,10 +104,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, fmt.Errorf("ocm: code flow requires HTTP request signatures but no signing key is configured")
 	}
 
-	outboundCfg := &cfg.OutboundHTTP
-	if opts.OutboundOverride != nil {
-		outboundCfg = opts.OutboundOverride
-	}
+	outboundCfg := resolveOutboundConfig(cfg, opts)
 
 	rootCAPool, err := tlspkg.BuildRootCAPool(outboundCfg.TLSRootCAFile, outboundCfg.TLSRootCADir)
 	if err != nil {
@@ -139,67 +114,26 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 	rawHTTPClient := httpclient.New(outboundCfg, rootCAPool)
 	httpClient := httpclient.NewContextClient(rawHTTPClient)
 
-	cacheDriver := cfg.Cache.Driver
-	if cacheDriver == "" {
-		cacheDriver = "memory"
-	}
-
-	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)
+	cacheInstance, err := buildCacheInstance(cfg)
 	if err != nil {
-		return BuildResult{}, fmt.Errorf("create cache: %w", err)
+		return BuildResult{}, err
 	}
 
-	var discoveryCache cache.Cache
+	discoveryCache := cache.Cache(cacheInstance)
 	if opts.SkipDiscoveryCache {
 		discoveryCache = cache.NewNoopCache()
-	} else {
-		discoveryCache = cacheInstance
 	}
 
 	discoveryClient := discovery.NewClient(rawHTTPClient, discoveryCache)
 	discoveryClient.SetVersionPolicy(versionPolicy)
 	discoveryClient.SetLogger(logger)
 
-	var (
-		trustGroupMgr *peertrust.TrustGroupManager
-		policyEngine  *peertrust.PolicyEngine
-	)
-
-	if !opts.SkipPeerTrust && cfg.PeerTrust.Enabled {
-		refreshTimeout := time.Duration(outboundCfg.TimeoutMS) * time.Millisecond
-		cacheConfig := peertrust.CacheConfig{
-			TTL:      time.Duration(cfg.PeerTrust.MembershipCache.TTLSeconds) * time.Second,
-			MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
-		}
-
-		dirServiceClient := directoryservice.NewClient(rawHTTPClient, "required", logger)
-		trustGroupMgr = peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, localIdentity.Scheme, logger, refreshTimeout)
-
-		for _, cfgPath := range cfg.PeerTrust.ConfigPaths {
-			tgCfg, err := peertrust.LoadTrustGroupConfig(cfgPath)
-			if err != nil {
-				logger.Warn("failed to load trust group config", "path", cfgPath, "error", err)
-				continue
-			}
-
-			trustGroupMgr.AddTrustGroup(tgCfg)
-			logger.Info("loaded trust group", "trust_group_id", tgCfg.TrustGroupID, "enabled", tgCfg.Enabled)
-		}
-
-		policyCfg := &peertrust.PolicyConfig{
-			AllowList: cfg.PeerTrust.Policy.AllowList,
-			DenyList:  cfg.PeerTrust.Policy.DenyList,
-		}
-		policyEngine = peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
-		logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths))
+	trustGroupMgr, policyEngine, err := buildPeerTrust(cfg, localIdentity, rawHTTPClient, logger, opts)
+	if err != nil {
+		return BuildResult{}, err
 	}
 
-	var signer *crypto.RFC9421Signer
-
-	if keyManager != nil {
-		signerOpts := crypto.RFC9421OptionsFromConfig(cfg.Signature)
-		signer = crypto.NewRFC9421SignerWithOptions(keyManager, signerOpts)
-	}
+	signer := buildSigner(cfg, keyManager)
 
 	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(rawHTTPClient)
 	peerDiscoveryAdapter.SetPeerOrigin(peerOrigin)
@@ -243,4 +177,117 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		RootCAPool:  rootCAPool,
 		Persistence: persistence,
 	}, nil
+}
+
+func buildUserAuth(opts BuildOpts) *identity.UserAuth {
+	if opts.FastAuth {
+		return identity.NewUserAuthFast()
+	}
+
+	return identity.NewUserAuth()
+}
+
+func buildKeyManager(
+	cfg *config.Config,
+	localIdentity localidentity.Identity,
+	opts BuildOpts,
+	logger *slog.Logger,
+) (*crypto.KeyManager, error) {
+	if opts.SkipCrypto {
+		return nil, nil
+	}
+
+	keyDir := filepath.Dir(cfg.Signature.KeyPath)
+	if keyDir != "" && keyDir != "." {
+		if err := os.MkdirAll(keyDir, 0700); err != nil {
+			return nil, fmt.Errorf("create key directory %q: %w", keyDir, err)
+		}
+	}
+
+	keyManager := crypto.NewKeyManagerWithFragment(
+		cfg.Signature.KeyPath,
+		localIdentity.Origin,
+		cfg.Signature.KidFragment,
+	)
+	if err := keyManager.LoadOrGenerate(); err != nil {
+		return nil, fmt.Errorf("initialize signing key: %w", err)
+	}
+
+	logger.Info("initialized signing key", "keyId", keyManager.GetKeyID())
+
+	return keyManager, nil
+}
+
+func resolveOutboundConfig(cfg *config.Config, opts BuildOpts) *config.OutboundHTTPConfig {
+	if opts.OutboundOverride != nil {
+		return opts.OutboundOverride
+	}
+
+	return &cfg.OutboundHTTP
+}
+
+func buildCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
+	cacheDriver := cfg.Cache.Driver
+	if cacheDriver == "" {
+		cacheDriver = "memory"
+	}
+
+	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)
+	if err != nil {
+		return nil, fmt.Errorf("create cache: %w", err)
+	}
+
+	return cacheInstance, nil
+}
+
+func buildPeerTrust(
+	cfg *config.Config,
+	localIdentity localidentity.Identity,
+	rawHTTPClient *httpclient.Client,
+	logger *slog.Logger,
+	opts BuildOpts,
+) (*peertrust.TrustGroupManager, *peertrust.PolicyEngine, error) {
+	if opts.SkipPeerTrust || !cfg.PeerTrust.Enabled {
+		return nil, nil, nil
+	}
+
+	outboundCfg := resolveOutboundConfig(cfg, opts)
+	refreshTimeout := time.Duration(outboundCfg.TimeoutMS) * time.Millisecond
+	cacheConfig := peertrust.CacheConfig{
+		TTL:      time.Duration(cfg.PeerTrust.MembershipCache.TTLSeconds) * time.Second,
+		MaxStale: time.Duration(cfg.PeerTrust.MembershipCache.MaxStaleSeconds) * time.Second,
+	}
+
+	dirServiceClient := directoryservice.NewClient(rawHTTPClient, "required", logger)
+	trustGroupMgr := peertrust.NewTrustGroupManager(cacheConfig, dirServiceClient, localIdentity.Scheme, logger, refreshTimeout)
+
+	for _, cfgPath := range cfg.PeerTrust.ConfigPaths {
+		tgCfg, err := peertrust.LoadTrustGroupConfig(cfgPath)
+		if err != nil {
+			logger.Warn("failed to load trust group config", "path", cfgPath, "error", err)
+			continue
+		}
+
+		trustGroupMgr.AddTrustGroup(tgCfg)
+		logger.Info("loaded trust group", "trust_group_id", tgCfg.TrustGroupID, "enabled", tgCfg.Enabled)
+	}
+
+	policyCfg := &peertrust.PolicyConfig{
+		AllowList: cfg.PeerTrust.Policy.AllowList,
+		DenyList:  cfg.PeerTrust.Policy.DenyList,
+	}
+	policyEngine := peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
+	logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths))
+
+	return trustGroupMgr, policyEngine, nil
+}
+
+func buildSigner(cfg *config.Config, keyManager *crypto.KeyManager) *crypto.RFC9421Signer {
+	if keyManager == nil {
+		return nil
+	}
+
+	signerOpts := crypto.RFC9421OptionsFromConfig(cfg.Signature)
+
+	return crypto.NewRFC9421SignerWithOptions(keyManager, signerOpts)
 }

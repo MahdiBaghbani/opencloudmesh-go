@@ -27,54 +27,20 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 	// Preflight: verify creation, initialization, name, and interface compliance
 	// using the original cfg. Closing it immediately after checks keeps the
 	// original DataDir's artifacts intact for caller assertions.
-	preflight, err := store.New(cfg)
-	if err != nil {
-		t.Fatalf("failed to create %s driver: %v", driverName, err)
-	}
-
-	if err := preflight.Init(ctx); err != nil {
-		if closeErr := preflight.Close(); closeErr != nil {
-			t.Fatalf("failed to init %s driver: %v (close: %v)", driverName, err, closeErr)
-		}
-
-		t.Fatalf("failed to init %s driver: %v", driverName, err)
-	}
+	preflight := createPreflightDriver(t, ctx, driverName, cfg)
 
 	if preflight.Name() != driverName {
 		t.Errorf("expected driver name %q, got %q", driverName, preflight.Name())
 	}
 
-	if _, ok := preflight.(store.OutgoingShareStore); !ok {
-		if closeErr := preflight.Close(); closeErr != nil {
-			t.Fatalf("%s driver does not implement OutgoingShareStore (close: %v)", driverName, closeErr)
-		}
-
-		t.Fatalf("%s driver does not implement OutgoingShareStore", driverName)
-	}
-
-	if _, ok := preflight.(store.IncomingShareStore); !ok {
-		if closeErr := preflight.Close(); closeErr != nil {
-			t.Fatalf("%s driver does not implement IncomingShareStore (close: %v)", driverName, closeErr)
-		}
-
-		t.Fatalf("%s driver does not implement IncomingShareStore", driverName)
-	}
-
-	if _, ok := preflight.(store.OutgoingInviteStore); !ok {
-		if closeErr := preflight.Close(); closeErr != nil {
-			t.Fatalf("%s driver does not implement OutgoingInviteStore (close: %v)", driverName, closeErr)
-		}
-
-		t.Fatalf("%s driver does not implement OutgoingInviteStore", driverName)
-	}
-
-	if _, ok := preflight.(store.IncomingInviteStore); !ok {
-		if closeErr := preflight.Close(); closeErr != nil {
-			t.Fatalf("%s driver does not implement IncomingInviteStore (close: %v)", driverName, closeErr)
-		}
-
-		t.Fatalf("%s driver does not implement IncomingInviteStore", driverName)
-	}
+	_, ok := preflight.(store.OutgoingShareStore)
+	requireDriverImplements(t, driverName, preflight.Close, ok, "OutgoingShareStore")
+	_, ok = preflight.(store.IncomingShareStore)
+	requireDriverImplements(t, driverName, preflight.Close, ok, "IncomingShareStore")
+	_, ok = preflight.(store.OutgoingInviteStore)
+	requireDriverImplements(t, driverName, preflight.Close, ok, "OutgoingInviteStore")
+	_, ok = preflight.(store.IncomingInviteStore)
+	requireDriverImplements(t, driverName, preflight.Close, ok, "IncomingInviteStore")
 
 	if err := preflight.Close(); err != nil {
 		t.Fatalf("close preflight %s driver: %v", driverName, err)
@@ -170,6 +136,43 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 	})
 }
 
+func createPreflightDriver(t *testing.T, ctx context.Context, driverName string, cfg *store.DriverConfig) store.Driver {
+	t.Helper()
+
+	preflight, err := store.New(cfg)
+	if err != nil {
+		t.Fatalf("failed to create %s driver: %v", driverName, err)
+	}
+
+	if err := preflight.Init(ctx); err != nil {
+		if closeErr := preflight.Close(); closeErr != nil {
+			t.Fatalf("failed to init %s driver: %v (close: %v)", driverName, err, closeErr)
+		}
+
+		t.Fatalf("failed to init %s driver: %v", driverName, err)
+	}
+
+	return preflight
+}
+
+func requireDriverImplements(
+	t *testing.T,
+	driverName string,
+	close func() error,
+	ok bool,
+	name string,
+) {
+	t.Helper()
+
+	if !ok {
+		if closeErr := close(); closeErr != nil {
+			t.Fatalf("%s driver does not implement %s (close: %v)", driverName, name, closeErr)
+		}
+
+		t.Fatalf("%s driver does not implement %s", driverName, name)
+	}
+}
+
 // cloneConfig returns a shallow copy of cfg with DataDir replaced by dir.
 func cloneConfig(cfg *store.DriverConfig, dir string) *store.DriverConfig {
 	c := *cfg
@@ -225,7 +228,21 @@ func requireIncomingInviteStore(t *testing.T, d store.Driver) store.IncomingInvi
 func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingShareStore) {
 	share := NewOutgoingShareFixture()
 
-	// Create
+	createOutgoingShare(t, ctx, s, share)
+	requireOutgoingShareByIDEquals(t, ctx, s, share)
+	requireOutgoingShareByProviderIDEquals(t, ctx, s, share)
+	requireOutgoingShareByWebDAVIDEquals(t, ctx, s, share)
+	requireOutgoingShareBySharedSecretEquals(t, ctx, s, share)
+	updateOutgoingShareState(t, ctx, s, share, "accepted")
+	requireOutgoingShareStateEquals(t, ctx, s, share.ProviderId, "accepted")
+	requireOutgoingShareListNonEmpty(t, ctx, s)
+	deleteOutgoingShare(t, ctx, s, share.ProviderId)
+	requireOutgoingShareNotFound(t, ctx, s, share.ProviderId)
+}
+
+func createOutgoingShare(t *testing.T, ctx context.Context, s store.OutgoingShareStore, share *store.OutgoingShare) {
+	t.Helper()
+
 	if err := s.CreateOutgoingShare(ctx, share); err != nil {
 		t.Fatalf("CreateOutgoingShare failed: %v", err)
 	}
@@ -235,63 +252,85 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 			t.Errorf("cleanup: DeleteOutgoingShare: %v", err)
 		}
 	})
+}
 
-	// Get by local share id
-	gotByID, err := s.GetOutgoingShareByID(ctx, share.ShareId)
+func requireOutgoingShareByIDEquals(t *testing.T, ctx context.Context, s store.OutgoingShareStore, want *store.OutgoingShare) {
+	t.Helper()
+
+	got, err := s.GetOutgoingShareByID(ctx, want.ShareId)
 	if err != nil {
 		t.Fatalf("GetOutgoingShareByID failed: %v", err)
 	}
 
-	if gotByID.ShareId != share.ShareId {
-		t.Errorf("expected shareId %q, got %q", share.ShareId, gotByID.ShareId)
+	if got.ShareId != want.ShareId {
+		t.Errorf("expected shareId %q, got %q", want.ShareId, got.ShareId)
 	}
+}
 
-	// Get by providerId
-	got, err := s.GetOutgoingShare(ctx, share.ProviderId)
+func requireOutgoingShareByProviderIDEquals(t *testing.T, ctx context.Context, s store.OutgoingShareStore, want *store.OutgoingShare) {
+	t.Helper()
+
+	got, err := s.GetOutgoingShare(ctx, want.ProviderId)
 	if err != nil {
 		t.Fatalf("GetOutgoingShare failed: %v", err)
 	}
 
-	if got.ProviderId != share.ProviderId {
-		t.Errorf("expected providerId %q, got %q", share.ProviderId, got.ProviderId)
+	if got.ProviderId != want.ProviderId {
+		t.Errorf("expected providerId %q, got %q", want.ProviderId, got.ProviderId)
 	}
+}
 
-	// Get by webdavId
-	got, err = s.GetOutgoingShareByWebDAVId(ctx, share.WebDAVId)
+func requireOutgoingShareByWebDAVIDEquals(t *testing.T, ctx context.Context, s store.OutgoingShareStore, want *store.OutgoingShare) {
+	t.Helper()
+
+	got, err := s.GetOutgoingShareByWebDAVId(ctx, want.WebDAVId)
 	if err != nil {
 		t.Fatalf("GetOutgoingShareByWebDAVId failed: %v", err)
 	}
 
-	if got.WebDAVId != share.WebDAVId {
-		t.Errorf("expected webdavId %q, got %q", share.WebDAVId, got.WebDAVId)
+	if got.WebDAVId != want.WebDAVId {
+		t.Errorf("expected webdavId %q, got %q", want.WebDAVId, got.WebDAVId)
 	}
+}
 
-	// Get by shared secret
-	gotBySecret, err := s.GetOutgoingShareBySharedSecret(ctx, share.SharedSecret)
+func requireOutgoingShareBySharedSecretEquals(t *testing.T, ctx context.Context, s store.OutgoingShareStore, want *store.OutgoingShare) {
+	t.Helper()
+
+	got, err := s.GetOutgoingShareBySharedSecret(ctx, want.SharedSecret)
 	if err != nil {
 		t.Fatalf("GetOutgoingShareBySharedSecret failed: %v", err)
 	}
 
-	if gotBySecret.SharedSecret != share.SharedSecret {
-		t.Errorf("expected sharedSecret %q, got %q", share.SharedSecret, gotBySecret.SharedSecret)
+	if got.SharedSecret != want.SharedSecret {
+		t.Errorf("expected sharedSecret %q, got %q", want.SharedSecret, got.SharedSecret)
 	}
+}
 
-	// Update
-	share.State = "accepted"
+func updateOutgoingShareState(t *testing.T, ctx context.Context, s store.OutgoingShareStore, share *store.OutgoingShare, state string) {
+	t.Helper()
+
+	share.State = state
 	if err := s.UpdateOutgoingShare(ctx, share); err != nil {
 		t.Fatalf("UpdateOutgoingShare failed: %v", err)
 	}
+}
 
-	got, err = s.GetOutgoingShare(ctx, share.ProviderId)
+func requireOutgoingShareStateEquals(t *testing.T, ctx context.Context, s store.OutgoingShareStore, providerID, want string) {
+	t.Helper()
+
+	got, err := s.GetOutgoingShare(ctx, providerID)
 	if err != nil {
 		t.Fatalf("GetOutgoingShare after update failed: %v", err)
 	}
 
-	if got.State != "accepted" {
-		t.Errorf("expected state 'accepted', got %q", got.State)
+	if got.State != want {
+		t.Errorf("expected state %q, got %q", want, got.State)
 	}
+}
 
-	// List
+func requireOutgoingShareListNonEmpty(t *testing.T, ctx context.Context, s store.OutgoingShareStore) {
+	t.Helper()
+
 	shares, err := s.ListOutgoingShares(ctx)
 	if err != nil {
 		t.Fatalf("ListOutgoingShares failed: %v", err)
@@ -300,14 +339,20 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	if len(shares) == 0 {
 		t.Error("expected at least one share in list")
 	}
+}
 
-	// Delete
-	if err := s.DeleteOutgoingShare(ctx, share.ProviderId); err != nil {
+func deleteOutgoingShare(t *testing.T, ctx context.Context, s store.OutgoingShareStore, providerID string) {
+	t.Helper()
+
+	if err := s.DeleteOutgoingShare(ctx, providerID); err != nil {
 		t.Fatalf("DeleteOutgoingShare failed: %v", err)
 	}
+}
 
-	// Verify deleted
-	_, err = s.GetOutgoingShare(ctx, share.ProviderId)
+func requireOutgoingShareNotFound(t *testing.T, ctx context.Context, s store.OutgoingShareStore, providerID string) {
+	t.Helper()
+
+	_, err := s.GetOutgoingShare(ctx, providerID)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
@@ -315,11 +360,22 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 
 func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingShareStore) {
 	share := NewIncomingShareFixture()
-	// Seed an older UpdatedAt so the post-update assertion is meaningful even at
-	// second resolution: the update must set a timestamp strictly greater than this.
 	share.UpdatedAt = time.Now().Add(-2 * time.Second).Unix()
 
-	// Create
+	createIncomingShare(t, ctx, s, share)
+	requireIncomingShareByIDForRecipient(t, ctx, s, share)
+	requireIncomingShareNotFoundForRecipient(t, ctx, s, share.ShareId, "other-user")
+	requireIncomingShareByProviderKey(t, ctx, s, share)
+	updateIncomingShareStatusAndAssert(t, ctx, s, share, "accepted")
+	requireIncomingShareStatusUpdateNotFoundForRecipient(t, ctx, s, share.ShareId, "other-user", "accepted")
+	requireIncomingShareListByRecipientNonEmpty(t, ctx, s, share.UserId)
+	deleteIncomingShareForRecipient(t, ctx, s, share.ShareId, share.UserId)
+	requireIncomingShareNotFoundForRecipient(t, ctx, s, share.ShareId, share.UserId)
+}
+
+func createIncomingShare(t *testing.T, ctx context.Context, s store.IncomingShareStore, share *store.IncomingShare) {
+	t.Helper()
+
 	if err := s.CreateIncomingShare(ctx, share); err != nil {
 		t.Fatalf("CreateIncomingShare failed: %v", err)
 	}
@@ -329,36 +385,48 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient: %v", err)
 		}
 	})
+}
 
-	// Get by shareId scoped to recipient
-	got, err := s.GetIncomingShareByIDForRecipient(ctx, share.ShareId, share.UserId)
+func requireIncomingShareByIDForRecipient(t *testing.T, ctx context.Context, s store.IncomingShareStore, want *store.IncomingShare) {
+	t.Helper()
+
+	got, err := s.GetIncomingShareByIDForRecipient(ctx, want.ShareId, want.UserId)
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient failed: %v", err)
 	}
 
-	if got.ShareId != share.ShareId {
-		t.Errorf("expected shareId %q, got %q", share.ShareId, got.ShareId)
+	if got.ShareId != want.ShareId {
+		t.Errorf("expected shareId %q, got %q", want.ShareId, got.ShareId)
 	}
+}
 
-	// Cross-user access must return not found
-	_, err = s.GetIncomingShareByIDForRecipient(ctx, share.ShareId, "other-user")
+func requireIncomingShareNotFoundForRecipient(t *testing.T, ctx context.Context, s store.IncomingShareStore, shareID, userID string) {
+	t.Helper()
+
+	_, err := s.GetIncomingShareByIDForRecipient(ctx, shareID, userID)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for wrong recipient, got %v", err)
 	}
+}
 
-	// Get by provider key (sender-scoped)
-	got, err = s.GetIncomingShareByProviderKey(ctx, share.SendingServer, share.ProviderId)
+func requireIncomingShareByProviderKey(t *testing.T, ctx context.Context, s store.IncomingShareStore, want *store.IncomingShare) {
+	t.Helper()
+
+	got, err := s.GetIncomingShareByProviderKey(ctx, want.SendingServer, want.ProviderId)
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey failed: %v", err)
 	}
 
-	if got.ShareId != share.ShareId {
-		t.Errorf("expected shareId %q, got %q", share.ShareId, got.ShareId)
+	if got.ShareId != want.ShareId {
+		t.Errorf("expected shareId %q, got %q", want.ShareId, got.ShareId)
 	}
+}
 
-	// Update status scoped to recipient
+func updateIncomingShareStatusAndAssert(t *testing.T, ctx context.Context, s store.IncomingShareStore, share *store.IncomingShare, state string) {
+	t.Helper()
+
 	priorUpdatedAt := share.UpdatedAt
-	if err := s.UpdateIncomingShareStatusForRecipient(ctx, share.ShareId, share.UserId, "accepted"); err != nil {
+	if err := s.UpdateIncomingShareStatusForRecipient(ctx, share.ShareId, share.UserId, state); err != nil {
 		t.Fatalf("UpdateIncomingShareStatusForRecipient failed: %v", err)
 	}
 
@@ -367,8 +435,8 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 		t.Fatalf("GetIncomingShareByIDForRecipient after status update failed: %v", err)
 	}
 
-	if updated.State != "accepted" {
-		t.Errorf("expected state 'accepted' after status update, got %q", updated.State)
+	if updated.State != state {
+		t.Errorf("expected state %q after status update, got %q", state, updated.State)
 	}
 
 	if updated.UpdatedAt <= priorUpdatedAt {
@@ -378,15 +446,28 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 			priorUpdatedAt,
 		)
 	}
+}
 
-	// Cross-user update must return not found
-	err = s.UpdateIncomingShareStatusForRecipient(ctx, share.ShareId, "other-user", "accepted")
+func requireIncomingShareStatusUpdateNotFoundForRecipient(
+	t *testing.T,
+	ctx context.Context,
+	s store.IncomingShareStore,
+	shareID,
+	userID,
+	state string,
+) {
+	t.Helper()
+
+	err := s.UpdateIncomingShareStatusForRecipient(ctx, shareID, userID, state)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for wrong recipient on update, got %v", err)
 	}
+}
 
-	// List by recipient
-	shares, err := s.ListIncomingSharesByRecipient(ctx, share.UserId)
+func requireIncomingShareListByRecipientNonEmpty(t *testing.T, ctx context.Context, s store.IncomingShareStore, userID string) {
+	t.Helper()
+
+	shares, err := s.ListIncomingSharesByRecipient(ctx, userID)
 	if err != nil {
 		t.Fatalf("ListIncomingSharesByRecipient failed: %v", err)
 	}
@@ -394,16 +475,13 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 	if len(shares) == 0 {
 		t.Error("expected at least one share in list")
 	}
+}
 
-	// Delete scoped to recipient
-	if err := s.DeleteIncomingShareForRecipient(ctx, share.ShareId, share.UserId); err != nil {
+func deleteIncomingShareForRecipient(t *testing.T, ctx context.Context, s store.IncomingShareStore, shareID, userID string) {
+	t.Helper()
+
+	if err := s.DeleteIncomingShareForRecipient(ctx, shareID, userID); err != nil {
 		t.Fatalf("DeleteIncomingShareForRecipient failed: %v", err)
-	}
-
-	// Verify deleted
-	_, err = s.GetIncomingShareByIDForRecipient(ctx, share.ShareId, share.UserId)
-	if !errors.Is(err, store.ErrNotFound) {
-		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
 }
 
@@ -461,12 +539,24 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 	}
 }
 
-// runOutgoingInviteCRUD tests CRUD operations for outgoing invites, including
-// that the token index stays consistent when the token changes on update.
 func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingInviteStore) {
 	invite := NewOutgoingInviteFixture()
 
-	// Create
+	createOutgoingInvite(t, ctx, s, invite)
+	requireDuplicateCreateOutgoingInviteFails(t, ctx, s, invite)
+	requireOutgoingInviteByID(t, ctx, s, invite)
+	requireOutgoingInviteByToken(t, ctx, s, invite)
+	oldToken := updateOutgoingInviteTokenAndStatus(t, ctx, s, invite, "new-invite-token", "accepted")
+	requireOutgoingInviteByTokenNotFound(t, ctx, s, oldToken)
+	requireOutgoingInviteByTokenHasStatus(t, ctx, s, invite.Token, "accepted")
+	requireOutgoingInviteListByUserNonEmpty(t, ctx, s, invite.CreatedByUserId)
+	deleteOutgoingInvite(t, ctx, s, invite.ID)
+	requireOutgoingInviteNotFound(t, ctx, s, invite.ID)
+}
+
+func createOutgoingInvite(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, invite *store.OutgoingInvite) {
+	t.Helper()
+
 	if err := s.CreateOutgoingInvite(ctx, invite); err != nil {
 		t.Fatalf("CreateOutgoingInvite failed: %v", err)
 	}
@@ -476,13 +566,19 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 			t.Errorf("cleanup: DeleteOutgoingInvite: %v", err)
 		}
 	})
+}
 
-	// Duplicate create must fail
+func requireDuplicateCreateOutgoingInviteFails(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, invite *store.OutgoingInvite) {
+	t.Helper()
+
 	if err := s.CreateOutgoingInvite(ctx, invite); !errors.Is(err, store.ErrAlreadyExists) {
 		t.Errorf("expected ErrAlreadyExists on duplicate create, got %v", err)
 	}
+}
 
-	// Get by id
+func requireOutgoingInviteByID(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, invite *store.OutgoingInvite) {
+	t.Helper()
+
 	got, err := s.GetOutgoingInvite(ctx, invite.ID)
 	if err != nil {
 		t.Fatalf("GetOutgoingInvite failed: %v", err)
@@ -491,9 +587,12 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	if got.Token != invite.Token {
 		t.Errorf("expected token %q, got %q", invite.Token, got.Token)
 	}
+}
 
-	// Get by token
-	got, err = s.GetOutgoingInviteByToken(ctx, invite.Token)
+func requireOutgoingInviteByToken(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, invite *store.OutgoingInvite) {
+	t.Helper()
+
+	got, err := s.GetOutgoingInviteByToken(ctx, invite.Token)
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken failed: %v", err)
 	}
@@ -501,34 +600,55 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	if got.ID != invite.ID {
 		t.Errorf("expected id %q, got %q", invite.ID, got.ID)
 	}
+}
 
-	// Update with a new token - old token index entry must be removed.
+func updateOutgoingInviteTokenAndStatus(
+	t *testing.T,
+	ctx context.Context,
+	s store.OutgoingInviteStore,
+	invite *store.OutgoingInvite,
+	newToken,
+	newStatus string,
+) string {
+	t.Helper()
+
 	oldToken := invite.Token
-	invite.Token = "new-invite-token"
+	invite.Token = newToken
+	invite.Status = newStatus
 
-	invite.Status = "accepted"
 	if err := s.UpdateOutgoingInvite(ctx, invite); err != nil {
 		t.Fatalf("UpdateOutgoingInvite failed: %v", err)
 	}
 
-	// Old token must no longer resolve.
-	_, err = s.GetOutgoingInviteByToken(ctx, oldToken)
+	return oldToken
+}
+
+func requireOutgoingInviteByTokenNotFound(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, token string) {
+	t.Helper()
+
+	_, err := s.GetOutgoingInviteByToken(ctx, token)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for stale token after update, got %v", err)
 	}
+}
 
-	// New token must resolve correctly.
-	got, err = s.GetOutgoingInviteByToken(ctx, invite.Token)
+func requireOutgoingInviteByTokenHasStatus(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, token, want string) {
+	t.Helper()
+
+	got, err := s.GetOutgoingInviteByToken(ctx, token)
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken for new token failed: %v", err)
 	}
 
-	if got.Status != "accepted" {
-		t.Errorf("expected status 'accepted', got %q", got.Status)
+	if got.Status != want {
+		t.Errorf("expected status %q, got %q", want, got.Status)
 	}
+}
 
-	// List by user
-	invites, err := s.ListOutgoingInvites(ctx, invite.CreatedByUserId)
+func requireOutgoingInviteListByUserNonEmpty(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, userID string) {
+	t.Helper()
+
+	invites, err := s.ListOutgoingInvites(ctx, userID)
 	if err != nil {
 		t.Fatalf("ListOutgoingInvites failed: %v", err)
 	}
@@ -536,14 +656,20 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	if len(invites) == 0 {
 		t.Error("expected at least one invite in list")
 	}
+}
 
-	// Delete
-	if err := s.DeleteOutgoingInvite(ctx, invite.ID); err != nil {
+func deleteOutgoingInvite(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, id string) {
+	t.Helper()
+
+	if err := s.DeleteOutgoingInvite(ctx, id); err != nil {
 		t.Fatalf("DeleteOutgoingInvite failed: %v", err)
 	}
+}
 
-	// Verify deleted
-	_, err = s.GetOutgoingInvite(ctx, invite.ID)
+func requireOutgoingInviteNotFound(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, id string) {
+	t.Helper()
+
+	_, err := s.GetOutgoingInvite(ctx, id)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
@@ -555,7 +681,23 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.IncomingInviteStore) {
 	invite := NewIncomingInviteFixture()
 
-	// Create
+	createIncomingInvite(t, ctx, s, invite)
+	requireIncomingInviteForRecipient(t, ctx, s, invite)
+	requireIncomingInviteNotFoundForRecipient(t, ctx, s, invite.ID, "other-user")
+	requireIncomingInviteByTokenForRecipient(t, ctx, s, invite)
+	requireIncomingInviteByTokenNotFoundForRecipient(t, ctx, s, invite.Token, "other-user")
+	updateIncomingInviteStatusAndAssert(t, ctx, s, invite, "accepted")
+	requireIncomingInviteStatusUpdateNotFoundForRecipient(t, ctx, s, invite.ID, "other-user", "declined")
+	requireIncomingInviteByTokenHasStatus(t, ctx, s, invite.Token, invite.RecipientUserId, "accepted")
+	requireIncomingInviteListByRecipientNonEmpty(t, ctx, s, invite.RecipientUserId)
+	requireIncomingInviteDeleteNotFoundForRecipient(t, ctx, s, invite.ID, "other-user")
+	deleteIncomingInviteForRecipient(t, ctx, s, invite.ID, invite.RecipientUserId)
+	requireIncomingInviteNotFoundForRecipient(t, ctx, s, invite.ID, invite.RecipientUserId)
+}
+
+func createIncomingInvite(t *testing.T, ctx context.Context, s store.IncomingInviteStore, invite *store.IncomingInvite) {
+	t.Helper()
+
 	if err := s.CreateIncomingInvite(ctx, invite); err != nil {
 		t.Fatalf("CreateIncomingInvite failed: %v", err)
 	}
@@ -565,8 +707,11 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 			t.Errorf("cleanup: DeleteIncomingInviteForRecipient: %v", err)
 		}
 	})
+}
 
-	// Get by id scoped to recipient
+func requireIncomingInviteForRecipient(t *testing.T, ctx context.Context, s store.IncomingInviteStore, invite *store.IncomingInvite) {
+	t.Helper()
+
 	got, err := s.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId)
 	if err != nil {
 		t.Fatalf("GetIncomingInviteForRecipient failed: %v", err)
@@ -575,15 +720,21 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	if got.Token != invite.Token {
 		t.Errorf("expected token %q, got %q", invite.Token, got.Token)
 	}
+}
 
-	// Cross-user get must return not found
-	_, err = s.GetIncomingInviteForRecipient(ctx, invite.ID, "other-user")
+func requireIncomingInviteNotFoundForRecipient(t *testing.T, ctx context.Context, s store.IncomingInviteStore, id, userID string) {
+	t.Helper()
+
+	_, err := s.GetIncomingInviteForRecipient(ctx, id, userID)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user get, got %v", err)
 	}
+}
 
-	// Get by token scoped to recipient
-	got, err = s.GetIncomingInviteByToken(ctx, invite.Token, invite.RecipientUserId)
+func requireIncomingInviteByTokenForRecipient(t *testing.T, ctx context.Context, s store.IncomingInviteStore, invite *store.IncomingInvite) {
+	t.Helper()
+
+	got, err := s.GetIncomingInviteByToken(ctx, invite.Token, invite.RecipientUserId)
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken failed: %v", err)
 	}
@@ -591,37 +742,37 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	if got.ID != invite.ID {
 		t.Errorf("expected id %q, got %q", invite.ID, got.ID)
 	}
+}
 
-	// Cross-user token lookup must return not found
-	_, err = s.GetIncomingInviteByToken(ctx, invite.Token, "other-user")
+func requireIncomingInviteByTokenNotFoundForRecipient(t *testing.T, ctx context.Context, s store.IncomingInviteStore, token, userID string) {
+	t.Helper()
+
+	_, err := s.GetIncomingInviteByToken(ctx, token, userID)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user token lookup, got %v", err)
 	}
+}
 
-	// Status update scoped to recipient
+func updateIncomingInviteStatusAndAssert(t *testing.T, ctx context.Context, s store.IncomingInviteStore, invite *store.IncomingInvite, state string) {
+	t.Helper()
+
 	beforeUpdate := time.Now().Unix()
 
-	if err := s.UpdateIncomingInviteStatusForRecipient(
-		ctx, invite.ID, invite.RecipientUserId, "accepted",
-	); err != nil {
+	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserId, state); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", err)
 	}
 
-	got, err = s.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId)
+	got, err := s.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId)
 	if err != nil {
 		t.Fatalf("GetIncomingInviteForRecipient after update failed: %v", err)
 	}
 
-	if got.Status != "accepted" {
-		t.Errorf("expected status 'accepted' after update, got %q", got.Status)
+	if got.Status != state {
+		t.Errorf("expected status %q after update, got %q", state, got.Status)
 	}
-	// Scope-defining fields must be unchanged
+
 	if got.Token != invite.Token {
-		t.Errorf(
-			"token must not change on status update: expected %q, got %q",
-			invite.Token,
-			got.Token,
-		)
+		t.Errorf("token must not change on status update: expected %q, got %q", invite.Token, got.Token)
 	}
 
 	if got.RecipientUserId != invite.RecipientUserId {
@@ -631,7 +782,7 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 			got.RecipientUserId,
 		)
 	}
-	// UpdatedAt must be refreshed
+
 	if got.UpdatedAt < beforeUpdate {
 		t.Errorf(
 			"UpdatedAt not refreshed after status update: got %d, expected >= %d",
@@ -639,25 +790,41 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 			beforeUpdate,
 		)
 	}
+}
 
-	// Cross-user status update must return not found
-	err = s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "other-user", "declined")
+func requireIncomingInviteStatusUpdateNotFoundForRecipient(
+	t *testing.T,
+	ctx context.Context,
+	s store.IncomingInviteStore,
+	id,
+	userID,
+	state string,
+) {
+	t.Helper()
+
+	err := s.UpdateIncomingInviteStatusForRecipient(ctx, id, userID, state)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user status update, got %v", err)
 	}
+}
 
-	// Token index must still resolve after status update (token did not change)
-	got, err = s.GetIncomingInviteByToken(ctx, invite.Token, invite.RecipientUserId)
+func requireIncomingInviteByTokenHasStatus(t *testing.T, ctx context.Context, s store.IncomingInviteStore, token, userID, want string) {
+	t.Helper()
+
+	got, err := s.GetIncomingInviteByToken(ctx, token, userID)
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken must still work after status update: %v", err)
 	}
 
-	if got.Status != "accepted" {
+	if got.Status != want {
 		t.Errorf("expected updated status via token lookup, got %q", got.Status)
 	}
+}
 
-	// List by recipient
-	invites, err := s.ListIncomingInvites(ctx, invite.RecipientUserId)
+func requireIncomingInviteListByRecipientNonEmpty(t *testing.T, ctx context.Context, s store.IncomingInviteStore, userID string) {
+	t.Helper()
+
+	invites, err := s.ListIncomingInvites(ctx, userID)
 	if err != nil {
 		t.Fatalf("ListIncomingInvites failed: %v", err)
 	}
@@ -665,22 +832,22 @@ func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.
 	if len(invites) == 0 {
 		t.Error("expected at least one invite in list")
 	}
+}
 
-	// Cross-user delete must return not found
-	err = s.DeleteIncomingInviteForRecipient(ctx, invite.ID, "other-user")
+func requireIncomingInviteDeleteNotFoundForRecipient(t *testing.T, ctx context.Context, s store.IncomingInviteStore, id, userID string) {
+	t.Helper()
+
+	err := s.DeleteIncomingInviteForRecipient(ctx, id, userID)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user delete, got %v", err)
 	}
+}
 
-	// Delete scoped to recipient
-	if err := s.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId); err != nil {
+func deleteIncomingInviteForRecipient(t *testing.T, ctx context.Context, s store.IncomingInviteStore, id, userID string) {
+	t.Helper()
+
+	if err := s.DeleteIncomingInviteForRecipient(ctx, id, userID); err != nil {
 		t.Fatalf("DeleteIncomingInviteForRecipient failed: %v", err)
-	}
-
-	// Verify deleted
-	_, err = s.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserId)
-	if !errors.Is(err, store.ErrNotFound) {
-		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
 }
 
@@ -801,17 +968,8 @@ func runOutgoingShareDuplicateSharedSecret(
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
-	if err := s.CreateOutgoingShare(ctx, first); err != nil {
-		t.Fatalf("CreateOutgoingShare(first): %v", err)
-	}
+	createOutgoingShare(t, ctx, s, first)
 
-	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, first.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("cleanup: DeleteOutgoingShare first: %v", err)
-		}
-	})
-
-	// Same SharedSecret, different ProviderId: must fail.
 	second := &store.OutgoingShare{
 		ShareId:      "dup-secret-share-2",
 		ProviderId:   "dup-secret-provider-2",
@@ -829,25 +987,9 @@ func runOutgoingShareDuplicateSharedSecret(
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
-	if err := s.CreateOutgoingShare(ctx, second); !errors.Is(err, store.ErrAlreadyExists) {
-		t.Fatalf("expected ErrAlreadyExists for duplicate SharedSecret on create, got %v", err)
-	}
+	requireDuplicateSharedSecretCreateFails(t, ctx, s, second)
+	requireOutgoingShareBySharedSecretProviderID(t, ctx, s, "dup-shared-secret", "dup-secret-provider-1")
 
-	// Original must still be returned by GetOutgoingShareBySharedSecret.
-	got, err := s.GetOutgoingShareBySharedSecret(ctx, "dup-shared-secret")
-	if err != nil {
-		t.Fatalf("GetOutgoingShareBySharedSecret after conflict: %v", err)
-	}
-
-	if got.ProviderId != "dup-secret-provider-1" {
-		t.Errorf(
-			"original share overwritten: expected dup-secret-provider-1, got %q",
-			got.ProviderId,
-		)
-	}
-
-	// A third share with a different secret may be created, then updated to steal the
-	// existing secret - this must also fail.
 	third := &store.OutgoingShare{
 		ShareId:      "dup-secret-share-3",
 		ProviderId:   "dup-secret-provider-3",
@@ -865,22 +1007,9 @@ func runOutgoingShareDuplicateSharedSecret(
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
-	if err := s.CreateOutgoingShare(ctx, third); err != nil {
-		t.Fatalf("CreateOutgoingShare(third): %v", err)
-	}
+	createOutgoingShare(t, ctx, s, third)
+	requireUpdateSharedSecretFails(t, ctx, s, third, "dup-shared-secret")
 
-	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, third.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("cleanup: DeleteOutgoingShare third: %v", err)
-		}
-	})
-
-	third.SharedSecret = "dup-shared-secret"
-	if err := s.UpdateOutgoingShare(ctx, third); !errors.Is(err, store.ErrAlreadyExists) {
-		t.Errorf("expected ErrAlreadyExists for conflicting SharedSecret on update, got %v", err)
-	}
-
-	// Multiple shares with an empty SharedSecret must be allowed.
 	noSecret1 := &store.OutgoingShare{
 		ShareId:      "no-secret-share-1",
 		ProviderId:   "no-secret-provider-1",
@@ -915,26 +1044,38 @@ func runOutgoingShareDuplicateSharedSecret(
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
+	createOutgoingShare(t, ctx, s, noSecret1)
+	createOutgoingShare(t, ctx, s, noSecret2)
+}
 
-	if err := s.CreateOutgoingShare(ctx, noSecret1); err != nil {
-		t.Fatalf("CreateOutgoingShare(noSecret1): %v", err)
+func requireDuplicateSharedSecretCreateFails(t *testing.T, ctx context.Context, s store.OutgoingShareStore, share *store.OutgoingShare) {
+	t.Helper()
+
+	if err := s.CreateOutgoingShare(ctx, share); !errors.Is(err, store.ErrAlreadyExists) {
+		t.Fatalf("expected ErrAlreadyExists for duplicate SharedSecret on create, got %v", err)
+	}
+}
+
+func requireOutgoingShareBySharedSecretProviderID(t *testing.T, ctx context.Context, s store.OutgoingShareStore, secret, want string) {
+	t.Helper()
+
+	got, err := s.GetOutgoingShareBySharedSecret(ctx, secret)
+	if err != nil {
+		t.Fatalf("GetOutgoingShareBySharedSecret after conflict: %v", err)
 	}
 
-	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, noSecret1.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("cleanup: DeleteOutgoingShare noSecret1: %v", err)
-		}
-	})
-
-	if err := s.CreateOutgoingShare(ctx, noSecret2); err != nil {
-		t.Fatalf("CreateOutgoingShare(noSecret2) with same empty secret: %v", err)
+	if got.ProviderId != want {
+		t.Errorf("original share overwritten: expected %q, got %q", want, got.ProviderId)
 	}
+}
 
-	t.Cleanup(func() {
-		if err := s.DeleteOutgoingShare(ctx, noSecret2.ProviderId); err != nil && !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("cleanup: DeleteOutgoingShare noSecret2: %v", err)
-		}
-	})
+func requireUpdateSharedSecretFails(t *testing.T, ctx context.Context, s store.OutgoingShareStore, share *store.OutgoingShare, targetSecret string) {
+	t.Helper()
+
+	share.SharedSecret = targetSecret
+	if err := s.UpdateOutgoingShare(ctx, share); !errors.Is(err, store.ErrAlreadyExists) {
+		t.Errorf("expected ErrAlreadyExists for conflicting SharedSecret on update, got %v", err)
+	}
 }
 
 // runOutgoingShareEmptySharedSecretLookup verifies that empty shared secret is

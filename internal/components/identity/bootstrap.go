@@ -90,13 +90,7 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 
 	if existingSuperAdmin != nil {
 		if explicitPasswordSet && password != "" {
-			hash, err := b.auth.HashPassword(password)
-			if err != nil {
-				return err
-			}
-
-			existingSuperAdmin.PasswordHash = hash
-			if err := b.repo.Update(ctx, existingSuperAdmin); err != nil {
+			if err := b.rotateSuperAdminPassword(ctx, existingSuperAdmin, password); err != nil {
 				return err
 			}
 
@@ -150,6 +144,17 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	}
 
 	return nil
+}
+
+func (b *Bootstrap) rotateSuperAdminPassword(ctx context.Context, admin *User, password string) error {
+	hash, err := b.auth.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	admin.PasswordHash = hash
+
+	return b.repo.Update(ctx, admin)
 }
 
 func generateRandomPassword() (string, error) {

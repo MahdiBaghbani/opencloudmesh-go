@@ -130,6 +130,19 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		resp.Body.Close()
 	}()
 
+	body, err := c.readResponseBody(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode >= 400 {
+		return c.buildErrorResult(resp, body, req)
+	}
+
+	return c.parseTokenResult(body, resp.Header.Get("Content-Type"))
+}
+
+func (c *Client) readResponseBody(resp *http.Response) ([]byte, error) {
 	maxBytes := int64(config.DefaultMaxResponseBytes)
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
@@ -149,57 +162,61 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		)
 	}
 
-	if resp.StatusCode >= 400 {
-		// Auth failures (401/403) must fail closed and not be retried.
-		// Keep them distinct so callers can distinguish missing credentials
-		// from a rejected signature or an explicit denial.
-		switch resp.StatusCode {
-		case http.StatusForbidden:
-			return nil, reason.NewClassifiedError(
-				reason.ReasonTokenForbidden,
-				"token exchange failed with status 403",
-				nil,
-			)
-		case http.StatusUnauthorized:
-			if req.Header.Get("Signature") == "" {
-				return nil, reason.NewClassifiedError(
-					reason.ReasonTokenUnauthorized,
-					"token exchange failed with status 401",
-					nil,
-				)
-			}
-			// Signed request was rejected; prefer the OAuth error detail if
-			// the peer supplied one, otherwise fall back to signature required.
-			var oauthErr token.OAuthError
-			if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
-				return nil, c.classifyOAuthError(oauthErr)
-			}
+	return body, nil
+}
 
+func (c *Client) buildErrorResult(resp *http.Response, body []byte, req *http.Request) (*ExchangeResult, error) {
+	// Auth failures (401/403) must fail closed and not be retried.
+	// Keep them distinct so callers can distinguish missing credentials
+	// from a rejected signature or an explicit denial.
+	switch resp.StatusCode {
+	case http.StatusForbidden:
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenForbidden,
+			"token exchange failed with status 403",
+			nil,
+		)
+	case http.StatusUnauthorized:
+		if req.Header.Get("Signature") == "" {
 			return nil, reason.NewClassifiedError(
-				reason.ReasonSignatureRequired,
-				fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
-				nil,
-			)
-		default:
-			var oauthErr token.OAuthError
-			if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
-				return nil, c.classifyOAuthError(oauthErr)
-			}
-
-			return nil, reason.NewClassifiedError(
-				reason.ReasonTokenExchangeFailed,
-				fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
+				reason.ReasonTokenUnauthorized,
+				"token exchange failed with status 401",
 				nil,
 			)
 		}
-	}
+		// Signed request was rejected; prefer the OAuth error detail if
+		// the peer supplied one, otherwise fall back to signature required.
+		var oauthErr token.OAuthError
+		if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
+			return nil, c.classifyOAuthError(oauthErr)
+		}
 
-	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		return nil, reason.NewClassifiedError(
+			reason.ReasonSignatureRequired,
+			fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
+			nil,
+		)
+	default:
+		var oauthErr token.OAuthError
+		if json.Unmarshal(body, &oauthErr) == nil && oauthErr.Error != "" {
+			return nil, c.classifyOAuthError(oauthErr)
+		}
+
+		return nil, reason.NewClassifiedError(
+			reason.ReasonTokenExchangeFailed,
+			fmt.Sprintf("token exchange failed with status %d", resp.StatusCode),
+			nil,
+		)
+	}
+}
+
+func (c *Client) parseTokenResult(body []byte, contentType string) (*ExchangeResult, error) {
+	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil || mediaType != "application/json" {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonTokenInvalidFormat,
 			"token response must be application/json",
-			fmt.Errorf("content-type %q", resp.Header.Get("Content-Type")),
+			fmt.Errorf("content-type %q", contentType),
 		)
 	}
 
@@ -212,28 +229,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		)
 	}
 
-	if tokenResp.AccessToken == "" {
-		return nil, reason.NewClassifiedError(
-			reason.ReasonTokenInvalidFormat,
-			"access_token is required",
-			nil,
-		)
-	}
-
-	if !strings.EqualFold(tokenResp.TokenType, "Bearer") {
-		return nil, reason.NewClassifiedError(
-			reason.ReasonTokenInvalidFormat,
-			"token_type must be Bearer",
-			fmt.Errorf("got %q", tokenResp.TokenType),
-		)
-	}
-
-	if tokenResp.ExpiresIn <= 0 {
-		return nil, reason.NewClassifiedError(
-			reason.ReasonTokenInvalidFormat,
-			"expires_in must be positive",
-			fmt.Errorf("got %d", tokenResp.ExpiresIn),
-		)
+	if err := validateTokenResponse(tokenResp); err != nil {
+		return nil, err
 	}
 
 	return &ExchangeResult{
@@ -241,6 +238,34 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 		TokenType:   tokenResp.TokenType,
 		ExpiresIn:   tokenResp.ExpiresIn,
 	}, nil
+}
+
+func validateTokenResponse(tokenResp token.TokenResponse) error {
+	if tokenResp.AccessToken == "" {
+		return reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
+			"access_token is required",
+			nil,
+		)
+	}
+
+	if !strings.EqualFold(tokenResp.TokenType, "Bearer") {
+		return reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
+			"token_type must be Bearer",
+			fmt.Errorf("got %q", tokenResp.TokenType),
+		)
+	}
+
+	if tokenResp.ExpiresIn <= 0 {
+		return reason.NewClassifiedError(
+			reason.ReasonTokenInvalidFormat,
+			"expires_in must be positive",
+			fmt.Errorf("got %d", tokenResp.ExpiresIn),
+		)
+	}
+
+	return nil
 }
 
 // classifyOAuthError maps OAuth error codes to reason codes.

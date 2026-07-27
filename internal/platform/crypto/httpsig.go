@@ -283,71 +283,105 @@ func (v *RFC9421Verifier) VerifyRequest(
 	sigInputHeader := req.Header.Get("Signature-Input")
 	sigHeader := req.Header.Get("Signature")
 
+	if result, done := checkSignatureHeaders(sigInputHeader, sigHeader); done {
+		return result
+	}
+
+	label, result, done := findOCMSignatureLabel(sigInputHeader, sigHeader)
+	if done {
+		return result
+	}
+
+	params, sig, result, done := parseSignatureParams(sigInputHeader, sigHeader, label)
+	if done {
+		return result
+	}
+
+	if result, done := v.verifySignaturePolicy(req, body, params); done {
+		return result
+	}
+
+	return v.verifySignature(req, body, params, sig, keyFetcher)
+}
+
+func checkSignatureHeaders(sigInputHeader, sigHeader string) (*VerificationResult, bool) {
 	if sigInputHeader == "" && sigHeader == "" {
-		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing signature headers")}
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing signature headers")}, true
 	}
 
 	if sigInputHeader == "" {
 		if sigparams.HasOCMSignatureAttempt(sigHeader) {
-			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature-Input header for OCM signature")}
+			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature-Input header for OCM signature")}, true
 		}
 
-		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature-Input header")}
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature-Input header")}, true
 	}
 
 	if sigHeader == "" {
 		if sigparams.HasOCMSignatureAttempt(sigInputHeader) {
-			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature header for OCM signature")}
+			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("missing Signature header for OCM signature")}, true
 		}
 
-		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature header")}
+		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("missing Signature header")}, true
 	}
 
+	return nil, false
+}
+
+func findOCMSignatureLabel(sigInputHeader, sigHeader string) (string, *VerificationResult, bool) {
 	// Tag-first lookup: identify the OCM signature by its tag parameter
 	// rather than by the dictionary label. Zero matching tags means the
 	// request is unsigned for OCM; more than one is malformed.
 	tagCount := sigparams.CountTags(sigInputHeader, sigparams.SignatureTagOCM)
 	if tagCount == 0 {
 		if sigparams.HasOCMTagAttempt(sigInputHeader) || sigparams.HasOCMTagAttempt(sigHeader) {
-			return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("malformed OCM signature tag")}
+			return "", &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("malformed OCM signature tag")}, true
 		}
 
-		return &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("no tag=%q signature", sigparams.SignatureTagOCM)}
+		return "", &VerificationResult{Verified: false, Reason: ReasonUnsigned, Error: fmt.Errorf("no tag=%q signature", sigparams.SignatureTagOCM)}, true
 	}
 
 	if tagCount > 1 {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple tag=%q signatures", sigparams.SignatureTagOCM)}
+		return "", &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("multiple tag=%q signatures", sigparams.SignatureTagOCM)}, true
 	}
 
 	label, err := sigparams.FindTaggedLabel(sigInputHeader, sigparams.SignatureTagOCM)
 	if err != nil {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("failed to locate tag=%q signature: %w", sigparams.SignatureTagOCM, err)}
+		return "", &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("failed to locate tag=%q signature: %w", sigparams.SignatureTagOCM, err)}, true
 	}
 
 	if err := sigparams.ValidateExactlyOneLabel(sigInputHeader, label); err != nil {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
+		return "", &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}, true
 	}
 
 	if err := sigparams.ValidateExactlyOneLabel(sigHeader, label); err != nil {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}
+		return "", &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: err}, true
 	}
 
+	return label, nil, false
+}
+
+func parseSignatureParams(sigInputHeader, sigHeader, label string) (sigparams.Params, []byte, *VerificationResult, bool) {
 	params, err := sigparams.ParseSignatureInput(sigInputHeader, label)
 	if err != nil {
-		return &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("failed to parse Signature-Input: %w", err)}
+		return sigparams.Params{}, nil, &VerificationResult{Verified: false, Reason: ReasonMalformed, Error: fmt.Errorf("failed to parse Signature-Input: %w", err)}, true
 	}
 
 	sig, err := sigparams.ParseSignature(sigHeader, label)
 	if err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMalformed, Error: err}
+		return sigparams.Params{}, nil, &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMalformed, Error: err}, true
 	}
 
 	if params.Created == 0 {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingCreated, Error: fmt.Errorf("missing created parameter")}
+		return params, nil, &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingCreated, Error: fmt.Errorf("missing created parameter")}, true
 	}
 
+	return params, sig, nil, false
+}
+
+func (v *RFC9421Verifier) verifySignaturePolicy(req *http.Request, body []byte, params sigparams.Params) (*VerificationResult, bool) {
 	if reason, err := v.validateCreated(params.Created); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: reason, Error: err}
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: reason, Error: err}, true
 	}
 
 	// Verifier uses its configured mandatory component set (date-free per
@@ -358,17 +392,27 @@ func (v *RFC9421Verifier) VerifyRequest(
 	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
 	expectedComponents := v.opts.RequiredComponents
 	if err := validateRequiredComponents(params.Components, expectedComponents); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingComponent, Error: err}
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingComponent, Error: err}, true
 	}
 
 	if err := verifyRequiredBodyHeaders(req, body, expectedComponents); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonContentDigest, Error: err}
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonContentDigest, Error: err}, true
 	}
 
 	if err := VerifyContentDigest(req, body); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonContentDigest, Error: err}
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonContentDigest, Error: err}, true
 	}
 
+	return nil, false
+}
+
+func (v *RFC9421Verifier) verifySignature(
+	req *http.Request,
+	body []byte,
+	params sigparams.Params,
+	sig []byte,
+	keyFetcher func(keyID string) (sigalg.ResolvedPublicKey, error),
+) *VerificationResult {
 	resolvedKey, err := keyFetcher(params.KeyID)
 	if err != nil {
 		reason := ReasonKeyLookupFailed
@@ -651,46 +695,18 @@ func parseContentDigestHeader(header string) ([]contentDigestEntry, error) {
 	var entries []contentDigestEntry
 
 	for memberStart := 0; memberStart < len(header); {
-		for memberStart < len(header) {
-			ch := header[memberStart]
-			if ch == ' ' || ch == '\t' || ch == ',' {
-				memberStart++
-				continue
-			}
-
-			break
-		}
-
+		memberStart = skipContentDigestSeparators(header, memberStart)
 		if memberStart >= len(header) {
 			break
 		}
 
 		memberEnd := scanContentDigestMemberEnd(header, memberStart)
-
-		member := strings.TrimSpace(header[memberStart:memberEnd])
-		if member == "" {
-			return nil, fmt.Errorf("malformed Content-Digest entry")
-		}
-
-		eq := strings.Index(member, "=")
-		if eq <= 0 {
-			return nil, fmt.Errorf("malformed Content-Digest entry %q", member)
-		}
-
-		algorithm := strings.TrimSpace(member[:eq])
-
-		valuePart := strings.TrimSpace(member[eq+1:])
-		if !strings.HasPrefix(valuePart, ":") || !strings.HasSuffix(valuePart, ":") {
-			return nil, fmt.Errorf("malformed digest value for %s", algorithm)
-		}
-
-		raw, err := base64.StdEncoding.DecodeString(strings.Trim(valuePart, ":"))
+		entry, err := parseContentDigestEntry(header[memberStart:memberEnd])
 		if err != nil {
-			return nil, fmt.Errorf("invalid digest encoding for %s: %w", algorithm, err)
+			return nil, err
 		}
 
-		entries = append(entries, contentDigestEntry{algorithm: algorithm, value: raw})
-
+		entries = append(entries, entry)
 		memberStart = memberEnd
 		if memberStart < len(header) && header[memberStart] == ',' {
 			memberStart++
@@ -702,6 +718,46 @@ func parseContentDigestHeader(header string) ([]contentDigestEntry, error) {
 	}
 
 	return entries, nil
+}
+
+func skipContentDigestSeparators(header string, start int) int {
+	for start < len(header) {
+		ch := header[start]
+		if ch == ' ' || ch == '\t' || ch == ',' {
+			start++
+			continue
+		}
+
+		break
+	}
+
+	return start
+}
+
+func parseContentDigestEntry(member string) (contentDigestEntry, error) {
+	member = strings.TrimSpace(member)
+	if member == "" {
+		return contentDigestEntry{}, fmt.Errorf("malformed Content-Digest entry")
+	}
+
+	eq := strings.Index(member, "=")
+	if eq <= 0 {
+		return contentDigestEntry{}, fmt.Errorf("malformed Content-Digest entry %q", member)
+	}
+
+	algorithm := strings.TrimSpace(member[:eq])
+
+	valuePart := strings.TrimSpace(member[eq+1:])
+	if !strings.HasPrefix(valuePart, ":") || !strings.HasSuffix(valuePart, ":") {
+		return contentDigestEntry{}, fmt.Errorf("malformed digest value for %s", algorithm)
+	}
+
+	raw, err := base64.StdEncoding.DecodeString(strings.Trim(valuePart, ":"))
+	if err != nil {
+		return contentDigestEntry{}, fmt.Errorf("invalid digest encoding for %s: %w", algorithm, err)
+	}
+
+	return contentDigestEntry{algorithm: algorithm, value: raw}, nil
 }
 
 func scanContentDigestMemberEnd(header string, start int) int {

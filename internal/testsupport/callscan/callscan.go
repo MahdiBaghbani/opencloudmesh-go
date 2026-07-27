@@ -42,64 +42,12 @@ func FindProductionCallSites(
 		}
 
 		err := filepath.WalkDir(absRoot, func(path string, d os.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-
-			if d.IsDir() {
-				return nil
-			}
-
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-
-			rel, err := filepath.Rel(root, path)
+			fileViolations, err := scanFileForSpec(t, root, allowlistRel, spec, requireCall, path, d, walkErr)
 			if err != nil {
 				return err
 			}
 
-			rel = filepath.ToSlash(rel)
-			if rel == allowlistRel {
-				return nil
-			}
-
-			fset := token.NewFileSet()
-
-			node, err := parser.ParseFile(fset, path, nil, 0)
-			if err != nil {
-				t.Fatalf("parse %s: %v", rel, err)
-			}
-
-			imports := ImportNamesByPath(node)
-			ast.Inspect(node, func(n ast.Node) bool {
-				var expr ast.Expr
-
-				if requireCall {
-					call, ok := n.(*ast.CallExpr)
-					if !ok {
-						return true
-					}
-
-					expr = call.Fun
-				} else {
-					sel, ok := n.(*ast.SelectorExpr)
-					if !ok {
-						return true
-					}
-
-					expr = sel
-				}
-
-				if !ImportSelectorMatches(imports, expr, spec) {
-					return true
-				}
-
-				pos := fset.Position(expr.Pos())
-				violations = append(violations, relLocation(rel, pos.Line))
-
-				return true
-			})
+			violations = append(violations, fileViolations...)
 
 			return nil
 		})
@@ -109,6 +57,81 @@ func FindProductionCallSites(
 	}
 
 	return violations
+}
+
+func scanFileForSpec(
+	t *testing.T,
+	root string,
+	allowlistRel string,
+	spec ProductionCallSpec,
+	requireCall bool,
+	path string,
+	d os.DirEntry,
+	walkErr error,
+) ([]string, error) {
+	if walkErr != nil {
+		return nil, walkErr
+	}
+
+	if d.IsDir() {
+		return nil, nil
+	}
+
+	if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		return nil, nil
+	}
+
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, err
+	}
+
+	rel = filepath.ToSlash(rel)
+	if rel == allowlistRel {
+		return nil, nil
+	}
+
+	fset := token.NewFileSet()
+
+	node, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", rel, err)
+	}
+
+	imports := ImportNamesByPath(node)
+
+	var violations []string
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		var expr ast.Expr
+
+		if requireCall {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+
+			expr = call.Fun
+		} else {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+
+			expr = sel
+		}
+
+		if !ImportSelectorMatches(imports, expr, spec) {
+			return true
+		}
+
+		pos := fset.Position(expr.Pos())
+		violations = append(violations, relLocation(rel, pos.Line))
+
+		return true
+	})
+
+	return violations, nil
 }
 
 // ImportNamesByPath maps local import identifier to import path for a parsed file.

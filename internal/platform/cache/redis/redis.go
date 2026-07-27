@@ -16,41 +16,7 @@ import (
 
 func init() {
 	cache.RegisterDriver("redis", func(config map[string]any) cache.CacheWithCounter {
-		cfg := DefaultConfig()
-
-		if config != nil {
-			if v, ok := config["addr"].(string); ok && v != "" {
-				cfg.Addr = v
-			}
-
-			if v, ok := config["password"].(string); ok {
-				cfg.Password = v
-			}
-
-			if v, ok := config["db"]; ok {
-				if db, ok := toInt(v); ok {
-					cfg.DB = db
-				}
-			}
-
-			if v, ok := config["dial_timeout_ms"]; ok {
-				if ms, ok := toInt(v); ok && ms > 0 {
-					cfg.DialTimeout = time.Duration(ms) * time.Millisecond
-				}
-			}
-
-			if v, ok := config["conn_timeout_ms"]; ok {
-				if ms, ok := toInt(v); ok && ms > 0 {
-					cfg.ConnTimeout = time.Duration(ms) * time.Millisecond
-				}
-			}
-
-			if v, ok := config["default_ttl_seconds"]; ok {
-				if secs, ok := toInt(v); ok && secs > 0 {
-					cfg.DefaultTTL = time.Duration(secs) * time.Second
-				}
-			}
-		}
+		cfg := loadRedisConfig(config)
 
 		c, err := New(cfg)
 		if err != nil {
@@ -60,6 +26,54 @@ func init() {
 
 		return c
 	})
+}
+
+func loadRedisConfig(config map[string]any) *Config {
+	cfg := DefaultConfig()
+	if config == nil {
+		return cfg
+	}
+
+	loadRedisConnectionConfig(config, cfg)
+	loadRedisTimeoutConfig(config, cfg)
+
+	return cfg
+}
+
+func loadRedisConnectionConfig(config map[string]any, cfg *Config) {
+	if v, ok := config["addr"].(string); ok && v != "" {
+		cfg.Addr = v
+	}
+
+	if v, ok := config["password"].(string); ok {
+		cfg.Password = v
+	}
+
+	if v, ok := config["db"]; ok {
+		if db, ok := toInt(v); ok {
+			cfg.DB = db
+		}
+	}
+}
+
+func loadRedisTimeoutConfig(config map[string]any, cfg *Config) {
+	if v, ok := config["dial_timeout_ms"]; ok {
+		if ms, ok := toInt(v); ok && ms > 0 {
+			cfg.DialTimeout = time.Duration(ms) * time.Millisecond
+		}
+	}
+
+	if v, ok := config["conn_timeout_ms"]; ok {
+		if ms, ok := toInt(v); ok && ms > 0 {
+			cfg.ConnTimeout = time.Duration(ms) * time.Millisecond
+		}
+	}
+
+	if v, ok := config["default_ttl_seconds"]; ok {
+		if secs, ok := toInt(v); ok && secs > 0 {
+			cfg.DefaultTTL = time.Duration(secs) * time.Second
+		}
+	}
 }
 
 func toInt(v any) (int, bool) {

@@ -49,6 +49,17 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	disc.Enabled = true
 	disc.EndPoint = p.EndPoint
 
+	protocols := buildDiscoveryProtocols(p)
+	capabilities := buildDiscoveryCapabilities(p, disc, log)
+
+	disc.ResourceTypes = buildDiscoveryResourceTypes(protocols)
+	disc.Capabilities = capabilities
+	buildDiscoveryCriteria(p, disc)
+
+	return disc
+}
+
+func buildDiscoveryProtocols(p BuildParams) spec.Protocols {
 	protocols := spec.Protocols{}
 	if p.WebDAVRoot != "" {
 		protocols[spec.ProtocolWebDAV] = spec.StringProtocolRole(p.WebDAVRoot)
@@ -58,19 +69,10 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 		protocols[spec.ProtocolWebDAVReceive] = spec.WebDAVReceiveRole(spec.WebDAVReceiveURIKind(p.WebDAVReceiveURI))
 	}
 
-	disc.ResourceTypes = make([]spec.ResourceType, 0, len(spec.SupportedResourceTypes))
-	for _, rtName := range spec.SupportedResourceTypes {
-		disc.ResourceTypes = append(disc.ResourceTypes, spec.ResourceType{
-			Name: rtName,
-			// Core OCM share types are "user" and "group"; "federation" is registered by
-			// OCM-MLS, not core OCM (https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1803-L1805).
-			// ocmgo deliberately does not advertise "federation"; it advertises only "user"
-			// because it does not implement group shares.
-			ShareTypes: []string{"user"},
-			Protocols:  protocols,
-		})
-	}
+	return protocols
+}
 
+func buildDiscoveryCapabilities(p BuildParams, disc *spec.Discovery, log *slog.Logger) []string {
 	capabilities := []string{}
 
 	if p.AdvertiseHTTPSig {
@@ -97,8 +99,27 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 		capabilities = append(capabilities, spec.CapabilityInviteWAYF)
 	}
 
-	disc.Capabilities = capabilities
+	return capabilities
+}
 
+func buildDiscoveryResourceTypes(protocols spec.Protocols) []spec.ResourceType {
+	resourceTypes := make([]spec.ResourceType, 0, len(spec.SupportedResourceTypes))
+	for _, rtName := range spec.SupportedResourceTypes {
+		resourceTypes = append(resourceTypes, spec.ResourceType{
+			Name: rtName,
+			// Core OCM share types are "user" and "group"; "federation" is registered by
+			// OCM-MLS, not core OCM (https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1803-L1805).
+			// ocmgo deliberately does not advertise "federation"; it advertises only "user"
+			// because it does not implement group shares.
+			ShareTypes: []string{"user"},
+			Protocols:  protocols,
+		})
+	}
+
+	return resourceTypes
+}
+
+func buildDiscoveryCriteria(p BuildParams, disc *spec.Discovery) {
 	if p.RequiresHTTPSignatures && p.AdvertiseHTTPSig {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustUseHTTPSig)
 	}
@@ -106,6 +127,4 @@ func BuildDiscovery(p BuildParams, log *slog.Logger) *spec.Discovery {
 	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustExchangeToken)
 	}
-
-	return disc
 }

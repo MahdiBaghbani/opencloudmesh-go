@@ -342,6 +342,71 @@ func entryHasOCMTagAttempt(entry string) bool {
 	return scanTagOCM(rest)
 }
 
+type tagScanState struct {
+	inQuote    bool
+	quoteChar  byte
+	parenDepth int
+	inByteSeq  bool
+}
+
+func (state *tagScanState) stepByteSeq(i *int, ch byte) bool {
+	if !state.inByteSeq {
+		return false
+	}
+	if ch == ':' {
+		state.inByteSeq = false
+	}
+	*i++
+	return true
+}
+
+func (state *tagScanState) stepQuote(s string, i *int, ch byte) bool {
+	if !state.inQuote {
+		return false
+	}
+	if ch == '\\' && *i+1 < len(s) {
+		*i += 2
+		return true
+	}
+	if ch == state.quoteChar {
+		state.inQuote = false
+	}
+	*i++
+	return true
+}
+
+func (state *tagScanState) stepUnquoted(s string, i *int, ch byte) bool {
+	switch ch {
+	case '"', '\'':
+		state.inQuote = true
+		state.quoteChar = ch
+		*i++
+	case '(':
+		state.parenDepth++
+		*i++
+	case ')':
+		if state.parenDepth > 0 {
+			state.parenDepth--
+		}
+		*i++
+	case ':':
+		if state.parenDepth == 0 {
+			state.inByteSeq = true
+		}
+		*i++
+	case ';':
+		if state.parenDepth == 0 {
+			if value, ok := parseTagParameter(s, *i+1); ok && isOCMTagValue(value) {
+				return true
+			}
+		}
+		*i++
+	default:
+		*i++
+	}
+	return false
+}
+
 // scanTagOCM scans s for a top-level tag parameter whose value is or starts
 // with the OCM tag. It tolerates malformed or unclosed quoted values.
 func scanTagOCM(s string) bool {
@@ -349,69 +414,18 @@ func scanTagOCM(s string) bool {
 		return true
 	}
 
-	inQuote := false
-	quoteChar := byte(0)
-	parenDepth := 0
-	inByteSeq := false
-
+	state := tagScanState{}
 	i := 0
 	for i < len(s) {
 		ch := s[i]
-		if inByteSeq {
-			if ch == ':' {
-				inByteSeq = false
-			}
-
-			i++
-
+		if state.stepByteSeq(&i, ch) {
 			continue
 		}
-
-		if inQuote {
-			if ch == '\\' && i+1 < len(s) {
-				i += 2
-				continue
-			}
-
-			if ch == quoteChar {
-				inQuote = false
-			}
-
-			i++
-
+		if state.stepQuote(s, &i, ch) {
 			continue
 		}
-
-		switch ch {
-		case '"', '\'':
-			inQuote = true
-			quoteChar = ch
-			i++
-		case '(':
-			parenDepth++
-			i++
-		case ')':
-			if parenDepth > 0 {
-				parenDepth--
-			}
-
-			i++
-		case ':':
-			if parenDepth == 0 {
-				inByteSeq = true
-			}
-
-			i++
-		case ';':
-			if parenDepth == 0 {
-				if value, ok := parseTagParameter(s, i+1); ok && isOCMTagValue(value) {
-					return true
-				}
-			}
-
-			i++
-		default:
-			i++
+		if state.stepUnquoted(s, &i, ch) {
+			return true
 		}
 	}
 
@@ -421,30 +435,44 @@ func scanTagOCM(s string) bool {
 // parseTagParameter tries to parse a tag parameter starting at start in s.
 // It returns the raw value and true if the parameter key is "tag".
 func parseTagParameter(s string, start int) (string, bool) {
+	start = skipSpacesTabs(s, start)
+	keyEnd, ok := scanTagKey(s, start)
+	if !ok {
+		return "", false
+	}
+
+	valStart := skipSpacesTabs(s, keyEnd+1)
+	valEnd := scanTagValue(s, valStart)
+
+	return s[valStart:valEnd], true
+}
+
+func skipSpacesTabs(s string, start int) int {
 	for start < len(s) && (s[start] == ' ' || s[start] == '\t') {
 		start++
 	}
 
-	keyStart := start
+	return start
+}
 
-	keyEnd := keyStart
+func scanTagKey(s string, start int) (int, bool) {
+	keyEnd := start
 	for keyEnd < len(s) && s[keyEnd] != '=' && s[keyEnd] != ';' && s[keyEnd] != ',' {
 		keyEnd++
 	}
 
-	if strings.TrimSpace(s[keyStart:keyEnd]) != "tag" {
-		return "", false
+	if strings.TrimSpace(s[start:keyEnd]) != "tag" {
+		return 0, false
 	}
 
 	if keyEnd >= len(s) || s[keyEnd] != '=' {
-		return "", false
+		return 0, false
 	}
 
-	valStart := keyEnd + 1
-	for valStart < len(s) && (s[valStart] == ' ' || s[valStart] == '\t') {
-		valStart++
-	}
+	return keyEnd, true
+}
 
+func scanTagValue(s string, valStart int) int {
 	valEnd := valStart
 	if valStart < len(s) && (s[valStart] == '"' || s[valStart] == '\'') {
 		quote := s[valStart]
@@ -469,7 +497,7 @@ func parseTagParameter(s string, start int) (string, bool) {
 		}
 	}
 
-	return s[valStart:valEnd], true
+	return valEnd
 }
 
 // isOCMTagValue reports whether a raw tag value is or begins with the OCM
@@ -495,50 +523,51 @@ func isOCMTagValue(value string) bool {
 	return strings.HasPrefix(value, SignatureTagOCM)
 }
 
+func skipMemberSeparators(s string, start int) int {
+	for start < len(s) {
+		ch := s[start]
+		if ch == ' ' || ch == '\t' || ch == ',' {
+			start++
+			continue
+		}
+
+		break
+	}
+
+	return start
+}
+
+func parseDictionaryMember(header string, memberStart, memberEnd int, fn func(label, entry string) bool) bool {
+	keyStart := skipSpacesTabs(header, memberStart)
+
+	eq := keyStart
+	for eq < memberEnd && header[eq] != '=' {
+		eq++
+	}
+
+	if eq >= memberEnd {
+		return true
+	}
+
+	label := strings.TrimSpace(header[keyStart:eq])
+	entry := strings.TrimSpace(header[eq+1 : memberEnd])
+
+	return fn(label, entry)
+}
+
 // visitAllDictionaryMembers walks every top-level dictionary member in header
 // and calls fn with the member label and raw entry value. fn returning false
 // stops iteration.
 func visitAllDictionaryMembers(header string, fn func(label, entry string) bool) {
 	for memberStart := 0; memberStart < len(header); {
-		for memberStart < len(header) {
-			ch := header[memberStart]
-			if ch == ' ' || ch == '\t' || ch == ',' {
-				memberStart++
-				continue
-			}
-
-			break
-		}
-
+		memberStart = skipMemberSeparators(header, memberStart)
 		if memberStart >= len(header) {
 			return
 		}
 
 		memberEnd := scanTopLevelMemberEnd(header, memberStart)
-
-		keyStart := memberStart
-		for keyStart < memberEnd {
-			ch := header[keyStart]
-			if ch == ' ' || ch == '\t' {
-				keyStart++
-				continue
-			}
-
-			break
-		}
-
-		eq := keyStart
-		for eq < memberEnd && header[eq] != '=' {
-			eq++
-		}
-
-		if eq < memberEnd {
-			label := strings.TrimSpace(header[keyStart:eq])
-
-			entry := strings.TrimSpace(header[eq+1 : memberEnd])
-			if !fn(label, entry) {
-				return
-			}
+		if !parseDictionaryMember(header, memberStart, memberEnd, fn) {
+			return
 		}
 
 		memberStart = memberEnd
@@ -638,54 +667,77 @@ func visitDictionaryMembers(header, label string, fn func(start, end int) bool) 
 	}
 }
 
+type topLevelScanState struct {
+	inQuote    bool
+	parenDepth int
+	inByteSeq  bool
+}
+
+func (state *topLevelScanState) stepByteSeq(i *int, ch byte) bool {
+	if !state.inByteSeq {
+		return false
+	}
+	if ch == ':' {
+		state.inByteSeq = false
+	}
+	*i++
+	return true
+}
+
+func (state *topLevelScanState) stepQuote(header string, i *int, ch byte) bool {
+	if !state.inQuote {
+		return false
+	}
+	if ch == '\\' && *i+1 < len(header) {
+		*i += 2
+	} else {
+		if ch == '"' {
+			state.inQuote = false
+		}
+		*i++
+	}
+	return true
+}
+
+func (state *topLevelScanState) stepUnquoted(i *int, ch byte) bool {
+	switch ch {
+	case '"':
+		state.inQuote = true
+	case '(':
+		state.parenDepth++
+	case ')':
+		if state.parenDepth > 0 {
+			state.parenDepth--
+		}
+	case ':':
+		if state.parenDepth == 0 {
+			state.inByteSeq = true
+		}
+	case ',':
+		if state.parenDepth == 0 {
+			return true
+		}
+	}
+	*i++
+	return false
+}
+
 // scanTopLevelMemberEnd returns the index of the next top-level comma, or
 // len(header). Quoted strings, parenthesized inner lists, and :byte-seq:
 // values are skipped so commas inside them do not split members.
 func scanTopLevelMemberEnd(header string, start int) int {
-	inQuote := false
-	parenDepth := 0
-	inByteSeq := false
-
-	for i := start; i < len(header); i++ {
+	state := topLevelScanState{}
+	i := start
+	for i < len(header) {
 		ch := header[i]
-		if inByteSeq {
-			if ch == ':' {
-				inByteSeq = false
-			}
-
+		if state.stepByteSeq(&i, ch) {
 			continue
 		}
-
-		if inQuote {
-			if ch == '\\' && i+1 < len(header) {
-				i++
-				continue
-			}
-
-			if ch == '"' {
-				inQuote = false
-			}
-
+		if state.stepQuote(header, &i, ch) {
 			continue
 		}
-
-		switch ch {
-		case '"':
-			inQuote = true
-		case '(':
-			parenDepth++
-		case ')':
-			if parenDepth > 0 {
-				parenDepth--
-			}
-		case ':':
-			if parenDepth == 0 {
-				inByteSeq = true
-			}
-		case ',':
-			if parenDepth == 0 {
-				return i
-			}
+		if state.stepUnquoted(&i, ch) {
+			return i
 		}
 	}
 

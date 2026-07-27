@@ -23,6 +23,26 @@ func (d *Driver) rebuildIndexes() error {
 	d.outgoingInviteTokenIndex = make(map[string]string)
 	d.incomingInviteTokenUserIndex = make(map[string]string)
 
+	if err := d.rebuildOutgoingShareIndexes(); err != nil {
+		return err
+	}
+
+	if err := d.rebuildIncomingShareIndexes(); err != nil {
+		return err
+	}
+
+	if err := d.rebuildOutgoingInviteIndexes(); err != nil {
+		return err
+	}
+
+	if err := d.rebuildIncomingInviteIndexes(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Driver) rebuildOutgoingShareIndexes() error {
 	for providerId, share := range d.outgoingShares {
 		if share.WebDAVId != "" {
 			if existingPid, exists := d.webdavIndex[share.WebDAVId]; exists {
@@ -58,6 +78,10 @@ func (d *Driver) rebuildIndexes() error {
 		}
 	}
 
+	return nil
+}
+
+func (d *Driver) rebuildIncomingShareIndexes() error {
 	for shareId, share := range d.incomingShares {
 		key := providerKey(share.SendingServer, share.ProviderId)
 		if existingID, exists := d.providerIndex[key]; exists {
@@ -70,6 +94,10 @@ func (d *Driver) rebuildIndexes() error {
 		d.providerIndex[key] = shareId
 	}
 
+	return nil
+}
+
+func (d *Driver) rebuildOutgoingInviteIndexes() error {
 	for id, invite := range d.outgoingInvites {
 		if invite.Token != "" {
 			if existingID, exists := d.outgoingInviteTokenIndex[invite.Token]; exists {
@@ -83,6 +111,10 @@ func (d *Driver) rebuildIndexes() error {
 		}
 	}
 
+	return nil
+}
+
+func (d *Driver) rebuildIncomingInviteIndexes() error {
 	for id, invite := range d.incomingInvites {
 		if invite.Token != "" && invite.RecipientUserId != "" {
 			key := tokenUserKey(invite.Token, invite.RecipientUserId)

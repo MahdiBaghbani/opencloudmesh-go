@@ -356,25 +356,8 @@ func (r *Resolver) Resolve(
 
 func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh bool) (Set, bool, error) {
 	now := r.now()
-
-	if !forceRefresh {
-		r.mu.RLock()
-		entry, ok := r.cache[jwksURL]
-		r.mu.RUnlock()
-
-		if ok && now.Sub(entry.fetchedAt) < r.ttl {
-			return entry.set, false, nil
-		}
-	} else {
-		r.mu.RLock()
-		entry, ok := r.cache[jwksURL]
-		lastFetch, haveFetch := r.lastFetchAt[jwksURL]
-		r.mu.RUnlock()
-
-		if ok && r.minRefetchInterval > 0 && haveFetch && now.Sub(lastFetch) < r.minRefetchInterval {
-			// Reuse the cached document while minRefetchInterval applies.
-			return entry.set, false, nil
-		}
+	if set, ok := r.cachedSet(jwksURL, forceRefresh, now); ok {
+		return set, false, nil
 	}
 
 	type result struct {
@@ -384,23 +367,8 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 
 	v, err, _ := r.group.Do(jwksURL, func() (any, error) {
 		now := r.now()
-		if !forceRefresh {
-			r.mu.RLock()
-			entry, ok := r.cache[jwksURL]
-			r.mu.RUnlock()
-
-			if ok && now.Sub(entry.fetchedAt) < r.ttl {
-				return result{set: entry.set, fresh: false}, nil
-			}
-		} else {
-			r.mu.RLock()
-			entry, ok := r.cache[jwksURL]
-			lastFetch, haveFetch := r.lastFetchAt[jwksURL]
-			r.mu.RUnlock()
-
-			if ok && r.minRefetchInterval > 0 && haveFetch && now.Sub(lastFetch) < r.minRefetchInterval {
-				return result{set: entry.set, fresh: false}, nil
-			}
+		if set, ok := r.cachedSet(jwksURL, forceRefresh, now); ok {
+			return result{set: set, fresh: false}, nil
 		}
 
 		set, err := FetchURLLimited(ctx, r.client, jwksURL, r.maxResponseBytes)
@@ -426,6 +394,30 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 	}
 
 	return out.set, out.fresh, nil
+}
+
+func (r *Resolver) cachedSet(jwksURL string, forceRefresh bool, now time.Time) (Set, bool) {
+	r.mu.RLock()
+	entry, ok := r.cache[jwksURL]
+	lastFetch, haveFetch := r.lastFetchAt[jwksURL]
+	r.mu.RUnlock()
+
+	if !ok {
+		return Set{}, false
+	}
+
+	if !forceRefresh {
+		if now.Sub(entry.fetchedAt) < r.ttl {
+			return entry.set, true
+		}
+		return Set{}, false
+	}
+
+	if r.minRefetchInterval > 0 && haveFetch && now.Sub(lastFetch) < r.minRefetchInterval {
+		return entry.set, true
+	}
+
+	return Set{}, false
 }
 
 func negativeKey(jwksURL, kid string) string {

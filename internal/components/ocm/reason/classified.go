@@ -111,9 +111,38 @@ func ClassifyError(err error) string {
 		return ReasonSignatureInvalid
 	}
 
-	errStr := err.Error()
+	if reasonCode := classifyByMessage(err.Error()); reasonCode != "" {
+		return reasonCode
+	}
 
-	// Signature-related
+	return ReasonUnknown
+}
+
+func classifyByMessage(errStr string) string {
+	if reasonCode := classifySignatureMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	if reasonCode := classifyTokenMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	if reasonCode := classifyDiscoveryMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	if reasonCode := classifyNetworkMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	if reasonCode := classifyProtocolMessage(errStr); reasonCode != "" {
+		return reasonCode
+	}
+
+	return ""
+}
+
+func classifySignatureMessage(errStr string) string {
 	if containsAny(errStr, "signature required", "missing signature") {
 		return ReasonSignatureRequired
 	}
@@ -134,7 +163,10 @@ func ClassifyError(err error) string {
 		return ReasonKeyIDMismatch
 	}
 
-	// Token exchange
+	return ""
+}
+
+func classifyTokenMessage(errStr string) string {
 	if containsAny(errStr, "token exchange failed") {
 		return ReasonTokenExchangeFailed
 	}
@@ -147,7 +179,10 @@ func ClassifyError(err error) string {
 		return ReasonTokenExpired
 	}
 
-	// Discovery
+	return ""
+}
+
+func classifyDiscoveryMessage(errStr string) string {
 	if containsAny(errStr, "discovery failed", "discovery error") {
 		return ReasonDiscoveryFailed
 	}
@@ -160,7 +195,10 @@ func ClassifyError(err error) string {
 		return ReasonPeerCapabilityMissing
 	}
 
-	// Network
+	return ""
+}
+
+func classifyNetworkMessage(errStr string) string {
 	if containsAny(errStr, "connection refused", "no such host", "network unreachable") {
 		return ReasonNetworkError
 	}
@@ -177,7 +215,10 @@ func ClassifyError(err error) string {
 		return ReasonTLSError
 	}
 
-	// Protocol
+	return ""
+}
+
+func classifyProtocolMessage(errStr string) string {
 	if containsAny(errStr, "protocol mismatch", "unsupported protocol") {
 		return ReasonProtocolMismatch
 	}
@@ -186,7 +227,7 @@ func ClassifyError(err error) string {
 		return ReasonUnsupportedVersion
 	}
 
-	return ReasonUnknown
+	return ""
 }
 
 func containsAny(s string, patterns ...string) bool {

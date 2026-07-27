@@ -177,6 +177,38 @@ func TestLoad_SSRF_RoutePolicyWithIPLiterals_Fails(t *testing.T) {
 	}
 }
 
+func TestLoad_SSRF_RoutePolicyIPLiteralsBeforeCatchAllCIDR(t *testing.T) {
+	// Clear ambient env override so first-error ordering is deterministic.
+	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	tomlContent := configfixture.StrictModeBase() +
+		configfixture.SSRFStrictWithPolicy("internal") + `
+[outbound_http.ssrf.route_policies.internal]
+allow_private_host_suffixes = ["svc.cluster.local"]
+allow_private_cidrs = ["0.0.0.0/0"]
+allowed_ports = [8080]
+allow_ip_literals = true
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	_, err := config.Load(config.LoaderOptions{ConfigPath: configPath})
+	if err == nil {
+		t.Fatal("expected error: allow_ip_literals=true forbidden for active route policy")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "allow_ip_literals=false") {
+		t.Errorf("expected allow_ip_literals error first, got: %v", err)
+	}
+	if strings.Contains(msg, "forbids catch-all CIDR") {
+		t.Errorf("expected allow_ip_literals error before catch-all CIDR, got: %v", err)
+	}
+}
+
 func TestLoad_SSRF_RoutePolicyWithCatchAllCIDR_Fails(t *testing.T) {
 	// Clear ambient env override so the catch-all CIDR validation path is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
