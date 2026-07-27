@@ -131,6 +131,7 @@ func shareRequires(reqs []string, req string) bool {
 func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, share *sharesoutgoing.OutgoingShare) {
 	localPath := share.LocalPath
 
+	//nolint:gosec // localPath is repository-controlled via sanitized webdavID lookup, not request-derived input
 	stat, err := os.Stat(localPath)
 	if err != nil {
 		h.logger.Error("WebDAV file stat failed", "path", localPath, "error", err)

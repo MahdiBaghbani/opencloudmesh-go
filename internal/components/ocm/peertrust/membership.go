@@ -156,6 +156,7 @@ func (m *TrustGroupManager) triggerRefreshIfNeeded(_ context.Context, tg *TrustG
 
 		timeout := m.refreshTimeout * time.Duration(enabledCount)
 
+		//nolint:gosec // intentional fire-and-forget background work that must outlive the request; cannot use the request context
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()

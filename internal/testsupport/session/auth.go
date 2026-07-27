@@ -93,6 +93,7 @@ func DoJSON(client *http.Client, req *http.Request, dst any) (int, []byte, error
 		client = http.DefaultClient
 	}
 
+	//nolint:gosec // test-only helper; SSRF is not applicable to test infrastructure
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err

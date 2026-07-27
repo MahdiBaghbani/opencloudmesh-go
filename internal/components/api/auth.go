@@ -75,6 +75,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set cookie for browser clients
+	//nolint:gosec // cookie already sets HttpOnly:true, Secure:r.TLS != nil, SameSite:Lax; gosec heuristic misses the conditional Secure
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    session.Token,
@@ -114,12 +115,15 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	//nolint:errcheck // best-effort cleanup; error is not actionable
 	h.sessions.Delete(ctx, token)
 
+	//nolint:gosec // deletion cookie mirrors the login cookie flags (HttpOnly, conditional Secure, SameSite:Lax); gosec heuristic still flags conditional Secure
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    "",
 		Path:     "/",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
 

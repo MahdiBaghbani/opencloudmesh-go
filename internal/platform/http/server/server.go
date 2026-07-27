@@ -248,6 +248,7 @@ func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 			target = fmt.Sprintf("https://%s:%d%s", hostOnly, httpsPort, r.URL.RequestURI())
 		}
 
+		//nolint:gosec // target is same-host HTTPS upgrade built from r.Host and r.URL, not a user-supplied URL
 		http.Redirect(w, r, target, http.StatusPermanentRedirect)
 	})
 }

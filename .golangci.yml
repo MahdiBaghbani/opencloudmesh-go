@@ -135,6 +135,18 @@ linters:
       case:
         rules:
           json: camel
+    gosec:
+      excludes:
+        # G304: paths are config-controlled, not user input
+        - G304
+        # G306: 0644 is correct for public certs; private keys use 0600
+        - G306
+        # G104: best-effort cleanup; meaningful errors covered by errcheck
+        - G104
+        # G101: matches reason-code strings and test-fixture labels, not real secrets; real secrets are env/config-injected
+        - G101
+        # G115: conversions are over fixed small values (lengths, argon2 params); no unbounded input
+        - G115
 
   exclusions:
     generated: strict

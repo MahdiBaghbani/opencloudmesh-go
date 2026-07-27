@@ -92,6 +92,7 @@ func (c *Client) newTransport(rootCAs *x509.CertPool, proxyFunc func(*http.Reque
 		Proxy:       proxyFunc,
 		DialContext: c.ssrfCheckedDial(dialer),
 		TLSClientConfig: &tls.Config{
+			//nolint:gosec // intentional config-gated dev escape hatch for self-signed certs; c.cfg.InsecureSkipVerify defaults false and is config-controlled
 			InsecureSkipVerify: c.cfg.InsecureSkipVerify,
 			RootCAs:            rootCAs,
 		},

@@ -137,6 +137,7 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 
 	isSigned := opts.IsSigned || hasSignatureHeaders(req)
 
+	//nolint:gosec // request URL is preflighted by checkSSRFURL in strict mode before Do()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -208,6 +209,7 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 		}
 	}
 
+	//nolint:gosec // redirect URL is same-host validated and re-checked by checkSSRFURL in strict mode before Do()
 	newReq, err := http.NewRequestWithContext(ctx, origReq.Method, redirectURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRedirectBlocked, err)
@@ -215,6 +217,7 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 
 	copyRedirectHeaders(origReq, newReq)
 
+	//nolint:gosec // redirect target is same-host validated and re-checked by checkSSRFURL in strict mode before Do()
 	newResp, err := c.httpClient.Do(newReq)
 	if err != nil {
 		return nil, err
