@@ -741,7 +741,8 @@ func ReadAndRestoreBody(req *http.Request) ([]byte, error) {
 		return nil, err
 	}
 
-	req.Body.Close()
+	//nolint:errcheck // best-effort cleanup; error is not actionable
+	_ = req.Body.Close()
 
 	req.Body = io.NopCloser(bytes.NewReader(body))
 

@@ -22,7 +22,11 @@ var _ sharesoutgoing.OutgoingShareRepo = (*outgoingShareAdapter)(nil)
 
 func (a *outgoingShareAdapter) Create(ctx context.Context, share *sharesoutgoing.OutgoingShare) error {
 	if share.ShareID == "" {
-		id, _ := uuid.NewV7()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate share id: %w", err)
+		}
+
 		share.ShareID = id.String()
 	}
 

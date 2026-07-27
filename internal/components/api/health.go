@@ -14,5 +14,6 @@ type HealthResponse struct {
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck // response already started; write error cannot be recovered
 	json.NewEncoder(w).Encode(HealthResponse{Status: "ok"})
 }

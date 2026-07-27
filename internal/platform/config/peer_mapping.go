@@ -49,20 +49,20 @@ type PeerMappingInstanceOverlay struct {
 }
 
 // GlobalKnobs returns the global tier knobs.
-func (c *PeerMappingConfig) GlobalKnobs() (includes, requires, http *bool) {
-	return c.IncludesTokenExchangeRequirement, c.RequiresTokenExchangeRequirement, c.RequiresHTTPRequestSignatures
+func (cfg *PeerMappingConfig) GlobalKnobs() (includes, requires, http *bool) {
+	return cfg.IncludesTokenExchangeRequirement, cfg.RequiresTokenExchangeRequirement, cfg.RequiresHTTPRequestSignatures
 }
 
 // HostPlatformFor returns the platform mapped to host, if any.
-func (c *PeerMappingConfig) HostPlatformFor(host string) (string, bool) {
-	platform, ok := c.HostPlatform[host]
+func (cfg *PeerMappingConfig) HostPlatformFor(host string) (string, bool) {
+	platform, ok := cfg.HostPlatform[host]
 	return platform, ok
 }
 
 // PlatformInstanceBinding returns the platform that has an explicit instance
 // binding for host, if any.
-func (c *PeerMappingConfig) PlatformInstanceBinding(host string) (string, bool) {
-	for platform, overlay := range c.Platform {
+func (cfg *PeerMappingConfig) PlatformInstanceBinding(host string) (string, bool) {
+	for platform, overlay := range cfg.Platform {
 		if overlay.Instance == nil {
 			continue
 		}
@@ -76,8 +76,8 @@ func (c *PeerMappingConfig) PlatformInstanceBinding(host string) (string, bool) 
 }
 
 // PlatformKnobs returns the platform-level knobs, if the platform is defined.
-func (c *PeerMappingConfig) PlatformKnobs(platform string) (includes, requires *bool, ok bool) {
-	overlay, ok := c.Platform[platform]
+func (cfg *PeerMappingConfig) PlatformKnobs(platform string) (includes, requires *bool, ok bool) {
+	overlay, ok := cfg.Platform[platform]
 	if !ok {
 		return nil, nil, false
 	}
@@ -87,8 +87,8 @@ func (c *PeerMappingConfig) PlatformKnobs(platform string) (includes, requires *
 
 // InstanceKnobs returns the instance-level knobs for a platform and host, if
 // both are defined.
-func (c *PeerMappingConfig) InstanceKnobs(platform, host string) (includes, requires *bool, ok bool) {
-	overlay, ok := c.Platform[platform]
+func (cfg *PeerMappingConfig) InstanceKnobs(platform, host string) (includes, requires *bool, ok bool) {
+	overlay, ok := cfg.Platform[platform]
 	if !ok {
 		return nil, nil, false
 	}

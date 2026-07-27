@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -92,16 +93,18 @@ type PartyRepo interface {
 }
 
 // UUIDv7 returns a time-ordered UUIDv7.
-func UUIDv7() string {
+func UUIDv7() (string, error) {
 	var uuid [16]byte
 
 	now := time.Now().UnixMilli()
 	binary.BigEndian.PutUint64(uuid[0:8], uint64(now)<<16)
-	rand.Read(uuid[6:])
+	if _, err := rand.Read(uuid[6:]); err != nil {
+		return "", fmt.Errorf("failed to read random bytes for UUIDv7: %w", err)
+	}
 	uuid[6] = (uuid[6] & 0x0f) | 0x70 // Version 7
 	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant
 
-	return formatUUID(uuid[:])
+	return formatUUID(uuid[:]), nil
 }
 
 func formatUUID(b []byte) string {
@@ -159,7 +162,11 @@ func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
 	}
 
 	if user.ID == "" {
-		user.ID = UUIDv7()
+		id, err := UUIDv7()
+		if err != nil {
+			return fmt.Errorf("failed to generate user id: %w", err)
+		}
+		user.ID = id
 	}
 
 	if user.CreatedAt.IsZero() {

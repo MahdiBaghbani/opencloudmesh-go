@@ -99,12 +99,14 @@ func (h *Handler) HandleCreateOutgoing(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(invites.CreateOutgoingResponse{
+	if err := json.NewEncoder(w).Encode(invites.CreateOutgoingResponse{
 		InviteString: inviteString,
 		Token:        token,
 		ProviderFQDN: h.localProvider,
 		ExpiresAt:    invite.ExpiresAt,
-	})
+	}); err != nil {
+		h.logger.Error("failed to encode invite response", "error", err)
+	}
 }
 
 func generateToken() (string, error) {

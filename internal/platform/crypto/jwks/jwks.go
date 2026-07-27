@@ -275,7 +275,10 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 	if err != nil {
 		return Set{}, fmt.Errorf("jwks: fetch %s: %w", jwksURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return Set{}, fmt.Errorf("jwks: fetch %s: status %d", jwksURL, resp.StatusCode)
@@ -417,7 +420,10 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 		return Set{}, false, err
 	}
 
-	out := v.(result)
+	out, ok := v.(result)
+	if !ok {
+		return Set{}, false, errors.New("jwks: unexpected cache value type")
+	}
 
 	return out.set, out.fresh, nil
 }

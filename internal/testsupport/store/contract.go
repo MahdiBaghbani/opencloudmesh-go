@@ -33,7 +33,10 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 	}
 
 	if err := preflight.Init(ctx); err != nil {
-		preflight.Close()
+		if closeErr := preflight.Close(); closeErr != nil {
+			t.Fatalf("failed to init %s driver: %v (close: %v)", driverName, err, closeErr)
+		}
+
 		t.Fatalf("failed to init %s driver: %v", driverName, err)
 	}
 
@@ -42,26 +45,40 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 	}
 
 	if _, ok := preflight.(store.OutgoingShareStore); !ok {
-		preflight.Close()
+		if closeErr := preflight.Close(); closeErr != nil {
+			t.Fatalf("%s driver does not implement OutgoingShareStore (close: %v)", driverName, closeErr)
+		}
+
 		t.Fatalf("%s driver does not implement OutgoingShareStore", driverName)
 	}
 
 	if _, ok := preflight.(store.IncomingShareStore); !ok {
-		preflight.Close()
+		if closeErr := preflight.Close(); closeErr != nil {
+			t.Fatalf("%s driver does not implement IncomingShareStore (close: %v)", driverName, closeErr)
+		}
+
 		t.Fatalf("%s driver does not implement IncomingShareStore", driverName)
 	}
 
 	if _, ok := preflight.(store.OutgoingInviteStore); !ok {
-		preflight.Close()
+		if closeErr := preflight.Close(); closeErr != nil {
+			t.Fatalf("%s driver does not implement OutgoingInviteStore (close: %v)", driverName, closeErr)
+		}
+
 		t.Fatalf("%s driver does not implement OutgoingInviteStore", driverName)
 	}
 
 	if _, ok := preflight.(store.IncomingInviteStore); !ok {
-		preflight.Close()
+		if closeErr := preflight.Close(); closeErr != nil {
+			t.Fatalf("%s driver does not implement IncomingInviteStore (close: %v)", driverName, closeErr)
+		}
+
 		t.Fatalf("%s driver does not implement IncomingInviteStore", driverName)
 	}
 
-	preflight.Close()
+	if err := preflight.Close(); err != nil {
+		t.Fatalf("close preflight %s driver: %v", driverName, err)
+	}
 
 	// newSubDriver creates a fresh, isolated driver in a new subdirectory of
 	// cfg.DataDir. The subtest's t.Cleanup closes it when the subtest ends.
@@ -81,68 +98,75 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 		}
 
 		if err := d.Init(ctx); err != nil {
-			d.Close()
+			if closeErr := d.Close(); closeErr != nil {
+				t.Fatalf("failed to init %s sub-driver: %v (close: %v)", driverName, err, closeErr)
+			}
+
 			t.Fatalf("failed to init %s sub-driver: %v", driverName, err)
 		}
 
-		t.Cleanup(func() { d.Close() })
+		t.Cleanup(func() {
+			if err := d.Close(); err != nil {
+				t.Errorf("cleanup: close sub-driver: %v", err)
+			}
+		})
 
 		return d
 	}
 
 	t.Run("OutgoingShareCRUD", func(t *testing.T) {
 		d := newSubDriver(t)
-		runOutgoingShareCRUD(t, ctx, d.(store.OutgoingShareStore))
+		runOutgoingShareCRUD(t, ctx, requireOutgoingShareStore(t, d))
 	})
 
 	t.Run("OutgoingShareDuplicateSharedSecret", func(t *testing.T) {
 		d := newSubDriver(t)
-		runOutgoingShareDuplicateSharedSecret(t, ctx, d.(store.OutgoingShareStore))
+		runOutgoingShareDuplicateSharedSecret(t, ctx, requireOutgoingShareStore(t, d))
 	})
 
 	t.Run("OutgoingShareEmptySharedSecretLookup", func(t *testing.T) {
 		d := newSubDriver(t)
-		runOutgoingShareEmptySharedSecretLookup(t, ctx, d.(store.OutgoingShareStore))
+		runOutgoingShareEmptySharedSecretLookup(t, ctx, requireOutgoingShareStore(t, d))
 	})
 
 	t.Run("OutgoingShareUpdateNotFound", func(t *testing.T) {
 		d := newSubDriver(t)
-		runOutgoingShareUpdateNotFound(t, ctx, d.(store.OutgoingShareStore))
+		runOutgoingShareUpdateNotFound(t, ctx, requireOutgoingShareStore(t, d))
 	})
 
 	t.Run("IncomingShareCRUD", func(t *testing.T) {
 		d := newSubDriver(t)
-		runIncomingShareCRUD(t, ctx, d.(store.IncomingShareStore))
+		runIncomingShareCRUD(t, ctx, requireIncomingShareStore(t, d))
 	})
 
 	t.Run("ProviderKeyScopedLookup", func(t *testing.T) {
 		d := newSubDriver(t)
-		runProviderKeyScopedLookup(t, ctx, d.(store.IncomingShareStore))
+		runProviderKeyScopedLookup(t, ctx, requireIncomingShareStore(t, d))
 	})
 
 	t.Run("OutgoingInviteCRUD", func(t *testing.T) {
 		d := newSubDriver(t)
-		runOutgoingInviteCRUD(t, ctx, d.(store.OutgoingInviteStore))
+		runOutgoingInviteCRUD(t, ctx, requireOutgoingInviteStore(t, d))
 	})
 
 	t.Run("OutgoingInviteUpdateNotFound", func(t *testing.T) {
 		d := newSubDriver(t)
-		runOutgoingInviteUpdateNotFound(t, ctx, d.(store.OutgoingInviteStore))
+		runOutgoingInviteUpdateNotFound(t, ctx, requireOutgoingInviteStore(t, d))
 	})
 
 	t.Run("IncomingInviteStatusContract", func(t *testing.T) {
 		d := newSubDriver(t)
-		runIncomingInviteStatusContract(t, ctx, d.(store.IncomingInviteStore))
+		runIncomingInviteStatusContract(t, ctx, requireIncomingInviteStore(t, d))
 	})
 
 	t.Run("IncomingInviteCompositeUniqueness", func(t *testing.T) {
 		d := newSubDriver(t)
-		runIncomingInviteCompositeUniqueness(t, ctx, d.(store.IncomingInviteStore))
+		runIncomingInviteCompositeUniqueness(t, ctx, requireIncomingInviteStore(t, d))
 	})
 
 	t.Run("IncomingShareProviderKeyUniqueness", func(t *testing.T) {
 		d := newSubDriver(t)
-		runIncomingShareProviderKeyUniqueness(t, ctx, d.(store.IncomingShareStore))
+		runIncomingShareProviderKeyUniqueness(t, ctx, requireIncomingShareStore(t, d))
 	})
 }
 
@@ -152,6 +176,50 @@ func cloneConfig(cfg *store.DriverConfig, dir string) *store.DriverConfig {
 	c.DataDir = dir
 
 	return &c
+}
+
+func requireOutgoingShareStore(t *testing.T, d store.Driver) store.OutgoingShareStore {
+	t.Helper()
+
+	s, ok := d.(store.OutgoingShareStore)
+	if !ok {
+		t.Fatal("driver does not implement OutgoingShareStore")
+	}
+
+	return s
+}
+
+func requireIncomingShareStore(t *testing.T, d store.Driver) store.IncomingShareStore {
+	t.Helper()
+
+	s, ok := d.(store.IncomingShareStore)
+	if !ok {
+		t.Fatal("driver does not implement IncomingShareStore")
+	}
+
+	return s
+}
+
+func requireOutgoingInviteStore(t *testing.T, d store.Driver) store.OutgoingInviteStore {
+	t.Helper()
+
+	s, ok := d.(store.OutgoingInviteStore)
+	if !ok {
+		t.Fatal("driver does not implement OutgoingInviteStore")
+	}
+
+	return s
+}
+
+func requireIncomingInviteStore(t *testing.T, d store.Driver) store.IncomingInviteStore {
+	t.Helper()
+
+	s, ok := d.(store.IncomingInviteStore)
+	if !ok {
+		t.Fatal("driver does not implement IncomingInviteStore")
+	}
+
+	return s
 }
 
 func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingShareStore) {
@@ -214,7 +282,11 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 		t.Fatalf("UpdateOutgoingShare failed: %v", err)
 	}
 
-	got, _ = s.GetOutgoingShare(ctx, share.ProviderId)
+	got, err = s.GetOutgoingShare(ctx, share.ProviderId)
+	if err != nil {
+		t.Fatalf("GetOutgoingShare after update failed: %v", err)
+	}
+
 	if got.State != "accepted" {
 		t.Errorf("expected state 'accepted', got %q", got.State)
 	}

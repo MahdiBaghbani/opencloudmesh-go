@@ -19,7 +19,11 @@ func TempDataDir(t *testing.T, pattern string) string {
 		t.Fatalf("create temp data dir: %v", err)
 	}
 
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("cleanup temp data dir: %v", err)
+		}
+	})
 
 	return dir
 }
@@ -38,7 +42,10 @@ func OpenDriver(t *testing.T, cfg *store.DriverConfig) store.Driver {
 	}
 
 	if err := d.Init(context.Background()); err != nil {
-		d.Close()
+		if closeErr := d.Close(); closeErr != nil {
+			t.Fatalf("init %s driver: %v (close after init failure: %v)", cfg.Driver, err, closeErr)
+		}
+
 		t.Fatalf("init %s driver: %v", cfg.Driver, err)
 	}
 

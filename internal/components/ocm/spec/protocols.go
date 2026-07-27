@@ -60,7 +60,11 @@ func ObjectProtocolRole(v any) (ProtocolRole, error) {
 
 // WebDAVReceiveRole constructs a webdav-receive protocol role.
 func WebDAVReceiveRole(uri WebDAVReceiveURIKind) ProtocolRole {
-	role, _ := ObjectProtocolRole(WebDAVReceive{URI: uri})
+	role, err := ObjectProtocolRole(WebDAVReceive{URI: uri})
+	if err != nil {
+		return ProtocolRole{}
+	}
+
 	return role
 }
 

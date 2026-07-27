@@ -201,7 +201,9 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Error("failed to encode token response", "error", err)
+	}
 }
 
 // sendOAuthError sends an OAuth-style error response.
@@ -214,7 +216,9 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) sendOAuthError(w http.ResponseWriter, status int, errCode, errDesc string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(token.OAuthError{
+
+	//nolint:errcheck // response already started; write error cannot be recovered
+	_ = json.NewEncoder(w).Encode(token.OAuthError{
 		Error:            errCode,
 		ErrorDescription: errDesc,
 	})

@@ -71,7 +71,9 @@ func PostSignedJSONStatusBody(
 	t.Helper()
 
 	resp, respBody := PostSignedJSON(t, client, signer, http.MethodPost, url, body)
-	defer resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("PostSignedJSONStatusBody: close response body: %v", err)
+	}
 
 	return resp.StatusCode, respBody
 }

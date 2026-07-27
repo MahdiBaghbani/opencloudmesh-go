@@ -97,7 +97,8 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*spec.Discovery,
 			return &disc, nil
 		}
 
-		_ = c.cache.Delete(ctx, cacheKey)
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		c.cache.Delete(ctx, cacheKey)
 	}
 
 	rawBytes, disc, err := c.fetchDiscovery(ctx, baseURL+"/.well-known/ocm")
@@ -105,13 +106,20 @@ func (c *Client) Discover(ctx context.Context, baseURL string) (*spec.Discovery,
 		return nil, fmt.Errorf("failed to discover OCM at %s: %w", baseURL, err)
 	}
 
-	c.cache.Set(ctx, cacheKey, rawBytes, c.cacheTTL)
+	if setErr := c.cache.Set(ctx, cacheKey, rawBytes, c.cacheTTL); setErr != nil && c.logger != nil {
+		c.logger.Warn("failed to cache discovery document", "base_url", baseURL, "error", setErr)
+	}
 
 	return disc, nil
 }
 
 func (c *Client) fetchDiscovery(ctx context.Context, discoveryURL string) ([]byte, *spec.Discovery, error) {
 	data, resp, err := c.httpClient.GetJSON(ctx, discoveryURL)
+	if resp != nil {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}
+
 	if err != nil {
 		return nil, nil, err
 	}

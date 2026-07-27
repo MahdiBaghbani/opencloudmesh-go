@@ -33,9 +33,13 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 	if err != nil {
 		return "", fmt.Errorf("POST login: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort body cleanup; close error is not actionable on an abandoned response
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read login response: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("login failed: status=%d body=%s", resp.StatusCode, respBody)
 	}
@@ -93,7 +97,7 @@ func DoJSON(client *http.Client, req *http.Request, dst any) (int, []byte, error
 	if err != nil {
 		return 0, nil, err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort body cleanup; close error is not actionable on an abandoned response
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {

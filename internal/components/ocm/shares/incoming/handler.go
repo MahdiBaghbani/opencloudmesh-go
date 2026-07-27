@@ -289,9 +289,11 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 			"sender", senderHost)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(spec.CreateShareResponse{
+		if err := json.NewEncoder(w).Encode(spec.CreateShareResponse{
 			RecipientDisplayName: existing.RecipientDisplayName,
-		})
+		}); err != nil {
+			log.Error("failed to encode share response", "error", err)
+		}
 
 		return
 	}
@@ -348,9 +350,11 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		"recipient_user_id", share.RecipientUserID)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(spec.CreateShareResponse{
+	if err := json.NewEncoder(w).Encode(spec.CreateShareResponse{
 		RecipientDisplayName: share.RecipientDisplayName,
-	})
+	}); err != nil {
+		log.Error("failed to encode share response", "error", err)
+	}
 }
 
 func dedupeValidationErrors(errs []spec.ValidationError) []spec.ValidationError {

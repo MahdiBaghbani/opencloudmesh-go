@@ -87,13 +87,15 @@ func newDurableRepos(ctx context.Context, cfg config.PersistenceConfig) (*Repos,
 	}
 
 	if err := drv.Init(ctx); err != nil {
-		_ = drv.Close()
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		drv.Close()
 		return nil, fmt.Errorf("init %s store: %w", cfg.Backend, err)
 	}
 
 	fs, ok := drv.(fullStore)
 	if !ok {
-		_ = drv.Close()
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		drv.Close()
 		return nil, fmt.Errorf("%s driver does not implement all required store surfaces", cfg.Backend)
 	}
 

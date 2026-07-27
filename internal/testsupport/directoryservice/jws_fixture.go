@@ -85,6 +85,7 @@ func StartHTTPSDirectoryService(t *testing.T, body []byte) *httptest.Server {
 
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
+		//nolint:errcheck // response already started; write error cannot be recovered
+		w.Write(body)
 	}))
 }

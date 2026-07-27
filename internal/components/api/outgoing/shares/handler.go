@@ -175,9 +175,26 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		name = filepath.Base(cleanPath)
 	}
 
-	providerID, _ := uuid.NewV7()
-	webdavID, _ := uuid.NewV7()
-	sharedSecret := generateSharedSecret()
+	providerID, err := uuid.NewV7()
+	if err != nil {
+		h.logger.Error("failed to generate provider id", "error", err)
+		api.WriteInternalError(w, "failed to create share")
+		return
+	}
+
+	webdavID, err := uuid.NewV7()
+	if err != nil {
+		h.logger.Error("failed to generate webdav id", "error", err)
+		api.WriteInternalError(w, "failed to create share")
+		return
+	}
+	sharedSecret, err := generateSharedSecret()
+	if err != nil {
+		h.logger.Error("failed to generate shared secret", "error", err)
+		api.WriteInternalError(w, "failed to create share")
+
+		return
+	}
 
 	owner := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
 	sender := address.FormatOutgoingOCMAddressFromUserID(user.ID, h.localProvider)
@@ -310,12 +327,14 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"shareId":    share.ShareID,
 		"providerId": share.ProviderID,
 		"webdavId":   share.WebDAVID,
 		"status":     share.Status,
-	})
+	}); err != nil {
+		h.logger.Error("failed to encode share response", "error", err)
+	}
 }
 
 // validateLocalPath ensures path is absolute, under allowedPaths, and has no traversal.
@@ -370,21 +389,29 @@ func (h *Handler) sendShareToReceiver(
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("receiver returned status %d: %w", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("receiver returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	return nil
 }
 
-func generateSharedSecret() string {
+func generateSharedSecret() (string, error) {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate shared secret: %w", err)
+	}
 
-	return base64.URLEncoding.EncodeToString(b)
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 type resolvedPeerOrigin struct {

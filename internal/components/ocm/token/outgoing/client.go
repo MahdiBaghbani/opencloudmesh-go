@@ -125,7 +125,10 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*ExchangeRes
 			err,
 		)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
 
 	maxBytes := int64(config.DefaultMaxResponseBytes)
 

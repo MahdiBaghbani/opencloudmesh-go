@@ -144,6 +144,7 @@ func (c *Client) DoWithOptions(req *http.Request, opts RequestOptions) (*http.Re
 
 	if isRedirect(resp.StatusCode) {
 		if isSigned {
+			//nolint:errcheck // best-effort cleanup; error is not actionable
 			resp.Body.Close()
 			return nil, fmt.Errorf("%w: received %d", ErrSignedNoRedirect, resp.StatusCode)
 		}
@@ -161,7 +162,10 @@ func hasSignatureHeaders(req *http.Request) bool {
 
 // followRedirect follows a single redirect with strict constraints.
 func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, depth int) (*http.Response, error) {
-	defer resp.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
 
 	ctx := origReq.Context()
 
@@ -229,7 +233,10 @@ func (c *Client) GetJSON(ctx context.Context, urlStr string) ([]byte, *http.Resp
 	if err != nil {
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
 
 	limitedReader := io.LimitReader(resp.Body, c.cfg.MaxResponseBytes+1)
 

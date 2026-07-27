@@ -3,6 +3,7 @@ package sigalg
 
 import (
 	"crypto"
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -161,7 +162,7 @@ func DeriveFromJWK(kty, crv, jwkAlg string) (string, error) {
 
 		return Ed25519, nil
 	case "EC":
-		_, fromCrv, _, err := ecParamsFromCrv(crv)
+		_, _, fromCrv, _, err := ecParamsFromCrv(crv)
 		if err != nil {
 			return "", err
 		}
@@ -201,14 +202,14 @@ func DeriveFromJWK(kty, crv, jwkAlg string) (string, error) {
 
 // ecParamsFromCrv classifies an EC curve for DeriveFromJWK and
 // PublicKeyFromJWKFields.
-func ecParamsFromCrv(crv string) (elliptic.Curve, string, int, error) {
+func ecParamsFromCrv(crv string) (elliptic.Curve, ecdh.Curve, string, int, error) {
 	switch strings.ToUpper(strings.TrimSpace(crv)) {
 	case "P-256":
-		return elliptic.P256(), ECDSAP256SHA256, 32, nil
+		return elliptic.P256(), ecdh.P256(), ECDSAP256SHA256, 32, nil
 	case "P-384":
-		return elliptic.P384(), ECDSAP384SHA384, 48, nil
+		return elliptic.P384(), ecdh.P384(), ECDSAP384SHA384, 48, nil
 	default:
-		return nil, "", 0, fmt.Errorf("sigalg: unsupported EC curve %q", crv)
+		return nil, nil, "", 0, fmt.Errorf("sigalg: unsupported EC curve %q", crv)
 	}
 }
 
@@ -368,7 +369,9 @@ func verifyECDSA(
 	s := new(big.Int).SetBytes(signature[coordSize:])
 	h := newHash()
 
-	_, _ = h.Write(message)
+	if _, err := h.Write(message); err != nil {
+		return fmt.Errorf("%w: failed to hash message: %w", ErrVerifyFailed, err)
+	}
 	if !ecdsa.Verify(key, h.Sum(nil), r, s) {
 		return ErrVerifyFailed
 	}
@@ -389,7 +392,9 @@ func verifyRSAPKCS1(
 
 	h := newHash()
 
-	_, _ = h.Write(message)
+	if _, err := h.Write(message); err != nil {
+		return fmt.Errorf("%w: failed to hash message: %w", ErrVerifyFailed, err)
+	}
 	if err := rsa.VerifyPKCS1v15(key, hash, h.Sum(nil), signature); err != nil {
 		return ErrVerifyFailed
 	}
@@ -427,7 +432,7 @@ func PublicKeyFromJWKFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
 
 		return ed25519.PublicKey(raw), nil
 	case "EC":
-		curve, _, coordSize, err := ecParamsFromCrv(f.Crv)
+		curve, ecdhCurve, _, coordSize, err := ecParamsFromCrv(f.Crv)
 		if err != nil {
 			return nil, err
 		}
@@ -446,13 +451,22 @@ func PublicKeyFromJWKFields(f JWKPublicKeyFields) (crypto.PublicKey, error) {
 			return nil, fmt.Errorf("sigalg: EC coordinate too large for %s", f.Crv)
 		}
 
+		// Validate the point with crypto/ecdh; NIST NewPublicKey accepts the
+		// uncompressed encoding 0x04 || x || y and performs the on-curve check
+		// previously done by the deprecated crypto/elliptic Curve.IsOnCurve.
+		point := make([]byte, 1+2*coordSize)
+		point[0] = 0x04
+		copy(point[1+coordSize-len(xRaw):1+coordSize], xRaw)
+		copy(point[1+2*coordSize-len(yRaw):1+2*coordSize], yRaw)
+
+		if _, err := ecdhCurve.NewPublicKey(point); err != nil {
+			return nil, errors.New("sigalg: EC public key is not on curve")
+		}
+
 		pub := &ecdsa.PublicKey{
 			Curve: curve,
 			X:     new(big.Int).SetBytes(xRaw),
 			Y:     new(big.Int).SetBytes(yRaw),
-		}
-		if !curve.IsOnCurve(pub.X, pub.Y) {
-			return nil, errors.New("sigalg: EC public key is not on curve")
 		}
 
 		return pub, nil

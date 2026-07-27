@@ -73,6 +73,11 @@ func NewClient(httpClient *httpclient.Client, defaultVerificationPolicy string, 
 // (https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#appendix-c-directory-service).
 func (c *Client) FetchListing(ctx context.Context, directoryServiceURL string, keys []VerificationKey, verificationPolicy string) (*Listing, error) {
 	body, resp, err := c.httpClient.GetJSON(ctx, directoryServiceURL)
+	if resp != nil {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch directory service: %w", err)
 	}

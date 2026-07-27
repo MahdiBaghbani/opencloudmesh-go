@@ -198,7 +198,9 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		"user_id", req.UserID)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("failed to encode invite accepted response", "error", err)
+	}
 }
 
 func (h *Handler) buildInviteAcceptedResponse(
@@ -229,6 +231,7 @@ func (h *Handler) buildInviteAcceptedResponse(
 func (h *Handler) sendOCMError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	//nolint:errcheck // response already started; write error cannot be recovered
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": message,
 	})

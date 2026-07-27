@@ -59,6 +59,7 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 func WriteValidationError(w http.ResponseWriter, message string, errors []ValidationError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
+	//nolint:errcheck // response already started; write error cannot be recovered
 	json.NewEncoder(w).Encode(OCMErrorResponse{
 		Message:          message,
 		ValidationErrors: errors,
@@ -84,5 +85,6 @@ func WriteProtocolNotSupported(w http.ResponseWriter) {
 func WriteOCMError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	//nolint:errcheck // response already started; write error cannot be recovered
 	json.NewEncoder(w).Encode(OCMErrorResponse{Message: message})
 }

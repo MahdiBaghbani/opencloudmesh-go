@@ -113,8 +113,8 @@ func (c *Client) newTransport(rootCAs *x509.CertPool, proxyFunc func(*http.Reque
 func (c *Client) ssrfCheckedDial(dialer *net.Dialer) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if c.isStrictMode() {
-			host, _, _ := net.SplitHostPort(addr)
-			if host == "" {
+			host, _, splitErr := net.SplitHostPort(addr)
+			if splitErr != nil {
 				host = addr
 			}
 

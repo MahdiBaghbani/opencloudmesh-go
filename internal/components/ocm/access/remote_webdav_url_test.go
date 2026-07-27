@@ -29,7 +29,7 @@ func TestBuildWebDAVURL_AbsoluteURIMatchingHost(t *testing.T) {
 		WebDAVID:     "https://sender.example.com/remote.php/webdav/file.txt",
 	}
 
-	got, err := client.buildWebDAVURL(context.Background(), share, "", disc)
+	got, err := client.buildWebDAVURL(share, "", disc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestBuildWebDAVURL_AbsoluteURIMismatchedHost(t *testing.T) {
 		WebDAVID:     "https://evil.example.com/webdav/file.txt",
 	}
 
-	got, err := client.buildWebDAVURL(context.Background(), share, "", disc)
+	got, err := client.buildWebDAVURL(share, "", disc)
 	if err != nil {
 		errStr := err.Error()
 		if strings.Contains(errStr, "evil.example.com") {
@@ -104,7 +104,7 @@ func TestBuildWebDAVURL_AbsoluteURIParseError(t *testing.T) {
 		WebDAVID:     "://not-a-valid-url",
 	}
 
-	got, err := client.buildWebDAVURL(context.Background(), share, "", disc)
+	got, err := client.buildWebDAVURL(share, "", disc)
 	if err != nil {
 		errStr := err.Error()
 		if strings.Contains(errStr, "not-a-valid-url") {

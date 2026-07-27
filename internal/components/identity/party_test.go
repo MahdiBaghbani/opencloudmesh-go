@@ -335,8 +335,15 @@ func TestMemoryPartyRepo_DeleteRemovesEmailIndex(t *testing.T) {
 }
 
 func TestUUIDv7(t *testing.T) {
-	id1 := identity.UUIDv7()
-	id2 := identity.UUIDv7()
+	id1, err := identity.UUIDv7()
+	if err != nil {
+		t.Fatalf("UUIDv7 failed: %v", err)
+	}
+
+	id2, err := identity.UUIDv7()
+	if err != nil {
+		t.Fatalf("UUIDv7 failed: %v", err)
+	}
 
 	if id1 == id2 {
 		t.Error("UUIDs should be unique")

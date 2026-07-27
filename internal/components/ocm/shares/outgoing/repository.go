@@ -41,7 +41,11 @@ func (r *MemoryOutgoingShareRepo) Create(ctx context.Context, share *OutgoingSha
 	defer r.mu.Unlock()
 
 	if share.ShareID == "" {
-		id, _ := uuid.NewV7()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate share id: %w", err)
+		}
+
 		share.ShareID = id.String()
 	}
 

@@ -128,7 +128,9 @@ func (h *AuxHandler) HandleFederations(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		h.logger.Error("failed to encode federations", "error", err)
+	}
 }
 
 // resolveInviteDialog resolves relative inviteAcceptDialog against server URL.
@@ -227,7 +229,9 @@ func (h *AuxHandler) HandleDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error("failed to encode discover response", "error", err)
+	}
 }
 
 // sendDiscoverError returns a JSON error for the discover endpoint.
@@ -250,7 +254,9 @@ func (h *AuxHandler) sendDiscoverError(w http.ResponseWriter, status int, messag
 		resp.ReasonCode = reasonCode
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error("failed to encode discover error", "error", err)
+	}
 }
 
 // normalizeToOrigin normalizes user-entered provider input to scheme://host[:port].

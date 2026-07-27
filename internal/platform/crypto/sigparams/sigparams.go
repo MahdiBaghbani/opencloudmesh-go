@@ -709,7 +709,6 @@ func parseInnerList(entry string) ([]string, string, error) {
 			depth--
 			if depth == 0 {
 				closeIdx = i
-				break
 			}
 		}
 
@@ -761,9 +760,7 @@ func splitParameters(rest string) []string {
 		return nil
 	}
 
-	if strings.HasPrefix(rest, ";") {
-		rest = strings.TrimPrefix(rest, ";")
-	}
+	rest = strings.TrimPrefix(rest, ";")
 
 	return strings.Split(rest, ";")
 }

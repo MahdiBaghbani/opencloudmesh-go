@@ -174,12 +174,20 @@ func extractSessionToken(r *http.Request) string {
 
 // GetSessionFromContext returns the session from request context.
 func GetSessionFromContext(ctx context.Context) *identity.Session {
-	session, _ := ctx.Value(sessionContextKey).(*identity.Session)
+	session, ok := ctx.Value(sessionContextKey).(*identity.Session)
+	if !ok {
+		return nil
+	}
+
 	return session
 }
 
 // GetUserFromContext returns the user from request context.
 func GetUserFromContext(ctx context.Context) *identity.User {
-	user, _ := ctx.Value(userContextKey).(*identity.User)
+	user, ok := ctx.Value(userContextKey).(*identity.User)
+	if !ok {
+		return nil
+	}
+
 	return user
 }

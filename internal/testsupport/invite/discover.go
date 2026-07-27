@@ -31,7 +31,7 @@ func DiscoverProvider(client *http.Client, auxBaseURL, providerBaseURL string) (
 	if err != nil {
 		return nil, 0, fmt.Errorf("GET discover: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort body cleanup; close error is not actionable on an abandoned response
 
 	var body DiscoverResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {

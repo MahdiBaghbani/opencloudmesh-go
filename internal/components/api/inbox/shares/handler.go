@@ -217,6 +217,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errcheck // response already started; write error cannot be recovered
 	json.NewEncoder(w).Encode(InboxListResponse{Shares: views})
 }
 
@@ -251,6 +252,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	if share.Status == sharesinbox.ShareStatusAccepted {
 		w.Header().Set("Content-Type", "application/json")
+		//nolint:errcheck // response already started; write error cannot be recovered
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  string(sharesinbox.ShareStatusAccepted),
 			"shareId": shareID,
@@ -272,6 +274,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errcheck // response already started; write error cannot be recovered
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  string(sharesinbox.ShareStatusAccepted),
 		"shareId": shareID,
@@ -308,7 +311,9 @@ func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 	detail := NewInboxShareDetailView(share)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	if err := json.NewEncoder(w).Encode(detail); err != nil {
+		h.log.Error("failed to encode share detail", "error", err)
+	}
 }
 
 // HandleDecline handles POST /api/inbox/shares/{shareId}/decline.
@@ -342,10 +347,12 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	if share.Status == sharesinbox.ShareStatusDeclined {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		if err := json.NewEncoder(w).Encode(map[string]string{
 			"status":  string(sharesinbox.ShareStatusDeclined),
 			"shareId": shareID,
-		})
+		}); err != nil {
+			h.log.Error("failed to encode declined share", "error", err)
+		}
 
 		return
 	}
@@ -363,10 +370,12 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":  string(sharesinbox.ShareStatusDeclined),
 		"shareId": shareID,
-	})
+	}); err != nil {
+		h.log.Error("failed to encode declined share", "error", err)
+	}
 }
 
 // HandleVerifyAccess handles POST /api/inbox/shares/{shareId}/verify-access; all access is server-side (no secrets to browser).
@@ -436,7 +445,10 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		h.writeAccessError(w, err)
 		return
 	}
-	defer result.Response.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		result.Response.Body.Close()
+	}()
 
 	if result.Response.StatusCode < 200 || result.Response.StatusCode >= 300 {
 		writeVerifyError(w, reason.APIStatus(reason.PeerUnreachable), reason.VerifyCode(reason.PeerUnreachable),
@@ -451,13 +463,15 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(VerifyAccessResponse{
+	if err := json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:                      true,
 		HTTPStatus:              result.Response.StatusCode,
 		ContentType:             redactPeerValue(result.Response.Header.Get("Content-Type"), share.SharedSecret),
 		ContentPreview:          redactPeerValue(string(preview), share.SharedSecret),
 		ContentPreviewTruncated: truncated,
-	})
+	}); err != nil {
+		h.log.Error("failed to encode verify access response", "error", err)
+	}
 }
 
 // isUnsafePath rejects share names containing /, \, or ..
@@ -495,6 +509,7 @@ func redactPeerValue(value, secret string) string {
 func writeVerifyError(w http.ResponseWriter, statusCode int, reasonCode, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
+	//nolint:errcheck // response already started; write error cannot be recovered
 	json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:         false,
 		ReasonCode: reasonCode,

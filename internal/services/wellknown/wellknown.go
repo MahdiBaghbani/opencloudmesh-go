@@ -68,9 +68,7 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		conf:   &c,
 	}
 
-	if err := s.routerInit(inputs, rawOCMProvider, log); err != nil {
-		return nil, err
-	}
+	s.routerInit(inputs, rawOCMProvider, log)
 
 	return s, nil
 }
@@ -86,15 +84,13 @@ func discoveryHandler(
 	return signatureMiddleware.VerifyOCMRequestIfPresent()(handler)
 }
 
-func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) error {
+func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog.Logger) {
 	handler := newOCMHandler(&s.conf.OCMProvider, rawOCMProvider, inputs.Resolve, log)
 
 	ocm := discoveryHandler(handler, inputs.SignatureMiddleware)
 	s.router.Get(RouteWellKnownOCM, ocm.ServeHTTP)
 	s.router.Get(RouteWellKnownOCMSlash, ocm.ServeHTTP)
 	s.router.Get(RouteWellKnownJWKS, newJWKSHandler(inputs.KeyManager).ServeHTTP)
-
-	return nil
 }
 
 // Close implements service.Service.

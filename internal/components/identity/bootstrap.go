@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -108,7 +109,11 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	passwordGenerated := false
 
 	if password == "" {
-		password = generateRandomPassword()
+		var err error
+		password, err = generateRandomPassword()
+		if err != nil {
+			return err
+		}
 		passwordGenerated = true
 	}
 
@@ -117,8 +122,13 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 		return err
 	}
 
+	id, err := UUIDv7()
+	if err != nil {
+		return err
+	}
+
 	superAdmin := &User{
-		ID:           UUIDv7(),
+		ID:           id,
 		Username:     username,
 		DisplayName:  "Super Administrator",
 		PasswordHash: hash,
@@ -142,13 +152,13 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	return nil
 }
 
-func generateRandomPassword() string {
+func generateRandomPassword() (string, error) {
 	b := make([]byte, 24)
 	if _, err := rand.Read(b); err != nil {
-		return "changeme-" + UUIDv7()
+		return "", fmt.Errorf("failed to generate random password: %w", err)
 	}
 
-	return base64.URLEncoding.EncodeToString(b)
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
@@ -172,8 +182,13 @@ func (b *Bootstrap) ensureUser(ctx context.Context, s SeededUser) (int, error) {
 		role = "user"
 	}
 
+	id, err := UUIDv7()
+	if err != nil {
+		return 0, err
+	}
+
 	user := &User{
-		ID:           UUIDv7(),
+		ID:           id,
 		Username:     s.Username,
 		Email:        s.Email,
 		DisplayName:  s.DisplayName,
@@ -220,8 +235,13 @@ func (b *Bootstrap) CreateProbeUser(ctx context.Context, username, password, rea
 	now := time.Now()
 	expiresAt := now.Add(ProbeUserTTL)
 
+	id, err := UUIDv7()
+	if err != nil {
+		return nil, err
+	}
+
 	user := &User{
-		ID:           UUIDv7(),
+		ID:           id,
 		Username:     username,
 		Email:        "",
 		DisplayName:  "Probe User",

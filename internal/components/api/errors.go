@@ -71,6 +71,7 @@ func WriteError(w http.ResponseWriter, statusCode int, reasonCode, message strin
 		},
 	}
 
+	//nolint:errcheck // response already started; write error cannot be recovered
 	json.NewEncoder(w).Encode(envelope)
 }
 

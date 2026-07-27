@@ -428,30 +428,37 @@ func (d *Driver) writeJSON(filename string, data interface{}) error {
 	}
 
 	if _, err := f.Write(jsonData); err != nil {
-		f.Close()
-		os.Remove(tempPath)
+		cleanupMirrorTempSave(f, tempPath)
 
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 
 	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tempPath)
+		cleanupMirrorTempSave(f, tempPath)
 
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 
 	if err := f.Close(); err != nil {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
 		os.Remove(tempPath)
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
 	if err := os.Rename(tempPath, path); err != nil {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
 		os.Remove(tempPath)
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
 	return nil
+}
+
+func cleanupMirrorTempSave(f *os.File, tempPath string) {
+	//nolint:errcheck // best-effort cleanup; error is not actionable
+	f.Close()
+	//nolint:errcheck // best-effort cleanup; error is not actionable
+	os.Remove(tempPath)
 }
 
 // logExportError logs a JSON export failure without returning it to the caller.

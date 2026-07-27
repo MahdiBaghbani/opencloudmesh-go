@@ -113,9 +113,14 @@ func (km *KeyManager) loadKey() (*SigningKey, error) {
 		return nil, errors.New("not an Ed25519 private key")
 	}
 
+	publicKey, ok := edPriv.Public().(ed25519.PublicKey)
+	if !ok {
+		return nil, errors.New("Ed25519 public key type assertion failed")
+	}
+
 	return &SigningKey{
 		PrivateKey: edPriv,
-		PublicKey:  edPriv.Public().(ed25519.PublicKey),
+		PublicKey:  publicKey,
 		KeyID:      km.keyID,
 		Algorithm:  sigalg.Ed25519,
 	}, nil

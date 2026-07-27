@@ -118,7 +118,9 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(InboxListResponse{Invites: views})
+	if err := json.NewEncoder(w).Encode(InboxListResponse{Invites: views}); err != nil {
+		h.log.Error("failed to encode inbox invites", "error", err)
+	}
 }
 
 // HandleImport handles POST /api/inbox/invites/import; idempotent for same token and user.
@@ -151,12 +153,14 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 	existing, err := h.incomingRepo.GetByTokenForRecipientUserID(ctx, token, user.ID)
 	if err == nil && existing != nil {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(InviteImportResponse{
+		if err := json.NewEncoder(w).Encode(InviteImportResponse{
 			ID:         existing.ID,
 			SenderFQDN: existing.SenderFQDN,
 			ReceivedAt: existing.ReceivedAt.Format("2006-01-02T15:04:05Z07:00"),
 			Status:     existing.Status,
-		})
+		}); err != nil {
+			h.log.Error("failed to encode import response", "error", err)
+		}
 
 		return
 	}
@@ -177,12 +181,14 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(InviteImportResponse{
+	if err := json.NewEncoder(w).Encode(InviteImportResponse{
 		ID:         invite.ID,
 		SenderFQDN: invite.SenderFQDN,
 		ReceivedAt: invite.ReceivedAt.Format("2006-01-02T15:04:05Z07:00"),
 		Status:     invite.Status,
-	})
+	}); err != nil {
+		h.log.Error("failed to encode import response", "error", err)
+	}
 }
 
 // HandleAccept handles POST /api/inbox/invites/{inviteId}/accept; idempotent if already accepted.
@@ -216,10 +222,12 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	if invite.Status == invites.InviteStatusAccepted {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		if err := json.NewEncoder(w).Encode(map[string]string{
 			"status":   string(invites.InviteStatusAccepted),
 			"inviteId": inviteID,
-		})
+		}); err != nil {
+			h.log.Error("failed to encode accepted invite", "error", err)
+		}
 
 		return
 	}
@@ -245,10 +253,12 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	h.log.Info("invite accepted", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":   string(invites.InviteStatusAccepted),
 		"inviteId": inviteID,
-	})
+	}); err != nil {
+		h.log.Error("failed to encode accepted invite", "error", err)
+	}
 }
 
 // HandleDecline handles POST /api/inbox/invites/{inviteId}/decline; deletes the invite locally (no outbound call).
@@ -282,10 +292,12 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	if invite.Status == invites.InviteStatusDeclined {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		if err := json.NewEncoder(w).Encode(map[string]string{
 			"status":   string(invites.InviteStatusDeclined),
 			"inviteId": inviteID,
-		})
+		}); err != nil {
+			h.log.Error("failed to encode declined invite", "error", err)
+		}
 
 		return
 	}
@@ -302,10 +314,12 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	h.log.Info("invite declined", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":   string(invites.InviteStatusDeclined),
 		"inviteId": inviteID,
-	})
+	}); err != nil {
+		h.log.Error("failed to encode declined invite", "error", err)
+	}
 }
 
 // sendInviteAccepted sends POST /ocm/invite-accepted to the sender with all spec-required fields.
@@ -337,10 +351,16 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("invite-accepted rejected with status %d: %w", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("invite-accepted rejected with status %d: %s", resp.StatusCode, string(respBody))
 	}
 

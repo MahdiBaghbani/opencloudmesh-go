@@ -278,7 +278,9 @@ func (m *ACMEManager) ChallengeHandler() http.Handler {
 		}
 
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprint(w, entry.keyAuth)
+
+		//nolint:errcheck // response already started; write error cannot be recovered
+		_, _ = fmt.Fprint(w, entry.keyAuth)
 	})
 }
 

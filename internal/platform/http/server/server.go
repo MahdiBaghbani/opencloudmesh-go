@@ -176,7 +176,8 @@ func (s *Server) startACME() error {
 		defer cancel()
 
 		if shutdownErr := s.challengeServer.Shutdown(shutdownCtx); shutdownErr != nil && !errors.Is(shutdownErr, http.ErrServerClosed) {
-			_ = s.challengeServer.Close()
+			//nolint:errcheck // best-effort cleanup; error is not actionable
+			s.challengeServer.Close()
 		}
 	}
 
@@ -222,7 +223,8 @@ func (s *Server) startACME() error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), config.DefaultServerShutdownTimeout)
 		defer cancel()
 
-		_ = s.httpServer.Shutdown(shutdownCtx)
+		//nolint:errcheck // best-effort cleanup; error is not actionable
+		s.httpServer.Shutdown(shutdownCtx)
 
 		return fmt.Errorf("challenge server exited unexpectedly: %w", challengeErr)
 	}

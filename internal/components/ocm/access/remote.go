@@ -296,7 +296,7 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 
 	accessToken := exchangeResult.AccessToken
 
-	webdavURL, err := c.buildWebDAVURL(ctx, share, opts.SubPath, disc)
+	webdavURL, err := c.buildWebDAVURL(share, opts.SubPath, disc)
 	if err != nil {
 		return nil, err
 	}
@@ -310,6 +310,11 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
+		if resp != nil {
+			//nolint:errcheck // best-effort cleanup; error is not actionable
+			resp.Body.Close()
+		}
+
 		return nil, reason.NewClassifiedError(
 			reason.ReasonNetworkError,
 			"WebDAV request failed",
@@ -324,7 +329,7 @@ func (c *Client) accessTokenExchange(ctx context.Context, share *ShareInfo, opts
 }
 
 func (c *Client) accessSharedSecret(ctx context.Context, share *ShareInfo, opts AccessOptions, disc *spec.Discovery) (*AccessResult, error) {
-	webdavURL, err := c.buildWebDAVURL(ctx, share, opts.SubPath, disc)
+	webdavURL, err := c.buildWebDAVURL(share, opts.SubPath, disc)
 	if err != nil {
 		return nil, err
 	}
@@ -338,6 +343,11 @@ func (c *Client) accessSharedSecret(ctx context.Context, share *ShareInfo, opts 
 
 	resp, err := c.httpClient.Do(ctx, req)
 	if err != nil {
+		if resp != nil {
+			//nolint:errcheck // best-effort cleanup; error is not actionable
+			resp.Body.Close()
+		}
+
 		return nil, reason.NewClassifiedError(
 			reason.ReasonNetworkError,
 			"WebDAV request failed",
@@ -374,6 +384,7 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 	}
 
 	if result.Response.StatusCode != http.StatusOK {
+		//nolint:errcheck // best-effort cleanup; error is not actionable
 		result.Response.Body.Close()
 
 		return nil, reason.NewClassifiedError(
@@ -387,7 +398,7 @@ func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser
 }
 
 // buildWebDAVURL returns the WebDAV URL; validates absolute URI host against owner to prevent SSRF.
-func (c *Client) buildWebDAVURL(ctx context.Context, share *ShareInfo, subPath string, disc *spec.Discovery) (string, error) {
+func (c *Client) buildWebDAVURL(share *ShareInfo, subPath string, disc *spec.Discovery) (string, error) {
 	host := accessHostForDiscovery(share)
 	if isAbsoluteWebDAVURI(share.WebDAVID) {
 		if c.isAbsoluteURIHostValid(share.WebDAVID, host) {

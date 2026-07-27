@@ -25,10 +25,15 @@ func NewTrustedProxies(cidrs []string) *TrustedProxies {
 			// Try as single IP
 			ip := net.ParseIP(cidr)
 			if ip != nil {
+				var parseErr error
 				if ip.To4() != nil {
-					_, network, _ = net.ParseCIDR(ip.String() + "/32")
+					_, network, parseErr = net.ParseCIDR(ip.String() + "/32")
 				} else {
-					_, network, _ = net.ParseCIDR(ip.String() + "/128")
+					_, network, parseErr = net.ParseCIDR(ip.String() + "/128")
+				}
+
+				if parseErr != nil {
+					network = nil
 				}
 			}
 		}

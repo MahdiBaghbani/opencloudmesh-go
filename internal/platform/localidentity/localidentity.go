@@ -54,7 +54,7 @@ func ValidateExternalBasePath(path string) (string, error) {
 	}
 
 	if strings.Contains(path, "..") {
-		return "", fmt.Errorf("localidentity: external_base_path %q must not contain ..", path)
+		return "", fmt.Errorf("localidentity: external_base_path %q must not contain parent-directory path segments", path)
 	}
 
 	if strings.Contains(path, "//") {
