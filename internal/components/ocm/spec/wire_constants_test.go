@@ -128,7 +128,7 @@ func init() { _ = "must-exchange-token" }
 `
 
 	path := filepath.Join(tmp, "pkg", "bad.go")
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
 		t.Fatalf("mkdir temp fixture: %v", err)
 	}
 
@@ -179,7 +179,7 @@ func TestWireConstantsScannerSkipsGeneratedFiles(t *testing.T) {
 
 	for _, tc := range cases {
 		dir := filepath.Join(tmp, tc.dir)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
 			t.Fatalf("mkdir temp fixture %s: %v", tc.dir, err)
 		}
 

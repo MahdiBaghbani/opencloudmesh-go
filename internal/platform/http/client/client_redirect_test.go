@@ -32,7 +32,10 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 		t.Fatalf("NewRequest: %v", err)
 	}
 
-	_, err = client.DoSigned(req)
+	resp, err := client.DoSigned(req)
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("expected error for signed request with redirect")
 	}
@@ -58,13 +61,16 @@ func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
 func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Always redirect
-		http.Redirect(w, r, r.URL.Path+"x", http.StatusFound)
+		http.Redirect(w, r, r.URL.Path+"x", http.StatusFound) //nolint:gosec // test: redirect target is test-controlled fixture, not user input
 	}))
 	defer server.Close()
 
 	client := outboundtestutil.NewPermissive(nil) // MaxRedirects=1 by default
 
-	_, err := client.Get(context.Background(), server.URL+"/start")
+	resp, err := client.Get(context.Background(), server.URL+"/start")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("expected error for too many redirects")
 	}
@@ -88,7 +94,10 @@ func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
 
 	client := outboundtestutil.NewPermissive(nil)
 
-	_, err := client.Get(context.Background(), redirectServer.URL+"/start")
+	resp, err := client.Get(context.Background(), redirectServer.URL+"/start")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("expected error for cross-host redirect")
 	}
@@ -125,7 +134,10 @@ func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 
 	c := outboundtestutil.NewPermissive(rootCAs)
 
-	_, err = c.Get(context.Background(), tlsSource.URL)
+	resp, err := c.Get(context.Background(), tlsSource.URL)
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("expected error for HTTPS->HTTP redirect downgrade")
 	}
@@ -172,7 +184,10 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 			req.Header.Set(tt.header, "sig=()")
 
 			// Use Do() not DoSigned() - central header detection should still catch it
-			_, err = client.Do(req)
+			resp, err := client.Do(req)
+			if resp != nil {
+				defer resp.Body.Close() //nolint:errcheck // test response body close
+			}
 			if err == nil {
 				t.Fatal("expected error for signed request with redirect")
 			}
@@ -214,7 +229,10 @@ func TestRedirectCrossHostBlocked(t *testing.T) {
 
 	client := outboundtestutil.NewPermissive(nil)
 
-	_, err := client.Get(context.Background(), redirectServer.URL+"/start")
+	resp, err := client.Get(context.Background(), redirectServer.URL+"/start")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("cross-host redirect should be blocked")
 	}
@@ -231,7 +249,7 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 		if r.URL.Path == "/start" {
 			// Build absolute URL with explicit port (should still be same-host)
 			targetURL := "http://" + r.Host + "/target"
-			http.Redirect(w, r, targetURL, http.StatusFound)
+			http.Redirect(w, r, targetURL, http.StatusFound) //nolint:gosec // test: redirect target is test-controlled fixture, not user input
 
 			return
 		}
@@ -278,7 +296,10 @@ func TestClient_SignedRedirectRejectedWithProxy(t *testing.T) {
 		t.Fatalf("NewRequest: %v", err)
 	}
 
-	_, err = c.DoSigned(req)
+	resp, err := c.DoSigned(req)
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("expected error for signed request receiving redirect via proxy")
 	}

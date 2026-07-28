@@ -60,7 +60,10 @@ func TestClient_SSRFProtection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.Get(ctx, tt.url)
+			resp, err := client.Get(ctx, tt.url)
+			if resp != nil {
+				defer resp.Body.Close() //nolint:errcheck // test response body close
+			}
 
 			if tt.wantError {
 				if err == nil {
@@ -86,7 +89,10 @@ func TestClient_SSRFOff(t *testing.T) {
 
 	// With SSRF off, localhost should not be blocked at the SSRF check level
 	// (it will still fail to connect if nothing is listening)
-	_, err := client.Get(ctx, "http://localhost:99999/test")
+	resp, err := client.Get(ctx, "http://localhost:99999/test")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 
 	// Should not be an SSRF error
 	if httpclient.IsSSRFError(err) {
@@ -108,7 +114,10 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.Get(context.Background(), tt.url)
+			resp, err := client.Get(context.Background(), tt.url)
+			if resp != nil {
+				defer resp.Body.Close() //nolint:errcheck // test response body close
+			}
 			if err == nil {
 				t.Error("expected SSRF error for loopback IPv6")
 			}
@@ -124,7 +133,10 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 	client := outboundtestutil.NewStrictNone(nil)
 
 	// Use a domain that definitely doesn't exist
-	_, err := client.Get(context.Background(), "http://this-domain-does-not-exist-12345.invalid/test")
+	resp, err := client.Get(context.Background(), "http://this-domain-does-not-exist-12345.invalid/test")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("expected error for unresolvable host")
 	}
@@ -166,7 +178,10 @@ func TestIsAllowedIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := c.Get(ctx, tt.url)
+			resp, err := c.Get(ctx, tt.url)
+			if resp != nil {
+				defer resp.Body.Close() //nolint:errcheck // test response body close
+			}
 			if tt.wantBlocked {
 				if !httpclient.IsSSRFError(err) {
 					t.Errorf("expected SSRF-blocked error for %s, got: %v", tt.url, err)
@@ -196,7 +211,10 @@ func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := client.Get(context.Background(), tt.url)
+			resp, err := client.Get(context.Background(), tt.url)
+			if resp != nil {
+				defer resp.Body.Close() //nolint:errcheck // test response body close
+			}
 			if err == nil {
 				t.Errorf("expected SSRF error for %s", tt.name)
 				return
@@ -242,7 +260,10 @@ func TestContextAwareDNSCancellation(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	_, err := client.Get(ctx, "http://example.com/test")
+	resp, err := client.Get(ctx, "http://example.com/test")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	elapsed := time.Since(start)
 
 	// Should return quickly (around 100ms), not hang

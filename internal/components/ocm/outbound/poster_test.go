@@ -109,7 +109,7 @@ func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)
 
-	_, err := poster.SendResolved(context.Background(), outbound.Request{
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{
 		TargetHost:   "peer.example",
 		EndpointPath: "shares",
 		Kind:         outbound.EndpointShares,
@@ -117,6 +117,9 @@ func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
 	}, outbound.ResolvedPeer{
 		Discovery: httpSigDiscovery(),
 	})
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("expected error when share dispatch has nil signer")
 	}
@@ -130,7 +133,7 @@ func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)
 
-	_, err := poster.SendResolved(context.Background(), outbound.Request{
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{
 		TargetHost:   "peer.example",
 		EndpointPath: "invite-accepted",
 		Kind:         outbound.EndpointInvites,
@@ -138,6 +141,9 @@ func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
 	}, outbound.ResolvedPeer{
 		Discovery: httpSigDiscovery(),
 	})
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if err == nil {
 		t.Fatal("expected error when invite dispatch has nil signer")
 	}

@@ -272,7 +272,7 @@ func localListenerBaseURL(tlsMode string, port int) string {
 
 // getFreePort finds an available TCP port.
 func getFreePort() (int, error) {
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", ":0") //nolint:gosec // integration test harness: intentional bind for test network
 	if err != nil {
 		return 0, err
 	}

@@ -38,12 +38,12 @@ func makeDriver(t *testing.T, dir string) store.Driver {
 func lockDir(t *testing.T, dir string) {
 	t.Helper()
 
-	if err := os.Chmod(dir, 0500); err != nil {
+	if err := os.Chmod(dir, 0500); err != nil { //nolint:gosec // test temp dir: restrictive 0500 mode is intentional for test isolation
 		t.Fatal(err)
 	}
 
 	t.Cleanup(func() {
-		os.Chmod(dir, 0700) //nolint:errcheck // test cleanup: restore directory permissions
+		os.Chmod(dir, 0700) //nolint:errcheck,gosec // test cleanup: restore directory permissions; test temp dir: restrictive 0700 mode is intentional for test isolation
 	})
 }
 

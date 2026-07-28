@@ -64,7 +64,7 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 			return
 		}
 
-		targetConn, dialErr := net.Dial("tcp", r.Host)
+		targetConn, dialErr := net.Dial("tcp", r.Host) //nolint:gosec // test: r.Host is a test-controlled host header, not user-supplied URL input
 		if dialErr != nil {
 			http.Error(w, dialErr.Error(), http.StatusBadGateway)
 			return
@@ -171,7 +171,10 @@ func TestClient_HTTPSPrivateDestinationBlockedWithProxy(t *testing.T) {
 	}
 	for _, target := range targets {
 		t.Run(target, func(t *testing.T) {
-			_, err := c.Get(context.Background(), target)
+			resp, err := c.Get(context.Background(), target)
+			if resp != nil {
+				defer resp.Body.Close() //nolint:errcheck // test response body close
+			}
 			if err == nil {
 				t.Errorf("expected SSRF error for %s, got nil", target)
 				return

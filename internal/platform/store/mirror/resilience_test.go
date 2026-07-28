@@ -34,12 +34,12 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 
 	// Make the mirror dir read-only so all subsequent JSON export attempts fail.
 	mirrorDir := filepath.Join(tempDir, "mirror")
-	if err := os.Chmod(mirrorDir, 0500); err != nil {
+	if err := os.Chmod(mirrorDir, 0500); err != nil { //nolint:gosec // test temp dir: restrictive 0500 mode is intentional for test isolation
 		t.Fatal(err)
 	}
 
 	t.Cleanup(func() {
-		os.Chmod(mirrorDir, 0700) //nolint:errcheck // test cleanup: restore directory permissions
+		os.Chmod(mirrorDir, 0700) //nolint:errcheck,gosec // test cleanup: restore directory permissions; test temp dir: restrictive 0700 mode is intentional for test isolation
 	})
 
 	outStore := requireOutgoingShareStore(t, driver)
@@ -61,7 +61,7 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	}
 
 	// Restore write permission and verify a second write (update) also succeeds.
-	if err := os.Chmod(mirrorDir, 0700); err != nil {
+	if err := os.Chmod(mirrorDir, 0700); err != nil { //nolint:gosec // test temp dir: restrictive 0700 mode is intentional for test isolation
 		t.Fatal(err)
 	}
 

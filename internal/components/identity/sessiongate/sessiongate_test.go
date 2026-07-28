@@ -235,7 +235,7 @@ func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
 
 	// Make request with valid session
 	req := httptest.NewRequest(http.MethodGet, "/api/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session", Value: testSessionToken})
+	req.AddCookie(&http.Cookie{Name: "session", Value: testSessionToken}) //nolint:gosec // test cookie: fixture, no browser session
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 

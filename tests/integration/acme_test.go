@@ -44,7 +44,7 @@ func TestACME_SubprocessTwoListeners(t *testing.T) {
 
 	// Write cert.pem and key.pem so ACMEManager.Init takes the fast path.
 	acmeDir := filepath.Join(tempDir, "acme")
-	if err := os.MkdirAll(acmeDir, 0755); err != nil {
+	if err := os.MkdirAll(acmeDir, 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
 		t.Fatal(err)
 	}
 
@@ -97,7 +97,7 @@ insecure_skip_verify = true
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd := exec.Command(binaryPath, "--config", configPath) //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = tempDir
@@ -186,7 +186,7 @@ insecure_skip_verify = true
 
 	// 3. HTTPS listener serves the application (healthz returns 200).
 	tlsClient := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true}, //nolint:gosec // test TLS client: InsecureSkipVerify against self-signed test CA
 	}}
 
 	resp, err = tlsClient.Get(fmt.Sprintf("https://%s/api/healthz", httpsAddr))

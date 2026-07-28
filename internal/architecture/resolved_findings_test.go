@@ -95,7 +95,7 @@ func TestResolvedFindings_BanList(t *testing.T) {
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
 			return err
 		}

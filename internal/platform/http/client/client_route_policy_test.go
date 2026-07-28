@@ -115,7 +115,10 @@ func TestRoutePolicy_LeadingDotSuffixNormalized(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	_, err := c.Get(context.Background(), "http://service.internal/api")
+	resp, err := c.Get(context.Background(), "http://service.internal/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if httpclient.IsSSRFError(err) {
 		t.Errorf(".internal suffix should match service.internal after normalization, got SSRF error: %v", err)
 	}
@@ -140,7 +143,10 @@ func TestRoutePolicy_PrivateHostDeniedWhenSuffixFails(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	_, err := c.Get(context.Background(), "http://other.noncorp.example/api")
+	resp, err := c.Get(context.Background(), "http://other.noncorp.example/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when host suffix does not match policy, got: %v", err)
 	}
@@ -165,7 +171,10 @@ func TestRoutePolicy_PrivateHostDeniedWhenCIDRFails(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	_, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when resolved IP is not in allowed CIDR, got: %v", err)
 	}
@@ -191,7 +200,10 @@ func TestRoutePolicy_PrivateHostDeniedWhenPortFails(t *testing.T) {
 	c.SetResolver(resolver)
 
 	// http:// derives effective port 80; policy only allows 443.
-	_, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when port rule fails, got: %v", err)
 	}
@@ -216,7 +228,10 @@ func TestRoutePolicy_PrivateHostDeniedWhenAllowedPortsEmpty(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	_, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when allowed ports are omitted, got: %v", err)
 	}
@@ -245,7 +260,10 @@ func TestRoutePolicy_MixedResolvedIPsFailClosed(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	_, err := c.Get(context.Background(), "http://mixed.corp.example/api")
+	resp, err := c.Get(context.Background(), "http://mixed.corp.example/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when any resolved IP fails policy (all-records), got: %v", err)
 	}
@@ -265,7 +283,10 @@ func TestRoutePolicy_PrivateIPLiteralBlockedByDefault(t *testing.T) {
 	}
 	c := httpclient.New(cfg, nil)
 
-	_, err := c.Get(context.Background(), "http://10.0.0.1/api")
+	resp, err := c.Get(context.Background(), "http://10.0.0.1/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error for IP literal with allow_ip_literals=false, got: %v", err)
 	}
@@ -286,7 +307,10 @@ func TestRoutePolicy_PrivateIPLiteralAllowedWithPolicy(t *testing.T) {
 	}
 	c := httpclient.New(cfg, nil)
 
-	_, err := c.Get(context.Background(), "http://10.0.0.1/api")
+	resp, err := c.Get(context.Background(), "http://10.0.0.1/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if httpclient.IsSSRFError(err) {
 		t.Errorf("route policy should allow this IP literal, got SSRF error: %v", err)
 	}
@@ -321,7 +345,10 @@ func TestRoutePolicy_ProxyTrustedWhileDestinationPolicyEnforced(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	_, err := c.Get(context.Background(), "http://internal.nopolicy.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.nopolicy.example/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error: proxy trust must not bypass destination policy, got: %v", err)
 	}
@@ -367,7 +394,10 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	_, err := c.Get(context.Background(), "http://internal.nopolicy.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.nopolicy.example/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error: NO_PROXY routing direct must not bypass destination policy, got: %v", err)
 	}
@@ -449,7 +479,10 @@ func TestClient_NoPolicyErrorDistinct(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	_, err := c.Get(context.Background(), "http://internal.example.com/api")
+	resp, err := c.Get(context.Background(), "http://internal.example.com/api")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
 	if !httpclient.IsSSRFError(err) {
 		t.Fatalf("expected SSRF error, got: %v", err)
 	}

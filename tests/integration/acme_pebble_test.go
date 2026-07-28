@@ -43,7 +43,7 @@ func TestACME_PebbleE2E(t *testing.T) {
 		t.Skip("PEBBLE_MINICA_PEM not set; point it at pebble.minica.pem")
 	}
 
-	if _, err := os.Stat(minicaPEM); err != nil {
+	if _, err := os.Stat(minicaPEM); err != nil { //nolint:gosec // test: path is test-controlled fixture, not user input
 		t.Skipf("PEBBLE_MINICA_PEM file not found: %v", err)
 	}
 
@@ -51,10 +51,14 @@ func TestACME_PebbleE2E(t *testing.T) {
 	pebbleClient := &http.Client{
 		Timeout: 3 * time.Second,
 		Transport: &http.Transport{
-			TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true}, //nolint:gosec // test TLS client: InsecureSkipVerify against self-signed test CA
 		},
 	}
-	if _, err := pebbleClient.Get("https://localhost:14000/dir"); err != nil {
+	resp, err := pebbleClient.Get("https://localhost:14000/dir")
+	if resp != nil {
+		defer resp.Body.Close() //nolint:errcheck // test response body close
+	}
+	if err != nil {
 		t.Skipf("Pebble not reachable at https://localhost:14000/dir: %v", err)
 	}
 
@@ -63,7 +67,7 @@ func TestACME_PebbleE2E(t *testing.T) {
 	tempDir := t.TempDir()
 
 	acmeDir := filepath.Join(tempDir, "acme")
-	if err := os.MkdirAll(acmeDir, 0755); err != nil {
+	if err := os.MkdirAll(acmeDir, 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
 		t.Fatal(err)
 	}
 
@@ -106,7 +110,7 @@ insecure_skip_verify = true
 tls_root_ca_file = %q
 `, httpsPort, httpPort, httpsPort, acmeDir, minicaPEM)
 
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil { //nolint:gosec // test: path is test-controlled fixture, not user input
 		t.Fatal(err)
 	}
 
@@ -117,7 +121,7 @@ tls_root_ca_file = %q
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd := exec.Command(binaryPath, "--config", configPath) //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = tempDir
@@ -178,10 +182,10 @@ tls_root_ca_file = %q
 	// 2. HTTPS healthz returns 200 (using InsecureSkipVerify because the
 	// Pebble-issued cert chain is not in our system trust store).
 	tlsClient := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true}, //nolint:gosec // test TLS client: InsecureSkipVerify against self-signed test CA
 	}}
 
-	resp, err := tlsClient.Get(fmt.Sprintf("https://%s/api/healthz", httpsAddr))
+	resp, err = tlsClient.Get(fmt.Sprintf("https://%s/api/healthz", httpsAddr))
 	if err != nil {
 		t.Fatalf("HTTPS healthz request failed: %v", err)
 	}

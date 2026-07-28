@@ -60,7 +60,10 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 			t.Fatalf("failed to build request: %v", err)
 		}
 
-		_, reqErr := result.Deps.HTTPClient.Do(context.Background(), req)
+		resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req)
+		if resp != nil {
+			defer resp.Body.Close() //nolint:errcheck // test response body close
+		}
 		if reqErr == nil {
 			t.Fatal("expected SSRF error blocking localhost, but request succeeded")
 		}

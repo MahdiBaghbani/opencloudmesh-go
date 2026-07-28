@@ -44,7 +44,7 @@ func TestNoBannedDSAbbreviations(t *testing.T) {
 			}
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
 			return err
 		}
@@ -107,7 +107,7 @@ func TestNoNonSpecDirectoryServiceJSONTags(t *testing.T) {
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
 			return err
 		}
@@ -159,7 +159,7 @@ func TestNoFirstAtOCMAddressParsing(t *testing.T) {
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
 		if err != nil {
 			return err
 		}

@@ -307,7 +307,7 @@ func TestACME_TwoListeners(t *testing.T) {
 
 	// 3. HTTPS listener serves with the loaded certificate.
 	tlsClient := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true}, //nolint:gosec // test TLS client: InsecureSkipVerify against self-signed test CA
 	}}
 
 	resp, err = tlsClient.Get(fmt.Sprintf("https://%s/", httpsAddr))

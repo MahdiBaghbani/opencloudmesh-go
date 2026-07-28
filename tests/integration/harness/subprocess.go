@@ -63,7 +63,7 @@ func BuildBinary(t *testing.T) string {
 	binaryPath := filepath.Join(tempDir, binaryName)
 
 	// Run go build
-	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/opencloudmesh-go")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/opencloudmesh-go") //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
 	cmd.Dir = findProjectRoot(t)
 
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
@@ -138,7 +138,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		absPath := filepath.Join(tempDir, relPath)
 		// Ensure parent directory exists
 		if dir := filepath.Dir(absPath); dir != tempDir {
-			if mkdirErr := os.MkdirAll(dir, 0755); mkdirErr != nil {
+			if mkdirErr := os.MkdirAll(dir, 0755); mkdirErr != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
 				//nolint:errcheck // test cleanup: best-effort temp dir removal
 				os.RemoveAll(tempDir)
 				t.Fatalf("failed to create directory for extra file %s: %v", relPath, mkdirErr)
@@ -199,7 +199,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	}
 
 	// Start subprocess
-	cmd := exec.Command(binaryPath, "--config", configPath)
+	cmd := exec.Command(binaryPath, "--config", configPath) //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = tempDir

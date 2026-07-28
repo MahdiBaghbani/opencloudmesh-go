@@ -256,7 +256,7 @@ func TestExtractToken(t *testing.T) {
 		{
 			name: "session cookie",
 			setup: func(r *http.Request) {
-				r.AddCookie(&http.Cookie{Name: "session", Value: "cookie-tok"})
+				r.AddCookie(&http.Cookie{Name: "session", Value: "cookie-tok"}) //nolint:gosec // test cookie: fixture, no browser session
 			},
 			want: "cookie-tok",
 		},

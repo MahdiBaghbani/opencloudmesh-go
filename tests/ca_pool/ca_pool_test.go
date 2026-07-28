@@ -114,7 +114,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	//nolint:errcheck // test helper: ephemeral TCP listener address
 	port := listener.Addr().(*net.TCPAddr).Port
 
-	srv := &http.Server{
+	srv := &http.Server{ //nolint:gosec // test server: short-lived, no Slowloris risk
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{serverCert},
 			MinVersion:   tls.VersionTLS12,

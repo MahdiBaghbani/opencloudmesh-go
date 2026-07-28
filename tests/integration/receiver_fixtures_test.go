@@ -276,7 +276,7 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 
 			w.Header().Set("Content-Type", "application/json")
 			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewEncoder(w).Encode(spec.TokenResponse{
+			_ = json.NewEncoder(w).Encode(spec.TokenResponse{ //nolint:gosec // test fixture: dummy token, not a secret
 				AccessToken: "recording-receiver-access-token",
 				TokenType:   "Bearer",
 				ExpiresIn:   3600,
@@ -478,7 +478,7 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 		peerDomain:  fmt.Sprintf("localhost:%d", port),
 		peerBaseURL: fmt.Sprintf("https://localhost:%d", port),
 	}
-	peer.server = &http.Server{
+	peer.server = &http.Server{ //nolint:gosec // test server: short-lived, no Slowloris risk
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/.well-known/ocm" {
 				peer.discoveryHits.Add(1)

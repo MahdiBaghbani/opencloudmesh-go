@@ -54,7 +54,7 @@ func requireIncomingInviteStore(t *testing.T, d store.Driver) store.IncomingInvi
 func restoreDirPerms(t *testing.T, dir string) {
 	t.Helper()
 
-	if err := os.Chmod(dir, 0700); err != nil {
+	if err := os.Chmod(dir, 0700); err != nil { //nolint:gosec // test temp dir: restrictive 0700 mode is intentional for test isolation
 		t.Fatal(err)
 	}
 }
