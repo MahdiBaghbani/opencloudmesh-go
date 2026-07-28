@@ -126,7 +126,7 @@ func snapshotShares(dataDir string) (SharePersistenceSnapshot, error) {
 	}, nil
 }
 
-func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error) {
+func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error) { //nolint:dupl // intentional: parallel outgoing/incoming share readers share file-read structure but map different persisted types
 	path := filepath.Join(dataDir, "data", fileOutgoingShares)
 
 	raw, err := os.ReadFile(path)
@@ -163,7 +163,7 @@ func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error
 	return out, nil
 }
 
-func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error) {
+func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error) { //nolint:dupl // intentional: parallel outgoing/incoming share readers share file-read structure but map different persisted types
 	path := filepath.Join(dataDir, "data", fileIncomingShares)
 
 	raw, err := os.ReadFile(path)

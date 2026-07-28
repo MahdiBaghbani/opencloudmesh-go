@@ -114,7 +114,7 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 // TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID verifies that Init
 // fails when persisted outgoing-share data contains two records with the same
 // WebDAVID.
-func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID(t *testing.T) {
+func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID(t *testing.T) { //nolint:dupl // intentional: parallel duplicate-key rebuild tests share corrupt-data setup but inject different conflicting fields
 	tempDir, err := os.MkdirTemp("", "ocm-test-json-dup-webdav-*")
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID(t *testing.T) {
 
 // TestJSONRebuildRejectsDuplicateOutgoingShareID verifies that Init fails when
 // persisted outgoing-share data contains two records with the same ShareID.
-func TestJSONRebuildRejectsDuplicateOutgoingShareID(t *testing.T) {
+func TestJSONRebuildRejectsDuplicateOutgoingShareID(t *testing.T) { //nolint:dupl // intentional: parallel duplicate-key rebuild tests share corrupt-data setup but inject different conflicting fields
 	tempDir, err := os.MkdirTemp("", "ocm-test-json-dup-shareid-*")
 	if err != nil {
 		t.Fatal(err)

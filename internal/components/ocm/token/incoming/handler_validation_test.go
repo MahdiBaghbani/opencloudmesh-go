@@ -54,7 +54,7 @@ func TestHandler_MissingFields(t *testing.T) {
 	}
 }
 
-func TestHandler_InvalidGrantType(t *testing.T) {
+func TestHandler_InvalidGrantType(t *testing.T) { //nolint:dupl // intentional: parallel token handler validation tests share form setup but assert different OAuth errors
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")

@@ -47,42 +47,12 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 }
 
 func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
-	requestCount := 0
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
-
-		if r.URL.Path == "/start" {
-			http.Redirect(w, r, "/target", http.StatusFound)
-			return
-		}
-
-		if r.URL.Path == "/target" {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("reached target")) //nolint:errcheck // test handler response write
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer server.Close()
-
-	client := outboundtestutil.NewPermissive(nil)
-
-	resp, err := client.Get(context.Background(), server.URL+"/start")
-	if err != nil {
-		t.Fatalf("expected success, got error: %v", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
-
-	if requestCount != 2 {
-		t.Errorf("expected 2 requests (original + redirect), got %d", requestCount)
-	}
+	runSameHostRelativeRedirectTest(
+		t,
+		"reached target",
+		"expected success, got error",
+		"expected 2 requests (original + redirect)",
+	)
 }
 
 func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
@@ -221,44 +191,12 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 func TestRedirectSameHostSemantics(t *testing.T) {
 	// Test same-host redirect checks use relative URLs so the server host is preserved
 	// This tests that relative redirects work correctly and that port normalization applies
-	requestCount := 0
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
-
-		if r.URL.Path == "/start" {
-			// Relative redirect - same host by definition
-			http.Redirect(w, r, "/target", http.StatusFound)
-			return
-		}
-
-		if r.URL.Path == "/target" {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("reached")) //nolint:errcheck // test handler response write
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer server.Close()
-
-	client := outboundtestutil.NewPermissive(nil)
-
-	// Test relative redirect (always same-host)
-	resp, err := client.Get(context.Background(), server.URL+"/start")
-	if err != nil {
-		t.Fatalf("relative redirect should work: %v", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
-
-	if requestCount != 2 {
-		t.Errorf("expected 2 requests (start + redirect), got %d", requestCount)
-	}
+	runSameHostRelativeRedirectTest(
+		t,
+		"reached",
+		"relative redirect should work",
+		"expected 2 requests (start + redirect)",
+	)
 }
 
 func TestRedirectCrossHostBlocked(t *testing.T) {

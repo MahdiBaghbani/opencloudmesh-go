@@ -116,7 +116,7 @@ func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
 	assertShareNotStored(t, repo, ownerHost, "multi-arm-webapp-reject")
 }
 
-func TestCreateShare_RejectsWebappMissingURI(t *testing.T) {
+func TestCreateShare_RejectsWebappMissingURI(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -171,7 +171,7 @@ func TestCreateShare_RejectsWebappMissingURI(t *testing.T) {
 	}
 }
 
-func TestCreateShare_RejectsWebappMissingTargets(t *testing.T) {
+func TestCreateShare_RejectsWebappMissingTargets(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -226,7 +226,7 @@ func TestCreateShare_RejectsWebappMissingTargets(t *testing.T) {
 	}
 }
 
-func TestCreateShare_RejectsWebappMissingPermissions(t *testing.T) {
+func TestCreateShare_RejectsWebappMissingPermissions(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -281,7 +281,7 @@ func TestCreateShare_RejectsWebappMissingPermissions(t *testing.T) {
 	}
 }
 
-func TestCreateShare_RejectsWebappMissingSharedSecret(t *testing.T) {
+func TestCreateShare_RejectsWebappMissingSharedSecret(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
@@ -440,7 +440,7 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 	}
 }
 
-func TestCreateShare_RejectsWebappMissingMustExchangeToken(t *testing.T) {
+func TestCreateShare_RejectsWebappMissingMustExchangeToken(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)

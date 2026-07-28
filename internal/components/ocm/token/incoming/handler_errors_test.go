@@ -15,7 +15,7 @@ import (
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 )
 
-func TestHandler_InvalidCode(t *testing.T) {
+func TestHandler_InvalidCode(t *testing.T) { //nolint:dupl // intentional: parallel token handler validation tests share form setup but assert different OAuth errors
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")

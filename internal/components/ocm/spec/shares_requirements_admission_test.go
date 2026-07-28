@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestWebDAVRequirementsAdmission_BoolSeam(t *testing.T) {
+func TestWebDAVRequirementsAdmission_BoolSeam(t *testing.T) { //nolint:dupl // intentional: parallel webdav/webapp admission table rows share structure but test different validators
 	t.Run("true+omit requires requirements", func(t *testing.T) {
 		errs := ValidateWebDAVRequirementsAdmission(true, nil)
 		if !hasValidationError(errs, "protocol.webdav.requirements") {
@@ -36,7 +36,7 @@ func TestWebDAVRequirementsAdmission_BoolSeam(t *testing.T) {
 	})
 }
 
-func TestWebappRequirementsAdmission_BoolSeam(t *testing.T) {
+func TestWebappRequirementsAdmission_BoolSeam(t *testing.T) { //nolint:dupl // intentional: parallel webdav/webapp admission table rows share structure but test different validators
 	t.Run("true+omit requires requirements", func(t *testing.T) {
 		errs := ValidateWebappRequirementsAdmission(true, nil)
 		if !hasValidationError(errs, "protocol.webapp.requirements") {

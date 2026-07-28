@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestLoad_TLSDir_Absent_NoChange(t *testing.T) {
+func TestLoad_TLSDir_Absent_NoChange(t *testing.T) { //nolint:dupl // intentional: parallel TLS path loader tests share config write/load structure but assert different TOML inputs
 	// Clear ambient env override so the TLS path load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// No tls_dir in TOML; paths stay at preset defaults
@@ -43,7 +43,7 @@ public_origin = "https://localhost:9200"
 	}
 }
 
-func TestLoad_TLSDir_NotInTOML_NoDerivation(t *testing.T) {
+func TestLoad_TLSDir_NotInTOML_NoDerivation(t *testing.T) { //nolint:dupl // intentional: parallel TLS path loader tests share config write/load structure but assert different TOML inputs
 	// Clear ambient env override so the TLS path load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// Even with [tls] present, derivation must not run unless tls_dir key is present.
@@ -82,7 +82,7 @@ mode = "selfsigned"
 	}
 }
 
-func TestLoad_TLSDir_Present_DerivesDefaults(t *testing.T) {
+func TestLoad_TLSDir_Present_DerivesDefaults(t *testing.T) { //nolint:dupl // intentional: parallel TLS path loader tests share config write/load structure but assert different TOML inputs
 	// Clear ambient env override so the TLS path derivation load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 	// tls_dir set; derives self_signed_dir, acme.storage_dir, signature.key_path

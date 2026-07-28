@@ -12,7 +12,7 @@ import (
 // TestJSONInviteSaveFailureRollback verifies that when saveFile fails the
 // in-memory state is not left in a mutated state (no split-brain).
 // The failure is injected by making the data directory read-only after Init.
-func TestJSONInviteSaveFailureRollback(t *testing.T) {
+func TestJSONInviteSaveFailureRollback(t *testing.T) { //nolint:dupl // intentional: parallel invite/share rollback suites share table-driven structure but cover different entity types
 	if os.Getuid() == 0 {
 		t.Skip("cannot test read-only dir as root")
 	}
@@ -235,7 +235,7 @@ func testUpdateIncomingInviteStatusRollback(t *testing.T, ctx context.Context) {
 	}
 }
 
-func testDeleteIncomingInviteRollback(t *testing.T, ctx context.Context) {
+func testDeleteIncomingInviteRollback(t *testing.T, ctx context.Context) { //nolint:dupl // intentional: parallel invite/share delete rollback helpers share read-only-dir pattern but cover different stores
 	t.Helper()
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-*")

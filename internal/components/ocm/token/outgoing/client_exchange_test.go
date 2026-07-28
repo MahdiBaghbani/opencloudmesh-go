@@ -108,7 +108,7 @@ func TestClient_Exchange_Success(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_WithoutHTTPSigSendsUnsigned(t *testing.T) {
+func TestClient_Exchange_WithoutHTTPSigSendsUnsigned(t *testing.T) { //nolint:dupl // intentional: parallel signed/unsigned exchange tests share client setup but assert different signature behavior
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") != "" {
 			t.Error("expected unsigned request for peer without http-sig")

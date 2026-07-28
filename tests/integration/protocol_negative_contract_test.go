@@ -18,7 +18,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-func runMalformedDiscoveryBlocksOutboundCase(
+func runMalformedDiscoveryBlocksOutboundCase( //nolint:dupl // intentional: parallel negative outbound helpers share harness flow but assert different failure scenarios
+
 	t *testing.T,
 	pair *harness.StrictProtocolPair,
 	receiver *trustedProtocolPeer,

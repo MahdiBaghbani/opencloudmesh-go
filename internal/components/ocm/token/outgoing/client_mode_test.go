@@ -73,7 +73,7 @@ func TestClient_Exchange_WithSigner(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_SignsWhenReceiverAdvertisesHTTPSig(t *testing.T) {
+func TestClient_Exchange_SignsWhenReceiverAdvertisesHTTPSig(t *testing.T) { //nolint:dupl // intentional: parallel signed/unsigned exchange tests share client setup but assert different signature behavior
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Signature") == "" {
 			t.Error("expected signed token exchange")

@@ -13,7 +13,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
-func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) {
+func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) { //nolint:dupl // intentional: parallel protocol validation tests share error-check structure but assert different fields
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler := newTestHandler(repo, partyRepo)

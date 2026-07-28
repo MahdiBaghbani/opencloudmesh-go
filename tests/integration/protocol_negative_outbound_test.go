@@ -16,7 +16,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
-func runOutboundCrossAuthorityCase(
+func runOutboundCrossAuthorityCase( //nolint:dupl // intentional: parallel negative outbound helpers share harness flow but assert different failure scenarios
+
 	t *testing.T,
 	pair *harness.StrictProtocolPair,
 	receiver *trustedProtocolPeer,
@@ -70,7 +71,8 @@ func runOutboundCrossAuthorityCase(
 	assertNoSecretInLogs(t, nil, provider)
 }
 
-func runOutboundRedirectSSRFCase(
+func runOutboundRedirectSSRFCase( //nolint:dupl // intentional: parallel negative outbound helpers share harness flow but assert different failure scenarios
+
 	t *testing.T,
 	pair *harness.StrictProtocolPair,
 	receiver *trustedProtocolPeer,

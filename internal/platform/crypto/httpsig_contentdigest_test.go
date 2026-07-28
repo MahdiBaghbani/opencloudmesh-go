@@ -102,7 +102,7 @@ func TestVerifyContentDigest_OnlyUnknownAlgorithmsRejected(t *testing.T) {
 	}
 }
 
-func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testing.T) {
+func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testing.T) { //nolint:dupl // intentional: parallel Content-Digest/Content-Length rejection tests share signed-request setup but assert different missing headers
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -141,7 +141,7 @@ func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testin
 	}
 }
 
-func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testing.T) {
+func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testing.T) { //nolint:dupl // intentional: parallel Content-Digest/Content-Length rejection tests share signed-request setup but assert different missing headers
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)

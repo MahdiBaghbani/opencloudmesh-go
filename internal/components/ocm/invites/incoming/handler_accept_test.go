@@ -14,7 +14,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
+func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) { //nolint:dupl // intentional: parallel empty-field invite tests share setup but assert different optional fields
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 
@@ -47,7 +47,7 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
 	}
 }
 
-func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
+func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) { //nolint:dupl // intentional: parallel empty-field invite tests share setup but assert different optional fields
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 

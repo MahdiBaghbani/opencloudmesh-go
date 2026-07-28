@@ -76,7 +76,7 @@ path = "auth/exchange"
 		}
 	})
 
-	t.Run("PerServicePathRoutesToHandler", func(t *testing.T) {
+	t.Run("PerServicePathRoutesToHandler", func(t *testing.T) { //nolint:dupl // intentional: parallel token path routing subtests share POST setup but assert different configured paths
 		opts := service.RouteOpts{
 			TokenExchangePath: "auth/exchange",
 		}
@@ -170,7 +170,7 @@ path = "token/v2"
 		}
 	})
 
-	t.Run("NestedPathRoutesToHandler", func(t *testing.T) {
+	t.Run("NestedPathRoutesToHandler", func(t *testing.T) { //nolint:dupl // intentional: parallel token path routing subtests share POST setup but assert different configured paths
 		opts := service.RouteOpts{
 			TokenExchangePath: "token/v2",
 		}

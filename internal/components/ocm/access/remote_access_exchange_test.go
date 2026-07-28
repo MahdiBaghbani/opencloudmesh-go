@@ -158,7 +158,7 @@ func TestAccess_NilTokenClientFailsClosed(t *testing.T) {
 	}
 }
 
-func TestAccess_Bearer401ReturnedAsIs(t *testing.T) {
+func TestAccess_Bearer401ReturnedAsIs(t *testing.T) { //nolint:dupl // intentional: parallel bearer 401/403 tests share exchange setup but assert different status codes
 	const exchangedToken = "exchanged-access-token"
 
 	var requestCount atomic.Int32
@@ -206,7 +206,7 @@ func TestAccess_Bearer401ReturnedAsIs(t *testing.T) {
 	}
 }
 
-func TestAccess_Bearer403ReturnedAsIs(t *testing.T) {
+func TestAccess_Bearer403ReturnedAsIs(t *testing.T) { //nolint:dupl // intentional: parallel bearer 401/403 tests share exchange setup but assert different status codes
 	const exchangedToken = "exchanged-access-token"
 
 	var webdavRequestCount atomic.Int32
@@ -351,7 +351,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 	var tokenHits atomic.Int32
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { //nolint:dupl // intentional: parallel token exchange 401/403 mock servers share discovery handler setup
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := spec.Discovery{
 				Enabled:       true,
@@ -420,7 +420,7 @@ func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 func TestAccess_TokenExchange403FailsClosed(t *testing.T) {
 	var tokenHits atomic.Int32
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { //nolint:dupl // intentional: parallel token exchange 401/403 mock servers share discovery handler setup
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := spec.Discovery{
 				Enabled:       true,

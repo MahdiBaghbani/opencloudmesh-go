@@ -19,7 +19,7 @@ import (
 // TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch checks that a
 // verified signature whose keyId authority disagrees with the declared peer
 // returns 403.
-func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T) {
+func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T) { //nolint:dupl // intentional: parallel signature middleware error tests share setup but assert different peer mismatch paths
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -295,7 +295,7 @@ func TestSignatureMiddleware_RequireDeclaredPeer_NilResolver(t *testing.T) {
 		t.Fatalf("expected 400 when requireDeclaredPeer has nil resolver, got %d", w.Code)
 	}
 }
-func TestSignatureMiddleware_MismatchNormalizeError_FailClosed(t *testing.T) {
+func TestSignatureMiddleware_MismatchNormalizeError_FailClosed(t *testing.T) { //nolint:dupl // intentional: parallel signature middleware error tests share setup but assert different peer mismatch paths
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)

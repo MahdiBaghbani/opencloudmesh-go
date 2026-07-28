@@ -106,7 +106,7 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	}
 }
 
-func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
+func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) { //nolint:dupl // intentional: parallel verify-access tests share HTTP setup but assert different reason codes
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-signature", "sender.example.com", "missing.txt")
 
@@ -138,7 +138,7 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 	}
 }
 
-func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T) {
+func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T) { //nolint:dupl // intentional: parallel verify-access tests share HTTP setup but assert different reason codes
 	repo := sharesinbox.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-disabled", "sender.example.com", "missing.txt")
 
