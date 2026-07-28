@@ -20,7 +20,7 @@ import (
 // unsignedMockSigner satisfies the signer interface without adding a Signature header.
 type unsignedMockSigner struct{}
 
-func (unsignedMockSigner) Sign(req *http.Request) error {
+func (unsignedMockSigner) Sign(_ *http.Request) error {
 	return nil
 }
 

@@ -20,7 +20,7 @@ type captureTB struct {
 
 func (c *captureTB) Helper() {}
 
-func (c *captureTB) Fatalf(format string, args ...any) {
+func (c *captureTB) Fatalf(_ string, _ ...any) {
 	c.fatal = true
 
 	panic("captureTB.Fatalf")

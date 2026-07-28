@@ -9,7 +9,9 @@ import (
 type WebDAVReceiveURIKind string
 
 const (
+	// WebDAVReceiveURIAbsolute is the absolute WebDAV receive URI kind.
 	WebDAVReceiveURIAbsolute WebDAVReceiveURIKind = "absolute"
+	// WebDAVReceiveURIRelative is the relative WebDAV receive URI kind.
 	WebDAVReceiveURIRelative WebDAVReceiveURIKind = "relative"
 )
 
@@ -68,6 +70,7 @@ func WebDAVReceiveRole(uri WebDAVReceiveURIKind) ProtocolRole {
 	return role
 }
 
+// MarshalJSON encodes the role as its string or object JSON form; implements json.Marshaler.
 func (p ProtocolRole) MarshalJSON() ([]byte, error) {
 	//nolint:exhaustive // protocolRoleUnset (zero value) intentionally handled by the default invalid-role error
 	switch p.kind {
@@ -84,6 +87,7 @@ func (p ProtocolRole) MarshalJSON() ([]byte, error) {
 	}
 }
 
+// UnmarshalJSON decodes a string or object JSON value into the role; implements json.Unmarshaler.
 func (p *ProtocolRole) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 || string(data) == "null" {
 		return fmt.Errorf("protocol role cannot be null")

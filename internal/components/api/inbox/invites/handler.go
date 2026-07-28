@@ -27,6 +27,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// InboxInviteView carries the API view fields for one inbox invite.
 type InboxInviteView struct {
 	ID         string               `json:"id"`
 	SenderFQDN string               `json:"senderFqdn"`
@@ -34,6 +35,7 @@ type InboxInviteView struct {
 	Status     invites.InviteStatus `json:"status"`
 }
 
+// InboxListResponse carries the list of inbox invites returned by GET /api/inbox/invites.
 type InboxListResponse struct {
 	Invites []InboxInviteView `json:"invites"`
 }

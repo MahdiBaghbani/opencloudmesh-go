@@ -24,7 +24,7 @@ import (
 // handshake proceeds.
 func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 	// HTTPS backend - the final TLS destination reached through the tunnel.
-	backend := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("tls-backend-ok")) //nolint:errcheck // test handler response write
 	}))

@@ -23,6 +23,7 @@ type IncomingShareRepo interface {
 	DeleteForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) error
 }
 
+// MemoryIncomingShareRepo stores incoming shares in memory, scoped by recipient user id; implements IncomingShareRepo.
 type MemoryIncomingShareRepo struct {
 	mu                sync.RWMutex
 	shares            map[string]*IncomingShare
@@ -30,7 +31,7 @@ type MemoryIncomingShareRepo struct {
 	byRecipientUserID map[string]map[string]struct{}
 }
 
-func NewMemoryIncomingShareRepo() *MemoryIncomingShareRepo {
+func NewMemoryIncomingShareRepo() *MemoryIncomingShareRepo { //nolint:revive // exported: trivial constructor initializing the in-memory share maps
 	return &MemoryIncomingShareRepo{
 		shares:            make(map[string]*IncomingShare),
 		providerIndex:     make(map[string]string),
@@ -51,7 +52,8 @@ func incomingProviderKey(senderHost, providerID string) string {
 	return fmt.Sprintf("%s:%s", senderHost, providerID)
 }
 
-func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingShare) error {
+// Create stores the share, assigning ShareID and timestamps; implements IncomingShareRepo.
+func (r *MemoryIncomingShareRepo) Create(_ context.Context, share *IncomingShare) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -82,7 +84,8 @@ func (r *MemoryIncomingShareRepo) Create(ctx context.Context, share *IncomingSha
 	return nil
 }
 
-func (r *MemoryIncomingShareRepo) GetByIDForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) (*IncomingShare, error) {
+// GetByIDForRecipientUserID returns the share when its recipient matches; implements IncomingShareRepo.
+func (r *MemoryIncomingShareRepo) GetByIDForRecipientUserID(_ context.Context, shareID string, recipientUserID string) (*IncomingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -94,7 +97,8 @@ func (r *MemoryIncomingShareRepo) GetByIDForRecipientUserID(ctx context.Context,
 	return share, nil
 }
 
-func (r *MemoryIncomingShareRepo) GetByProviderID(ctx context.Context, senderHost, providerID string) (*IncomingShare, error) {
+// GetByProviderID returns the share indexed by sender host and providerID; implements IncomingShareRepo.
+func (r *MemoryIncomingShareRepo) GetByProviderID(_ context.Context, senderHost, providerID string) (*IncomingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -108,7 +112,8 @@ func (r *MemoryIncomingShareRepo) GetByProviderID(ctx context.Context, senderHos
 	return r.shares[shareID], nil
 }
 
-func (r *MemoryIncomingShareRepo) ListByRecipientUserID(ctx context.Context, recipientUserID string) ([]*IncomingShare, error) {
+// ListByRecipientUserID returns all shares for the given recipient; implements IncomingShareRepo.
+func (r *MemoryIncomingShareRepo) ListByRecipientUserID(_ context.Context, recipientUserID string) ([]*IncomingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -127,7 +132,8 @@ func (r *MemoryIncomingShareRepo) ListByRecipientUserID(ctx context.Context, rec
 	return result, nil
 }
 
-func (r *MemoryIncomingShareRepo) UpdateStatusForRecipientUserID(ctx context.Context, shareID string, recipientUserID string, status ShareStatus) error {
+// UpdateStatusForRecipientUserID sets the share status when the recipient matches; implements IncomingShareRepo.
+func (r *MemoryIncomingShareRepo) UpdateStatusForRecipientUserID(_ context.Context, shareID string, recipientUserID string, status ShareStatus) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -142,7 +148,8 @@ func (r *MemoryIncomingShareRepo) UpdateStatusForRecipientUserID(ctx context.Con
 	return nil
 }
 
-func (r *MemoryIncomingShareRepo) DeleteForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) error {
+// DeleteForRecipientUserID removes the share and its indexes when the recipient matches; implements IncomingShareRepo.
+func (r *MemoryIncomingShareRepo) DeleteForRecipientUserID(_ context.Context, shareID string, recipientUserID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

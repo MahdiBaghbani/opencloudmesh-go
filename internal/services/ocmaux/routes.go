@@ -5,8 +5,10 @@ import (
 )
 
 const (
+	// RouteFederations is the OCM auxiliary federations route path.
 	RouteFederations = "/federations"
-	RouteDiscover    = "/discover"
+	// RouteDiscover is the OCM auxiliary discover route path.
+	RouteDiscover = "/discover"
 )
 
 func init() {

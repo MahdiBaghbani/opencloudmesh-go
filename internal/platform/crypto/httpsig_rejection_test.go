@@ -140,7 +140,7 @@ func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
 	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519";tag="ocm"`)
 	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+	result := verifier.VerifyRequest(req, nil, func(_ string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
 		return sigalg.ResolvedPublicKey{}, nil
 	})
@@ -169,7 +169,7 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 	))
 	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+	result := verifier.VerifyRequest(req, nil, func(_ string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
 		return sigalg.ResolvedPublicKey{}, nil
 	})
@@ -200,7 +200,7 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 	))
 	req.Header.Set("Signature", "ocm=not-a-byte-sequence")
 
-	result := verifier.VerifyRequest(req, []byte("{}"), func(keyID string) (sigalg.ResolvedPublicKey, error) {
+	result := verifier.VerifyRequest(req, []byte("{}"), func(_ string) (sigalg.ResolvedPublicKey, error) {
 		fetches++
 		return sigalg.ResolvedPublicKey{}, nil
 	})

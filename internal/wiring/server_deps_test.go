@@ -101,7 +101,7 @@ func TestBuildServerDeps_AuthGateDoesNotPanicOnProtectedRoute(t *testing.T) {
 	}
 
 	requireAuth := func(path string) bool { return path == "/protected" }
-	handler := sd.AuthGate(requireAuth)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := sd.AuthGate(requireAuth)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 

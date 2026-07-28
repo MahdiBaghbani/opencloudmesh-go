@@ -53,15 +53,15 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		31: {},
 	},
 	"internal/components/ocm/outbound/kinds.go": {
-		11: {},
+		13: {},
 	},
 	"internal/frameworks/service/descriptors.go": {
-		9:  {},
-		13: {},
-		34: {},
-		36: {},
-		58: {},
-		60: {},
+		11: {},
+		19: {},
+		40: {},
+		42: {},
+		64: {},
+		66: {},
 	},
 	"internal/frameworks/service/route_aggregate.go": {
 		130: {},
@@ -71,11 +71,11 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		50: {},
 	},
 	"internal/frameworks/service/route_specs.go": {
-		32: {},
-		58: {},
+		46: {},
+		80: {},
 	},
 	"internal/platform/config/loader.go": {
-		854: {},
+		855: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		4: {},
@@ -85,23 +85,23 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 	},
 	"internal/services/ocm/ocm.go": {
 		53:  {},
-		133: {},
+		135: {},
 	},
 	"internal/services/ocm/routes.go": {
-		31: {},
-		43: {},
-		55: {},
+		33: {},
+		45: {},
+		57: {},
 	},
 	"internal/services/ui/routes.go": {
-		59: {},
+		64: {},
 	},
 	"internal/services/webdav/routes.go": {
-		19: {},
+		20: {},
 	},
 	"internal/services/webdav/webdav.go": {
 		43: {},
 		49: {},
-		63: {},
+		65: {},
 	},
 }
 

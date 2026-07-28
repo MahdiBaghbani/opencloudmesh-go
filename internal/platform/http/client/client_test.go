@@ -10,7 +10,7 @@ import (
 
 func TestClient_DoPreservesInterface(t *testing.T) {
 	// Verify Do() still works with the standard http.Request interface
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()

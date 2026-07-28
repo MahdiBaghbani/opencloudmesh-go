@@ -22,6 +22,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
+// Handler serves POST /ocm/invite-accepted with outgoing invite lookup and peer-trust gating.
 type Handler struct {
 	outgoingRepo invitesoutgoing.OutgoingInviteRepo
 	partyRepo    identity.PartyRepo

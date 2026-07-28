@@ -46,7 +46,7 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 		t.Fatalf("listen on non-loopback IP %s: %v", localIP, err)
 	}
 
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("direct")) //nolint:errcheck // test handler response write
 	}))
@@ -93,7 +93,7 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 func TestClient_UseEnvFallbackEnabled_UsesEnv(t *testing.T) {
 	var proxyHit atomic.Bool
 
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		proxyHit.Store(true)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("via-env-proxy")) //nolint:errcheck // test handler response write
@@ -138,13 +138,13 @@ func TestClient_UseEnvFallbackEnabled_UsesEnv(t *testing.T) {
 func TestClient_ExplicitProxyOverridesEnv(t *testing.T) {
 	var explicitHit, envHit atomic.Bool
 
-	explicitProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	explicitProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		explicitHit.Store(true)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer explicitProxy.Close()
 
-	envProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	envProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		envHit.Store(true)
 		w.WriteHeader(http.StatusOK)
 	}))

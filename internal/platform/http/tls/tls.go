@@ -24,8 +24,10 @@ import (
 )
 
 var (
+	// ErrInvalidTLSMode reports an invalid TLS mode configuration.
 	ErrInvalidTLSMode = errors.New("invalid TLS mode")
-	ErrMissingCert    = errors.New("missing certificate or key file")
+	// ErrMissingCert reports missing TLS certificate material.
+	ErrMissingCert = errors.New("missing certificate or key file")
 )
 
 // TLSManager handles TLS certificate loading and generation.

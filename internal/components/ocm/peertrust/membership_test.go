@@ -279,7 +279,7 @@ func TestTrustGroupManager_IsMember_MaxStaleTriggersRefresh(t *testing.T) {
 
 	var fetchCount atomic.Int32
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fetchCount.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

@@ -106,7 +106,7 @@ func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 
 func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
 	// First server redirects to second server (different host)
-	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer targetServer.Close()
@@ -131,7 +131,7 @@ func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
 func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 	// HTTP target the redirect will point to. The downgrade check fires before
 	// the same-host check, so the target host does not matter for this test.
-	httpTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	httpTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpTarget.Close()
@@ -263,7 +263,7 @@ func TestRedirectSameHostSemantics(t *testing.T) {
 
 func TestRedirectCrossHostBlocked(t *testing.T) {
 	// Test that redirects to a different host are blocked
-	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer targetServer.Close()

@@ -128,7 +128,7 @@ func newOutgoingHandlerForRedaction(t *testing.T, user *identity.User) *outgoing
 		ctxClient,
 		signer,
 		"example.com",
-		func(ctx context.Context) (*identity.User, error) { return user, nil },
+		func(_ context.Context) (*identity.User, error) { return user, nil },
 		testLoggerForRedaction(),
 		resolver,
 		"https://example.com/ocm/token",
@@ -158,7 +158,7 @@ type stubResolverForRedaction struct {
 	facts policy.Facts
 }
 
-func (r *stubResolverForRedaction) ResolveFacts(host string) policy.Facts {
+func (r *stubResolverForRedaction) ResolveFacts(_ string) policy.Facts {
 	return r.facts
 }
 

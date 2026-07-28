@@ -19,7 +19,7 @@ import (
 )
 
 func TestClient_Exchange_OAuthError(t *testing.T) {
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(token.OAuthError{ //nolint:errcheck // test mock handler: JSON encode

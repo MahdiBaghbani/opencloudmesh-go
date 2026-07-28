@@ -59,7 +59,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 					},
 				}
 			},
-			tokenHandler: func(w http.ResponseWriter, r *http.Request) {
+			tokenHandler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{"access_token":"exchanged-token","token_type":"Bearer","expires_in":3600}`)) //nolint:errcheck // test mock handler: response write
 			},
@@ -84,7 +84,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 					},
 				}
 			},
-			tokenHandler: func(w http.ResponseWriter, r *http.Request) {
+			tokenHandler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write([]byte(`{"error":"invalid_client"}`)) //nolint:errcheck // test mock handler: response write
@@ -111,7 +111,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 					},
 				}
 			},
-			tokenHandler: func(w http.ResponseWriter, r *http.Request) {
+			tokenHandler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write([]byte(`{"error":"invalid_grant"}`)) //nolint:errcheck // test mock handler: response write
@@ -138,7 +138,7 @@ func TestAccess_OptionalExchangeFallback(t *testing.T) {
 					},
 				}
 			},
-			tokenHandler: func(w http.ResponseWriter, r *http.Request) {
+			tokenHandler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write([]byte(`{"error":"invalid_request"}`)) //nolint:errcheck // test mock handler: response write

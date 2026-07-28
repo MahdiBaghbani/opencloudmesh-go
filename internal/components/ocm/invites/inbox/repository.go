@@ -20,6 +20,7 @@ type IncomingInviteRepo interface {
 	DeleteForRecipientUserID(ctx context.Context, id string, recipientUserID string) error
 }
 
+// MemoryIncomingInviteRepo stores incoming invites in memory, scoped by recipient user id; implements IncomingInviteRepo.
 type MemoryIncomingInviteRepo struct {
 	mu               sync.RWMutex
 	invites          map[string]*IncomingInvite
@@ -27,7 +28,7 @@ type MemoryIncomingInviteRepo struct {
 	byTokenRecipient map[string]string   // "token\x00recipientUserID" -> inviteID
 }
 
-func NewMemoryIncomingInviteRepo() *MemoryIncomingInviteRepo {
+func NewMemoryIncomingInviteRepo() *MemoryIncomingInviteRepo { //nolint:revive // exported: trivial constructor initializing the in-memory invite maps
 	return &MemoryIncomingInviteRepo{
 		invites:          make(map[string]*IncomingInvite),
 		byRecipientUser:  make(map[string][]string),
@@ -39,7 +40,8 @@ func tokenRecipientKey(token, recipientUserID string) string {
 	return token + "\x00" + recipientUserID
 }
 
-func (r *MemoryIncomingInviteRepo) Create(ctx context.Context, invite *IncomingInvite) error {
+// Create stores the invite, assigning ID and defaults when empty; implements IncomingInviteRepo.
+func (r *MemoryIncomingInviteRepo) Create(_ context.Context, invite *IncomingInvite) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -68,7 +70,8 @@ func (r *MemoryIncomingInviteRepo) Create(ctx context.Context, invite *IncomingI
 	return nil
 }
 
-func (r *MemoryIncomingInviteRepo) GetByIDForRecipientUserID(ctx context.Context, id string, recipientUserID string) (*IncomingInvite, error) {
+// GetByIDForRecipientUserID returns the invite when its recipient matches; implements IncomingInviteRepo.
+func (r *MemoryIncomingInviteRepo) GetByIDForRecipientUserID(_ context.Context, id string, recipientUserID string) (*IncomingInvite, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -80,7 +83,8 @@ func (r *MemoryIncomingInviteRepo) GetByIDForRecipientUserID(ctx context.Context
 	return invite, nil
 }
 
-func (r *MemoryIncomingInviteRepo) GetByTokenForRecipientUserID(ctx context.Context, token string, recipientUserID string) (*IncomingInvite, error) {
+// GetByTokenForRecipientUserID returns the invite keyed by token and recipient; implements IncomingInviteRepo.
+func (r *MemoryIncomingInviteRepo) GetByTokenForRecipientUserID(_ context.Context, token string, recipientUserID string) (*IncomingInvite, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -97,7 +101,8 @@ func (r *MemoryIncomingInviteRepo) GetByTokenForRecipientUserID(ctx context.Cont
 	return invite, nil
 }
 
-func (r *MemoryIncomingInviteRepo) ListByRecipientUserID(ctx context.Context, recipientUserID string) ([]*IncomingInvite, error) {
+// ListByRecipientUserID returns all invites for the given recipient; implements IncomingInviteRepo.
+func (r *MemoryIncomingInviteRepo) ListByRecipientUserID(_ context.Context, recipientUserID string) ([]*IncomingInvite, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -113,7 +118,8 @@ func (r *MemoryIncomingInviteRepo) ListByRecipientUserID(ctx context.Context, re
 	return result, nil
 }
 
-func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(ctx context.Context, id string, recipientUserID string, status invites.InviteStatus) error {
+// UpdateStatusForRecipientUserID sets the invite status when the recipient matches; implements IncomingInviteRepo.
+func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(_ context.Context, id string, recipientUserID string, status invites.InviteStatus) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -127,7 +133,8 @@ func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(ctx context.Co
 	return nil
 }
 
-func (r *MemoryIncomingInviteRepo) DeleteForRecipientUserID(ctx context.Context, id string, recipientUserID string) error {
+// DeleteForRecipientUserID removes the invite and its indexes when the recipient matches; implements IncomingInviteRepo.
+func (r *MemoryIncomingInviteRepo) DeleteForRecipientUserID(_ context.Context, id string, recipientUserID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

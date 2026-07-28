@@ -26,12 +26,12 @@ func newMockOutgoingShareRepo() *mockOutgoingShareRepo {
 	return &mockOutgoingShareRepo{shares: make(map[string]*sharesoutgoing.OutgoingShare)}
 }
 
-func (m *mockOutgoingShareRepo) Create(ctx context.Context, share *sharesoutgoing.OutgoingShare) error {
+func (m *mockOutgoingShareRepo) Create(_ context.Context, share *sharesoutgoing.OutgoingShare) error {
 	m.shares[share.ShareID] = share
 	return nil
 }
 
-func (m *mockOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (*sharesoutgoing.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) GetByID(_ context.Context, shareID string) (*sharesoutgoing.OutgoingShare, error) {
 	if s, ok := m.shares[shareID]; ok {
 		return s, nil
 	}
@@ -39,7 +39,7 @@ func (m *mockOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (*s
 	return nil, errNotFound
 }
 
-func (m *mockOutgoingShareRepo) GetByProviderID(ctx context.Context, providerID string) (*sharesoutgoing.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) GetByProviderID(_ context.Context, providerID string) (*sharesoutgoing.OutgoingShare, error) {
 	for _, s := range m.shares {
 		if s.ProviderID == providerID {
 			return s, nil
@@ -49,7 +49,7 @@ func (m *mockOutgoingShareRepo) GetByProviderID(ctx context.Context, providerID 
 	return nil, errNotFound
 }
 
-func (m *mockOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID string) (*sharesoutgoing.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) GetByWebDAVID(_ context.Context, webdavID string) (*sharesoutgoing.OutgoingShare, error) {
 	for _, s := range m.shares {
 		if s.WebDAVID == webdavID {
 			return s, nil
@@ -59,7 +59,7 @@ func (m *mockOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID stri
 	return nil, errNotFound
 }
 
-func (m *mockOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSecret string) (*sharesoutgoing.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) GetBySharedSecret(_ context.Context, sharedSecret string) (*sharesoutgoing.OutgoingShare, error) {
 	for _, s := range m.shares {
 		if s.SharedSecret == sharedSecret {
 			return s, nil
@@ -69,7 +69,7 @@ func (m *mockOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSec
 	return nil, errNotFound
 }
 
-func (m *mockOutgoingShareRepo) List(ctx context.Context) ([]*sharesoutgoing.OutgoingShare, error) {
+func (m *mockOutgoingShareRepo) List(_ context.Context) ([]*sharesoutgoing.OutgoingShare, error) {
 	result := make([]*sharesoutgoing.OutgoingShare, 0, len(m.shares))
 	for _, s := range m.shares {
 		result = append(result, s)
@@ -78,7 +78,7 @@ func (m *mockOutgoingShareRepo) List(ctx context.Context) ([]*sharesoutgoing.Out
 	return result, nil
 }
 
-func (m *mockOutgoingShareRepo) Update(ctx context.Context, share *sharesoutgoing.OutgoingShare) error {
+func (m *mockOutgoingShareRepo) Update(_ context.Context, share *sharesoutgoing.OutgoingShare) error {
 	m.shares[share.ShareID] = share
 	return nil
 }
@@ -91,12 +91,12 @@ func newMockTokenStore() *mockTokenStore {
 	return &mockTokenStore{tokens: make(map[string]*token.IssuedToken)}
 }
 
-func (m *mockTokenStore) Store(ctx context.Context, t *token.IssuedToken) error {
+func (m *mockTokenStore) Store(_ context.Context, t *token.IssuedToken) error {
 	m.tokens[t.AccessToken] = t
 	return nil
 }
 
-func (m *mockTokenStore) Get(ctx context.Context, accessToken string) (*token.IssuedToken, error) {
+func (m *mockTokenStore) Get(_ context.Context, accessToken string) (*token.IssuedToken, error) {
 	t, ok := m.tokens[accessToken]
 	if !ok {
 		return nil, token.ErrTokenNotFound
@@ -109,12 +109,12 @@ func (m *mockTokenStore) Get(ctx context.Context, accessToken string) (*token.Is
 	return t, nil
 }
 
-func (m *mockTokenStore) Delete(ctx context.Context, accessToken string) error {
+func (m *mockTokenStore) Delete(_ context.Context, accessToken string) error {
 	delete(m.tokens, accessToken)
 	return nil
 }
 
-func (m *mockTokenStore) CleanExpired(ctx context.Context) error {
+func (m *mockTokenStore) CleanExpired(_ context.Context) error {
 	return nil
 }
 

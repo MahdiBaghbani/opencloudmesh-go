@@ -5,6 +5,7 @@ import (
 )
 
 const (
+	// RouteOCMWildcard is the WebDAV route pattern for OCM wildcard mounts.
 	RouteOCMWildcard = "/ocm/*"
 )
 

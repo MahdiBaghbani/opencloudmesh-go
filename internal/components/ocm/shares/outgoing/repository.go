@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type OutgoingShareRepo interface {
+type OutgoingShareRepo interface { //nolint:revive // exported: self-explanatory CRUD interface for outgoing shares
 	Create(ctx context.Context, share *OutgoingShare) error
 	GetByID(ctx context.Context, shareID string) (*OutgoingShare, error)
 	GetByProviderID(ctx context.Context, providerID string) (*OutgoingShare, error)
@@ -19,6 +19,7 @@ type OutgoingShareRepo interface {
 	Update(ctx context.Context, share *OutgoingShare) error
 }
 
+// MemoryOutgoingShareRepo stores outgoing shares in memory; implements OutgoingShareRepo.
 type MemoryOutgoingShareRepo struct {
 	mu            sync.RWMutex
 	shares        map[string]*OutgoingShare
@@ -27,7 +28,7 @@ type MemoryOutgoingShareRepo struct {
 	secretIndex   map[string]string
 }
 
-func NewMemoryOutgoingShareRepo() *MemoryOutgoingShareRepo {
+func NewMemoryOutgoingShareRepo() *MemoryOutgoingShareRepo { //nolint:revive // exported: trivial constructor initializing the in-memory share maps
 	return &MemoryOutgoingShareRepo{
 		shares:        make(map[string]*OutgoingShare),
 		providerIndex: make(map[string]string),
@@ -36,7 +37,8 @@ func NewMemoryOutgoingShareRepo() *MemoryOutgoingShareRepo {
 	}
 }
 
-func (r *MemoryOutgoingShareRepo) Create(ctx context.Context, share *OutgoingShare) error {
+// Create stores the share, assigning ShareID and indexes; implements OutgoingShareRepo.
+func (r *MemoryOutgoingShareRepo) Create(_ context.Context, share *OutgoingShare) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -61,7 +63,8 @@ func (r *MemoryOutgoingShareRepo) Create(ctx context.Context, share *OutgoingSha
 	return nil
 }
 
-func (r *MemoryOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (*OutgoingShare, error) {
+// GetByID returns the share with the given id; implements OutgoingShareRepo.
+func (r *MemoryOutgoingShareRepo) GetByID(_ context.Context, shareID string) (*OutgoingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -73,7 +76,8 @@ func (r *MemoryOutgoingShareRepo) GetByID(ctx context.Context, shareID string) (
 	return share, nil
 }
 
-func (r *MemoryOutgoingShareRepo) GetByProviderID(ctx context.Context, providerID string) (*OutgoingShare, error) {
+// GetByProviderID returns the share indexed by providerID; implements OutgoingShareRepo.
+func (r *MemoryOutgoingShareRepo) GetByProviderID(_ context.Context, providerID string) (*OutgoingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -85,7 +89,8 @@ func (r *MemoryOutgoingShareRepo) GetByProviderID(ctx context.Context, providerI
 	return r.shares[shareID], nil
 }
 
-func (r *MemoryOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID string) (*OutgoingShare, error) {
+// GetByWebDAVID returns the share indexed by webdavId; implements OutgoingShareRepo.
+func (r *MemoryOutgoingShareRepo) GetByWebDAVID(_ context.Context, webdavID string) (*OutgoingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -97,7 +102,8 @@ func (r *MemoryOutgoingShareRepo) GetByWebDAVID(ctx context.Context, webdavID st
 	return r.shares[shareID], nil
 }
 
-func (r *MemoryOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedSecret string) (*OutgoingShare, error) {
+// GetBySharedSecret returns the share indexed by sharedSecret; implements OutgoingShareRepo.
+func (r *MemoryOutgoingShareRepo) GetBySharedSecret(_ context.Context, sharedSecret string) (*OutgoingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -109,7 +115,8 @@ func (r *MemoryOutgoingShareRepo) GetBySharedSecret(ctx context.Context, sharedS
 	return r.shares[shareID], nil
 }
 
-func (r *MemoryOutgoingShareRepo) List(ctx context.Context) ([]*OutgoingShare, error) {
+// List returns all stored shares; implements OutgoingShareRepo.
+func (r *MemoryOutgoingShareRepo) List(_ context.Context) ([]*OutgoingShare, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -121,7 +128,8 @@ func (r *MemoryOutgoingShareRepo) List(ctx context.Context) ([]*OutgoingShare, e
 	return result, nil
 }
 
-func (r *MemoryOutgoingShareRepo) Update(ctx context.Context, share *OutgoingShare) error {
+// Update replaces the stored share by ShareID; implements OutgoingShareRepo.
+func (r *MemoryOutgoingShareRepo) Update(_ context.Context, share *OutgoingShare) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

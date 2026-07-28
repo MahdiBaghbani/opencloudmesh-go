@@ -7,6 +7,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
 
+// OutgoingInvite holds an invite created locally for a remote recipient.
 type OutgoingInvite struct {
 	ID              string               `json:"id"`
 	Token           string               `json:"token"`

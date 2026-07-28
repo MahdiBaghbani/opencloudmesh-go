@@ -21,7 +21,7 @@ import (
 // It is used to exercise the unsigned 401 fail-closed path.
 type unsignedMockSigner struct{}
 
-func (s *unsignedMockSigner) Sign(req *http.Request) error {
+func (s *unsignedMockSigner) Sign(_ *http.Request) error {
 	return nil
 }
 
@@ -112,7 +112,7 @@ func TestClient_Exchange_Signed401FailClosed(t *testing.T) {
 func TestClient_Exchange_403FailClosed(t *testing.T) {
 	var hits atomic.Int32
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)

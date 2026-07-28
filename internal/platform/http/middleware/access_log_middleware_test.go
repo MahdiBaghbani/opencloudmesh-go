@@ -66,7 +66,7 @@ func (r *accessLogRecorder) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
-func (r *accessLogRecorder) WithGroup(name string) slog.Handler {
+func (r *accessLogRecorder) WithGroup(_ string) slog.Handler {
 	return r
 }
 
@@ -125,7 +125,7 @@ func (r *accessLogRecorderWithAttrs) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
-func (r *accessLogRecorderWithAttrs) WithGroup(name string) slog.Handler {
+func (r *accessLogRecorderWithAttrs) WithGroup(_ string) slog.Handler {
 	return r
 }
 
@@ -135,7 +135,7 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a simple handler
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("hello")) //nolint:errcheck // test mock handler: response write
 	})
@@ -216,7 +216,7 @@ func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a handler
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -277,7 +277,7 @@ func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 	tp := realip.NewTrustedProxies([]string{"127.0.0.0/8"})
 
 	// Create a handler that panics
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("test panic")
 	})
 

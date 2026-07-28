@@ -252,11 +252,11 @@ type singleFileFS struct {
 	info fs.FileInfo
 }
 
-func (fs *singleFileFS) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
+func (fs *singleFileFS) Mkdir(_ context.Context, _ string, _ os.FileMode) error {
 	return os.ErrPermission
 }
 
-func (fs *singleFileFS) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
+func (fs *singleFileFS) OpenFile(_ context.Context, name string, flag int, _ os.FileMode) (webdav.File, error) {
 	name = strings.TrimPrefix(name, "/")
 	if name != "" && name != filepath.Base(fs.path) {
 		return nil, os.ErrNotExist
@@ -276,15 +276,15 @@ func (fs *singleFileFS) OpenFile(ctx context.Context, name string, flag int, per
 	return os.Open(fs.path)
 }
 
-func (fs *singleFileFS) RemoveAll(ctx context.Context, name string) error {
+func (fs *singleFileFS) RemoveAll(_ context.Context, _ string) error {
 	return os.ErrPermission
 }
 
-func (fs *singleFileFS) Rename(ctx context.Context, oldName, newName string) error {
+func (fs *singleFileFS) Rename(_ context.Context, _, _ string) error {
 	return os.ErrPermission
 }
 
-func (fs *singleFileFS) Stat(ctx context.Context, name string) (os.FileInfo, error) {
+func (fs *singleFileFS) Stat(_ context.Context, name string) (os.FileInfo, error) {
 	name = strings.TrimPrefix(name, "/")
 	if name == "" {
 		return &virtualDirInfo{name: "/"}, nil
@@ -304,10 +304,10 @@ type virtualDir struct {
 	offset int
 }
 
-func (d *virtualDir) Close() error                                 { return nil }
-func (d *virtualDir) Read(p []byte) (n int, err error)             { return 0, os.ErrInvalid }
-func (d *virtualDir) Write(p []byte) (n int, err error)            { return 0, os.ErrPermission }
-func (d *virtualDir) Seek(offset int64, whence int) (int64, error) { return 0, os.ErrInvalid }
+func (d *virtualDir) Close() error                       { return nil }
+func (d *virtualDir) Read(_ []byte) (n int, err error)   { return 0, os.ErrInvalid }
+func (d *virtualDir) Write(_ []byte) (n int, err error)  { return 0, os.ErrPermission }
+func (d *virtualDir) Seek(_ int64, _ int) (int64, error) { return 0, os.ErrInvalid }
 
 func (d *virtualDir) Readdir(count int) ([]os.FileInfo, error) {
 	if d.offset >= len(d.files) {

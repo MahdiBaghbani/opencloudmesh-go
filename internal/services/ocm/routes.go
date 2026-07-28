@@ -5,7 +5,9 @@ import (
 )
 
 const (
-	RouteShares         = "/shares"
+	// RouteShares is the OCM shares route path.
+	RouteShares = "/shares"
+	// RouteInviteAccepted is the OCM invite-accepted route path.
 	RouteInviteAccepted = "/invite-accepted"
 )
 

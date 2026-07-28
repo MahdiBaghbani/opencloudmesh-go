@@ -18,25 +18,41 @@ import (
 )
 
 const (
-	Ed25519         = "ed25519"
+	// Ed25519 is the Ed25519 HTTP signature algorithm identifier.
+	Ed25519 = "ed25519"
+	// ECDSAP256SHA256 is the ECDSA P-256 SHA-256 signature algorithm identifier.
 	ECDSAP256SHA256 = "ecdsa-p256-sha256"
+	// ECDSAP384SHA384 is the ECDSA P-384 SHA-384 signature algorithm identifier.
 	ECDSAP384SHA384 = "ecdsa-p384-sha384"
-	RSAPKCS1SHA256  = "rsa-v1_5-sha256"
-	RSAPKCS1SHA384  = "rsa-v1_5-sha384"
-	RSAPKCS1SHA512  = "rsa-v1_5-sha512"
+	// RSAPKCS1SHA256 is the RSA PKCS#1 SHA-256 signature algorithm identifier.
+	RSAPKCS1SHA256 = "rsa-v1_5-sha256"
+	// RSAPKCS1SHA384 is the RSA PKCS#1 SHA-384 signature algorithm identifier.
+	RSAPKCS1SHA384 = "rsa-v1_5-sha384"
+	// RSAPKCS1SHA512 is the RSA PKCS#1 SHA-512 signature algorithm identifier.
+	RSAPKCS1SHA512 = "rsa-v1_5-sha512"
 )
 
 var (
-	ErrMissingAlgorithm         = errors.New("sigalg: missing algorithm")
-	ErrAlgorithmMismatch        = errors.New("sigalg: algorithm sources disagree")
-	ErrAlgorithmNotAllowed      = errors.New("sigalg: algorithm is not allowed")
+	// ErrMissingAlgorithm reports a missing signature algorithm.
+	ErrMissingAlgorithm = errors.New("sigalg: missing algorithm")
+	// ErrAlgorithmMismatch reports disagreeing algorithm sources.
+	ErrAlgorithmMismatch = errors.New("sigalg: algorithm sources disagree")
+	// ErrAlgorithmNotAllowed reports a disallowed signature algorithm.
+	ErrAlgorithmNotAllowed = errors.New("sigalg: algorithm is not allowed")
+	// ErrAlgorithmUnderdetermined reports an underdetermined signature algorithm.
 	ErrAlgorithmUnderdetermined = errors.New("sigalg: algorithm underdetermined")
-	ErrVerifyFailed             = errors.New("sigalg: signature verification failed")
+	// ErrVerifyFailed reports a failed signature verification.
+	ErrVerifyFailed = errors.New("sigalg: signature verification failed")
+	// ErrInvalidSignatureEncoding reports invalid signature encoding.
 	ErrInvalidSignatureEncoding = errors.New("sigalg: invalid signature encoding")
-	ErrSymmetricNotPermitted    = errors.New("sigalg: symmetric algorithm is not permitted")
-	ErrWrongKeyType             = errors.New("sigalg: wrong public key type")
-	ErrCurveMismatch            = errors.New("sigalg: ecdsa curve mismatch")
-	ErrNotImplemented           = errors.New("sigalg: algorithm not implemented")
+	// ErrSymmetricNotPermitted reports a disallowed symmetric algorithm.
+	ErrSymmetricNotPermitted = errors.New("sigalg: symmetric algorithm is not permitted")
+	// ErrWrongKeyType reports a mismatched public key type.
+	ErrWrongKeyType = errors.New("sigalg: wrong public key type")
+	// ErrCurveMismatch reports an ECDSA curve mismatch.
+	ErrCurveMismatch = errors.New("sigalg: ecdsa curve mismatch")
+	// ErrNotImplemented reports an unimplemented signature algorithm.
+	ErrNotImplemented = errors.New("sigalg: algorithm not implemented")
 )
 
 // ResolvedPublicKey is key material plus the RFC 9421 native algorithm derived

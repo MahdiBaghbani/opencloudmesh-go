@@ -219,6 +219,7 @@ func validateLoadedConfig(cfg *Config) error {
 	return nil
 }
 
+// Load reads, merges, and validates configuration from the given loader options.
 func Load(opts LoaderOptions) (*Config, error) {
 	var (
 		fc fileConfig

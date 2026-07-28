@@ -41,11 +41,16 @@ const (
 )
 
 var (
+	// ErrTokenExchangeRequired reports a required token exchange that was not performed.
 	ErrTokenExchangeRequired = errors.New("token exchange required but not performed")
-	ErrTokenExchangeFailed   = errors.New("token exchange failed")
-	ErrRemoteAccessFailed    = errors.New("remote access failed")
-	ErrShareNotAccepted      = errors.New("share not accepted")
-	ErrProtocolRequired      = errors.New("access protocol must be webdav")
+	// ErrTokenExchangeFailed reports a failed token exchange.
+	ErrTokenExchangeFailed = errors.New("token exchange failed")
+	// ErrRemoteAccessFailed reports a failed remote file access attempt.
+	ErrRemoteAccessFailed = errors.New("remote access failed")
+	// ErrShareNotAccepted reports access to a share that is not accepted.
+	ErrShareNotAccepted = errors.New("share not accepted")
+	// ErrProtocolRequired reports a non-WebDAV access protocol request.
+	ErrProtocolRequired = errors.New("access protocol must be webdav")
 )
 
 // ShareInfo holds the minimal share fields needed for remote access (avoids import cycles).
@@ -95,6 +100,7 @@ func NewClient(
 	}
 }
 
+// AccessOptions holds the parameters for a remote access request.
 type AccessOptions struct {
 	Share    *ShareInfo
 	Protocol string // "webdav"; must be set explicitly
@@ -102,6 +108,7 @@ type AccessOptions struct {
 	SubPath  string
 }
 
+// AccessResult holds the HTTP response and access token from a remote access request.
 type AccessResult struct {
 	Response    *http.Response
 	AccessToken string
@@ -373,6 +380,7 @@ func (c *Client) checkSignaturePolicy(disc *spec.Discovery) error {
 	return nil
 }
 
+// FetchFile fetches a shared file's body via WebDAV GET, returning the response reader.
 func (c *Client) FetchFile(ctx context.Context, share *ShareInfo) (io.ReadCloser, error) {
 	result, err := c.Access(ctx, AccessOptions{
 		Share:    share,

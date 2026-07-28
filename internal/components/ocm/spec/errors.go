@@ -7,11 +7,13 @@ import (
 	"net/http"
 )
 
+// ValidationError carries one field-level validation error in an OCM error response.
 type ValidationError struct {
 	Name    string `json:"name"`
 	Message string `json:"message"`
 }
 
+// OCMErrorResponse carries the message and optional validation errors written for failed OCM requests.
 type OCMErrorResponse struct {
 	Message          string            `json:"message"`
 	ValidationErrors []ValidationError `json:"validationErrors,omitempty"`
@@ -56,6 +58,7 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 	return errs
 }
 
+// WriteValidationError writes a 400 OCM error response with the given message and validation errors.
 func WriteValidationError(w http.ResponseWriter, message string, errors []ValidationError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)

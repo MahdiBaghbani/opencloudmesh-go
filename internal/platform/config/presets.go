@@ -9,8 +9,10 @@ import (
 type Mode string
 
 const (
+	// ModeStrict is the strict server operating mode.
 	ModeStrict Mode = "strict"
-	ModeDev    Mode = "dev"
+	// ModeDev is the development server operating mode.
+	ModeDev Mode = "dev"
 )
 
 // CompatibilityScope selects how peer-compat leniency is applied.

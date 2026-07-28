@@ -21,10 +21,14 @@ import (
 )
 
 var (
+	// ErrMissingServerDeps reports missing shared server dependencies.
 	ErrMissingServerDeps = errors.New("shared deps not provided")
-	ErrMissingRealIP     = errors.New("real IP extractor not provided")
-	ErrMissingAuthGate   = errors.New("auth gate not provided")
-	ErrMissingAuthRepos  = errors.New("auth repos not provided")
+	// ErrMissingRealIP reports a missing real-IP extractor dependency.
+	ErrMissingRealIP = errors.New("real IP extractor not provided")
+	// ErrMissingAuthGate reports a missing auth gate dependency.
+	ErrMissingAuthGate = errors.New("auth gate not provided")
+	// ErrMissingAuthRepos reports missing auth repository dependencies.
+	ErrMissingAuthRepos = errors.New("auth repos not provided")
 )
 
 // Server wraps the HTTP server and its dependencies.
@@ -77,10 +81,11 @@ func New(
 	return s, nil
 }
 
-func (s *Server) SetRootCAPool(pool *x509.CertPool) {
+func (s *Server) SetRootCAPool(pool *x509.CertPool) { //nolint:revive // exported: trivial setter for the RootCAPool field
 	s.RootCAPool = pool
 }
 
+// Start serves HTTP(S) traffic per the configured TLS mode.
 func (s *Server) Start() error {
 	s.logger.Info("starting server",
 		"addr", s.cfg.ListenAddr,
@@ -289,6 +294,7 @@ func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 	})
 }
 
+// Shutdown gracefully stops the HTTP server and any ACME challenge server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down server")
 

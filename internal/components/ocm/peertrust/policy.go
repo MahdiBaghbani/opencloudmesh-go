@@ -9,6 +9,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// PolicyDecision holds the result of a PolicyEngine evaluation.
 type PolicyDecision struct {
 	Allowed       bool
 	Reason        string
@@ -16,6 +17,7 @@ type PolicyDecision struct {
 	Authenticated bool // true if peer was authenticated via signature
 }
 
+// PolicyEngine evaluates peer hosts against denylist, allowlist, and trust groups.
 type PolicyEngine struct {
 	cfg           *PolicyConfig
 	trustGroupMgr *TrustGroupManager
@@ -23,6 +25,7 @@ type PolicyEngine struct {
 	mu            sync.RWMutex
 }
 
+// NewPolicyEngine returns a PolicyEngine bound to the given config, trust group manager, and logger.
 func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger *slog.Logger) *PolicyEngine {
 	logger = logutil.NoopIfNil(logger)
 
@@ -33,6 +36,7 @@ func NewPolicyEngine(cfg *PolicyConfig, trustGroupMgr *TrustGroupManager, logger
 	}
 }
 
+// Evaluate decides whether peerHost is allowed using denylist, allowlist, and trust groups.
 func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authenticated bool) *PolicyDecision {
 	pe.mu.RLock()
 	defer pe.mu.RUnlock()

@@ -51,7 +51,7 @@ func corpPolicy(suffixes, cidrs []string, ports []int) config.SSRFRoutePolicyCon
 // (CIDR, port, allow_ip_literals) pass. Uses a local test server so the result
 // is fully deterministic and does not depend on any network dial to fail.
 func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -297,7 +297,7 @@ func TestRoutePolicy_PrivateIPLiteralAllowedWithPolicy(t *testing.T) {
 // The proxy hop is trusted (operator-controlled) but the private destination
 // must still satisfy route policy or be blocked.
 func TestRoutePolicy_ProxyTrustedWhileDestinationPolicyEnforced(t *testing.T) {
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Error("proxy should not be reached for policy-blocked destination")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -333,7 +333,7 @@ func TestRoutePolicy_ProxyTrustedWhileDestinationPolicyEnforced(t *testing.T) {
 func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) {
 	var proxyHit atomic.Bool
 
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		proxyHit.Store(true)
 		t.Error("proxy must not be reached: preflight SSRF check fires first")
 		w.WriteHeader(http.StatusOK)

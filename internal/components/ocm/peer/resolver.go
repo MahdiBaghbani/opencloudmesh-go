@@ -11,14 +11,15 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 )
 
+// Resolver extracts the declared peer host from OCM request bodies.
 type Resolver struct{}
 
-func NewResolver() *Resolver {
+func NewResolver() *Resolver { //nolint:revive // exported: trivial constructor for stateless Resolver
 	return &Resolver{}
 }
 
 // ResolveSharesRequest extracts peer from POST /ocm/shares. Prefers sender, falls back to owner; returns provider (last-@).
-func (p *Resolver) ResolveSharesRequest(r *http.Request, body []byte) (string, error) {
+func (p *Resolver) ResolveSharesRequest(_ *http.Request, body []byte) (string, error) {
 	var req struct {
 		Sender string `json:"sender"`
 		Owner  string `json:"owner"`
@@ -45,7 +46,8 @@ func (p *Resolver) ResolveSharesRequest(r *http.Request, body []byte) (string, e
 	return provider, nil
 }
 
-func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (string, error) {
+// ResolveInviteAcceptedRequest extracts the recipient provider from POST /ocm/invite-accepted.
+func (p *Resolver) ResolveInviteAcceptedRequest(_ *http.Request, body []byte) (string, error) {
 	var req struct {
 		RecipientProvider string `json:"recipientProvider"`
 	}
@@ -65,7 +67,8 @@ func (p *Resolver) ResolveInviteAcceptedRequest(r *http.Request, body []byte) (s
 	return req.RecipientProvider, nil
 }
 
-func (p *Resolver) ResolveTokenRequest(r *http.Request, body []byte) (string, error) {
+// ResolveTokenRequest extracts the client_id from a token request body.
+func (p *Resolver) ResolveTokenRequest(_ *http.Request, body []byte) (string, error) {
 	clientID, err := parseTokenClientID(body)
 	if err != nil {
 		return "", err

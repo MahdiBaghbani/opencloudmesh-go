@@ -5,9 +5,12 @@ import (
 )
 
 const (
-	RouteWellKnownOCM      = "/.well-known/ocm"
+	// RouteWellKnownOCM is the well-known OCM route path.
+	RouteWellKnownOCM = "/.well-known/ocm"
+	// RouteWellKnownOCMSlash is the well-known OCM route path with trailing slash.
 	RouteWellKnownOCMSlash = "/.well-known/ocm/"
-	RouteWellKnownJWKS     = "/.well-known/jwks.json"
+	// RouteWellKnownJWKS is the well-known JWKS route path.
+	RouteWellKnownJWKS = "/.well-known/jwks.json"
 )
 
 func init() {

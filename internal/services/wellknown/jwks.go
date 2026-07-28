@@ -15,7 +15,7 @@ func newJWKSHandler(keyManager *crypto.KeyManager) http.Handler {
 	return &jwksHandler{keyManager: keyManager}
 }
 
-func (h *jwksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *jwksHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	if h.keyManager == nil {
 		http.Error(w, "signing keys unavailable", http.StatusServiceUnavailable)
 		return

@@ -36,7 +36,7 @@ func testPayload() []byte {
 func serveJWS(t *testing.T, body []byte) *httptest.Server {
 	t.Helper()
 
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(body) //nolint:errcheck // test mock handler: response write
 	}))

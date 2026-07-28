@@ -35,7 +35,7 @@ const (
 )
 
 func currentUserFunc(user *identity.User) func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		if user == nil {
 			return nil, fmt.Errorf("no authenticated user in context")
 		}

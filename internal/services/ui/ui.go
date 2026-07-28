@@ -78,14 +78,17 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 	return &Service{router: r, conf: &c, log: log}, nil
 }
 
+// Handler returns the service HTTP handler; implements service.Service.
 func (s *Service) Handler() http.Handler {
 	return httpwrap.ClearRawPath(s.router)
 }
 
+// Prefix returns the service URL prefix; implements service.Service.
 func (s *Service) Prefix() string {
 	return "ui"
 }
 
+// Close performs no cleanup for this service; implements service.Service.
 func (s *Service) Close() error {
 	return nil
 }

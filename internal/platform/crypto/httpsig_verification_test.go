@@ -19,7 +19,7 @@ func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 		t.Error("should not have signature headers")
 	}
 
-	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+	result := verifier.VerifyRequest(req, nil, func(_ string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{}, nil
 	})
 

@@ -2,6 +2,7 @@
 // See the OCM-API share-creation contract: https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md?plain=1
 package spec
 
+// NewShareRequest carries the wire body for POST /ocm/shares.
 type NewShareRequest struct {
 	ShareWith         string   `json:"shareWith"`
 	Name              string   `json:"name"`
@@ -17,12 +18,14 @@ type NewShareRequest struct {
 	Protocol          Protocol `json:"protocol"`
 }
 
+// Protocol carries the named protocol arm of a share request (webdav or webapp).
 type Protocol struct {
 	Name   string          `json:"name,omitempty"`
 	WebDAV *WebDAVProtocol `json:"webdav,omitempty"`
 	Webapp *WebappProtocol `json:"webapp,omitempty"`
 }
 
+// WebDAVProtocol carries the WebDAV protocol fields of a share request.
 type WebDAVProtocol struct {
 	AccessTypes  []string `json:"accessTypes,omitempty"`
 	URI          string   `json:"uri"`
@@ -44,6 +47,7 @@ type WebappProtocol struct {
 	SharedSecret string   `json:"sharedSecret"`
 }
 
+// HasRequirement reports whether the WebDAV arm advertises req.
 func (p *WebDAVProtocol) HasRequirement(req string) bool {
 	for _, r := range p.Requirements {
 		if r == req {
@@ -69,6 +73,7 @@ func (p *WebappProtocol) HasRequirement(req string) bool {
 	return false
 }
 
+// CreateShareResponse carries the wire body returned after creating a share.
 type CreateShareResponse struct {
 	RecipientDisplayName string `json:"recipientDisplayName"`
 }

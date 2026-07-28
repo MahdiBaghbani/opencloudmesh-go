@@ -562,7 +562,7 @@ func extraDefinesPublicOrigin(extra string) bool {
 // config to avoid TOML key conflicts when tests provide ExtraConfig with
 // per-service overrides. Services derive cross-cutting defaults from SharedDeps
 // at construction time, so the base config can stay minimal.
-func generateTOMLConfig(name string, port int, dataDir, mode string, disableUseEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
+func generateTOMLConfig(name string, port int, _, mode string, disableUseEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
 	secure := needsSecureTransport(mode)
 
 	// Derive the scheme for the generated default public_origin from the FINAL

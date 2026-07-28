@@ -16,15 +16,24 @@ import (
 )
 
 var (
-	ErrSSRFBlocked         = errors.New("request blocked by SSRF protection")
-	ErrTooManyRedirects    = errors.New("too many redirects")
-	ErrResponseTooLarge    = errors.New("response body too large")
-	ErrInvalidURL          = errors.New("invalid URL")
-	ErrRedirectBlocked     = errors.New("redirect blocked by policy")
-	ErrSignedNoRedirect    = errors.New("signed requests cannot follow redirects")
+	// ErrSSRFBlocked reports an SSRF-blocked outbound request.
+	ErrSSRFBlocked = errors.New("request blocked by SSRF protection")
+	// ErrTooManyRedirects reports excessive HTTP redirects.
+	ErrTooManyRedirects = errors.New("too many redirects")
+	// ErrResponseTooLarge reports an oversized response body.
+	ErrResponseTooLarge = errors.New("response body too large")
+	// ErrInvalidURL reports an invalid outbound URL.
+	ErrInvalidURL = errors.New("invalid URL")
+	// ErrRedirectBlocked reports a redirect blocked by policy.
+	ErrRedirectBlocked = errors.New("redirect blocked by policy")
+	// ErrSignedNoRedirect reports a redirect attempt on a signed request.
+	ErrSignedNoRedirect = errors.New("signed requests cannot follow redirects")
+	// ErrRedirectNotSameHost reports a cross-host redirect.
 	ErrRedirectNotSameHost = errors.New("redirect to different host blocked")
-	ErrRedirectDowngrade   = errors.New("redirect from https to http blocked")
-	ErrHostUnresolvable    = errors.New("host could not be resolved")
+	// ErrRedirectDowngrade reports an HTTPS-to-HTTP redirect.
+	ErrRedirectDowngrade = errors.New("redirect from https to http blocked")
+	// ErrHostUnresolvable reports an unresolvable outbound host.
+	ErrHostUnresolvable = errors.New("host could not be resolved")
 )
 
 // RequestOptions controls per-request behavior.
@@ -74,7 +83,7 @@ func New(cfg *config.OutboundHTTPConfig, rootCAs *x509.CertPool) *Client {
 	c.httpClient = &http.Client{
 		Transport: c.newTransport(rootCAs, proxyFunc),
 		Timeout:   time.Duration(cfg.TimeoutMS) * time.Millisecond,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}

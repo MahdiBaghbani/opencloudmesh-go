@@ -9,18 +9,25 @@ import (
 	"time"
 )
 
+// InviteStatus tracks the lifecycle state of an OCM invite (pending, accepted, declined, expired).
 type InviteStatus string
 
 const (
-	InviteStatusPending  InviteStatus = "pending"
+	// InviteStatusPending is the pending invite status.
+	InviteStatusPending InviteStatus = "pending"
+	// InviteStatusAccepted is the accepted invite status.
 	InviteStatusAccepted InviteStatus = "accepted"
+	// InviteStatusDeclined is the declined invite status.
 	InviteStatusDeclined InviteStatus = "declined"
-	InviteStatusExpired  InviteStatus = "expired"
+	// InviteStatusExpired is the expired invite status.
+	InviteStatusExpired InviteStatus = "expired"
 )
 
 var (
+	// ErrInviteNotFound reports a missing invite.
 	ErrInviteNotFound = errors.New("invite not found")
-	ErrTokenNotFound  = errors.New("token not found")
+	// ErrTokenNotFound reports a missing invite token.
+	ErrTokenNotFound = errors.New("token not found")
 )
 
 // CreateOutgoingRequest is the body for POST /api/invites/outgoing.

@@ -218,7 +218,7 @@ type blockingResolver struct {
 	unblockCh chan struct{}
 }
 
-func (r *blockingResolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
+func (r *blockingResolver) LookupIPAddr(ctx context.Context, _ string) ([]net.IPAddr, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()

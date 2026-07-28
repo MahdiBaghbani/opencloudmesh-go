@@ -11,8 +11,10 @@ import (
 )
 
 var (
+	// ErrNotFound reports a missing cache key.
 	ErrNotFound = errors.New("key not found")
-	ErrExpired  = errors.New("key expired")
+	// ErrExpired reports an expired cache entry.
+	ErrExpired = errors.New("key expired")
 )
 
 // Driver registry (Reva-style)
@@ -145,8 +147,17 @@ var _ Cache = (*NoopCache)(nil)
 // NewNoopCache returns a Cache whose Get always misses and whose writes are discarded.
 func NewNoopCache() *NoopCache { return &NoopCache{} }
 
-func (n *NoopCache) Get(_ context.Context, _ string) ([]byte, error)                  { return nil, ErrNotFound }
+// Get always misses with ErrNotFound; implements Cache.
+func (n *NoopCache) Get(_ context.Context, _ string) ([]byte, error) { return nil, ErrNotFound }
+
+// Set discards the write; implements Cache.
 func (n *NoopCache) Set(_ context.Context, _ string, _ []byte, _ time.Duration) error { return nil }
-func (n *NoopCache) Delete(_ context.Context, _ string) error                         { return nil }
-func (n *NoopCache) Exists(_ context.Context, _ string) (bool, error)                 { return false, nil }
-func (n *NoopCache) Close() error                                                     { return nil }
+
+// Delete performs no work; implements Cache.
+func (n *NoopCache) Delete(_ context.Context, _ string) error { return nil }
+
+// Exists always reports false; implements Cache.
+func (n *NoopCache) Exists(_ context.Context, _ string) (bool, error) { return false, nil }
+
+// Close performs no cleanup; implements Cache.
+func (n *NoopCache) Close() error { return nil }

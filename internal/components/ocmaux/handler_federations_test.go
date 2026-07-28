@@ -164,7 +164,7 @@ func TestHandleFederations_WithServers(t *testing.T) {
 }
 
 func TestHandleFederations_DiscoveryFailureKeepsServerWithStatus(t *testing.T) {
-	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	}))
 	defer discServer.Close()

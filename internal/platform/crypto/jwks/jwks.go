@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	WellKnownPath = "/.well-known/jwks.json"
+	WellKnownPath = "/.well-known/jwks.json" //nolint:revive // exported: obvious well-known JWKS path constant
 	// DefaultCacheTTL is how long a fetched JWKS document is reused before refresh.
 	DefaultCacheTTL = 1 * time.Minute
 	// DefaultMinRefetchInterval caps forced refetch frequency after a kid miss.

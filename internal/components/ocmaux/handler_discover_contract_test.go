@@ -196,7 +196,7 @@ func TestHandleDiscover_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
-	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 	}))
 	defer discServer.Close()

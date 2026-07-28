@@ -40,7 +40,7 @@ type TemplateData struct {
 }
 
 // Login serves the login page.
-func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Login(w http.ResponseWriter, _ *http.Request) {
 	data := TemplateData{BasePath: h.basePath}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -51,7 +51,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // Inbox serves the inbox page.
-func (h *Handler) Inbox(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Inbox(w http.ResponseWriter, _ *http.Request) {
 	data := TemplateData{BasePath: h.basePath}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -62,7 +62,7 @@ func (h *Handler) Inbox(w http.ResponseWriter, r *http.Request) {
 }
 
 // Outgoing serves the outgoing shares and invites page.
-func (h *Handler) Outgoing(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Outgoing(w http.ResponseWriter, _ *http.Request) {
 	data := TemplateData{BasePath: h.basePath}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

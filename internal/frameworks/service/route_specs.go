@@ -4,8 +4,11 @@ package service
 type SessionPolicy string
 
 const (
-	SessionPublic         SessionPolicy = "public"
-	SessionProtected      SessionPolicy = "protected"
+	// SessionPublic is the public session policy.
+	SessionPublic SessionPolicy = "public"
+	// SessionProtected is the protected session policy.
+	SessionProtected SessionPolicy = "protected"
+	// SessionPublicWhenWAYF is the public-when-WAYF session policy.
 	SessionPublicWhenWAYF SessionPolicy = "public when WAYF enabled"
 )
 
@@ -13,30 +16,43 @@ const (
 type HandlerAuth string
 
 const (
-	HandlerAuthNone            HandlerAuth = "none"
-	HandlerAuthCurrentUser     HandlerAuth = "current user"
+	// HandlerAuthNone is the no-authentication handler policy.
+	HandlerAuthNone HandlerAuth = "none"
+	// HandlerAuthCurrentUser is the current-user handler policy.
+	HandlerAuthCurrentUser HandlerAuth = "current user"
+	// HandlerAuthRequiredHTTPSig is the required HTTP signature handler policy.
 	HandlerAuthRequiredHTTPSig HandlerAuth = "required HTTP signature"
-	HandlerAuthBearer          HandlerAuth = "bearer"
-	HandlerAuthRateLimitOnly   HandlerAuth = "rate limit only"
+	// HandlerAuthBearer is the bearer-token handler policy.
+	HandlerAuthBearer HandlerAuth = "bearer"
+	// HandlerAuthRateLimitOnly is the rate-limit-only handler policy.
+	HandlerAuthRateLimitOnly HandlerAuth = "rate limit only"
 )
 
 // SurfaceClass groups routes by product surface.
 type SurfaceClass string
 
 const (
+	// SurfaceDiscovery is the discovery route surface class.
 	SurfaceDiscovery SurfaceClass = "discovery"
-	SurfaceProtocol  SurfaceClass = "protocol"
-	SurfaceHelper    SurfaceClass = "helper"
-	SurfaceUI        SurfaceClass = "ui"
-	SurfaceAPI       SurfaceClass = "api"
-	SurfaceWebDAV    SurfaceClass = "webdav"
+	// SurfaceProtocol is the protocol route surface class.
+	SurfaceProtocol SurfaceClass = "protocol"
+	// SurfaceHelper is the helper route surface class.
+	SurfaceHelper SurfaceClass = "helper"
+	// SurfaceUI is the UI route surface class.
+	SurfaceUI SurfaceClass = "ui"
+	// SurfaceAPI is the API route surface class.
+	SurfaceAPI SurfaceClass = "api"
+	// SurfaceWebDAV is the WebDAV route surface class.
+	SurfaceWebDAV SurfaceClass = "webdav"
 )
 
 // TrustClass names peer-trust expectations for protocol routes.
 type TrustClass string
 
 const (
-	TrustPeerNone     TrustClass = "peer-trust-none"
+	// TrustPeerNone is the no-peer-trust policy.
+	TrustPeerNone TrustClass = "peer-trust-none"
+	// TrustPeerRequired is the required peer trust policy.
 	TrustPeerRequired TrustClass = "peer-trust-required"
 )
 
@@ -44,8 +60,11 @@ const (
 type FeatureCondition string
 
 const (
-	FeatureNone                FeatureCondition = ""
-	FeatureWAYFEnabled         FeatureCondition = "WAYF enabled"
+	// FeatureNone is the empty feature condition.
+	FeatureNone FeatureCondition = ""
+	// FeatureWAYFEnabled gates routes on WAYF being enabled.
+	FeatureWAYFEnabled FeatureCondition = "WAYF enabled"
+	// FeatureInviteAcceptEnabled gates routes on invite accept being enabled.
 	FeatureInviteAcceptEnabled FeatureCondition = "invite accept enabled"
 )
 
@@ -53,19 +72,26 @@ const (
 type OutboundProtocolKind string
 
 const (
-	OutboundNone    OutboundProtocolKind = ""
-	OutboundShares  OutboundProtocolKind = "shares"
+	// OutboundNone is the empty outbound protocol kind.
+	OutboundNone OutboundProtocolKind = ""
+	// OutboundShares is the shares outbound protocol kind.
+	OutboundShares OutboundProtocolKind = "shares"
+	// OutboundInvites is the invites outbound protocol kind.
 	OutboundInvites OutboundProtocolKind = "invites"
-	OutboundAccess  OutboundProtocolKind = "access"
+	// OutboundAccess is the access outbound protocol kind.
+	OutboundAccess OutboundProtocolKind = "access"
 )
 
 // PeerResolution names which inbound peer resolver an OCM protocol POST route uses.
 type PeerResolution string
 
 const (
-	PeerResolutionShares         PeerResolution = "shares"
+	// PeerResolutionShares is the shares peer resolution strategy.
+	PeerResolutionShares PeerResolution = "shares"
+	// PeerResolutionInviteAccepted is the invite-accepted peer resolution strategy.
 	PeerResolutionInviteAccepted PeerResolution = "invite-accepted"
-	PeerResolutionToken          PeerResolution = "token"
+	// PeerResolutionToken is the token peer resolution strategy.
+	PeerResolutionToken PeerResolution = "token"
 )
 
 // OCMProtocolBodyLimitBytes is the pre-verification request body limit for OCM POST routes.

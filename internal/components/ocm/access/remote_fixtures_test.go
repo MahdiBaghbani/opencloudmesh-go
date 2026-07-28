@@ -40,7 +40,7 @@ func newTestDiscoveryServer() *httptest.Server {
 	}))
 }
 
-func newTestClients(serverURL string) (*discovery.Client, *httpclient.ContextClient) {
+func newTestClients(_ string) (*discovery.Client, *httpclient.ContextClient) {
 	cfg := tshttp.PermissiveConfig()
 	cfg.InsecureSkipVerify = true
 	rawClient := httpclient.New(cfg, nil)

@@ -63,7 +63,7 @@ func TestFetchURL_Errors(t *testing.T) {
 	})
 
 	t.Run("invalid JSON", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"keys":[`)) //nolint:errcheck // test mock handler: response write
 		}))
@@ -76,7 +76,7 @@ func TestFetchURL_Errors(t *testing.T) {
 	})
 
 	t.Run("empty key set", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"keys":[]}`)) //nolint:errcheck // test mock handler: response write
 		}))
@@ -96,7 +96,7 @@ func TestFetchURL_Errors(t *testing.T) {
 	})
 
 	t.Run("response too large", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write(bytes.Repeat([]byte("a"), 64)) //nolint:errcheck // test mock handler: response write
 		}))

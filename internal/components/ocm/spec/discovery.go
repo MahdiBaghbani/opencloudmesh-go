@@ -15,6 +15,7 @@ import (
 // APIVersionPin is the Layer 1 wire pin for OCM discovery apiVersion.
 const APIVersionPin = "1.4.0"
 
+// Discovery holds the OCM discovery document served by GET /ocm/.
 type Discovery struct {
 	Enabled            bool           `json:"enabled"`
 	APIVersion         string         `json:"apiVersion"`
@@ -28,12 +29,14 @@ type Discovery struct {
 	Warnings           []string       `json:"-"`
 }
 
+// ResourceType describes one entry in the discovery resourceTypes list.
 type ResourceType struct {
 	Name       string    `json:"name"`
 	ShareTypes []string  `json:"shareTypes"`
 	Protocols  Protocols `json:"protocols"`
 }
 
+// HasCapability reports whether the discovery advertises the given capability.
 func (d *Discovery) HasCapability(cap string) bool {
 	for _, c := range d.Capabilities {
 		if c == cap {
@@ -44,6 +47,7 @@ func (d *Discovery) HasCapability(cap string) bool {
 	return false
 }
 
+// HasCriteria reports whether the discovery lists the given criterion.
 func (d *Discovery) HasCriteria(criterion string) bool {
 	for _, c := range d.Criteria {
 		if c == criterion {
@@ -189,10 +193,11 @@ func (d *Discovery) SupportsTokenExchange() bool {
 	return d.HasCapability(CapabilityExchangeToken) && d.TokenEndPoint != ""
 }
 
-func (d *Discovery) GetEndpoint() string {
+func (d *Discovery) GetEndpoint() string { //nolint:revive // exported: trivial getter for the endPoint field
 	return d.EndPoint
 }
 
+// GetWebDAVPath returns the WebDAV protocol path for the "file" resource type, or empty if absent.
 func (d *Discovery) GetWebDAVPath() string {
 	for _, rt := range d.ResourceTypes {
 		if rt.Name == "file" {

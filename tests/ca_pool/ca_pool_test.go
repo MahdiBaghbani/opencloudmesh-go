@@ -119,7 +119,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 			Certificates: []tls.Certificate{serverCert},
 			MinVersion:   tls.VersionTLS12,
 		},
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			//nolint:errcheck // test stub handler: response write
 			w.Write([]byte("ok"))

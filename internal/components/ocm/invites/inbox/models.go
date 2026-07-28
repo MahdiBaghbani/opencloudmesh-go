@@ -7,6 +7,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 )
 
+// IncomingInvite holds a received invite scoped to a local recipient user.
 type IncomingInvite struct {
 	ID              string               `json:"id"`
 	InviteString    string               `json:"inviteString"`

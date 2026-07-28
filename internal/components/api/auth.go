@@ -8,7 +8,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 )
 
-const SessionTTL = 24 * time.Hour
+const SessionTTL = 24 * time.Hour //nolint:revive // exported: obvious default auth session TTL duration constant
 
 // AuthHandler serves login, logout, and current-user endpoints.
 type AuthHandler struct {
@@ -26,11 +26,13 @@ func NewAuthHandler(repo identity.PartyRepo, sessions identity.SessionRepo, auth
 	}
 }
 
+// LoginRequest carries the body for POST /api/auth/login.
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
+// LoginResponse carries the body returned by POST /api/auth/login.
 type LoginResponse struct {
 	Token     string `json:"token"`
 	ExpiresAt string `json:"expiresAt"`

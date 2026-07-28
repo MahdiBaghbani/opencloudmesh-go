@@ -1,11 +1,16 @@
 package service
 
 const (
-	RouteIDOCMToken          = "ocm-token"
+	// RouteIDOCMToken is the OCM token route identifier.
+	RouteIDOCMToken = "ocm-token"
+	// RouteIDWebDAVOCMWildcard is the WebDAV OCM wildcard route identifier.
 	RouteIDWebDAVOCMWildcard = "webdav-ocm-wildcard"
-	RouteIDUIAcceptInvite    = "ui-accept-invite"
-	RouteIDUIWAYF            = "ui-wayf"
-	RouteIDAPIHealthz        = "api-healthz"
+	// RouteIDUIAcceptInvite is the UI accept-invite route identifier.
+	RouteIDUIAcceptInvite = "ui-accept-invite"
+	// RouteIDUIWAYF is the UI WAYF route identifier.
+	RouteIDUIWAYF = "ui-wayf"
+	// RouteIDAPIHealthz is the API health check route identifier.
+	RouteIDAPIHealthz = "api-healthz"
 )
 
 const subtreeDefaultIDSuffix = "-subtree-default"

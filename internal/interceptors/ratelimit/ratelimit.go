@@ -42,7 +42,9 @@ type Limiter struct {
 }
 
 var (
-	ErrMissingCache   = errors.New("ratelimit: cache not provided")
+	// ErrMissingCache reports a missing rate-limit cache dependency.
+	ErrMissingCache = errors.New("ratelimit: cache not provided")
+	// ErrMissingKeyFunc reports a missing rate-limit key function.
 	ErrMissingKeyFunc = errors.New("ratelimit: key function not provided")
 )
 

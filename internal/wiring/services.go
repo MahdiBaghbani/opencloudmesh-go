@@ -46,6 +46,7 @@ func RegisteredBuildKeys() []service.BuildKey {
 	return keys
 }
 
+// CoreServiceNames returns the names of all registered service descriptors.
 func CoreServiceNames() []string {
 	names := make([]string, len(service.Descriptors()))
 	for i, d := range service.Descriptors() {
@@ -55,6 +56,7 @@ func CoreServiceNames() []string {
 	return names
 }
 
+// BuildCoreServices constructs the core services from config, logger, and dependencies.
 func BuildCoreServices(cfg *config.Config, logger *slog.Logger, d *Deps) (map[string]service.Service, error) {
 	if d == nil {
 		return nil, server.ErrMissingServerDeps
@@ -194,13 +196,13 @@ func buildAPIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	}, svcCfg, log)
 }
 
-func buildUIService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
+func buildUIService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return ui.New(ui.Inputs{
 		LocalIdentity: d.LocalIdentity,
 	}, svcCfg, log)
 }
 
-func buildWebDAVService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
+func buildWebDAVService(_ *config.Config, svcCfg map[string]any, log *slog.Logger, d *Deps) (service.Service, error) {
 	return webdav.New(webdav.Inputs{
 		OutgoingShareRepo: d.OutgoingShareRepo,
 		TokenStore:        d.TokenStore,

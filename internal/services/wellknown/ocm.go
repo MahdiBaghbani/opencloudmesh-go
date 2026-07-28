@@ -31,7 +31,7 @@ func newOCMHandler(
 	}
 }
 
-func (h *ocmHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *ocmHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	//nolint:errcheck // response already started; write error cannot be recovered

@@ -29,7 +29,7 @@ var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Le
 const testProvider = "example.com"
 
 func testCurrentUser(user *identity.User) func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		return user, nil
 	}
 }
@@ -162,7 +162,7 @@ func createTempShareFile(t *testing.T, pattern string) string {
 }
 
 func failCurrentUser() func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		return nil, http.ErrNoCookie
 	}
 }
@@ -184,7 +184,7 @@ type stubResolver struct {
 	facts policy.Facts
 }
 
-func (r *stubResolver) ResolveFacts(host string) policy.Facts {
+func (r *stubResolver) ResolveFacts(_ string) policy.Facts {
 	return r.facts
 }
 

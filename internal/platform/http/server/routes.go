@@ -16,6 +16,7 @@ type RouteGroup struct {
 	AtHostRoot   bool
 }
 
+// GetMountSpecs returns the route groups derived from the default route options.
 func GetMountSpecs() []RouteGroup {
 	opts := service.DefaultRouteOpts()
 	return mountSpecsFromDerived(opts)

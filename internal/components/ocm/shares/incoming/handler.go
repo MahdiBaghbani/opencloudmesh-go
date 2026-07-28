@@ -16,6 +16,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
+// Handler serves POST /ocm/shares with recipient resolution and peer-trust gating.
 type Handler struct {
 	repo                        sharesinbox.IncomingShareRepo
 	partyRepo                   identity.PartyRepo
@@ -25,7 +26,7 @@ type Handler struct {
 	localScheme                 string
 }
 
-func NewHandler(
+func NewHandler( //nolint:revive // exported: trivial constructor wiring the handler dependencies
 	repo sharesinbox.IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
@@ -43,6 +44,7 @@ func NewHandler(
 	}
 }
 
+// CreateShare handles POST /ocm/shares: parses, resolves the recipient, and persists the incoming share.
 func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 	req, rawFields, ok := h.parseCreateShareRequest(w, r)
 	if !ok {
@@ -146,6 +148,7 @@ func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*ide
 	return nil, errors.New("recipient not found")
 }
 
+// ExtractSenderHost returns the lowercased provider host parsed from sender, or empty on error.
 func ExtractSenderHost(sender string) string {
 	_, provider, err := address.Parse(sender)
 	if err != nil {

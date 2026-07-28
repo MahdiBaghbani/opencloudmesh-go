@@ -26,13 +26,13 @@ func testLocalProvider(t *testing.T) string {
 }
 
 func testCurrentUser(user *identity.User) func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		return user, nil
 	}
 }
 
 func failCurrentUser() func(context.Context) (*identity.User, error) {
-	return func(ctx context.Context) (*identity.User, error) {
+	return func(_ context.Context) (*identity.User, error) {
 		return nil, http.ErrNoCookie
 	}
 }

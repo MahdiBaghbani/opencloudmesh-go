@@ -41,9 +41,14 @@ type ACMEUser struct {
 	key          crypto.PrivateKey
 }
 
-func (u *ACMEUser) GetEmail() string                        { return u.Email }
+// GetEmail returns the account email; implements registration.User.
+func (u *ACMEUser) GetEmail() string { return u.Email }
+
+// GetRegistration returns the ACME registration resource; implements registration.User.
 func (u *ACMEUser) GetRegistration() *registration.Resource { return u.Registration }
-func (u *ACMEUser) GetPrivateKey() crypto.PrivateKey        { return u.key }
+
+// GetPrivateKey returns the account private key; implements registration.User.
+func (u *ACMEUser) GetPrivateKey() crypto.PrivateKey { return u.key }
 
 // HTTP01Provider implements lego's challenge.Provider interface using an
 // in-memory token store. The server owns the HTTP listener; lego never
@@ -53,6 +58,7 @@ type tokenEntry struct {
 	expiresAt time.Time
 }
 
+// HTTP01Provider serves lego HTTP-01 challenges from an in-memory token store.
 type HTTP01Provider struct {
 	tokens sync.Map // token -> tokenEntry
 	now    func() time.Time
@@ -72,7 +78,8 @@ func (p *HTTP01Provider) nowTime() time.Time {
 	return time.Now()
 }
 
-func (p *HTTP01Provider) Present(domain, token, keyAuth string) error {
+// Present stores the HTTP-01 challenge token and key authorization; implements challenge.Provider.
+func (p *HTTP01Provider) Present(_, token, keyAuth string) error {
 	p.tokens.Store(token, tokenEntry{
 		keyAuth:   keyAuth,
 		expiresAt: p.nowTime().Add(challengeTokenTTL),
@@ -81,7 +88,8 @@ func (p *HTTP01Provider) Present(domain, token, keyAuth string) error {
 	return nil
 }
 
-func (p *HTTP01Provider) CleanUp(domain, token, keyAuth string) error {
+// CleanUp removes the stored HTTP-01 challenge token; implements challenge.Provider.
+func (p *HTTP01Provider) CleanUp(_, token, _ string) error {
 	p.tokens.Delete(token)
 	return nil
 }
@@ -114,7 +122,7 @@ func NewACMEManager(cfg *config.ACMEConfig, logger *slog.Logger, rootCAs *x509.C
 // Init initializes the ACME manager: loads existing certificates without
 // network calls when possible, or creates a lego client and obtains a new
 // certificate from the ACME server.
-func (m *ACMEManager) Init(ctx context.Context) error {
+func (m *ACMEManager) Init(_ context.Context) error {
 	if m.cfg.Domain == "" {
 		return errors.New("ACME domain is required")
 	}
@@ -216,7 +224,7 @@ func (m *ACMEManager) Init(ctx context.Context) error {
 }
 
 // GetCertificate returns the current certificate for use with tls.Config.GetCertificate.
-func (m *ACMEManager) GetCertificate(hello *cryptotls.ClientHelloInfo) (*cryptotls.Certificate, error) {
+func (m *ACMEManager) GetCertificate(_ *cryptotls.ClientHelloInfo) (*cryptotls.Certificate, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

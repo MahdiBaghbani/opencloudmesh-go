@@ -53,11 +53,11 @@ func TestBuild_SignaturePolicyWiredFromCodeFlow(t *testing.T) {
 				t.Fatal("SignatureMiddleware must be non-nil")
 			}
 
-			peerResolver := func(r *http.Request, body []byte) (string, error) {
+			peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 				return "sender.example.com", nil
 			}
 			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 				}),
 			)

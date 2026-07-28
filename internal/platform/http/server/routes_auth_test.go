@@ -122,7 +122,7 @@ func TestSessionGate_AcceptInviteProtectedAtServer(t *testing.T) {
 		SessionRepo: sessionRepo,
 		PartyRepo:   partyRepo,
 	}))
-	r.Get("/ui/accept-invite", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/ui/accept-invite", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 

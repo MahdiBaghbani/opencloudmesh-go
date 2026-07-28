@@ -96,7 +96,7 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 
 	var fetches atomic.Int32
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if fetches.Add(1) == 1 {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(set) //nolint:errcheck // test mock handler: JSON encode
@@ -272,7 +272,7 @@ func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
 
 	var fetches atomic.Int32
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fetches.Add(1)
 		startOnce.Do(func() { close(started) })
 		<-release

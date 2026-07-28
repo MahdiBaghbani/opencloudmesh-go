@@ -83,7 +83,7 @@ func (f Ed25519Fixture) SignListingCompact(t *testing.T, listing ds.Listing) []b
 func StartHTTPSDirectoryService(t *testing.T, body []byte) *httptest.Server {
 	t.Helper()
 
-	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		//nolint:errcheck // response already started; write error cannot be recovered
 		w.Write(body)

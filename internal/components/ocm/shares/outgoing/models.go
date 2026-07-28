@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// OutgoingShare holds a share created locally for a remote receiver.
 type OutgoingShare struct {
 	ShareID          string `json:"shareId"`
 	ProviderID       string `json:"providerId"`
@@ -28,6 +29,7 @@ type OutgoingShare struct {
 	Requirements []string   `json:"requirements,omitempty"`
 }
 
+// OutgoingShareRequest carries the body for creating an outgoing share.
 type OutgoingShareRequest struct {
 	ReceiverDomain string   `json:"receiverDomain"`
 	ShareWith      string   `json:"shareWith"`

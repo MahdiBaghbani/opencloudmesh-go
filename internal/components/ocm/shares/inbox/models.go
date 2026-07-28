@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// IncomingShare holds a received share scoped to a local recipient user.
 type IncomingShare struct {
 	ShareID    string `json:"shareId"` // local UUIDv7
 	ProviderID string `json:"providerId"`
@@ -47,10 +48,14 @@ type IncomingShare struct {
 	OwnerHost string      `json:"ownerHost,omitempty"`
 }
 
+// ShareStatus tracks the lifecycle state of an incoming share (pending, accepted, declined).
 type ShareStatus string
 
 const (
-	ShareStatusPending  ShareStatus = "pending"
+	// ShareStatusPending is the pending share status.
+	ShareStatusPending ShareStatus = "pending"
+	// ShareStatusAccepted is the accepted share status.
 	ShareStatusAccepted ShareStatus = "accepted"
+	// ShareStatusDeclined is the declined share status.
 	ShareStatusDeclined ShareStatus = "declined"
 )

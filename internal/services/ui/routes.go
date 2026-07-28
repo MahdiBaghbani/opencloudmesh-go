@@ -5,10 +5,15 @@ import (
 )
 
 const (
-	RouteLogin        = "/login"
-	RouteInbox        = "/inbox"
-	RouteOutgoing     = "/outgoing"
-	RouteWAYF         = "/wayf"
+	// RouteLogin is the UI login route path.
+	RouteLogin = "/login"
+	// RouteInbox is the UI inbox route path.
+	RouteInbox = "/inbox"
+	// RouteOutgoing is the UI outgoing route path.
+	RouteOutgoing = "/outgoing"
+	// RouteWAYF is the UI WAYF route path.
+	RouteWAYF = "/wayf"
+	// RouteAcceptInvite is the UI accept-invite route path.
 	RouteAcceptInvite = "/accept-invite"
 )
 

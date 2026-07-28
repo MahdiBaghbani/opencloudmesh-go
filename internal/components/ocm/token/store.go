@@ -8,10 +8,13 @@ import (
 )
 
 var (
+	// ErrTokenNotFound reports a missing issued token.
 	ErrTokenNotFound = errors.New("token not found")
-	ErrTokenExpired  = errors.New("token expired")
+	// ErrTokenExpired reports an expired issued token.
+	ErrTokenExpired = errors.New("token expired")
 )
 
+// TokenStore persists issued access tokens and supports lookup, deletion, and expiry cleanup.
 type TokenStore interface {
 	Store(ctx context.Context, token *IssuedToken) error
 	Get(ctx context.Context, accessToken string) (*IssuedToken, error)
@@ -27,13 +30,14 @@ type MemoryTokenStore struct {
 	tokens map[string]*IssuedToken
 }
 
-func NewMemoryTokenStore() *MemoryTokenStore {
+func NewMemoryTokenStore() *MemoryTokenStore { //nolint:revive // exported: trivial constructor initializing the in-memory token map
 	return &MemoryTokenStore{
 		tokens: make(map[string]*IssuedToken),
 	}
 }
 
-func (s *MemoryTokenStore) Store(ctx context.Context, token *IssuedToken) error {
+// Store saves the issued token keyed by access token; implements TokenStore.
+func (s *MemoryTokenStore) Store(_ context.Context, token *IssuedToken) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -42,7 +46,8 @@ func (s *MemoryTokenStore) Store(ctx context.Context, token *IssuedToken) error 
 	return nil
 }
 
-func (s *MemoryTokenStore) Get(ctx context.Context, accessToken string) (*IssuedToken, error) {
+// Get returns the issued token for accessToken; implements TokenStore.
+func (s *MemoryTokenStore) Get(_ context.Context, accessToken string) (*IssuedToken, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -58,7 +63,8 @@ func (s *MemoryTokenStore) Get(ctx context.Context, accessToken string) (*Issued
 	return token, nil
 }
 
-func (s *MemoryTokenStore) Delete(ctx context.Context, accessToken string) error {
+// Delete removes the token for accessToken; implements TokenStore.
+func (s *MemoryTokenStore) Delete(_ context.Context, accessToken string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -67,7 +73,8 @@ func (s *MemoryTokenStore) Delete(ctx context.Context, accessToken string) error
 	return nil
 }
 
-func (s *MemoryTokenStore) CleanExpired(ctx context.Context) error {
+// CleanExpired removes all tokens past their ExpiresAt; implements TokenStore.
+func (s *MemoryTokenStore) CleanExpired(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

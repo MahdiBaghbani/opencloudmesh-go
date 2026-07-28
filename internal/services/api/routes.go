@@ -5,21 +5,36 @@ import (
 )
 
 const (
-	RouteHealthz                = "/healthz"
-	RouteAuthLogin              = "/auth/login"
-	RouteAuthLogout             = "/auth/logout"
-	RouteAuthMe                 = "/auth/me"
-	RouteInboxShares            = "/inbox/shares"
-	RouteInboxShareDetail       = "/inbox/shares/{shareId}"
-	RouteInboxShareAccept       = "/inbox/shares/{shareId}/accept"
-	RouteInboxShareDecline      = "/inbox/shares/{shareId}/decline"
+	// RouteHealthz is the API health check route path.
+	RouteHealthz = "/healthz"
+	// RouteAuthLogin is the API login route path.
+	RouteAuthLogin = "/auth/login"
+	// RouteAuthLogout is the API logout route path.
+	RouteAuthLogout = "/auth/logout"
+	// RouteAuthMe is the API current-user route path.
+	RouteAuthMe = "/auth/me"
+	// RouteInboxShares is the API inbox shares list route path.
+	RouteInboxShares = "/inbox/shares"
+	// RouteInboxShareDetail is the API inbox share detail route path.
+	RouteInboxShareDetail = "/inbox/shares/{shareId}"
+	// RouteInboxShareAccept is the API inbox share accept route path.
+	RouteInboxShareAccept = "/inbox/shares/{shareId}/accept"
+	// RouteInboxShareDecline is the API inbox share decline route path.
+	RouteInboxShareDecline = "/inbox/shares/{shareId}/decline"
+	// RouteInboxShareVerifyAccess is the API inbox share verify-access route path.
 	RouteInboxShareVerifyAccess = "/inbox/shares/{shareId}/verify-access"
-	RouteInboxInvites           = "/inbox/invites"
-	RouteInboxInviteImport      = "/inbox/invites/import"
-	RouteInboxInviteAccept      = "/inbox/invites/{inviteId}/accept"
-	RouteInboxInviteDecline     = "/inbox/invites/{inviteId}/decline"
-	RouteSharesOutgoing         = "/shares/outgoing"
-	RouteInvitesOutgoing        = "/invites/outgoing"
+	// RouteInboxInvites is the API inbox invites list route path.
+	RouteInboxInvites = "/inbox/invites"
+	// RouteInboxInviteImport is the API inbox invite import route path.
+	RouteInboxInviteImport = "/inbox/invites/import"
+	// RouteInboxInviteAccept is the API inbox invite accept route path.
+	RouteInboxInviteAccept = "/inbox/invites/{inviteId}/accept"
+	// RouteInboxInviteDecline is the API inbox invite decline route path.
+	RouteInboxInviteDecline = "/inbox/invites/{inviteId}/decline"
+	// RouteSharesOutgoing is the API outgoing shares route path.
+	RouteSharesOutgoing = "/shares/outgoing"
+	// RouteInvitesOutgoing is the API outgoing invites route path.
+	RouteInvitesOutgoing = "/invites/outgoing"
 )
 
 func init() {

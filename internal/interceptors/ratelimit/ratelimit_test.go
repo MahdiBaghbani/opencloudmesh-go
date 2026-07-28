@@ -29,7 +29,7 @@ func newMockCounter() *mockCounter {
 	}
 }
 
-func (m *mockCounter) Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, time.Time, error) {
+func (m *mockCounter) Increment(_ context.Context, key string, delta int64, _ time.Duration) (int64, time.Time, error) {
 	if m.errOnInc != nil {
 		return 0, time.Time{}, m.errOnInc
 	}
@@ -39,11 +39,11 @@ func (m *mockCounter) Increment(ctx context.Context, key string, delta int64, tt
 	return m.counts[key], m.resetAt, nil
 }
 
-func (m *mockCounter) GetCount(ctx context.Context, key string) (int64, error) {
+func (m *mockCounter) GetCount(_ context.Context, key string) (int64, error) {
 	return m.counts[key], nil
 }
 
-func (m *mockCounter) Reset(ctx context.Context, key string) error {
+func (m *mockCounter) Reset(_ context.Context, key string) error {
 	delete(m.counts, key)
 	return nil
 }
@@ -53,19 +53,19 @@ type mockCache struct {
 	counter *mockCounter
 }
 
-func (m *mockCache) Get(ctx context.Context, key string) ([]byte, error) {
+func (m *mockCache) Get(_ context.Context, _ string) ([]byte, error) {
 	return nil, cache.ErrNotFound
 }
 
-func (m *mockCache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+func (m *mockCache) Set(_ context.Context, _ string, _ []byte, _ time.Duration) error {
 	return nil
 }
 
-func (m *mockCache) Delete(ctx context.Context, key string) error {
+func (m *mockCache) Delete(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockCache) Exists(ctx context.Context, key string) (bool, error) {
+func (m *mockCache) Exists(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
 
@@ -193,13 +193,13 @@ func TestLimiter_AllowsRequestsUnderLimit(t *testing.T) {
 
 	limiter := &Limiter{
 		cache:   counter,
-		keyFunc: func(r *http.Request) string { return "test-ip" },
+		keyFunc: func(_ *http.Request) string { return "test-ip" },
 		limit:   5,
 		window:  60 * time.Second,
 		log:     logger,
 	}
 
-	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 	}))
@@ -222,13 +222,13 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 
 	limiter := &Limiter{
 		cache:   counter,
-		keyFunc: func(r *http.Request) string { return "test-ip" },
+		keyFunc: func(_ *http.Request) string { return "test-ip" },
 		limit:   2,
 		window:  60 * time.Second,
 		log:     logger,
 	}
 
-	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 	}))
@@ -296,7 +296,7 @@ func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 		log:     logger,
 	}
 
-	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -343,13 +343,13 @@ func TestLimiter_AllowsOnCacheError(t *testing.T) {
 
 	limiter := &Limiter{
 		cache:   counter,
-		keyFunc: func(r *http.Request) string { return "test-ip" },
+		keyFunc: func(_ *http.Request) string { return "test-ip" },
 		limit:   1,
 		window:  60 * time.Second,
 		log:     logger,
 	}
 
-	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 	}))
@@ -370,13 +370,13 @@ func TestWithKeyFunc(t *testing.T) {
 
 	original := &Limiter{
 		cache:   counter,
-		keyFunc: func(r *http.Request) string { return "original" },
+		keyFunc: func(_ *http.Request) string { return "original" },
 		limit:   10,
 		window:  60 * time.Second,
 		log:     logger,
 	}
 
-	customKeyFunc := func(r *http.Request) string { return "custom" }
+	customKeyFunc := func(_ *http.Request) string { return "custom" }
 	modified := original.WithKeyFunc(customKeyFunc)
 
 	// Original should be unchanged
@@ -427,7 +427,7 @@ func TestNew_WithInputs(t *testing.T) {
 	}
 
 	// Test the middleware works
-	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 

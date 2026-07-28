@@ -68,7 +68,7 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 // TestClient_DestinationPrivateIPBlockedWithProxy verifies that the preflight
 // SSRF check still blocks private-IP destinations even when a proxy is configured.
 func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Preflight must fire before the proxy is ever contacted.
 		t.Error("proxy should not have been reached for a blocked destination")
 		w.WriteHeader(http.StatusOK)
@@ -105,7 +105,7 @@ func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
 func TestClient_PrivateProxyAllowedInStrictMode(t *testing.T) {
 	var proxyHit atomic.Bool
 
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		proxyHit.Store(true)
 		w.WriteHeader(http.StatusOK)
 	}))

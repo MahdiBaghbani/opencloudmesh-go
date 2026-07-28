@@ -262,7 +262,7 @@ func TestExtractToken(t *testing.T) {
 		},
 		{
 			name:  "missing",
-			setup: func(r *http.Request) {},
+			setup: func(_ *http.Request) {},
 			want:  "",
 		},
 	}

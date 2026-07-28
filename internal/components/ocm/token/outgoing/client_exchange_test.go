@@ -21,7 +21,7 @@ import (
 )
 
 func TestClient_Exchange_Success_LowercaseBearerTokenType(t *testing.T) {
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
 			AccessToken: "test-access-token",
@@ -177,7 +177,7 @@ func TestClient_Exchange_NoSignerWithoutHTTPSigSucceeds(t *testing.T) {
 func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
 	tokenEndpointCalled := false
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		tokenEndpointCalled = true
 
 		w.Header().Set("Content-Type", "application/json")
@@ -221,7 +221,7 @@ func TestClient_Exchange_NoSignerSkipsTokenEndpoint(t *testing.T) {
 func TestClient_Exchange_SignFailureFailClosed(t *testing.T) {
 	tokenEndpointCalled := false
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		tokenEndpointCalled = true
 
 		w.Header().Set("Content-Type", "application/json")
@@ -305,7 +305,7 @@ func TestClient_Exchange_SignedRejection401EmptyBodySingleAttempt(t *testing.T) 
 }
 
 func TestClient_Exchange_RejectsMalformedJSONBody(t *testing.T) {
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte("{not valid json")) //nolint:errcheck // test mock handler: response write
 	}))
@@ -318,7 +318,7 @@ func TestClient_Exchange_RejectsMalformedJSONBody(t *testing.T) {
 func TestClient_Exchange_SignedRejection401OAuthErrorSingleAttempt(t *testing.T) {
 	var tokenHits atomic.Int32
 
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		tokenHits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -363,7 +363,7 @@ func TestClient_Exchange_RejectsOversizeResponse(t *testing.T) {
 		oversizeBody[i] = 'x'
 	}
 
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(oversizeBody) //nolint:errcheck // test mock handler: response write
@@ -375,7 +375,7 @@ func TestClient_Exchange_RejectsOversizeResponse(t *testing.T) {
 }
 
 func TestClient_Exchange_RejectsNonJSONContentType(t *testing.T) {
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte("not json")) //nolint:errcheck // test mock handler: response write
 	}))
@@ -386,7 +386,7 @@ func TestClient_Exchange_RejectsNonJSONContentType(t *testing.T) {
 }
 
 func TestClient_Exchange_RejectsEmptyAccessToken(t *testing.T) {
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
 			AccessToken: "",
@@ -401,7 +401,7 @@ func TestClient_Exchange_RejectsEmptyAccessToken(t *testing.T) {
 }
 
 func TestClient_Exchange_RejectsNonBearerTokenType(t *testing.T) {
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
 			AccessToken: "tok",
@@ -416,7 +416,7 @@ func TestClient_Exchange_RejectsNonBearerTokenType(t *testing.T) {
 }
 
 func TestClient_Exchange_RejectsNonPositiveExpiresIn(t *testing.T) {
-	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
 			AccessToken: "tok",

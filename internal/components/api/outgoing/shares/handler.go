@@ -359,7 +359,7 @@ func (h *Handler) parseOutgoingRequest(w http.ResponseWriter, r *http.Request) (
 	return req, user, true
 }
 
-func (h *Handler) resolveLocalResource(w http.ResponseWriter, r *http.Request, req sharesoutgoing.OutgoingShareRequest) (string, string, string, bool) {
+func (h *Handler) resolveLocalResource(w http.ResponseWriter, _ *http.Request, req sharesoutgoing.OutgoingShareRequest) (string, string, string, bool) {
 	cleanPath, err := h.validateLocalPath(req.LocalPath)
 	if err != nil {
 		api.WriteBadRequest(w, api.ReasonInvalidField, err.Error())
@@ -391,7 +391,7 @@ func (h *Handler) resolveLocalResource(w http.ResponseWriter, r *http.Request, r
 	return cleanPath, resourceType, name, true
 }
 
-func (h *Handler) generateShareIdentifiers(w http.ResponseWriter, r *http.Request) (uuid.UUID, uuid.UUID, string, bool) {
+func (h *Handler) generateShareIdentifiers(w http.ResponseWriter, _ *http.Request) (uuid.UUID, uuid.UUID, string, bool) {
 	providerID, err := uuid.NewV7()
 	if err != nil {
 		h.logger.Error("failed to generate provider id", "error", err)
@@ -466,7 +466,7 @@ func (h *Handler) resolveReceiverAndRequirements(w http.ResponseWriter, r *http.
 	return origin, disc, requirements, true
 }
 
-func (h *Handler) buildWebDAVURI(w http.ResponseWriter, r *http.Request, req sharesoutgoing.OutgoingShareRequest, webdavID uuid.UUID, disc *spec.Discovery) (string, bool) {
+func (h *Handler) buildWebDAVURI(w http.ResponseWriter, _ *http.Request, req sharesoutgoing.OutgoingShareRequest, webdavID uuid.UUID, disc *spec.Discovery) (string, bool) {
 	webdavURI := webdavID.String()
 	if disc.WebDAVReceiveURIKind() == spec.WebDAVReceiveURIAbsolute {
 		absURI, buildErr := disc.BuildWebDAVURL(webdavID.String())

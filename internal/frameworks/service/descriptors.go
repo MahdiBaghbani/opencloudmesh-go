@@ -5,12 +5,18 @@ package service
 type BuildKey string
 
 const (
+	// BuildWellknown is the well-known service build key.
 	BuildWellknown BuildKey = "wellknown"
-	BuildOCM       BuildKey = "ocm"
-	BuildOCMAux    BuildKey = "ocmaux"
-	BuildAPI       BuildKey = "api"
-	BuildUI        BuildKey = "ui"
-	BuildWebDAV    BuildKey = "webdav"
+	// BuildOCM is the OCM service build key.
+	BuildOCM BuildKey = "ocm"
+	// BuildOCMAux is the OCM auxiliary service build key.
+	BuildOCMAux BuildKey = "ocmaux"
+	// BuildAPI is the API service build key.
+	BuildAPI BuildKey = "api"
+	// BuildUI is the UI service build key.
+	BuildUI BuildKey = "ui"
+	// BuildWebDAV is the WebDAV service build key.
+	BuildWebDAV BuildKey = "webdav"
 )
 
 // Descriptor is the canonical registration entry for one core HTTP service.
