@@ -47,20 +47,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      # Block new lint issues only on changed lines. Do not pass manual --new* in
-      # args while only-new-issues is true (action throws).
-      # Full-tree lint gate can replace only-new-issues when baseline is clean.
+      # Full-tree lint gate: baseline is clean, so CI blocks on any issue.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=5m
-          only-new-issues: true
 
   security:
     name: security
@@ -83,13 +80,11 @@ jobs:
       - name: Install golangci-lint for SARIF
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
-      # Report-only: do not use || true here. Make blocking when baseline is clean.
+      # Blocking gosec gate: baseline is clean, so findings fail CI.
       - name: gosec SARIF (golangci-lint)
         run: |
           golangci-lint run --enable-only=gosec \
-            --output.sarif.path=gosec.sarif \
-            --issues-exit-code=0 ./...
-        continue-on-error: true
+            --output.sarif.path=gosec.sarif ./...
       - name: Upload gosec SARIF
         if: >-
           always() &&
@@ -136,5 +131,5 @@ jobs:
           test "${{ needs.lint.result }}" = "success"
           test "${{ needs.test.result }}" = "success"
           test "${{ needs.build.result }}" = "success"
-          # Security is report-only; do not require security success yet.
-          # When ready: test "${{ needs.security.result }}" = "success"
+          # Security required: blocking gosec gates CI; govulncheck stays report-only.
+          test "${{ needs.security.result }}" = "success"

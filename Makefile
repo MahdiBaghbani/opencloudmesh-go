@@ -90,5 +90,5 @@ security:
 # Light local check: no full lint, no security scan.
 check: fmt-check vet lint-new test-go
 
-# Laptop CI mirror: blocking gates minus tidy (tidy is CI fmt-vet only).
-ci: fmt-check vet lint-new test build
+# Laptop CI mirror: full lint gate plus blocking gates minus tidy (tidy is CI fmt-vet only).
+ci: fmt-check vet lint test build
