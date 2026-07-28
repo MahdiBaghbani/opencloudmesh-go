@@ -140,7 +140,7 @@ func runUnexchangedSharedSecretBearer401Case(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusUnauthorized {
-		respBody, err := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}

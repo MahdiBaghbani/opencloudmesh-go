@@ -237,7 +237,7 @@ func TestCounter_Reset(t *testing.T) {
 		t.Fatalf("Increment failed: %v", err)
 	}
 
-	if err := c.Reset(ctx, "counter1"); err != nil {
+	if err := c.Reset(ctx, "counter1"); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Reset failed: %v", err)
 	}
 

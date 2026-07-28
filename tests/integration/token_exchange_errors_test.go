@@ -87,7 +87,7 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			if err := peer.signer.Sign(req); err != nil {
+			if err := peer.signer.Sign(req); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 				t.Fatalf("failed to sign token request: %v", err)
 			}
 

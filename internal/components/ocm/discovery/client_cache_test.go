@@ -36,7 +36,7 @@ func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginB
 	c := cache.NewDefault()
 
 	cacheKey := "discovery:" + baseURL
-	if err := c.Set(context.Background(), cacheKey, rawBytes, cache.TTLDiscovery); err != nil {
+	if err := c.Set(context.Background(), cacheKey, rawBytes, cache.TTLDiscovery); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("seed cache: %v", err)
 	}
 
@@ -79,7 +79,7 @@ func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
 		t.Fatalf("marshal invalid discovery: %v", err)
 	}
 
-	if err := c.Set(context.Background(), cacheKey, invalidRaw, cache.TTLDiscovery); err != nil {
+	if err := c.Set(context.Background(), cacheKey, invalidRaw, cache.TTLDiscovery); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("seed cache: %v", err)
 	}
 

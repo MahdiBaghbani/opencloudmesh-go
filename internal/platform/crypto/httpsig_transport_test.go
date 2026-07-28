@@ -34,7 +34,7 @@ func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := signer.SignRequest(req, nil); err != nil {
+	if err := signer.SignRequest(req, nil); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("SignRequest: %v", err)
 	}
 

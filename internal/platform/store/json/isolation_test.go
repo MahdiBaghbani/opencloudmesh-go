@@ -95,7 +95,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	updateCopy := *got3
 
 	updateCopy.State = "accepted"
-	if err := outStore.UpdateOutgoingShare(ctx, &updateCopy); err != nil {
+	if err := outStore.UpdateOutgoingShare(ctx, &updateCopy); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("UpdateOutgoingShare: %v", err)
 	}
 
@@ -215,7 +215,7 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	}
 
 	// 4. Status-only update path must still work correctly.
-	if err := inStore.UpdateIncomingShareStatusForRecipient(ctx, "iso-share-1", "bob", "accepted"); err != nil {
+	if err := inStore.UpdateIncomingShareStatusForRecipient(ctx, "iso-share-1", "bob", "accepted"); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("UpdateIncomingShareStatusForRecipient: %v", err)
 	}
 
@@ -333,7 +333,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	}
 
 	// 4. Status-only update path must still work correctly.
-	if err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, "iso-invite-1", "alice", "accepted"); err != nil {
+	if err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, "iso-invite-1", "alice", "accepted"); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient: %v", err)
 	}
 
@@ -461,7 +461,7 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	updateCopy := *got4
 
 	updateCopy.Status = "accepted"
-	if err := outInvStore.UpdateOutgoingInvite(ctx, &updateCopy); err != nil {
+	if err := outInvStore.UpdateOutgoingInvite(ctx, &updateCopy); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("UpdateOutgoingInvite: %v", err)
 	}
 

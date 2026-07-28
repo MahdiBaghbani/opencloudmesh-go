@@ -123,13 +123,13 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	// Get a free port unless the caller reserved one (strict pair fixtures).
 	port := cfg.Port
 	if port == 0 {
-		var err error
+		var portErr error
 
-		port, err = getFreePort()
-		if err != nil {
+		port, portErr = getFreePort()
+		if portErr != nil {
 			//nolint:errcheck // test cleanup: best-effort temp dir removal
 			os.RemoveAll(tempDir)
-			t.Fatalf("failed to get free port: %v", err)
+			t.Fatalf("failed to get free port: %v", portErr)
 		}
 	}
 
@@ -138,17 +138,17 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		absPath := filepath.Join(tempDir, relPath)
 		// Ensure parent directory exists
 		if dir := filepath.Dir(absPath); dir != tempDir {
-			if err := os.MkdirAll(dir, 0755); err != nil {
+			if mkdirErr := os.MkdirAll(dir, 0755); mkdirErr != nil {
 				//nolint:errcheck // test cleanup: best-effort temp dir removal
 				os.RemoveAll(tempDir)
-				t.Fatalf("failed to create directory for extra file %s: %v", relPath, err)
+				t.Fatalf("failed to create directory for extra file %s: %v", relPath, mkdirErr)
 			}
 		}
 
-		if err := os.WriteFile(absPath, []byte(contents), 0644); err != nil {
+		if writeErr := os.WriteFile(absPath, []byte(contents), 0644); writeErr != nil {
 			//nolint:errcheck // test cleanup: best-effort temp dir removal
 			os.RemoveAll(tempDir)
-			t.Fatalf("failed to write extra file %s: %v", relPath, err)
+			t.Fatalf("failed to write extra file %s: %v", relPath, writeErr)
 		}
 	}
 
@@ -166,10 +166,10 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		cfg.PublicOriginHost,
 		cfg.ExtraConfig,
 	)
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if writeErr := os.WriteFile(configPath, []byte(configContent), 0644); writeErr != nil {
 		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
-		t.Fatalf("failed to write config file: %v", err)
+		t.Fatalf("failed to write config file: %v", writeErr)
 	}
 
 	// Derive transport, base URL, and readiness path from the FINAL effective

@@ -84,7 +84,7 @@ label = "custom-label"
 	keyDir := t.TempDir()
 
 	km := crypto.NewKeyManagerWithFragment(filepath.Join(keyDir, "signing.pem"), "https://example.com", cfg.Signature.KidFragment)
-	if err := km.LoadOrGenerate(); err != nil {
+	if err := km.LoadOrGenerate(); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("LoadOrGenerate: %v", err)
 	}
 

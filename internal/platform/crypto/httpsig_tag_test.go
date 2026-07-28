@@ -383,7 +383,7 @@ func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
 
 	req.Host = "example.com"
 
-	if err := signer.SignRequest(req, body); err != nil {
+	if err := signer.SignRequest(req, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("SignRequest failed: %v", err)
 	}
 

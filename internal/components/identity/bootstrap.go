@@ -92,8 +92,8 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 
 	if existingSuperAdmin != nil {
 		if explicitPasswordSet && password != "" {
-			if err := b.rotateSuperAdminPassword(ctx, existingSuperAdmin, password); err != nil {
-				return err
+			if rotateErr := b.rotateSuperAdminPassword(ctx, existingSuperAdmin, password); rotateErr != nil {
+				return rotateErr
 			}
 
 			b.log.Info("super admin password rotated", "username", existingSuperAdmin.Username)
@@ -105,11 +105,11 @@ func (b *Bootstrap) EnsureSuperAdmin(ctx context.Context, username, password str
 	passwordGenerated := false
 
 	if password == "" {
-		var err error
+		var genErr error
 
-		password, err = generateRandomPassword()
-		if err != nil {
-			return err
+		password, genErr = generateRandomPassword()
+		if genErr != nil {
+			return genErr
 		}
 
 		passwordGenerated = true

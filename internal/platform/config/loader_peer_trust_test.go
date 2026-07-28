@@ -26,7 +26,7 @@ mode = "strict"
 enabled = true
 config_paths = []
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -59,7 +59,7 @@ mode = "strict"
 enabled = true
 config_paths = ["/nonexistent/path/trust-group.json"]
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -85,7 +85,7 @@ func TestLoad_PeerTrustEnabledValidPathSucceeds(t *testing.T) {
 
 	// Create a valid trust group config file
 	tgPath := filepath.Join(tempDir, "trust-group.json")
-	if err := os.WriteFile(tgPath, []byte(`{"trustGroupId":"test"}`), 0644); err != nil {
+	if err := os.WriteFile(tgPath, []byte(`{"trustGroupId":"test"}`), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to write trust group config: %v", err)
 	}
 
@@ -98,7 +98,7 @@ mode = "strict"
 enabled = true
 config_paths = ["` + tgPath + `"]
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -134,7 +134,7 @@ mode = "strict"
 [peer_trust]
 enabled = false
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to write config: %v", err)
 	}
 

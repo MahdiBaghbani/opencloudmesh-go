@@ -225,7 +225,7 @@ func TestVerify_RS384AndRS512(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := sigalg.Verify(sigalg.RSAPKCS1SHA384, &priv.PublicKey, msg, sig384); err != nil {
+	if err := sigalg.Verify(sigalg.RSAPKCS1SHA384, &priv.PublicKey, msg, sig384); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Verify RS384: %v", err)
 	}
 

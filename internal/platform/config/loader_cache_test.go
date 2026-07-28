@@ -40,7 +40,7 @@ mode = "strict"
 [cache]
 driver = "memory"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -72,7 +72,7 @@ mode = "strict"
 [cache]
 driver = "redis"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -104,7 +104,7 @@ mode = "strict"
 [cache]
 driver = "unknown"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to write config: %v", err)
 	}
 

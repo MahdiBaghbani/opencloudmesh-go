@@ -302,7 +302,7 @@ func (m *ACMEManager) loadOrCreateUser() (*ACMEUser, error) {
 		keyData, keyErr := os.ReadFile(keyFile)
 		if keyErr == nil {
 			user := &ACMEUser{}
-			if err := json.Unmarshal(userData, user); err == nil {
+			if unmarshalErr := json.Unmarshal(userData, user); unmarshalErr == nil {
 				// Parse key
 				key, keyErr := certcrypto.ParsePEMPrivateKey(keyData)
 				if keyErr == nil {
@@ -374,12 +374,12 @@ func (m *ACMEManager) obtainCertificate() error {
 	certFile := filepath.Join(m.cfg.StorageDir, "cert.pem")
 	keyFile := filepath.Join(m.cfg.StorageDir, "key.pem")
 
-	if err := os.WriteFile(certFile, certificates.Certificate, 0644); err != nil {
-		return fmt.Errorf("failed to save certificate: %w", err)
+	if writeErr := os.WriteFile(certFile, certificates.Certificate, 0644); writeErr != nil {
+		return fmt.Errorf("failed to save certificate: %w", writeErr)
 	}
 
-	if err := os.WriteFile(keyFile, certificates.PrivateKey, 0600); err != nil {
-		return fmt.Errorf("failed to save key: %w", err)
+	if writeErr := os.WriteFile(keyFile, certificates.PrivateKey, 0600); writeErr != nil {
+		return fmt.Errorf("failed to save key: %w", writeErr)
 	}
 
 	// Load the certificate

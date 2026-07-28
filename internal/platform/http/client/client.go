@@ -215,8 +215,8 @@ func (c *Client) followRedirect(origReq *http.Request, resp *http.Response, dept
 	// SSRF revalidation on redirect target (defense-in-depth; same-host is
 	// already enforced above). Catches DNS rebinding and enforces route policy.
 	if c.isStrictMode() {
-		if err := c.checkSSRFURL(ctx, redirectURL); err != nil {
-			return nil, err
+		if ssrfErr := c.checkSSRFURL(ctx, redirectURL); ssrfErr != nil {
+			return nil, ssrfErr
 		}
 	}
 

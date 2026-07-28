@@ -162,7 +162,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	defer bearerResp.Body.Close()
 
 	if bearerResp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(bearerResp.Body)
+		respBody, err := io.ReadAll(bearerResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
@@ -194,7 +194,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	defer secretResp.Body.Close()
 
 	if secretResp.StatusCode != http.StatusUnauthorized {
-		respBody, err := io.ReadAll(secretResp.Body)
+		respBody, err := io.ReadAll(secretResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
@@ -212,7 +212,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	defer dupResp.Body.Close()
 
 	if dupResp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(dupResp.Body)
+		respBody, err := io.ReadAll(dupResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}

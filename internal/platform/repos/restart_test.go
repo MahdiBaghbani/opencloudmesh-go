@@ -47,7 +47,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 				ExpiresAt:       now.Add(24 * time.Hour),
 				Status:          invites.InviteStatusPending,
 			}
-			if err := r1.OutgoingInvites.Create(ctx, outInvite); err != nil {
+			if err := r1.OutgoingInvites.Create(ctx, outInvite); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 				t.Fatalf("OutgoingInvites.Create: %v", err)
 			}
 
@@ -60,11 +60,11 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 				Status:          invites.InviteStatusPending,
 				ReceivedAt:      now,
 			}
-			if err := r1.IncomingInvites.Create(ctx, inInvite); err != nil {
+			if err := r1.IncomingInvites.Create(ctx, inInvite); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 				t.Fatalf("IncomingInvites.Create: %v", err)
 			}
 
-			if err := r1.Close(); err != nil {
+			if err := r1.Close(); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 				t.Fatalf("Close session 1: %v", err)
 			}
 
@@ -74,7 +74,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 				t.Fatalf("repos.New(%s) session 2: %v", backend, err)
 			}
 			defer func() {
-				if err := r2.Close(); err != nil {
+				if err := r2.Close(); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 					t.Errorf("Close() error = %v", err)
 				}
 			}()

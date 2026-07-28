@@ -162,14 +162,14 @@ func (m *TLSManager) generateSelfSigned(hostname, certFile, keyFile string) (cry
 	}
 
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(certFile), 0700); err != nil {
-		return cryptotls.Certificate{}, fmt.Errorf("failed to create cert directory: %w", err)
+	if mkdirErr := os.MkdirAll(filepath.Dir(certFile), 0700); mkdirErr != nil {
+		return cryptotls.Certificate{}, fmt.Errorf("failed to create cert directory: %w", mkdirErr)
 	}
 
 	// Write certificate
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	if err := os.WriteFile(certFile, certPEM, 0644); err != nil {
-		return cryptotls.Certificate{}, fmt.Errorf("failed to write certificate: %w", err)
+	if writeErr := os.WriteFile(certFile, certPEM, 0644); writeErr != nil {
+		return cryptotls.Certificate{}, fmt.Errorf("failed to write certificate: %w", writeErr)
 	}
 
 	// Write private key

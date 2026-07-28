@@ -57,7 +57,7 @@ func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
 		t.Fatalf("imported status = %q, want pending", imported.Status)
 	}
 
-	if _, _, err := tsinvite.Accept(bobClient, bob.BaseURL, bobToken, imported.ID); err != nil {
+	if _, _, err := tsinvite.Accept(bobClient, bob.BaseURL, bobToken, imported.ID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		alice.DumpLogs(t)
 		bob.DumpLogs(t)
 		t.Fatalf("bob accept invite: %v", err)

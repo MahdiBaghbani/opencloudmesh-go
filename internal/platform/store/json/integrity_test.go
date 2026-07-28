@@ -61,20 +61,20 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	retrieved.ShareID = "new-share-id"
 	retrieved.SharedSecret = "new-secret"
 
-	if err := outStore.UpdateOutgoingShare(ctx, retrieved); err != nil {
+	if err := outStore.UpdateOutgoingShare(ctx, retrieved); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("UpdateOutgoingShare: %v", err)
 	}
 
 	// Old index entries must be gone.
-	if _, err := outStore.GetOutgoingShareByID(ctx, "original-share-id"); !errors.Is(err, store.ErrNotFound) {
+	if _, err := outStore.GetOutgoingShareByID(ctx, "original-share-id"); !errors.Is(err, store.ErrNotFound) { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Errorf("stale shareID index entry survives: expected ErrNotFound, got %v", err)
 	}
 
-	if _, err := outStore.GetOutgoingShareByWebDAVID(ctx, "original-webdav"); !errors.Is(err, store.ErrNotFound) {
+	if _, err := outStore.GetOutgoingShareByWebDAVID(ctx, "original-webdav"); !errors.Is(err, store.ErrNotFound) { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Errorf("stale webdav index entry survives: expected ErrNotFound, got %v", err)
 	}
 
-	if _, err := outStore.GetOutgoingShareBySharedSecret(ctx, "original-secret"); !errors.Is(err, store.ErrNotFound) {
+	if _, err := outStore.GetOutgoingShareBySharedSecret(ctx, "original-secret"); !errors.Is(err, store.ErrNotFound) { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Errorf("stale secret index entry survives: expected ErrNotFound, got %v", err)
 	}
 
@@ -121,7 +121,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp directory remove
 
-	if err := os.MkdirAll(tempDir, 0700); err != nil {
+	if err := os.MkdirAll(tempDir, 0700); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatal(err)
 	}
 
@@ -166,7 +166,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareID(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp directory remove
 
-	if err := os.MkdirAll(tempDir, 0700); err != nil {
+	if err := os.MkdirAll(tempDir, 0700); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatal(err)
 	}
 
@@ -211,7 +211,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingInviteToken(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp directory remove
 
-	if err := os.MkdirAll(tempDir, 0700); err != nil {
+	if err := os.MkdirAll(tempDir, 0700); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatal(err)
 	}
 

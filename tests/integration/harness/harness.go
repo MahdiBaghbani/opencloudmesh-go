@@ -109,10 +109,10 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 
 	// Fail-fast checks that must run before any side-effecting bootstrap
 	// (mirrors main.go: impossible startup state must never cause partial startup).
-	if err := validatePreBootstrapStartup(cfg); err != nil {
+	if validateErr := validatePreBootstrapStartup(cfg); validateErr != nil {
 		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
-		t.Fatalf("pre-bootstrap startup validation rejected: %v", err)
+		t.Fatalf("pre-bootstrap startup validation rejected: %v", validateErr)
 	}
 
 	// Logger writes warnings and errors to stdout for test diagnostics.
@@ -143,10 +143,10 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 		DisplayName: "Test Admin",
 		Role:        "admin",
 	}
-	if _, err := bootstrap.Run(context.Background(), adminUser, nil); err != nil {
+	if _, bootstrapErr := bootstrap.Run(context.Background(), adminUser, nil); bootstrapErr != nil {
 		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
-		t.Fatalf("failed to bootstrap users: %v", err)
+		t.Fatalf("failed to bootstrap users: %v", bootstrapErr)
 	}
 
 	services, err := wiring.BuildCoreServices(cfg, logger, d)
@@ -156,10 +156,10 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 		t.Fatalf("failed to create core services: %v", err)
 	}
 
-	if err := service.ValidateBuiltServices(services); err != nil {
+	if validateErr := service.ValidateBuiltServices(services); validateErr != nil {
 		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
-		t.Fatalf("built service validation rejected: %v", err)
+		t.Fatalf("built service validation rejected: %v", validateErr)
 	}
 
 	serverDeps, err := wiring.BuildServerDeps(cfg, logger, d)

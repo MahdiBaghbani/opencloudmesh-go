@@ -134,8 +134,8 @@ func (s *Server) startACME() error {
 		host = s.cfg.ListenAddr
 	}
 
-	if err := validateACMEConfig(s.cfg); err != nil {
-		return err
+	if acmeErr := validateACMEConfig(s.cfg); acmeErr != nil {
+		return acmeErr
 	}
 
 	acmeMgr := tlspkg.NewACMEManager(&s.cfg.TLS.ACME, s.logger, s.RootCAPool)

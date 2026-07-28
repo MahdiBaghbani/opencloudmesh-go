@@ -33,7 +33,7 @@ func postSignedJSON(t *testing.T, targetURL string, body []byte, signer *crypto.
 
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := signer.Sign(req); err != nil {
+	if err := signer.Sign(req); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to sign request: %v", err)
 	}
 
@@ -105,7 +105,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
@@ -114,7 +114,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 	}
 
 	var response spec.InviteAcceptedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
@@ -251,7 +251,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		respBody, err := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
@@ -260,7 +260,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	}
 
 	var shareResp spec.CreateShareResponse
-	if err := json.NewDecoder(resp.Body).Decode(&shareResp); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&shareResp); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
@@ -447,7 +447,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		respBody, err := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
@@ -456,7 +456,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	}
 
 	var shareResp spec.CreateShareResponse
-	if err := json.NewDecoder(resp.Body).Decode(&shareResp); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&shareResp); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to decode response: %v", err)
 	}
 

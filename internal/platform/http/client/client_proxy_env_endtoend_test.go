@@ -143,7 +143,7 @@ func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
 	dir := t.TempDir()
 
 	configPath := filepath.Join(dir, "config.toml")
-	if err := os.WriteFile(configPath, []byte("mode = \"dev\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(configPath, []byte("mode = \"dev\"\n"), 0o600); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("write config: %v", err)
 	}
 

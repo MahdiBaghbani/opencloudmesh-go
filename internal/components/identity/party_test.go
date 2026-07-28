@@ -54,7 +54,7 @@ func TestMemoryPartyRepo_CRUD(t *testing.T) {
 
 	// Update
 	user.DisplayName = "Alice Updated"
-	if err := repo.Update(ctx, user); err != nil {
+	if err := repo.Update(ctx, user); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Update failed: %v", err)
 	}
 
@@ -78,7 +78,7 @@ func TestMemoryPartyRepo_CRUD(t *testing.T) {
 	}
 
 	// Delete
-	if err := repo.Delete(ctx, user.ID); err != nil {
+	if err := repo.Delete(ctx, user.ID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Delete failed: %v", err)
 	}
 
@@ -281,7 +281,7 @@ func TestMemoryPartyRepo_UpdateMaintainsEmailIndex(t *testing.T) {
 
 	// Update to empty email removes from index
 	user.Email = ""
-	if err := repo.Update(ctx, user); err != nil {
+	if err := repo.Update(ctx, user); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Update to empty email failed: %v", err)
 	}
 

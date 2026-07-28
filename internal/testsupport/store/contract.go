@@ -920,13 +920,13 @@ func runIncomingInviteCompositeUniqueness(
 		ReceivedAt:      time.Now().Unix(),
 		UpdatedAt:       time.Now().Unix(),
 	}
-	if err := s.CreateIncomingInvite(ctx, third); err != nil {
-		t.Fatalf("CreateIncomingInvite(third, different recipient): %v", err)
+	if createErr := s.CreateIncomingInvite(ctx, third); createErr != nil {
+		t.Fatalf("CreateIncomingInvite(third, different recipient): %v", createErr)
 	}
 
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingInviteForRecipient(ctx, third.ID, third.RecipientUserID); err != nil && !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("cleanup: DeleteIncomingInviteForRecipient third: %v", err)
+		if deleteErr := s.DeleteIncomingInviteForRecipient(ctx, third.ID, third.RecipientUserID); deleteErr != nil && !errors.Is(deleteErr, store.ErrNotFound) {
+			t.Errorf("cleanup: DeleteIncomingInviteForRecipient third: %v", deleteErr)
 		}
 	})
 
@@ -1234,13 +1234,13 @@ func runIncomingShareProviderKeyUniqueness(
 		CreatedAt:     time.Now().Unix(),
 		UpdatedAt:     time.Now().Unix(),
 	}
-	if err := s.CreateIncomingShare(ctx, third); err != nil {
-		t.Fatalf("CreateIncomingShare(third, different sendingServer): %v", err)
+	if createErr := s.CreateIncomingShare(ctx, third); createErr != nil {
+		t.Fatalf("CreateIncomingShare(third, different sendingServer): %v", createErr)
 	}
 
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, third.ShareID, third.UserID); err != nil && !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("cleanup: DeleteIncomingShareForRecipient third: %v", err)
+		if deleteErr := s.DeleteIncomingShareForRecipient(ctx, third.ShareID, third.UserID); deleteErr != nil && !errors.Is(deleteErr, store.ErrNotFound) {
+			t.Errorf("cleanup: DeleteIncomingShareForRecipient third: %v", deleteErr)
 		}
 	})
 

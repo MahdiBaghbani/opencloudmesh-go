@@ -61,7 +61,7 @@ func runIncomingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 		t.Errorf("ID: got %q, want %q", got.ID, invite.ID)
 	}
 
-	if err := r.IncomingInvites.UpdateStatusForRecipientUserID(
+	if err := r.IncomingInvites.UpdateStatusForRecipientUserID( //nolint:govet // shadow: sequential err in table-driven test is benign
 		ctx, invite.ID, invite.RecipientUserID, invites.InviteStatusAccepted,
 	); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
@@ -76,7 +76,7 @@ func runIncomingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 		t.Errorf("Status after update: got %q, want accepted", got.Status)
 	}
 
-	if err := r.IncomingInvites.DeleteForRecipientUserID(ctx, invite.ID, invite.RecipientUserID); err != nil {
+	if err := r.IncomingInvites.DeleteForRecipientUserID(ctx, invite.ID, invite.RecipientUserID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("DeleteForRecipientUserID: %v", err)
 	}
 
@@ -258,7 +258,7 @@ func runOutgoingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 		t.Errorf("GetByToken ID: got %q, want %q", got.ID, invite.ID)
 	}
 
-	if err := r.OutgoingInvites.UpdateStatus(
+	if err := r.OutgoingInvites.UpdateStatus( //nolint:govet // shadow: sequential err in table-driven test is benign
 		ctx, invite.ID, invites.InviteStatusAccepted, "ct-acceptor-1",
 	); err != nil {
 		t.Fatalf("UpdateStatus: %v", err)

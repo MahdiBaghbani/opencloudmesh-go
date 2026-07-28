@@ -114,7 +114,7 @@ mode = "off"
 	defer unsignedResp.Body.Close()
 
 	if unsignedResp.StatusCode != http.StatusUnauthorized {
-		respBody, err := io.ReadAll(unsignedResp.Body)
+		respBody, err := io.ReadAll(unsignedResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
@@ -133,7 +133,7 @@ mode = "off"
 
 	signedReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	if err := receiver.signer.Sign(signedReq); err != nil {
+	if err := receiver.signer.Sign(signedReq); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to sign token request: %v", err)
 	}
 
@@ -145,7 +145,7 @@ mode = "off"
 	defer signedResp.Body.Close()
 
 	if signedResp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(signedResp.Body)
+		respBody, err := io.ReadAll(signedResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
@@ -154,7 +154,7 @@ mode = "off"
 	}
 
 	var tokenResp spec.TokenResponse
-	if err := json.NewDecoder(signedResp.Body).Decode(&tokenResp); err != nil {
+	if err := json.NewDecoder(signedResp.Body).Decode(&tokenResp); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to decode token response: %v", err)
 	}
 
@@ -179,7 +179,7 @@ mode = "off"
 	defer webdavResp.Body.Close()
 
 	if webdavResp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(webdavResp.Body)
+		respBody, err := io.ReadAll(webdavResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
@@ -266,7 +266,7 @@ func TestIETFTwoInstance_JWKSRouteAndSignedTokenExchange(t *testing.T) {
 
 	signedReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	if err := client.Deps.Signer.SignRequest(signedReq, body); err != nil {
+	if err := client.Deps.Signer.SignRequest(signedReq, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("sign token request: %v", err)
 	}
 
@@ -393,7 +393,7 @@ func postTokenExchange(t *testing.T, providerBaseURL, clientHost, code string, s
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	if sign != nil {
-		if err := sign(req, body); err != nil {
+		if err := sign(req, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 			t.Fatalf("sign token request: %v", err)
 		}
 	}

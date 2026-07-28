@@ -99,8 +99,8 @@ func (p *Poster) SendResolved(ctx context.Context, req Request, peer ResolvedPee
 
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	if err := p.applySigning(httpReq, req, peer.Discovery); err != nil {
-		return nil, err
+	if signErr := p.applySigning(httpReq, req, peer.Discovery); signErr != nil {
+		return nil, signErr
 	}
 
 	resp, err := p.httpClient.Do(ctx, httpReq)

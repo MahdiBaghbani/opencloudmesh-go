@@ -56,7 +56,7 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 		t.Fatalf("expected ErrNotFound for wrong recipient lookup, got %v", err)
 	}
 
-	if err := inStore.UpdateIncomingInviteStatusForRecipient(
+	if err := inStore.UpdateIncomingInviteStatusForRecipient( //nolint:govet // shadow: sequential err in table-driven test is benign
 		ctx, invite.ID, invite.RecipientUserID, "accepted",
 	); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", err)
@@ -72,7 +72,7 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 		t.Fatalf("expected ErrNotFound for wrong recipient delete, got %v", err)
 	}
 
-	if err := inStore.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID); err != nil {
+	if err := inStore.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("DeleteIncomingInviteForRecipient failed: %v", err)
 	}
 

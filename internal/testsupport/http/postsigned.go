@@ -34,8 +34,8 @@ func PostSignedJSON(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := signer.Sign(req); err != nil {
-		t.Fatalf("PostSignedJSON: sign request: %v", err)
+	if signErr := signer.Sign(req); signErr != nil {
+		t.Fatalf("PostSignedJSON: sign request: %v", signErr)
 	}
 
 	resp, err := client.Do(req)

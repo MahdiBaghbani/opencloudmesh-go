@@ -69,7 +69,7 @@ func TestResolver_RefetchesOnKidMiss(t *testing.T) {
 
 	ctx := context.Background()
 
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Resolve key1: %v", err)
 	}
 
@@ -121,7 +121,7 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 
 	ctx := context.Background()
 
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("initial Resolve: %v", err)
 	}
 
@@ -170,7 +170,7 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Resolve key1: %v", err)
 	}
 
@@ -234,7 +234,7 @@ func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
+	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Resolve key1: %v", err)
 	}
 

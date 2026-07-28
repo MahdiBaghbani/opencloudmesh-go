@@ -153,7 +153,7 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 		t.Fatalf("bob import invite: %v", err)
 	}
 
-	if _, _, err := tsinvite.Accept(bobClient, bob.BaseURL, bobToken, imported.ID); err != nil {
+	if _, _, err := tsinvite.Accept(bobClient, bob.BaseURL, bobToken, imported.ID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		alice.DumpLogs(t)
 		bob.DumpLogs(t)
 		t.Fatalf("bob accept invite via API: %v", err)

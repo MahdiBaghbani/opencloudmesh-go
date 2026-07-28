@@ -122,7 +122,7 @@ tls_root_ca_file = %q
 	cmd.Stderr = logFile
 	cmd.Dir = tempDir
 
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Start(); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		//nolint:errcheck // test cleanup: log file close
 		logFile.Close()
 		t.Fatalf("failed to start binary: %v", err)
@@ -141,7 +141,7 @@ tls_root_ca_file = %q
 		logFile.Close()
 
 		if t.Failed() {
-			content, err := os.ReadFile(logPath)
+			content, err := os.ReadFile(logPath) //nolint:govet // shadow: sequential err in table-driven test is benign
 			if err != nil {
 				t.Fatalf("read file: %v", err)
 			}
@@ -153,7 +153,7 @@ tls_root_ca_file = %q
 	// ACME issuance can take several seconds; use a longer timeout.
 	httpsAddr := fmt.Sprintf("127.0.0.1:%d", httpsPort)
 	if !waitForTCPListener(t, httpsAddr, 30*time.Second) {
-		content, err := os.ReadFile(logPath)
+		content, err := os.ReadFile(logPath) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("read file: %v", err)
 		}
@@ -167,11 +167,11 @@ tls_root_ca_file = %q
 	certFile := filepath.Join(acmeDir, "cert.pem")
 	keyFile := filepath.Join(acmeDir, "key.pem")
 
-	if _, err := os.Stat(certFile); err != nil {
+	if _, err := os.Stat(certFile); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Errorf("cert.pem not found after issuance: %v", err)
 	}
 
-	if _, err := os.Stat(keyFile); err != nil {
+	if _, err := os.Stat(keyFile); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Errorf("key.pem not found after issuance: %v", err)
 	}
 

@@ -428,8 +428,8 @@ func (v *RFC9421Verifier) verifySignature(
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonAlgorithmRejected, Error: err}
 	}
 
-	if err := sigalg.ValidateAllowed(resolvedAlg, v.opts.AllowedAlgorithms); err != nil {
-		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonAlgorithmRejected, Error: err}
+	if validateErr := sigalg.ValidateAllowed(resolvedAlg, v.opts.AllowedAlgorithms); validateErr != nil {
+		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonAlgorithmRejected, Error: validateErr}
 	}
 
 	sigBase, err := buildSignatureBaseFromRequest(req, body, params.Components)

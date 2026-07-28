@@ -116,7 +116,7 @@ func TestIncrement_CounterValue(t *testing.T) {
 
 	// Multiple increments
 	for i := 1; i <= 5; i++ {
-		count, _, err := c.Increment(ctx, "counter", 1, time.Minute)
+		count, _, err := c.Increment(ctx, "counter", 1, time.Minute) //nolint:govet // shadow: sequential err in table-driven test is benign
 		if err != nil {
 			t.Fatalf("Increment %d failed: %v", i, err)
 		}

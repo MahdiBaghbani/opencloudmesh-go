@@ -33,8 +33,8 @@ func main() {
 	slog.SetDefault(logger)
 	logger.Info("effective configuration", "config", cfg.Redacted())
 
-	if err := service.ValidatePreBootstrap(cfg); err != nil {
-		logger.Error("pre-bootstrap startup validation failed", "error", err)
+	if validateErr := service.ValidatePreBootstrap(cfg); validateErr != nil {
+		logger.Error("pre-bootstrap startup validation failed", "error", validateErr)
 		os.Exit(1)
 	}
 
@@ -52,8 +52,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := bootstrapAdmin(context.Background(), cfg, d, logger); err != nil {
-		logger.Error("failed to bootstrap super admin", "error", err)
+	if bootstrapErr := bootstrapAdmin(context.Background(), cfg, d, logger); bootstrapErr != nil {
+		logger.Error("failed to bootstrap super admin", "error", bootstrapErr)
 		os.Exit(1)
 	}
 

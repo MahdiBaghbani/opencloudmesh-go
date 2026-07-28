@@ -198,7 +198,7 @@ func postSignedJSONWithClient(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := signer.SignRequest(req, body); err != nil {
+	if err := signer.SignRequest(req, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("sign POST: %v", err)
 	}
 
@@ -503,7 +503,7 @@ func exchangeSignedAuthorizationCode(
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	if err := signer.SignRequest(req, body); err != nil {
+	if err := signer.SignRequest(req, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("sign token request: %v", err)
 	}
 

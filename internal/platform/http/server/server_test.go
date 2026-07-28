@@ -357,7 +357,7 @@ func TestACME_MissingPorts(t *testing.T) {
 		t.Fatalf("server creation failed: %v", err)
 	}
 
-	if err := srv.Start(); err == nil {
+	if err := srv.Start(); err == nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Error("expected error for zero HTTPPort")
 	}
 

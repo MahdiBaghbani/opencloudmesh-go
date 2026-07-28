@@ -135,7 +135,7 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req InviteImportRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		api.WriteBadRequest(w, api.ReasonBadRequest, "invalid request body")
 		return
 	}

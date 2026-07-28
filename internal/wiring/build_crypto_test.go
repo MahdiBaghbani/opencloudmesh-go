@@ -224,7 +224,7 @@ func TestBuild_APIOutgoingHandlerTokenEndpointMatchesDiscoveryResolve(t *testing
 
 	var providerCfg resolve.ProviderConfig
 	if rawOCMProvider != nil {
-		if err := svccfg.Decode(rawOCMProvider, &providerCfg); err != nil {
+		if err := svccfg.Decode(rawOCMProvider, &providerCfg); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 			t.Fatalf("decode ocm provider config: %v", err)
 		}
 	}

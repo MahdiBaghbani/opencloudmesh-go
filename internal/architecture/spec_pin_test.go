@@ -46,7 +46,7 @@ func TestSpecPinPresent(t *testing.T) {
 		Version string `json:"version"`
 		File    string `json:"file"`
 	}
-	if err := json.Unmarshal(data, &pin); err != nil {
+	if err := json.Unmarshal(data, &pin); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("failed to parse pin.json: %v", err)
 	}
 

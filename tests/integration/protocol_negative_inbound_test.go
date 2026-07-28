@@ -162,7 +162,7 @@ func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, rec
 
 				req.Header.Set("Content-Type", "application/json")
 
-				if err := env.signer.SignRequest(req, body); err != nil {
+				if err := env.signer.SignRequest(req, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 					t.Fatalf("sign POST: %v", err)
 				}
 
