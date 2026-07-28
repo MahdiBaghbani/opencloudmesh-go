@@ -223,11 +223,11 @@ func TestRoutePolicyWiring_InviteAcceptDialogDistinctFromInviteAccepted(t *testi
 	for _, row := range tsrouting.ProductRoutes(opts) {
 		switch row.ID {
 		case service.RouteIDUIAcceptInvite:
-			copy := row
-			uiAccept = &copy
+			cp := row
+			uiAccept = &cp
 		case "ocm-invite-accepted":
-			copy := row
-			ocmInvite = &copy
+			cp := row
+			ocmInvite = &cp
 		}
 	}
 

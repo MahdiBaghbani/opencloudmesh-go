@@ -64,6 +64,7 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 		if resp != nil {
 			defer resp.Body.Close() //nolint:errcheck // test response body close
 		}
+
 		if reqErr == nil {
 			t.Fatal("expected SSRF error blocking localhost, but request succeeded")
 		}

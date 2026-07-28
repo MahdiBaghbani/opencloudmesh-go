@@ -36,7 +36,7 @@ func mustHTTPSigKeyManager(t testing.TB) *crypto.KeyManager {
 
 func httpsigFixedOptions() crypto.RFC9421Options {
 	opts := crypto.DefaultRFC9421Options()
-	opts.Now = func() time.Time { return httpsigFixedNow() }
+	opts.Now = httpsigFixedNow
 
 	return opts
 }

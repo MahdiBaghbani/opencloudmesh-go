@@ -189,14 +189,14 @@ func extractToken(r *http.Request) string {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	//nolint:errcheck // response already started; write error cannot be recovered
+	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
 	json.NewEncoder(w).Encode(data)
 }
 
 func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	//nolint:errcheck // response already started; write error cannot be recovered
+	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
 	json.NewEncoder(w).Encode(map[string]string{
 		"error":   code,
 		"message": message,

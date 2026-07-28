@@ -57,8 +57,10 @@ func expectedOCMPostPaths(t *testing.T) []string {
 }
 
 func TestActiveOCMRoutes(t *testing.T) {
-	got := make([]string, 0)
-	for _, row := range activeOCMPostRouteRows(t) {
+	rows := activeOCMPostRouteRows(t)
+
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
 		got = append(got, row.FullPath)
 	}
 

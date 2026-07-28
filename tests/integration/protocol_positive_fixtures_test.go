@@ -238,7 +238,7 @@ func buildSignedInboundShareBody(
 		},
 	}
 
-	body, err := json.Marshal(payload)
+	body, err := json.Marshal(payload) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		panic(err)
 	}
@@ -397,7 +397,7 @@ func loginSubprocessAdminWithClient(t *testing.T, srv *harness.SubprocessServer)
 func tryLoginWithClient(t *testing.T, client *http.Client, baseURL, username, password string) (string, string, bool) {
 	t.Helper()
 
-	reqBody, err := json.Marshal(map[string]string{
+	reqBody, err := json.Marshal(map[string]string{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 		"username": username,
 		"password": password,
 	})

@@ -114,7 +114,7 @@ func TestHTTPConfig_EmptyServicesDoesNotBreakLoading(t *testing.T) {
 	}
 
 	// HTTP.Services should be nil or empty by default
-	if cfg.HTTP.Services != nil && len(cfg.HTTP.Services) > 0 {
+	if len(cfg.HTTP.Services) > 0 {
 		t.Errorf("expected empty HTTP.Services by default, got %d services", len(cfg.HTTP.Services))
 	}
 }

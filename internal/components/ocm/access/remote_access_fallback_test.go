@@ -24,7 +24,7 @@ type fallbackAccessCase struct {
 	wantTokenHits int32
 }
 
-func TestAccess_OptionalExchangeFallback(t *testing.T) {
+func TestAccess_OptionalExchangeFallback(t *testing.T) { //nolint:maintidx // test: complex scenario coverage is intentional
 	const (
 		sharedSecret    = "fallback-shared-secret"
 		fallbackWarning = "optional token exchange failed; falling back to legacy shared-secret access"

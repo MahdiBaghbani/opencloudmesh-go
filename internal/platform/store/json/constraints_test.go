@@ -85,7 +85,7 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 // TestJSONListIncomingInvitesRecipientScope ensures ListIncomingInvites always
 // uses exact recipient matching: empty or wrong recipientUserID yields no results.
 func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -141,7 +141,7 @@ func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 // outgoing share with a ShareID already owned by a different record returns
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingShareCreateConflictingShareID(t *testing.T) { //nolint:dupl // intentional: parallel ShareID/WebDAVID constraint tests share fixture setup but assert different unique keys
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -182,7 +182,7 @@ func TestJSONOutgoingShareCreateConflictingShareID(t *testing.T) { //nolint:dupl
 // outgoing share to a ShareID already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingShareUpdateConflictingShareID(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -232,7 +232,7 @@ func TestJSONOutgoingShareUpdateConflictingShareID(t *testing.T) {
 // outgoing share with a WebDAVID already owned by a different record returns
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingShareCreateConflictingWebDAVID(t *testing.T) { //nolint:dupl // intentional: parallel ShareID/WebDAVID constraint tests share fixture setup but assert different unique keys
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -273,7 +273,7 @@ func TestJSONOutgoingShareCreateConflictingWebDAVID(t *testing.T) { //nolint:dup
 // outgoing share to a WebDAVID already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingShareUpdateConflictingWebDAVID(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -323,7 +323,7 @@ func TestJSONOutgoingShareUpdateConflictingWebDAVID(t *testing.T) {
 // outgoing invite with a Token already owned by a different record returns
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -362,7 +362,7 @@ func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 // outgoing invite to a Token already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingInviteUpdateConflictingToken(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()

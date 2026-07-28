@@ -45,7 +45,7 @@ func newTestRouter(repo sharesinbox.IncomingShareRepo, user *identity.User) http
 	return r
 }
 
-func createShareForUser(repo *sharesinbox.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesinbox.IncomingShare {
+func createShareForUser(repo *sharesinbox.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesinbox.IncomingShare { //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
 	share := &sharesinbox.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,

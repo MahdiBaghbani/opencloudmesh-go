@@ -27,6 +27,8 @@ type WebDAVReceive struct {
 }
 
 // ProtocolRole is either a string path/address or a structured JSON object.
+//
+//nolint:recvcheck // json contract: UnmarshalJSON needs a pointer receiver to mutate; MarshalJSON must stay a value receiver so non-addressable map values in Protocols still marshal
 type ProtocolRole struct {
 	kind   protocolRoleKind
 	string string

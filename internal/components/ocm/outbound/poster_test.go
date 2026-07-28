@@ -120,6 +120,7 @@ func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("expected error when share dispatch has nil signer")
 	}
@@ -144,6 +145,7 @@ func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("expected error when invite dispatch has nil signer")
 	}

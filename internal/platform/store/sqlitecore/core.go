@@ -165,11 +165,11 @@ func (c *Core) GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret 
 // Uses a single UPDATE statement so there is no TOCTOU race between existence
 // check and write.
 func (c *Core) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingShare) error {
-	result := c.db.WithContext(ctx).
-		Model(&store.OutgoingShare{}).
-		Where("provider_id = ?", share.ProviderID).
-		Select("*").
-		Updates(share)
+	result := c.db.WithContext(ctx). //nolint:unqueryvet // intentional: select all columns for this GORM Updates chain; column list is intentionally open
+						Model(&store.OutgoingShare{}).
+						Where("provider_id = ?", share.ProviderID).
+						Select("*").
+						Updates(share)
 	if result.Error != nil {
 		return normWrite(result.Error)
 	}
@@ -331,11 +331,11 @@ func (c *Core) GetOutgoingInviteByToken(ctx context.Context, token string) (*sto
 // Uses a single UPDATE statement so there is no TOCTOU race between existence
 // check and write.
 func (c *Core) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
-	result := c.db.WithContext(ctx).
-		Model(&store.OutgoingInvite{}).
-		Where("id = ?", invite.ID).
-		Select("*").
-		Updates(invite)
+	result := c.db.WithContext(ctx). //nolint:unqueryvet // intentional: select all columns for this GORM Updates chain; column list is intentionally open
+						Model(&store.OutgoingInvite{}).
+						Where("id = ?", invite.ID).
+						Select("*").
+						Updates(invite)
 	if result.Error != nil {
 		return normWrite(result.Error)
 	}

@@ -177,7 +177,7 @@ func runServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, res
 
 	srvErr := make(chan error, 1)
 
-	go func() {
+	go func() { //nolint:contextcheck // startup: goroutine runs detached srv.Start() lifecycle with internal context; threading ctx would change the public Start signature
 		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			srvErr <- err
 		}

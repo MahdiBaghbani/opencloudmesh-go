@@ -61,7 +61,7 @@ func TestSlogKeysAreSnakeCase(t *testing.T) {
 
 			node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 			if err != nil {
-				return nil
+				return nil //nolint:nilerr // test: unparseable files are skipped, not treated as walk errors
 			}
 
 			relPath, err := filepath.Rel(root, path)

@@ -34,7 +34,7 @@ func writePersistedJSON(t *testing.T, dir, filename string, data interface{}) {
 // so the mutated local copy does not affect the stored record before Update is
 // called; the driver must still derive and remove all old keys.
 func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()

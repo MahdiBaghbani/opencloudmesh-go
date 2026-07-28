@@ -107,7 +107,7 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
-			r := tsrepos.OpenDurable(t, backend)
+			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer func() {
 				if err := r.Close(); err != nil {
 					t.Errorf("Close() error = %v", err)
@@ -156,7 +156,7 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
-			r := tsrepos.OpenDurable(t, backend)
+			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer func() {
 				if err := r.Close(); err != nil {
 					t.Errorf("Close() error = %v", err)
@@ -215,7 +215,7 @@ func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
-			r := tsrepos.OpenDurable(t, backend)
+			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer func() {
 				if err := r.Close(); err != nil {
 					t.Errorf("Close() error = %v", err)
@@ -272,7 +272,7 @@ func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
-			r := tsrepos.OpenDurable(t, backend)
+			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer func() {
 				if err := r.Close(); err != nil {
 					t.Errorf("Close() error = %v", err)
@@ -320,7 +320,7 @@ func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
-			r := tsrepos.OpenDurable(t, backend)
+			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer func() {
 				if err := r.Close(); err != nil {
 					t.Errorf("Close() error = %v", err)

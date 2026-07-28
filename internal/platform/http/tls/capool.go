@@ -14,7 +14,7 @@ import (
 // File and dir certs are merged with the system pool when available.
 func BuildRootCAPool(caFile, caDir string) (*x509.CertPool, error) {
 	if caFile == "" && caDir == "" {
-		return nil, nil
+		return nil, nil //nolint:nilnil // intentional: (nil, nil) means no extra CA roots configured; caller falls back to system defaults
 	}
 
 	pool, err := x509.SystemCertPool()

@@ -153,7 +153,7 @@ func (r *testPartyRepo) Delete(_ context.Context, id string) error {
 }
 
 func (r *testPartyRepo) List(_ context.Context, _ string) ([]*identity.User, error) {
-	var result []*identity.User
+	result := make([]*identity.User, 0, len(r.users))
 	for _, u := range r.users {
 		result = append(result, u)
 	}

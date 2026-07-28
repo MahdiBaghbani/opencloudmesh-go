@@ -52,8 +52,8 @@ func testCreateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-*")
 
-	d := makeDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()         //nolint:errcheck // test cleanup: driver close
 
 	outInvStore := requireOutgoingInviteStore(t, d)
 
@@ -82,8 +82,8 @@ func testUpdateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-*")
 
-	d := makeDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()         //nolint:errcheck // test cleanup: driver close
 
 	outInvStore := requireOutgoingInviteStore(t, d)
 
@@ -131,8 +131,8 @@ func testDeleteOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-*")
 
-	d := makeDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()         //nolint:errcheck // test cleanup: driver close
 
 	outInvStore := requireOutgoingInviteStore(t, d)
 
@@ -164,8 +164,8 @@ func testCreateIncomingInviteRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-*")
 
-	d := makeDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()         //nolint:errcheck // test cleanup: driver close
 
 	inInvStore := requireIncomingInviteStore(t, d)
 
@@ -197,8 +197,8 @@ func testUpdateIncomingInviteStatusRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-*")
 
-	d := makeDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()         //nolint:errcheck // test cleanup: driver close
 
 	inInvStore := requireIncomingInviteStore(t, d)
 
@@ -240,8 +240,8 @@ func testDeleteIncomingInviteRollback(t *testing.T, ctx context.Context) { //nol
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-*")
 
-	d := makeDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()         //nolint:errcheck // test cleanup: driver close
 
 	inInvStore := requireIncomingInviteStore(t, d)
 

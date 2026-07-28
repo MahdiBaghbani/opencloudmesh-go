@@ -20,7 +20,7 @@ import (
 // signed multi outgoing emission, signed named-webdav inbound admission,
 // same-authority token exchange, Bearer WebDAV content, and duplicate inbound
 // idempotency.
-func TestProtocolPositiveStrictTwoServer(t *testing.T) {
+func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintidx // integration e2e test: end-to-end flow complexity is inherent to the protocol narrative
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

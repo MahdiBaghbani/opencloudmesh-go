@@ -55,7 +55,7 @@ func TestDirectoryServiceJWSFeedsFederations(t *testing.T) {
 		Keys: []directoryservice.VerificationKey{fixture.VerificationKey()},
 	}
 
-	trustGroupJSON, err := json.Marshal(trustGroup)
+	trustGroupJSON, err := json.Marshal(trustGroup) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		t.Fatalf("marshal trust group: %v", err)
 	}

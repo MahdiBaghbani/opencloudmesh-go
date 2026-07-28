@@ -119,10 +119,8 @@ func TestTokenExchangeSettings_Validate(t *testing.T) {
 				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("Validate() error = %q, want error containing %q", err.Error(), tt.errMsg)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Validate() error = %v, want nil", err)
-				}
+			} else if err != nil {
+				t.Errorf("Validate() error = %v, want nil", err)
 			}
 		})
 	}

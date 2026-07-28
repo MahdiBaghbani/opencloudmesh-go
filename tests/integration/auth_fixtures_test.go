@@ -46,7 +46,7 @@ func loginSubprocessAdmin(t *testing.T, srv *harness.SubprocessServer) string {
 func tryLogin(t *testing.T, baseURL, username, password string) (string, string, bool) {
 	t.Helper()
 
-	reqBody, err := json.Marshal(map[string]string{
+	reqBody, err := json.Marshal(map[string]string{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 		"username": username,
 		"password": password,
 	})

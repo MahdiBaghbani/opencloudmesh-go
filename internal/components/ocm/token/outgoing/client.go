@@ -165,7 +165,7 @@ func (c *Client) readResponseBody(resp *http.Response) ([]byte, error) {
 	return body, nil
 }
 
-func (c *Client) buildErrorResult(resp *http.Response, body []byte, req *http.Request) (*ExchangeResult, error) {
+func (c *Client) buildErrorResult(resp *http.Response, body []byte, req *http.Request) (*ExchangeResult, error) { //nolint:unparam // error-classification helper: ExchangeResult is nil on every error path by design; signature mirrors parseTokenResult for symmetric dispatch
 	// Auth failures (401/403) must fail closed and not be retried.
 	// Keep them distinct so callers can distinguish missing credentials
 	// from a rejected signature or an explicit denial.

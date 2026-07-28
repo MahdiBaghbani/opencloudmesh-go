@@ -32,7 +32,7 @@ func sharedSecretDiscoveryHandler(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+	_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck,errchkjson // test mock handler: JSON encode; payload marshals to fixed JSON, so encode failure is always nil in practice
 
 	return true
 }

@@ -282,7 +282,7 @@ func getFreeTCPPort(t *testing.T) int {
 	}
 
 	//nolint:errcheck // test helper: ephemeral TCP listener address
-	port := l.Addr().(*net.TCPAddr).Port
+	port := l.Addr().(*net.TCPAddr).Port //nolint:forcetypeassert // test: TCPAddr assertion is safe for net.Listen TCP listener
 	//nolint:errcheck // test cleanup: ephemeral listener close
 	l.Close()
 

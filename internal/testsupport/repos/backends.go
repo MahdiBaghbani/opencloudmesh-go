@@ -61,11 +61,11 @@ func openForBackend(name string) func(*testing.T) *platformrepos.Repos {
 		return OpenJSON
 	case config.BackendSQLite:
 		return func(t *testing.T) *platformrepos.Repos {
-			return OpenDurable(t, config.BackendSQLite)
+			return OpenDurable(t, context.Background(), config.BackendSQLite)
 		}
 	case config.BackendMirror:
 		return func(t *testing.T) *platformrepos.Repos {
-			return OpenDurable(t, config.BackendMirror)
+			return OpenDurable(t, context.Background(), config.BackendMirror)
 		}
 	default:
 		panic("testsupport/repos: no Open helper for backend " + name)
@@ -102,10 +102,10 @@ func OpenJSON(t *testing.T) *platformrepos.Repos {
 }
 
 // OpenDurable opens a durable repos bundle for the given backend in a temp dir.
-func OpenDurable(t *testing.T, backend string) *platformrepos.Repos {
+func OpenDurable(t *testing.T, ctx context.Context, backend string) *platformrepos.Repos {
 	t.Helper()
 
-	r, err := platformrepos.New(context.Background(), config.PersistenceConfig{
+	r, err := platformrepos.New(ctx, config.PersistenceConfig{
 		Backend: backend,
 		DataDir: t.TempDir(),
 	})

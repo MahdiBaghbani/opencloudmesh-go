@@ -32,7 +32,7 @@ type inboundNegativeEnv struct {
 	signer       *crypto.RFC9421Signer
 }
 
-func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, recordingReceiver *strictRecordingReceiver) {
+func runInboundNegativeCases(t *testing.T, pair *harness.StrictProtocolPair, recordingReceiver *strictRecordingReceiver) { //nolint:maintidx // test: complex scenario coverage is intentional
 	t.Helper()
 
 	provider := pair.Server1
@@ -387,7 +387,7 @@ func buildInboundShareBodyWithOwnerSender(
 		},
 	}
 
-	body, err := json.Marshal(payload)
+	body, err := json.Marshal(payload) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		panic(err)
 	}

@@ -25,7 +25,7 @@ var testListing = Listing{
 }
 
 func testPayload() []byte {
-	b, err := json.Marshal(testListing)
+	b, err := json.Marshal(testListing) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		panic(err)
 	}

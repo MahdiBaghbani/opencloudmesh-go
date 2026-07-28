@@ -20,7 +20,7 @@ import (
 //     next fetch.
 //  4. Update path works correctly after isolation is applied.
 func TestJSONOutgoingShareIsolation(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -110,7 +110,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 }
 
 // TestJSONIncomingShareIsolation is a regression test for the pointer-aliasing
-// bug in the incoming share persistence path.
+// defect in the incoming share persistence path.
 //
 // Verifies:
 //  1. Create clones input: post-create mutation of the caller's pointer does
@@ -120,7 +120,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 //  3. Provider-key scoped lookup returns a copy with correct values.
 //  4. Status-only update still works after the isolation change.
 func TestJSONIncomingShareIsolation(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -230,7 +230,7 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 }
 
 // TestJSONIncomingInviteIsolation is a regression test for the pointer-aliasing
-// bug in the incoming invite persistence path.
+// defect in the incoming invite persistence path.
 //
 // Verifies:
 //  1. Create clones input: post-create mutation of the caller's pointer does
@@ -240,7 +240,7 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 //  3. Token scoped lookup (GetIncomingInviteByToken) returns a copy.
 //  4. Status-only update still works after the isolation change.
 func TestJSONIncomingInviteIsolation(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()
@@ -374,7 +374,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 //     next fetch.
 //  5. Update path still works correctly after isolation is applied.
 func TestJSONOutgoingInviteIsolation(t *testing.T) {
-	driver, _ := newJSONDriver(t)
+	driver := newJSONDriver(t)
 	defer driver.Close() //nolint:errcheck // test cleanup: driver close
 
 	ctx := context.Background()

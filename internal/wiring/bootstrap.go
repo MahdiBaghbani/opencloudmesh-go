@@ -194,7 +194,7 @@ func buildKeyManager(
 	logger *slog.Logger,
 ) (*crypto.KeyManager, error) {
 	if opts.SkipCrypto {
-		return nil, nil
+		return nil, nil //nolint:nilnil // intentional: (nil, nil) denotes crypto skipped; caller checks for a nil KeyManager
 	}
 
 	keyDir := filepath.Dir(cfg.Signature.KeyPath)
@@ -246,7 +246,7 @@ func buildPeerTrust(
 	rawHTTPClient *httpclient.Client,
 	logger *slog.Logger,
 	opts BuildOpts,
-) (*peertrust.TrustGroupManager, *peertrust.PolicyEngine, error) {
+) (*peertrust.TrustGroupManager, *peertrust.PolicyEngine, error) { //nolint:unparam // error result kept for builder symmetry; trust-group load failures are logged and skipped by design, so it is always nil today
 	if opts.SkipPeerTrust || !cfg.PeerTrust.Enabled {
 		return nil, nil, nil
 	}

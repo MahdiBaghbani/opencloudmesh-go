@@ -54,10 +54,12 @@ func TestACME_PebbleE2E(t *testing.T) {
 			TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true}, //nolint:gosec // test TLS client: InsecureSkipVerify against self-signed test CA
 		},
 	}
+
 	resp, err := pebbleClient.Get("https://localhost:14000/dir")
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err != nil {
 		t.Skipf("Pebble not reachable at https://localhost:14000/dir: %v", err)
 	}
@@ -67,7 +69,7 @@ func TestACME_PebbleE2E(t *testing.T) {
 	tempDir := t.TempDir()
 
 	acmeDir := filepath.Join(tempDir, "acme")
-	if err := os.MkdirAll(acmeDir, 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
+	if err := os.MkdirAll(acmeDir, 0755); err != nil { //nolint:gosec,govet // test temp dir: 0755 mode on test temp subdir for test setup; shadow: sequential err in test setup is benign
 		t.Fatal(err)
 	}
 
@@ -110,7 +112,7 @@ insecure_skip_verify = true
 tls_root_ca_file = %q
 `, httpsPort, httpPort, httpsPort, acmeDir, minicaPEM)
 
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil { //nolint:gosec // test: path is test-controlled fixture, not user input
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil { //nolint:gosec,govet // test: path is test-controlled fixture, not user input; shadow: sequential err in test setup is benign
 		t.Fatal(err)
 	}
 

@@ -40,7 +40,7 @@ func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 		t.Run(backend, func(t *testing.T) {
 			// repos.New internally type-asserts drv.(fullStore); failure here
 			// means the driver is missing at least one store interface.
-			r := tsrepos.OpenDurable(t, backend)
+			r := tsrepos.OpenDurable(t, ctx, backend)
 			defer func() {
 				if err := r.Close(); err != nil {
 					t.Errorf("Close() error = %v", err)

@@ -71,7 +71,7 @@ func TestBuildRootCAPool_FileOnly(t *testing.T) {
 		t.Fatal("expected non-nil pool")
 	}
 	// Pool should contain at least the system certs plus our cert
-	if len(pool.Subjects()) == 0 {
+	if len(pool.Subjects()) == 0 { //nolint:staticcheck // test: Subjects is the only CertPool count probe; the deprecation concerns system-pool contents, not this count check
 		t.Error("expected pool to contain certificates")
 	}
 }
@@ -94,7 +94,7 @@ func TestBuildRootCAPool_DirOnly(t *testing.T) {
 		t.Fatal("expected non-nil pool")
 	}
 
-	if len(pool.Subjects()) == 0 {
+	if len(pool.Subjects()) == 0 { //nolint:staticcheck // test: Subjects is the only CertPool count probe; the deprecation concerns system-pool contents, not this count check
 		t.Error("expected pool to contain certificates")
 	}
 }
@@ -128,8 +128,8 @@ func TestBuildRootCAPool_Merged(t *testing.T) {
 		t.Fatal("expected non-nil pool")
 	}
 
-	if len(pool.Subjects()) < 2 {
-		t.Errorf("expected pool to contain at least 2 certs (file + dir), got %d", len(pool.Subjects()))
+	if len(pool.Subjects()) < 2 { //nolint:staticcheck // test: Subjects is the only CertPool count probe; the deprecation concerns system-pool contents, not this count check
+		t.Errorf("expected pool to contain at least 2 certs (file + dir), got %d", len(pool.Subjects())) //nolint:staticcheck // test: Subjects is the only CertPool count probe; the deprecation concerns system-pool contents, not this count check
 	}
 }
 

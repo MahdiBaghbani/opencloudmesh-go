@@ -56,7 +56,7 @@ func (f Ed25519Fixture) VerificationKey() ds.VerificationKey {
 func (f Ed25519Fixture) SignListingCompact(t *testing.T, listing ds.Listing) []byte {
 	t.Helper()
 
-	payload, err := json.Marshal(listing)
+	payload, err := json.Marshal(listing) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		t.Fatalf("marshal listing: %v", err)
 	}

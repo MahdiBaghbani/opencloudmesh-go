@@ -23,7 +23,7 @@ func newTestAuthHandler(t *testing.T) (*AuthHandler, identity.PartyRepo, identit
 	return NewAuthHandler(repo, sessions, auth), repo, sessions, auth
 }
 
-func seedUser(t *testing.T, repo identity.PartyRepo, auth *identity.UserAuth, username, password string) *identity.User {
+func seedUser(t *testing.T, repo identity.PartyRepo, auth *identity.UserAuth, username, password string) *identity.User { //nolint:unparam // test fixture helper: username kept parameterized for future cases; all callers pass "alice" today
 	t.Helper()
 
 	ctx := context.Background()
@@ -114,7 +114,7 @@ func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
 }
 
 func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
-	handler, _, _, _ := newTestAuthHandler(t)
+	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
 	tests := []struct {
 		name string
@@ -139,7 +139,7 @@ func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
 }
 
 func TestAuthHandler_Login_MethodNotAllowed(t *testing.T) {
-	handler, _, _, _ := newTestAuthHandler(t)
+	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/login", nil)
 	w := httptest.NewRecorder()
@@ -178,7 +178,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 }
 
 func TestAuthHandler_Logout_NoSession(t *testing.T) {
-	handler, _, _, _ := newTestAuthHandler(t)
+	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
 	w := httptest.NewRecorder()
@@ -229,7 +229,7 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 }
 
 func TestAuthHandler_GetCurrentUser_NoSession(t *testing.T) {
-	handler, _, _, _ := newTestAuthHandler(t)
+	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	w := httptest.NewRecorder()

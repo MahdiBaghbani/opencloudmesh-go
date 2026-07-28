@@ -136,7 +136,7 @@ func (m *SignatureMiddleware) verifyOCMRequest(
 				return
 			}
 
-			peerIdentity, ok := m.verifySignatureAttempt(w, r, body, declaredPeer, optionalSignature, next)
+			peerIdentity, ok := m.verifySignatureAttempt(w, r, body, declaredPeer, optionalSignature, next) //nolint:contextcheck // middleware: verifier closure already uses r.Context() directly; no separate context to thread
 			if !ok {
 				return
 			}

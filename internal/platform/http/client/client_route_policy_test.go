@@ -119,6 +119,7 @@ func TestRoutePolicy_LeadingDotSuffixNormalized(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if httpclient.IsSSRFError(err) {
 		t.Errorf(".internal suffix should match service.internal after normalization, got SSRF error: %v", err)
 	}
@@ -147,6 +148,7 @@ func TestRoutePolicy_PrivateHostDeniedWhenSuffixFails(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when host suffix does not match policy, got: %v", err)
 	}
@@ -175,6 +177,7 @@ func TestRoutePolicy_PrivateHostDeniedWhenCIDRFails(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when resolved IP is not in allowed CIDR, got: %v", err)
 	}
@@ -204,6 +207,7 @@ func TestRoutePolicy_PrivateHostDeniedWhenPortFails(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when port rule fails, got: %v", err)
 	}
@@ -232,6 +236,7 @@ func TestRoutePolicy_PrivateHostDeniedWhenAllowedPortsEmpty(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when allowed ports are omitted, got: %v", err)
 	}
@@ -264,6 +269,7 @@ func TestRoutePolicy_MixedResolvedIPsFailClosed(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error when any resolved IP fails policy (all-records), got: %v", err)
 	}
@@ -287,6 +293,7 @@ func TestRoutePolicy_PrivateIPLiteralBlockedByDefault(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error for IP literal with allow_ip_literals=false, got: %v", err)
 	}
@@ -311,6 +318,7 @@ func TestRoutePolicy_PrivateIPLiteralAllowedWithPolicy(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if httpclient.IsSSRFError(err) {
 		t.Errorf("route policy should allow this IP literal, got SSRF error: %v", err)
 	}
@@ -349,6 +357,7 @@ func TestRoutePolicy_ProxyTrustedWhileDestinationPolicyEnforced(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error: proxy trust must not bypass destination policy, got: %v", err)
 	}
@@ -398,6 +407,7 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Errorf("expected SSRF error: NO_PROXY routing direct must not bypass destination policy, got: %v", err)
 	}
@@ -483,6 +493,7 @@ func TestClient_NoPolicyErrorDistinct(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if !httpclient.IsSSRFError(err) {
 		t.Fatalf("expected SSRF error, got: %v", err)
 	}

@@ -14,7 +14,7 @@ import (
 
 func createDetailedShareForUser(
 	repo *sharesinbox.MemoryIncomingShareRepo,
-	providerID, senderHost string,
+	providerID, senderHost string, //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
 	webdavID, sharedSecret string,
 	requirements []string,
 ) *sharesinbox.IncomingShare {

@@ -40,7 +40,7 @@ func newTestRouterWithAccess(
 
 func createAcceptedShareForUser(
 	repo *sharesinbox.MemoryIncomingShareRepo,
-	providerID, senderHost, name string,
+	providerID, senderHost, name string, //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
 ) *sharesinbox.IncomingShare {
 	share := &sharesinbox.IncomingShare{
 		ProviderID:      providerID,

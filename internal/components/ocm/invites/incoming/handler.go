@@ -130,7 +130,7 @@ func (h *Handler) buildInviteAcceptedResponse(
 func (h *Handler) sendOCMError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	//nolint:errcheck // response already started; write error cannot be recovered
+	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": message,
 	})

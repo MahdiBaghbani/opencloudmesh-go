@@ -156,7 +156,7 @@ func (m *TrustGroupManager) triggerRefreshIfNeeded(_ context.Context, tg *TrustG
 
 		timeout := m.refreshTimeout * time.Duration(enabledCount)
 
-		//nolint:gosec // intentional fire-and-forget background work that must outlive the request; cannot use the request context
+		//nolint:gosec,contextcheck // intentional fire-and-forget background work that must outlive the request; cannot use the request context
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
@@ -259,7 +259,7 @@ func (m *TrustGroupManager) GetTrustGroups() []*TrustGroupConfig {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var result []*TrustGroupConfig
+	var result []*TrustGroupConfig //nolint:prealloc // intentional: preserve original nil-slice semantics; prealloc is a micro-optimization not worth the nil/empty semantic shift
 	for _, tg := range m.trustGroups {
 		result = append(result, tg.config)
 	}

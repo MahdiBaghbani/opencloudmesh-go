@@ -36,6 +36,7 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("expected error for signed request with redirect")
 	}
@@ -71,6 +72,7 @@ func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("expected error for too many redirects")
 	}
@@ -80,6 +82,7 @@ func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 	}
 }
 
+//nolint:dupl // intentional: parallel cross-host redirect cases share structure
 func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
 	// First server redirects to second server (different host)
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -98,6 +101,7 @@ func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("expected error for cross-host redirect")
 	}
@@ -138,6 +142,7 @@ func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("expected error for HTTPS->HTTP redirect downgrade")
 	}
@@ -188,6 +193,7 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 			if resp != nil {
 				defer resp.Body.Close() //nolint:errcheck // test response body close
 			}
+
 			if err == nil {
 				t.Fatal("expected error for signed request with redirect")
 			}
@@ -214,6 +220,7 @@ func TestRedirectSameHostSemantics(t *testing.T) {
 	)
 }
 
+//nolint:dupl // intentional: parallel cross-host redirect cases share structure
 func TestRedirectCrossHostBlocked(t *testing.T) {
 	// Test that redirects to a different host are blocked
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -233,6 +240,7 @@ func TestRedirectCrossHostBlocked(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("cross-host redirect should be blocked")
 	}
@@ -300,6 +308,7 @@ func TestClient_SignedRedirectRejectedWithProxy(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("expected error for signed request receiving redirect via proxy")
 	}

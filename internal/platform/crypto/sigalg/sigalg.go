@@ -193,7 +193,7 @@ func deriveFromJWKOKP(crv, jwkAlg string) (string, error) {
 }
 
 func deriveFromJWKEC(crv, jwkAlg string) (string, error) {
-	_, _, fromCrv, _, err := ecParamsFromCrv(crv)
+	_, _, fromCrv, _, err := ecParamsFromCrv(crv) //nolint:dogsled // only the native algorithm name and error are needed from the 5-value curve classification
 	if err != nil {
 		return "", err
 	}

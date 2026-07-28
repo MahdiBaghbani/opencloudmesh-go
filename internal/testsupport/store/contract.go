@@ -158,14 +158,14 @@ func createPreflightDriver(t *testing.T, ctx context.Context, driverName string,
 func requireDriverImplements(
 	t *testing.T,
 	driverName string,
-	close func() error,
+	closeFn func() error,
 	ok bool,
 	name string,
 ) {
 	t.Helper()
 
 	if !ok {
-		if closeErr := close(); closeErr != nil {
+		if closeErr := closeFn(); closeErr != nil {
 			t.Fatalf("%s driver does not implement %s (close: %v)", driverName, name, closeErr)
 		}
 

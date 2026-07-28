@@ -21,7 +21,7 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 		password = defaultAdminPassword
 	}
 
-	body, err := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 		"username": username,
 		"password": password,
 	})

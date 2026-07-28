@@ -19,7 +19,7 @@ import (
 // Playwright: Alice discovers Bob's inviteAcceptDialog, the redirect URL carries
 // token and Alice providerDomain, Bob preserves accept-invite query through login
 // redirect, Bob accepts via API, and Alice records accepted state.
-func TestWayfInviteAcceptTwoInstance(t *testing.T) {
+func TestWayfInviteAcceptTwoInstance(t *testing.T) { //nolint:cyclop // integration e2e test: end-to-end flow complexity is inherent to the protocol narrative
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

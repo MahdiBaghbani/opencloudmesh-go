@@ -7,11 +7,13 @@ package harness
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -585,9 +587,9 @@ func generateTOMLConfig(name string, port int, _, mode string, disableUseEnvFall
 	}
 
 	if publicOriginSecure {
-		publicOrigin = fmt.Sprintf("https://%s:%d", originHost, port)
+		publicOrigin = "https://" + net.JoinHostPort(strings.Trim(originHost, "[]"), strconv.Itoa(port))
 	} else {
-		publicOrigin = fmt.Sprintf("http://%s:%d", originHost, port)
+		publicOrigin = "http://" + net.JoinHostPort(strings.Trim(originHost, "[]"), strconv.Itoa(port))
 	}
 
 	// Omit the generated public_origin when the test sets its own so the explicit

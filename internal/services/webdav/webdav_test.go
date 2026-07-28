@@ -1,6 +1,7 @@
 package webdav
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -59,7 +60,7 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 		ReceiverHost: "receiver.example.com",
 		Requirements: []string{spec.RequirementMustExchangeToken},
 	}
-	if err := repo.Create(nil, strictShare); err != nil {
+	if err := repo.Create(context.TODO(), strictShare); err != nil {
 		t.Fatalf("failed to seed outgoing share: %v", err)
 	}
 
@@ -110,7 +111,7 @@ func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 		LocalPath:    filePath,
 		ReceiverHost: "receiver.example.com",
 	}
-	if err := repo.Create(nil, share); err != nil {
+	if err := repo.Create(context.TODO(), share); err != nil {
 		t.Fatalf("failed to seed outgoing share: %v", err)
 	}
 

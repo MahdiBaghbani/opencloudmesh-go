@@ -27,7 +27,7 @@ import (
 // TestTokenExchangeFlow exercises the full signed code-flow happy path:
 // share creation to a strict peer, signed token exchange, and WebDAV access
 // with the exchanged bearer token.
-func TestTokenExchangeFlow(t *testing.T) {
+func TestTokenExchangeFlow(t *testing.T) { //nolint:cyclop // integration e2e test: end-to-end flow complexity is inherent to the protocol narrative
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}

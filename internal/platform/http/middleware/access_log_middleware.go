@@ -24,7 +24,7 @@ func AccessLogMiddleware(log *slog.Logger, trustedProxies *realip.TrustedProxies
 			start := time.Now()
 			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 
-			defer func() {
+			defer func() { //nolint:contextcheck // middleware: deferred access log reuses the request context captured in r; no other context is available
 				// Get logger from context (has request_id, method, path, client_ip)
 				logger, ok := appctx.LoggerFromContext(r.Context())
 

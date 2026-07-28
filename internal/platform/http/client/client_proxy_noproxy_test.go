@@ -54,6 +54,7 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 			if resp != nil {
 				defer resp.Body.Close() //nolint:errcheck // test response body close
 			}
+
 			if err == nil {
 				t.Errorf("expected SSRF error for %s even with NO_PROXY bypass", target)
 				return

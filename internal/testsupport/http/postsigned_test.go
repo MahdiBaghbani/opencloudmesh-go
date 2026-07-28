@@ -68,7 +68,7 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 		t.Fatal("expected Signature header on signed request")
 	}
 
-	wantBody, err := json.Marshal(reqBody)
+	wantBody, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		t.Fatalf("marshal expected body: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 
 	reqBody := map[string]string{"token": "reuse-me"}
 
-	wantBody, err := json.Marshal(reqBody)
+	wantBody, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		t.Fatalf("marshal expected body: %v", err)
 	}

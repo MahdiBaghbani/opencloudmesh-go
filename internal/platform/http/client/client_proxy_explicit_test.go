@@ -90,6 +90,7 @@ func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
 		if resp != nil {
 			resp.Body.Close() //nolint:errcheck // test response body close
 		}
+
 		if err == nil {
 			t.Errorf("expected SSRF error for %s even with proxy configured", target)
 			continue

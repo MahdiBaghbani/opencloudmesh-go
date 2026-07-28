@@ -112,7 +112,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 	defer listener.Close()
 
 	//nolint:errcheck // test helper: ephemeral TCP listener address
-	port := listener.Addr().(*net.TCPAddr).Port
+	port := listener.Addr().(*net.TCPAddr).Port //nolint:forcetypeassert // test: TCPAddr assertion is safe for net.Listen TCP listener
 
 	srv := &http.Server{ //nolint:gosec // test server: short-lived, no Slowloris risk
 		TLSConfig: &tls.Config{
@@ -157,7 +157,7 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 func getTestDir(t *testing.T) string {
 	t.Helper()
 
-	_, filename, _, _ := runtime.Caller(0)
+	_, filename, _, _ := runtime.Caller(0) //nolint:dogsled // test: discarding multiple unneeded values
 
 	return filepath.Dir(filename)
 }

@@ -193,17 +193,17 @@ func validateACMEConfig(cfg *config.Config) error {
 
 	originURL, parseErr := url.Parse(cfg.PublicOrigin)
 	if parseErr != nil || originURL.Host == "" {
-		return nil
+		return nil //nolint:nilerr // intentional: unparseable public_origin skips the origin-port match check; startup must not fail on it
 	}
 
 	_, portStr, splitErr := net.SplitHostPort(originURL.Host)
 	if splitErr != nil || portStr == "" {
-		return nil
+		return nil //nolint:nilerr // intentional: origin without host:port skips the origin-port match check
 	}
 
 	originPort, convErr := strconv.Atoi(portStr)
 	if convErr != nil {
-		return nil
+		return nil //nolint:nilerr // intentional: non-numeric origin port skips the origin-port match check
 	}
 
 	if originPort != cfg.TLS.HTTPSPort {
@@ -286,7 +286,7 @@ func newHTTPSRedirectHandler(httpsPort int) http.Handler {
 		if httpsPort == 443 {
 			target = "https://" + hostOnly + r.URL.RequestURI()
 		} else {
-			target = fmt.Sprintf("https://%s:%d%s", hostOnly, httpsPort, r.URL.RequestURI())
+			target = "https://" + net.JoinHostPort(strings.Trim(hostOnly, "[]"), strconv.Itoa(httpsPort)) + r.URL.RequestURI()
 		}
 
 		//nolint:gosec // target is same-host HTTPS upgrade built from r.Host and r.URL, not a user-supplied URL

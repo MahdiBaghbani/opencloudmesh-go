@@ -467,7 +467,7 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 	}
 
 	//nolint:errcheck // test helper: ephemeral TCP listener address
-	port := listener.Addr().(*net.TCPAddr).Port
+	port := listener.Addr().(*net.TCPAddr).Port //nolint:forcetypeassert // test: TCPAddr assertion is safe for net.Listen TCP listener
 	tlsListener := tls.NewListener(listener, &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		MinVersion:   tls.VersionTLS12,

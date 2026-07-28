@@ -21,7 +21,7 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 		"OCMErrorResponse",
 	}
 
-	var patterns []*regexp.Regexp
+	patterns := make([]*regexp.Regexp, 0, len(wireDTOTypes))
 	for _, name := range wireDTOTypes {
 		patterns = append(patterns, regexp.MustCompile(`type\s+`+name+`\s+struct\b`))
 	}

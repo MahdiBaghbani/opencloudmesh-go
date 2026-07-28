@@ -47,7 +47,7 @@ func NewTLSManager(cfg *config.TLSConfig, logger *slog.Logger) *TLSManager {
 func (m *TLSManager) GetTLSConfig(hostname string) (*cryptotls.Config, error) {
 	switch m.cfg.Mode {
 	case "off":
-		return nil, nil
+		return nil, nil //nolint:nilnil // intentional: (nil, nil) for TLS mode off; caller proceeds without a TLS config
 
 	case "static":
 		return m.loadStaticCert()

@@ -118,6 +118,7 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 			if resp != nil {
 				defer resp.Body.Close() //nolint:errcheck // test response body close
 			}
+
 			if err == nil {
 				t.Error("expected SSRF error for loopback IPv6")
 			}
@@ -137,6 +138,7 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	if err == nil {
 		t.Fatal("expected error for unresolvable host")
 	}
@@ -182,6 +184,7 @@ func TestIsAllowedIP(t *testing.T) {
 			if resp != nil {
 				defer resp.Body.Close() //nolint:errcheck // test response body close
 			}
+
 			if tt.wantBlocked {
 				if !httpclient.IsSSRFError(err) {
 					t.Errorf("expected SSRF-blocked error for %s, got: %v", tt.url, err)
@@ -215,6 +218,7 @@ func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 			if resp != nil {
 				defer resp.Body.Close() //nolint:errcheck // test response body close
 			}
+
 			if err == nil {
 				t.Errorf("expected SSRF error for %s", tt.name)
 				return
@@ -260,10 +264,12 @@ func TestContextAwareDNSCancellation(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
+
 	resp, err := client.Get(ctx, "http://example.com/test")
 	if resp != nil {
 		defer resp.Body.Close() //nolint:errcheck // test response body close
 	}
+
 	elapsed := time.Since(start)
 
 	// Should return quickly (around 100ms), not hang

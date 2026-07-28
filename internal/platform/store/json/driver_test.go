@@ -9,13 +9,13 @@ import (
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
-func newJSONDriver(t *testing.T) (store.Driver, string) {
+func newJSONDriver(t *testing.T) store.Driver {
 	t.Helper()
 	tempDir := testutil.TempDataDir(t, "ocm-test-json-*")
 	cfg := &store.DriverConfig{Driver: "json", DataDir: tempDir}
 	d := testutil.OpenDriver(t, cfg)
 
-	return d, tempDir
+	return d
 }
 
 func TestJSONDriver(t *testing.T) {

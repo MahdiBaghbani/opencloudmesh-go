@@ -53,7 +53,8 @@ func StartStrictProtocolPairWithOptions(t *testing.T, opts StrictProtocolPairSta
 		t.Fatalf("reserve port for strict-pair-2: %v", err)
 	}
 
-	allowedPorts := []int{port1, port2}
+	allowedPorts := make([]int, 0, 2+len(opts.ExtraAllowedPorts))
+	allowedPorts = append(allowedPorts, port1, port2)
 	allowedPorts = append(allowedPorts, opts.ExtraAllowedPorts...)
 
 	binaryPath := BuildBinary(t)

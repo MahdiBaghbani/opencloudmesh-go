@@ -120,7 +120,7 @@ func TestVersionPolicy_Accept(t *testing.T) {
 		{
 			name:   "at-least-1.4",
 			mode:   APIVersionAtLeast14,
-			accept: func(v string) bool { return atLeast14(v) },
+			accept: atLeast14,
 		},
 	}
 

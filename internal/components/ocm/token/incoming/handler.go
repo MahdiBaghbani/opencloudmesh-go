@@ -75,7 +75,7 @@ func (h *Handler) sendOAuthError(w http.ResponseWriter, status int, errCode, err
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	//nolint:errcheck // response already started; write error cannot be recovered
+	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
 	_ = json.NewEncoder(w).Encode(token.OAuthError{
 		Error:            errCode,
 		ErrorDescription: errDesc,

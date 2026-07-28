@@ -341,7 +341,7 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 		Name:              user.DisplayName,
 	}
 
-	body, err := json.Marshal(reqBody)
+	body, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		return fmt.Errorf("failed to encode request: %w", err)
 	}

@@ -271,7 +271,7 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 	km := mustHTTPSigKeyManager(t)
 
 	signOpts := crypto.DefaultRFC9421Options()
-	signOpts.Now = func() time.Time { return httpsigFixedNow() }
+	signOpts.Now = httpsigFixedNow
 	signOpts.Label = "not-ocm"
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, signOpts)

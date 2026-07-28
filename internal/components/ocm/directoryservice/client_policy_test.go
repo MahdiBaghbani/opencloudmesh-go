@@ -165,7 +165,7 @@ func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
 }
 
 func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing.T) {
-	payload, err := json.Marshal(Listing{
+	payload, err := json.Marshal(Listing{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 		Federation: "test-federation",
 		Servers: []Server{
 			{URL: "https://valid.example.com", DisplayName: "Valid"},
@@ -244,7 +244,7 @@ func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
 }
 
 func TestFetchListing_URLValidation_UnverifiedListingKeepsAllURLs(t *testing.T) {
-	payload, err := json.Marshal(Listing{
+	payload, err := json.Marshal(Listing{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 		Federation: "test-federation",
 		Servers: []Server{
 			{URL: "https://valid.example.com", DisplayName: "Valid"},

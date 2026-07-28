@@ -53,8 +53,8 @@ func testCreateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-share-*")
 
-	d := makeShareDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()              //nolint:errcheck // test cleanup: driver close
 
 	outStore := requireOutgoingShareStore(t, d)
 
@@ -92,8 +92,8 @@ func testUpdateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-share-*")
 
-	d := makeShareDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()              //nolint:errcheck // test cleanup: driver close
 
 	outStore := requireOutgoingShareStore(t, d)
 
@@ -170,8 +170,8 @@ func testDeleteOutgoingShareRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-share-*")
 
-	d := makeShareDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()              //nolint:errcheck // test cleanup: driver close
 
 	outStore := requireOutgoingShareStore(t, d)
 
@@ -211,8 +211,8 @@ func testCreateIncomingShareRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-share-*")
 
-	d := makeShareDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()              //nolint:errcheck // test cleanup: driver close
 
 	inStore := requireIncomingShareStore(t, d)
 
@@ -244,8 +244,8 @@ func testUpdateIncomingShareStatusRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-share-*")
 
-	d := makeShareDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()              //nolint:errcheck // test cleanup: driver close
 
 	inStore := requireIncomingShareStore(t, d)
 
@@ -297,8 +297,8 @@ func testDeleteIncomingShareRollback(t *testing.T, ctx context.Context) { //noli
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-share-*")
 
-	d := makeShareDriver(t, dir)
-	defer d.Close() //nolint:errcheck // test cleanup: driver close
+	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
+	defer d.Close()              //nolint:errcheck // test cleanup: driver close
 
 	inStore := requireIncomingShareStore(t, d)
 

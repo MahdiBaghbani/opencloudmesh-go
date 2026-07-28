@@ -173,8 +173,8 @@ func getFreePort(t *testing.T) int {
 }
 
 // generateTestCert creates a self-signed cert+key pair and writes them as
-// cert.pem and key.pem in dir. Returns the paths.
-func generateTestCert(t *testing.T, dir string) (certPath, keyPath string) {
+// cert.pem and key.pem in dir.
+func generateTestCert(t *testing.T, dir string) {
 	t.Helper()
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -212,8 +212,8 @@ func generateTestCert(t *testing.T, dir string) (certPath, keyPath string) {
 
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 
-	certPath = filepath.Join(dir, "cert.pem")
-	keyPath = filepath.Join(dir, "key.pem")
+	certPath := filepath.Join(dir, "cert.pem")
+	keyPath := filepath.Join(dir, "key.pem")
 
 	if err := os.WriteFile(certPath, certPEM, 0644); err != nil {
 		t.Fatal(err)
@@ -222,8 +222,6 @@ func generateTestCert(t *testing.T, dir string) (certPath, keyPath string) {
 	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
 		t.Fatal(err)
 	}
-
-	return certPath, keyPath
 }
 
 func TestACME_TwoListeners(t *testing.T) {

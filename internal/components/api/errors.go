@@ -71,7 +71,7 @@ func WriteError(w http.ResponseWriter, statusCode int, reasonCode, message strin
 		},
 	}
 
-	//nolint:errcheck // response already started; write error cannot be recovered
+	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
 	json.NewEncoder(w).Encode(envelope)
 }
 

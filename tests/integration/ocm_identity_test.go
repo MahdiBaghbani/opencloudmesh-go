@@ -95,7 +95,7 @@ func TestInviteAccepted_UserID_IsRevaStyleFederatedOpaqueID(t *testing.T) {
 		Name:              "Remote User",
 	}
 
-	body, err := json.Marshal(reqBody)
+	body, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 		},
 	}
 
-	body, err := json.Marshal(reqBody)
+	body, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestIncomingShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 		},
 	}
 
-	body, err := json.Marshal(reqBody)
+	body, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 		},
 	}
 
-	body, err := json.Marshal(reqBody)
+	body, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
 	}

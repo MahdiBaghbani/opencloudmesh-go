@@ -37,9 +37,9 @@ type ResourceType struct {
 }
 
 // HasCapability reports whether the discovery advertises the given capability.
-func (d *Discovery) HasCapability(cap string) bool {
+func (d *Discovery) HasCapability(capability string) bool {
 	for _, c := range d.Capabilities {
-		if c == cap {
+		if c == capability {
 			return true
 		}
 	}
