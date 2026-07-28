@@ -42,7 +42,7 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 		Status:          inbox.ShareStatusPending,
 	}
 	if err := repo.Create(ctx, share3); err == nil {
-		t.Error("expected error for duplicate providerId from same sender")
+		t.Error("expected error for duplicate providerID from same sender")
 	}
 
 	found, err := repo.GetByProviderID(ctx, "sender1.example.com", "same-id")

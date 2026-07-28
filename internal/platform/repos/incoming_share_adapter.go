@@ -138,10 +138,10 @@ func (a *incomingShareAdapter) DeleteForRecipientUserID(
 // storeIncomingShareToApp converts a store model to the app-layer model.
 func storeIncomingShareToApp(s *store.IncomingShare) *sharesinbox.IncomingShare {
 	return &sharesinbox.IncomingShare{
-		ShareID:           s.ShareId,
-		ProviderID:        s.ProviderId,
+		ShareID:           s.ShareID,
+		ProviderID:        s.ProviderID,
 		SenderHost:        s.SendingServer,
-		WebDAVID:          s.WebDAVId,
+		WebDAVID:          s.WebDAVID,
 		SharedSecret:      s.SharedSecret,
 		Owner:             s.Owner,
 		Sender:            s.Sender,
@@ -158,7 +158,7 @@ func storeIncomingShareToApp(s *store.IncomingShare) *sharesinbox.IncomingShare 
 		WebappTargets:     append([]string(nil), s.WebappTargets...),
 		ProtocolName:      s.ProtocolName,
 		Status:            sharesinbox.ShareStatus(s.State),
-		RecipientUserID:   s.UserId,
+		RecipientUserID:   s.UserID,
 		OwnerHost:         s.OwnerHost,
 		Requirements:      append([]string(nil), s.Requirements...),
 		Expiration:        int64ToInt64Ptr(s.Expiration),
@@ -170,10 +170,10 @@ func storeIncomingShareToApp(s *store.IncomingShare) *sharesinbox.IncomingShare 
 // appIncomingShareToStore converts an app-layer model to the store model.
 func appIncomingShareToStore(a *sharesinbox.IncomingShare) *store.IncomingShare {
 	return &store.IncomingShare{
-		ShareId:           a.ShareID,
-		ProviderId:        a.ProviderID,
+		ShareID:           a.ShareID,
+		ProviderID:        a.ProviderID,
 		SendingServer:     a.SenderHost,
-		WebDAVId:          a.WebDAVID,
+		WebDAVID:          a.WebDAVID,
 		SharedSecret:      a.SharedSecret,
 		Owner:             a.Owner,
 		Sender:            a.Sender,
@@ -190,7 +190,7 @@ func appIncomingShareToStore(a *sharesinbox.IncomingShare) *store.IncomingShare 
 		WebappTargets:     append([]string(nil), a.WebappTargets...),
 		ProtocolName:      a.ProtocolName,
 		State:             string(a.Status),
-		UserId:            a.RecipientUserID,
+		UserID:            a.RecipientUserID,
 		OwnerHost:         a.OwnerHost,
 		Requirements:      append([]string(nil), a.Requirements...),
 		Expiration:        int64PtrToInt64(a.Expiration),

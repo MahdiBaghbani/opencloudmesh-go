@@ -45,7 +45,7 @@ func TestClientDiscover_RealPeerFixtures(t *testing.T) {
 
 	for _, fx := range fixtures {
 		t.Run(fx.name, func(t *testing.T) {
-			server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+			server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 				raw := validDiscoveryPayload(serverURL, map[string]any{
 					"apiVersion": fx.apiVersion,
 					"resourceTypes": []any{

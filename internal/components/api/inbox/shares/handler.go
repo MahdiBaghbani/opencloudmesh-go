@@ -47,6 +47,7 @@ type InboxShareView struct {
 	SenderDisplayName string                  `json:"senderDisplayName,omitempty"`
 }
 
+// NewInboxShareView maps an incoming share to a list-safe API view without secrets.
 func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
 	return InboxShareView{
 		ShareID:           s.ShareID,
@@ -67,6 +68,7 @@ func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
 	}
 }
 
+// InboxShareDetailView extends InboxShareView with protocol and WebDAV detail fields.
 type InboxShareDetailView struct {
 	InboxShareView
 
@@ -75,6 +77,7 @@ type InboxShareDetailView struct {
 	Protocol                 *ProtocolDetailView `json:"protocol"`
 }
 
+// ProtocolDetailView groups WebDAV and webapp protocol arms for a share detail response.
 type ProtocolDetailView struct {
 	Name   string            `json:"name"`
 	WebDAV *WebDAVDetailView `json:"webdav,omitempty"`
@@ -153,6 +156,7 @@ func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView 
 	}
 }
 
+// InboxListResponse is the JSON body for the inbox shares list endpoint.
 type InboxListResponse struct {
 	Shares []InboxShareView `json:"shares"`
 }

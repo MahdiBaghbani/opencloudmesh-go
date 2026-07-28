@@ -179,7 +179,7 @@ func extractWebDAVID(path string) string {
 	return parts[0]
 }
 
-// isValidWebDAVID validates webdavId (UUID format, no path traversal).
+// isValidWebDAVID validates webdavID (UUID format, no path traversal).
 func isValidWebDAVID(id string) bool {
 	if hasDangerousWebDAVChars(id) || len(id) != 36 {
 		return false

@@ -25,10 +25,10 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 
 	mw := newStrictSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -67,7 +67,7 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -108,7 +108,7 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 	// A syntactically valid but wrong 64-byte signature in RFC 9421 format.
 	zeroSig := base64.StdEncoding.EncodeToString(make([]byte, 64))
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
 
@@ -136,7 +136,7 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
@@ -226,7 +226,7 @@ func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if tt.wantCode != http.StatusOK {
 					t.Fatal("handler should not run for rejected request")
 				}
@@ -274,7 +274,7 @@ func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSign
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run when content digest verification fails")
 	}))
 
@@ -304,7 +304,7 @@ func TestSignatureMiddleware_IfPresent_RejectsInvalidSignature(t *testing.T) {
 	pd := &mockPeerDiscovery{}
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run for invalid signature")
 	}))
 
@@ -326,10 +326,10 @@ func TestSignatureMiddleware_RequireSignatureAndPeer_Advertised_UnsignedRejects(
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 	mw.SetLocalHTTPSigPolicy(true, true)
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run when advertised unsigned request is rejected")
 	}))
 

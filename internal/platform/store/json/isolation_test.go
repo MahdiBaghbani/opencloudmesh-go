@@ -28,9 +28,9 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	outStore := requireOutgoingShareStore(t, driver)
 
 	original := testutil.NewOutgoingShareFixture()
-	original.ShareId = "iso-out-share-1"
-	original.ProviderId = "iso-out-provider-1"
-	original.WebDAVId = "iso-out-webdav-1"
+	original.ShareID = "iso-out-share-1"
+	original.ProviderID = "iso-out-provider-1"
+	original.WebDAVID = "iso-out-webdav-1"
 	original.State = "sent"
 
 	if err := outStore.CreateOutgoingShare(ctx, original); err != nil {
@@ -40,7 +40,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	// 1. Post-create mutation of caller pointer must not affect stored record.
 	original.State = "mutated-after-create"
 
-	got, err := outStore.GetOutgoingShare(ctx, original.ProviderId)
+	got, err := outStore.GetOutgoingShare(ctx, original.ProviderID)
 	if err != nil {
 		t.Fatalf("GetOutgoingShare: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	// 2. Mutation of a fetched record must not alter the next fetch.
 	got.State = "mutated-after-get"
 
-	got2, err := outStore.GetOutgoingShare(ctx, original.ProviderId)
+	got2, err := outStore.GetOutgoingShare(ctx, original.ProviderID)
 	if err != nil {
 		t.Fatalf("second GetOutgoingShare: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	var found *store.OutgoingShare
 
 	for _, s := range listed {
-		if s.ProviderId == original.ProviderId {
+		if s.ProviderID == original.ProviderID {
 			found = s
 			break
 		}
@@ -82,7 +82,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 
 	found.State = "mutated-after-list"
 
-	got3, err := outStore.GetOutgoingShare(ctx, original.ProviderId)
+	got3, err := outStore.GetOutgoingShare(ctx, original.ProviderID)
 	if err != nil {
 		t.Fatalf("third GetOutgoingShare: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 		t.Fatalf("UpdateOutgoingShare: %v", err)
 	}
 
-	got4, err := outStore.GetOutgoingShare(ctx, original.ProviderId)
+	got4, err := outStore.GetOutgoingShare(ctx, original.ProviderID)
 	if err != nil {
 		t.Fatalf("GetOutgoingShare after update: %v", err)
 	}
@@ -128,10 +128,10 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	inStore := requireIncomingShareStore(t, driver)
 
 	original := testutil.NewIncomingShareFixture()
-	original.ShareId = "iso-share-1"
+	original.ShareID = "iso-share-1"
 	original.SendingServer = "sender.example"
-	original.ProviderId = "provider-iso-1"
-	original.UserId = "bob"
+	original.ProviderID = "provider-iso-1"
+	original.UserID = "bob"
 	original.State = "pending"
 
 	if err := inStore.CreateIncomingShare(ctx, original); err != nil {
@@ -140,7 +140,7 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 
 	// 1. Post-create mutation of caller pointer must not affect stored record.
 	original.State = "mutated-after-create"
-	original.UserId = "hacker"
+	original.UserID = "hacker"
 
 	got, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
@@ -151,13 +151,13 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 		t.Errorf("create isolation broken: stored State = %q, want %q", got.State, "pending")
 	}
 
-	if got.UserId != "bob" {
-		t.Errorf("create isolation broken: stored UserId = %q, want %q", got.UserId, "bob")
+	if got.UserID != "bob" {
+		t.Errorf("create isolation broken: stored UserID = %q, want %q", got.UserID, "bob")
 	}
 
 	// 2. Mutation of a fetched record must not alter the next fetch.
 	got.State = "mutated-after-get"
-	got.UserId = "hacker"
+	got.UserID = "hacker"
 
 	got2, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
@@ -174,8 +174,8 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 		t.Fatalf("GetIncomingShareByProviderKey: %v", err)
 	}
 
-	if byKey.ShareId != "iso-share-1" {
-		t.Errorf("provider-key lookup: unexpected ShareId %q", byKey.ShareId)
+	if byKey.ShareID != "iso-share-1" {
+		t.Errorf("provider-key lookup: unexpected ShareID %q", byKey.ShareID)
 	}
 
 	byKey.State = "mutated-after-provider-key-get"
@@ -250,7 +250,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	original := testutil.NewIncomingInviteFixture()
 	original.ID = "iso-invite-1"
 	original.Token = "iso-token-1"
-	original.RecipientUserId = "alice"
+	original.RecipientUserID = "alice"
 	original.Status = "pending"
 
 	if err := inStore.CreateIncomingInvite(ctx, original); err != nil {
@@ -259,7 +259,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 
 	// 1. Post-create mutation of caller pointer must not affect stored record.
 	original.Status = "mutated-after-create"
-	original.RecipientUserId = "hacker"
+	original.RecipientUserID = "hacker"
 
 	got, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
 	if err != nil {
@@ -270,10 +270,10 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 		t.Errorf("create isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
 
-	if got.RecipientUserId != "alice" {
+	if got.RecipientUserID != "alice" {
 		t.Errorf(
-			"create isolation broken: stored RecipientUserId = %q, want %q",
-			got.RecipientUserId,
+			"create isolation broken: stored RecipientUserID = %q, want %q",
+			got.RecipientUserID,
 			"alice",
 		)
 	}
@@ -384,7 +384,7 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	original := testutil.NewOutgoingInviteFixture()
 	original.ID = "iso-out-invite-1"
 	original.Token = "iso-out-token-1"
-	original.CreatedByUserId = "alice"
+	original.CreatedByUserID = "alice"
 	original.Status = "pending"
 
 	if err := outInvStore.CreateOutgoingInvite(ctx, original); err != nil {

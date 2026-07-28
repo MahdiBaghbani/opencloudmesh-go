@@ -30,7 +30,7 @@ func writePersistedJSON(t *testing.T, dir, filename string, data interface{}) {
 
 // TestJSONOutgoingShareUpdateRefreshesIndexes verifies that UpdateOutgoingShare
 // clears stale index entries and registers new ones when key fields
-// (WebDAVId, ShareId, SharedSecret) change. GetOutgoingShare returns a clone,
+// (WebDAVID, ShareID, SharedSecret) change. GetOutgoingShare returns a clone,
 // so the mutated local copy does not affect the stored record before Update is
 // called; the driver must still derive and remove all old keys.
 func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
@@ -42,8 +42,8 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	outStore := requireOutgoingShareStore(t, driver)
 
 	share := testutil.NewOutgoingShareFixture()
-	share.WebDAVId = "original-webdav"
-	share.ShareId = "original-share-id"
+	share.WebDAVID = "original-webdav"
+	share.ShareID = "original-share-id"
 
 	share.SharedSecret = "original-secret"
 	if err := outStore.CreateOutgoingShare(ctx, share); err != nil {
@@ -51,14 +51,14 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	}
 
 	// GetOutgoingShare returns a clone, not the internal pointer.
-	retrieved, err := outStore.GetOutgoingShare(ctx, share.ProviderId)
+	retrieved, err := outStore.GetOutgoingShare(ctx, share.ProviderID)
 	if err != nil {
 		t.Fatalf("GetOutgoingShare: %v", err)
 	}
 
 	// Change all three indexed key fields on the clone before updating.
-	retrieved.WebDAVId = "new-webdav"
-	retrieved.ShareId = "new-share-id"
+	retrieved.WebDAVID = "new-webdav"
+	retrieved.ShareID = "new-share-id"
 	retrieved.SharedSecret = "new-secret"
 
 	if err := outStore.UpdateOutgoingShare(ctx, retrieved); err != nil {
@@ -67,10 +67,10 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 
 	// Old index entries must be gone.
 	if _, err := outStore.GetOutgoingShareByID(ctx, "original-share-id"); !errors.Is(err, store.ErrNotFound) {
-		t.Errorf("stale shareId index entry survives: expected ErrNotFound, got %v", err)
+		t.Errorf("stale shareID index entry survives: expected ErrNotFound, got %v", err)
 	}
 
-	if _, err := outStore.GetOutgoingShareByWebDAVId(ctx, "original-webdav"); !errors.Is(err, store.ErrNotFound) {
+	if _, err := outStore.GetOutgoingShareByWebDAVID(ctx, "original-webdav"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("stale webdav index entry survives: expected ErrNotFound, got %v", err)
 	}
 
@@ -79,13 +79,13 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 	}
 
 	// New index entries must resolve correctly.
-	got, err := outStore.GetOutgoingShareByWebDAVId(ctx, "new-webdav")
+	got, err := outStore.GetOutgoingShareByWebDAVID(ctx, "new-webdav")
 	if err != nil {
-		t.Fatalf("GetOutgoingShareByWebDAVId(new-webdav): %v", err)
+		t.Fatalf("GetOutgoingShareByWebDAVID(new-webdav): %v", err)
 	}
 
-	if got.ProviderId != share.ProviderId {
-		t.Errorf("wrong share returned: expected %q, got %q", share.ProviderId, got.ProviderId)
+	if got.ProviderID != share.ProviderID {
+		t.Errorf("wrong share returned: expected %q, got %q", share.ProviderID, got.ProviderID)
 	}
 
 	got, err = outStore.GetOutgoingShareByID(ctx, "new-share-id")
@@ -93,11 +93,11 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 		t.Fatalf("GetOutgoingShareByID(new-share-id): %v", err)
 	}
 
-	if got.ProviderId != share.ProviderId {
+	if got.ProviderID != share.ProviderID {
 		t.Errorf(
-			"wrong share returned via shareId: expected %q, got %q",
-			share.ProviderId,
-			got.ProviderId,
+			"wrong share returned via shareID: expected %q, got %q",
+			share.ProviderID,
+			got.ProviderID,
 		)
 	}
 
@@ -106,15 +106,15 @@ func TestJSONOutgoingShareUpdateRefreshesIndexes(t *testing.T) {
 		t.Fatalf("GetOutgoingShareBySharedSecret(new-secret): %v", err)
 	}
 
-	if got.ProviderId != share.ProviderId {
-		t.Errorf("wrong share returned via secret: expected %q, got %q", share.ProviderId, got.ProviderId)
+	if got.ProviderID != share.ProviderID {
+		t.Errorf("wrong share returned via secret: expected %q, got %q", share.ProviderID, got.ProviderID)
 	}
 }
 
-// TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVId verifies that Init
+// TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID verifies that Init
 // fails when persisted outgoing-share data contains two records with the same
-// WebDAVId.
-func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVId(t *testing.T) {
+// WebDAVID.
+func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVID(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "ocm-test-json-dup-webdav-*")
 	if err != nil {
 		t.Fatal(err)
@@ -128,16 +128,16 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVId(t *testing.T) {
 	now := time.Now().Unix()
 	shares := map[string]*store.OutgoingShare{
 		"provider-a": {
-			ProviderId: "provider-a",
-			ShareId:    "share-a",
-			WebDAVId:   "dup-webdav-id",
+			ProviderID: "provider-a",
+			ShareID:    "share-a",
+			WebDAVID:   "dup-webdav-id",
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		},
 		"provider-b": {
-			ProviderId: "provider-b",
-			ShareId:    "share-b",
-			WebDAVId:   "dup-webdav-id", // same WebDAVId - corrupt
+			ProviderID: "provider-b",
+			ShareID:    "share-b",
+			WebDAVID:   "dup-webdav-id", // same WebDAVID - corrupt
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		},
@@ -153,13 +153,13 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareWebDAVId(t *testing.T) {
 	defer d.Close() //nolint:errcheck // test cleanup: driver close
 
 	if err := d.Init(context.Background()); err == nil {
-		t.Fatal("expected Init to fail for duplicate outgoing-share WebDAVId, but it succeeded")
+		t.Fatal("expected Init to fail for duplicate outgoing-share WebDAVID, but it succeeded")
 	}
 }
 
-// TestJSONRebuildRejectsDuplicateOutgoingShareId verifies that Init fails when
-// persisted outgoing-share data contains two records with the same ShareId.
-func TestJSONRebuildRejectsDuplicateOutgoingShareId(t *testing.T) {
+// TestJSONRebuildRejectsDuplicateOutgoingShareID verifies that Init fails when
+// persisted outgoing-share data contains two records with the same ShareID.
+func TestJSONRebuildRejectsDuplicateOutgoingShareID(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "ocm-test-json-dup-shareid-*")
 	if err != nil {
 		t.Fatal(err)
@@ -173,16 +173,16 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareId(t *testing.T) {
 	now := time.Now().Unix()
 	shares := map[string]*store.OutgoingShare{
 		"provider-x": {
-			ProviderId: "provider-x",
-			ShareId:    "dup-share-id", // same ShareId - corrupt
-			WebDAVId:   "webdav-x",
+			ProviderID: "provider-x",
+			ShareID:    "dup-share-id", // same ShareID - corrupt
+			WebDAVID:   "webdav-x",
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		},
 		"provider-y": {
-			ProviderId: "provider-y",
-			ShareId:    "dup-share-id", // same ShareId - corrupt
-			WebDAVId:   "webdav-y",
+			ProviderID: "provider-y",
+			ShareID:    "dup-share-id", // same ShareID - corrupt
+			WebDAVID:   "webdav-y",
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		},
@@ -198,7 +198,7 @@ func TestJSONRebuildRejectsDuplicateOutgoingShareId(t *testing.T) {
 	defer d.Close() //nolint:errcheck // test cleanup: driver close
 
 	if err := d.Init(context.Background()); err == nil {
-		t.Fatal("expected Init to fail for duplicate outgoing-share ShareId, but it succeeded")
+		t.Fatal("expected Init to fail for duplicate outgoing-share ShareID, but it succeeded")
 	}
 }
 

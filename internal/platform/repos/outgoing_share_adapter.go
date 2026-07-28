@@ -73,7 +73,7 @@ func (a *outgoingShareAdapter) GetByProviderID(ctx context.Context, providerID s
 }
 
 func (a *outgoingShareAdapter) GetByWebDAVID(ctx context.Context, webdavID string) (*sharesoutgoing.OutgoingShare, error) {
-	s, err := a.s.GetOutgoingShareByWebDAVId(ctx, webdavID)
+	s, err := a.s.GetOutgoingShareByWebDAVID(ctx, webdavID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, fmt.Errorf("share not found for webdavId: %s", webdavID)
@@ -130,9 +130,9 @@ func (a *outgoingShareAdapter) Update(ctx context.Context, share *sharesoutgoing
 // the write path maps SentAt -> UpdatedAt, so the read path reverses that.
 func storeOutgoingShareToApp(s *store.OutgoingShare) *sharesoutgoing.OutgoingShare {
 	return &sharesoutgoing.OutgoingShare{
-		ShareID:          s.ShareId,
-		ProviderID:       s.ProviderId,
-		WebDAVID:         s.WebDAVId,
+		ShareID:          s.ShareID,
+		ProviderID:       s.ProviderID,
+		WebDAVID:         s.WebDAVID,
 		SharedSecret:     s.SharedSecret,
 		LocalPath:        s.LocalPath,
 		ReceiverHost:     s.ReceiverHost,
@@ -156,9 +156,9 @@ func storeOutgoingShareToApp(s *store.OutgoingShare) *sharesoutgoing.OutgoingSha
 // appOutgoingShareToStore converts an app-layer model to the store model.
 func appOutgoingShareToStore(a *sharesoutgoing.OutgoingShare) *store.OutgoingShare {
 	return &store.OutgoingShare{
-		ShareId:          a.ShareID,
-		ProviderId:       a.ProviderID,
-		WebDAVId:         a.WebDAVID,
+		ShareID:          a.ShareID,
+		ProviderID:       a.ProviderID,
+		WebDAVID:         a.WebDAVID,
 		SharedSecret:     a.SharedSecret,
 		LocalPath:        a.LocalPath,
 		ReceiverHost:     a.ReceiverHost,

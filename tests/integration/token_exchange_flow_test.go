@@ -82,7 +82,7 @@ mode = "off"
 
 	captured := receiver.waitForShare(t)
 	if captured.ProviderID != created.ProviderID {
-		t.Fatalf("captured providerId %q does not match API response %q", captured.ProviderID, created.ProviderID)
+		t.Fatalf("captured providerID %q does not match API response %q", captured.ProviderID, created.ProviderID)
 	}
 
 	if captured.SharedSecret == "" {

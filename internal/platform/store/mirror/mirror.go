@@ -106,18 +106,18 @@ func (d *Driver) CreateOutgoingShare(ctx context.Context, share *store.OutgoingS
 }
 
 // GetOutgoingShareByID retrieves an outgoing share by its local share id.
-func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareId string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShareByID(ctx, shareId)
+func (d *Driver) GetOutgoingShareByID(ctx context.Context, shareID string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareByID(ctx, shareID)
 }
 
-// GetOutgoingShare retrieves an outgoing share by providerId.
-func (d *Driver) GetOutgoingShare(ctx context.Context, providerId string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShare(ctx, providerId)
+// GetOutgoingShare retrieves an outgoing share by providerID.
+func (d *Driver) GetOutgoingShare(ctx context.Context, providerID string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShare(ctx, providerID)
 }
 
-// GetOutgoingShareByWebDAVId retrieves an outgoing share by webdavId.
-func (d *Driver) GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*store.OutgoingShare, error) {
-	return d.core.GetOutgoingShareByWebDAVId(ctx, webdavId)
+// GetOutgoingShareByWebDAVID retrieves an outgoing share by webdavID.
+func (d *Driver) GetOutgoingShareByWebDAVID(ctx context.Context, webdavID string) (*store.OutgoingShare, error) {
+	return d.core.GetOutgoingShareByWebDAVID(ctx, webdavID)
 }
 
 // GetOutgoingShareBySharedSecret retrieves an outgoing share by shared secret.
@@ -137,8 +137,8 @@ func (d *Driver) UpdateOutgoingShare(ctx context.Context, share *store.OutgoingS
 }
 
 // DeleteOutgoingShare deletes an outgoing share.
-func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerId string) error {
-	if err := d.core.DeleteOutgoingShare(ctx, providerId); err != nil {
+func (d *Driver) DeleteOutgoingShare(ctx context.Context, providerID string) error {
+	if err := d.core.DeleteOutgoingShare(ctx, providerID); err != nil {
 		return err
 	}
 
@@ -165,24 +165,24 @@ func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingS
 	return nil
 }
 
-// GetIncomingShareByIDForRecipient retrieves an incoming share by shareId scoped to a recipient.
-func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*store.IncomingShare, error) {
-	return d.core.GetIncomingShareByIDForRecipient(ctx, shareId, recipientUserId)
+// GetIncomingShareByIDForRecipient retrieves an incoming share by shareID scoped to a recipient.
+func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareID string, recipientUserID string) (*store.IncomingShare, error) {
+	return d.core.GetIncomingShareByIDForRecipient(ctx, shareID, recipientUserID)
 }
 
-// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerId.
-func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*store.IncomingShare, error) {
-	return d.core.GetIncomingShareByProviderKey(ctx, sendingServer, providerId)
+// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerID.
+func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerID string) (*store.IncomingShare, error) {
+	return d.core.GetIncomingShareByProviderKey(ctx, sendingServer, providerID)
 }
 
 // ListIncomingSharesByRecipient returns incoming shares for the given recipient user.
-func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUserId string) ([]*store.IncomingShare, error) {
-	return d.core.ListIncomingSharesByRecipient(ctx, recipientUserId)
+func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUserID string) ([]*store.IncomingShare, error) {
+	return d.core.ListIncomingSharesByRecipient(ctx, recipientUserID)
 }
 
 // UpdateIncomingShareStatusForRecipient updates the state of an incoming share, scoped to a recipient.
-func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareId string, recipientUserId string, state string) error {
-	if err := d.core.UpdateIncomingShareStatusForRecipient(ctx, shareId, recipientUserId, state); err != nil {
+func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, state string) error {
+	if err := d.core.UpdateIncomingShareStatusForRecipient(ctx, shareID, recipientUserID, state); err != nil {
 		return err
 	}
 
@@ -192,8 +192,8 @@ func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shar
 }
 
 // DeleteIncomingShareForRecipient deletes an incoming share, scoped to a recipient.
-func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareId string, recipientUserId string) error {
-	if err := d.core.DeleteIncomingShareForRecipient(ctx, shareId, recipientUserId); err != nil {
+func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareID string, recipientUserID string) error {
+	if err := d.core.DeleteIncomingShareForRecipient(ctx, shareID, recipientUserID); err != nil {
 		return err
 	}
 
@@ -248,8 +248,8 @@ func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
 }
 
 // ListOutgoingInvites returns outgoing invites for a user.
-func (d *Driver) ListOutgoingInvites(ctx context.Context, userId string) ([]*store.OutgoingInvite, error) {
-	return d.core.ListOutgoingInvites(ctx, userId)
+func (d *Driver) ListOutgoingInvites(ctx context.Context, userID string) ([]*store.OutgoingInvite, error) {
+	return d.core.ListOutgoingInvites(ctx, userID)
 }
 
 // IncomingInviteStore implementation
@@ -266,19 +266,19 @@ func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.Incomin
 }
 
 // GetIncomingInviteForRecipient retrieves an incoming invite by id scoped to a recipient.
-func (d *Driver) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) (*store.IncomingInvite, error) {
-	return d.core.GetIncomingInviteForRecipient(ctx, id, recipientUserId)
+func (d *Driver) GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) (*store.IncomingInvite, error) {
+	return d.core.GetIncomingInviteForRecipient(ctx, id, recipientUserID)
 }
 
 // GetIncomingInviteByToken retrieves an incoming invite by token scoped to a recipient.
-func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*store.IncomingInvite, error) {
-	return d.core.GetIncomingInviteByToken(ctx, token, recipientUserId)
+func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserID string) (*store.IncomingInvite, error) {
+	return d.core.GetIncomingInviteByToken(ctx, token, recipientUserID)
 }
 
 // UpdateIncomingInviteStatusForRecipient updates only the status of an incoming
 // invite scoped to a recipient.
-func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserId string, status string) error {
-	if err := d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserId, status); err != nil {
+func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string) error {
+	if err := d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserID, status); err != nil {
 		return err
 	}
 
@@ -288,8 +288,8 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id 
 }
 
 // DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.
-func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) error {
-	if err := d.core.DeleteIncomingInviteForRecipient(ctx, id, recipientUserId); err != nil {
+func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) error {
+	if err := d.core.DeleteIncomingInviteForRecipient(ctx, id, recipientUserID); err != nil {
 		return err
 	}
 
@@ -299,8 +299,8 @@ func (d *Driver) DeleteIncomingInviteForRecipient(ctx context.Context, id string
 }
 
 // ListIncomingInvites returns incoming invites for a recipient user.
-func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*store.IncomingInvite, error) {
-	return d.core.ListIncomingInvites(ctx, recipientUserId)
+func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserID string) ([]*store.IncomingInvite, error) {
+	return d.core.ListIncomingInvites(ctx, recipientUserID)
 }
 
 // Compile-time interface checks
@@ -383,7 +383,7 @@ func (d *Driver) exportIncomingShares(ctx context.Context) error {
 
 // exportOutgoingInvites projects all outgoing invites to JSON with tokens redacted.
 func (d *Driver) exportOutgoingInvites(ctx context.Context) error {
-	// Empty userId means all invites; see sqlitecore.ListOutgoingInvites.
+	// Empty userID means all invites; see sqlitecore.ListOutgoingInvites.
 	invites, err := d.core.ListOutgoingInvites(ctx, "")
 	if err != nil {
 		return err

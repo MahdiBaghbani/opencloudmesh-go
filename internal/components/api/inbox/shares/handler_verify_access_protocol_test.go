@@ -24,7 +24,7 @@ func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
 		gotShareInfo *access.ShareInfo
 	)
 
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
 		gotProtocol = opts.Protocol
 		gotShareInfo = opts.Share
 
@@ -74,7 +74,7 @@ func TestHandleVerifyAccess_SelectsWebappProtocolAndPopulatesShareInfo(t *testin
 		gotShareInfo *access.ShareInfo
 	)
 
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
 		gotProtocol = opts.Protocol
 		gotShareInfo = opts.Share
 
@@ -145,7 +145,7 @@ func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
 		gotShareInfo *access.ShareInfo
 	)
 
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
 		gotProtocol = opts.Protocol
 		gotShareInfo = opts.Share
 
@@ -196,7 +196,7 @@ func TestHandleVerifyAccess_SelectsWebappProtocolByProtocolName(t *testing.T) {
 		gotShareInfo *access.ShareInfo
 	)
 
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
 		gotProtocol = opts.Protocol
 		gotShareInfo = opts.Share
 

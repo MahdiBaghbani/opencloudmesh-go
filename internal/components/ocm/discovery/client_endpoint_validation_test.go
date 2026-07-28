@@ -14,7 +14,7 @@ import (
 )
 
 func TestClientDiscover_RejectsNonAbsoluteEndPoint(t *testing.T) {
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, nil)
 		raw["endPoint"] = "/ocm"
 
@@ -35,7 +35,7 @@ func TestClientDiscover_RejectsNonAbsoluteEndPoint(t *testing.T) {
 }
 
 func TestClientDiscover_RejectsCrossAuthorityEndPoint(t *testing.T) {
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, nil)
 		raw["endPoint"] = "https://other.example.com/ocm"
 
@@ -56,7 +56,7 @@ func TestClientDiscover_RejectsCrossAuthorityEndPoint(t *testing.T) {
 }
 
 func TestClientDiscover_RejectsExchangeTokenWithoutTokenEndPoint(t *testing.T) {
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"capabilities": []string{"exchange-token"},
 		})
@@ -78,7 +78,7 @@ func TestClientDiscover_RejectsExchangeTokenWithoutTokenEndPoint(t *testing.T) {
 }
 
 func TestClientDiscover_RejectsTokenEndPointWithoutExchangeTokenCapability(t *testing.T) {
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"tokenEndPoint": strings.TrimSuffix(serverURL, "/") + "/token",
 		})
@@ -100,7 +100,7 @@ func TestClientDiscover_RejectsTokenEndPointWithoutExchangeTokenCapability(t *te
 }
 
 func TestClientDiscover_RejectsNonAbsoluteTokenEndPoint(t *testing.T) {
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"capabilities":  []string{"exchange-token"},
 			"tokenEndPoint": "/token",
@@ -123,7 +123,7 @@ func TestClientDiscover_RejectsNonAbsoluteTokenEndPoint(t *testing.T) {
 }
 
 func TestClientDiscover_RejectsCrossAuthorityTokenEndPoint(t *testing.T) {
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"capabilities":  []string{"exchange-token"},
 			"tokenEndPoint": "https://other.example.com/token",

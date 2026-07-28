@@ -13,21 +13,33 @@ import (
 )
 
 var (
-	ErrUserNotFound         = errors.New("user not found")
-	ErrUserExists           = errors.New("user already exists")
-	ErrEmailExists          = errors.New("email already in use")
-	ErrInvalidPassword      = errors.New("invalid password")
-	ErrSessionExpired       = errors.New("session expired")
-	ErrSessionNotFound      = errors.New("session not found")
-	ErrSuperAdminProtected  = errors.New("super admin cannot be deleted or demoted")
+	// ErrUserNotFound is returned when a user lookup finds no match.
+	ErrUserNotFound = errors.New("user not found")
+	// ErrUserExists is returned when creating a user with a taken username.
+	ErrUserExists = errors.New("user already exists")
+	// ErrEmailExists is returned when an email address is already registered.
+	ErrEmailExists = errors.New("email already in use")
+	// ErrInvalidPassword is returned when password verification fails.
+	ErrInvalidPassword = errors.New("invalid password")
+	// ErrSessionExpired is returned when a session has passed its expiry time.
+	ErrSessionExpired = errors.New("session expired")
+	// ErrSessionNotFound is returned when a session token is unknown.
+	ErrSessionNotFound = errors.New("session not found")
+	// ErrSuperAdminProtected is returned when deleting or demoting a super admin.
+	ErrSuperAdminProtected = errors.New("super admin cannot be deleted or demoted")
+	// ErrSuperAdminRoleChange is returned when changing a super admin role.
 	ErrSuperAdminRoleChange = errors.New("super admin role cannot be changed")
 )
 
 const (
-	RoleUser       = "user"
-	RoleAdmin      = "admin"
+	// RoleUser is the standard user role.
+	RoleUser = "user"
+	// RoleAdmin is the administrator role.
+	RoleAdmin = "admin"
+	// RoleSuperAdmin is the built-in super administrator role.
 	RoleSuperAdmin = "super_admin"
-	RoleProbe      = "probe"
+	// RoleProbe is the temporary probe user role.
+	RoleProbe = "probe"
 )
 
 // User represents a party in the system.
@@ -44,18 +56,22 @@ type User struct {
 	ExpiresAt    *time.Time `json:"expiresAt,omitempty"` // For probe users
 }
 
+// IsProbe reports whether the user has the probe role.
 func (u *User) IsProbe() bool {
 	return u.Role == RoleProbe
 }
 
+// IsAdmin reports whether the user has admin or super-admin privileges.
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin || u.Role == RoleSuperAdmin
 }
 
+// IsSuperAdmin reports whether the user has the super-admin role.
 func (u *User) IsSuperAdmin() bool {
 	return u.Role == RoleSuperAdmin
 }
 
+// IsExpired reports whether a probe user's expiry time has passed.
 func (u *User) IsExpired() bool {
 	if u.ExpiresAt == nil {
 		return false
@@ -141,6 +157,7 @@ type MemoryPartyRepo struct {
 	byEmail    map[string]string // normalized email -> ID (only non-empty emails)
 }
 
+// NewMemoryPartyRepo returns an empty in-memory user store.
 func NewMemoryPartyRepo() *MemoryPartyRepo {
 	return &MemoryPartyRepo{
 		users:      make(map[string]*User),
@@ -149,7 +166,8 @@ func NewMemoryPartyRepo() *MemoryPartyRepo {
 	}
 }
 
-func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
+// Create stores a new user in the in-memory repository.
+func (r *MemoryPartyRepo) Create(_ context.Context, user *User) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -187,7 +205,8 @@ func (r *MemoryPartyRepo) Create(ctx context.Context, user *User) error {
 	return nil
 }
 
-func (r *MemoryPartyRepo) Get(ctx context.Context, id string) (*User, error) {
+// Get returns a user by ID from the in-memory repository.
+func (r *MemoryPartyRepo) Get(_ context.Context, id string) (*User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -201,7 +220,8 @@ func (r *MemoryPartyRepo) Get(ctx context.Context, id string) (*User, error) {
 	return &u, nil
 }
 
-func (r *MemoryPartyRepo) GetByUsername(ctx context.Context, username string) (*User, error) {
+// GetByUsername returns a user by username from the in-memory repository.
+func (r *MemoryPartyRepo) GetByUsername(_ context.Context, username string) (*User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -216,7 +236,8 @@ func (r *MemoryPartyRepo) GetByUsername(ctx context.Context, username string) (*
 	return &u, nil
 }
 
-func (r *MemoryPartyRepo) GetByEmail(ctx context.Context, email string) (*User, error) {
+// GetByEmail returns a user by email from the in-memory repository.
+func (r *MemoryPartyRepo) GetByEmail(_ context.Context, email string) (*User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -236,7 +257,8 @@ func (r *MemoryPartyRepo) GetByEmail(ctx context.Context, email string) (*User, 
 	return &u, nil
 }
 
-func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
+// Update replaces an existing user in the in-memory repository.
+func (r *MemoryPartyRepo) Update(_ context.Context, user *User) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -278,7 +300,8 @@ func (r *MemoryPartyRepo) Update(ctx context.Context, user *User) error {
 	return nil
 }
 
-func (r *MemoryPartyRepo) Delete(ctx context.Context, id string) error {
+// Delete removes a user by ID from the in-memory repository.
+func (r *MemoryPartyRepo) Delete(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -302,7 +325,8 @@ func (r *MemoryPartyRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *MemoryPartyRepo) List(ctx context.Context, realm string) ([]*User, error) {
+// List returns users from the in-memory repository, optionally filtered by realm.
+func (r *MemoryPartyRepo) List(_ context.Context, realm string) ([]*User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -318,7 +342,8 @@ func (r *MemoryPartyRepo) List(ctx context.Context, realm string) ([]*User, erro
 	return result, nil
 }
 
-func (r *MemoryPartyRepo) DeleteExpired(ctx context.Context) (int, error) {
+// DeleteExpired removes expired probe users from the in-memory repository.
+func (r *MemoryPartyRepo) DeleteExpired(_ context.Context) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

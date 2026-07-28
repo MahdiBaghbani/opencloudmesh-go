@@ -51,13 +51,13 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	}
 
 	// SQLite must still have the record.
-	got, err := outStore.GetOutgoingShare(ctx, share.ProviderId)
+	got, err := outStore.GetOutgoingShare(ctx, share.ProviderID)
 	if err != nil {
 		t.Fatalf("GetOutgoingShare: %v", err)
 	}
 
-	if got.ProviderId != share.ProviderId {
-		t.Errorf("unexpected ProviderId: got %q, want %q", got.ProviderId, share.ProviderId)
+	if got.ProviderID != share.ProviderID {
+		t.Errorf("unexpected ProviderID: got %q, want %q", got.ProviderID, share.ProviderID)
 	}
 
 	// Restore write permission and verify a second write (update) also succeeds.
@@ -104,12 +104,12 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 
 	outStore2 := requireOutgoingShareStore(t, driver2)
 
-	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderId)
+	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderID)
 	if err != nil {
 		t.Fatalf("mirror driver read from JSON instead of SQLite: %v", err)
 	}
 
-	if got.ProviderId != share.ProviderId {
-		t.Errorf("data corruption: expected %q, got %q", share.ProviderId, got.ProviderId)
+	if got.ProviderID != share.ProviderID {
+		t.Errorf("data corruption: expected %q, got %q", share.ProviderID, got.ProviderID)
 	}
 }

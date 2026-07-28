@@ -76,7 +76,7 @@ func TestClientDiscover_FreshFetchOnlyLogsWarnings(t *testing.T) {
 
 func TestClientDiscover_WarningsOwnershipAndJSONOmission(t *testing.T) {
 	httpCfg := tshttp.PermissiveConfig()
-	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+	server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 		raw := validDiscoveryPayload(serverURL, map[string]any{
 			"apiVersion": "1.3.0",
 			"resourceTypes": []any{

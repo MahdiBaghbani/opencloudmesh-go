@@ -36,12 +36,12 @@ func TestSQLiteDriverSurvivesRestart(t *testing.T) {
 
 	outStore2 := requireOutgoingShareStore(t, driver2)
 
-	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderId)
+	got, err := outStore2.GetOutgoingShare(ctx, share.ProviderID)
 	if err != nil {
 		t.Fatalf("share not found after restart: %v", err)
 	}
 
-	if got.ProviderId != share.ProviderId {
-		t.Errorf("data corruption: expected %q, got %q", share.ProviderId, got.ProviderId)
+	if got.ProviderID != share.ProviderID {
+		t.Errorf("data corruption: expected %q, got %q", share.ProviderID, got.ProviderID)
 	}
 }

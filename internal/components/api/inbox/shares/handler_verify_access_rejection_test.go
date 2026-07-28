@@ -18,7 +18,7 @@ func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 	share := createAcceptedShareForUser(repo, "prov-va-cross", "sender.example.com", "file.txt")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		t.Fatal("access client should not be called for cross-user request")
 		return nil, nil
 	}}
@@ -38,7 +38,7 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 	share := createShareForUser(repo, userAID, "prov-va-pending", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		t.Fatal("access client should not be called for non-accepted share")
 		return nil, nil
 	}}
@@ -67,7 +67,7 @@ func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
 	share := createAcceptedShareForUser(repo, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		t.Fatal("access client should not be called for unsafe path")
 		return nil, nil
 	}}

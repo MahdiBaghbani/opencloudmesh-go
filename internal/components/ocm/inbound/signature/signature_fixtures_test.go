@@ -16,7 +16,7 @@ type mockPeerDiscovery struct {
 	publicKeyErrors map[string]error
 }
 
-func (m *mockPeerDiscovery) ResolveVerificationKey(ctx context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
+func (m *mockPeerDiscovery) ResolveVerificationKey(_ context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
 	if err, ok := m.publicKeyErrors[keyID]; ok {
 		return sigalg.ResolvedPublicKey{}, err
 	}

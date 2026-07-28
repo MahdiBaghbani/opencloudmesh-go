@@ -23,7 +23,7 @@ func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	leakyBody := "redirect?code=" + secret + "&sharedSecret=" + secret + "&other=safe"
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return &access.AccessResult{
 			Response: &http.Response{
 				StatusCode: http.StatusOK,
@@ -63,7 +63,7 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	leakyContentType := "application/x-custom; code=" + secret + "; sharedSecret=" + secret + "; token=" + secret
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return &access.AccessResult{
 			Response: &http.Response{
 				StatusCode: http.StatusOK,
@@ -110,7 +110,7 @@ func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 	secret := share.SharedSecret
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return &access.AccessResult{
 			Response: &http.Response{
 				StatusCode: http.StatusForbidden,
@@ -176,7 +176,7 @@ func TestHandleVerifyAccess_RedactsCodeAndSharedSecretEvenWithEmptySecret(t *tes
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	leakyBody := "redirect?code=abc&sharedSecret=xyz"
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return &access.AccessResult{
 			Response: &http.Response{
 				StatusCode: http.StatusOK,

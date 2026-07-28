@@ -36,26 +36,26 @@ func TestOutgoingShareRepo_CreateAndLookup(t *testing.T) {
 	}
 
 	if found.ProviderID != share.ProviderID {
-		t.Error("wrong providerId")
+		t.Error("wrong providerID")
 	}
 
-	// Lookup by providerId
+	// Lookup by providerID
 	found, err = repo.GetByProviderID(ctx, "provider-123")
 	if err != nil {
 		t.Fatalf("GetByProviderID failed: %v", err)
 	}
 
 	if found.ShareID != share.ShareID {
-		t.Error("wrong shareId from providerId lookup")
+		t.Error("wrong shareID from providerID lookup")
 	}
 
-	// Lookup by webdavId
+	// Lookup by webdavID
 	found, err = repo.GetByWebDAVID(ctx, "webdav-456")
 	if err != nil {
 		t.Fatalf("GetByWebDAVID failed: %v", err)
 	}
 
 	if found.ShareID != share.ShareID {
-		t.Error("wrong shareId from webdavId lookup")
+		t.Error("wrong shareID from webdavID lookup")
 	}
 }

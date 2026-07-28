@@ -46,7 +46,7 @@ func TestSignatureMiddleware_RequireSignatureAndPeer_AdvertiseFalse_AllowsUnsign
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 	mw.SetLocalHTTPSigPolicy(true, false)
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
 	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -107,10 +107,10 @@ func TestSignatureMiddleware_LabelWithoutTag_IsUnsigned(t *testing.T) {
 			mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 			mw.SetLocalHTTPSigPolicy(tt.requires, tt.advertise)
 
-			peerResolver := func(r *http.Request, body []byte) (string, error) {
+			peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 				return "sender.example.com", nil
 			}
-			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
@@ -191,7 +191,7 @@ func TestSignatureMiddleware_ForeignSignature_TreatedAsUnsigned(t *testing.T) {
 			sigInput:  `proxy=("@method" "@target-uri");created=1;keyid="proxy.example.com#key1"`,
 			signature: "proxy=:AAAA:",
 			mount: func(mw *sig.SignatureMiddleware) func(http.Handler) http.Handler {
-				return mw.VerifyOCMRequestRequireSignatureAndPeer(func(r *http.Request, body []byte) (string, error) {
+				return mw.VerifyOCMRequestRequireSignatureAndPeer(func(_ *http.Request, _ []byte) (string, error) {
 					return "sender.example.com", nil
 				})
 			},
@@ -202,7 +202,7 @@ func TestSignatureMiddleware_ForeignSignature_TreatedAsUnsigned(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 			mw.SetLocalHTTPSigPolicy(true, false)
-			handler := tt.mount(mw)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := tt.mount(mw)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 

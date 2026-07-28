@@ -16,6 +16,7 @@ type PeerDiscoveryAdapter struct {
 	jwks       *jwks.Resolver
 }
 
+// NewPeerDiscoveryAdapter builds a peer discovery adapter backed by JWKS resolution.
 func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
 	resolver, err := jwks.NewResolver(httpClient)
 	if err != nil {

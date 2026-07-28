@@ -7,7 +7,7 @@ import (
 )
 
 // CreateOutgoingInvite creates a new outgoing invite.
-func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
+func (d *Driver) CreateOutgoingInvite(_ context.Context, invite *store.OutgoingInvite) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -45,7 +45,7 @@ func (d *Driver) CreateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 }
 
 // GetOutgoingInvite retrieves an outgoing invite by id.
-func (d *Driver) GetOutgoingInvite(ctx context.Context, id string) (*store.OutgoingInvite, error) {
+func (d *Driver) GetOutgoingInvite(_ context.Context, id string) (*store.OutgoingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -62,7 +62,7 @@ func (d *Driver) GetOutgoingInvite(ctx context.Context, id string) (*store.Outgo
 }
 
 // GetOutgoingInviteByToken retrieves an outgoing invite by token.
-func (d *Driver) GetOutgoingInviteByToken(ctx context.Context, token string) (*store.OutgoingInvite, error) {
+func (d *Driver) GetOutgoingInviteByToken(_ context.Context, token string) (*store.OutgoingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -84,7 +84,7 @@ func (d *Driver) GetOutgoingInviteByToken(ctx context.Context, token string) (*s
 }
 
 // UpdateOutgoingInvite updates an existing outgoing invite.
-func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
+func (d *Driver) UpdateOutgoingInvite(_ context.Context, invite *store.OutgoingInvite) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -139,7 +139,7 @@ func (d *Driver) UpdateOutgoingInvite(ctx context.Context, invite *store.Outgoin
 }
 
 // DeleteOutgoingInvite deletes an outgoing invite.
-func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
+func (d *Driver) DeleteOutgoingInvite(_ context.Context, id string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -172,7 +172,7 @@ func (d *Driver) DeleteOutgoingInvite(ctx context.Context, id string) error {
 }
 
 // ListOutgoingInvites returns outgoing invites for a user.
-func (d *Driver) ListOutgoingInvites(ctx context.Context, userId string) ([]*store.OutgoingInvite, error) {
+func (d *Driver) ListOutgoingInvites(_ context.Context, userID string) ([]*store.OutgoingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -183,7 +183,7 @@ func (d *Driver) ListOutgoingInvites(ctx context.Context, userId string) ([]*sto
 	invites := make([]*store.OutgoingInvite, 0)
 
 	for _, invite := range d.outgoingInvites {
-		if userId == "" || invite.CreatedByUserId == userId {
+		if userID == "" || invite.CreatedByUserID == userID {
 			invites = append(invites, cloneOutgoingInvite(invite))
 		}
 	}

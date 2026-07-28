@@ -73,7 +73,7 @@ func (a *outgoingInviteAdapter) GetByToken(ctx context.Context, token string) (*
 }
 
 func (a *outgoingInviteAdapter) List(ctx context.Context) ([]*invitesoutgoing.OutgoingInvite, error) {
-	// Pass empty userId to list all invites (matches memory repo behaviour).
+	// Pass empty userID to list all invites (matches memory repo behaviour).
 	storeInvites, err := a.s.ListOutgoingInvites(ctx, "")
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func storeOutgoingInviteToApp(s *store.OutgoingInvite) *invitesoutgoing.Outgoing
 		ProviderFQDN:    s.ProviderFQDN,
 		InviteString:    s.InviteString,
 		RecipientEmail:  s.RecipientEmail,
-		CreatedByUserID: s.CreatedByUserId,
+		CreatedByUserID: s.CreatedByUserID,
 		CreatedAt:       unixToTime(s.CreatedAt),
 		ExpiresAt:       unixToTime(s.ExpiresAt),
 		Status:          invites.InviteStatus(s.Status),
@@ -144,7 +144,7 @@ func appOutgoingInviteToStore(a *invitesoutgoing.OutgoingInvite) *store.Outgoing
 		ProviderFQDN:    a.ProviderFQDN,
 		InviteString:    a.InviteString,
 		RecipientEmail:  a.RecipientEmail,
-		CreatedByUserId: a.CreatedByUserID,
+		CreatedByUserID: a.CreatedByUserID,
 		Status:          string(a.Status),
 		AcceptedBy:      a.AcceptedBy,
 		ExpiresAt:       timeToUnix(a.ExpiresAt),

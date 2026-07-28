@@ -137,7 +137,7 @@ func storeIncomingInviteToApp(s *store.IncomingInvite) *invitesinbox.IncomingInv
 		Token:           s.Token,
 		InviteString:    s.InviteString,
 		SenderFQDN:      s.SenderFQDN,
-		RecipientUserID: s.RecipientUserId,
+		RecipientUserID: s.RecipientUserID,
 		Status:          invites.InviteStatus(s.Status),
 		ReceivedAt:      unixToTime(s.ReceivedAt),
 	}
@@ -150,7 +150,7 @@ func appIncomingInviteToStore(a *invitesinbox.IncomingInvite) *store.IncomingInv
 		Token:           a.Token,
 		InviteString:    a.InviteString,
 		SenderFQDN:      a.SenderFQDN,
-		RecipientUserId: a.RecipientUserID,
+		RecipientUserID: a.RecipientUserID,
 		Status:          string(a.Status),
 		ReceivedAt:      timeToUnix(a.ReceivedAt),
 	}

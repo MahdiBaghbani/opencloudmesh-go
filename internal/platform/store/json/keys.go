@@ -3,13 +3,13 @@ package json
 import "fmt"
 
 // providerKey creates a lookup key for incoming shares.
-func providerKey(sendingServer, providerId string) string {
-	return sendingServer + ":" + providerId
+func providerKey(sendingServer, providerID string) string {
+	return sendingServer + ":" + providerID
 }
 
 // tokenUserKey creates a lookup key for incoming invites scoped to a recipient.
-func tokenUserKey(token, recipientUserId string) string {
-	return token + "\x00" + recipientUserId
+func tokenUserKey(token, recipientUserID string) string {
+	return token + "\x00" + recipientUserID
 }
 
 // rebuildIndexes rebuilds all secondary indexes from primary data.
@@ -17,7 +17,7 @@ func tokenUserKey(token, recipientUserId string) string {
 // corrupted persisted data that must be resolved before use.
 func (d *Driver) rebuildIndexes() error {
 	d.webdavIndex = make(map[string]string)
-	d.shareIdIndex = make(map[string]string)
+	d.shareIDIndex = make(map[string]string)
 	d.secretIndex = make(map[string]string)
 	d.providerIndex = make(map[string]string)
 	d.outgoingInviteTokenIndex = make(map[string]string)
@@ -43,38 +43,38 @@ func (d *Driver) rebuildIndexes() error {
 }
 
 func (d *Driver) rebuildOutgoingShareIndexes() error {
-	for providerId, share := range d.outgoingShares {
-		if share.WebDAVId != "" {
-			if existingPid, exists := d.webdavIndex[share.WebDAVId]; exists {
+	for providerID, share := range d.outgoingShares {
+		if share.WebDAVID != "" {
+			if existingPid, exists := d.webdavIndex[share.WebDAVID]; exists {
 				return fmt.Errorf(
 					"corrupt data: duplicate outgoing share WebDAV id %q: provider ids %q and %q",
-					share.WebDAVId, existingPid, providerId,
+					share.WebDAVID, existingPid, providerID,
 				)
 			}
 
-			d.webdavIndex[share.WebDAVId] = providerId
+			d.webdavIndex[share.WebDAVID] = providerID
 		}
 
-		if share.ShareId != "" {
-			if existingPid, exists := d.shareIdIndex[share.ShareId]; exists {
+		if share.ShareID != "" {
+			if existingPid, exists := d.shareIDIndex[share.ShareID]; exists {
 				return fmt.Errorf(
 					"corrupt data: duplicate outgoing share share id %q: provider ids %q and %q",
-					share.ShareId, existingPid, providerId,
+					share.ShareID, existingPid, providerID,
 				)
 			}
 
-			d.shareIdIndex[share.ShareId] = providerId
+			d.shareIDIndex[share.ShareID] = providerID
 		}
 
 		if share.SharedSecret != "" {
 			if existingPid, exists := d.secretIndex[share.SharedSecret]; exists {
 				return fmt.Errorf(
 					"corrupt data: duplicate outgoing share shared secret %q: provider ids %q and %q",
-					share.SharedSecret, existingPid, providerId,
+					share.SharedSecret, existingPid, providerID,
 				)
 			}
 
-			d.secretIndex[share.SharedSecret] = providerId
+			d.secretIndex[share.SharedSecret] = providerID
 		}
 	}
 
@@ -82,16 +82,16 @@ func (d *Driver) rebuildOutgoingShareIndexes() error {
 }
 
 func (d *Driver) rebuildIncomingShareIndexes() error {
-	for shareId, share := range d.incomingShares {
-		key := providerKey(share.SendingServer, share.ProviderId)
+	for shareID, share := range d.incomingShares {
+		key := providerKey(share.SendingServer, share.ProviderID)
 		if existingID, exists := d.providerIndex[key]; exists {
 			return fmt.Errorf(
 				"corrupt data: duplicate incoming share (sendingServer=%q, providerId=%q): ids %q and %q",
-				share.SendingServer, share.ProviderId, existingID, shareId,
+				share.SendingServer, share.ProviderID, existingID, shareID,
 			)
 		}
 
-		d.providerIndex[key] = shareId
+		d.providerIndex[key] = shareID
 	}
 
 	return nil
@@ -116,12 +116,12 @@ func (d *Driver) rebuildOutgoingInviteIndexes() error {
 
 func (d *Driver) rebuildIncomingInviteIndexes() error {
 	for id, invite := range d.incomingInvites {
-		if invite.Token != "" && invite.RecipientUserId != "" {
-			key := tokenUserKey(invite.Token, invite.RecipientUserId)
+		if invite.Token != "" && invite.RecipientUserID != "" {
+			key := tokenUserKey(invite.Token, invite.RecipientUserID)
 			if existingID, exists := d.incomingInviteTokenUserIndex[key]; exists {
 				return fmt.Errorf(
 					"corrupt data: duplicate incoming invite (token=%q, recipient=%q): ids %q and %q",
-					invite.Token, invite.RecipientUserId, existingID, id,
+					invite.Token, invite.RecipientUserID, existingID, id,
 				)
 			}
 

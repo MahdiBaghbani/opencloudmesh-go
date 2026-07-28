@@ -37,11 +37,11 @@ func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "attacker.example.com", nil
 	}
 
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run on peer identity mismatch")
 	}))
 
@@ -80,7 +80,7 @@ func TestSignatureMiddleware_StrictMode_RejectsPublicKeyLookupFailure(t *testing
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run when public key lookup fails")
 	}))
 
@@ -122,7 +122,7 @@ func TestSignatureMiddleware_StrictMode_RejectsKeyNotFound(t *testing.T) {
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run when key is missing")
 	}))
 
@@ -165,7 +165,7 @@ func TestSignatureMiddleware_StrictMode_RejectsAlgorithmNotAllowed(t *testing.T)
 	}
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run when algorithm is rejected")
 	}))
 
@@ -211,7 +211,7 @@ func TestSignatureMiddleware_StrictMode_RejectsInvalidSignatureBody(t *testing.T
 	}
 
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run on crypto fail")
 	}))
 
@@ -241,10 +241,10 @@ func TestSignatureMiddleware_DeclaredPeerResolverError_FailClosed(t *testing.T) 
 	pd := &mockPeerDiscovery{}
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "", fmt.Errorf("malformed sender field")
 	}
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run on declared peer resolver error")
 	}))
 
@@ -262,10 +262,10 @@ func TestSignatureMiddleware_DeclaredPeerResolverEmpty_FailClosed(t *testing.T) 
 	pd := &mockPeerDiscovery{}
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "  ", nil
 	}
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run on empty declared peer")
 	}))
 
@@ -283,7 +283,7 @@ func TestSignatureMiddleware_RequireDeclaredPeer_NilResolver(t *testing.T) {
 	pd := &mockPeerDiscovery{}
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(nil)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run")
 	}))
 
@@ -313,10 +313,10 @@ func TestSignatureMiddleware_MismatchNormalizeError_FailClosed(t *testing.T) {
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
 	// Declared peer with a path fails authority normalization.
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com/evil", nil
 	}
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run on mismatch normalize error")
 	}))
 

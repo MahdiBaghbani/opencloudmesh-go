@@ -8,7 +8,7 @@ import (
 )
 
 // CreateIncomingInvite creates a new incoming invite.
-func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
+func (d *Driver) CreateIncomingInvite(_ context.Context, invite *store.IncomingInvite) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -20,24 +20,24 @@ func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.Incomin
 		return store.ErrAlreadyExists
 	}
 
-	if invite.Token != "" && invite.RecipientUserId != "" {
-		key := tokenUserKey(invite.Token, invite.RecipientUserId)
+	if invite.Token != "" && invite.RecipientUserID != "" {
+		key := tokenUserKey(invite.Token, invite.RecipientUserID)
 		if existing, ok := d.incomingInviteTokenUserIndex[key]; ok && existing != invite.ID {
 			return store.ErrAlreadyExists
 		}
 	}
 
 	d.incomingInvites[invite.ID] = cloneIncomingInvite(invite)
-	if invite.Token != "" && invite.RecipientUserId != "" {
-		d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserId)] = invite.ID
+	if invite.Token != "" && invite.RecipientUserID != "" {
+		d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserID)] = invite.ID
 	}
 
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
 		// Rollback: remove the in-memory entry so state stays consistent with disk.
 		delete(d.incomingInvites, invite.ID)
 
-		if invite.Token != "" && invite.RecipientUserId != "" {
-			delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserId))
+		if invite.Token != "" && invite.RecipientUserID != "" {
+			delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserID))
 		}
 
 		return err
@@ -48,9 +48,9 @@ func (d *Driver) CreateIncomingInvite(ctx context.Context, invite *store.Incomin
 
 // GetIncomingInviteForRecipient retrieves an incoming invite by id scoped to a recipient.
 func (d *Driver) GetIncomingInviteForRecipient(
-	ctx context.Context,
+	_ context.Context,
 	id string,
-	recipientUserId string,
+	recipientUserID string,
 ) (*store.IncomingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -60,7 +60,7 @@ func (d *Driver) GetIncomingInviteForRecipient(
 	}
 
 	invite, ok := d.incomingInvites[id]
-	if !ok || invite.RecipientUserId != recipientUserId {
+	if !ok || invite.RecipientUserID != recipientUserID {
 		return nil, store.ErrNotFound
 	}
 
@@ -68,7 +68,7 @@ func (d *Driver) GetIncomingInviteForRecipient(
 }
 
 // GetIncomingInviteByToken retrieves an incoming invite by token scoped to a recipient.
-func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*store.IncomingInvite, error) {
+func (d *Driver) GetIncomingInviteByToken(_ context.Context, token string, recipientUserID string) (*store.IncomingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -76,7 +76,7 @@ func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, rec
 		return nil, store.ErrClosed
 	}
 
-	id, ok := d.incomingInviteTokenUserIndex[tokenUserKey(token, recipientUserId)]
+	id, ok := d.incomingInviteTokenUserIndex[tokenUserKey(token, recipientUserID)]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
@@ -90,12 +90,12 @@ func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, rec
 }
 
 // UpdateIncomingInviteStatusForRecipient updates only the status of an incoming invite scoped
-// to a recipient. Scope-defining fields (Token, RecipientUserId) are immutable after creation;
+// to a recipient. Scope-defining fields (Token, RecipientUserID) are immutable after creation;
 // callers cannot reassign them through this path.
 func (d *Driver) UpdateIncomingInviteStatusForRecipient(
-	ctx context.Context,
+	_ context.Context,
 	id string,
-	recipientUserId string,
+	recipientUserID string,
 	status string,
 ) error {
 	d.mu.Lock()
@@ -106,7 +106,7 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 	}
 
 	existing, exists := d.incomingInvites[id]
-	if !exists || existing.RecipientUserId != recipientUserId {
+	if !exists || existing.RecipientUserID != recipientUserID {
 		return store.ErrNotFound
 	}
 
@@ -128,9 +128,9 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 
 // DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.
 func (d *Driver) DeleteIncomingInviteForRecipient(
-	ctx context.Context,
+	_ context.Context,
 	id string,
-	recipientUserId string,
+	recipientUserID string,
 ) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -140,12 +140,12 @@ func (d *Driver) DeleteIncomingInviteForRecipient(
 	}
 
 	invite, exists := d.incomingInvites[id]
-	if !exists || invite.RecipientUserId != recipientUserId {
+	if !exists || invite.RecipientUserID != recipientUserID {
 		return store.ErrNotFound
 	}
 
-	if invite.Token != "" && invite.RecipientUserId != "" {
-		delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserId))
+	if invite.Token != "" && invite.RecipientUserID != "" {
+		delete(d.incomingInviteTokenUserIndex, tokenUserKey(invite.Token, invite.RecipientUserID))
 	}
 
 	delete(d.incomingInvites, id)
@@ -153,8 +153,8 @@ func (d *Driver) DeleteIncomingInviteForRecipient(
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
 		// Rollback: restore deleted entry and its token-user index slot.
 		d.incomingInvites[id] = invite
-		if invite.Token != "" && invite.RecipientUserId != "" {
-			d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserId)] = id
+		if invite.Token != "" && invite.RecipientUserID != "" {
+			d.incomingInviteTokenUserIndex[tokenUserKey(invite.Token, invite.RecipientUserID)] = id
 		}
 
 		return err
@@ -164,7 +164,7 @@ func (d *Driver) DeleteIncomingInviteForRecipient(
 }
 
 // ListIncomingInvites returns incoming invites for a recipient user.
-func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*store.IncomingInvite, error) {
+func (d *Driver) ListIncomingInvites(_ context.Context, recipientUserID string) ([]*store.IncomingInvite, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -175,7 +175,7 @@ func (d *Driver) ListIncomingInvites(ctx context.Context, recipientUserId string
 	invites := make([]*store.IncomingInvite, 0)
 
 	for _, invite := range d.incomingInvites {
-		if invite.RecipientUserId == recipientUserId {
+		if invite.RecipientUserID == recipientUserID {
 			invites = append(invites, cloneIncomingInvite(invite))
 		}
 	}

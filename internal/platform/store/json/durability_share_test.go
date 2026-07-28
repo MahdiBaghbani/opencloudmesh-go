@@ -70,16 +70,16 @@ func testCreateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 	// indexes are absent (rollback succeeded).
 	restoreDirPerms(t, dir)
 
-	if _, err := outStore.GetOutgoingShare(ctx, share.ProviderId); err == nil {
+	if _, err := outStore.GetOutgoingShare(ctx, share.ProviderID); err == nil {
 		t.Error("share found in memory after failed create - rollback did not occur")
 	}
 
-	if _, err := outStore.GetOutgoingShareByID(ctx, share.ShareId); err == nil {
-		t.Error("shareId index not rolled back after failed create")
+	if _, err := outStore.GetOutgoingShareByID(ctx, share.ShareID); err == nil {
+		t.Error("shareID index not rolled back after failed create")
 	}
 
-	if _, err := outStore.GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err == nil {
-		t.Error("webdavId index not rolled back after failed create")
+	if _, err := outStore.GetOutgoingShareByWebDAVID(ctx, share.WebDAVID); err == nil {
+		t.Error("webdavID index not rolled back after failed create")
 	}
 
 	if _, err := outStore.GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err == nil {
@@ -105,8 +105,8 @@ func testUpdateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 	// Use distinct new values for all three index fields so we can verify
 	// neither the primary record nor any index entry was swapped.
 	updated := *share
-	updated.ShareId = "new-share-id"
-	updated.WebDAVId = "new-webdav-id"
+	updated.ShareID = "new-share-id"
+	updated.WebDAVID = "new-webdav-id"
 	updated.SharedSecret = "new-secret"
 	updated.State = "accepted"
 
@@ -119,7 +119,7 @@ func testUpdateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 	// Restore and verify the old record and all old indexes are intact.
 	restoreDirPerms(t, dir)
 
-	got, err := outStore.GetOutgoingShare(ctx, share.ProviderId)
+	got, err := outStore.GetOutgoingShare(ctx, share.ProviderID)
 	if err != nil {
 		t.Fatalf("share missing after failed update: %v", err)
 	}
@@ -132,32 +132,32 @@ func testUpdateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 		)
 	}
 
-	if got.ShareId != share.ShareId {
+	if got.ShareID != share.ShareID {
 		t.Errorf(
-			"in-memory shareId changed after failed update: got %q, want %q",
-			got.ShareId,
-			share.ShareId,
+			"in-memory shareID changed after failed update: got %q, want %q",
+			got.ShareID,
+			share.ShareID,
 		)
 	}
 	// Old indexes must still resolve.
-	if _, err := outStore.GetOutgoingShareByID(ctx, share.ShareId); err != nil {
-		t.Error("old shareId index entry missing after failed update rollback")
+	if _, err := outStore.GetOutgoingShareByID(ctx, share.ShareID); err != nil {
+		t.Error("old shareID index entry missing after failed update rollback")
 	}
 
-	if _, err := outStore.GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err != nil {
-		t.Error("old webdavId index entry missing after failed update rollback")
+	if _, err := outStore.GetOutgoingShareByWebDAVID(ctx, share.WebDAVID); err != nil {
+		t.Error("old webdavID index entry missing after failed update rollback")
 	}
 
 	if _, err := outStore.GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err != nil {
 		t.Error("old sharedSecret index entry missing after failed update rollback")
 	}
 	// New indexes must NOT resolve.
-	if _, err := outStore.GetOutgoingShareByID(ctx, updated.ShareId); err == nil {
-		t.Error("new shareId index entry present after failed update - rollback incomplete")
+	if _, err := outStore.GetOutgoingShareByID(ctx, updated.ShareID); err == nil {
+		t.Error("new shareID index entry present after failed update - rollback incomplete")
 	}
 
-	if _, err := outStore.GetOutgoingShareByWebDAVId(ctx, updated.WebDAVId); err == nil {
-		t.Error("new webdavId index entry present after failed update - rollback incomplete")
+	if _, err := outStore.GetOutgoingShareByWebDAVID(ctx, updated.WebDAVID); err == nil {
+		t.Error("new webdavID index entry present after failed update - rollback incomplete")
 	}
 
 	if _, err := outStore.GetOutgoingShareBySharedSecret(ctx, updated.SharedSecret); err == nil {
@@ -182,23 +182,23 @@ func testDeleteOutgoingShareRollback(t *testing.T, ctx context.Context) {
 
 	lockShareDir(t, dir)
 
-	if err := outStore.DeleteOutgoingShare(ctx, share.ProviderId); err == nil {
+	if err := outStore.DeleteOutgoingShare(ctx, share.ProviderID); err == nil {
 		t.Fatal("expected error from DeleteOutgoingShare with read-only dir, got nil")
 	}
 
 	// Restore and verify the share and all indexes are still present.
 	restoreDirPerms(t, dir)
 
-	if _, err := outStore.GetOutgoingShare(ctx, share.ProviderId); err != nil {
+	if _, err := outStore.GetOutgoingShare(ctx, share.ProviderID); err != nil {
 		t.Errorf("share missing after failed delete - rollback did not occur: %v", err)
 	}
 
-	if _, err := outStore.GetOutgoingShareByID(ctx, share.ShareId); err != nil {
-		t.Error("shareId index entry missing after failed delete rollback")
+	if _, err := outStore.GetOutgoingShareByID(ctx, share.ShareID); err != nil {
+		t.Error("shareID index entry missing after failed delete rollback")
 	}
 
-	if _, err := outStore.GetOutgoingShareByWebDAVId(ctx, share.WebDAVId); err != nil {
-		t.Error("webdavId index entry missing after failed delete rollback")
+	if _, err := outStore.GetOutgoingShareByWebDAVID(ctx, share.WebDAVID); err != nil {
+		t.Error("webdavID index entry missing after failed delete rollback")
 	}
 
 	if _, err := outStore.GetOutgoingShareBySharedSecret(ctx, share.SharedSecret); err != nil {
@@ -227,13 +227,13 @@ func testCreateIncomingShareRollback(t *testing.T, ctx context.Context) {
 	restoreDirPerms(t, dir)
 
 	if _, err := inStore.GetIncomingShareByIDForRecipient(
-		ctx, share.ShareId, share.UserId,
+		ctx, share.ShareID, share.UserID,
 	); err == nil {
 		t.Error("incoming share found in memory after failed create - rollback did not occur")
 	}
 
 	if _, err := inStore.GetIncomingShareByProviderKey(
-		ctx, share.SendingServer, share.ProviderId,
+		ctx, share.SendingServer, share.ProviderID,
 	); err == nil {
 		t.Error("provider-key index not rolled back after failed create")
 	}
@@ -260,7 +260,7 @@ func testUpdateIncomingShareStatusRollback(t *testing.T, ctx context.Context) {
 	lockShareDir(t, dir)
 
 	if err := inStore.UpdateIncomingShareStatusForRecipient(
-		ctx, share.ShareId, share.UserId, "accepted",
+		ctx, share.ShareID, share.UserID, "accepted",
 	); err == nil {
 		t.Fatal("expected error from UpdateIncomingShareStatusForRecipient with read-only dir, got nil")
 	}
@@ -269,7 +269,7 @@ func testUpdateIncomingShareStatusRollback(t *testing.T, ctx context.Context) {
 	restoreDirPerms(t, dir)
 
 	got, err := inStore.GetIncomingShareByIDForRecipient(
-		ctx, share.ShareId, share.UserId,
+		ctx, share.ShareID, share.UserID,
 	)
 	if err != nil {
 		t.Fatalf("share missing after failed status update: %v", err)
@@ -310,7 +310,7 @@ func testDeleteIncomingShareRollback(t *testing.T, ctx context.Context) {
 	lockShareDir(t, dir)
 
 	if err := inStore.DeleteIncomingShareForRecipient(
-		ctx, share.ShareId, share.UserId,
+		ctx, share.ShareID, share.UserID,
 	); err == nil {
 		t.Fatal("expected error from DeleteIncomingShareForRecipient with read-only dir, got nil")
 	}
@@ -319,13 +319,13 @@ func testDeleteIncomingShareRollback(t *testing.T, ctx context.Context) {
 	restoreDirPerms(t, dir)
 
 	if _, err := inStore.GetIncomingShareByIDForRecipient(
-		ctx, share.ShareId, share.UserId,
+		ctx, share.ShareID, share.UserID,
 	); err != nil {
 		t.Errorf("share missing after failed delete - rollback did not occur: %v", err)
 	}
 
 	if _, err := inStore.GetIncomingShareByProviderKey(
-		ctx, share.SendingServer, share.ProviderId,
+		ctx, share.SendingServer, share.ProviderID,
 	); err != nil {
 		t.Error("provider-key index entry missing after failed delete rollback")
 	}

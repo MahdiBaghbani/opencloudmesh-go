@@ -180,13 +180,13 @@ func testCreateIncomingInviteRollback(t *testing.T, ctx context.Context) {
 	restoreDirPerms(t, dir)
 
 	if _, err := inInvStore.GetIncomingInviteForRecipient(
-		ctx, invite.ID, invite.RecipientUserId,
+		ctx, invite.ID, invite.RecipientUserID,
 	); err == nil {
 		t.Error("incoming invite found in memory after failed create - rollback did not occur")
 	}
 
 	if _, err := inInvStore.GetIncomingInviteByToken(
-		ctx, invite.Token, invite.RecipientUserId,
+		ctx, invite.Token, invite.RecipientUserID,
 	); err == nil {
 		t.Error("incoming invite token index not rolled back after failed create")
 	}
@@ -212,7 +212,7 @@ func testUpdateIncomingInviteStatusRollback(t *testing.T, ctx context.Context) {
 	lockDir(t, dir)
 
 	if err := inInvStore.UpdateIncomingInviteStatusForRecipient(
-		ctx, invite.ID, invite.RecipientUserId, "new-status",
+		ctx, invite.ID, invite.RecipientUserID, "new-status",
 	); err == nil {
 		t.Fatal("expected error from UpdateIncomingInviteStatusForRecipient with read-only dir, got nil")
 	}
@@ -220,7 +220,7 @@ func testUpdateIncomingInviteStatusRollback(t *testing.T, ctx context.Context) {
 	restoreDirPerms(t, dir)
 
 	got, err := inInvStore.GetIncomingInviteForRecipient(
-		ctx, invite.ID, invite.RecipientUserId,
+		ctx, invite.ID, invite.RecipientUserID,
 	)
 	if err != nil {
 		t.Fatalf("invite missing after failed status update: %v", err)
@@ -253,7 +253,7 @@ func testDeleteIncomingInviteRollback(t *testing.T, ctx context.Context) {
 	lockDir(t, dir)
 
 	if err := inInvStore.DeleteIncomingInviteForRecipient(
-		ctx, invite.ID, invite.RecipientUserId,
+		ctx, invite.ID, invite.RecipientUserID,
 	); err == nil {
 		t.Fatal("expected error from DeleteIncomingInviteForRecipient with read-only dir, got nil")
 	}
@@ -261,13 +261,13 @@ func testDeleteIncomingInviteRollback(t *testing.T, ctx context.Context) {
 	restoreDirPerms(t, dir)
 
 	if _, err := inInvStore.GetIncomingInviteForRecipient(
-		ctx, invite.ID, invite.RecipientUserId,
+		ctx, invite.ID, invite.RecipientUserID,
 	); err != nil {
 		t.Errorf("invite missing after failed delete - rollback did not occur: %v", err)
 	}
 
 	if _, err := inInvStore.GetIncomingInviteByToken(
-		ctx, invite.Token, invite.RecipientUserId,
+		ctx, invite.Token, invite.RecipientUserID,
 	); err != nil {
 		t.Error("token-user index entry missing after failed delete rollback")
 	}

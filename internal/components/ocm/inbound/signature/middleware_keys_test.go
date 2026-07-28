@@ -32,7 +32,7 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 	}
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run on pathful keyId after verify")
 	}))
 
@@ -93,7 +93,7 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 	}
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler should not run when keyId authority cannot be normalized")
 	}))
 

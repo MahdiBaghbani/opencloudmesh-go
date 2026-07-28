@@ -61,11 +61,11 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	}
 
 	if resp["shareId"] != share.ShareID {
-		t.Errorf("expected shareId %s, got %v", share.ShareID, resp["shareId"])
+		t.Errorf("expected shareID %s, got %v", share.ShareID, resp["shareId"])
 	}
 
 	if resp["providerId"] != "prov-detail" {
-		t.Errorf("expected providerId prov-detail, got %v", resp["providerId"])
+		t.Errorf("expected providerID prov-detail, got %v", resp["providerId"])
 	}
 
 	if resp["name"] != share.Name {
@@ -78,7 +78,7 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 
 	// Detail-specific fields
 	if resp["webdavId"] != "webdav-id-123" {
-		t.Errorf("expected webdavId webdav-id-123, got %v", resp["webdavId"])
+		t.Errorf("expected webdavID webdav-id-123, got %v", resp["webdavId"])
 	}
 
 	if resp["webdavUriAbsolutePresent"] != false {

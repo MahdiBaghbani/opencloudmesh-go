@@ -269,7 +269,7 @@ func waitForInboxShareByProvider(
 	}
 
 	srv.DumpLogs(t)
-	t.Fatalf("timed out waiting for inbox share providerId=%s on %s", providerID, srv.Name)
+	t.Fatalf("timed out waiting for inbox share providerID=%s on %s", providerID, srv.Name)
 
 	return ""
 }

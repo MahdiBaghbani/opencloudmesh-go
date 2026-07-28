@@ -30,24 +30,24 @@ type Driver interface {
 // Lookup is available by local share id, provider id, webdav id, and shared secret.
 type OutgoingShareStore interface {
 	CreateOutgoingShare(ctx context.Context, share *OutgoingShare) error
-	GetOutgoingShareByID(ctx context.Context, shareId string) (*OutgoingShare, error)
-	GetOutgoingShare(ctx context.Context, providerId string) (*OutgoingShare, error)
-	GetOutgoingShareByWebDAVId(ctx context.Context, webdavId string) (*OutgoingShare, error)
+	GetOutgoingShareByID(ctx context.Context, shareID string) (*OutgoingShare, error)
+	GetOutgoingShare(ctx context.Context, providerID string) (*OutgoingShare, error)
+	GetOutgoingShareByWebDAVID(ctx context.Context, webdavID string) (*OutgoingShare, error)
 	GetOutgoingShareBySharedSecret(ctx context.Context, sharedSecret string) (*OutgoingShare, error)
 	UpdateOutgoingShare(ctx context.Context, share *OutgoingShare) error
-	DeleteOutgoingShare(ctx context.Context, providerId string) error
+	DeleteOutgoingShare(ctx context.Context, providerID string) error
 	ListOutgoingShares(ctx context.Context) ([]*OutgoingShare, error)
 }
 
 // IncomingShareStore manages incoming share persistence (receiver-side).
-// All mutating operations are scoped by recipientUserId to prevent cross-user access.
+// All mutating operations are scoped by recipientUserID to prevent cross-user access.
 type IncomingShareStore interface {
 	CreateIncomingShare(ctx context.Context, share *IncomingShare) error
-	GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*IncomingShare, error)
-	GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*IncomingShare, error)
-	ListIncomingSharesByRecipient(ctx context.Context, recipientUserId string) ([]*IncomingShare, error)
-	UpdateIncomingShareStatusForRecipient(ctx context.Context, shareId string, recipientUserId string, state string) error
-	DeleteIncomingShareForRecipient(ctx context.Context, shareId string, recipientUserId string) error
+	GetIncomingShareByIDForRecipient(ctx context.Context, shareID string, recipientUserID string) (*IncomingShare, error)
+	GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerID string) (*IncomingShare, error)
+	ListIncomingSharesByRecipient(ctx context.Context, recipientUserID string) ([]*IncomingShare, error)
+	UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, state string) error
+	DeleteIncomingShareForRecipient(ctx context.Context, shareID string, recipientUserID string) error
 }
 
 // OutgoingInviteStore manages outgoing invite persistence (initiator-side).
@@ -57,27 +57,27 @@ type OutgoingInviteStore interface {
 	GetOutgoingInviteByToken(ctx context.Context, token string) (*OutgoingInvite, error)
 	UpdateOutgoingInvite(ctx context.Context, invite *OutgoingInvite) error
 	DeleteOutgoingInvite(ctx context.Context, id string) error
-	ListOutgoingInvites(ctx context.Context, userId string) ([]*OutgoingInvite, error)
+	ListOutgoingInvites(ctx context.Context, userID string) ([]*OutgoingInvite, error)
 }
 
 // IncomingInviteStore manages incoming invite persistence (acceptor-side).
-// All mutating operations are scoped by recipientUserId to prevent cross-user access.
-// Update is intentionally status-only: scope-defining fields (Token, RecipientUserId)
+// All mutating operations are scoped by recipientUserID to prevent cross-user access.
+// Update is intentionally status-only: scope-defining fields (Token, RecipientUserID)
 // cannot be reassigned after creation.
 type IncomingInviteStore interface {
 	CreateIncomingInvite(ctx context.Context, invite *IncomingInvite) error
-	GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) (*IncomingInvite, error)
-	GetIncomingInviteByToken(ctx context.Context, token string, recipientUserId string) (*IncomingInvite, error)
-	UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserId string, status string) error
-	DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserId string) error
-	ListIncomingInvites(ctx context.Context, recipientUserId string) ([]*IncomingInvite, error)
+	GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) (*IncomingInvite, error)
+	GetIncomingInviteByToken(ctx context.Context, token string, recipientUserID string) (*IncomingInvite, error)
+	UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string) error
+	DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) error
+	ListIncomingInvites(ctx context.Context, recipientUserID string) ([]*IncomingInvite, error)
 }
 
 // OutgoingShare represents a share created by this instance (sender-side).
 type OutgoingShare struct {
-	ShareId    string `gorm:"uniqueIndex" json:"shareId"`    // sender-local identity (UUIDv7)
-	ProviderId string `gorm:"primaryKey"  json:"providerId"` // provider-assigned share id
-	WebDAVId   string `gorm:"uniqueIndex" json:"webdavId"`
+	ShareID    string `gorm:"uniqueIndex" json:"shareId"`    // sender-local identity (UUIDv7)
+	ProviderID string `gorm:"primaryKey"  json:"providerId"` // provider-assigned share id
+	WebDAVID   string `gorm:"uniqueIndex" json:"webdavId"`
 	// omitempty for redaction; partial unique index enforces non-empty secret
 	// uniqueness in SQL backends (empty shared secrets are allowed on many rows).
 	SharedSecret     string   `gorm:"uniqueIndex:idx_outgoing_shares_secret,where:shared_secret <> ''" json:"sharedSecret,omitempty"`
@@ -99,14 +99,14 @@ type OutgoingShare struct {
 }
 
 // IncomingShare represents a share received by this instance (receiver-side).
-// The composite unique index on (sendingServer, providerId) enforces that one
+// The composite unique index on (sendingServer, providerID) enforces that one
 // provider-key pair can be stored at most once, matching GetIncomingShareByProviderKey
 // singular semantics.
 type IncomingShare struct {
-	ShareId           string `gorm:"primaryKey"                                   json:"shareId"`       // receiver-local id (UUIDv7)
+	ShareID           string `gorm:"primaryKey"                                   json:"shareId"`       // receiver-local id (UUIDv7)
 	SendingServer     string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"sendingServer"` // sender's host
-	ProviderId        string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"providerId"`    // sender's share id
-	WebDAVId          string `json:"webdavId,omitempty"`                                                // relative or absolute webdav URI
+	ProviderID        string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"providerId"`    // sender's share id
+	WebDAVID          string `json:"webdavId,omitempty"`                                                // relative or absolute webdav URI
 	SharedSecret      string `json:"sharedSecret,omitempty"`                                            // omitempty for redaction
 	Owner             string `json:"owner"`
 	Sender            string `json:"sender"`
@@ -126,7 +126,7 @@ type IncomingShare struct {
 	WebappTargets     []string `gorm:"serializer:json"             json:"webappTargets,omitempty"`
 	ProtocolName      string   `json:"protocolName,omitempty"`
 	State             string   `json:"state"` // pending, accepted, declined
-	UserId            string   `gorm:"index"                       json:"userId"`
+	UserID            string   `gorm:"index"                       json:"userId"`
 	OwnerHost         string   `json:"ownerHost"`
 	Requirements      []string `gorm:"serializer:json"             json:"requirements,omitempty"`
 	// Expiration is a Unix epoch; 0 means no expiration.
@@ -142,7 +142,7 @@ type OutgoingInvite struct {
 	ProviderFQDN    string `json:"providerFqdn"`
 	InviteString    string `json:"inviteString"`
 	RecipientEmail  string `json:"recipientEmail,omitempty"`
-	CreatedByUserId string `gorm:"index"                    json:"createdByUserId"`
+	CreatedByUserID string `gorm:"index"                    json:"createdByUserId"`
 	Status          string `json:"status"` // pending, accepted, declined, expired
 	AcceptedBy      string `json:"acceptedBy,omitempty"`
 	ExpiresAt       int64  `json:"expiresAt"`
@@ -152,14 +152,14 @@ type OutgoingInvite struct {
 }
 
 // IncomingInvite is the persistence model for incoming invites (acceptor-side).
-// The composite unique index on (token, recipientUserId) enforces that one
+// The composite unique index on (token, recipientUserID) enforces that one
 // recipient can accept any given token at most once.
 type IncomingInvite struct {
 	ID              string `gorm:"primaryKey"                                       json:"id"`
 	Token           string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"token"`
 	InviteString    string `json:"inviteString"`
 	SenderFQDN      string `json:"senderFqdn"`
-	RecipientUserId string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"recipientUserId"`
+	RecipientUserID string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"recipientUserId"`
 	Status          string `json:"status"` // pending, accepted
 	ReceivedAt      int64  `json:"receivedAt"`
 	UpdatedAt       int64  `json:"updatedAt"`

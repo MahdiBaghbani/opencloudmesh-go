@@ -107,7 +107,7 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 	// Peer resolver returns "sender.example.com" (without :443).
 	// The keyId will contain :443 explicitly.
 	// Scheme-aware comparison must treat them as equivalent.
-	peerResolver := func(r *http.Request, body []byte) (string, error) {
+	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
 		return "sender.example.com", nil
 	}
 
@@ -221,7 +221,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 		},
 	}
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -330,7 +330,7 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 	cfg := defaultSigTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	mw := newTestSignatureMiddleware(cfg, adapter, "https://receiver.example.com", logger)
-	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := mw.VerifyOCMRequestIfPresent()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 

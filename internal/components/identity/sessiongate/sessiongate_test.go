@@ -276,7 +276,7 @@ func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 	r.Use(chimw.RequestID)
 	r.Use(httpmw.RequestLoggerMiddleware(logger, tp))
 	r.Use(NewAuthGate(AuthGateConfig{
-		RequireAuth: func(path string) bool {
+		RequireAuth: func(_ string) bool {
 			return false // all paths are public for this test
 		},
 		Log:         logger,
@@ -304,14 +304,14 @@ func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
 	})
 
 	r := chi.NewRouter()
 	r.Use(NewAuthGate(AuthGateConfig{
-		RequireAuth: func(path string) bool {
+		RequireAuth: func(_ string) bool {
 			return false // all paths are public
 		},
 		Log:         logger,
@@ -333,13 +333,13 @@ func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 func TestAuthGate_RedirectsUIRequestsToLogin(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
 	r := chi.NewRouter()
 	r.Use(NewAuthGate(AuthGateConfig{
-		RequireAuth: func(path string) bool {
+		RequireAuth: func(_ string) bool {
 			return true
 		},
 		Log:         logger,

@@ -12,6 +12,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
+// SeededUser describes a user to create during bootstrap.
 type SeededUser struct {
 	Username    string
 	Password    string
@@ -29,6 +30,7 @@ type Bootstrap struct {
 	log  *slog.Logger
 }
 
+// NewBootstrap returns a Bootstrap for the given repo, auth, and logger.
 func NewBootstrap(repo PartyRepo, auth *UserAuth, log *slog.Logger) *Bootstrap {
 	log = logutil.NoopIfNil(log)
 

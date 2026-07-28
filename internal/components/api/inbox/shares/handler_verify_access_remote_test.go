@@ -24,7 +24,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	fileContent := "E2E test file content"
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return &access.AccessResult{
 			Response: &http.Response{
 				StatusCode: http.StatusOK,
@@ -75,7 +75,7 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	share := createAcceptedShareForUser(repo, "prov-va-fail", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonDiscoveryFailed,
 			"failed to discover sender",
@@ -111,7 +111,7 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
 	share := createAcceptedShareForUser(repo, "prov-va-signature", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return nil, reason.NewClassifiedError(
 			reason.ReasonSignatureRequired,
 			"signature required",
@@ -143,7 +143,7 @@ func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T
 	share := createAcceptedShareForUser(repo, "prov-va-disabled", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return nil, reason.New(reason.PeerDiscoveryDisabled, "discovery disabled", nil)
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
@@ -172,7 +172,7 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	bigBody := strings.Repeat("x", 5000)
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return &access.AccessResult{
 			Response: &http.Response{
 				StatusCode: http.StatusOK,
@@ -214,7 +214,7 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 	share := createAcceptedShareForUser(repo, "prov-va-remote-err", "sender.example.com", "forbidden.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(ctx context.Context, opts access.AccessOptions) (*access.AccessResult, error) {
+	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
 		return &access.AccessResult{
 			Response: &http.Response{
 				StatusCode: http.StatusForbidden,

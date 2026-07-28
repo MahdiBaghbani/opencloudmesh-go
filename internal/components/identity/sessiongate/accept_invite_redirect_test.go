@@ -13,7 +13,7 @@ import (
 func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	protected := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -63,7 +63,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 func TestAuthGate_AcceptInviteRedirectPreservesQueryWithBasePath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	protected := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 

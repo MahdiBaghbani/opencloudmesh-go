@@ -8,7 +8,7 @@ import (
 )
 
 // CreateIncomingShare creates a new incoming share.
-func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingShare) error {
+func (d *Driver) CreateIncomingShare(_ context.Context, share *store.IncomingShare) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -16,21 +16,21 @@ func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingS
 		return store.ErrClosed
 	}
 
-	if _, exists := d.incomingShares[share.ShareId]; exists {
+	if _, exists := d.incomingShares[share.ShareID]; exists {
 		return store.ErrAlreadyExists
 	}
 
-	key := providerKey(share.SendingServer, share.ProviderId)
+	key := providerKey(share.SendingServer, share.ProviderID)
 	if _, exists := d.providerIndex[key]; exists {
 		return store.ErrAlreadyExists
 	}
 
-	d.incomingShares[share.ShareId] = cloneIncomingShare(share)
-	d.providerIndex[key] = share.ShareId
+	d.incomingShares[share.ShareID] = cloneIncomingShare(share)
+	d.providerIndex[key] = share.ShareID
 
 	if err := d.saveFile(fileIncomingShares, d.incomingShares); err != nil {
 		// Rollback: remove the in-memory entries so state stays consistent with disk.
-		delete(d.incomingShares, share.ShareId)
+		delete(d.incomingShares, share.ShareID)
 		delete(d.providerIndex, key)
 
 		return err
@@ -39,8 +39,8 @@ func (d *Driver) CreateIncomingShare(ctx context.Context, share *store.IncomingS
 	return nil
 }
 
-// GetIncomingShareByIDForRecipient retrieves an incoming share by shareId scoped to a recipient.
-func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareId string, recipientUserId string) (*store.IncomingShare, error) {
+// GetIncomingShareByIDForRecipient retrieves an incoming share by shareID scoped to a recipient.
+func (d *Driver) GetIncomingShareByIDForRecipient(_ context.Context, shareID string, recipientUserID string) (*store.IncomingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -48,16 +48,16 @@ func (d *Driver) GetIncomingShareByIDForRecipient(ctx context.Context, shareId s
 		return nil, store.ErrClosed
 	}
 
-	share, ok := d.incomingShares[shareId]
-	if !ok || share.UserId != recipientUserId {
+	share, ok := d.incomingShares[shareID]
+	if !ok || share.UserID != recipientUserID {
 		return nil, store.ErrNotFound
 	}
 
 	return cloneIncomingShare(share), nil
 }
 
-// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerId.
-func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerId string) (*store.IncomingShare, error) {
+// GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerID.
+func (d *Driver) GetIncomingShareByProviderKey(_ context.Context, sendingServer, providerID string) (*store.IncomingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -65,12 +65,12 @@ func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServe
 		return nil, store.ErrClosed
 	}
 
-	shareId, ok := d.providerIndex[providerKey(sendingServer, providerId)]
+	shareID, ok := d.providerIndex[providerKey(sendingServer, providerID)]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
 
-	share, ok := d.incomingShares[shareId]
+	share, ok := d.incomingShares[shareID]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
@@ -79,7 +79,7 @@ func (d *Driver) GetIncomingShareByProviderKey(ctx context.Context, sendingServe
 }
 
 // ListIncomingSharesByRecipient returns incoming shares for the given recipient user.
-func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUserId string) ([]*store.IncomingShare, error) {
+func (d *Driver) ListIncomingSharesByRecipient(_ context.Context, recipientUserID string) ([]*store.IncomingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -90,7 +90,7 @@ func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUse
 	shares := make([]*store.IncomingShare, 0)
 
 	for _, share := range d.incomingShares {
-		if share.UserId == recipientUserId {
+		if share.UserID == recipientUserID {
 			shares = append(shares, cloneIncomingShare(share))
 		}
 	}
@@ -99,7 +99,7 @@ func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUse
 }
 
 // UpdateIncomingShareStatusForRecipient updates the state of an incoming share, scoped to a recipient.
-func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareId string, recipientUserId string, state string) error {
+func (d *Driver) UpdateIncomingShareStatusForRecipient(_ context.Context, shareID string, recipientUserID string, state string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -107,8 +107,8 @@ func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shar
 		return store.ErrClosed
 	}
 
-	share, exists := d.incomingShares[shareId]
-	if !exists || share.UserId != recipientUserId {
+	share, exists := d.incomingShares[shareID]
+	if !exists || share.UserID != recipientUserID {
 		return store.ErrNotFound
 	}
 
@@ -129,7 +129,7 @@ func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shar
 }
 
 // DeleteIncomingShareForRecipient deletes an incoming share, scoped to a recipient.
-func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareId string, recipientUserId string) error {
+func (d *Driver) DeleteIncomingShareForRecipient(_ context.Context, shareID string, recipientUserID string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -137,19 +137,19 @@ func (d *Driver) DeleteIncomingShareForRecipient(ctx context.Context, shareId st
 		return store.ErrClosed
 	}
 
-	share, exists := d.incomingShares[shareId]
-	if !exists || share.UserId != recipientUserId {
+	share, exists := d.incomingShares[shareID]
+	if !exists || share.UserID != recipientUserID {
 		return store.ErrNotFound
 	}
 
-	key := providerKey(share.SendingServer, share.ProviderId)
+	key := providerKey(share.SendingServer, share.ProviderID)
 	delete(d.providerIndex, key)
-	delete(d.incomingShares, shareId)
+	delete(d.incomingShares, shareID)
 
 	if err := d.saveFile(fileIncomingShares, d.incomingShares); err != nil {
 		// Rollback: restore deleted entry and its provider index slot.
-		d.incomingShares[shareId] = share
-		d.providerIndex[key] = shareId
+		d.incomingShares[shareID] = share
+		d.providerIndex[key] = shareID
 
 		return err
 	}

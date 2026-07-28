@@ -22,22 +22,22 @@ type Driver struct {
 	closed  bool
 
 	// In-memory state loaded from JSON
-	outgoingShares  map[string]*store.OutgoingShare  // keyed by providerId
-	incomingShares  map[string]*store.IncomingShare  // keyed by shareId
+	outgoingShares  map[string]*store.OutgoingShare  // keyed by providerID
+	incomingShares  map[string]*store.IncomingShare  // keyed by shareID
 	outgoingInvites map[string]*store.OutgoingInvite // keyed by id
 	incomingInvites map[string]*store.IncomingInvite // keyed by id
 
 	// Secondary indexes for outgoing shares
-	webdavIndex  map[string]string // webdavId -> providerId
-	shareIdIndex map[string]string // shareId -> providerId
-	secretIndex  map[string]string // sharedSecret -> providerId
+	webdavIndex  map[string]string // webdavID -> providerID
+	shareIDIndex map[string]string // shareID -> providerID
+	secretIndex  map[string]string // sharedSecret -> providerID
 
 	// Secondary indexes for incoming shares
-	providerIndex map[string]string // "sendingServer:providerId" -> shareId
+	providerIndex map[string]string // "sendingServer:providerID" -> shareID
 
 	// Secondary indexes for invites
 	outgoingInviteTokenIndex     map[string]string // token -> outgoing invite id
-	incomingInviteTokenUserIndex map[string]string // "token\x00recipientUserId" -> incoming invite id
+	incomingInviteTokenUserIndex map[string]string // "token\x00recipientUserID" -> incoming invite id
 }
 
 // NewDriver creates a new JSON driver instance.
@@ -53,7 +53,7 @@ func NewDriver(cfg *store.DriverConfig) (store.Driver, error) {
 		outgoingInvites:              make(map[string]*store.OutgoingInvite),
 		incomingInvites:              make(map[string]*store.IncomingInvite),
 		webdavIndex:                  make(map[string]string),
-		shareIdIndex:                 make(map[string]string),
+		shareIDIndex:                 make(map[string]string),
 		secretIndex:                  make(map[string]string),
 		providerIndex:                make(map[string]string),
 		outgoingInviteTokenIndex:     make(map[string]string),
@@ -67,7 +67,7 @@ func (d *Driver) Name() string {
 }
 
 // Init loads data from JSON files.
-func (d *Driver) Init(ctx context.Context) error {
+func (d *Driver) Init(_ context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

@@ -102,7 +102,7 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 		t.Fatalf("first request: expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Second request with same providerId + sender: 200 (idempotent)
+	// Second request with same providerID + sender: 200 (idempotent)
 	req2 := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req2.Header.Set("Content-Type", "application/json")
 

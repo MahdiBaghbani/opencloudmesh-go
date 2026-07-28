@@ -84,7 +84,7 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	}
 
 	if stored.ShareID != share.ShareID {
-		t.Errorf("stored shareId mismatch")
+		t.Errorf("stored shareID mismatch")
 	}
 }
 

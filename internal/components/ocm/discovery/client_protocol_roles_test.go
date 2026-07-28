@@ -16,7 +16,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 	httpCfg := tshttp.PermissiveConfig()
 
 	t.Run("webdav-receive invalid uri kind", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 			raw := validDiscoveryPayload(serverURL, map[string]any{
 				"resourceTypes": []any{
 					map[string]any{
@@ -46,7 +46,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 	})
 
 	t.Run("webdav non-string type", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 			raw := validDiscoveryPayload(serverURL, map[string]any{
 				"resourceTypes": []any{
 					map[string]any{
@@ -76,7 +76,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 	})
 
 	t.Run("webdav-receive non-object", func(t *testing.T) {
-		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+		server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 			raw := validDiscoveryPayload(serverURL, map[string]any{
 				"resourceTypes": []any{
 					map[string]any{
@@ -118,7 +118,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 
 		for _, tc := range roles {
 			t.Run(tc.name, func(t *testing.T) {
-				server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, r *http.Request) {
+				server := newDiscoveryTestServer(t, func(serverURL string, w http.ResponseWriter, _ *http.Request) {
 					raw := validDiscoveryPayload(serverURL, map[string]any{
 						"resourceTypes": []any{
 							map[string]any{
