@@ -188,6 +188,82 @@ func TestSupportedResourceTypes(t *testing.T) {
 	}
 }
 
+func TestDiscovery_JwksUriPresent(t *testing.T) {
+	const jwksURI = "https://example.com/ocm/jwks"
+
+	disc := &spec.Discovery{
+		Enabled:       true,
+		APIVersion:    "1.4.0",
+		EndPoint:      "https://example.com/ocm",
+		ResourceTypes: []spec.ResourceType{},
+		Criteria:      []string{},
+		JwksUri:       jwksURI,
+	}
+
+	data, err := json.Marshal(disc)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal map: %v", err)
+	}
+
+	got, ok := parsed["jwksUri"]
+	if !ok {
+		t.Fatal("jwksUri key must be present in JSON")
+	}
+
+	if got != jwksURI {
+		t.Errorf("jwksUri = %v, want %q", got, jwksURI)
+	}
+
+	var roundTrip spec.Discovery
+	if err := json.Unmarshal(data, &roundTrip); err != nil {
+		t.Fatalf("failed to unmarshal Discovery: %v", err)
+	}
+
+	if roundTrip.JwksUri != jwksURI {
+		t.Errorf("JwksUri = %q, want %q", roundTrip.JwksUri, jwksURI)
+	}
+}
+
+func TestDiscovery_JwksUriOmittedWhenEmpty(t *testing.T) {
+	disc := &spec.Discovery{
+		Enabled:       true,
+		APIVersion:    "1.4.0",
+		EndPoint:      "https://example.com/ocm",
+		ResourceTypes: []spec.ResourceType{},
+		Criteria:      []string{},
+	}
+
+	data, err := json.Marshal(disc)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal map: %v", err)
+	}
+
+	if _, ok := parsed["jwksUri"]; ok {
+		t.Error("jwksUri key must be omitted when empty")
+	}
+
+	payload := `{"enabled":true,"apiVersion":"1.4.0","endPoint":"https://example.com/ocm","resourceTypes":[],"criteria":[]}`
+
+	var fromJSON spec.Discovery
+	if err := json.Unmarshal([]byte(payload), &fromJSON); err != nil {
+		t.Fatalf("failed to unmarshal Discovery: %v", err)
+	}
+
+	if fromJSON.JwksUri != "" {
+		t.Errorf("JwksUri = %q, want empty string", fromJSON.JwksUri)
+	}
+}
+
 func TestCriteriaAlwaysPresent(t *testing.T) {
 	disc := &spec.Discovery{
 		Enabled:    true,

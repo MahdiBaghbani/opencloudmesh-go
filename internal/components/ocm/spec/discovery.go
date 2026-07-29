@@ -25,6 +25,7 @@ type Discovery struct {
 	Capabilities       []string       `json:"capabilities,omitempty"`
 	Criteria           []string       `json:"criteria"`                     // Always present, serializes as [] when empty
 	TokenEndPoint      string         `json:"tokenEndPoint,omitempty"`      // Required when exchange-token capability is advertised
+	JwksUri            string         `json:"jwksUri,omitempty"`            //nolint:revive // wire field name matches OCM spec jwksUri
 	InviteAcceptDialog string         `json:"inviteAcceptDialog,omitempty"` // URL for the invite-accept dialog (WAYF)
 	Warnings           []string       `json:"-"`
 }
