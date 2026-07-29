@@ -158,6 +158,7 @@ key_path = %q
 			PublicKey: key.PublicKey,
 			JWKKty:    "OKP",
 			JWKCrv:    "Ed25519",
+			JWKAlg:    "Ed25519",
 		}, nil
 	})
 	if !verifyResult.Verified {

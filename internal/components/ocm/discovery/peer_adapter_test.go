@@ -155,17 +155,13 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
-	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
-	if err != nil {
-		t.Fatalf("ResolveVerificationKey: %v", err)
+	_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
+	if err == nil {
+		t.Fatal("ResolveVerificationKey: expected error for JWK missing alg, got nil")
 	}
 
-	if resolved.Algorithm != sigalg.ECDSAP256SHA256 {
-		t.Fatalf("Algorithm = %q, want %s", resolved.Algorithm, sigalg.ECDSAP256SHA256)
-	}
-
-	if _, ok := resolved.PublicKey.(*ecdsa.PublicKey); !ok {
-		t.Fatalf("PublicKey type %T", resolved.PublicKey)
+	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
+		t.Fatalf("ResolveVerificationKey error = %v, want ErrMissingAlgorithm", err)
 	}
 }
 

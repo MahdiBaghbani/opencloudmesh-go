@@ -121,6 +121,7 @@ label = "custom-label"
 			PublicKey: key.PublicKey,
 			JWKKty:    "OKP",
 			JWKCrv:    "Ed25519",
+			JWKAlg:    "Ed25519",
 		}, nil
 	})
 	if !result.Verified {

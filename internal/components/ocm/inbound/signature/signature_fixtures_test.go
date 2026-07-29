@@ -35,6 +35,7 @@ func resolvedKeyFromManager(km *crypto.KeyManager) sigalg.ResolvedPublicKey {
 		PublicKey: km.GetSigningKey().PublicKey,
 		JWKKty:    "OKP",
 		JWKCrv:    "Ed25519",
+		JWKAlg:    "Ed25519",
 	}
 }
 

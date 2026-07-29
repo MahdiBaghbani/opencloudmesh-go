@@ -50,12 +50,16 @@ type Set struct {
 }
 
 // Ed25519Key builds a JWKS key entry from an Ed25519 public key.
+// The produced JWK includes the required alg parameter per OCM signing
+// requirements: every JWK must carry kid and alg, and alg is authoritative.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L887
 func Ed25519Key(kid string, pub ed25519.PublicKey) Key {
 	return Key{
 		Kty: "OKP",
 		Crv: "Ed25519",
 		Kid: kid,
 		Use: "sig",
+		Alg: "Ed25519",
 		X:   encodeBase64URL(pub),
 	}
 }
@@ -131,6 +135,15 @@ func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 
 	key := matches[0]
 
+	// Validate the JWK alg before parsing key material. The JWK alg is the
+	// authority; missing, unsupported, or incompatible values must be
+	// rejected before the key is handed to the verifier.
+	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L914
+	alg, err := sigalg.DeriveFromJWK(key.Kty, key.Crv, key.Alg)
+	if err != nil {
+		return sigalg.ResolvedPublicKey{}, err
+	}
+
 	pub, err := sigalg.PublicKeyFromJWKFields(sigalg.JWKPublicKeyFields{
 		Kty: key.Kty,
 		Crv: key.Crv,
@@ -142,16 +155,6 @@ func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 	})
 	if err != nil {
 		return sigalg.ResolvedPublicKey{}, err
-	}
-
-	alg, err := sigalg.DeriveFromJWK(key.Kty, key.Crv, key.Alg)
-	if err != nil {
-		// RSA without alg: leave Algorithm empty; ResolveAlgorithm can use header.
-		if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
-			return sigalg.ResolvedPublicKey{}, err
-		}
-
-		alg = ""
 	}
 
 	return sigalg.ResolvedPublicKey{

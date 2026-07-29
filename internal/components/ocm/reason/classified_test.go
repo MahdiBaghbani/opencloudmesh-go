@@ -19,7 +19,6 @@ func TestClassifyError_SignatureBodiesAndKeyLookup(t *testing.T) {
 		{fmt.Errorf("verify: %w", sigalg.ErrVerifyFailed), ReasonSignatureInvalid},
 		{fmt.Errorf("sym: %w", sigalg.ErrSymmetricNotPermitted), ReasonSignatureInvalid},
 		{fmt.Errorf("mismatch: %w", sigalg.ErrAlgorithmMismatch), ReasonSignatureInvalid},
-		{fmt.Errorf("under: %w", sigalg.ErrAlgorithmUnderdetermined), ReasonSignatureInvalid},
 		{errors.New("signature verification failed"), ReasonSignatureInvalid},
 		{errors.New("content digest mismatch"), ReasonDigestMismatch},
 		{errors.New("digest mismatch"), ReasonDigestMismatch},

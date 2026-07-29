@@ -3,6 +3,7 @@ package crypto_test
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +37,7 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 
 		return sigalg.ResolvedPublicKey{
 			KeyID: keyID, Algorithm: sigalg.Ed25519,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	})
 	if result.Verified {
@@ -59,7 +60,12 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 
 	zeroSig := "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==:"
 
-	keyFetcher := httpsigEd25519KeyFetcher(km)
+	keyFetcher := func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
+		}, nil
+	}
 
 	now := time.Now().Unix()
 	validParams := fmt.Sprintf(
@@ -269,7 +275,12 @@ func TestVerifyRequest_AcceptsExplicitlyCoveredDate(t *testing.T) {
 	req.Header.Set("Signature-Input", sigInput)
 	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)))
 
-	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
+		}, nil
+	})
 	if !result.Verified {
 		t.Fatalf("expected verification success for explicitly covered date: %v", result.Error)
 	}
@@ -303,5 +314,39 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 
 	if fetches != 0 {
 		t.Fatalf("fetches=%d want 0 on malformed Signature", fetches)
+	}
+}
+
+func TestVerifyRequest_RejectsJWKHeaderAlgMismatch(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	now := time.Now().Unix()
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/test", nil)
+	req.Header.Set("Date", httpsigStandardDate)
+
+	emptyDigest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))
+	req.Header.Set("Content-Digest", "sha-256=:"+emptyDigest+":")
+	req.Header.Set("Content-Length", "0")
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
+		now,
+	))
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
+
+	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return sigalg.ResolvedPublicKey{
+			KeyID: keyID, Algorithm: sigalg.ECDSAP256SHA256,
+			JWKKty: "EC", JWKCrv: "P-256", JWKAlg: "ES256",
+		}, nil
+	})
+	if result.Verified {
+		t.Fatal("expected JWK/header alg mismatch rejection")
+	}
+
+	if result.Reason != crypto.ReasonAlgorithmRejected {
+		t.Fatalf("Reason = %q, want %q (err=%v)", result.Reason, crypto.ReasonAlgorithmRejected, result.Error)
+	}
+
+	if !errors.Is(result.Error, sigalg.ErrAlgorithmMismatch) {
+		t.Fatalf("error = %v, want ErrAlgorithmMismatch", result.Error)
 	}
 }

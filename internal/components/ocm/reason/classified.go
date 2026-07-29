@@ -102,7 +102,6 @@ func ClassifyError(err error) string {
 	case errors.Is(err, sigalg.ErrSymmetricNotPermitted),
 		errors.Is(err, sigalg.ErrAlgorithmNotAllowed),
 		errors.Is(err, sigalg.ErrAlgorithmMismatch),
-		errors.Is(err, sigalg.ErrAlgorithmUnderdetermined),
 		errors.Is(err, sigalg.ErrNotImplemented),
 		errors.Is(err, sigalg.ErrVerifyFailed),
 		errors.Is(err, sigalg.ErrInvalidSignatureEncoding),

@@ -95,6 +95,7 @@ func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serv
 				PublicKey: km.GetSigningKey().PublicKey,
 				JWKKty:    "OKP",
 				JWKCrv:    "Ed25519",
+				JWKAlg:    "Ed25519",
 			},
 		},
 	}

@@ -39,8 +39,6 @@ var (
 	ErrAlgorithmMismatch = errors.New("sigalg: algorithm sources disagree")
 	// ErrAlgorithmNotAllowed reports a disallowed signature algorithm.
 	ErrAlgorithmNotAllowed = errors.New("sigalg: algorithm is not allowed")
-	// ErrAlgorithmUnderdetermined reports an underdetermined signature algorithm.
-	ErrAlgorithmUnderdetermined = errors.New("sigalg: algorithm underdetermined")
 	// ErrVerifyFailed reports a failed signature verification.
 	ErrVerifyFailed = errors.New("sigalg: signature verification failed")
 	// ErrInvalidSignatureEncoding reports invalid signature encoding.
@@ -53,13 +51,17 @@ var (
 	ErrCurveMismatch = errors.New("sigalg: ecdsa curve mismatch")
 	// ErrNotImplemented reports an unimplemented signature algorithm.
 	ErrNotImplemented = errors.New("sigalg: algorithm not implemented")
+	// ErrUnsupportedJWKAlg reports a JWK alg that is not a JOSE-registry name.
+	// RFC 9421 native names such as ecdsa-p256-sha256 are not valid JWK alg
+	// values; the JWK alg MUST identify an algorithm in the IANA JSON Web
+	// Signature and Encryption Algorithms registry (RFC 7518).
+	ErrUnsupportedJWKAlg = errors.New("sigalg: unsupported JWK alg")
 )
 
 // ResolvedPublicKey is key material plus the RFC 9421 native algorithm derived
-// from JWKS (before optional Signature-Input alg agreement).
-//
-// Algorithm may be empty for RSA JWKs that omit alg; callers must run
-// ResolveAlgorithm with Signature-Input alg (when present) before verify.
+// from the JWK alg parameter. Algorithm is always populated for supported
+// JWKs; callers run ResolveAlgorithm to agree with an optional Signature-Input
+// alg parameter.
 type ResolvedPublicKey struct {
 	KeyID     string
 	Algorithm string
@@ -153,6 +155,48 @@ func Normalize(alg string) (string, error) {
 	}
 }
 
+// normalizeJWKAlg maps a JWK alg parameter to RFC 9421 native form, accepting
+// only JOSE-registry names. The JWK alg MUST identify an asymmetric signature
+// algorithm in the IANA "JSON Web Signature and Encryption Algorithms" registry
+// (RFC 7518); RFC 9421 native names are not valid JWK alg values and are
+// rejected as unsupported JWK alg. Ed25519 is the one identifier that is both
+// a JOSE-registry name and the RFC 9421 native form, so it is accepted and is
+// the recommended algorithm; all other RFC 9421 native names, such as
+// ecdsa-p256-sha256 and rsa-v1_5-sha256, remain rejected.
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L881
+func normalizeJWKAlg(jwkAlg string) (string, error) {
+	trimmed := strings.TrimSpace(jwkAlg)
+	if trimmed == "" {
+		return "", ErrMissingAlgorithm
+	}
+
+	switch strings.ToUpper(trimmed) {
+	case "ED25519", "EDDSA":
+		return Ed25519, nil
+	case "ES256":
+		return ECDSAP256SHA256, nil
+	case "ES384":
+		return ECDSAP384SHA384, nil
+	case "RS256":
+		return RSAPKCS1SHA256, nil
+	case "RS384":
+		return RSAPKCS1SHA384, nil
+	case "RS512":
+		return RSAPKCS1SHA512, nil
+	case "HS256", "HS384", "HS512":
+		return "", fmt.Errorf("%w: %s", ErrSymmetricNotPermitted, strings.ToLower(trimmed))
+	case "NONE":
+		return "", fmt.Errorf("%w: none", ErrAlgorithmNotAllowed)
+	default:
+		lower := strings.ToLower(trimmed)
+		if IsSymmetric(lower) {
+			return "", fmt.Errorf("%w: %s", ErrSymmetricNotPermitted, lower)
+		}
+
+		return "", fmt.Errorf("%w: %q", ErrUnsupportedJWKAlg, trimmed)
+	}
+}
+
 // DeriveFromJWK derives a native RFC 9421 algorithm from JWK fields.
 func DeriveFromJWK(kty, crv, jwkAlg string) (string, error) {
 	kty = strings.ToUpper(strings.TrimSpace(kty))
@@ -176,11 +220,11 @@ func deriveFromJWKOKP(crv, jwkAlg string) (string, error) {
 		return "", fmt.Errorf("sigalg: unsupported OKP curve %q", crv)
 	}
 
-	if jwkAlg == "" {
-		return Ed25519, nil
+	if strings.TrimSpace(jwkAlg) == "" {
+		return "", fmt.Errorf("%w: OKP/Ed25519 JWK requires alg", ErrMissingAlgorithm)
 	}
 
-	native, err := Normalize(jwkAlg)
+	native, err := normalizeJWKAlg(jwkAlg)
 	if err != nil {
 		return "", err
 	}
@@ -198,11 +242,11 @@ func deriveFromJWKEC(crv, jwkAlg string) (string, error) {
 		return "", err
 	}
 
-	if jwkAlg == "" {
-		return fromCrv, nil
+	if strings.TrimSpace(jwkAlg) == "" {
+		return "", fmt.Errorf("%w: EC JWK requires alg", ErrMissingAlgorithm)
 	}
 
-	native, err := Normalize(jwkAlg)
+	native, err := normalizeJWKAlg(jwkAlg)
 	if err != nil {
 		return "", err
 	}
@@ -215,11 +259,11 @@ func deriveFromJWKEC(crv, jwkAlg string) (string, error) {
 }
 
 func deriveFromJWKRSA(jwkAlg string) (string, error) {
-	if jwkAlg == "" {
-		return "", fmt.Errorf("%w: RSA JWK requires alg", ErrAlgorithmUnderdetermined)
+	if strings.TrimSpace(jwkAlg) == "" {
+		return "", fmt.Errorf("%w: RSA JWK requires alg", ErrMissingAlgorithm)
 	}
 
-	native, err := Normalize(jwkAlg)
+	native, err := normalizeJWKAlg(jwkAlg)
 	if err != nil {
 		return "", err
 	}
@@ -228,7 +272,7 @@ func deriveFromJWKRSA(jwkAlg string) (string, error) {
 	case RSAPKCS1SHA256, RSAPKCS1SHA384, RSAPKCS1SHA512:
 		return native, nil
 	default:
-		return "", fmt.Errorf("sigalg: unsupported RSA algorithm %q", jwkAlg)
+		return "", fmt.Errorf("%w: JWK alg %q incompatible with RSA", ErrAlgorithmMismatch, jwkAlg)
 	}
 }
 
@@ -245,26 +289,13 @@ func ecParamsFromCrv(crv string) (elliptic.Curve, ecdh.Curve, string, int, error
 	}
 }
 
-// ResolveAlgorithm applies RFC 9421 section 3.2 steps 6.3-6.5: derive from key, then
-// optionally agree with Signature-Input alg.
+// ResolveAlgorithm applies RFC 9421 section 3.2: the algorithm is determined
+// from the JWK identified by the keyid signature parameter. If the optional
+// Signature-Input alg parameter is present, it must denote the same algorithm.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L914
 func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 	derived, err := DeriveFromJWK(kty, crv, jwkAlg)
 	if err != nil {
-		// RSA without JWK alg can still be resolved from header alg alone.
-		if errors.Is(err, ErrAlgorithmUnderdetermined) && strings.TrimSpace(headerAlg) != "" {
-			native, nerr := Normalize(headerAlg)
-			if nerr != nil {
-				return "", nerr
-			}
-
-			switch native {
-			case RSAPKCS1SHA256, RSAPKCS1SHA384, RSAPKCS1SHA512:
-				return native, nil
-			default:
-				return "", fmt.Errorf("%w: header alg %q cannot resolve RSA key", ErrAlgorithmUnderdetermined, headerAlg)
-			}
-		}
-
 		return "", err
 	}
 
@@ -279,7 +310,7 @@ func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 	}
 
 	if headerNative != derived {
-		return "", fmt.Errorf("%w: Signature-Input alg %q vs JWK-derived %q", ErrAlgorithmMismatch, headerNative, derived)
+		return "", fmt.Errorf("%w: Signature-Input alg %q vs JWK-derived alg %q", ErrAlgorithmMismatch, headerNative, derived)
 	}
 
 	return derived, nil

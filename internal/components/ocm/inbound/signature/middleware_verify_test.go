@@ -274,7 +274,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 	}
 }
 
-// ECDSA P-256 with Signature-Input alg omitted, resolved via live JWKS.
+// ECDSA P-256 JWKS omitting alg is rejected with a 502 lookup failure.
 func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testing.T) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -384,8 +384,12 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for JWKS->peer->middleware omit-alg ECDSA chain, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 for JWKS omit-alg ECDSA chain, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if got := strings.TrimSpace(w.Body.String()); got != "signature key lookup failed" {
+		t.Fatalf("body = %q, want signature key lookup failed", got)
 	}
 }
 func TestSignatureMiddleware_IfPresent_StrictMode_AcceptsSigned(t *testing.T) {

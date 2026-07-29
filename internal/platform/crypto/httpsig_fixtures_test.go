@@ -45,7 +45,7 @@ func httpsigEd25519KeyFetcher(km *crypto.KeyManager) func(string) (sigalg.Resolv
 	return func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
 			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
-			JWKKty: "OKP", JWKCrv: "Ed25519",
+			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	}
 }

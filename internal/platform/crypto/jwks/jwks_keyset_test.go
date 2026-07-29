@@ -128,16 +128,16 @@ func TestFind_ECP256AndRSA(t *testing.T) {
 
 	n := base64.RawURLEncoding.EncodeToString(rsaPriv.N.Bytes())
 	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(rsaPriv.E)).Bytes())
-	rsaNoAlg := jwks.Set{Keys: []jwks.Key{{
-		Kty: "RSA", Kid: "example.com#rsa1", Use: "sig", N: n, E: e,
+	rsaSet := jwks.Set{Keys: []jwks.Key{{
+		Kty: "RSA", Kid: "example.com#rsa1", Use: "sig", Alg: "RS256", N: n, E: e,
 	}}}
 
-	got, err = rsaNoAlg.Find("example.com#rsa1")
+	got, err = rsaSet.Find("example.com#rsa1")
 	if err != nil {
 		t.Fatalf("RSA Find: %v", err)
 	}
 
-	if got.Algorithm != "" {
-		t.Fatalf("RSA without alg Algorithm = %q, want empty", got.Algorithm)
+	if got.Algorithm != sigalg.RSAPKCS1SHA256 {
+		t.Fatalf("RSA Algorithm = %q, want %q", got.Algorithm, sigalg.RSAPKCS1SHA256)
 	}
 }

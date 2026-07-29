@@ -67,7 +67,7 @@ func TestNormalize_JOSENames(t *testing.T) {
 }
 
 func TestDeriveFromJWK(t *testing.T) {
-	got, err := sigalg.DeriveFromJWK("OKP", "Ed25519", "")
+	got, err := sigalg.DeriveFromJWK("OKP", "Ed25519", "Ed25519")
 	if err != nil || got != sigalg.Ed25519 {
 		t.Fatalf("OKP: got %q err %v", got, err)
 	}
@@ -77,19 +77,29 @@ func TestDeriveFromJWK(t *testing.T) {
 		t.Fatalf("EC P-256: got %q err %v", got, err)
 	}
 
-	got, err = sigalg.DeriveFromJWK("EC", "P-384", "")
+	got, err = sigalg.DeriveFromJWK("EC", "P-384", "ES384")
 	if err != nil || got != sigalg.ECDSAP384SHA384 {
 		t.Fatalf("EC P-384: got %q err %v", got, err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("RSA", "", "")
-	if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
-		t.Fatalf("RSA without alg: got %v", err)
 	}
 
 	got, err = sigalg.DeriveFromJWK("RSA", "", "RS256")
 	if err != nil || got != sigalg.RSAPKCS1SHA256 {
 		t.Fatalf("RSA RS256: got %q err %v", got, err)
+	}
+
+	_, err = sigalg.DeriveFromJWK("OKP", "Ed25519", "")
+	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
+		t.Fatalf("OKP without alg: got %v, want ErrMissingAlgorithm", err)
+	}
+
+	_, err = sigalg.DeriveFromJWK("EC", "P-256", "")
+	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
+		t.Fatalf("EC without alg: got %v, want ErrMissingAlgorithm", err)
+	}
+
+	_, err = sigalg.DeriveFromJWK("RSA", "", "")
+	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
+		t.Fatalf("RSA without alg: got %v, want ErrMissingAlgorithm", err)
 	}
 
 	_, err = sigalg.DeriveFromJWK("OKP", "Ed25519", "ES256")
@@ -105,6 +115,16 @@ func TestDeriveFromJWK(t *testing.T) {
 	_, err = sigalg.DeriveFromJWK("EC", "P-384", "ES256")
 	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
 		t.Fatalf("EC P-384 + ES256: got %v, want ErrAlgorithmMismatch", err)
+	}
+
+	_, err = sigalg.DeriveFromJWK("EC", "P-256", "Ed25519")
+	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
+		t.Fatalf("EC + Ed25519: got %v, want ErrAlgorithmMismatch", err)
+	}
+
+	_, err = sigalg.DeriveFromJWK("RSA", "", "ES256")
+	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
+		t.Fatalf("RSA + ES256: got %v, want ErrAlgorithmMismatch", err)
 	}
 }
 
@@ -124,19 +144,19 @@ func TestResolveAlgorithm_HeaderOptionalAndAgreement(t *testing.T) {
 		t.Fatalf("disagree: got %v", err)
 	}
 
-	got, err = sigalg.ResolveAlgorithm("RS256", "RSA", "", "")
+	got, err = sigalg.ResolveAlgorithm("rsa-v1_5-sha256", "RSA", "", "RS256")
 	if err != nil || got != sigalg.RSAPKCS1SHA256 {
-		t.Fatalf("RSA from header: got %q err %v", got, err)
+		t.Fatalf("RSA agree: got %q err %v", got, err)
 	}
 
-	_, err = sigalg.ResolveAlgorithm("", "RSA", "", "")
-	if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
-		t.Fatalf("RSA omit both: got %v", err)
+	_, err = sigalg.ResolveAlgorithm("RS256", "RSA", "", "")
+	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
+		t.Fatalf("RSA from header without JWK alg: got %v, want ErrMissingAlgorithm", err)
 	}
 
-	_, err = sigalg.ResolveAlgorithm("ed25519", "RSA", "", "")
-	if !errors.Is(err, sigalg.ErrAlgorithmUnderdetermined) {
-		t.Fatalf("RSA bad header: got %v", err)
+	_, err = sigalg.ResolveAlgorithm("ed25519", "RSA", "", "RS256")
+	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
+		t.Fatalf("RSA header mismatch: got %v, want ErrAlgorithmMismatch", err)
 	}
 }
 
@@ -339,6 +359,94 @@ func TestNormalize_RejectsJOSESymmetric(t *testing.T) {
 		if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
 			t.Fatalf("Normalize(%q) = %v, want ErrSymmetricNotPermitted", in, err)
 		}
+	}
+}
+
+func TestDeriveFromJWK_RejectsNoneAndSymmetric(t *testing.T) {
+	_, err := sigalg.DeriveFromJWK("OKP", "Ed25519", "none")
+	if !errors.Is(err, sigalg.ErrAlgorithmNotAllowed) {
+		t.Fatalf("OKP none: got %v, want ErrAlgorithmNotAllowed", err)
+	}
+
+	_, err = sigalg.DeriveFromJWK("OKP", "Ed25519", "HS256")
+	if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
+		t.Fatalf("OKP HS256: got %v, want ErrSymmetricNotPermitted", err)
+	}
+
+	_, err = sigalg.DeriveFromJWK("EC", "P-256", "HS256")
+	if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
+		t.Fatalf("EC HS256: got %v, want ErrSymmetricNotPermitted", err)
+	}
+
+	_, err = sigalg.DeriveFromJWK("RSA", "", "HS256")
+	if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
+		t.Fatalf("RSA HS256: got %v, want ErrSymmetricNotPermitted", err)
+	}
+}
+
+// TestDeriveFromJWK_RejectsRFC9421NativeAlgNames asserts the JWK alg
+// parameter MUST be a JOSE-registry name (RFC 7518). RFC 9421 native names
+// such as ecdsa-p256-sha256 and rsa-v1_5-sha256 are not valid JWK alg values
+// and must be rejected as unsupported JWK alg.
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L879
+func TestDeriveFromJWK_RejectsRFC9421NativeAlgNames(t *testing.T) {
+	nativeNames := []struct {
+		kty    string
+		crv    string
+		jwkAlg string
+	}{
+		{"OKP", "Ed25519", "ecdsa-p256-sha256"},
+		{"EC", "P-256", "ecdsa-p256-sha256"},
+		{"EC", "P-384", "ecdsa-p384-sha384"},
+		{"RSA", "", "rsa-v1_5-sha256"},
+		{"RSA", "", "rsa-v1_5-sha384"},
+		{"RSA", "", "rsa-v1_5-sha512"},
+		{"EC", "P-256", "RSA-V1_5-SHA256"},
+		{"RSA", "", "ECDSA-P256-SHA256"},
+	}
+	for _, tc := range nativeNames {
+		_, err := sigalg.DeriveFromJWK(tc.kty, tc.crv, tc.jwkAlg)
+		if !errors.Is(err, sigalg.ErrUnsupportedJWKAlg) {
+			t.Fatalf("DeriveFromJWK(%q,%q,%q): got %v, want ErrUnsupportedJWKAlg", tc.kty, tc.crv, tc.jwkAlg, err)
+		}
+	}
+}
+
+// TestDeriveFromJWK_AcceptsJOSENamesCaseInsensitive asserts the JWK alg
+// parameter accepts JOSE-registry names case-insensitively for each kty/crv
+// combination supported by the existing key-type compatibility logic.
+func TestDeriveFromJWK_AcceptsJOSENamesCaseInsensitive(t *testing.T) {
+	cases := []struct {
+		name    string
+		kty     string
+		crv     string
+		jwkAlg  string
+		wantAlg string
+	}{
+		{"okp-ed25519-lower", "OKP", "Ed25519", "ed25519", sigalg.Ed25519},
+		{"okp-ed25519-mixed", "OKP", "Ed25519", "Ed25519", sigalg.Ed25519},
+		{"okp-eddsa-upper", "OKP", "Ed25519", "EDDSA", sigalg.Ed25519},
+		{"okp-eddsa-mixed", "OKP", "Ed25519", "EdDsa", sigalg.Ed25519},
+		{"ec-p256-es256-lower", "EC", "P-256", "es256", sigalg.ECDSAP256SHA256},
+		{"ec-p256-es256-mixed", "EC", "P-256", "Es256", sigalg.ECDSAP256SHA256},
+		{"ec-p384-es384-lower", "EC", "P-384", "es384", sigalg.ECDSAP384SHA384},
+		{"ec-p384-es384-upper", "EC", "P-384", "ES384", sigalg.ECDSAP384SHA384},
+		{"rsa-rs256-lower", "RSA", "", "rs256", sigalg.RSAPKCS1SHA256},
+		{"rsa-rs256-mixed", "RSA", "", "Rs256", sigalg.RSAPKCS1SHA256},
+		{"rsa-rs384-upper", "RSA", "", "RS384", sigalg.RSAPKCS1SHA384},
+		{"rsa-rs512-upper", "RSA", "", "RS512", sigalg.RSAPKCS1SHA512},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := sigalg.DeriveFromJWK(tc.kty, tc.crv, tc.jwkAlg)
+			if err != nil {
+				t.Fatalf("DeriveFromJWK(%q,%q,%q): unexpected error %v", tc.kty, tc.crv, tc.jwkAlg, err)
+			}
+
+			if got != tc.wantAlg {
+				t.Fatalf("DeriveFromJWK(%q,%q,%q)=%q, want %q", tc.kty, tc.crv, tc.jwkAlg, got, tc.wantAlg)
+			}
+		})
 	}
 }
 
