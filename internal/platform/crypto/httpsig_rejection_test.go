@@ -95,6 +95,13 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 			wantErrSubstr:  "missing created",
 		},
 		{
+			name:           "missing keyid parameter",
+			signatureInput: fmt.Sprintf(`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;alg="ed25519";tag="ocm"`, now),
+			signature:      zeroSig,
+			fetcher:        keyFetcher,
+			wantErrSubstr:  "missing keyid",
+		},
+		{
 			name:           "missing minimum component",
 			signatureInput: fmt.Sprintf(`ocm=("@method");created=%d;keyid=%q;alg="ed25519";tag="ocm"`, now, km.GetKeyID()),
 			signature:      zeroSig,
@@ -130,6 +137,39 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 				t.Errorf("error = %q, want substring %q", result.Error.Error(), tt.wantErrSubstr)
 			}
 		})
+	}
+}
+
+func TestVerifyRequest_RejectsMissingKeyIDBeforeFetch(t *testing.T) {
+	verifier := crypto.NewRFC9421Verifier()
+	fetches := 0
+	now := time.Now().Unix()
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req.Header.Set("Date", httpsigStandardDate)
+	req.Header.Set("Signature-Input", fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;alg="ed25519";tag="ocm"`,
+		now,
+	))
+	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
+
+	result := verifier.VerifyRequest(req, nil, func(_ string) (sigalg.ResolvedPublicKey, error) {
+		fetches++
+		return sigalg.ResolvedPublicKey{}, nil
+	})
+	if result.Verified {
+		t.Fatal("expected missing keyid rejection")
+	}
+
+	if result.Reason != crypto.ReasonMissingKeyID {
+		t.Fatalf("Reason=%q want missing_keyid (err=%v)", result.Reason, result.Error)
+	}
+
+	if result.Error == nil || !strings.Contains(result.Error.Error(), "keyid") {
+		t.Fatalf("error = %v, want keyid mention", result.Error)
+	}
+
+	if fetches != 0 {
+		t.Fatalf("fetches=%d want 0: missing keyid must fail before key resolution", fetches)
 	}
 }
 

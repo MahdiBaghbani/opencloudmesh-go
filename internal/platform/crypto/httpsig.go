@@ -261,6 +261,7 @@ func NewRFC9421VerifierWithOptions(opts RFC9421Options) *RFC9421Verifier {
 const (
 	ReasonMalformed         = "malformed"
 	ReasonMissingCreated    = "missing_created"
+	ReasonMissingKeyID      = "missing_keyid"
 	ReasonFutureCreated     = "future_created"
 	ReasonStaleCreated      = "stale_created"
 	ReasonMissingComponent  = "missing_component"
@@ -380,6 +381,13 @@ func parseSignatureParams(sigInputHeader, sigHeader, label string) (sigparams.Pa
 
 	if params.Created == 0 {
 		return params, nil, &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingCreated, Error: fmt.Errorf("missing created parameter")}, true
+	}
+
+	// The keyid parameter is mandatory and selects the verification key, so a
+	// missing keyid fails here, before any JWKS resolution or network access.
+	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L842-L848
+	if params.KeyID == "" {
+		return params, nil, &VerificationResult{Verified: false, Reason: ReasonMissingKeyID, Error: fmt.Errorf("missing keyid parameter")}, true
 	}
 
 	return params, sig, nil, false

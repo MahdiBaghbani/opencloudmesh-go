@@ -89,13 +89,28 @@ var ErrNilHTTPClient = errors.New("jwks: nil HTTP client")
 var ErrResponseTooLarge = errors.New("jwks: response too large")
 
 // Find resolves a public key by JWKS kid into a ResolvedPublicKey.
-// Duplicate kid matches are rejected. Keys with use set to a value other
-// than "sig" are ignored for verification lookup.
+//
+// Find is a compatibility wrapper around ResolveExactKeyID: the OCM contract
+// requires the keyid signature parameter to equal the JWK kid, so lookup is
+// exact.
 func (s Set) Find(kid string) (sigalg.ResolvedPublicKey, error) {
+	return s.ResolveExactKeyID(kid)
+}
+
+// ResolveExactKeyID resolves a public key by exact keyID equality against
+// each JWK kid in the set, per the OCM requirement that the keyid signature
+// parameter equal the corresponding JWK kid. A keyID that is not byte-for-byte
+// equal to a set kid is rejected with ErrKeyNotFound; no normalization or
+// fuzzy matching is applied. Duplicate exact-kid matches are rejected. Keys
+// with use set to a value other than "sig" are ignored for verification
+// lookup.
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L846-L848
+// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L928-L933
+func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 	var matches []Key
 
 	for _, key := range s.Keys {
-		if !keyid.KidMatches(kid, key.Kid) {
+		if !keyid.KidEqualsExact(keyID, key.Kid) {
 			continue
 		}
 
@@ -107,11 +122,11 @@ func (s Set) Find(kid string) (sigalg.ResolvedPublicKey, error) {
 	}
 
 	if len(matches) == 0 {
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: key %q not found: %w", kid, ErrKeyNotFound)
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: key %q not found: %w", keyID, ErrKeyNotFound)
 	}
 
 	if len(matches) > 1 {
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: ambiguous kid %q (%d matches): %w", kid, len(matches), ErrAmbiguousKid)
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: ambiguous kid %q (%d matches): %w", keyID, len(matches), ErrAmbiguousKid)
 	}
 
 	key := matches[0]
@@ -320,8 +335,9 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 }
 
 // ResolveURL fetches the JWKS at the explicit advertised URL and returns the
-// key matching kid. Fetches go through the resolver's bounded cache with the
-// configured TTL, min-refetch interval, and negative-cache behavior.
+// key whose kid exactly equals the keyID signature parameter. Fetches go
+// through the resolver's bounded cache with the configured TTL, min-refetch
+// interval, and negative-cache behavior.
 func (r *Resolver) ResolveURL(
 	ctx context.Context,
 	jwksURL, kid string,
@@ -335,7 +351,7 @@ func (r *Resolver) ResolveURL(
 		return sigalg.ResolvedPublicKey{}, err
 	}
 
-	pub, err := set.Find(kid)
+	pub, err := set.ResolveExactKeyID(kid)
 	if err == nil {
 		return pub, nil
 	}
@@ -351,7 +367,7 @@ func (r *Resolver) ResolveURL(
 		return sigalg.ResolvedPublicKey{}, refreshErr
 	}
 
-	pub, err = set.Find(kid)
+	pub, err = set.ResolveExactKeyID(kid)
 	if errors.Is(err, ErrKeyNotFound) && fresh {
 		r.rememberNegative(jwksURL, kid)
 	}

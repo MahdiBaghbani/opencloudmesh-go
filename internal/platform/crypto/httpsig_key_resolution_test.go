@@ -3,10 +3,12 @@ package crypto_test
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
@@ -120,6 +123,157 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 	})
 	if !result.Verified {
 		t.Fatalf("expected omit-alg ECDSA verify OK, got %v", result.Error)
+	}
+}
+
+func TestResolveExactKeyID_ExactMatchResolvesKey(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	set := km.JWKS()
+
+	got, err := set.ResolveExactKeyID(km.GetKeyID())
+	if err != nil {
+		t.Fatalf("ResolveExactKeyID: %v", err)
+	}
+
+	if got.KeyID != km.GetKeyID() {
+		t.Fatalf("KeyID = %q, want %q", got.KeyID, km.GetKeyID())
+	}
+
+	if got.Algorithm != sigalg.Ed25519 {
+		t.Fatalf("Algorithm = %q, want %q", got.Algorithm, sigalg.Ed25519)
+	}
+
+	pub, ok := got.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		t.Fatalf("PublicKey type %T, want ed25519.PublicKey", got.PublicKey)
+	}
+
+	if !pub.Equal(km.GetSigningKey().PublicKey) {
+		t.Fatal("resolved public key mismatch")
+	}
+}
+
+func TestResolveExactKeyID_RejectsNonExactKeyID(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	set := km.JWKS() // sole kid: example.com#key1
+
+	nonExact := []struct {
+		name  string
+		keyID string
+	}{
+		{"default-port authority variant", "example.com:443#key1"},
+		{"case variant", "Example.com#key1"},
+		{"absolute URI form", "https://example.com#key1"},
+		{"fragment prefix", "example.com#key"},
+		{"fragment suffix", "example.com#key10"},
+		{"different authority", "other.example#key1"},
+		{"empty keyid", ""},
+	}
+
+	for _, tt := range nonExact {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := set.ResolveExactKeyID(tt.keyID)
+			if !errors.Is(err, jwks.ErrKeyNotFound) {
+				t.Fatalf("ResolveExactKeyID(%q) error = %v, want ErrKeyNotFound", tt.keyID, err)
+			}
+		})
+	}
+}
+
+func TestResolveExactKeyID_RejectsAmbiguousExactKid(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	key := jwks.Ed25519Key(km.GetKeyID(), km.GetSigningKey().PublicKey)
+	set := jwks.Set{Keys: []jwks.Key{key, key}}
+
+	_, err := set.ResolveExactKeyID(km.GetKeyID())
+	if !errors.Is(err, jwks.ErrAmbiguousKid) {
+		t.Fatalf("ResolveExactKeyID error = %v, want ErrAmbiguousKid", err)
+	}
+}
+
+func TestKidMatches_RemainsLenientCompatFacade(t *testing.T) {
+	// The compatibility facade still canonicalizes authorities, while the
+	// verifier's exact resolver requires byte-for-byte equality.
+	if !keyid.KidMatches("example.com:443#key1", "example.com#key1") {
+		t.Fatal("KidMatches facade must keep canonicalized matching")
+	}
+
+	if keyid.KidEqualsExact("example.com:443#key1", "example.com#key1") {
+		t.Fatal("KidEqualsExact must reject non-equal authority forms")
+	}
+
+	if !keyid.KidEqualsExact("example.com#key1", "example.com#key1") {
+		t.Fatal("KidEqualsExact must accept identical strings")
+	}
+}
+
+func TestVerifyRequest_ExactKeyIDResolutionEndToEnd(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := httpsigTestBodyJSON
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/json")
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
+
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return km.JWKS().ResolveExactKeyID(keyID)
+	})
+	if !result.Verified {
+		t.Fatalf("expected exact keyid resolution to verify: %v", result.Error)
+	}
+
+	if result.KeyID != km.GetKeyID() {
+		t.Fatalf("KeyID = %q, want %q", result.KeyID, km.GetKeyID())
+	}
+}
+
+func TestVerifyRequest_RejectsKeyIDWithoutExactKid(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := httpsigTestBodyJSON
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/json")
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
+
+	// The peer JWKS holds the same key material under a canonically
+	// equivalent but not byte-equal kid; exact matching must miss it.
+	peerSet := jwks.SetFromEd25519PublicKey("example.com:443#key1", km.GetSigningKey().PublicKey)
+
+	result := verifier.VerifyRequest(req, body, peerSet.ResolveExactKeyID)
+	if result.Verified {
+		t.Fatal("expected rejection when no JWKS kid exactly equals keyid")
+	}
+
+	if result.Reason != crypto.ReasonKeyNotFound {
+		t.Fatalf("Reason = %q, want %q (err=%v)", result.Reason, crypto.ReasonKeyNotFound, result.Error)
+	}
+
+	if !errors.Is(result.Error, jwks.ErrKeyNotFound) {
+		t.Fatalf("error = %v, want wrapped ErrKeyNotFound", result.Error)
 	}
 }
 

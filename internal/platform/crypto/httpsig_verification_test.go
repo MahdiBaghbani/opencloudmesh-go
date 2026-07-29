@@ -2,8 +2,10 @@ package crypto_test
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -72,6 +74,53 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 
 	if result.Verified {
 		t.Error("verification should fail with wrong key")
+	}
+}
+
+func TestRFC9421_VerifyTamperedKeyIDRejected(t *testing.T) {
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
+	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := []byte(`{"test": "data"}`)
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/json")
+
+	if err := signer.SignRequest(req, body); err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
+
+	// An in-transit keyid swap resolves nothing: no set kid equals the
+	// tampered keyid, so verification fails at key resolution with the
+	// distinct key_not_found reason rather than a generic error.
+	tampered := strings.Replace(
+		req.Header.Get("Signature-Input"),
+		fmt.Sprintf(`keyid=%q`, km.GetKeyID()),
+		`keyid="example.com#key2"`,
+		1,
+	)
+	if tampered == req.Header.Get("Signature-Input") {
+		t.Fatal("keyid replacement did not apply")
+	}
+
+	req.Header.Set("Signature-Input", tampered)
+
+	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
+		return km.JWKS().ResolveExactKeyID(keyID)
+	})
+	if result.Verified {
+		t.Fatal("expected tampered keyid rejection")
+	}
+
+	if result.Reason != crypto.ReasonKeyNotFound {
+		t.Fatalf("Reason = %q, want %q (err=%v)", result.Reason, crypto.ReasonKeyNotFound, result.Error)
 	}
 }
 

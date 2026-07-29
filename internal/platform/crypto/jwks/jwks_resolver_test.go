@@ -76,7 +76,9 @@ func TestResolver_ResolveURL_HonorsExplicitURL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := resolver.ResolveURL(context.Background(), "https://example.com:443/jwks", "example.com:443#key1")
+	// OCM key ID lookup is exact (keyid == kid), so the lookup key ID
+	// must equal the set kid byte-for-byte.
+	got, err := resolver.ResolveURL(context.Background(), "https://example.com:443/jwks", "example.com#key1")
 	if err != nil {
 		t.Fatalf("ResolveURL: %v", err)
 	}
