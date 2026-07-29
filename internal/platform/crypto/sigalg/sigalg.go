@@ -119,7 +119,10 @@ func IsSymmetric(alg string) bool {
 	return ok
 }
 
-// Normalize maps JOSE or native algorithm identifiers to RFC 9421 native form.
+// Normalize maps JOSE or native algorithm identifiers to RFC 9421 native
+// form. It serves non-header paths (signing, verification, and the configured
+// allow-list) that historically accept JOSE aliases; the Signature-Input alg
+// parameter must go through NormalizeSignatureInputAlgorithm instead.
 func Normalize(alg string) (string, error) {
 	trimmed := strings.TrimSpace(alg)
 	if trimmed == "" {
@@ -152,6 +155,41 @@ func Normalize(alg string) (string, error) {
 		}
 
 		return "", fmt.Errorf("sigalg: unsupported signature algorithm %q", trimmed)
+	}
+}
+
+// NormalizeSignatureInputAlgorithm maps the optional Signature-Input alg
+// parameter to RFC 9421 native form, accepting only names from the IANA
+// "HTTP Signature Algorithms" registry (RFC 9421 native names) that have a
+// verify implementation. The Signature-Input alg takes values from a
+// different registry than the JWK alg: JOSE-only names such as EdDSA, ES256,
+// and RS256 are rejected here, while ed25519 is both a JOSE-registry name and
+// the RFC 9421 native form, so it is accepted.
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L903-L913
+func NormalizeSignatureInputAlgorithm(alg string) (string, error) {
+	trimmed := strings.TrimSpace(alg)
+	if trimmed == "" {
+		return "", ErrMissingAlgorithm
+	}
+
+	lower := strings.ToLower(trimmed)
+	if _, ok := implemented[lower]; ok {
+		return lower, nil
+	}
+
+	if strings.EqualFold(trimmed, "none") {
+		return "", fmt.Errorf("%w: none", ErrAlgorithmNotAllowed)
+	}
+
+	if IsSymmetric(lower) {
+		return "", fmt.Errorf("%w: %s", ErrSymmetricNotPermitted, lower)
+	}
+
+	switch strings.ToUpper(trimmed) {
+	case "EDDSA", "ES256", "ES384", "RS256", "RS384", "RS512":
+		return "", fmt.Errorf("sigalg: JOSE name %q is not an HTTP Signature Algorithms registry name", trimmed)
+	default:
+		return "", fmt.Errorf("sigalg: unsupported Signature-Input algorithm %q", trimmed)
 	}
 }
 
@@ -291,7 +329,9 @@ func ecParamsFromCrv(crv string) (elliptic.Curve, ecdh.Curve, string, int, error
 
 // ResolveAlgorithm applies RFC 9421 section 3.2: the algorithm is determined
 // from the JWK identified by the keyid signature parameter. If the optional
-// Signature-Input alg parameter is present, it must denote the same algorithm.
+// Signature-Input alg parameter is present, it must be an IANA "HTTP
+// Signature Algorithms" registry name denoting the same algorithm; JOSE names
+// valid in the JWK alg are not valid in the Signature-Input alg.
 // See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L914
 func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 	derived, err := DeriveFromJWK(kty, crv, jwkAlg)
@@ -304,7 +344,7 @@ func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 		return derived, nil
 	}
 
-	headerNative, err := Normalize(headerAlg)
+	headerNative, err := NormalizeSignatureInputAlgorithm(headerAlg)
 	if err != nil {
 		return "", err
 	}

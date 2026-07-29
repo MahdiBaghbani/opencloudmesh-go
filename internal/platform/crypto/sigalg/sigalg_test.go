@@ -149,7 +149,7 @@ func TestResolveAlgorithm_HeaderOptionalAndAgreement(t *testing.T) {
 		t.Fatalf("RSA agree: got %q err %v", got, err)
 	}
 
-	_, err = sigalg.ResolveAlgorithm("RS256", "RSA", "", "")
+	_, err = sigalg.ResolveAlgorithm("rsa-v1_5-sha256", "RSA", "", "")
 	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
 		t.Fatalf("RSA from header without JWK alg: got %v, want ErrMissingAlgorithm", err)
 	}
@@ -157,6 +157,46 @@ func TestResolveAlgorithm_HeaderOptionalAndAgreement(t *testing.T) {
 	_, err = sigalg.ResolveAlgorithm("ed25519", "RSA", "", "RS256")
 	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
 		t.Fatalf("RSA header mismatch: got %v, want ErrAlgorithmMismatch", err)
+	}
+
+	// A valid native HTTP identifier naming a different algorithm than the
+	// JWK-derived one must be rejected as a mismatch.
+	_, err = sigalg.ResolveAlgorithm("ecdsa-p384-sha384", "EC", "P-256", "ES256")
+	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
+		t.Fatalf("native header vs different JWK alg: got %v, want ErrAlgorithmMismatch", err)
+	}
+}
+
+// TestResolveAlgorithm_RejectsJOSENamesInHeader asserts the Signature-Input
+// alg parameter takes values from the IANA "HTTP Signature Algorithms"
+// registry, not the JOSE registry: JOSE-only names are rejected even when
+// they would denote the same algorithm as the JWK alg.
+// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L903-L913
+func TestResolveAlgorithm_RejectsJOSENamesInHeader(t *testing.T) {
+	cases := []struct {
+		name      string
+		headerAlg string
+		kty       string
+		crv       string
+		jwkAlg    string
+	}{
+		{"eddsa-vs-ed25519-jwk", "EdDSA", "OKP", "Ed25519", "Ed25519"},
+		{"es256-vs-es256-jwk", "ES256", "EC", "P-256", "ES256"},
+		{"es384-vs-es384-jwk", "ES384", "EC", "P-384", "ES384"},
+		{"rs256-vs-rs256-jwk", "RS256", "RSA", "", "RS256"},
+		{"rs256-lowercase", "rs256", "RSA", "", "RS256"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := sigalg.ResolveAlgorithm(tc.headerAlg, tc.kty, tc.crv, tc.jwkAlg)
+			if err == nil {
+				t.Fatalf("ResolveAlgorithm(%q, ...): expected JOSE name rejection", tc.headerAlg)
+			}
+
+			if errors.Is(err, sigalg.ErrAlgorithmMismatch) {
+				t.Fatalf("ResolveAlgorithm(%q, ...): got %v, want unsupported-name rejection not mismatch", tc.headerAlg, err)
+			}
+		})
 	}
 }
 
@@ -360,6 +400,93 @@ func TestNormalize_RejectsJOSESymmetric(t *testing.T) {
 			t.Fatalf("Normalize(%q) = %v, want ErrSymmetricNotPermitted", in, err)
 		}
 	}
+}
+
+// TestNormalizeSignatureInputAlgorithm_AcceptsNativeNames asserts the
+// Signature-Input alg normalizer accepts every implemented RFC 9421 native
+// name from the IANA "HTTP Signature Algorithms" registry, including ed25519,
+// the one identifier that is also a valid JOSE name.
+func TestNormalizeSignatureInputAlgorithm_AcceptsNativeNames(t *testing.T) {
+	cases := map[string]string{
+		"ed25519":           sigalg.Ed25519,
+		"ED25519":           sigalg.Ed25519,
+		"ecdsa-p256-sha256": sigalg.ECDSAP256SHA256,
+		"ecdsa-p384-sha384": sigalg.ECDSAP384SHA384,
+		"rsa-v1_5-sha256":   sigalg.RSAPKCS1SHA256,
+		"rsa-v1_5-sha384":   sigalg.RSAPKCS1SHA384,
+		"rsa-v1_5-sha512":   sigalg.RSAPKCS1SHA512,
+	}
+	for in, want := range cases {
+		got, err := sigalg.NormalizeSignatureInputAlgorithm(in)
+		if err != nil {
+			t.Fatalf("NormalizeSignatureInputAlgorithm(%q): %v", in, err)
+		}
+
+		if got != want {
+			t.Fatalf("NormalizeSignatureInputAlgorithm(%q)=%q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestNormalizeSignatureInputAlgorithm_RejectsJOSENames asserts JOSE-registry
+// names other than ed25519 are not valid Signature-Input alg values.
+func TestNormalizeSignatureInputAlgorithm_RejectsJOSENames(t *testing.T) {
+	for _, in := range []string{"EdDSA", "EDDSA", "eddsa", "ES256", "es256", "ES384", "RS256", "RS384", "RS512"} {
+		_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
+		if err == nil {
+			t.Fatalf("NormalizeSignatureInputAlgorithm(%q): expected JOSE name rejection", in)
+		}
+
+		if errors.Is(err, sigalg.ErrMissingAlgorithm) ||
+			errors.Is(err, sigalg.ErrAlgorithmNotAllowed) ||
+			errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
+			t.Fatalf("NormalizeSignatureInputAlgorithm(%q) = %v, want unsupported-name error", in, err)
+		}
+	}
+}
+
+func TestNormalizeSignatureInputAlgorithm_ErrorClassification(t *testing.T) {
+	t.Run("none", func(t *testing.T) {
+		for _, in := range []string{"none", "NONE", "None"} {
+			_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
+			if !errors.Is(err, sigalg.ErrAlgorithmNotAllowed) {
+				t.Fatalf("NormalizeSignatureInputAlgorithm(%q) = %v, want ErrAlgorithmNotAllowed", in, err)
+			}
+		}
+	})
+
+	t.Run("symmetric", func(t *testing.T) {
+		for _, in := range []string{"HS256", "hs256", "hmac-sha256", "HS384", "hmac-sha512"} {
+			_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
+			if !errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
+				t.Fatalf("NormalizeSignatureInputAlgorithm(%q) = %v, want ErrSymmetricNotPermitted", in, err)
+			}
+		}
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		for _, in := range []string{"", "   "} {
+			_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
+			if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
+				t.Fatalf("NormalizeSignatureInputAlgorithm(%q) = %v, want ErrMissingAlgorithm", in, err)
+			}
+		}
+	})
+
+	t.Run("unsupported", func(t *testing.T) {
+		for _, in := range []string{"rsa-pss-sha256", "rsa-pss-sha512", "ecdsa-p521-sha512", "unknown-alg"} {
+			_, err := sigalg.NormalizeSignatureInputAlgorithm(in)
+			if err == nil {
+				t.Fatalf("NormalizeSignatureInputAlgorithm(%q): expected unsupported error", in)
+			}
+
+			if errors.Is(err, sigalg.ErrMissingAlgorithm) ||
+				errors.Is(err, sigalg.ErrAlgorithmNotAllowed) ||
+				errors.Is(err, sigalg.ErrSymmetricNotPermitted) {
+				t.Fatalf("NormalizeSignatureInputAlgorithm(%q) = %v, want unsupported error", in, err)
+			}
+		}
+	})
 }
 
 func TestDeriveFromJWK_RejectsNoneAndSymmetric(t *testing.T) {
