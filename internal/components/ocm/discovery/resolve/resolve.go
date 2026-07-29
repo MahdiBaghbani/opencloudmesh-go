@@ -56,6 +56,11 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 	tokenEndPoint := projected.TokenEndPoint
 	inviteAcceptDialog := projected.InviteAcceptDialog
 
+	jwksURI := in.JwksURIOverride
+	if jwksURI == "" {
+		jwksURI = projected.JwksURI
+	}
+
 	if _, set := rawOCMProvider["webdav_root"]; set {
 		webdavRoot = c.WebDAVRoot
 	} else if hasProjection {
@@ -98,6 +103,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			InvitesEnabled:         routeOpts.InvitesEnabled,
 			WayfEnabled:            routeOpts.WayfEnabled,
 			AdvertiseHTTPSig:       advertiseHTTPSig,
+			JwksURI:                jwksURI,
 			TokenExchangeCapable:   in.CodeFlow != nil,
 			RequiresTokenExchange:  facts.RequiresTokenExchange,
 			RequiresHTTPSignatures: facts.RequiresHTTPRequestSignatures,

@@ -396,6 +396,50 @@ func validateSignatureFields(cfg *Config) error {
 	return nil
 }
 
+// validateSignatureJwksURI performs static validation of a configured local
+// signature.jwks_uri override: absolute, http/https scheme, no credentials,
+// no fragment, and https unless the local public origin itself opts into
+// development HTTP transport. It intentionally does not check same-authority
+// against the resolved discovery endpoint; that check runs in wiring.Build
+// (discovery.ValidateLocalJwksURIOverride) once the endpoint authority is
+// known, reusing the same policy enforced for peer-advertised jwksUri so the
+// two paths never diverge.
+func validateSignatureJwksURI(cfg *Config) error {
+	raw := cfg.Signature.JwksURI
+	if raw == "" {
+		return nil
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid signature.jwks_uri: malformed")
+	}
+
+	if u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("invalid signature.jwks_uri: must be absolute")
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "https" && scheme != "http" {
+		return fmt.Errorf("invalid signature.jwks_uri: scheme %q is not allowed", u.Scheme)
+	}
+
+	if scheme == "http" && cfg.PublicScheme() != "http" {
+		return fmt.Errorf("invalid signature.jwks_uri: must use https outside development HTTP opt-in")
+	}
+
+	if u.User != nil {
+		return fmt.Errorf("invalid signature.jwks_uri: must not contain credentials")
+	}
+
+	// Bare "#" leaves Fragment empty after url.Parse; reject any fragment delimiter.
+	if strings.Contains(raw, "#") {
+		return fmt.Errorf("invalid signature.jwks_uri: must not contain a fragment")
+	}
+
+	return nil
+}
+
 func validateCacheDriver(cfg *Config) error {
 	switch cfg.Cache.Driver {
 	case "", "memory", "redis":
@@ -521,6 +565,7 @@ func validateEnums(cfg *Config) error {
 		validateSSRFMode,
 		validateSSRFRoutePolicyRef,
 		validateSignatureFields,
+		validateSignatureJwksURI,
 		validateCacheDriver,
 		validatePeerTrust,
 		validateLoggingLevel,

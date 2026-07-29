@@ -9,6 +9,7 @@ import (
 	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
 )
 
@@ -25,4 +26,5 @@ type Inputs struct {
 	TokenStore          token.TokenStore
 	SignatureMiddleware *inboundsignature.SignatureMiddleware
 	TokenExchangePath   string
+	KeyManager          *crypto.KeyManager
 }

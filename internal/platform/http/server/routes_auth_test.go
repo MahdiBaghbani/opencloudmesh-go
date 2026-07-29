@@ -24,7 +24,7 @@ func TestIsAuthRequired_FromRoutePolicyAggregate(t *testing.T) {
 		want bool
 	}{
 		{name: "well-known-ocm is public", path: "/.well-known/ocm", want: false},
-		{name: "well-known-jwks is public", path: "/.well-known/jwks.json", want: false},
+		{name: "ocm-jwks is public", path: "/ocm/jwks", want: false},
 		{name: "healthz is public", path: "/api/healthz", want: false},
 		{name: "auth/login is public", path: "/api/auth/login", want: false},
 		{name: "ui/login is public", path: "/ui/login", want: false},

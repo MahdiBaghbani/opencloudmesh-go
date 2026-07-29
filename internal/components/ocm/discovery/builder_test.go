@@ -362,3 +362,101 @@ func TestBuildDiscovery_DisabledWhenEndPointNotAbsolute(t *testing.T) {
 		t.Error("expected Enabled=false for a non-absolute endPoint")
 	}
 }
+
+func TestBuildDiscovery_AdvertisesJwksUriWhenHTTPSig(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:         "https://example.com/ocm",
+		WebDAVRoot:       "/webdav/ocm/",
+		AdvertiseHTTPSig: true,
+	}, nil)
+
+	if !disc.IsHTTPSigCapable() {
+		t.Fatal("expected http-sig capability")
+	}
+
+	if disc.JwksUri != "https://example.com/ocm/jwks" {
+		t.Errorf("JwksUri = %q, want %q", disc.JwksUri, "https://example.com/ocm/jwks")
+	}
+
+	out, err := json.Marshal(disc)
+	if err != nil {
+		t.Fatalf("marshal discovery: %v", err)
+	}
+
+	if !strings.Contains(string(out), `"jwksUri":"https://example.com/ocm/jwks"`) {
+		t.Errorf("expected jwksUri in discovery JSON, got %s", out)
+	}
+}
+
+func TestBuildDiscovery_JwksUriDerivedUnderBasePathEndPoint(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:         "https://example.com/myapp/ocm",
+		WebDAVRoot:       "/webdav/ocm/",
+		AdvertiseHTTPSig: true,
+	}, nil)
+
+	if disc.JwksUri != "https://example.com/myapp/ocm/jwks" {
+		t.Errorf("JwksUri = %q, want jwks under endPoint", disc.JwksUri)
+	}
+}
+
+func TestBuildDiscovery_OmitsJwksUriWithoutHTTPSig(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:   "https://example.com/ocm",
+		WebDAVRoot: "/webdav/ocm/",
+	}, nil)
+
+	if disc.JwksUri != "" {
+		t.Errorf("JwksUri = %q, want empty without http-sig capability", disc.JwksUri)
+	}
+}
+
+func TestBuildDiscovery_JwksURIOverrideAdvertisedVerbatim(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:         "https://example.com/ocm",
+		WebDAVRoot:       "/webdav/ocm/",
+		AdvertiseHTTPSig: true,
+		JwksURI:          "https://example.com/custom/jwks.json",
+	}, nil)
+
+	if disc.JwksUri != "https://example.com/custom/jwks.json" {
+		t.Errorf("JwksUri = %q, want configured override verbatim", disc.JwksUri)
+	}
+}
+
+func TestBuildDiscovery_EmptyJwksURIOverrideStillDerivesFromEndPoint(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:         "https://example.com/ocm",
+		WebDAVRoot:       "/webdav/ocm/",
+		AdvertiseHTTPSig: true,
+		JwksURI:          "",
+	}, nil)
+
+	if disc.JwksUri != "https://example.com/ocm/jwks" {
+		t.Errorf("JwksUri = %q, want derived from endPoint", disc.JwksUri)
+	}
+}
+
+func TestBuildDiscovery_JwksURIOverrideOmittedWithoutHTTPSig(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:   "https://example.com/ocm",
+		WebDAVRoot: "/webdav/ocm/",
+		JwksURI:    "https://example.com/custom/jwks.json",
+	}, nil)
+
+	if disc.JwksUri != "" {
+		t.Errorf("JwksUri = %q, want empty without http-sig capability even with override set", disc.JwksUri)
+	}
+}
+
+func TestBuildDiscovery_JwksUriFollowsDevHTTPEndPoint(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:         "http://localhost:9200/ocm",
+		WebDAVRoot:       "/webdav/ocm/",
+		AdvertiseHTTPSig: true,
+	}, nil)
+
+	if disc.JwksUri != "http://localhost:9200/ocm/jwks" {
+		t.Errorf("JwksUri = %q, want %q", disc.JwksUri, "http://localhost:9200/ocm/jwks")
+	}
+}

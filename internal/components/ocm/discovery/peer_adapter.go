@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
@@ -16,9 +17,18 @@ type PeerDiscoveryAdapter struct {
 	jwks       *jwks.Resolver
 }
 
-// NewPeerDiscoveryAdapter builds a peer discovery adapter backed by JWKS resolution.
+// NewPeerDiscoveryAdapter builds a peer discovery adapter backed by JWKS
+// resolution. The resolver is constructed with explicit bounded cache and
+// fetch policy (package defaults for TTL, MinRefetchInterval,
+// NegativeCacheTTL, and MaxResponseBytes) so production wiring never runs an
+// unbounded JWKS cache; see jwks.NewResolverWithOptions.
 func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
-	resolver, err := jwks.NewResolver(httpClient)
+	resolver, err := jwks.NewResolverWithOptions(httpClient, jwks.ResolverOptions{
+		TTL:                jwks.DefaultCacheTTL,
+		MinRefetchInterval: jwks.DefaultMinRefetchInterval,
+		NegativeCacheTTL:   jwks.DefaultNegativeCacheTTL,
+		MaxResponseBytes:   int64(config.DefaultMaxResponseBytes),
+	})
 	if err != nil {
 		return &PeerDiscoveryAdapter{}
 	}
@@ -26,6 +36,17 @@ func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
 	return &PeerDiscoveryAdapter{
 		jwks: resolver,
 	}
+}
+
+// JWKSResolverOptions returns the effective JWKS cache and fetch policy for
+// this adapter's resolver. ok is false when the adapter has no resolver
+// (nil HTTP client at construction).
+func (p *PeerDiscoveryAdapter) JWKSResolverOptions() (opts jwks.ResolverOptions, ok bool) {
+	if p.jwks == nil {
+		return jwks.ResolverOptions{}, false
+	}
+
+	return p.jwks.EffectiveOptions(), true
 }
 
 // SetPeerOrigin wires the peer-origin resolver so peer discovery follows the

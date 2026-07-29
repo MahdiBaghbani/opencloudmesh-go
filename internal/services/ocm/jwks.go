@@ -1,4 +1,4 @@
-package wellknown
+package ocm
 
 import (
 	"encoding/json"

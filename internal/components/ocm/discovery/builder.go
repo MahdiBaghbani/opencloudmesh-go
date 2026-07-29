@@ -2,6 +2,8 @@ package discovery
 
 import (
 	"log/slog"
+	"net/url"
+	"strings"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
@@ -20,8 +22,17 @@ type BuildParams struct {
 	WayfEnabled        bool
 
 	// AdvertiseHTTPSig adds the http-sig capability when local signing keys are
-	// published via /.well-known/jwks.json.
+	// published via the OCM /jwks route.
 	AdvertiseHTTPSig bool
+
+	// JwksURI is the advertised local jwksUri. Callers (resolve.Resolve) set
+	// this to the configured signature.jwks_uri override when present,
+	// otherwise to the route-inventory-derived default (<endPoint>/jwks). A
+	// non-empty configured override is expected to already be
+	// startup-validated (see discovery.ValidateLocalJwksURIOverride). When
+	// JwksURI arrives empty (no override and no route projection available),
+	// the builder falls back to deriving it directly from EndPoint.
+	JwksURI string
 
 	// Evaluation flags resolved by the caller from the canonical policies.
 	TokenExchangeCapable   bool
@@ -77,6 +88,14 @@ func buildDiscoveryCapabilities(p BuildParams, disc *spec.Discovery, log *slog.L
 
 	if p.AdvertiseHTTPSig {
 		capabilities = append(capabilities, spec.CapabilityHTTPSig)
+
+		if p.JwksURI != "" {
+			disc.JwksUri = p.JwksURI
+		} else if jwksURI := endpointJwksURI(p.EndPoint); jwksURI != "" {
+			disc.JwksUri = jwksURI
+		} else {
+			log.Warn("http-sig advertised but JWKS URL could not be derived from endPoint; omitting jwksUri")
+		}
 	}
 
 	if p.TokenExchangeCapable && p.TokenEndPoint != "" {
@@ -127,4 +146,18 @@ func buildDiscoveryCriteria(p BuildParams, disc *spec.Discovery) {
 	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustExchangeToken)
 	}
+}
+
+// endpointJwksURI derives the server's own JWKS URL as <endPoint>/jwks, the
+// same path the OCM service's route inventory mounts the local JWKS handler
+// under. This is a fallback for direct BuildParams construction; callers
+// wired through resolve.Resolve already populate JwksURI from the route
+// inventory (spec.DeriveDiscoveryPaths) or a configured override.
+func endpointJwksURI(endPoint string) string {
+	u, err := url.Parse(endPoint)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+
+	return strings.TrimSuffix(endPoint, "/") + "/jwks"
 }

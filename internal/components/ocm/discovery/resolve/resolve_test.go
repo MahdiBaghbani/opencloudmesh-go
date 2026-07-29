@@ -136,6 +136,58 @@ func TestResolve_SkipsInviteAcceptDialogWithoutPublicOrigin(t *testing.T) {
 	}
 }
 
+// TestResolve_ThreadsJwksURIOverrideIntoBuildParams confirms a configured
+// signature.jwks_uri override flows from ResolveInputs.JwksURIOverride into
+// discovery.BuildParams.JwksURI unchanged.
+func TestResolve_ThreadsJwksURIOverrideIntoBuildParams(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity:   tslocalid.MustTestIdentity(t, "https://cloud.example.com", ""),
+		RouteOpts:       service.DefaultRouteOpts(),
+		JwksURIOverride: "https://cloud.example.com/custom/jwks.json",
+	}
+
+	built := resolve.Resolve(c, nil, in)
+
+	if built.Params.JwksURI != "https://cloud.example.com/custom/jwks.json" {
+		t.Errorf("Params.JwksURI = %q, want configured override", built.Params.JwksURI)
+	}
+}
+
+// TestResolve_EmptyJwksURIOverrideDerivesFromRouteInventory confirms an empty
+// override falls back to the route-inventory-derived local default
+// (<endPoint>/jwks) rather than leaving BuildParams.JwksURI empty.
+func TestResolve_EmptyJwksURIOverrideDerivesFromRouteInventory(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: tslocalid.MustTestIdentity(t, "https://cloud.example.com", ""),
+		RouteOpts:     service.DefaultRouteOpts(),
+	}
+
+	built := resolve.Resolve(c, nil, in)
+
+	if built.Params.JwksURI != "https://cloud.example.com/ocm/jwks" {
+		t.Errorf("Params.JwksURI = %q, want https://cloud.example.com/ocm/jwks", built.Params.JwksURI)
+	}
+}
+
+// TestResolve_EmptyJwksURIOverrideAndNoOriginLeavesBuildParamsEmpty confirms
+// that without Origin (so no route projection is possible either) and an
+// empty override, BuildParams.JwksURI stays empty.
+func TestResolve_EmptyJwksURIOverrideAndNoOriginLeavesBuildParamsEmpty(t *testing.T) {
+	c := &resolve.ProviderConfig{}
+	in := resolve.ResolveInputs{
+		LocalIdentity: localidentity.Identity{},
+		RouteOpts:     service.DefaultRouteOpts(),
+	}
+
+	built := resolve.Resolve(c, nil, in)
+
+	if built.Params.JwksURI != "" {
+		t.Errorf("Params.JwksURI = %q, want empty without Origin or override", built.Params.JwksURI)
+	}
+}
+
 func newPeerMappingResolver(t *testing.T, cfg *config.PeerMappingConfig, scope config.CompatibilityScope) *policy.PeerMappingResolver {
 	t.Helper()
 	return policy.NewPeerMappingResolver(policy.NewCodeFlow(), cfg, scope)

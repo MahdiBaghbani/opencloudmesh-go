@@ -165,7 +165,7 @@ func (km *KeyManager) GetSigningKey() *SigningKey {
 	return km.signingKey
 }
 
-// JWKS returns the local public key set for /.well-known/jwks.json.
+// JWKS returns the local public key set served at the OCM root /jwks route.
 func (km *KeyManager) JWKS() jwks.Set {
 	km.mu.RLock()
 	defer km.mu.RUnlock()

@@ -10,8 +10,8 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 	opts := service.DefaultRouteOpts()
 
 	specs := registeredRouteSpecs(opts)
-	if len(specs) != 3 {
-		t.Fatalf("expected 3 route specs, got %d", len(specs))
+	if len(specs) != 2 {
+		t.Fatalf("expected 2 route specs, got %d", len(specs))
 	}
 
 	for _, spec := range specs {
@@ -33,7 +33,6 @@ func TestRouteConstants_MatchChiRegistration(t *testing.T) {
 	paths := []string{
 		RouteWellKnownOCM,
 		RouteWellKnownOCMSlash,
-		RouteWellKnownJWKS,
 	}
 
 	specs := registeredRouteSpecs(service.DefaultRouteOpts())

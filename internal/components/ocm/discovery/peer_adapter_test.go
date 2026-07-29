@@ -307,6 +307,40 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 	}
 }
 
+// TestNewPeerDiscoveryAdapter_JWKSResolverOptionsAreBoundedAndNonZero pins the
+// production adapter constructor to a bounded, non-zero JWKS cache and fetch
+// policy so this path never regresses to unbounded fetch.
+func TestNewPeerDiscoveryAdapter_JWKSResolverOptionsAreBoundedAndNonZero(t *testing.T) {
+	outboundCfg := &config.OutboundHTTPConfig{
+		SSRF:               config.SSRFConfig{Mode: "off"},
+		MaxResponseBytes:   1 << 20,
+		InsecureSkipVerify: false,
+	}
+	rawClient := httpclient.New(outboundCfg, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient)
+
+	opts, ok := adapter.JWKSResolverOptions()
+	if !ok {
+		t.Fatal("expected adapter to have a JWKS resolver")
+	}
+
+	if opts.TTL <= 0 {
+		t.Errorf("JWKSResolverOptions().TTL = %v, want > 0", opts.TTL)
+	}
+
+	if opts.MinRefetchInterval <= 0 {
+		t.Errorf("JWKSResolverOptions().MinRefetchInterval = %v, want > 0", opts.MinRefetchInterval)
+	}
+
+	if opts.NegativeCacheTTL <= 0 {
+		t.Errorf("JWKSResolverOptions().NegativeCacheTTL = %v, want > 0", opts.NegativeCacheTTL)
+	}
+
+	if opts.MaxResponseBytes <= 0 {
+		t.Errorf("JWKSResolverOptions().MaxResponseBytes = %v, want > 0", opts.MaxResponseBytes)
+	}
+}
+
 func padCoord(b []byte, size int) []byte {
 	if len(b) >= size {
 		return b

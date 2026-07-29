@@ -82,6 +82,7 @@ func (d *Discovery) IsHTTPSigCapable() bool {
 type DiscoveryPaths struct {
 	EndPoint           string
 	TokenEndPoint      string
+	JwksURI            string
 	WebDAVRoot         string
 	InviteAcceptDialog string
 }
@@ -103,6 +104,7 @@ func DeriveDiscoveryPaths(id localidentity.Identity, opts service.RouteOpts) (Di
 		}
 
 		paths.TokenEndPoint = discoveryPathFromField(inv, "tokenEndPoint", id.Origin)
+		paths.JwksURI = discoveryPathFromField(inv, "jwks", id.Origin)
 	}
 
 	if row, ok := rowByID(inv, service.RouteIDWebDAVOCMWildcard); ok {

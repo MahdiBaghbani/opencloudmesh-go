@@ -68,6 +68,10 @@ func TestDeriveDiscoveryPaths_RootMount(t *testing.T) {
 		t.Errorf("TokenEndPoint = %q, want https://example.com/ocm/token", paths.TokenEndPoint)
 	}
 
+	if paths.JwksURI != "https://example.com/ocm/jwks" {
+		t.Errorf("JwksURI = %q, want https://example.com/ocm/jwks", paths.JwksURI)
+	}
+
 	if paths.WebDAVRoot != "/webdav/ocm/" {
 		t.Errorf("WebDAVRoot = %q, want /webdav/ocm/", paths.WebDAVRoot)
 	}
@@ -93,6 +97,10 @@ func TestDeriveDiscoveryPaths_BasePathAndInviteAccept(t *testing.T) {
 
 	if paths.EndPoint != "https://cloud.example.com/ocm/ocm" {
 		t.Errorf("EndPoint = %q, want https://cloud.example.com/ocm/ocm", paths.EndPoint)
+	}
+
+	if paths.JwksURI != "https://cloud.example.com/ocm/ocm/jwks" {
+		t.Errorf("JwksURI = %q, want https://cloud.example.com/ocm/ocm/jwks", paths.JwksURI)
 	}
 
 	if paths.WebDAVRoot != "/ocm/webdav/ocm/" {

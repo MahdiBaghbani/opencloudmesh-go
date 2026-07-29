@@ -40,6 +40,13 @@ func mountProtocolRoutes(
 	return nil
 }
 
+// mountJWKSRoute mounts the local OCM JWKS route (GET /jwks) directly. It is
+// public and unauthenticated, so it bypasses the POST HTTPSig/peer-resolution
+// middleware chain used by mountProtocolRoutes.
+func mountJWKSRoute(r chi.Router, inputs Inputs) {
+	r.Get(RouteJWKS, newJWKSHandler(inputs.KeyManager).ServeHTTP)
+}
+
 func protocolPostRows(opts service.RouteOpts) []service.RouteRow {
 	rows := service.DerivedRouteInventory(opts)
 

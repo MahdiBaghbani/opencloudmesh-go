@@ -18,4 +18,8 @@ type ResolveInputs struct {
 	// Resolver is the scope-gated peer-mapping resolver that drives discovery
 	// criteria and capabilities. When nil, Resolve falls back to CodeFlow.Evaluate.
 	Resolver *policy.PeerMappingResolver
+	// JwksURIOverride is the configured signature.jwks_uri override. Empty
+	// means derive the advertised jwksUri from the route-inventory projection
+	// (the GET /jwks route's DiscoveryFields projection), not a fixed path.
+	JwksURIOverride string
 }

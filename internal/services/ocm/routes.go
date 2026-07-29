@@ -9,6 +9,8 @@ const (
 	RouteShares = "/shares"
 	// RouteInviteAccepted is the OCM invite-accepted route path.
 	RouteInviteAccepted = "/invite-accepted"
+	// RouteJWKS is the OCM local JWKS route path.
+	RouteJWKS = "/jwks"
 )
 
 func init() {
@@ -64,6 +66,17 @@ func registeredRouteSpecs(opts service.RouteOpts) []service.RouteSpec {
 			DiscoveryFields: []string{"tokenEndPoint"},
 			BodyLimitBytes:  service.OCMProtocolBodyLimitBytes,
 			PeerResolution:  service.PeerResolutionToken,
+		},
+		{
+			ID:              "ocm-jwks",
+			Service:         "ocm",
+			Method:          "GET",
+			Pattern:         RouteJWKS,
+			SessionPolicy:   service.SessionPublic,
+			HandlerAuth:     service.HandlerAuthNone,
+			SurfaceClass:    service.SurfaceDiscovery,
+			TrustClass:      service.TrustPeerNone,
+			DiscoveryFields: []string{"jwks"},
 		},
 	}
 }

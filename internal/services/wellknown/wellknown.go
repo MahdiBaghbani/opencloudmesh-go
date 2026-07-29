@@ -90,7 +90,6 @@ func (s *svc) routerInit(inputs Inputs, rawOCMProvider map[string]any, log *slog
 	ocm := discoveryHandler(handler, inputs.SignatureMiddleware)
 	s.router.Get(RouteWellKnownOCM, ocm.ServeHTTP)
 	s.router.Get(RouteWellKnownOCMSlash, ocm.ServeHTTP)
-	s.router.Get(RouteWellKnownJWKS, newJWKSHandler(inputs.KeyManager).ServeHTTP)
 }
 
 // Close implements service.Service.

@@ -89,6 +89,10 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	cfg.ExternalBasePath = localIdentity.ExternalBasePath
 
+	if err := discovery.ValidateLocalJwksURIOverride(cfg.Signature.JwksURI, localIdentity.Origin); err != nil {
+		return BuildResult{}, fmt.Errorf("invalid signature.jwks_uri: %w", err)
+	}
+
 	partyRepo := identity.NewMemoryPartyRepo()
 	sessionRepo := identity.NewMemorySessionRepo()
 

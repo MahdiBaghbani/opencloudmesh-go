@@ -40,6 +40,10 @@ func validateDiscovery(disc *spec.Discovery, discoveryOrigin string, policy *Ver
 		return err
 	}
 
+	if err := validateDiscoveryJwksUri(disc, discoveryOrigin); err != nil {
+		return err
+	}
+
 	for i, rt := range disc.ResourceTypes {
 		if err := validateResourceType(rt, &warnings); err != nil {
 			return fmt.Errorf("resourceTypes[%d]: %w", i, err)
@@ -108,6 +112,68 @@ func validateDiscoveryInviteDialog(disc *spec.Discovery, discoveryOrigin string)
 	}
 
 	return nil
+}
+
+// validateDiscoveryJwksUri validates a peer's advertised jwksUri. The field is
+// authoritative, not a fixed path, so custom paths are accepted when they
+// satisfy the transport and authority policy. An absent jwksUri is not an
+// error here: the http-sig decision-to-discard rules apply at request
+// verification time, not at discovery time.
+//
+// The same-authority rule keeps the JWKS target on the already-vetted
+// discovery origin, so loopback, private, and link-local SSRF screening,
+// cross-authority redirect blocking, and HTTPS-to-HTTP downgrade blocking stay
+// with the shared safe HTTP client at fetch time; they are not duplicated here.
+func validateDiscoveryJwksUri(disc *spec.Discovery, discoveryOrigin string) error { //nolint:revive // name matches the OCM spec jwksUri wire field
+	if disc.JwksUri == "" {
+		return nil
+	}
+
+	u, err := url.Parse(disc.JwksUri)
+	if err != nil {
+		return fmt.Errorf("jwksUri is malformed")
+	}
+
+	if u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("jwksUri must be absolute")
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "https" && scheme != "http" {
+		return fmt.Errorf("jwksUri scheme %q is not allowed", u.Scheme)
+	}
+
+	devAllowHTTP := strings.HasPrefix(strings.ToLower(discoveryOrigin), "http://")
+	if scheme == "http" && !devAllowHTTP {
+		return fmt.Errorf("jwksUri must use https outside development HTTP opt-in")
+	}
+
+	if u.User != nil {
+		return fmt.Errorf("jwksUri must not contain credentials")
+	}
+
+	// Bare "#" leaves Fragment empty after url.Parse; reject any fragment delimiter.
+	if strings.Contains(disc.JwksUri, "#") {
+		return fmt.Errorf("jwksUri must not contain a fragment")
+	}
+
+	if !sameAuthority(disc.JwksUri, discoveryOrigin) {
+		return fmt.Errorf("jwksUri authority must match discovery origin")
+	}
+
+	return nil
+}
+
+// ValidateLocalJwksURIOverride validates a configured local jwksUri override
+// (signature.jwks_uri) against the resolved discovery endpoint authority. It
+// reuses validateDiscoveryJwksUri, the same transport, credential, fragment,
+// and same-authority policy enforced for peer-advertised jwksUri, so the
+// local and peer paths never diverge. An empty override is not an error (it is
+// a no-op); wiring calls this unconditionally at startup, including for an
+// empty override. Callers should treat a non-nil error as a fail-fast startup
+// error.
+func ValidateLocalJwksURIOverride(jwksURI, discoveryOrigin string) error {
+	return validateDiscoveryJwksUri(&spec.Discovery{JwksUri: jwksURI}, discoveryOrigin)
 }
 
 func validateResourceType(rt spec.ResourceType, warnings *[]string) error {

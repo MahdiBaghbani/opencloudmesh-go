@@ -277,6 +277,10 @@ func overlaySignatureConfig(cfg *Config, fc *SignatureConfig) {
 	if len(fc.AllowedAlgorithms) > 0 {
 		cfg.Signature.AllowedAlgorithms = fc.AllowedAlgorithms
 	}
+
+	if fc.JwksURI != "" {
+		cfg.Signature.JwksURI = fc.JwksURI
+	}
 }
 
 func overlayCacheConfig(cfg *Config, fc *cacheConfig) {

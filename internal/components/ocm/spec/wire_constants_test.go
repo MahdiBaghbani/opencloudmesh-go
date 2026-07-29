@@ -75,22 +75,23 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		80: {},
 	},
 	"internal/platform/config/loader.go": {
-		855: {},
+		900: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		4: {},
 	},
 	"internal/services/ocm/mount.go": {
-		48: {},
+		55: {},
 	},
 	"internal/services/ocm/ocm.go": {
 		53:  {},
-		135: {},
+		137: {},
 	},
 	"internal/services/ocm/routes.go": {
-		33: {},
-		45: {},
-		57: {},
+		35: {},
+		47: {},
+		59: {},
+		72: {},
 	},
 	"internal/services/ui/routes.go": {
 		64: {},

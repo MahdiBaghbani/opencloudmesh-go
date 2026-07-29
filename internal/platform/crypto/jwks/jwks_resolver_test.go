@@ -135,6 +135,55 @@ func TestResolver_Resolve_MissingKid(t *testing.T) {
 	}
 }
 
+func TestResolver_EffectiveOptions_DefaultsAreBoundedAndNonZero(t *testing.T) {
+	resolver, err := jwks.NewResolver(&recordingDoer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := resolver.EffectiveOptions()
+
+	if opts.TTL <= 0 {
+		t.Errorf("EffectiveOptions().TTL = %v, want > 0", opts.TTL)
+	}
+
+	if opts.MinRefetchInterval <= 0 {
+		t.Errorf("EffectiveOptions().MinRefetchInterval = %v, want > 0", opts.MinRefetchInterval)
+	}
+
+	if opts.NegativeCacheTTL <= 0 {
+		t.Errorf("EffectiveOptions().NegativeCacheTTL = %v, want > 0", opts.NegativeCacheTTL)
+	}
+
+	if opts.MaxResponseBytes <= 0 {
+		t.Errorf("EffectiveOptions().MaxResponseBytes = %v, want > 0", opts.MaxResponseBytes)
+	}
+}
+
+func TestResolver_EffectiveOptions_ExplicitZeroFallsBackToDefaults(t *testing.T) {
+	resolver, err := jwks.NewResolverWithOptions(&recordingDoer{}, jwks.ResolverOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := resolver.EffectiveOptions()
+	if opts.TTL != jwks.DefaultCacheTTL {
+		t.Errorf("EffectiveOptions().TTL = %v, want default %v", opts.TTL, jwks.DefaultCacheTTL)
+	}
+
+	if opts.MinRefetchInterval != jwks.DefaultMinRefetchInterval {
+		t.Errorf("EffectiveOptions().MinRefetchInterval = %v, want default %v", opts.MinRefetchInterval, jwks.DefaultMinRefetchInterval)
+	}
+
+	if opts.NegativeCacheTTL != jwks.DefaultNegativeCacheTTL {
+		t.Errorf("EffectiveOptions().NegativeCacheTTL = %v, want default %v", opts.NegativeCacheTTL, jwks.DefaultNegativeCacheTTL)
+	}
+
+	if opts.MaxResponseBytes <= 0 {
+		t.Errorf("EffectiveOptions().MaxResponseBytes = %v, want > 0", opts.MaxResponseBytes)
+	}
+}
+
 func TestNewResolver_NilClient(t *testing.T) {
 	_, err := jwks.NewResolver(nil)
 	if !errors.Is(err, jwks.ErrNilHTTPClient) {

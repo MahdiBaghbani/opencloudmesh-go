@@ -55,6 +55,10 @@ func TestDiscoveryRoutesMatchRouteInventory(t *testing.T) {
 				t.Errorf("TokenEndPoint = %q, want %q", disc.TokenEndPoint, projected.TokenEndPoint)
 			}
 
+			if disc.HasCapability("http-sig") && disc.JwksUri != projected.JwksURI {
+				t.Errorf("JwksUri = %q, want %q", disc.JwksUri, projected.JwksURI)
+			}
+
 			path, ok := disc.ResourceTypes[0].Protocols.StringRole("webdav")
 			if !ok || path != projected.WebDAVRoot {
 				t.Errorf("webdav = %q, want %q, ok=%v", path, projected.WebDAVRoot, ok)

@@ -21,7 +21,7 @@ func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
 
 	foundWellKnown := false
 	foundWellKnownSlash := false
-	foundJWKS := false
+	foundOCMSubtree := false
 
 	for _, rg := range groups {
 		if rg.PathPrefix == "/.well-known/ocm" && rg.AtHostRoot {
@@ -32,8 +32,11 @@ func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
 			foundWellKnownSlash = true
 		}
 
-		if rg.PathPrefix == "/.well-known/jwks.json" && rg.AtHostRoot {
-			foundJWKS = true
+		// The local JWKS route (GET /ocm/jwks) is no longer host-root; it is
+		// served under the "ocm" prefixed subtree along with the rest of the
+		// OCM protocol routes.
+		if rg.PathPrefix == "/ocm" && !rg.AtHostRoot {
+			foundOCMSubtree = true
 		}
 	}
 
@@ -45,8 +48,8 @@ func TestGetMountSpecs_FromDerivedProjection(t *testing.T) {
 		t.Error("expected /.well-known/ocm/ host-root group")
 	}
 
-	if !foundJWKS {
-		t.Error("expected /.well-known/jwks.json host-root group")
+	if !foundOCMSubtree {
+		t.Error("expected /ocm prefixed subtree group covering the local JWKS route")
 	}
 }
 

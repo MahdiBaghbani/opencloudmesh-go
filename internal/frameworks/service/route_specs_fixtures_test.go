@@ -8,8 +8,7 @@ import (
 
 func isRootOnlyDiscoveryPath(path string) bool {
 	return path == "/.well-known/ocm" ||
-		path == "/.well-known/ocm/" ||
-		path == "/.well-known/jwks.json"
+		path == "/.well-known/ocm/"
 }
 
 func publicPathsUnderBase(opts service.RouteOpts) []string {

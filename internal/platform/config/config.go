@@ -17,8 +17,9 @@ type Config struct {
 	PublicOrigin string `toml:"public_origin"`
 
 	// ExternalBasePath is the optional path prefix for app endpoints.
-	// Root-only well-known endpoints (/.well-known/ocm and /.well-known/jwks.json)
-	// are never under this path.
+	// The root-only well-known discovery endpoint (/.well-known/ocm) is
+	// never under this path; the local JWKS route (<endPoint>/jwks) is
+	// mounted under the OCM service and does move with this path.
 	// Example: "/ocm" or empty string
 	ExternalBasePath string `toml:"external_base_path"`
 
@@ -213,6 +214,11 @@ type SignatureConfig struct {
 	// (default Ed25519) still performs signing; this list must include that
 	// key's algorithm or SignRequest fails before the request is sent.
 	AllowedAlgorithms []string `toml:"allowed_algorithms"`
+
+	// JwksURI optionally overrides the local JWKS URL advertised in
+	// discovery. Empty derives it from the route inventory as
+	// <endPoint>/jwks.
+	JwksURI string `toml:"jwks_uri"`
 }
 
 // TLSConfig holds TLS-related settings.
@@ -412,6 +418,7 @@ func (c *Config) Redacted() string {
 	redactedFprintf(&sb, "    CreatedMaxAgeSeconds: %d,\n", c.Signature.CreatedMaxAgeSeconds)
 	redactedFprintf(&sb, "    CreatedMaxSkewSeconds: %d,\n", c.Signature.CreatedMaxSkewSeconds)
 	redactedFprintf(&sb, "    AllowedAlgorithms: %v,\n", c.Signature.AllowedAlgorithms)
+	redactedFprintf(&sb, "    JwksURI: %q,\n", c.Signature.JwksURI)
 	redactedWriteString(&sb, "  },\n")
 	redactedWriteString(&sb, "  Logging: {\n")
 	redactedFprintf(&sb, "    Level: %q,\n", c.Logging.Level)

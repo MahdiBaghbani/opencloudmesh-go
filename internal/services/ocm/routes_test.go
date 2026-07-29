@@ -11,12 +11,16 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 	opts := service.DefaultRouteOpts()
 
 	specs := registeredRouteSpecs(opts)
-	if len(specs) != 3 {
-		t.Fatalf("expected 3 route specs, got %d", len(specs))
+	if len(specs) != 4 {
+		t.Fatalf("expected 4 route specs, got %d", len(specs))
 	}
 
 	for i := range specs {
 		spec := specs[i]
+		if spec.Method == http.MethodGet {
+			continue
+		}
+
 		if spec.SurfaceClass != service.SurfaceProtocol {
 			t.Errorf("spec %q surface = %q, want protocol", spec.ID, spec.SurfaceClass)
 		}
@@ -32,6 +36,56 @@ func TestRegisteredRouteSpecs(t *testing.T) {
 		if spec.HandlerAuth != service.HandlerAuthRequiredHTTPSig {
 			t.Errorf("spec %q handler auth = %q, want %q", spec.ID, spec.HandlerAuth, service.HandlerAuthRequiredHTTPSig)
 		}
+	}
+}
+
+// TestRegisteredRouteSpecs_JWKSDiscoveryRoute confirms the local JWKS route is
+// registered as a public, unauthenticated GET discovery route alongside the
+// existing protocol specs, and that it advertises the "jwks" discovery field.
+func TestRegisteredRouteSpecs_JWKSDiscoveryRoute(t *testing.T) {
+	opts := service.DefaultRouteOpts()
+
+	specs := registeredRouteSpecs(opts)
+
+	var jwksSpec *service.RouteSpec
+
+	for i := range specs {
+		if specs[i].ID == "ocm-jwks" {
+			jwksSpec = &specs[i]
+			break
+		}
+	}
+
+	if jwksSpec == nil {
+		t.Fatal("expected ocm-jwks route spec")
+	}
+
+	if jwksSpec.Method != http.MethodGet {
+		t.Errorf("jwks spec method = %q, want GET", jwksSpec.Method)
+	}
+
+	if jwksSpec.Pattern != RouteJWKS {
+		t.Errorf("jwks spec pattern = %q, want %q", jwksSpec.Pattern, RouteJWKS)
+	}
+
+	if jwksSpec.SessionPolicy != service.SessionPublic {
+		t.Errorf("jwks spec session = %q, want public", jwksSpec.SessionPolicy)
+	}
+
+	if jwksSpec.HandlerAuth != service.HandlerAuthNone {
+		t.Errorf("jwks spec handler auth = %q, want none", jwksSpec.HandlerAuth)
+	}
+
+	if jwksSpec.SurfaceClass != service.SurfaceDiscovery {
+		t.Errorf("jwks spec surface = %q, want discovery", jwksSpec.SurfaceClass)
+	}
+
+	if jwksSpec.TrustClass != service.TrustPeerNone {
+		t.Errorf("jwks spec trust = %q, want peer-trust-none", jwksSpec.TrustClass)
+	}
+
+	if len(jwksSpec.DiscoveryFields) != 1 || jwksSpec.DiscoveryFields[0] != "jwks" {
+		t.Errorf("jwks spec discovery fields = %v, want [jwks]", jwksSpec.DiscoveryFields)
 	}
 }
 

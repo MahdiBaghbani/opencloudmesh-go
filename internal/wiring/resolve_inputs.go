@@ -18,5 +18,6 @@ func resolveInputs(cfg *config.Config, d *Deps) resolve.ResolveInputs {
 		KeyManager:        d.KeyManager,
 		CodeFlow:          d.CodeFlow,
 		Resolver:          resolver,
+		JwksURIOverride:   cfg.Signature.JwksURI,
 	}
 }

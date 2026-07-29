@@ -107,6 +107,8 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		return nil, err
 	}
 
+	mountJWKSRoute(r, inputs)
+
 	return &Service{
 		router: r,
 		conf:   &c,
