@@ -17,7 +17,7 @@ import (
 func TestAppendixBCoveredComponents(t *testing.T) {
 	components := crypto.AppendixBCoveredComponents()
 
-	want := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	want := []string{"@method", "@target-uri", "content-digest", "content-length"}
 	if len(components) != len(want) {
 		t.Fatalf("components = %v", components)
 	}
@@ -115,7 +115,7 @@ func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 				}
 			}
 
-			for _, want := range []string{`"@method"`, `"@target-uri"`, `"content-digest"`, `"content-length"`, `"date"`} {
+			for _, want := range []string{`"@method"`, `"@target-uri"`, `"content-digest"`, `"content-length"`} {
 				if !strings.Contains(sigInput, want) {
 					t.Fatalf("Signature-Input missing %q: %q", want, sigInput)
 				}

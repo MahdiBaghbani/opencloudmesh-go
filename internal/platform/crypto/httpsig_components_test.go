@@ -29,7 +29,7 @@ func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
 	}
 
 	sigInput := req.Header.Get("Signature-Input")
-	for _, want := range []string{`"@method"`, `"@target-uri"`, `"content-digest"`, `"content-length"`, `"date"`} {
+	for _, want := range []string{`"@method"`, `"@target-uri"`, `"content-digest"`, `"content-length"`} {
 		if !strings.Contains(sigInput, want) {
 			t.Fatalf("empty-body Signature-Input missing %s: %q", want, sigInput)
 		}
@@ -64,7 +64,7 @@ func TestSignRequest_CoversAllComponentsOnNonEmptyBody(t *testing.T) {
 	}
 
 	sigInput := req.Header.Get("Signature-Input")
-	for _, want := range []string{`"@method"`, `"@target-uri"`, `"content-digest"`, `"content-length"`, `"date"`} {
+	for _, want := range []string{`"@method"`, `"@target-uri"`, `"content-digest"`, `"content-length"`} {
 		if !strings.Contains(sigInput, want) {
 			t.Fatalf("Signature-Input missing %s: %q", want, sigInput)
 		}
@@ -151,9 +151,10 @@ func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	// Verifier uses the default/config component policy, which defaults to
-	// the date-free mandatory set; date is a SHOULD, not MUST.
+	// the date-free mandatory set; the Date header is deliberately not
+	// covered.
 	// See:
-	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
 	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
@@ -170,8 +171,8 @@ func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
 		"sha-256=:"+base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))+":",
 	)
 	req.Header.Set("Content-Length", "0")
-	// Intentionally omit the Date header: date is a SHOULD component, not
-	// mandatory for verification.
+	// Intentionally omit the Date header: it is deliberately not covered, so
+	// it is not mandatory for verification.
 
 	sigInput := fmt.Sprintf(
 		`ocm=("%s");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,

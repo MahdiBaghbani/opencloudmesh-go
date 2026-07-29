@@ -38,7 +38,7 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 	// Signature-Input omits alg; algorithm comes from the JWK. SignRequest
 	// always emits alg, so build params and signature base explicitly.
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;tag="ocm"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length");created=%d;keyid=%q;tag="ocm"`,
 		created, km.GetKeyID(),
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
@@ -86,7 +86,7 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 	components := httpsigAppendixBComponents
 	created := opts.Now().Unix()
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;tag="ocm"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length");created=%d;keyid=%q;tag="ocm"`,
 		created, keyID,
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")

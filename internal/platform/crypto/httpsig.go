@@ -17,8 +17,6 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigparams"
 )
 
-const httpTimeFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
-
 // RFC9421Options holds signer and verifier policy derived from config.
 type RFC9421Options struct {
 	Label              string
@@ -56,13 +54,12 @@ func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 		allowed = sigalg.DefaultAllowed()
 	}
 	// RequiredComponents is intentionally left empty so signer and verifier
-	// constructors apply role-specific defaults: signers default to
-	// AppendixBCoveredComponents() (which includes date, since the signer
-	// sets a Date header when missing and covers it), while verifiers
-	// default to MandatorySignatureComponents() (date-free, since date is a
-	// SHOULD, not a MUST).
+	// constructors apply role-specific defaults; both default to the
+	// date-free canonical set in MandatorySignatureComponents(). The OCM
+	// signing requirements deliberately exclude the Date header from the
+	// covered components.
 	// See:
-	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
 	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
 	return RFC9421Options{
 		Label:             label,
@@ -74,27 +71,21 @@ func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 }
 
 // AppendixBCoveredComponents returns the OCM IETF Appendix B covered set.
-// This is the signer's default covered set: it includes date because the
-// signer sets a Date header when it is missing and therefore covers it.
-// The signing spec says date is a SHOULD component when a Date header is
-// present. See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+// It is a compatibility alias for MandatorySignatureComponents: the signing
+// requirements deliberately exclude the Date header, so the covered set is
+// date-free. See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
 func AppendixBCoveredComponents() []string {
-	return []string{
-		"@method",
-		"@target-uri",
-		"content-digest",
-		"content-length",
-		"date",
-	}
+	return MandatorySignatureComponents()
 }
 
-// MandatorySignatureComponents returns the mandatory components a verifier
-// requires a signature to cover. Verifiers reject signatures that omit any
-// of these components or the created parameter. The date component is only
-// a SHOULD under the signing requirements, so it is excluded from the
-// mandatory reject-on-omit set.
+// MandatorySignatureComponents is the single source of truth for the
+// date-free canonical covered set. Signers default to covering exactly
+// these components, and verifiers reject signatures that omit any of them
+// or the created parameter. The Date header is deliberately not covered:
+// intermediaries sometimes rewrite it, and the created parameter already
+// conveys the message's creation time.
 // See:
-//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
 //   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
 func MandatorySignatureComponents() []string {
 	return []string{
@@ -103,6 +94,18 @@ func MandatorySignatureComponents() []string {
 		"content-digest",
 		"content-length",
 	}
+}
+
+// hasDateComponent reports whether an explicit component list includes the
+// date component.
+func hasDateComponent(components []string) bool {
+	for _, comp := range components {
+		if strings.ToLower(comp) == "date" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // RFC9421Signer signs HTTP requests per RFC 9421 using the OCM label.
@@ -148,8 +151,11 @@ func (s *RFC9421Signer) SignRequest(req *http.Request, body []byte) error {
 		return err
 	}
 
-	if req.Header.Get("Date") == "" {
-		req.Header.Set("Date", s.opts.Now().UTC().Format(httpTimeFormat))
+	// The default covered set is date-free, so no Date header is created.
+	// When an operator explicitly configures the date component, ensure a
+	// Date header exists so the signer can actually cover it.
+	if hasDateComponent(s.opts.RequiredComponents) && req.Header.Get("Date") == "" {
+		req.Header.Set("Date", s.opts.Now().UTC().Format(http.TimeFormat))
 	}
 
 	digest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
@@ -385,10 +391,10 @@ func (v *RFC9421Verifier) verifySignaturePolicy(req *http.Request, body []byte, 
 	}
 
 	// Verifier uses its configured mandatory component set (date-free per
-	// MandatorySignatureComponents). date is a SHOULD, not MUST, so it is
-	// not required here.
+	// MandatorySignatureComponents). The Date header is deliberately not
+	// covered, so it is not required here.
 	// See:
-	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L821-L834
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
 	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
 	expectedComponents := v.opts.RequiredComponents
 	if err := validateRequiredComponents(params.Components, expectedComponents); err != nil {

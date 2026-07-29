@@ -19,7 +19,7 @@ const (
 var (
 	httpsigTestBodyJSON        = []byte(`{"test":"data"}`)
 	httpsigAppendixBComponents = []string{
-		"@method", "@target-uri", "content-digest", "content-length", "date",
+		"@method", "@target-uri", "content-digest", "content-length",
 	}
 	httpsigPlaceholderSig    = "ocm=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:"
 	httpsigPlaceholderSigAlt = "ocm=:AAAA:"

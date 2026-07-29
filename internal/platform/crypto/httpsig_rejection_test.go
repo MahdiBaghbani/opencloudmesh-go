@@ -1,6 +1,7 @@
 package crypto_test
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -183,6 +184,54 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 
 	if fetches != 0 {
 		t.Fatalf("fetches=%d want 0 before component validation", fetches)
+	}
+}
+
+func TestVerifyRequest_AcceptsExplicitlyCoveredDate(t *testing.T) {
+	// The OCM minimum is an at-least set: a signature that covers date in
+	// addition to the mandatory date-free set is accepted, not rejected.
+	km := mustHTTPSigKeyManager(t)
+	opts := httpsigFixedOptions()
+	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+
+	body := httpsigTestBodyJSON
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+
+	req.Host = "example.com"
+	req.Header.Set("Date", httpsigStandardDate)
+	req.Header.Set("Content-Digest", httpsigContentDigestHeader(body))
+	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
+
+	components := []string{"@method", "@target-uri", "content-digest", "content-length", "date"}
+	sigInput := fmt.Sprintf(
+		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
+		opts.Now().Unix(),
+		km.GetKeyID(),
+	)
+
+	sigBase, err := crypto.BuildSignatureBase(req, components)
+	if err != nil {
+		t.Fatalf("BuildSignatureBase: %v", err)
+	}
+
+	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")
+	fullBase := sigBase + fmt.Sprintf(`"@signature-params": %s`, paramsRaw)
+
+	sig, err := km.Sign([]byte(fullBase))
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	req.Header.Set("Signature-Input", sigInput)
+	req.Header.Set("Signature", fmt.Sprintf("ocm=:%s:", base64.StdEncoding.EncodeToString(sig)))
+
+	result := verifier.VerifyRequest(req, body, httpsigEd25519KeyFetcher(km))
+	if !result.Verified {
+		t.Fatalf("expected verification success for explicitly covered date: %v", result.Error)
 	}
 }
 

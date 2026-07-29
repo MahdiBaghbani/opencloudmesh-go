@@ -258,7 +258,7 @@ func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) 
 	components := httpsigAppendixBComponents
 	created := opts.Now().Unix()
 	sigInput := fmt.Sprintf(
-		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
+		`ocm=("@method" "@target-uri" "content-digest" "content-length");created=%d;keyid=%q;alg="ed25519";tag="ocm"`,
 		created, km.GetKeyID(),
 	)
 	paramsRaw := strings.TrimPrefix(sigInput, "ocm=")

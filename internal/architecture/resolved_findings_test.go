@@ -382,7 +382,7 @@ func assertGoldenOutput(t *testing.T) {
 	sigInput := req.Header.Get("Signature-Input")
 
 	goldenRe := regexp.MustCompile(
-		`^ocm=\("@method" "@target-uri" "content-digest" "content-length" "date"\);created=1730815200;keyid="[^"]+";alg="ed25519";tag="ocm"$`,
+		`^ocm=\("@method" "@target-uri" "content-digest" "content-length"\);created=1730815200;keyid="[^"]+";alg="ed25519";tag="ocm"$`,
 	)
 	if !goldenRe.MatchString(sigInput) {
 		t.Fatalf("Signature-Input = %q, does not match golden default pattern", sigInput)
