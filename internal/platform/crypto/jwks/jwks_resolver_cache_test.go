@@ -25,7 +25,7 @@ func TestResolver_RefreshesOnTTLExpiry(t *testing.T) {
 	srv := httptest.NewServer(jwksJSONHandlerWithBefore(set, func() { fetches.Add(1) }))
 	defer srv.Close()
 
-	scheme, authority := mustSchemeAuthority(t, srv.URL)
+	jwksURL := srv.URL + "/jwks"
 
 	resolver, err := jwks.NewResolverWithTTL(srv.Client(), 10*time.Millisecond)
 	if err != nil {
@@ -33,14 +33,14 @@ func TestResolver_RefreshesOnTTLExpiry(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
-		t.Fatalf("first Resolve: %v", err)
+	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil {
+		t.Fatalf("first ResolveURL: %v", err)
 	}
 
 	time.Sleep(15 * time.Millisecond)
 
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil {
-		t.Fatalf("second Resolve after TTL: %v", err)
+	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil {
+		t.Fatalf("second ResolveURL after TTL: %v", err)
 	}
 
 	if got := fetches.Load(); got != 2 {
@@ -56,7 +56,7 @@ func TestResolver_RefetchesOnKidMiss(t *testing.T) {
 	srv := httptest.NewServer(twoKeyRotationHandler(&version, key1Pub, key2Pub))
 	defer srv.Close()
 
-	scheme, authority := mustSchemeAuthority(t, srv.URL)
+	jwksURL := srv.URL + "/jwks"
 
 	resolver, err := jwks.NewResolverWithOptions(srv.Client(), jwks.ResolverOptions{
 		TTL:                time.Hour,
@@ -69,15 +69,15 @@ func TestResolver_RefetchesOnKidMiss(t *testing.T) {
 
 	ctx := context.Background()
 
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("Resolve key1: %v", err)
+	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+		t.Fatalf("ResolveURL key1: %v", err)
 	}
 
 	version.Store(1)
 
-	got, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey2)
+	got, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey2)
 	if err != nil {
-		t.Fatalf("Resolve key2 after rotation: %v", err)
+		t.Fatalf("ResolveURL key2 after rotation: %v", err)
 	}
 
 	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
@@ -108,7 +108,7 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	scheme, authority := mustSchemeAuthority(t, srv.URL)
+	jwksURL := srv.URL + "/jwks"
 
 	resolver, err := jwks.NewResolverWithOptions(srv.Client(), jwks.ResolverOptions{
 		TTL:                time.Hour,
@@ -121,21 +121,21 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 
 	ctx := context.Background()
 
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("initial Resolve: %v", err)
+	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+		t.Fatalf("initial ResolveURL: %v", err)
 	}
 
-	_, err = resolver.Resolve(ctx, scheme, authority, "example.com#missing")
+	_, err = resolver.ResolveURL(ctx, jwksURL, "example.com#missing")
 	if err == nil {
-		t.Fatal("Resolve() error = nil, want refresh fetch failure")
+		t.Fatal("ResolveURL() error = nil, want refresh fetch failure")
 	}
 
 	if strings.Contains(err.Error(), "not found") {
-		t.Fatalf("Resolve() error = %v, want refresh fetch error not stale kid miss", err)
+		t.Fatalf("ResolveURL() error = %v, want refresh fetch error not stale kid miss", err)
 	}
 
 	if !strings.Contains(err.Error(), "status 503") {
-		t.Fatalf("Resolve() error = %v, want status 503 from refresh fetch", err)
+		t.Fatalf("ResolveURL() error = %v, want status 503 from refresh fetch", err)
 	}
 }
 
@@ -155,7 +155,7 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	scheme, authority := mustSchemeAuthority(t, srv.URL)
+	jwksURL := srv.URL + "/jwks"
 
 	now := time.Unix(1_700_000_000, 0)
 
@@ -170,8 +170,8 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("Resolve key1: %v", err)
+	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+		t.Fatalf("ResolveURL key1: %v", err)
 	}
 
 	if got := fetches.Load(); got != 1 {
@@ -180,9 +180,9 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 
 	version.Store(1)
 
-	_, err = resolver.Resolve(ctx, scheme, authority, testJWKSKey2)
+	_, err = resolver.ResolveURL(ctx, jwksURL, testJWKSKey2)
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
-		t.Fatalf("Resolve new kid during cooldown = %v, want ErrKeyNotFound", err)
+		t.Fatalf("ResolveURL new kid during cooldown = %v, want ErrKeyNotFound", err)
 	}
 
 	if got := fetches.Load(); got != 1 {
@@ -191,9 +191,9 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 
 	now = now.Add(time.Minute)
 
-	got, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey2)
+	got, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey2)
 	if err != nil {
-		t.Fatalf("Resolve key2 after cooldown: %v", err)
+		t.Fatalf("ResolveURL key2 after cooldown: %v", err)
 	}
 
 	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
@@ -219,7 +219,7 @@ func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
 	srv := httptest.NewServer(jwksJSONHandlerWithBefore(set, func() { fetches.Add(1) }))
 	defer srv.Close()
 
-	scheme, authority := mustSchemeAuthority(t, srv.URL)
+	jwksURL := srv.URL + "/jwks"
 
 	now := time.Unix(1_700_000_000, 0)
 
@@ -234,13 +234,13 @@ func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, err := resolver.Resolve(ctx, scheme, authority, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("Resolve key1: %v", err)
+	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+		t.Fatalf("ResolveURL key1: %v", err)
 	}
 
 	baseFetches := fetches.Load()
 
-	_, err = resolver.Resolve(ctx, scheme, authority, "example.com#missing")
+	_, err = resolver.ResolveURL(ctx, jwksURL, "example.com#missing")
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
 		t.Fatalf("first miss = %v, want ErrKeyNotFound", err)
 	}
@@ -250,7 +250,7 @@ func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
 		t.Fatalf("expected forced refetch on first miss, fetches=%d base=%d", afterMiss, baseFetches)
 	}
 
-	_, err = resolver.Resolve(ctx, scheme, authority, "example.com#missing")
+	_, err = resolver.ResolveURL(ctx, jwksURL, "example.com#missing")
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
 		t.Fatalf("negative-cached miss = %v, want ErrKeyNotFound", err)
 	}
@@ -281,7 +281,7 @@ func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	scheme, authority := mustSchemeAuthority(t, srv.URL)
+	jwksURL := srv.URL + "/jwks"
 
 	resolver, err := jwks.NewResolverWithOptions(srv.Client(), jwks.ResolverOptions{
 		TTL:                time.Hour,
@@ -296,7 +296,7 @@ func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
 
 	for range 2 {
 		go func() {
-			_, err := resolver.Resolve(context.Background(), scheme, authority, testJWKSKey1)
+			_, err := resolver.ResolveURL(context.Background(), jwksURL, testJWKSKey1)
 			errCh <- err
 		}()
 	}
@@ -311,7 +311,7 @@ func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
 
 	for range 2 {
 		if err := <-errCh; err != nil {
-			t.Fatalf("Resolve: %v", err)
+			t.Fatalf("ResolveURL: %v", err)
 		}
 	}
 

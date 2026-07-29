@@ -3,26 +3,30 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
+	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 )
 
 // PeerDiscoveryAdapter implements inbound signature PeerDiscovery using JWKS.
 type PeerDiscoveryAdapter struct {
 	peerOrigin *peerorigin.Resolver
 	jwks       *jwks.Resolver
+	discovery  *Client
 }
 
 // NewPeerDiscoveryAdapter builds a peer discovery adapter backed by JWKS
 // resolution. The resolver is constructed with explicit bounded cache and
 // fetch policy (package defaults for TTL, MinRefetchInterval,
 // NegativeCacheTTL, and MaxResponseBytes) so production wiring never runs an
-// unbounded JWKS cache; see jwks.NewResolverWithOptions.
-func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
+// unbounded JWKS cache; see jwks.NewResolverWithOptions. The discovery client
+// fetches the peer's advertised discovery document to obtain the jwksUri.
+func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer, discoveryClient *Client) *PeerDiscoveryAdapter {
 	resolver, err := jwks.NewResolverWithOptions(httpClient, jwks.ResolverOptions{
 		TTL:                jwks.DefaultCacheTTL,
 		MinRefetchInterval: jwks.DefaultMinRefetchInterval,
@@ -33,8 +37,15 @@ func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer) *PeerDiscoveryAdapter {
 		return &PeerDiscoveryAdapter{}
 	}
 
+	if discoveryClient == nil {
+		if c, ok := httpClient.(*httpclient.Client); ok {
+			discoveryClient = NewClient(c, nil)
+		}
+	}
+
 	return &PeerDiscoveryAdapter{
-		jwks: resolver,
+		jwks:      resolver,
+		discovery: discoveryClient,
 	}
 }
 
@@ -55,10 +66,17 @@ func (p *PeerDiscoveryAdapter) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
 	p.peerOrigin = peerOrigin
 }
 
-// ResolveVerificationKey fetches the public key for a keyId via /.well-known/jwks.json.
+// ResolveVerificationKey fetches the public key for a keyId through the peer's
+// advertised discovery jwksUri. It fetches the peer discovery document,
+// validates the advertised jwksUri with the shared discovery validator, and
+// resolves the exact key matching kid from that explicit URL.
 func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID string) (sigalg.ResolvedPublicKey, error) {
 	if p.jwks == nil {
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("no JWKS resolver configured")
+	}
+
+	if p.discovery == nil {
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("no discovery client configured")
 	}
 
 	parsed, err := keyid.ParseKid(keyID)
@@ -71,7 +89,7 @@ func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("invalid keyId %q: %w", keyID, err)
 	}
 
-	// Absolute-URI kids must pass peer absolute-URI policy before JWKS fetch.
+	// Absolute-URI kids must pass peer absolute-URI policy before discovery fetch.
 	if parsed.Scheme != "" && p.peerOrigin != nil {
 		if !p.peerOrigin.IsAbsoluteURIAllowed(keyID, authority) {
 			return sigalg.ResolvedPublicKey{}, fmt.Errorf("absolute keyId %q is not allowed for peer %q", keyID, authority)
@@ -88,7 +106,18 @@ func (p *PeerDiscoveryAdapter) ResolveVerificationKey(ctx context.Context, keyID
 		}
 	}
 
-	resolved, err := p.jwks.Resolve(ctx, scheme, authority, keyID)
+	discoveryBase := (&url.URL{Scheme: scheme, Host: authority}).String()
+
+	disc, err := p.discovery.Discover(ctx, discoveryBase)
+	if err != nil {
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("peer discovery for %q: %w", keyID, err)
+	}
+
+	if disc.JwksUri == "" {
+		return sigalg.ResolvedPublicKey{}, fmt.Errorf("peer discovery for %q: no jwksUri advertised", keyID)
+	}
+
+	resolved, err := p.jwks.ResolveURL(ctx, disc.JwksUri, keyID)
 	if err != nil {
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks lookup for %q: %w", keyID, err)
 	}

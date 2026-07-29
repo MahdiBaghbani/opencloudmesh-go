@@ -8,8 +8,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
@@ -24,13 +29,14 @@ import (
 
 func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 	var (
-		srv *httptest.Server
-		km  *crypto.KeyManager
+		srv     *httptest.Server
+		km      *crypto.KeyManager
+		jwksURI string
 	)
 
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case jwks.WellKnownPath:
+		case "/ocm/jwks":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(km.JWKS()) //nolint:errcheck // test mock handler: JSON encode
 		case "/.well-known/ocm":
@@ -39,12 +45,15 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
+				JwksUri:    jwksURI,
 			})
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	defer srv.Close()
+
+	jwksURI = srv.URL + "/ocm/jwks"
 
 	km = crypto.NewKeyManager("", srv.URL)
 	if err := km.LoadOrGenerate(); err != nil {
@@ -57,7 +66,8 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	adapter := NewPeerDiscoveryAdapter(rawClient)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	keyID := km.GetKeyID()
@@ -100,13 +110,14 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 	y := base64.RawURLEncoding.EncodeToString(padCoord(priv.Y.Bytes(), 32))
 
 	var (
-		keyID string
-		srv   *httptest.Server
+		keyID   string
+		srv     *httptest.Server
+		jwksURI string
 	)
 
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case jwks.WellKnownPath:
+		case "/ocm/jwks":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{ //nolint:errcheck // test mock handler: JSON encode
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
@@ -117,12 +128,15 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
+				JwksUri:    jwksURI,
 			})
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	defer srv.Close()
+
+	jwksURI = srv.URL + "/ocm/jwks"
 
 	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
 	if err != nil {
@@ -137,7 +151,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	adapter := NewPeerDiscoveryAdapter(rawClient)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
@@ -164,22 +179,33 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 		keyID     string
 		sawScheme string
 		srv       *httptest.Server
+		jwksURI   string
 	)
 
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != jwks.WellKnownPath {
+		switch r.URL.Path {
+		case "/ocm/jwks":
+			if r.TLS == nil {
+				sawScheme = "http"
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub)) //nolint:errcheck // test mock handler: JSON encode
+		case "/.well-known/ocm":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+				Enabled:    true,
+				APIVersion: "1.4.0",
+				EndPoint:   srv.URL + "/ocm",
+				JwksUri:    jwksURI,
+			})
+		default:
 			http.NotFound(w, r)
-			return
 		}
-
-		if r.TLS == nil {
-			sawScheme = "http"
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub)) //nolint:errcheck // test mock handler: JSON encode
 	}))
 	defer srv.Close()
+
+	jwksURI = srv.URL + "/ocm/jwks"
 
 	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
 	if err != nil {
@@ -194,7 +220,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	adapter := NewPeerDiscoveryAdapter(rawClient)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
@@ -221,22 +248,33 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_PreservesExplicitHTTPSKid(t
 		keyID     string
 		sawScheme string
 		srv       *httptest.Server
+		jwksURI   string
 	)
 
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != jwks.WellKnownPath {
+		switch r.URL.Path {
+		case "/ocm/jwks":
+			if r.TLS != nil {
+				sawScheme = "https"
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub)) //nolint:errcheck // test mock handler: JSON encode
+		case "/.well-known/ocm":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+				Enabled:    true,
+				APIVersion: "1.4.0",
+				EndPoint:   srv.URL + "/ocm",
+				JwksUri:    jwksURI,
+			})
+		default:
 			http.NotFound(w, r)
-			return
 		}
-
-		if r.TLS != nil {
-			sawScheme = "https"
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub)) //nolint:errcheck // test mock handler: JSON encode
 	}))
 	defer srv.Close()
+
+	jwksURI = srv.URL + "/ocm/jwks"
 
 	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
 	if err != nil {
@@ -251,7 +289,8 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_PreservesExplicitHTTPSKid(t
 		InsecureSkipVerify: true,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	adapter := NewPeerDiscoveryAdapter(rawClient)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	resolved, err := adapter.ResolveVerificationKey(context.Background(), keyID)
@@ -274,16 +313,33 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != jwks.WellKnownPath {
-			http.NotFound(w, r)
-			return
-		}
+	jwkPath := "/ocm/jwks"
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("ignored#key1", pub)) //nolint:errcheck // test mock handler: JSON encode
+	var (
+		jwksURI string
+		srv     *httptest.Server
+	)
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case jwkPath:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("ignored#key1", pub)) //nolint:errcheck // test mock handler: JSON encode
+		case "/.well-known/ocm":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+				Enabled:    true,
+				APIVersion: "1.4.0",
+				EndPoint:   srv.URL + "/ocm",
+				JwksUri:    jwksURI,
+			})
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer srv.Close()
+
+	jwksURI = srv.URL + jwkPath
 
 	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
 	if err != nil {
@@ -298,7 +354,8 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	adapter := NewPeerDiscoveryAdapter(rawClient)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(false))
 
 	_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
@@ -317,7 +374,8 @@ func TestNewPeerDiscoveryAdapter_JWKSResolverOptionsAreBoundedAndNonZero(t *test
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	adapter := NewPeerDiscoveryAdapter(rawClient)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 
 	opts, ok := adapter.JWKSResolverOptions()
 	if !ok {
@@ -361,24 +419,39 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
+	discClient := NewClient(rawClient, nil)
 
 	t.Run("jwks 404", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == jwks.WellKnownPath {
-				http.NotFound(w, r)
-				return
-			}
+		jwksURI := ""
 
-			http.NotFound(w, r)
+		var srv *httptest.Server
+
+		srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/ocm/jwks":
+				http.NotFound(w, r)
+			case "/.well-known/ocm":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+					Enabled:    true,
+					APIVersion: "1.4.0",
+					EndPoint:   srv.URL + "/ocm",
+					JwksUri:    jwksURI,
+				})
+			default:
+				http.NotFound(w, r)
+			}
 		}))
 		defer srv.Close()
+
+		jwksURI = srv.URL + "/ocm/jwks"
 
 		km := crypto.NewKeyManager("", srv.URL)
 		if err := km.LoadOrGenerate(); err != nil {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(rawClient)
+		adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
@@ -388,24 +461,37 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 	})
 
 	t.Run("invalid jwks JSON", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == jwks.WellKnownPath {
+		jwksURI := ""
+
+		var srv *httptest.Server
+
+		srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/ocm/jwks":
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{"keys":[`)) //nolint:errcheck // test mock handler: response write
-
-				return
+			case "/.well-known/ocm":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+					Enabled:    true,
+					APIVersion: "1.4.0",
+					EndPoint:   srv.URL + "/ocm",
+					JwksUri:    jwksURI,
+				})
+			default:
+				http.NotFound(w, r)
 			}
-
-			http.NotFound(w, r)
 		}))
 		defer srv.Close()
+
+		jwksURI = srv.URL + "/ocm/jwks"
 
 		km := crypto.NewKeyManager("", srv.URL)
 		if err := km.LoadOrGenerate(); err != nil {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(rawClient)
+		adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
@@ -415,7 +501,10 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 	})
 
 	t.Run("missing kid", func(t *testing.T) {
-		var srv *httptest.Server
+		var (
+			srv     *httptest.Server
+			jwksURI string
+		)
 
 		otherKM := crypto.NewKeyManager("", "https://other.example.com")
 		if err := otherKM.LoadOrGenerate(); err != nil {
@@ -423,23 +512,32 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 		}
 
 		srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == jwks.WellKnownPath {
+			switch r.URL.Path {
+			case "/ocm/jwks":
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(otherKM.JWKS()) //nolint:errcheck // test mock handler: JSON encode
-
-				return
+			case "/.well-known/ocm":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+					Enabled:    true,
+					APIVersion: "1.4.0",
+					EndPoint:   srv.URL + "/ocm",
+					JwksUri:    jwksURI,
+				})
+			default:
+				http.NotFound(w, r)
 			}
-
-			http.NotFound(w, r)
 		}))
 		defer srv.Close()
+
+		jwksURI = srv.URL + "/ocm/jwks"
 
 		km := crypto.NewKeyManager("", srv.URL)
 		if err := km.LoadOrGenerate(); err != nil {
 			t.Fatal(err)
 		}
 
-		adapter := NewPeerDiscoveryAdapter(rawClient)
+		adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
 		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
@@ -447,4 +545,252 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 			t.Fatal("expected missing kid error")
 		}
 	})
+}
+
+func TestPeerDiscoveryAdapter_ResolveVerificationKey_MissingJwksUri(t *testing.T) {
+	var srv *httptest.Server
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/ocm" {
+			http.NotFound(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			Enabled:    true,
+			APIVersion: "1.4.0",
+			EndPoint:   srv.URL + "/ocm",
+		})
+	}))
+	defer srv.Close()
+
+	outboundCfg := &config.OutboundHTTPConfig{
+		SSRF:               config.SSRFConfig{Mode: "off"},
+		MaxResponseBytes:   1 << 20,
+		InsecureSkipVerify: false,
+	}
+	rawClient := httpclient.New(outboundCfg, nil)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
+
+	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyID := authority + "#key1"
+
+	_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
+	if err == nil {
+		t.Fatal("expected error when discovery lacks jwksUri")
+	}
+
+	if strings.Contains(err.Error(), "no jwksUri advertised") {
+		return
+	}
+
+	t.Fatalf("error = %v, want no jwksUri advertised", err)
+}
+
+func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksInvalidAdvertisedJwksUri(t *testing.T) {
+	cases := []struct {
+		name    string
+		jwksURI string
+		wantErr string
+	}{
+		{"cross-authority", "https://other.example.com/ocm/jwks", "jwksUri authority must match discovery origin"},
+		{"credential-bearing", "", "jwksUri must not contain credentials"},
+		{"fragment-bearing", "", "jwksUri must not contain a fragment"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				jwksURI string
+				srv     *httptest.Server
+			)
+
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/.well-known/ocm" {
+					http.NotFound(w, r)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+					Enabled:    true,
+					APIVersion: "1.4.0",
+					EndPoint:   srv.URL + "/ocm",
+					JwksUri:    jwksURI,
+				})
+			}))
+			defer srv.Close()
+
+			switch tc.name {
+			case "credential-bearing":
+				jwksURI = strings.Replace(srv.URL, "://", "://user:pass@", 1) + "/ocm/jwks"
+			case "fragment-bearing":
+				jwksURI = srv.URL + "/ocm/jwks#key-1"
+			default:
+				jwksURI = tc.jwksURI
+			}
+
+			outboundCfg := &config.OutboundHTTPConfig{
+				SSRF:               config.SSRFConfig{Mode: "off"},
+				MaxResponseBytes:   1 << 20,
+				InsecureSkipVerify: false,
+			}
+			rawClient := httpclient.New(outboundCfg, nil)
+			discClient := NewClient(rawClient, nil)
+			adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
+			adapter.SetPeerOrigin(peerorigin.NewResolver(true))
+
+			_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			keyID := authority + "#key1"
+
+			_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
+			if err == nil {
+				t.Fatalf("expected error for %s advertised jwksUri", tc.name)
+			}
+
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error = %v, want substring %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksHTTPSDowngradeRedirect(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var (
+		jwksURI string
+		srv     *httptest.Server
+	)
+
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/ocm/jwks":
+			w.Header().Set("Location", strings.Replace(srv.URL, "https://", "http://", 1)+"/ocm/jwks")
+			w.WriteHeader(http.StatusFound)
+		case "/.well-known/ocm":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+				Enabled:    true,
+				APIVersion: "1.4.0",
+				EndPoint:   srv.URL + "/ocm",
+				JwksUri:    jwksURI,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	jwksURI = srv.URL + "/ocm/jwks"
+
+	outboundCfg := &config.OutboundHTTPConfig{
+		SSRF:               config.SSRFConfig{Mode: "off"},
+		MaxResponseBytes:   1 << 20,
+		InsecureSkipVerify: true,
+	}
+	rawClient := httpclient.New(outboundCfg, nil)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(false))
+
+	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyID := authority + "#key1"
+
+	// Silence unused pub warning.
+	_ = pub
+
+	_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
+	if err == nil {
+		t.Fatal("expected error for HTTPS-to-HTTP downgrade redirect")
+	}
+
+	if !errors.Is(err, httpclient.ErrRedirectDowngrade) {
+		t.Fatalf("error = %v, want errors.Is(..., httpclient.ErrRedirectDowngrade)", err)
+	}
+}
+
+func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksCrossHostRedirect(t *testing.T) {
+	var (
+		jwksURI string
+		srv     *httptest.Server
+	)
+
+	redirectLocation := ""
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/ocm/jwks":
+			w.Header().Set("Location", redirectLocation)
+			w.WriteHeader(http.StatusFound)
+		case "/.well-known/ocm":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+				Enabled:    true,
+				APIVersion: "1.4.0",
+				EndPoint:   srv.URL + "/ocm",
+				JwksUri:    jwksURI,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	u, parseErr := url.Parse(srv.URL)
+	if parseErr != nil {
+		t.Fatalf("parse test server URL: %v", parseErr)
+	}
+
+	otherPort, portErr := strconv.Atoi(u.Port())
+	if portErr != nil {
+		t.Fatalf("parse test server port: %v", portErr)
+	}
+
+	redirectLocation = "http://" + net.JoinHostPort(u.Hostname(), strconv.Itoa(otherPort+1)) + "/ocm/jwks"
+	jwksURI = srv.URL + "/ocm/jwks"
+
+	outboundCfg := &config.OutboundHTTPConfig{
+		SSRF:               config.SSRFConfig{Mode: "off"},
+		MaxResponseBytes:   1 << 20,
+		InsecureSkipVerify: false,
+	}
+	rawClient := httpclient.New(outboundCfg, nil)
+	discClient := NewClient(rawClient, nil)
+	adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
+	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
+
+	_, authority, err := jwks.AuthorityFromBaseURL(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyID := authority + "#key1"
+
+	_, err = adapter.ResolveVerificationKey(context.Background(), keyID)
+	if err == nil {
+		t.Fatal("expected error for cross-host redirect")
+	}
+
+	if !errors.Is(err, httpclient.ErrRedirectNotSameHost) {
+		t.Fatalf("error = %v, want errors.Is(..., httpclient.ErrRedirectNotSameHost)", err)
+	}
 }

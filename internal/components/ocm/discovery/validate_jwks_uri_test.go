@@ -148,6 +148,7 @@ func TestValidateDiscoveryJwksUri(t *testing.T) {
 					t.Fatalf("validateDiscoveryJwksUri error = %q, must not echo credential userinfo", msg)
 				}
 			}
+
 			if strings.Contains(tt.jwksURI, "%zz") {
 				if strings.Contains(msg, tt.jwksURI) || strings.Contains(msg, "%zz") {
 					t.Fatalf("validateDiscoveryJwksUri error = %q, must not echo raw malformed URI", msg)

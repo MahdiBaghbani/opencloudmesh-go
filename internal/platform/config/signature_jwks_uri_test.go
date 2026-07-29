@@ -14,6 +14,7 @@ func loadJwksURITOML(t *testing.T, tomlContent string) (*config.Config, error) {
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 
 	dir := t.TempDir()
+
 	tomlPath := filepath.Join(dir, "config.toml")
 	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0600); err != nil {
 		t.Fatal(err)
@@ -137,6 +138,7 @@ jwks_uri = "https://user:pass@cloud.example.com/jwks.json"
 	if !strings.Contains(msg, "credentials") {
 		t.Fatalf("Load() error = %v, want credentials rejection", err)
 	}
+
 	if strings.Contains(msg, "user:pass") || strings.Contains(msg, "user@") {
 		t.Fatalf("Load() error = %v, must not echo credential userinfo", err)
 	}
@@ -160,6 +162,7 @@ jwks_uri = "https:user:pass@cloud.example.com/jwks.json"
 	if !strings.Contains(msg, "must be absolute") {
 		t.Fatalf("Load() error = %v, want must-be-absolute rejection", err)
 	}
+
 	if strings.Contains(msg, "user:pass") || strings.Contains(msg, "user@") {
 		t.Fatalf("Load() error = %v, must not echo opaque credential text", err)
 	}
@@ -167,6 +170,7 @@ jwks_uri = "https:user:pass@cloud.example.com/jwks.json"
 
 func TestLoad_RejectsMalformedSignatureJwksURIWithoutEchoingRaw(t *testing.T) {
 	const raw = "https://cloud.example.com/%zz"
+
 	_, err := loadJwksURITOML(t, `
 mode = "dev"
 public_origin = "https://cloud.example.com"
@@ -182,6 +186,7 @@ jwks_uri = "https://cloud.example.com/%zz"
 	if !strings.Contains(msg, "malformed") {
 		t.Fatalf("Load() error = %v, want malformed rejection", err)
 	}
+
 	if strings.Contains(msg, raw) || strings.Contains(msg, "%zz") {
 		t.Fatalf("Load() error = %v, must not echo raw malformed URI", err)
 	}

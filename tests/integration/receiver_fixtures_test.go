@@ -22,7 +22,6 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/modroot"
 )
 
@@ -67,12 +66,13 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 				Capabilities:  []string{"exchange-token", "http-sig"},
 				Criteria:      []string{spec.CriteriaMustExchangeToken, spec.CriteriaMustUseHTTPSig},
 				TokenEndPoint: srv.URL + "/ocm/token",
+				JwksUri:       srv.URL + "/ocm/jwks",
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(disc)
-		case jwks.WellKnownPath:
+		case "/ocm/jwks":
 			if km == nil {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
 				return
@@ -213,12 +213,13 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 				Capabilities:  []string{"exchange-token", "http-sig"},
 				Criteria:      []string{spec.CriteriaMustExchangeToken, spec.CriteriaMustUseHTTPSig},
 				TokenEndPoint: srv.URL + "/ocm/token",
+				JwksUri:       srv.URL + "/ocm/jwks",
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			//nolint:errcheck // test stub handler: JSON encode/decode
 			_ = json.NewEncoder(w).Encode(disc)
-		case r.URL.Path == jwks.WellKnownPath:
+		case r.URL.Path == "/ocm/jwks":
 			if km == nil {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
 				return

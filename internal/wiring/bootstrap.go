@@ -89,8 +89,8 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	cfg.ExternalBasePath = localIdentity.ExternalBasePath
 
-	if err := discovery.ValidateLocalJwksURIOverride(cfg.Signature.JwksURI, localIdentity.Origin); err != nil {
-		return BuildResult{}, fmt.Errorf("invalid signature.jwks_uri: %w", err)
+	if validateErr := discovery.ValidateLocalJwksURIOverride(cfg.Signature.JwksURI, localIdentity.Origin); validateErr != nil {
+		return BuildResult{}, fmt.Errorf("invalid signature.jwks_uri: %w", validateErr)
 	}
 
 	partyRepo := identity.NewMemoryPartyRepo()
@@ -139,7 +139,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 
 	signer := buildSigner(cfg, keyManager)
 
-	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(rawHTTPClient)
+	peerDiscoveryAdapter := discovery.NewPeerDiscoveryAdapter(rawHTTPClient, discoveryClient)
 	peerDiscoveryAdapter.SetPeerOrigin(peerOrigin)
 	signatureMiddleware := signature.NewSignatureMiddleware(
 		peerDiscoveryAdapter,

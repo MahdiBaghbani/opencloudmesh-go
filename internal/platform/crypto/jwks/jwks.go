@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	WellKnownPath = "/.well-known/jwks.json" //nolint:revive // exported: obvious well-known JWKS path constant
 	// DefaultCacheTTL is how long a fetched JWKS document is reused before refresh.
 	DefaultCacheTTL = 1 * time.Minute
 	// DefaultMinRefetchInterval caps forced refetch frequency after a kid miss.
@@ -320,22 +319,13 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 	return set, nil
 }
 
-// URLForAuthority builds the well-known JWKS URL for an authority.
-func URLForAuthority(scheme, authority string) string {
-	if scheme == "" {
-		scheme = "https"
-	}
-
-	return scheme + "://" + authority + WellKnownPath
-}
-
-// Resolve fetches JWKS for authority using scheme and returns the key matching kid.
-func (r *Resolver) Resolve(
+// ResolveURL fetches the JWKS at the explicit advertised URL and returns the
+// key matching kid. Fetches go through the resolver's bounded cache with the
+// configured TTL, min-refetch interval, and negative-cache behavior.
+func (r *Resolver) ResolveURL(
 	ctx context.Context,
-	scheme, authority, kid string,
+	jwksURL, kid string,
 ) (sigalg.ResolvedPublicKey, error) {
-	jwksURL := URLForAuthority(scheme, authority)
-
 	if r.negativeHit(jwksURL, kid) {
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: key %q not found: %w", kid, ErrKeyNotFound)
 	}
@@ -461,38 +451,6 @@ func (r *Resolver) rememberNegative(jwksURL, kid string) {
 	r.mu.Lock()
 	r.negative[negativeKey(jwksURL, kid)] = r.now().Add(r.negativeTTL)
 	r.mu.Unlock()
-}
-
-// ResolveKeyID resolves a signature keyid parameter to a ResolvedPublicKey.
-// Scheme and authority come from keyid.CanonicalJWKSAuthority. For
-// host#fragment kids, defaultScheme (when non-empty) overrides the canonical
-// https default and re-normalizes.
-func (r *Resolver) ResolveKeyID(
-	ctx context.Context,
-	defaultScheme, keyID string,
-) (sigalg.ResolvedPublicKey, error) {
-	parsed, err := keyid.ParseKid(keyID)
-	if err != nil {
-		return sigalg.ResolvedPublicKey{}, err
-	}
-
-	scheme, authority, err := keyid.CanonicalJWKSAuthority(parsed)
-	if err != nil {
-		return sigalg.ResolvedPublicKey{}, err
-	}
-
-	if parsed.Scheme == "" {
-		if ds := strings.ToLower(strings.TrimSpace(defaultScheme)); ds != "" {
-			scheme = ds
-
-			authority, err = hostport.Normalize(strings.TrimSpace(parsed.Authority), scheme)
-			if err != nil {
-				return sigalg.ResolvedPublicKey{}, fmt.Errorf("jwks: normalize keyid authority: %w", err)
-			}
-		}
-	}
-
-	return r.Resolve(ctx, scheme, authority, keyID)
 }
 
 // AuthorityFromBaseURL extracts scheme and hostport-normalized authority from

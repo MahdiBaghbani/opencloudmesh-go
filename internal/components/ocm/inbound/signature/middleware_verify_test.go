@@ -289,9 +289,13 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 		srv   *httptest.Server
 	)
 
+	jwkPath := "/ocm/jwks"
+
+	var jwksURI string
+
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case jwks.WellKnownPath:
+		case jwkPath:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{ //nolint:errcheck // test mock handler: JSON encode
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
@@ -304,6 +308,7 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 				"endPoint":     srv.URL + "/ocm",
 				"capabilities": []string{"http-sig"},
 				"criteria":     []string{"must-use-http-sig"},
+				"jwksUri":      jwksURI,
 			})
 		default:
 			http.NotFound(w, r)
@@ -317,6 +322,7 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 	}
 
 	keyID = authority + "#ec1"
+	jwksURI = srv.URL + jwkPath
 
 	outboundCfg := &config.OutboundHTTPConfig{
 		SSRF:               config.SSRFConfig{Mode: "off"},
@@ -324,7 +330,8 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 		InsecureSkipVerify: false,
 	}
 	rawClient := httpclient.New(outboundCfg, nil)
-	adapter := discovery.NewPeerDiscoveryAdapter(rawClient)
+	discClient := discovery.NewClient(rawClient, nil)
+	adapter := discovery.NewPeerDiscoveryAdapter(rawClient, discClient)
 	adapter.SetPeerOrigin(peerorigin.NewResolver(true))
 
 	cfg := defaultSigTestConfig()

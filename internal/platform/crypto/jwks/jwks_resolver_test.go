@@ -15,23 +15,23 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 )
 
-func TestResolver_Resolve(t *testing.T) {
+func TestResolver_ResolveURL(t *testing.T) {
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
 	srv := httptest.NewServer(jwksJSONHandler(set))
 	defer srv.Close()
 
-	scheme, authority := mustSchemeAuthority(t, srv.URL)
-
 	resolver, err := jwks.NewResolver(srv.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := resolver.Resolve(context.Background(), scheme, authority, testJWKSKey1)
+	jwksURL := srv.URL + "/jwks"
+
+	got, err := resolver.ResolveURL(context.Background(), jwksURL, testJWKSKey1)
 	if err != nil {
-		t.Fatalf("Resolve: %v", err)
+		t.Fatalf("ResolveURL: %v", err)
 	}
 
 	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
@@ -60,7 +60,7 @@ func (d *recordingDoer) Do(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-func TestResolver_ResolveKeyID_CanonicalizesAuthority(t *testing.T) {
+func TestResolver_ResolveURL_HonorsExplicitURL(t *testing.T) {
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
@@ -76,9 +76,9 @@ func TestResolver_ResolveKeyID_CanonicalizesAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := resolver.ResolveKeyID(context.Background(), "", "example.com:443#key1")
+	got, err := resolver.ResolveURL(context.Background(), "https://example.com:443/jwks", "example.com:443#key1")
 	if err != nil {
-		t.Fatalf("ResolveKeyID default-port: %v", err)
+		t.Fatalf("ResolveURL: %v", err)
 	}
 
 	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
@@ -90,48 +90,26 @@ func TestResolver_ResolveKeyID_CanonicalizesAuthority(t *testing.T) {
 		t.Fatal("key mismatch")
 	}
 
-	if doer.lastURL != "https://example.com/.well-known/jwks.json" {
-		t.Fatalf("fetch URL = %q, want canonical https without :443", doer.lastURL)
-	}
-
-	doer.lastURL = ""
-
-	got, err = resolver.ResolveKeyID(context.Background(), "https", "http://Example.COM:80/ocm#key1")
-	if err != nil {
-		t.Fatalf("ResolveKeyID absolute http: %v", err)
-	}
-
-	gotPub, ok = got.PublicKey.(ed25519.PublicKey)
-	if !ok {
-		t.Fatal("expected ed25519 public key")
-	}
-
-	if !pub.Equal(gotPub) {
-		t.Fatal("absolute URI key mismatch")
-	}
-
-	if doer.lastURL != "http://example.com/.well-known/jwks.json" {
-		t.Fatalf("absolute URI fetch URL = %q, want http scheme from kid", doer.lastURL)
+	if doer.lastURL != "https://example.com:443/jwks" {
+		t.Fatalf("fetch URL = %q, want exact advertised URL", doer.lastURL)
 	}
 }
 
-func TestResolver_Resolve_MissingKid(t *testing.T) {
+func TestResolver_ResolveURL_MissingKid(t *testing.T) {
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
 	srv := httptest.NewServer(jwksJSONHandler(set))
 	defer srv.Close()
 
-	scheme, authority := mustSchemeAuthority(t, srv.URL)
-
 	resolver, err := jwks.NewResolver(srv.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = resolver.Resolve(context.Background(), scheme, authority, "example.com#missing")
+	_, err = resolver.ResolveURL(context.Background(), srv.URL+"/jwks", "example.com#missing")
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
-		t.Fatalf("Resolve() error = %v, want ErrKeyNotFound", err)
+		t.Fatalf("ResolveURL() error = %v, want ErrKeyNotFound", err)
 	}
 }
 

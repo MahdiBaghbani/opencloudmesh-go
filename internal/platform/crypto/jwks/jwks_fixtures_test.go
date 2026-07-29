@@ -34,17 +34,6 @@ func mustTwoEd25519PublicKeys(t *testing.T) (ed25519.PublicKey, ed25519.PublicKe
 	return key1, key2
 }
 
-func mustSchemeAuthority(t *testing.T, baseURL string) (scheme, authority string) {
-	t.Helper()
-
-	scheme, authority, err := jwks.AuthorityFromBaseURL(baseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return scheme, authority
-}
-
 func jwksJSONHandler(set jwks.Set) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
