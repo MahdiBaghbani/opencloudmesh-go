@@ -2,6 +2,7 @@
 SHELL := /bin/bash
 .PHONY: build test-go test-integration test-e2e test-e2e-install \
 	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new security check ci \
+	pre-commit-install pre-commit-run \
 	generate-action-inventory verify-action-pins
 
 # Build the server binary
@@ -51,7 +52,7 @@ tools:
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
 
-# Mutating format: go fmt + goimports (matches pre-commit hook).
+# Mutating format: go fmt + goimports (matches pre-commit gofmt/goimports hooks).
 fmt:
 	go fmt ./...
 	$(GOIMPORTS) -w .
@@ -92,6 +93,16 @@ security:
 
 # Light local check: no full lint, no security scan.
 check: fmt-check vet lint-new test-go
+
+# Install pre-commit.com git hooks (.pre-commit-config.yaml).
+# gofmt/goimports/vet are staged-scoped; golangci-lint is full-module (mirrors make lint).
+pre-commit-install:
+	uv run pre-commit install
+
+# Run pre-commit hooks (same as git commit): staged gofmt/goimports/vet;
+# golangci-lint is full-module (mirrors make lint).
+pre-commit-run:
+	uv run pre-commit run
 
 # Laptop CI mirror: fmt, vet, lint, security, unit+integration, build, pins.
 ci: fmt-check vet lint security test build verify-action-pins

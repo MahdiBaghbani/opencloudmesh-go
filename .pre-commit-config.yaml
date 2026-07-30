@@ -1,0 +1,37 @@
+# Local git hooks. Tool versions: make tools + Makefile pins.
+# gofmt/goimports/vet: staged Go files. golangci-lint: full module (make lint/CI).
+minimum_pre_commit_version: "3.0.0"
+
+repos:
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt (staged)
+        entry: nu scripts/git/pre-commit-gofmt.nu
+        language: system
+        types: [go]
+        pass_filenames: true
+
+      - id: goimports
+        name: goimports (staged)
+        entry: nu scripts/git/pre-commit-goimports.nu
+        language: system
+        types: [go]
+        pass_filenames: true
+
+      - id: go-vet
+        name: go vet (staged, index)
+        entry: nu scripts/git/pre-commit-go-vet.nu
+        language: system
+        types: [go]
+        pass_filenames: true
+        require_serial: true
+
+      - id: golangci-lint
+        name: golangci-lint (full module)
+        entry: golangci-lint
+        args: [run, ./...]
+        language: system
+        types: [go]
+        pass_filenames: false
+        require_serial: true

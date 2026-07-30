@@ -26,15 +26,54 @@ naming. If `make test` complains about an import boundary, that is the guard
 doing its job, and [docs/architecture.md](docs/architecture.md) explains the
 rules.
 
+## Git hooks (pre-commit)
+
+gofmt, goimports, and go vet hooks check **staged** `.go` files only using
+the staged-content contract. The golangci-lint hook runs the **full** module
+lint, mirroring `make lint` / CI, when the commit includes staged Go files.
+It is skipped for docs-only commits (no staged `.go` files) because of
+`types: [go]`. A green local pre-commit means staged files passed fmt/vet
+checks; for commits that touch Go files it also means full-module lint
+passed (CI lint should match). For docs-only commits the lint hook is
+skipped and CI lint must still pass independently. A green local
+pre-commit does not guarantee whole-tree CI fmt or vet.
+
+One-time setup:
+
+Nushell (`nu`) is required because the pre-commit helpers are `.nu` files.
+Install via [mise](https://mise.jdx.dev/) or the
+[official Nushell install](https://www.nushell.sh/book/installation.html).
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh   # install uv
+uv sync                   # create .venv and install pinned pre-commit from uv.lock
+make tools                # pinned goimports + golangci-lint (see Makefile)
+make pre-commit-install   # writes .git/hooks/pre-commit (uses the project venv)
+```
+
+Optional manual run before commit:
+
+```sh
+make pre-commit-run
+```
+
+Hook versions match CI via `make tools` (`GOLANGCI_LINT_VERSION`,
+`GOIMPORTS_VERSION` in the Makefile). The legacy `.githooks/pre-commit`
+path is retired; use `pre-commit install` instead.
+
 ## Before you open a pull request
 
 Run the smallest relevant checks for your change. In most cases that means:
 
 ```sh
-make fmt
+make fmt-check
 make vet
+make lint
 make test
 ```
+
+With hooks installed, `git commit` runs staged gofmt/goimports/vet plus the
+full-module golangci-lint bar for Go paths you are committing.
 
 If your change touches browser flows, invite UX, or WAYF behavior, also run:
 
