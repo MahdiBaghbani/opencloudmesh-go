@@ -31,34 +31,34 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	original.ShareID = "iso-out-share-1"
 	original.ProviderID = "iso-out-provider-1"
 	original.WebDAVID = "iso-out-webdav-1"
-	original.State = "sent"
+	original.Status = "sent"
 
 	if err := outStore.CreateOutgoingShare(ctx, original); err != nil {
 		t.Fatalf("CreateOutgoingShare: %v", err)
 	}
 
 	// 1. Post-create mutation of caller pointer must not affect stored record.
-	original.State = "mutated-after-create"
+	original.Status = "mutated-after-create"
 
 	got, err := outStore.GetOutgoingShare(ctx, original.ProviderID)
 	if err != nil {
 		t.Fatalf("GetOutgoingShare: %v", err)
 	}
 
-	if got.State != "sent" {
-		t.Errorf("create isolation broken: stored State = %q, want %q", got.State, "sent")
+	if got.Status != "sent" {
+		t.Errorf("create isolation broken: stored Status = %q, want %q", got.Status, "sent")
 	}
 
 	// 2. Mutation of a fetched record must not alter the next fetch.
-	got.State = "mutated-after-get"
+	got.Status = "mutated-after-get"
 
 	got2, err := outStore.GetOutgoingShare(ctx, original.ProviderID)
 	if err != nil {
 		t.Fatalf("second GetOutgoingShare: %v", err)
 	}
 
-	if got2.State != "sent" {
-		t.Errorf("get isolation broken: stored State = %q, want %q", got2.State, "sent")
+	if got2.Status != "sent" {
+		t.Errorf("get isolation broken: stored Status = %q, want %q", got2.Status, "sent")
 	}
 
 	// 3. List returns copies.
@@ -80,21 +80,21 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 		t.Fatalf("share not found in list")
 	}
 
-	found.State = "mutated-after-list"
+	found.Status = "mutated-after-list"
 
 	got3, err := outStore.GetOutgoingShare(ctx, original.ProviderID)
 	if err != nil {
 		t.Fatalf("third GetOutgoingShare: %v", err)
 	}
 
-	if got3.State != "sent" {
-		t.Errorf("list isolation broken: stored State = %q, want %q", got3.State, "sent")
+	if got3.Status != "sent" {
+		t.Errorf("list isolation broken: stored Status = %q, want %q", got3.Status, "sent")
 	}
 
 	// 4. Update path still works correctly.
 	updateCopy := *got3
 
-	updateCopy.State = "accepted"
+	updateCopy.Status = "accepted"
 	if err := outStore.UpdateOutgoingShare(ctx, &updateCopy); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("UpdateOutgoingShare: %v", err)
 	}
@@ -104,8 +104,8 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 		t.Fatalf("GetOutgoingShare after update: %v", err)
 	}
 
-	if got4.State != "accepted" {
-		t.Errorf("update did not persist: State = %q, want %q", got4.State, "accepted")
+	if got4.Status != "accepted" {
+		t.Errorf("update did not persist: State = %q, want %q", got4.Status, "accepted")
 	}
 }
 
@@ -129,43 +129,43 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 
 	original := testutil.NewIncomingShareFixture()
 	original.ShareID = "iso-share-1"
-	original.SendingServer = "sender.example"
+	original.SenderHost = "sender.example"
 	original.ProviderID = "provider-iso-1"
-	original.UserID = "bob"
-	original.State = "pending"
+	original.RecipientUserID = "bob"
+	original.Status = "pending"
 
 	if err := inStore.CreateIncomingShare(ctx, original); err != nil {
 		t.Fatalf("CreateIncomingShare: %v", err)
 	}
 
 	// 1. Post-create mutation of caller pointer must not affect stored record.
-	original.State = "mutated-after-create"
-	original.UserID = "hacker"
+	original.Status = "mutated-after-create"
+	original.RecipientUserID = "hacker"
 
 	got, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient: %v", err)
 	}
 
-	if got.State != "pending" {
-		t.Errorf("create isolation broken: stored State = %q, want %q", got.State, "pending")
+	if got.Status != "pending" {
+		t.Errorf("create isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
 
-	if got.UserID != "bob" {
-		t.Errorf("create isolation broken: stored UserID = %q, want %q", got.UserID, "bob")
+	if got.RecipientUserID != "bob" {
+		t.Errorf("create isolation broken: stored UserID = %q, want %q", got.RecipientUserID, "bob")
 	}
 
 	// 2. Mutation of a fetched record must not alter the next fetch.
-	got.State = "mutated-after-get"
-	got.UserID = "hacker"
+	got.Status = "mutated-after-get"
+	got.RecipientUserID = "hacker"
 
 	got2, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("second GetIncomingShareByIDForRecipient: %v", err)
 	}
 
-	if got2.State != "pending" {
-		t.Errorf("get isolation broken: stored State = %q, want %q", got2.State, "pending")
+	if got2.Status != "pending" {
+		t.Errorf("get isolation broken: stored Status = %q, want %q", got2.Status, "pending")
 	}
 
 	// 3. Provider-key lookup returns a copy with correct values.
@@ -178,17 +178,17 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 		t.Errorf("provider-key lookup: unexpected ShareID %q", byKey.ShareID)
 	}
 
-	byKey.State = "mutated-after-provider-key-get"
+	byKey.Status = "mutated-after-provider-key-get"
 
 	got3, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("third GetIncomingShareByIDForRecipient: %v", err)
 	}
 
-	if got3.State != "pending" {
+	if got3.Status != "pending" {
 		t.Errorf(
-			"provider-key get isolation broken: stored State = %q, want %q",
-			got3.State,
+			"provider-key get isolation broken: stored Status = %q, want %q",
+			got3.Status,
 			"pending",
 		)
 	}
@@ -203,15 +203,15 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 		t.Fatalf("expected 1 share, got %d", len(listed))
 	}
 
-	listed[0].State = "mutated-after-list"
+	listed[0].Status = "mutated-after-list"
 
 	got4, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("fourth GetIncomingShareByIDForRecipient: %v", err)
 	}
 
-	if got4.State != "pending" {
-		t.Errorf("list isolation broken: stored State = %q, want %q", got4.State, "pending")
+	if got4.Status != "pending" {
+		t.Errorf("list isolation broken: stored Status = %q, want %q", got4.Status, "pending")
 	}
 
 	// 4. Status-only update path must still work correctly.
@@ -224,8 +224,8 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 		t.Fatalf("GetIncomingShareByIDForRecipient after update: %v", err)
 	}
 
-	if got5.State != "accepted" {
-		t.Errorf("status update did not persist: State = %q, want %q", got5.State, "accepted")
+	if got5.Status != "accepted" {
+		t.Errorf("status update did not persist: State = %q, want %q", got5.Status, "accepted")
 	}
 }
 
@@ -333,7 +333,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	}
 
 	// 4. Status-only update path must still work correctly.
-	if err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, "iso-invite-1", "alice", "accepted"); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, "iso-invite-1", "alice", "accepted", "", ""); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient: %v", err)
 	}
 

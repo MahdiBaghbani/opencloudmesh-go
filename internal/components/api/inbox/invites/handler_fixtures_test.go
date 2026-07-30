@@ -18,13 +18,29 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
+
+// testInviteAcceptedPoster adapts outbound.Poster to the domain
+// InviteAcceptedPoster port for handler tests, mirroring the services/api
+// adapter wiring.
+type testInviteAcceptedPoster struct {
+	poster *outbound.Poster
+}
+
+func (p *testInviteAcceptedPoster) PostInviteAccepted(ctx context.Context, targetHost string, body []byte) (*http.Response, error) {
+	return p.poster.Send(ctx, outbound.Request{
+		TargetHost:   targetHost,
+		EndpointPath: "invite-accepted",
+		Kind:         outbound.EndpointInvites,
+		Body:         body,
+	})
+}
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -44,28 +60,32 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 	}
 }
 
-// newTestRouter mounts the inbox invites handler; nil clients suffice for list/import/decline (accept needs outbound).
-func newTestRouter(t *testing.T, repo invitesinbox.IncomingInviteRepo, user *identity.User) http.Handler {
+// newTestRouter mounts the inbox invites handler; nil poster suffices for list/import/decline (accept needs outbound).
+func newTestRouter(t *testing.T, repo invitesincoming.IncomingInviteRepo, user *identity.User) http.Handler {
 	t.Helper()
-	return newTestRouterWithDeps(t, repo, user, nil, nil, nil)
+	return newTestRouterWithDeps(t, repo, user, nil, nil)
 }
 
 func newTestRouterWithDeps(
 	t *testing.T,
-	repo invitesinbox.IncomingInviteRepo,
+	repo invitesincoming.IncomingInviteRepo,
 	user *identity.User,
 	httpClient httpclient.HTTPClient,
 	discoveryClient *discovery.Client,
-	signer *crypto.RFC9421Signer,
 ) http.Handler {
 	t.Helper()
-	localProvider := tslocalid.MustTestIdentity(t, testPublicOrigin, "").ProviderDomain
+	localIdentity := tslocalid.MustTestIdentity(t, testPublicOrigin, "")
+
+	var poster invitesincoming.InviteAcceptedPoster
+	if httpClient != nil {
+		poster = &testInviteAcceptedPoster{poster: outbound.NewPoster(httpClient, discoveryClient, nil, nil)}
+	}
+
 	h := inboxinvites.NewHandler(
 		repo,
-		httpClient,
-		discoveryClient,
-		signer,
-		localProvider,
+		poster,
+		localIdentity.ProviderDomain,
+		localIdentity.Scheme,
 		currentUserFunc(user),
 		testLogger,
 	)
@@ -130,8 +150,8 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 	return srv, inviteAcceptedCalls, sawSignature
 }
 
-func createInviteForUser(repo *invitesinbox.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesinbox.IncomingInvite {
-	invite := &invitesinbox.IncomingInvite{
+func createInviteForUser(repo *invitesincoming.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesincoming.IncomingInvite {
+	invite := &invitesincoming.IncomingInvite{
 		Token:           token,
 		SenderFQDN:      senderFQDN,
 		RecipientUserID: recipientUserID,

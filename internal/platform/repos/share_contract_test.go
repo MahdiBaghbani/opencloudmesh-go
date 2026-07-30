@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
 )
@@ -29,7 +30,7 @@ func runIncomingShareRepoContract(t *testing.T, r *repos.Repos) {
 func runIncomingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repos.Repos) {
 	t.Helper()
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ShareID:         "ct-in-s1",
 		ProviderID:      "ct-in-p1",
 		SenderHost:      "ct.sender.example",
@@ -37,7 +38,7 @@ func runIncomingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 		Name:            "ct-inshare",
 		ResourceType:    "file",
 		Permissions:     []string{"read"},
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		RecipientUserID: "ct-user-1",
 		CreatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
 		UpdatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
@@ -65,7 +66,7 @@ func runIncomingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 	}
 
 	if err := r.IncomingShares.UpdateStatusForRecipientUserID( //nolint:govet // shadow: sequential err in table-driven test is benign
-		ctx, share.ShareID, share.RecipientUserID, sharesinbox.ShareStatusAccepted,
+		ctx, share.ShareID, share.RecipientUserID, shares.ShareStatusAccepted,
 	); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
 	}
@@ -75,7 +76,7 @@ func runIncomingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 		t.Fatalf("GetByIDForRecipientUserID after status update: %v", err)
 	}
 
-	if got.Status != sharesinbox.ShareStatusAccepted {
+	if got.Status != shares.ShareStatusAccepted {
 		t.Errorf("Status after update: got %q, want accepted", got.Status)
 	}
 
@@ -84,7 +85,7 @@ func runIncomingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 	}
 
 	_, err = r.IncomingShares.GetByIDForRecipientUserID(ctx, share.ShareID, share.RecipientUserID)
-	if !errors.Is(err, sharesinbox.ErrShareNotFound) {
+	if !errors.Is(err, sharesincoming.ErrShareNotFound) {
 		t.Errorf("GetByIDForRecipientUserID after delete: expected ErrShareNotFound, got %v", err)
 	}
 }
@@ -92,7 +93,7 @@ func runIncomingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 func runIncomingShareRepoContractListByRecipientUserID(t *testing.T, ctx context.Context, r *repos.Repos) {
 	t.Helper()
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ShareID:         "ct-list-in-s1",
 		ProviderID:      "ct-list-in-p1",
 		SenderHost:      "ct.list.sender.example",
@@ -100,7 +101,7 @@ func runIncomingShareRepoContractListByRecipientUserID(t *testing.T, ctx context
 		Name:            "ct-list-inshare",
 		ResourceType:    "file",
 		Permissions:     []string{"read"},
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		RecipientUserID: "ct-list-user",
 		CreatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
 		UpdatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
@@ -142,7 +143,7 @@ func runIncomingShareRepoContractListByRecipientUserID(t *testing.T, ctx context
 func runIncomingShareRepoContractEnforcesRecipientScope(t *testing.T, ctx context.Context, r *repos.Repos) {
 	t.Helper()
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ShareID:         "ct-scope-in-s1",
 		ProviderID:      "ct-scope-in-p1",
 		SenderHost:      "ct.scope.sender.example",
@@ -150,7 +151,7 @@ func runIncomingShareRepoContractEnforcesRecipientScope(t *testing.T, ctx contex
 		Name:            "ct-scope-inshare",
 		ResourceType:    "file",
 		Permissions:     []string{"read"},
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		RecipientUserID: "ct-scope-owner",
 		CreatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
 		UpdatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
@@ -160,19 +161,19 @@ func runIncomingShareRepoContractEnforcesRecipientScope(t *testing.T, ctx contex
 	}
 
 	_, err := r.IncomingShares.GetByIDForRecipientUserID(ctx, share.ShareID, "ct-wrong-user")
-	if !errors.Is(err, sharesinbox.ErrShareNotFound) {
+	if !errors.Is(err, sharesincoming.ErrShareNotFound) {
 		t.Errorf("GetByIDForRecipientUserID wrong user: expected ErrShareNotFound, got %v", err)
 	}
 
 	err = r.IncomingShares.UpdateStatusForRecipientUserID(
-		ctx, share.ShareID, "ct-wrong-user", sharesinbox.ShareStatusAccepted,
+		ctx, share.ShareID, "ct-wrong-user", shares.ShareStatusAccepted,
 	)
-	if !errors.Is(err, sharesinbox.ErrShareNotFound) {
+	if !errors.Is(err, sharesincoming.ErrShareNotFound) {
 		t.Errorf("UpdateStatusForRecipientUserID wrong user: expected ErrShareNotFound, got %v", err)
 	}
 
 	err = r.IncomingShares.DeleteForRecipientUserID(ctx, share.ShareID, "ct-wrong-user")
-	if !errors.Is(err, sharesinbox.ErrShareNotFound) {
+	if !errors.Is(err, sharesincoming.ErrShareNotFound) {
 		t.Errorf("DeleteForRecipientUserID wrong user: expected ErrShareNotFound, got %v", err)
 	}
 }
@@ -180,7 +181,7 @@ func runIncomingShareRepoContractEnforcesRecipientScope(t *testing.T, ctx contex
 func runIncomingShareRepoContractEnforcesProviderIDScope(t *testing.T, ctx context.Context, r *repos.Repos) {
 	t.Helper()
 
-	shareA := &sharesinbox.IncomingShare{
+	shareA := &sharesincoming.IncomingShare{
 		ShareID:         "ct-pscope-in-s-A",
 		ProviderID:      "ct-pscope-p1",
 		SenderHost:      "ct.sender-a.pscope.example",
@@ -188,12 +189,12 @@ func runIncomingShareRepoContractEnforcesProviderIDScope(t *testing.T, ctx conte
 		Name:            "ct-pscope-share-A",
 		ResourceType:    "file",
 		Permissions:     []string{"read"},
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		RecipientUserID: "ct-pscope-recipient-A",
 		CreatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
 		UpdatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
 	}
-	shareB := &sharesinbox.IncomingShare{
+	shareB := &sharesincoming.IncomingShare{
 		ShareID:         "ct-pscope-in-s-B",
 		ProviderID:      "ct-pscope-p1",
 		SenderHost:      "ct.sender-b.pscope.example",
@@ -201,7 +202,7 @@ func runIncomingShareRepoContractEnforcesProviderIDScope(t *testing.T, ctx conte
 		Name:            "ct-pscope-share-B",
 		ResourceType:    "file",
 		Permissions:     []string{"read"},
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		RecipientUserID: "ct-pscope-recipient-B",
 		CreatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
 		UpdatedAt:       time.Unix(time.Now().Unix(), 0).UTC(),
@@ -237,7 +238,7 @@ func runIncomingShareRepoContractEnforcesProviderIDScope(t *testing.T, ctx conte
 func runIncomingShareRepoContractAutoFill(t *testing.T, ctx context.Context, r *repos.Repos) {
 	t.Helper()
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ProviderID:      "ct-autofill-in-p1",
 		SenderHost:      "ct.autofill.sender.example",
 		ShareWith:       "autofill-user",
@@ -266,7 +267,7 @@ func runIncomingShareRepoContractErrShareNotFoundSentinel(t *testing.T, ctx cont
 	t.Helper()
 
 	_, err := r.IncomingShares.GetByIDForRecipientUserID(ctx, "ct-in-missing-share", "any-user")
-	if !errors.Is(err, sharesinbox.ErrShareNotFound) {
+	if !errors.Is(err, sharesincoming.ErrShareNotFound) {
 		t.Errorf("expected ErrShareNotFound, got %v", err)
 	}
 }
@@ -296,7 +297,7 @@ func runOutgoingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 		Name:         "ct-outshare",
 		ResourceType: "file",
 		Permissions:  []string{"read"},
-		Status:       "sent",
+		Status:       shares.OutgoingShareStatusSent,
 		CreatedAt:    time.Unix(time.Now().Unix(), 0).UTC(),
 	}
 	if err := r.OutgoingShares.Create(ctx, share); err != nil {
@@ -339,7 +340,7 @@ func runOutgoingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 		t.Errorf("GetBySharedSecret: got %q, want %q", got.SharedSecret, share.SharedSecret)
 	}
 
-	share.Status = "accepted"
+	share.Status = shares.OutgoingShareStatusAccepted
 	if err := r.OutgoingShares.Update(ctx, share); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
 		t.Fatalf("Update: %v", err)
 	}
@@ -349,7 +350,7 @@ func runOutgoingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 		t.Fatalf("GetByID after Update: %v", err)
 	}
 
-	if got.Status != "accepted" {
+	if got.Status != shares.OutgoingShareStatusAccepted {
 		t.Errorf("Status after Update: got %q, want accepted", got.Status)
 	}
 }
@@ -366,7 +367,7 @@ func runOutgoingShareRepoContractList(t *testing.T, ctx context.Context, r *repo
 		Name:         "ct-list-share",
 		ResourceType: "file",
 		Permissions:  []string{"read"},
-		Status:       "sent",
+		Status:       shares.OutgoingShareStatusSent,
 		CreatedAt:    time.Unix(time.Now().Unix(), 0).UTC(),
 	}
 	if err := r.OutgoingShares.Create(ctx, share); err != nil {

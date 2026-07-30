@@ -11,7 +11,8 @@ import (
 
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -32,7 +33,7 @@ func currentUserFunc(user *identity.User) func(context.Context) (*identity.User,
 }
 
 // newTestRouter mounts the inbox shares handler; nil accessClient/cfg suffice for list/accept/decline.
-func newTestRouter(repo sharesinbox.IncomingShareRepo, user *identity.User) http.Handler {
+func newTestRouter(repo sharesincoming.IncomingShareRepo, user *identity.User) http.Handler {
 	h := inboxshares.NewHandler(repo, nil, currentUserFunc(user), testLogger)
 	r := chi.NewRouter()
 	r.Route("/inbox/shares", func(r chi.Router) {
@@ -45,13 +46,13 @@ func newTestRouter(repo sharesinbox.IncomingShareRepo, user *identity.User) http
 	return r
 }
 
-func createShareForUser(repo *sharesinbox.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesinbox.IncomingShare { //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
-	share := &sharesinbox.IncomingShare{
+func createShareForUser(repo *sharesincoming.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesincoming.IncomingShare { //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
+	share := &sharesincoming.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
 		ShareWith:       recipientUserID + "@example.com",
 		RecipientUserID: recipientUserID,
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		ResourceType:    "file",
 		Name:            "test-share-" + providerID,
 		Owner:           "owner@sender.example.com",

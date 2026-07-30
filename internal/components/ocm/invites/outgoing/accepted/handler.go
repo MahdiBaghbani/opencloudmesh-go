@@ -1,6 +1,7 @@
-// Package incoming handles POST /ocm/invite-accepted.
+// Package accepted handles POST /ocm/invite-accepted, which remote recipients
+// call to accept one of OUR outgoing invites.
 // See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md?plain=1#invite-acceptance-request-details
-package incoming
+package accepted
 
 import (
 	"context"
@@ -41,7 +42,7 @@ func NewHandler(
 	localScheme string,
 ) *Handler {
 	if partyRepo == nil {
-		panic("incoming invite handler: partyRepo is required")
+		panic("accepted invite handler: partyRepo is required")
 	}
 
 	return &Handler{
@@ -70,7 +71,8 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.verifyInviteSenderAndPolicy(w, r, req) {
+	normalizedProvider, ok := h.verifyInviteSenderAndPolicy(w, r, req)
+	if !ok {
 		return
 	}
 
@@ -83,7 +85,13 @@ func (h *Handler) HandleInviteAccepted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.outgoingRepo.UpdateStatus(r.Context(), invite.ID, invites.InviteStatusAccepted, req.RecipientProvider); err != nil {
+	acceptance := &invitesoutgoing.Acceptance{
+		ProviderFQDN:           req.RecipientProvider,
+		UserID:                 req.UserID,
+		ProviderFQDNNormalized: normalizedProvider,
+	}
+
+	if err := h.outgoingRepo.UpdateStatus(r.Context(), invite.ID, invites.InviteStatusAccepted, acceptance); err != nil {
 		log.Error("failed to update invite status", "id", invite.ID, "error", err)
 		h.sendOCMError(w, http.StatusInternalServerError, "UPDATE_FAILED")
 
@@ -234,8 +242,25 @@ func (h *Handler) lookupAndValidateInvite(w http.ResponseWriter, r *http.Request
 	}
 
 	if invite.Status == invites.InviteStatusAccepted {
+		// Duplicate invite-accepted: keep 409 per spec, but carry the identity
+		// body so an ocmgo receiver can recover the sender identity on retry
+		// after a local persist failure. Fall back to a plain 409 message only
+		// when the identity cannot be constructed.
 		log.Info("duplicate invite-accepted", "recipient_provider", req.RecipientProvider)
-		h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
+
+		response, ok := h.buildInviteAcceptedResponse(ctx, invite, log)
+		if !ok {
+			h.sendOCMError(w, http.StatusConflict, "INVITE_ALREADY_ACCEPTED")
+
+			return nil, false
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			log.Error("failed to encode invite accepted response", "error", err)
+		}
 
 		return nil, false
 	}
@@ -243,42 +268,44 @@ func (h *Handler) lookupAndValidateInvite(w http.ResponseWriter, r *http.Request
 	return invite, true
 }
 
-func (h *Handler) verifyInviteSenderAndPolicy(w http.ResponseWriter, r *http.Request, req spec.InviteAcceptedRequest) bool {
+// verifyInviteSenderAndPolicy normalizes the recipient provider once (fail
+// closed on error), compares the authenticated signature authority against it,
+// and evaluates peer trust with the normalized value. It returns the
+// normalized provider for Acceptance persistence.
+func (h *Handler) verifyInviteSenderAndPolicy(w http.ResponseWriter, r *http.Request, req spec.InviteAcceptedRequest) (string, bool) {
 	log := appctx.GetLogger(r.Context())
 	ctx := r.Context()
 
 	peerIdentity := inboundsignature.GetPeerIdentity(ctx)
 
-	normalizedRecipientProvider := req.RecipientProvider
+	normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
+	if err != nil {
+		log.Warn("failed to normalize recipient provider",
+			"recipient_provider", req.RecipientProvider, "error", err)
+		h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+
+		return "", false
+	}
+
 	if peerIdentity != nil && peerIdentity.Authenticated {
-		normalizedRecipient, err := hostport.Normalize(req.RecipientProvider, h.localScheme)
-		if err != nil {
-			log.Warn("failed to normalize recipient provider",
-				"recipient_provider", req.RecipientProvider, "error", err)
-			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
-
-			return false
-		}
-
-		normalizedRecipientProvider = normalizedRecipient
 		if peerIdentity.AuthorityForCompare != normalizedRecipient {
 			log.Warn("invite-accepted sender mismatch",
 				"signature_authority", peerIdentity.AuthorityForCompare,
 				"recipient_provider", req.RecipientProvider)
 			h.sendOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
 
-			return false
+			return "", false
 		}
 	}
 
 	if h.policyEngine != nil {
-		decision := h.policyEngine.Evaluate(ctx, normalizedRecipientProvider, peerIdentity != nil && peerIdentity.Authenticated)
+		decision := h.policyEngine.Evaluate(ctx, normalizedRecipient, peerIdentity != nil && peerIdentity.Authenticated)
 		if !decision.Allowed {
 			h.sendOCMError(w, http.StatusForbidden, "INVITE_RECEIVER_NOT_TRUSTED")
 
-			return false
+			return "", false
 		}
 	}
 
-	return true
+	return normalizedRecipient, true
 }

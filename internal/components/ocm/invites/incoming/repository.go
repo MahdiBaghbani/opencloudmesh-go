@@ -1,4 +1,4 @@
-package inbox
+package incoming
 
 import (
 	"context"
@@ -16,8 +16,16 @@ type IncomingInviteRepo interface {
 	GetByIDForRecipientUserID(ctx context.Context, id string, recipientUserID string) (*IncomingInvite, error)
 	GetByTokenForRecipientUserID(ctx context.Context, token string, recipientUserID string) (*IncomingInvite, error)
 	ListByRecipientUserID(ctx context.Context, recipientUserID string) ([]*IncomingInvite, error)
-	UpdateStatusForRecipientUserID(ctx context.Context, id string, recipientUserID string, status invites.InviteStatus) error
+	// UpdateStatusForRecipientUserID sets the invite status; on acceptance the
+	// remote sender identity from the invite-accepted exchange is persisted via
+	// acceptance (nil for non-accepting updates).
+	UpdateStatusForRecipientUserID(ctx context.Context, id string, recipientUserID string, status invites.InviteStatus, acceptance *Acceptance) error
 	DeleteForRecipientUserID(ctx context.Context, id string, recipientUserID string) error
+	// FindAcceptedForSender finds an accepted incoming invite for the local
+	// recipientUserID whose remote sender matches both senderUserID and the
+	// normalized sender host. Used by the bidirectional must-invite check.
+	// Rows without a persisted normalized sender host never match.
+	FindAcceptedForSender(ctx context.Context, recipientUserID string, senderUserID string, senderFQDNNormalized string) (*IncomingInvite, error)
 }
 
 // MemoryIncomingInviteRepo stores incoming invites in memory, scoped by recipient user id; implements IncomingInviteRepo.
@@ -119,7 +127,9 @@ func (r *MemoryIncomingInviteRepo) ListByRecipientUserID(_ context.Context, reci
 }
 
 // UpdateStatusForRecipientUserID sets the invite status when the recipient matches; implements IncomingInviteRepo.
-func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(_ context.Context, id string, recipientUserID string, status invites.InviteStatus) error {
+// On acceptance the remote sender identity is persisted alongside the status;
+// the raw SenderFQDN stored at Create time is never rewritten here.
+func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(_ context.Context, id string, recipientUserID string, status invites.InviteStatus, acceptance *Acceptance) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -130,7 +140,46 @@ func (r *MemoryIncomingInviteRepo) UpdateStatusForRecipientUserID(_ context.Cont
 
 	invite.Status = status
 
+	if acceptance != nil {
+		if acceptance.UserID != "" {
+			invite.SenderUserID = acceptance.UserID
+		}
+
+		if acceptance.ProviderFQDNNormalized != "" {
+			invite.SenderFQDNNormalized = acceptance.ProviderFQDNNormalized
+		}
+	}
+
 	return nil
+}
+
+// FindAcceptedForSender finds an accepted incoming invite for the local
+// recipient whose remote sender matches the given user and normalized host;
+// implements IncomingInviteRepo.
+func (r *MemoryIncomingInviteRepo) FindAcceptedForSender(_ context.Context, recipientUserID string, senderUserID string, senderFQDNNormalized string) (*IncomingInvite, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, id := range r.byRecipientUser[recipientUserID] {
+		invite, ok := r.invites[id]
+		if !ok || invite.Status != invites.InviteStatusAccepted {
+			continue
+		}
+
+		if invite.SenderUserID != senderUserID {
+			continue
+		}
+
+		// Rows without a persisted normalized sender host never match, even
+		// against an empty query value.
+		if invite.SenderFQDNNormalized == "" || invite.SenderFQDNNormalized != senderFQDNNormalized {
+			continue
+		}
+
+		return invite, nil
+	}
+
+	return nil, invites.ErrInviteNotFound
 }
 
 // DeleteForRecipientUserID removes the invite and its indexes when the recipient matches; implements IncomingInviteRepo.

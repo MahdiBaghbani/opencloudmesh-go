@@ -18,6 +18,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity/sessiongate"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	svccfg "github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service/cfg"
@@ -116,14 +117,17 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 
 	inboxInvitesHandler := inboxinvites.NewHandler(
 		inputs.IncomingInviteRepo,
-		inputs.HTTPClient,
-		inputs.DiscoveryClient,
-		inputs.Signer,
+		NewInviteAcceptedPoster(outbound.NewPoster(
+			inputs.HTTPClient,
+			inputs.DiscoveryClient,
+			inputs.Signer,
+			inputs.PeerOrigin,
+		)),
 		inputs.LocalIdentity.ProviderDomain,
+		inputs.LocalIdentity.Scheme,
 		currentUser,
 		log,
 	)
-	inboxInvitesHandler.SetPeerOrigin(inputs.PeerOrigin)
 
 	outgoingInvitesHandler := outgoinginvites.NewHandler(
 		inputs.OutgoingInviteRepo,

@@ -9,19 +9,19 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 // incomingInviteAdapter adapts store.IncomingInviteStore to
-// invitesinbox.IncomingInviteRepo.
+// invitesincoming.IncomingInviteRepo.
 type incomingInviteAdapter struct {
 	s store.IncomingInviteStore
 }
 
-var _ invitesinbox.IncomingInviteRepo = (*incomingInviteAdapter)(nil)
+var _ invitesincoming.IncomingInviteRepo = (*incomingInviteAdapter)(nil)
 
-func (a *incomingInviteAdapter) Create(ctx context.Context, invite *invitesinbox.IncomingInvite) error {
+func (a *incomingInviteAdapter) Create(ctx context.Context, invite *invitesincoming.IncomingInvite) error {
 	if invite.ID == "" {
 		invite.ID = uuid.New().String()
 	}
@@ -50,7 +50,7 @@ func (a *incomingInviteAdapter) GetByIDForRecipientUserID(
 	ctx context.Context,
 	id string,
 	recipientUserID string,
-) (*invitesinbox.IncomingInvite, error) {
+) (*invitesincoming.IncomingInvite, error) {
 	s, err := a.s.GetIncomingInviteForRecipient(ctx, id, recipientUserID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -67,7 +67,7 @@ func (a *incomingInviteAdapter) GetByTokenForRecipientUserID(
 	ctx context.Context,
 	token string,
 	recipientUserID string,
-) (*invitesinbox.IncomingInvite, error) {
+) (*invitesincoming.IncomingInvite, error) {
 	s, err := a.s.GetIncomingInviteByToken(ctx, token, recipientUserID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -83,13 +83,13 @@ func (a *incomingInviteAdapter) GetByTokenForRecipientUserID(
 func (a *incomingInviteAdapter) ListByRecipientUserID(
 	ctx context.Context,
 	recipientUserID string,
-) ([]*invitesinbox.IncomingInvite, error) {
+) ([]*invitesincoming.IncomingInvite, error) {
 	storeInvites, err := a.s.ListIncomingInvites(ctx, recipientUserID)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]*invitesinbox.IncomingInvite, 0, len(storeInvites))
+	result := make([]*invitesincoming.IncomingInvite, 0, len(storeInvites))
 	for _, s := range storeInvites {
 		result = append(result, storeIncomingInviteToApp(s))
 	}
@@ -102,8 +102,17 @@ func (a *incomingInviteAdapter) UpdateStatusForRecipientUserID(
 	id string,
 	recipientUserID string,
 	status invites.InviteStatus,
+	acceptance *invitesincoming.Acceptance,
 ) error {
-	if err := a.s.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserID, string(status)); err != nil {
+	senderUserID := ""
+	senderFQDNNormalized := ""
+
+	if acceptance != nil {
+		senderUserID = acceptance.UserID
+		senderFQDNNormalized = acceptance.ProviderFQDNNormalized
+	}
+
+	if err := a.s.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserID, string(status), senderUserID, senderFQDNNormalized); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return invites.ErrInviteNotFound
 		}
@@ -112,6 +121,37 @@ func (a *incomingInviteAdapter) UpdateStatusForRecipientUserID(
 	}
 
 	return nil
+}
+
+// FindAcceptedForSender finds an accepted incoming invite for the local
+// recipient whose remote sender matches both the given user and normalized
+// host. Rows without a persisted normalized sender host never match.
+func (a *incomingInviteAdapter) FindAcceptedForSender(
+	ctx context.Context,
+	recipientUserID string,
+	senderUserID string,
+	senderFQDNNormalized string,
+) (*invitesincoming.IncomingInvite, error) {
+	storeInvites, err := a.s.ListIncomingInvites(ctx, recipientUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, s := range storeInvites {
+		if s.Status != string(invites.InviteStatusAccepted) || s.SenderUserID != senderUserID {
+			continue
+		}
+
+		// Rows without a persisted normalized sender host never match, even
+		// against an empty query value.
+		if s.SenderFQDNNormalized == "" || s.SenderFQDNNormalized != senderFQDNNormalized {
+			continue
+		}
+
+		return storeIncomingInviteToApp(s), nil
+	}
+
+	return nil, invites.ErrInviteNotFound
 }
 
 func (a *incomingInviteAdapter) DeleteForRecipientUserID(
@@ -131,8 +171,8 @@ func (a *incomingInviteAdapter) DeleteForRecipientUserID(
 }
 
 // storeIncomingInviteToApp converts a store model to the app-layer model.
-func storeIncomingInviteToApp(s *store.IncomingInvite) *invitesinbox.IncomingInvite {
-	return &invitesinbox.IncomingInvite{
+func storeIncomingInviteToApp(s *store.IncomingInvite) *invitesincoming.IncomingInvite {
+	return &invitesincoming.IncomingInvite{
 		ID:              s.ID,
 		Token:           s.Token,
 		InviteString:    s.InviteString,
@@ -140,11 +180,14 @@ func storeIncomingInviteToApp(s *store.IncomingInvite) *invitesinbox.IncomingInv
 		RecipientUserID: s.RecipientUserID,
 		Status:          invites.InviteStatus(s.Status),
 		ReceivedAt:      unixToTime(s.ReceivedAt),
+
+		SenderUserID:         s.SenderUserID,
+		SenderFQDNNormalized: s.SenderFQDNNormalized,
 	}
 }
 
 // appIncomingInviteToStore converts an app-layer model to the store model.
-func appIncomingInviteToStore(a *invitesinbox.IncomingInvite) *store.IncomingInvite {
+func appIncomingInviteToStore(a *invitesincoming.IncomingInvite) *store.IncomingInvite {
 	return &store.IncomingInvite{
 		ID:              a.ID,
 		Token:           a.Token,
@@ -153,5 +196,8 @@ func appIncomingInviteToStore(a *invitesinbox.IncomingInvite) *store.IncomingInv
 		RecipientUserID: a.RecipientUserID,
 		Status:          string(a.Status),
 		ReceivedAt:      timeToUnix(a.ReceivedAt),
+
+		SenderUserID:         a.SenderUserID,
+		SenderFQDNNormalized: a.SenderFQDNNormalized,
 	}
 }

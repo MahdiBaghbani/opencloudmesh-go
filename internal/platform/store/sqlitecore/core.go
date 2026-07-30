@@ -222,7 +222,7 @@ func (c *Core) CreateIncomingShare(ctx context.Context, share *store.IncomingSha
 func (c *Core) GetIncomingShareByIDForRecipient(ctx context.Context, shareID string, recipientUserID string) (*store.IncomingShare, error) {
 	var share store.IncomingShare
 
-	result := c.db.WithContext(ctx).First(&share, "share_id = ? AND user_id = ?", shareID, recipientUserID)
+	result := c.db.WithContext(ctx).First(&share, "share_id = ? AND recipient_user_id = ?", shareID, recipientUserID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
@@ -231,10 +231,10 @@ func (c *Core) GetIncomingShareByIDForRecipient(ctx context.Context, shareID str
 }
 
 // GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerID.
-func (c *Core) GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerID string) (*store.IncomingShare, error) {
+func (c *Core) GetIncomingShareByProviderKey(ctx context.Context, senderHost, providerID string) (*store.IncomingShare, error) {
 	var share store.IncomingShare
 
-	result := c.db.WithContext(ctx).First(&share, "sending_server = ? AND provider_id = ?", sendingServer, providerID)
+	result := c.db.WithContext(ctx).First(&share, "sender_host = ? AND provider_id = ?", senderHost, providerID)
 	if result.Error != nil {
 		return nil, normNotFound(result.Error)
 	}
@@ -245,21 +245,21 @@ func (c *Core) GetIncomingShareByProviderKey(ctx context.Context, sendingServer,
 // ListIncomingSharesByRecipient returns incoming shares for the given recipient user.
 func (c *Core) ListIncomingSharesByRecipient(ctx context.Context, recipientUserID string) ([]*store.IncomingShare, error) {
 	var shares []*store.IncomingShare
-	if err := c.db.WithContext(ctx).Where("user_id = ?", recipientUserID).Find(&shares).Error; err != nil {
+	if err := c.db.WithContext(ctx).Where("recipient_user_id = ?", recipientUserID).Find(&shares).Error; err != nil {
 		return nil, err
 	}
 
 	return shares, nil
 }
 
-// UpdateIncomingShareStatusForRecipient updates the state of an incoming share scoped to a
-// recipient. Only state and updated_at are written; other fields are not changed here.
-func (c *Core) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, state string) error {
+// UpdateIncomingShareStatusForRecipient updates the status of an incoming share scoped to a
+// recipient. Only status and updated_at are written; other fields are not changed here.
+func (c *Core) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, status string) error {
 	result := c.db.WithContext(ctx).
 		Model(&store.IncomingShare{}).
-		Where("share_id = ? AND user_id = ?", shareID, recipientUserID).
+		Where("share_id = ? AND recipient_user_id = ?", shareID, recipientUserID).
 		Updates(map[string]interface{}{
-			"state":      state,
+			"status":     status,
 			"updated_at": time.Now().Unix(),
 		})
 	if result.Error != nil {
@@ -276,7 +276,7 @@ func (c *Core) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareI
 // DeleteIncomingShareForRecipient deletes an incoming share scoped to a recipient.
 func (c *Core) DeleteIncomingShareForRecipient(ctx context.Context, shareID string, recipientUserID string) error {
 	result := c.db.WithContext(ctx).
-		Where("share_id = ? AND user_id = ?", shareID, recipientUserID).
+		Where("share_id = ? AND recipient_user_id = ?", shareID, recipientUserID).
 		Delete(&store.IncomingShare{})
 	if result.Error != nil {
 		return result.Error
@@ -414,17 +414,28 @@ func (c *Core) GetIncomingInviteByToken(ctx context.Context, token string, recip
 	return &invite, nil
 }
 
-// UpdateIncomingInviteStatusForRecipient updates only the status of an incoming invite
-// scoped to a recipient. Scope-defining fields (Token, RecipientUserID) are immutable
-// after creation; only Status and UpdatedAt are changed.
-func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string) error {
+// UpdateIncomingInviteStatusForRecipient updates the status of an incoming invite
+// scoped to a recipient, persisting the remote sender identity on acceptance when
+// provided. Scope-defining fields (Token, RecipientUserID) are immutable after
+// creation; sender identity columns are only written when non-empty.
+func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error {
+	updates := map[string]interface{}{
+		"status":     status,
+		"updated_at": time.Now().Unix(),
+	}
+
+	if senderUserID != "" {
+		updates["sender_user_id"] = senderUserID
+	}
+
+	if senderFQDNNormalized != "" {
+		updates["sender_fqdn_normalized"] = senderFQDNNormalized
+	}
+
 	result := c.db.WithContext(ctx).
 		Model(&store.IncomingInvite{}).
 		Where("id = ? AND recipient_user_id = ?", id, recipientUserID).
-		Updates(map[string]interface{}{
-			"status":     status,
-			"updated_at": time.Now().Unix(),
-		})
+		Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}

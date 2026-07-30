@@ -233,8 +233,8 @@ func runOutgoingShareCRUD(t *testing.T, ctx context.Context, s store.OutgoingSha
 	requireOutgoingShareByProviderIDEquals(t, ctx, s, share)
 	requireOutgoingShareByWebDAVIDEquals(t, ctx, s, share)
 	requireOutgoingShareBySharedSecretEquals(t, ctx, s, share)
-	updateOutgoingShareState(t, ctx, s, share, "accepted")
-	requireOutgoingShareStateEquals(t, ctx, s, share.ProviderID, "accepted")
+	updateOutgoingShareStatus(t, ctx, s, share, "accepted")
+	requireOutgoingShareStatusEquals(t, ctx, s, share.ProviderID, "accepted")
 	requireOutgoingShareListNonEmpty(t, ctx, s)
 	deleteOutgoingShare(t, ctx, s, share.ProviderID)
 	requireOutgoingShareNotFound(t, ctx, s, share.ProviderID)
@@ -306,16 +306,16 @@ func requireOutgoingShareBySharedSecretEquals(t *testing.T, ctx context.Context,
 	}
 }
 
-func updateOutgoingShareState(t *testing.T, ctx context.Context, s store.OutgoingShareStore, share *store.OutgoingShare, state string) {
+func updateOutgoingShareStatus(t *testing.T, ctx context.Context, s store.OutgoingShareStore, share *store.OutgoingShare, status string) {
 	t.Helper()
 
-	share.State = state
+	share.Status = status
 	if err := s.UpdateOutgoingShare(ctx, share); err != nil {
 		t.Fatalf("UpdateOutgoingShare failed: %v", err)
 	}
 }
 
-func requireOutgoingShareStateEquals(t *testing.T, ctx context.Context, s store.OutgoingShareStore, providerID, want string) {
+func requireOutgoingShareStatusEquals(t *testing.T, ctx context.Context, s store.OutgoingShareStore, providerID, want string) {
 	t.Helper()
 
 	got, err := s.GetOutgoingShare(ctx, providerID)
@@ -323,8 +323,8 @@ func requireOutgoingShareStateEquals(t *testing.T, ctx context.Context, s store.
 		t.Fatalf("GetOutgoingShare after update failed: %v", err)
 	}
 
-	if got.State != want {
-		t.Errorf("expected state %q, got %q", want, got.State)
+	if got.Status != want {
+		t.Errorf("expected status %q, got %q", want, got.Status)
 	}
 }
 
@@ -368,9 +368,9 @@ func runIncomingShareCRUD(t *testing.T, ctx context.Context, s store.IncomingSha
 	requireIncomingShareByProviderKey(t, ctx, s, share)
 	updateIncomingShareStatusAndAssert(t, ctx, s, share, "accepted")
 	requireIncomingShareStatusUpdateNotFoundForRecipient(t, ctx, s, share.ShareID, "other-user", "accepted")
-	requireIncomingShareListByRecipientNonEmpty(t, ctx, s, share.UserID)
-	deleteIncomingShareForRecipient(t, ctx, s, share.ShareID, share.UserID)
-	requireIncomingShareNotFoundForRecipient(t, ctx, s, share.ShareID, share.UserID)
+	requireIncomingShareListByRecipientNonEmpty(t, ctx, s, share.RecipientUserID)
+	deleteIncomingShareForRecipient(t, ctx, s, share.ShareID, share.RecipientUserID)
+	requireIncomingShareNotFoundForRecipient(t, ctx, s, share.ShareID, share.RecipientUserID)
 }
 
 func createIncomingShare(t *testing.T, ctx context.Context, s store.IncomingShareStore, share *store.IncomingShare) {
@@ -381,7 +381,7 @@ func createIncomingShare(t *testing.T, ctx context.Context, s store.IncomingShar
 	}
 
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, share.ShareID, share.UserID); err != nil && !errors.Is(err, store.ErrNotFound) {
+		if err := s.DeleteIncomingShareForRecipient(ctx, share.ShareID, share.RecipientUserID); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient: %v", err)
 		}
 	})
@@ -390,7 +390,7 @@ func createIncomingShare(t *testing.T, ctx context.Context, s store.IncomingShar
 func requireIncomingShareByIDForRecipient(t *testing.T, ctx context.Context, s store.IncomingShareStore, want *store.IncomingShare) {
 	t.Helper()
 
-	got, err := s.GetIncomingShareByIDForRecipient(ctx, want.ShareID, want.UserID)
+	got, err := s.GetIncomingShareByIDForRecipient(ctx, want.ShareID, want.RecipientUserID)
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient failed: %v", err)
 	}
@@ -412,7 +412,7 @@ func requireIncomingShareNotFoundForRecipient(t *testing.T, ctx context.Context,
 func requireIncomingShareByProviderKey(t *testing.T, ctx context.Context, s store.IncomingShareStore, want *store.IncomingShare) {
 	t.Helper()
 
-	got, err := s.GetIncomingShareByProviderKey(ctx, want.SendingServer, want.ProviderID)
+	got, err := s.GetIncomingShareByProviderKey(ctx, want.SenderHost, want.ProviderID)
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey failed: %v", err)
 	}
@@ -422,21 +422,21 @@ func requireIncomingShareByProviderKey(t *testing.T, ctx context.Context, s stor
 	}
 }
 
-func updateIncomingShareStatusAndAssert(t *testing.T, ctx context.Context, s store.IncomingShareStore, share *store.IncomingShare, state string) {
+func updateIncomingShareStatusAndAssert(t *testing.T, ctx context.Context, s store.IncomingShareStore, share *store.IncomingShare, status string) {
 	t.Helper()
 
 	priorUpdatedAt := share.UpdatedAt
-	if err := s.UpdateIncomingShareStatusForRecipient(ctx, share.ShareID, share.UserID, state); err != nil {
+	if err := s.UpdateIncomingShareStatusForRecipient(ctx, share.ShareID, share.RecipientUserID, status); err != nil {
 		t.Fatalf("UpdateIncomingShareStatusForRecipient failed: %v", err)
 	}
 
-	updated, err := s.GetIncomingShareByIDForRecipient(ctx, share.ShareID, share.UserID)
+	updated, err := s.GetIncomingShareByIDForRecipient(ctx, share.ShareID, share.RecipientUserID)
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient after status update failed: %v", err)
 	}
 
-	if updated.State != state {
-		t.Errorf("expected state %q after status update, got %q", state, updated.State)
+	if updated.Status != status {
+		t.Errorf("expected status %q after status update, got %q", status, updated.Status)
 	}
 
 	if updated.UpdatedAt <= priorUpdatedAt {
@@ -490,12 +490,12 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 	// Create two shares with same providerID but different senders
 	share1 := NewIncomingShareFixture()
 	share1.ShareID = "share-1"
-	share1.SendingServer = "server1.com"
+	share1.SenderHost = "server1.com"
 	share1.ProviderID = "same-provider-id"
 
 	share2 := NewIncomingShareFixture()
 	share2.ShareID = "share-2"
-	share2.SendingServer = "server2.com"
+	share2.SenderHost = "server2.com"
 	share2.ProviderID = "same-provider-id"
 
 	if err := s.CreateIncomingShare(ctx, share1); err != nil {
@@ -503,7 +503,7 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 	}
 
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, share1.ShareID, share1.UserID); err != nil && !errors.Is(err, store.ErrNotFound) {
+		if err := s.DeleteIncomingShareForRecipient(ctx, share1.ShareID, share1.RecipientUserID); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient share1: %v", err)
 		}
 	})
@@ -513,7 +513,7 @@ func runProviderKeyScopedLookup(t *testing.T, ctx context.Context, s store.Incom
 	}
 
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, share2.ShareID, share2.UserID); err != nil && !errors.Is(err, store.ErrNotFound) {
+		if err := s.DeleteIncomingShareForRecipient(ctx, share2.ShareID, share2.RecipientUserID); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient share2: %v", err)
 		}
 	})
@@ -758,7 +758,7 @@ func updateIncomingInviteStatusAndAssert(t *testing.T, ctx context.Context, s st
 
 	beforeUpdate := time.Now().Unix()
 
-	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserID, state); err != nil {
+	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserID, state, "ct-sender-user-1", "ct-sender.example.com"); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", err)
 	}
 
@@ -783,6 +783,14 @@ func updateIncomingInviteStatusAndAssert(t *testing.T, ctx context.Context, s st
 		)
 	}
 
+	if got.SenderUserID != "ct-sender-user-1" {
+		t.Errorf("expected sender user id persisted on status update, got %q", got.SenderUserID)
+	}
+
+	if got.SenderFQDNNormalized != "ct-sender.example.com" {
+		t.Errorf("expected normalized sender fqdn persisted on status update, got %q", got.SenderFQDNNormalized)
+	}
+
 	if got.UpdatedAt < beforeUpdate {
 		t.Errorf(
 			"UpdatedAt not refreshed after status update: got %d, expected >= %d",
@@ -802,7 +810,7 @@ func requireIncomingInviteStatusUpdateNotFoundForRecipient(
 ) {
 	t.Helper()
 
-	err := s.UpdateIncomingInviteStatusForRecipient(ctx, id, userID, state)
+	err := s.UpdateIncomingInviteStatusForRecipient(ctx, id, userID, state, "", "")
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("expected ErrNotFound for cross-user status update, got %v", err)
 	}
@@ -964,7 +972,7 @@ func runOutgoingShareDuplicateSharedSecret(
 		Name:         "file.txt",
 		ResourceType: "file",
 		Permissions:  "read",
-		State:        "sent",
+		Status:       "sent",
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
@@ -983,7 +991,7 @@ func runOutgoingShareDuplicateSharedSecret(
 		Name:         "file.txt",
 		ResourceType: "file",
 		Permissions:  "read",
-		State:        "sent",
+		Status:       "sent",
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
@@ -1003,7 +1011,7 @@ func runOutgoingShareDuplicateSharedSecret(
 		Name:         "file.txt",
 		ResourceType: "file",
 		Permissions:  "read",
-		State:        "sent",
+		Status:       "sent",
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
@@ -1023,7 +1031,7 @@ func runOutgoingShareDuplicateSharedSecret(
 		Name:         "file.txt",
 		ResourceType: "file",
 		Permissions:  "read",
-		State:        "sent",
+		Status:       "sent",
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
@@ -1040,7 +1048,7 @@ func runOutgoingShareDuplicateSharedSecret(
 		Name:         "file.txt",
 		ResourceType: "file",
 		Permissions:  "read",
-		State:        "sent",
+		Status:       "sent",
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
@@ -1102,7 +1110,7 @@ func runOutgoingShareEmptySharedSecretLookup(
 		Name:         "file.txt",
 		ResourceType: "file",
 		Permissions:  "read",
-		State:        "sent",
+		Status:       "sent",
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
@@ -1161,45 +1169,45 @@ func runIncomingShareProviderKeyUniqueness(
 	s store.IncomingShareStore,
 ) {
 	first := &store.IncomingShare{
-		ShareID:       "provider-key-unique-1",
-		SendingServer: "provider-key-server.com",
-		ProviderID:    "provider-key-unique-pid",
-		Owner:         "alice@sender.com",
-		Sender:        "alice@sender.com",
-		ShareWith:     "bob@example.com",
-		Name:          "shared.txt",
-		ResourceType:  "file",
-		Permissions:   "read",
-		State:         "pending",
-		UserID:        "bob",
-		CreatedAt:     time.Now().Unix(),
-		UpdatedAt:     time.Now().Unix(),
+		ShareID:         "provider-key-unique-1",
+		SenderHost:      "provider-key-server.com",
+		ProviderID:      "provider-key-unique-pid",
+		Owner:           "alice@sender.com",
+		Sender:          "alice@sender.com",
+		ShareWith:       "bob@example.com",
+		Name:            "shared.txt",
+		ResourceType:    "file",
+		Permissions:     "read",
+		Status:          "pending",
+		RecipientUserID: "bob",
+		CreatedAt:       time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
 	}
 	if err := s.CreateIncomingShare(ctx, first); err != nil {
 		t.Fatalf("CreateIncomingShare(first): %v", err)
 	}
 
 	t.Cleanup(func() {
-		if err := s.DeleteIncomingShareForRecipient(ctx, first.ShareID, first.UserID); err != nil && !errors.Is(err, store.ErrNotFound) {
+		if err := s.DeleteIncomingShareForRecipient(ctx, first.ShareID, first.RecipientUserID); err != nil && !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient first: %v", err)
 		}
 	})
 
 	// Same (sendingServer, providerID), different shareID: must fail.
 	second := &store.IncomingShare{
-		ShareID:       "provider-key-unique-2",
-		SendingServer: "provider-key-server.com",
-		ProviderID:    "provider-key-unique-pid",
-		Owner:         "alice@sender.com",
-		Sender:        "alice@sender.com",
-		ShareWith:     "bob@example.com",
-		Name:          "shared.txt",
-		ResourceType:  "file",
-		Permissions:   "read",
-		State:         "pending",
-		UserID:        "bob",
-		CreatedAt:     time.Now().Unix(),
-		UpdatedAt:     time.Now().Unix(),
+		ShareID:         "provider-key-unique-2",
+		SenderHost:      "provider-key-server.com",
+		ProviderID:      "provider-key-unique-pid",
+		Owner:           "alice@sender.com",
+		Sender:          "alice@sender.com",
+		ShareWith:       "bob@example.com",
+		Name:            "shared.txt",
+		ResourceType:    "file",
+		Permissions:     "read",
+		Status:          "pending",
+		RecipientUserID: "bob",
+		CreatedAt:       time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
 	}
 	if err := s.CreateIncomingShare(ctx, second); !errors.Is(err, store.ErrAlreadyExists) {
 		t.Fatalf("expected ErrAlreadyExists for duplicate (sendingServer, providerID), got %v", err)
@@ -1220,26 +1228,26 @@ func runIncomingShareProviderKeyUniqueness(
 
 	// Same providerID, different sendingServer: must succeed.
 	third := &store.IncomingShare{
-		ShareID:       "provider-key-unique-3",
-		SendingServer: "other-server.com",
-		ProviderID:    "provider-key-unique-pid",
-		Owner:         "alice@sender.com",
-		Sender:        "alice@sender.com",
-		ShareWith:     "bob@example.com",
-		Name:          "shared.txt",
-		ResourceType:  "file",
-		Permissions:   "read",
-		State:         "pending",
-		UserID:        "bob",
-		CreatedAt:     time.Now().Unix(),
-		UpdatedAt:     time.Now().Unix(),
+		ShareID:         "provider-key-unique-3",
+		SenderHost:      "other-server.com",
+		ProviderID:      "provider-key-unique-pid",
+		Owner:           "alice@sender.com",
+		Sender:          "alice@sender.com",
+		ShareWith:       "bob@example.com",
+		Name:            "shared.txt",
+		ResourceType:    "file",
+		Permissions:     "read",
+		Status:          "pending",
+		RecipientUserID: "bob",
+		CreatedAt:       time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
 	}
 	if createErr := s.CreateIncomingShare(ctx, third); createErr != nil {
 		t.Fatalf("CreateIncomingShare(third, different sendingServer): %v", createErr)
 	}
 
 	t.Cleanup(func() {
-		if deleteErr := s.DeleteIncomingShareForRecipient(ctx, third.ShareID, third.UserID); deleteErr != nil && !errors.Is(deleteErr, store.ErrNotFound) {
+		if deleteErr := s.DeleteIncomingShareForRecipient(ctx, third.ShareID, third.RecipientUserID); deleteErr != nil && !errors.Is(deleteErr, store.ErrNotFound) {
 			t.Errorf("cleanup: DeleteIncomingShareForRecipient third: %v", deleteErr)
 		}
 	})

@@ -1,8 +1,11 @@
-// Package inbox provides incoming share models and repository.
-package inbox
+// Package incoming provides incoming share models, repository, and the
+// POST /ocm/shares handler.
+package incoming
 
 import (
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 // IncomingShare holds a received share scoped to a local recipient user.
@@ -42,20 +45,8 @@ type IncomingShare struct {
 
 	Requirements []string `json:"requirements,omitempty"`
 
-	Status    ShareStatus `json:"status"`
-	CreatedAt time.Time   `json:"createdAt"`
-	UpdatedAt time.Time   `json:"updatedAt"`
-	OwnerHost string      `json:"ownerHost,omitempty"`
+	Status    shares.ShareStatus `json:"status"`
+	CreatedAt time.Time          `json:"createdAt"`
+	UpdatedAt time.Time          `json:"updatedAt"`
+	OwnerHost string             `json:"ownerHost,omitempty"`
 }
-
-// ShareStatus tracks the lifecycle state of an incoming share (pending, accepted, declined).
-type ShareStatus string
-
-const (
-	// ShareStatusPending is the pending share status.
-	ShareStatusPending ShareStatus = "pending"
-	// ShareStatusAccepted is the accepted share status.
-	ShareStatusAccepted ShareStatus = "accepted"
-	// ShareStatusDeclined is the declined share status.
-	ShareStatusDeclined ShareStatus = "declined"
-)

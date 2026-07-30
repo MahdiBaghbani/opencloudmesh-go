@@ -75,7 +75,7 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 		80: {},
 	},
 	"internal/platform/config/loader.go": {
-		900: {},
+		904: {},
 	},
 	"internal/platform/crypto/sigparams/label.go": {
 		4: {},
@@ -85,7 +85,7 @@ var wireLiteralAllowlist = map[string]map[int]struct{}{
 	},
 	"internal/services/ocm/ocm.go": {
 		53:  {},
-		137: {},
+		140: {},
 	},
 	"internal/services/ocm/routes.go": {
 		35: {},

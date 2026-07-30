@@ -10,11 +10,12 @@ import (
 
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	shareA := createShareForUser(repo, userAID, "prov-a1", "sender.example.com")
 	createShareForUser(repo, userBID, "prov-b1", "sender.example.com")
 
@@ -44,7 +45,7 @@ func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
 }
 
 func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	createShareForUser(repo, userAID, "prov-a1", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -69,7 +70,7 @@ func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
 }
 
 func TestHandleList_Unauthenticated(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	router := newTestRouter(repo, nil) // nil user = unauthenticated
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
@@ -81,16 +82,16 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 	}
 }
 func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ProviderID:           "prov-sensitive",
 		SenderHost:           "sender.example.com",
 		ShareWith:            userAID + "@example.com",
 		RecipientUserID:      userAID,
 		RecipientDisplayName: "Alice A",
 		SharedSecret:         "super-secret-token",
-		Status:               sharesinbox.ShareStatusPending,
+		Status:               shares.ShareStatusPending,
 		ResourceType:         "file",
 		Name:                 "test-share",
 		Owner:                "owner@sender.example.com",

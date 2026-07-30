@@ -139,8 +139,7 @@ func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 	// authority; missing, unsupported, or incompatible values must be
 	// rejected before the key is handed to the verifier.
 	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L914
-	alg, err := sigalg.DeriveFromJWK(key.Kty, key.Crv, key.Alg)
-	if err != nil {
+	if _, err := sigalg.DeriveFromJWK(key.Kty, key.Crv, key.Alg); err != nil {
 		return sigalg.ResolvedPublicKey{}, err
 	}
 
@@ -159,7 +158,6 @@ func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 
 	return sigalg.ResolvedPublicKey{
 		KeyID:     key.Kid,
-		Algorithm: alg,
 		PublicKey: pub,
 		JWKKty:    key.Kty,
 		JWKCrv:    key.Crv,

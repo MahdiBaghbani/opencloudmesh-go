@@ -28,4 +28,8 @@ type ResolveInputs struct {
 	// true and the corresponding list is nonempty; otherwise both stay false.
 	AdvertiseDenylist  bool
 	AdvertiseAllowlist bool
+
+	// AdvertiseMustInvite reflects must-invite enforcement wired by the caller.
+	// Enforcement is on by default; an explicit opt-out clears this flag.
+	AdvertiseMustInvite bool
 }

@@ -86,8 +86,8 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		t.Fatalf("ResolveVerificationKey: %v", err)
 	}
 
-	if resolved.Algorithm != "ed25519" {
-		t.Fatalf("Algorithm = %q", resolved.Algorithm)
+	if resolved.JWKAlg != "Ed25519" {
+		t.Fatalf("JWKAlg = %q, want Ed25519", resolved.JWKAlg)
 	}
 
 	pub, ok := resolved.PublicKey.(ed25519.PublicKey)
@@ -225,8 +225,13 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 		t.Fatalf("ResolveVerificationKey: %v", err)
 	}
 
-	if resolved.Algorithm != sigalg.Ed25519 {
-		t.Fatalf("Algorithm = %q", resolved.Algorithm)
+	alg, err := sigalg.ResolveAlgorithm("", resolved.JWKKty, resolved.JWKCrv, resolved.JWKAlg)
+	if err != nil {
+		t.Fatalf("ResolveAlgorithm: %v", err)
+	}
+
+	if alg != sigalg.Ed25519 {
+		t.Fatalf("resolved algorithm = %q, want %q", alg, sigalg.Ed25519)
 	}
 
 	if sawScheme != "http" {
@@ -294,8 +299,13 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_PreservesExplicitHTTPSKid(t
 		t.Fatalf("ResolveVerificationKey: %v", err)
 	}
 
-	if resolved.Algorithm != sigalg.Ed25519 {
-		t.Fatalf("Algorithm = %q", resolved.Algorithm)
+	alg, err := sigalg.ResolveAlgorithm("", resolved.JWKKty, resolved.JWKCrv, resolved.JWKAlg)
+	if err != nil {
+		t.Fatalf("ResolveAlgorithm: %v", err)
+	}
+
+	if alg != sigalg.Ed25519 {
+		t.Fatalf("resolved algorithm = %q, want %q", alg, sigalg.Ed25519)
 	}
 
 	if sawScheme != "https" {

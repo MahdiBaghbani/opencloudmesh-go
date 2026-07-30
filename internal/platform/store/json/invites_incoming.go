@@ -89,14 +89,17 @@ func (d *Driver) GetIncomingInviteByToken(_ context.Context, token string, recip
 	return cloneIncomingInvite(invite), nil
 }
 
-// UpdateIncomingInviteStatusForRecipient updates only the status of an incoming invite scoped
-// to a recipient. Scope-defining fields (Token, RecipientUserID) are immutable after creation;
+// UpdateIncomingInviteStatusForRecipient updates the status of an incoming invite scoped
+// to a recipient, persisting the remote sender identity on acceptance when provided.
+// Scope-defining fields (Token, RecipientUserID) are immutable after creation;
 // callers cannot reassign them through this path.
 func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 	_ context.Context,
 	id string,
 	recipientUserID string,
 	status string,
+	senderUserID string,
+	senderFQDNNormalized string,
 ) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -112,13 +115,26 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 
 	oldStatus := existing.Status
 	oldUpdatedAt := existing.UpdatedAt
+	oldSenderUserID := existing.SenderUserID
+	oldSenderFQDNNormalized := existing.SenderFQDNNormalized
+
 	existing.Status = status
 	existing.UpdatedAt = time.Now().Unix()
+
+	if senderUserID != "" {
+		existing.SenderUserID = senderUserID
+	}
+
+	if senderFQDNNormalized != "" {
+		existing.SenderFQDNNormalized = senderFQDNNormalized
+	}
 
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
 		// Rollback: restore the old field values on the in-place pointer.
 		existing.Status = oldStatus
 		existing.UpdatedAt = oldUpdatedAt
+		existing.SenderUserID = oldSenderUserID
+		existing.SenderFQDNNormalized = oldSenderFQDNNormalized
 
 		return err
 	}

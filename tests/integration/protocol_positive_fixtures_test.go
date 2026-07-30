@@ -16,8 +16,10 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	tsinvite "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/invite"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -217,8 +219,17 @@ func postSignedJSONWithClient(
 func buildSignedInboundShareBody(
 	shareWith, providerID, senderHost, webdavURI, sharedSecret string,
 ) []byte {
+	return buildSignedInboundShareBodyWithSender(shareWith, providerID, "step14-sender", senderHost, webdavURI, sharedSecret)
+}
+
+// buildSignedInboundShareBodyWithSender is buildSignedInboundShareBody with an
+// explicit sender user ID, used when the sender identity must match an
+// exchanged invite.
+func buildSignedInboundShareBodyWithSender(
+	shareWith, providerID, senderUserID, senderHost, webdavURI, sharedSecret string,
+) []byte {
 	owner := address.FormatOutgoingOCMAddressFromUserID("step14-owner", senderHost)
-	sender := address.FormatOutgoingOCMAddressFromUserID("step14-sender", senderHost)
+	sender := address.FormatOutgoingOCMAddressFromUserID(senderUserID, senderHost)
 	payload := spec.NewShareRequest{
 		ShareWith:    shareWith,
 		Name:         "step14-webdav-inbound.txt",
@@ -367,6 +378,99 @@ func readOutgoingSharedSecret(t *testing.T, srv *harness.SubprocessServer, provi
 	}
 
 	return share.SharedSecret
+}
+
+// exchangeInvitesBetweenPair runs a full invite exchange between the two
+// strict pair servers: the provider admin creates an outgoing invite and the
+// consumer admin imports and accepts it. Afterwards the consumer holds an
+// accepted incoming invite from the provider admin and the provider holds an
+// accepted outgoing invite for the consumer admin, so the bidirectional
+// must-invite gate admits shares in both directions.
+func exchangeInvitesBetweenPair(
+	t *testing.T,
+	provider, consumer *harness.SubprocessServer,
+	providerToken, consumerToken string,
+) {
+	t.Helper()
+
+	created, _, err := tsinvite.CreateOutgoing(provider.Client(), provider.BaseURL, providerToken)
+	if err != nil {
+		provider.DumpLogs(t)
+		t.Fatalf("provider create outgoing invite: %v", err)
+	}
+
+	imported, _, err := tsinvite.Import(consumer.Client(), consumer.BaseURL, consumerToken, created.InviteString)
+	if err != nil {
+		consumer.DumpLogs(t)
+		t.Fatalf("consumer import invite: %v", err)
+	}
+
+	if _, _, err := tsinvite.Accept(consumer.Client(), consumer.BaseURL, consumerToken, imported.ID); err != nil {
+		provider.DumpLogs(t)
+		consumer.DumpLogs(t)
+		t.Fatalf("consumer accept invite: %v", err)
+	}
+
+	waitForOutgoingInviteAccepted(t, provider, created.Token)
+}
+
+func waitForOutgoingInviteAccepted(t *testing.T, srv *harness.SubprocessServer, token string) {
+	t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		status, _, err := tsinvite.OutgoingStatus(srv.TempDir, token)
+		if err == nil && status == invites.InviteStatusAccepted {
+			return
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	srv.DumpLogs(t)
+	t.Fatalf("timed out waiting for outgoing invite to reach accepted on %s", srv.Name)
+}
+
+// fetchCurrentUserID returns the authenticated user's canonical ID via
+// GET /api/auth/me.
+func fetchCurrentUserID(t *testing.T, srv *harness.SubprocessServer, token string) string {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodGet, srv.BaseURL+"/api/auth/me", nil)
+	if err != nil {
+		t.Fatalf("build current-user request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("current-user GET: %v", err)
+	}
+	//nolint:errcheck // test cleanup: response body close
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
+		t.Fatalf("current-user status = %d: %s", resp.StatusCode, body)
+	}
+
+	var parsed struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		t.Fatalf("decode current-user response: %v", err)
+	}
+
+	if parsed.ID == "" {
+		t.Fatal("current-user response missing id")
+	}
+
+	return parsed.ID
 }
 
 func loginSubprocessAdminWithClient(t *testing.T, srv *harness.SubprocessServer) string {

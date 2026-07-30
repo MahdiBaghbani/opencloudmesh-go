@@ -18,7 +18,8 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -30,25 +31,25 @@ const (
 
 // InboxShareView omits sensitive fields (e.g. SharedSecret) from API responses.
 type InboxShareView struct {
-	ShareID           string                  `json:"shareId"`
-	ProviderID        string                  `json:"providerId"`
-	Name              string                  `json:"name"`
-	Description       string                  `json:"description,omitempty"`
-	Owner             string                  `json:"owner"`
-	Sender            string                  `json:"sender"`
-	SenderHost        string                  `json:"senderHost"`
-	ShareWith         string                  `json:"shareWith"`
-	ResourceType      string                  `json:"resourceType"`
-	ShareType         string                  `json:"shareType"`
-	Permissions       []string                `json:"permissions"`
-	Status            sharesinbox.ShareStatus `json:"status"`
-	CreatedAt         time.Time               `json:"createdAt"`
-	OwnerDisplayName  string                  `json:"ownerDisplayName,omitempty"`
-	SenderDisplayName string                  `json:"senderDisplayName,omitempty"`
+	ShareID           string             `json:"shareId"`
+	ProviderID        string             `json:"providerId"`
+	Name              string             `json:"name"`
+	Description       string             `json:"description,omitempty"`
+	Owner             string             `json:"owner"`
+	Sender            string             `json:"sender"`
+	SenderHost        string             `json:"senderHost"`
+	ShareWith         string             `json:"shareWith"`
+	ResourceType      string             `json:"resourceType"`
+	ShareType         string             `json:"shareType"`
+	Permissions       []string           `json:"permissions"`
+	Status            shares.ShareStatus `json:"status"`
+	CreatedAt         time.Time          `json:"createdAt"`
+	OwnerDisplayName  string             `json:"ownerDisplayName,omitempty"`
+	SenderDisplayName string             `json:"senderDisplayName,omitempty"`
 }
 
 // NewInboxShareView maps an incoming share to a list-safe API view without secrets.
-func NewInboxShareView(s *sharesinbox.IncomingShare) InboxShareView {
+func NewInboxShareView(s *sharesincoming.IncomingShare) InboxShareView {
 	return InboxShareView{
 		ShareID:           s.ShareID,
 		ProviderID:        s.ProviderID,
@@ -111,7 +112,7 @@ func isAbsoluteWebDAVURI(uri string) bool {
 }
 
 // NewInboxShareDetailView returns a detail view with SharedSecret masked as [REDACTED].
-func NewInboxShareDetailView(s *sharesinbox.IncomingShare) InboxShareDetailView {
+func NewInboxShareDetailView(s *sharesincoming.IncomingShare) InboxShareDetailView {
 	uri := s.WebDAVID
 
 	requirements := s.Requirements
@@ -176,7 +177,7 @@ const maxPreviewBytes = 4096
 
 // Handler serves list, detail, accept, decline, and verify-access for inbox shares.
 type Handler struct {
-	repo         sharesinbox.IncomingShareRepo
+	repo         sharesincoming.IncomingShareRepo
 	accessClient access.RemoteAccessor
 	currentUser  func(context.Context) (*identity.User, error)
 	log          *slog.Logger
@@ -184,7 +185,7 @@ type Handler struct {
 
 // NewHandler returns a Handler with the given dependencies.
 func NewHandler(
-	repo sharesinbox.IncomingShareRepo,
+	repo sharesincoming.IncomingShareRepo,
 	accessClient access.RemoteAccessor,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
@@ -243,7 +244,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, user.ID)
 	if err != nil {
-		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
@@ -254,23 +255,23 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if share.Status == sharesinbox.ShareStatusAccepted {
+	if share.Status == shares.ShareStatusAccepted {
 		w.Header().Set("Content-Type", "application/json")
 		//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
 		json.NewEncoder(w).Encode(map[string]string{
-			"status":  string(sharesinbox.ShareStatusAccepted),
+			"status":  string(shares.ShareStatusAccepted),
 			"shareId": shareID,
 		})
 
 		return
 	}
 
-	if share.Status == sharesinbox.ShareStatusDeclined {
+	if share.Status == shares.ShareStatusDeclined {
 		api.WriteConflict(w, "share has already been declined")
 		return
 	}
 
-	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, sharesinbox.ShareStatusAccepted); err != nil {
+	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, shares.ShareStatusAccepted); err != nil {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
 
@@ -280,7 +281,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
 	json.NewEncoder(w).Encode(map[string]string{
-		"status":  string(sharesinbox.ShareStatusAccepted),
+		"status":  string(shares.ShareStatusAccepted),
 		"shareId": shareID,
 	})
 }
@@ -301,7 +302,7 @@ func (h *Handler) HandleGetDetail(w http.ResponseWriter, r *http.Request) {
 
 	share, err := h.repo.GetByIDForRecipientUserID(r.Context(), shareID, user.ID)
 	if err != nil {
-		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
@@ -339,7 +340,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, user.ID)
 	if err != nil {
-		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
@@ -350,11 +351,11 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if share.Status == sharesinbox.ShareStatusDeclined {
+	if share.Status == shares.ShareStatusDeclined {
 		w.Header().Set("Content-Type", "application/json")
 
 		if err := json.NewEncoder(w).Encode(map[string]string{
-			"status":  string(sharesinbox.ShareStatusDeclined),
+			"status":  string(shares.ShareStatusDeclined),
 			"shareId": shareID,
 		}); err != nil {
 			h.log.Error("failed to encode declined share", "error", err)
@@ -363,12 +364,12 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if share.Status == sharesinbox.ShareStatusAccepted {
+	if share.Status == shares.ShareStatusAccepted {
 		api.WriteConflict(w, "share has already been accepted")
 		return
 	}
 
-	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, sharesinbox.ShareStatusDeclined); err != nil {
+	if err := h.repo.UpdateStatusForRecipientUserID(ctx, shareID, user.ID, shares.ShareStatusDeclined); err != nil {
 		h.log.Error("failed to update share status", "share_id", shareID, "error", err)
 		api.WriteInternalError(w, "failed to update share status")
 
@@ -378,7 +379,7 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(map[string]string{
-		"status":  string(sharesinbox.ShareStatusDeclined),
+		"status":  string(shares.ShareStatusDeclined),
 		"shareId": shareID,
 	}); err != nil {
 		h.log.Error("failed to encode declined share", "error", err)
@@ -403,7 +404,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 
 	share, err := h.repo.GetByIDForRecipientUserID(ctx, shareID, user.ID)
 	if err != nil {
-		if errors.Is(err, sharesinbox.ErrShareNotFound) {
+		if errors.Is(err, sharesincoming.ErrShareNotFound) {
 			api.WriteNotFound(w, "share not found")
 			return
 		}
@@ -414,7 +415,7 @@ func (h *Handler) HandleVerifyAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if share.Status != sharesinbox.ShareStatusAccepted {
+	if share.Status != shares.ShareStatusAccepted {
 		writeVerifyError(w, http.StatusBadRequest, verifyReasonShareNotAccepted, "share must be accepted before verifying access")
 		return
 	}

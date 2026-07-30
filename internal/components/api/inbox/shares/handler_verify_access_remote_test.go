@@ -15,11 +15,11 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-ok", "sender.example.com", "hello.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -71,7 +71,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-fail", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -107,7 +107,7 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) { //nolint:dupl // intentional: parallel verify-access tests share HTTP setup but assert different reason codes
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-signature", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -139,7 +139,7 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) { /
 }
 
 func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T) { //nolint:dupl // intentional: parallel verify-access tests share HTTP setup but assert different reason codes
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-disabled", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -167,7 +167,7 @@ func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T
 }
 
 func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-big", "sender.example.com", "big.bin")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -210,7 +210,7 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-remote-err", "sender.example.com", "forbidden.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -253,7 +253,7 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_Unauthenticated(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	router := newTestRouterWithAccess(repo, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/some-id/verify-access", nil)

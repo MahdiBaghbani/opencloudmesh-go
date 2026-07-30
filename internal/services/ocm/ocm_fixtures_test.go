@@ -91,7 +91,6 @@ func hostSigningFixture(t *testing.T, host string) (*crypto.RFC9421Signer, *serv
 		publicKeys: map[string]sigalg.ResolvedPublicKey{
 			km.GetKeyID(): {
 				KeyID:     km.GetKeyID(),
-				Algorithm: sigalg.Ed25519,
 				PublicKey: km.GetSigningKey().PublicKey,
 				JWKKty:    "OKP",
 				JWKCrv:    "Ed25519",

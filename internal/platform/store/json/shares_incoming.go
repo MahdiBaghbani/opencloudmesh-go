@@ -20,7 +20,7 @@ func (d *Driver) CreateIncomingShare(_ context.Context, share *store.IncomingSha
 		return store.ErrAlreadyExists
 	}
 
-	key := providerKey(share.SendingServer, share.ProviderID)
+	key := providerKey(share.SenderHost, share.ProviderID)
 	if _, exists := d.providerIndex[key]; exists {
 		return store.ErrAlreadyExists
 	}
@@ -49,7 +49,7 @@ func (d *Driver) GetIncomingShareByIDForRecipient(_ context.Context, shareID str
 	}
 
 	share, ok := d.incomingShares[shareID]
-	if !ok || share.UserID != recipientUserID {
+	if !ok || share.RecipientUserID != recipientUserID {
 		return nil, store.ErrNotFound
 	}
 
@@ -57,7 +57,7 @@ func (d *Driver) GetIncomingShareByIDForRecipient(_ context.Context, shareID str
 }
 
 // GetIncomingShareByProviderKey retrieves an incoming share by sending server and providerID.
-func (d *Driver) GetIncomingShareByProviderKey(_ context.Context, sendingServer, providerID string) (*store.IncomingShare, error) {
+func (d *Driver) GetIncomingShareByProviderKey(_ context.Context, senderHost, providerID string) (*store.IncomingShare, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -65,7 +65,7 @@ func (d *Driver) GetIncomingShareByProviderKey(_ context.Context, sendingServer,
 		return nil, store.ErrClosed
 	}
 
-	shareID, ok := d.providerIndex[providerKey(sendingServer, providerID)]
+	shareID, ok := d.providerIndex[providerKey(senderHost, providerID)]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
@@ -90,7 +90,7 @@ func (d *Driver) ListIncomingSharesByRecipient(_ context.Context, recipientUserI
 	shares := make([]*store.IncomingShare, 0)
 
 	for _, share := range d.incomingShares {
-		if share.UserID == recipientUserID {
+		if share.RecipientUserID == recipientUserID {
 			shares = append(shares, cloneIncomingShare(share))
 		}
 	}
@@ -98,8 +98,8 @@ func (d *Driver) ListIncomingSharesByRecipient(_ context.Context, recipientUserI
 	return shares, nil
 }
 
-// UpdateIncomingShareStatusForRecipient updates the state of an incoming share, scoped to a recipient.
-func (d *Driver) UpdateIncomingShareStatusForRecipient(_ context.Context, shareID string, recipientUserID string, state string) error {
+// UpdateIncomingShareStatusForRecipient updates the status of an incoming share, scoped to a recipient.
+func (d *Driver) UpdateIncomingShareStatusForRecipient(_ context.Context, shareID string, recipientUserID string, status string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -108,18 +108,18 @@ func (d *Driver) UpdateIncomingShareStatusForRecipient(_ context.Context, shareI
 	}
 
 	share, exists := d.incomingShares[shareID]
-	if !exists || share.UserID != recipientUserID {
+	if !exists || share.RecipientUserID != recipientUserID {
 		return store.ErrNotFound
 	}
 
-	oldState := share.State
+	oldStatus := share.Status
 	oldUpdatedAt := share.UpdatedAt
-	share.State = state
+	share.Status = status
 	share.UpdatedAt = time.Now().Unix()
 
 	if err := d.saveFile(fileIncomingShares, d.incomingShares); err != nil {
 		// Rollback: restore the old field values on the in-place pointer.
-		share.State = oldState
+		share.Status = oldStatus
 		share.UpdatedAt = oldUpdatedAt
 
 		return err
@@ -138,11 +138,11 @@ func (d *Driver) DeleteIncomingShareForRecipient(_ context.Context, shareID stri
 	}
 
 	share, exists := d.incomingShares[shareID]
-	if !exists || share.UserID != recipientUserID {
+	if !exists || share.RecipientUserID != recipientUserID {
 		return store.ErrNotFound
 	}
 
-	key := providerKey(share.SendingServer, share.ProviderID)
+	key := providerKey(share.SenderHost, share.ProviderID)
 	delete(d.providerIndex, key)
 	delete(d.incomingShares, shareID)
 

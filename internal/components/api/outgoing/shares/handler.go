@@ -25,6 +25,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
+	ocmshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -167,7 +168,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		Permissions:      req.Permissions,
 		Owner:            owner,
 		Sender:           sender,
-		Status:           "sent",
+		Status:           ocmshares.OutgoingShareStatusSent,
 		SentAt:           &now,
 		Requirements:     requirements,
 	}
@@ -191,7 +192,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		"shareId":    share.ShareID,
 		"providerId": share.ProviderID,
 		"webdavId":   share.WebDAVID,
-		"status":     share.Status,
+		"status":     string(share.Status),
 	}); err != nil {
 		h.logger.Error("failed to encode share response", "error", err)
 	}

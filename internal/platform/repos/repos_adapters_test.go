@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
@@ -28,7 +29,7 @@ func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 		}
 	}()
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ShareID:         "dup1",
 		ProviderID:      "dp1",
 		SenderHost:      "sender.example",
@@ -37,7 +38,7 @@ func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 		Name:            "dup-share",
 		ResourceType:    "file",
 		Permissions:     []string{"read"},
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		RecipientUserID: "user1",
 		CreatedAt:       time.Unix(time.Now().Unix(), 0),
 		UpdatedAt:       time.Unix(time.Now().Unix(), 0),
@@ -51,7 +52,7 @@ func TestJSON_IncomingShare_CreateDuplicate(t *testing.T) {
 		t.Fatal("second Create: expected error, got nil")
 	}
 
-	if errors.Is(err, sharesinbox.ErrShareNotFound) {
+	if errors.Is(err, sharesincoming.ErrShareNotFound) {
 		t.Errorf("second Create: got ErrShareNotFound, want a duplicate error")
 	}
 
@@ -73,7 +74,7 @@ func TestJSON_IncomingInvite_CreateDuplicate(t *testing.T) {
 		}
 	}()
 
-	invite := &invitesinbox.IncomingInvite{
+	invite := &invitesincoming.IncomingInvite{
 		ID:              "dup-ii1",
 		Token:           "tok-dup",
 		InviteString:    "b64dup",
@@ -124,7 +125,7 @@ func TestDurable_OutgoingShare_SentAt_RoundTrip(t *testing.T) {
 				Name:         "sentat-durable-share",
 				ResourceType: "file",
 				Permissions:  []string{"read"},
-				Status:       "sent",
+				Status:       shares.OutgoingShareStatusSent,
 				CreatedAt:    time.Unix(time.Now().Unix(), 0).UTC(),
 				SentAt:       &sentAt,
 			}
@@ -171,7 +172,7 @@ func TestDurable_OutgoingShare_NewFields_RoundTrip(t *testing.T) {
 				Name:             "new-fields-share",
 				ResourceType:     "file",
 				Permissions:      []string{"read"},
-				Status:           "sent",
+				Status:           shares.OutgoingShareStatusSent,
 				ReceiverEndPoint: "https://peer.example/ocm",
 				ShareType:        "user",
 				Error:            "some error",
@@ -232,7 +233,7 @@ func TestDurable_OutgoingShare_Requirements_StorageToStruct_Isolation(t *testing
 				Name:         "iso-sts-share",
 				ResourceType: "file",
 				Permissions:  []string{"read"},
-				Status:       "sent",
+				Status:       shares.OutgoingShareStatusSent,
 				Requirements: []string{spec.RequirementMustExchangeToken},
 				CreatedAt:    time.Unix(time.Now().Unix(), 0).UTC(),
 			}
@@ -289,7 +290,7 @@ func TestDurable_OutgoingShare_Requirements_StructToStorage_Isolation(t *testing
 				Name:         "iso-tss-share",
 				ResourceType: "file",
 				Permissions:  []string{"read"},
-				Status:       "sent",
+				Status:       shares.OutgoingShareStatusSent,
 				Requirements: []string{spec.RequirementMustExchangeToken},
 				CreatedAt:    time.Unix(time.Now().Unix(), 0).UTC(),
 			}
@@ -327,7 +328,7 @@ func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 				}
 			}()
 
-			share := &sharesinbox.IncomingShare{
+			share := &sharesincoming.IncomingShare{
 				ShareID:           "nf-in-" + backend,
 				ProviderID:        "nfip-" + backend,
 				SenderHost:        "sender.example",
@@ -336,7 +337,7 @@ func TestDurable_IncomingShare_NewFields_RoundTrip(t *testing.T) {
 				Name:              "new-fields-incoming",
 				ResourceType:      "file",
 				Permissions:       []string{"read"},
-				Status:            sharesinbox.ShareStatusPending,
+				Status:            shares.ShareStatusPending,
 				RecipientUserID:   "uid1",
 				Description:       "a shared folder",
 				ShareType:         "user",

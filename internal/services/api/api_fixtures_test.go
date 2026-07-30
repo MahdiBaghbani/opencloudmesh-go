@@ -3,9 +3,9 @@ package api
 import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -32,9 +32,9 @@ func testAPIInputs() Inputs {
 		PartyRepo:          identity.NewMemoryPartyRepo(),
 		SessionRepo:        identity.NewMemorySessionRepo(),
 		UserAuth:           identity.NewUserAuthFast(),
-		IncomingShareRepo:  sharesinbox.NewMemoryIncomingShareRepo(),
+		IncomingShareRepo:  sharesincoming.NewMemoryIncomingShareRepo(),
 		OutgoingShareRepo:  sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		IncomingInviteRepo: invitesinbox.NewMemoryIncomingInviteRepo(),
+		IncomingInviteRepo: invitesincoming.NewMemoryIncomingInviteRepo(),
 		OutgoingInviteRepo: invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		HTTPClient:         httpclient.NewContextClient(rawHTTP),
 		DiscoveryClient:    discovery.NewClient(rawHTTP, nil),

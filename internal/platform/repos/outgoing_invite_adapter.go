@@ -37,7 +37,7 @@ func (a *outgoingInviteAdapter) Create(ctx context.Context, invite *invitesoutgo
 	s := appOutgoingInviteToStore(invite)
 	if err := a.s.CreateOutgoingInvite(ctx, s); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
-			return fmt.Errorf("invite already exists: %s", invite.ID)
+			return fmt.Errorf("invite already exists: %w", store.ErrAlreadyExists)
 		}
 
 		return err
@@ -91,7 +91,7 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 	ctx context.Context,
 	id string,
 	status invites.InviteStatus,
-	acceptedBy string,
+	acceptance *invitesoutgoing.Acceptance,
 ) error {
 	existing, err := a.s.GetOutgoingInvite(ctx, id)
 	if err != nil {
@@ -103,8 +103,20 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 	}
 
 	existing.Status = string(status)
-	if acceptedBy != "" {
-		existing.AcceptedBy = acceptedBy
+
+	if acceptance != nil {
+		if acceptance.ProviderFQDN != "" {
+			existing.AcceptedProviderFQDN = acceptance.ProviderFQDN
+		}
+
+		if acceptance.UserID != "" {
+			existing.AcceptedUserID = acceptance.UserID
+		}
+
+		if acceptance.ProviderFQDNNormalized != "" {
+			existing.AcceptedProviderFQDNNormalized = acceptance.ProviderFQDNNormalized
+		}
+
 		existing.AcceptedAt = time.Now().Unix()
 	}
 
@@ -119,6 +131,43 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 	return nil
 }
 
+// FindAcceptedForRecipient finds an accepted outgoing invite created by the
+// local sender whose remote accepter matches both the given user and
+// normalized host. Rows without a persisted normalized provider host never
+// match.
+func (a *outgoingInviteAdapter) FindAcceptedForRecipient(
+	ctx context.Context,
+	senderUserID string,
+	recipientUserID string,
+	recipientFQDNNormalized string,
+) (*invitesoutgoing.OutgoingInvite, error) {
+	// Pass empty userID to list all invites (matches List behaviour).
+	storeInvites, err := a.s.ListOutgoingInvites(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, s := range storeInvites {
+		if s.Status != string(invites.InviteStatusAccepted) {
+			continue
+		}
+
+		if s.CreatedByUserID != senderUserID || s.AcceptedUserID != recipientUserID {
+			continue
+		}
+
+		// Rows without a persisted normalized provider host never match, even
+		// against an empty query value.
+		if s.AcceptedProviderFQDNNormalized == "" || s.AcceptedProviderFQDNNormalized != recipientFQDNNormalized {
+			continue
+		}
+
+		return storeOutgoingInviteToApp(s), nil
+	}
+
+	return nil, invites.ErrInviteNotFound
+}
+
 // storeOutgoingInviteToApp converts a store model to the app-layer model.
 func storeOutgoingInviteToApp(s *store.OutgoingInvite) *invitesoutgoing.OutgoingInvite {
 	return &invitesoutgoing.OutgoingInvite{
@@ -131,8 +180,11 @@ func storeOutgoingInviteToApp(s *store.OutgoingInvite) *invitesoutgoing.Outgoing
 		CreatedAt:       unixToTime(s.CreatedAt),
 		ExpiresAt:       unixToTime(s.ExpiresAt),
 		Status:          invites.InviteStatus(s.Status),
-		AcceptedBy:      s.AcceptedBy,
 		AcceptedAt:      unixToTimePtr(s.AcceptedAt),
+
+		AcceptedProviderFQDN:           s.AcceptedProviderFQDN,
+		AcceptedUserID:                 s.AcceptedUserID,
+		AcceptedProviderFQDNNormalized: s.AcceptedProviderFQDNNormalized,
 	}
 }
 
@@ -146,9 +198,12 @@ func appOutgoingInviteToStore(a *invitesoutgoing.OutgoingInvite) *store.Outgoing
 		RecipientEmail:  a.RecipientEmail,
 		CreatedByUserID: a.CreatedByUserID,
 		Status:          string(a.Status),
-		AcceptedBy:      a.AcceptedBy,
 		ExpiresAt:       timeToUnix(a.ExpiresAt),
 		CreatedAt:       timeToUnix(a.CreatedAt),
 		AcceptedAt:      timePtrToUnix(a.AcceptedAt),
+
+		AcceptedProviderFQDN:           a.AcceptedProviderFQDN,
+		AcceptedUserID:                 a.AcceptedUserID,
+		AcceptedProviderFQDNNormalized: a.AcceptedProviderFQDNNormalized,
 	}
 }

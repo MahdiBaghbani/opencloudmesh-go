@@ -19,9 +19,18 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
+
+// disableMustInvite opts a test server out of must-invite enforcement. Tests
+// that exercise inbound-share identity handling without seeding an invite use
+// this to keep the legacy acceptance path.
+func disableMustInvite(cfg *config.Config) {
+	off := false
+	cfg.OCM.Invite = &config.InviteConfig{EnforceMustInvite: &off}
+}
 
 func postSignedJSON(t *testing.T, targetURL string, body []byte, signer *crypto.RFC9421Signer) *http.Response {
 	t.Helper()
@@ -191,7 +200,7 @@ func TestIncomingShare_FederatedOpaqueID_ResolvesViaDecodeFallback(t *testing.T)
 	// policy. The receiver requires token exchange, so the request carries
 	// the must-exchange-token requirement and the peer is a discoverable,
 	// token-exchange-capable receiver.
-	ts := harness.StartTestServer(t)
+	ts := harness.StartTestServerWithConfig(t, disableMustInvite)
 	defer ts.Stop(t)
 
 	peer := startStrictCodeFlowReceiver(t)
@@ -388,7 +397,7 @@ func TestIncomingShare_RevaStyleOwnerSender_Accepted(t *testing.T) {
 	// policy. The receiver requires token exchange, so the request carries
 	// the must-exchange-token requirement and the peer is a discoverable,
 	// token-exchange-capable receiver.
-	ts := harness.StartTestServer(t)
+	ts := harness.StartTestServerWithConfig(t, disableMustInvite)
 	defer ts.Stop(t)
 
 	peer := startStrictCodeFlowReceiver(t)

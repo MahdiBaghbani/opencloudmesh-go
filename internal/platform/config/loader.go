@@ -601,6 +601,10 @@ func validateStrictModeGuardrails(cfg *Config) error {
 		return nil
 	}
 
+	if !cfg.OCM.MustInviteEnforced() {
+		return fmt.Errorf("mode=strict requires ocm.invite.enforce_must_invite!=false")
+	}
+
 	if cfg.TLS.Mode == "off" {
 		return fmt.Errorf("mode=strict requires tls.mode!=off")
 	}

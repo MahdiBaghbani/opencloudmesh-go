@@ -1,45 +1,46 @@
-package inbox_test
+package incoming_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
-	repo := inbox.NewMemoryIncomingShareRepo()
+	repo := incoming.NewMemoryIncomingShareRepo()
 	ctx := context.Background()
 
-	share1 := &inbox.IncomingShare{
+	share1 := &incoming.IncomingShare{
 		ProviderID:      "same-id",
 		SenderHost:      "sender1.example.com",
 		ShareWith:       "user@example.com",
 		RecipientUserID: "user-a",
-		Status:          inbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 	}
 	if err := repo.Create(ctx, share1); err != nil {
 		t.Fatalf("failed to create share1: %v", err)
 	}
 
-	share2 := &inbox.IncomingShare{
+	share2 := &incoming.IncomingShare{
 		ProviderID:      "same-id",
 		SenderHost:      "sender2.example.com",
 		ShareWith:       "user@example.com",
 		RecipientUserID: "user-a",
-		Status:          inbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 	}
 	if err := repo.Create(ctx, share2); err != nil {
 		t.Fatalf("failed to create share2: %v", err)
 	}
 
-	share3 := &inbox.IncomingShare{
+	share3 := &incoming.IncomingShare{
 		ProviderID:      "same-id",
 		SenderHost:      "sender1.example.com",
 		ShareWith:       "user@example.com",
 		RecipientUserID: "user-a",
-		Status:          inbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 	}
 	if err := repo.Create(ctx, share3); err == nil {
 		t.Error("expected error for duplicate providerID from same sender")
@@ -56,24 +57,24 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 }
 
 func TestIncomingRepository_RecipientScoping(t *testing.T) {
-	repo := inbox.NewMemoryIncomingShareRepo()
+	repo := incoming.NewMemoryIncomingShareRepo()
 	ctx := context.Background()
 
-	shareA := &inbox.IncomingShare{
+	shareA := &incoming.IncomingShare{
 		ProviderID:      "p1",
 		SenderHost:      "sender.com",
 		RecipientUserID: "user-a",
-		Status:          inbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 	}
 	if err := repo.Create(ctx, shareA); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	shareB := &inbox.IncomingShare{
+	shareB := &incoming.IncomingShare{
 		ProviderID:      "p2",
 		SenderHost:      "sender.com",
 		RecipientUserID: "user-b",
-		Status:          inbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 	}
 	if err := repo.Create(ctx, shareB); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -110,7 +111,7 @@ func TestIncomingRepository_RecipientScoping(t *testing.T) {
 	}
 
 	// User A cannot update user B's share
-	err = repo.UpdateStatusForRecipientUserID(ctx, shareB.ShareID, "user-a", inbox.ShareStatusAccepted)
+	err = repo.UpdateStatusForRecipientUserID(ctx, shareB.ShareID, "user-a", shares.ShareStatusAccepted)
 	if err == nil {
 		t.Error("expected error when user-a tries to update user-b's share")
 	}

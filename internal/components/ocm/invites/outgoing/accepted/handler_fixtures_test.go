@@ -1,4 +1,4 @@
-package incoming_test
+package accepted_test
 
 import (
 	"bytes"
@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing/accepted"
 )
 
 const (
@@ -17,15 +17,15 @@ const (
 	testScheme   = "https"
 )
 
-func newTestHandler(repo invitesoutgoing.OutgoingInviteRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+func newTestHandler(repo invitesoutgoing.OutgoingInviteRepo, partyRepo identity.PartyRepo) *accepted.Handler {
 	if partyRepo == nil {
 		partyRepo = identity.NewMemoryPartyRepo()
 	}
 
-	return incoming.NewHandler(repo, partyRepo, nil, testProvider, testScheme)
+	return accepted.NewHandler(repo, partyRepo, nil, testProvider, testScheme)
 }
 
-func postInviteAccepted(handler *incoming.Handler, body string) *httptest.ResponseRecorder {
+func postInviteAccepted(handler *accepted.Handler, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 

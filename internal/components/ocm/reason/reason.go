@@ -28,6 +28,15 @@ const (
 	NetworkError      = "network_error"
 )
 
+// OCM wire messages for inbound share admission failures. These are emitted
+// verbatim as the OCM error response message; the sender-not-trusted rejection
+// is a valid protocol rejection reason per
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1303-L1307
+const (
+	SenderNotTrusted = "SENDER_NOT_TRUSTED"
+	StorageError     = "STORAGE_ERROR"
+)
+
 // Error wraps an error with a canonical reason code for structured error propagation.
 type Error struct {
 	Reason  string
@@ -73,6 +82,10 @@ func OCMStatus(reason string) int {
 		return http.StatusNotImplemented // 501
 	case PeerUnreachable:
 		return http.StatusServiceUnavailable // 503
+	case SenderNotTrusted:
+		return http.StatusForbidden // 403
+	case StorageError:
+		return http.StatusInternalServerError // 500
 	default:
 		return http.StatusInternalServerError
 	}

@@ -8,19 +8,20 @@ import (
 
 	"github.com/google/uuid"
 
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
 // incomingShareAdapter adapts store.IncomingShareStore to
-// sharesinbox.IncomingShareRepo.
+// sharesincoming.IncomingShareRepo.
 type incomingShareAdapter struct {
 	s store.IncomingShareStore
 }
 
-var _ sharesinbox.IncomingShareRepo = (*incomingShareAdapter)(nil)
+var _ sharesincoming.IncomingShareRepo = (*incomingShareAdapter)(nil)
 
-func (a *incomingShareAdapter) Create(ctx context.Context, share *sharesinbox.IncomingShare) error {
+func (a *incomingShareAdapter) Create(ctx context.Context, share *sharesincoming.IncomingShare) error {
 	if share.ShareID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
@@ -55,11 +56,11 @@ func (a *incomingShareAdapter) GetByIDForRecipientUserID(
 	ctx context.Context,
 	shareID string,
 	recipientUserID string,
-) (*sharesinbox.IncomingShare, error) {
+) (*sharesincoming.IncomingShare, error) {
 	s, err := a.s.GetIncomingShareByIDForRecipient(ctx, shareID, recipientUserID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, sharesinbox.ErrShareNotFound
+			return nil, sharesincoming.ErrShareNotFound
 		}
 
 		return nil, err
@@ -72,11 +73,11 @@ func (a *incomingShareAdapter) GetByProviderID(
 	ctx context.Context,
 	senderHost string,
 	providerID string,
-) (*sharesinbox.IncomingShare, error) {
+) (*sharesincoming.IncomingShare, error) {
 	s, err := a.s.GetIncomingShareByProviderKey(ctx, senderHost, providerID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, sharesinbox.ErrShareNotFound
+			return nil, sharesincoming.ErrShareNotFound
 		}
 
 		return nil, err
@@ -88,13 +89,13 @@ func (a *incomingShareAdapter) GetByProviderID(
 func (a *incomingShareAdapter) ListByRecipientUserID(
 	ctx context.Context,
 	recipientUserID string,
-) ([]*sharesinbox.IncomingShare, error) {
+) ([]*sharesincoming.IncomingShare, error) {
 	storeShares, err := a.s.ListIncomingSharesByRecipient(ctx, recipientUserID)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]*sharesinbox.IncomingShare, 0, len(storeShares))
+	result := make([]*sharesincoming.IncomingShare, 0, len(storeShares))
 	for _, s := range storeShares {
 		result = append(result, storeIncomingShareToApp(s))
 	}
@@ -106,11 +107,11 @@ func (a *incomingShareAdapter) UpdateStatusForRecipientUserID(
 	ctx context.Context,
 	shareID string,
 	recipientUserID string,
-	status sharesinbox.ShareStatus,
+	status shares.ShareStatus,
 ) error {
 	if err := a.s.UpdateIncomingShareStatusForRecipient(ctx, shareID, recipientUserID, string(status)); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return sharesinbox.ErrShareNotFound
+			return sharesincoming.ErrShareNotFound
 		}
 
 		return err
@@ -126,7 +127,7 @@ func (a *incomingShareAdapter) DeleteForRecipientUserID(
 ) error {
 	if err := a.s.DeleteIncomingShareForRecipient(ctx, shareID, recipientUserID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return sharesinbox.ErrShareNotFound
+			return sharesincoming.ErrShareNotFound
 		}
 
 		return err
@@ -136,11 +137,11 @@ func (a *incomingShareAdapter) DeleteForRecipientUserID(
 }
 
 // storeIncomingShareToApp converts a store model to the app-layer model.
-func storeIncomingShareToApp(s *store.IncomingShare) *sharesinbox.IncomingShare {
-	return &sharesinbox.IncomingShare{
+func storeIncomingShareToApp(s *store.IncomingShare) *sharesincoming.IncomingShare {
+	return &sharesincoming.IncomingShare{
 		ShareID:           s.ShareID,
 		ProviderID:        s.ProviderID,
-		SenderHost:        s.SendingServer,
+		SenderHost:        s.SenderHost,
 		WebDAVID:          s.WebDAVID,
 		SharedSecret:      s.SharedSecret,
 		Owner:             s.Owner,
@@ -157,8 +158,8 @@ func storeIncomingShareToApp(s *store.IncomingShare) *sharesinbox.IncomingShare 
 		WebappURI:         s.WebappURI,
 		WebappTargets:     append([]string(nil), s.WebappTargets...),
 		ProtocolName:      s.ProtocolName,
-		Status:            sharesinbox.ShareStatus(s.State),
-		RecipientUserID:   s.UserID,
+		Status:            shares.ShareStatus(s.Status),
+		RecipientUserID:   s.RecipientUserID,
 		OwnerHost:         s.OwnerHost,
 		Requirements:      append([]string(nil), s.Requirements...),
 		Expiration:        int64ToInt64Ptr(s.Expiration),
@@ -168,11 +169,11 @@ func storeIncomingShareToApp(s *store.IncomingShare) *sharesinbox.IncomingShare 
 }
 
 // appIncomingShareToStore converts an app-layer model to the store model.
-func appIncomingShareToStore(a *sharesinbox.IncomingShare) *store.IncomingShare {
+func appIncomingShareToStore(a *sharesincoming.IncomingShare) *store.IncomingShare {
 	return &store.IncomingShare{
 		ShareID:           a.ShareID,
 		ProviderID:        a.ProviderID,
-		SendingServer:     a.SenderHost,
+		SenderHost:        a.SenderHost,
 		WebDAVID:          a.WebDAVID,
 		SharedSecret:      a.SharedSecret,
 		Owner:             a.Owner,
@@ -189,8 +190,8 @@ func appIncomingShareToStore(a *sharesinbox.IncomingShare) *store.IncomingShare 
 		WebappURI:         a.WebappURI,
 		WebappTargets:     append([]string(nil), a.WebappTargets...),
 		ProtocolName:      a.ProtocolName,
-		State:             string(a.Status),
-		UserID:            a.RecipientUserID,
+		Status:            string(a.Status),
+		RecipientUserID:   a.RecipientUserID,
 		OwnerHost:         a.OwnerHost,
 		Requirements:      append([]string(nil), a.Requirements...),
 		Expiration:        int64PtrToInt64(a.Expiration),

@@ -8,12 +8,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 func TestCreateShare_Success_ResolvesById(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := incoming.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -41,7 +41,7 @@ func TestCreateShare_Success_ResolvesById(t *testing.T) {
 }
 
 func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := incoming.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -68,7 +68,7 @@ func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
 }
 
 func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := incoming.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -85,7 +85,7 @@ func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 	}
 }
 func TestCreateShare_DuplicateReturns200(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := incoming.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -124,7 +124,7 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsFolderResourceType(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := incoming.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -153,7 +153,7 @@ func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
 	// Reva-style federated opaque ID: base64url_padded(userID@localProvider)
 	// The encoded identifier won't match any user by raw ID, username, or email,
 	// so triple resolution fails and the decode fallback fires.
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := incoming.NewMemoryIncomingShareRepo()
 	partyRepo := setupTestPartyRepo()
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 

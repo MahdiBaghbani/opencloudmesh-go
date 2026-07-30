@@ -67,7 +67,7 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km2.GetSigningKey().PublicKey,
+			KeyID: keyID, PublicKey: km2.GetSigningKey().PublicKey,
 			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	})

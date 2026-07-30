@@ -287,35 +287,51 @@ func TestResolve_ProtocolRolesInDiscoveryDocument(t *testing.T) {
 // criteria (not only BuildParams).
 func TestResolve_ThreadsAdvertiseFlagsIntoCriteria(t *testing.T) {
 	tests := []struct {
-		name               string
-		advertiseDenylist  bool
-		advertiseAllowlist bool
-		wantDenylist       bool
-		wantAllowlist      bool
+		name                string
+		advertiseDenylist   bool
+		advertiseAllowlist  bool
+		advertiseMustInvite bool
+		wantDenylist        bool
+		wantAllowlist       bool
+		wantMustInvite      bool
 	}{
 		{
-			name:               "both true",
-			advertiseDenylist:  true,
-			advertiseAllowlist: true,
-			wantDenylist:       true,
-			wantAllowlist:      true,
+			name:                "all true",
+			advertiseDenylist:   true,
+			advertiseAllowlist:  true,
+			advertiseMustInvite: true,
+			wantDenylist:        true,
+			wantAllowlist:       true,
+			wantMustInvite:      true,
 		},
 		{
-			name:               "both false",
-			advertiseDenylist:  false,
-			advertiseAllowlist: false,
-			wantDenylist:       false,
-			wantAllowlist:      false,
+			name:                "all false",
+			advertiseDenylist:   false,
+			advertiseAllowlist:  false,
+			advertiseMustInvite: false,
+			wantDenylist:        false,
+			wantAllowlist:       false,
+			wantMustInvite:      false,
+		},
+		{
+			name:                "must-invite only",
+			advertiseDenylist:   false,
+			advertiseAllowlist:  false,
+			advertiseMustInvite: true,
+			wantDenylist:        false,
+			wantAllowlist:       false,
+			wantMustInvite:      true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			in := resolve.ResolveInputs{
-				LocalIdentity:      tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
-				RouteOpts:          service.RouteOpts{ExternalBasePath: "/ocm"},
-				AdvertiseDenylist:  tt.advertiseDenylist,
-				AdvertiseAllowlist: tt.advertiseAllowlist,
+				LocalIdentity:       tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+				RouteOpts:           service.RouteOpts{ExternalBasePath: "/ocm"},
+				AdvertiseDenylist:   tt.advertiseDenylist,
+				AdvertiseAllowlist:  tt.advertiseAllowlist,
+				AdvertiseMustInvite: tt.advertiseMustInvite,
 			}
 
 			built := resolve.Resolve(&resolve.ProviderConfig{}, map[string]any{}, in)
@@ -329,8 +345,8 @@ func TestResolve_ThreadsAdvertiseFlagsIntoCriteria(t *testing.T) {
 				t.Errorf("HasCriteria(allowlist) = %v, want %v", got, tt.wantAllowlist)
 			}
 
-			if disc.HasCriteria(spec.CriteriaMustInvite) {
-				t.Error("must-invite must not appear in discovery criteria")
+			if got := disc.HasCriteria(spec.CriteriaMustInvite); got != tt.wantMustInvite {
+				t.Errorf("HasCriteria(must-invite) = %v, want %v", got, tt.wantMustInvite)
 			}
 		})
 	}

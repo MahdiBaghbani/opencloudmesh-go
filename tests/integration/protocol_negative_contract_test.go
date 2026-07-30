@@ -91,7 +91,11 @@ func runUnexchangedSharedSecretBearer401Case(
 	}
 
 	providerToken := loginSubprocessAdminWithClient(t, provider)
+	consumerToken := loginSubprocessAdminWithClient(t, consumer)
 	consumerHost := hostFromBaseURL(t, consumer.BaseURL)
+
+	// Strict mode enforces must-invite: exchange an invite before the share.
+	exchangeInvitesBetweenPair(t, provider, consumer, providerToken, consumerToken)
 
 	status, body := createOutgoingShareWithClient(t, provider, providerToken, map[string]any{
 		"receiverDomain": consumerHost,

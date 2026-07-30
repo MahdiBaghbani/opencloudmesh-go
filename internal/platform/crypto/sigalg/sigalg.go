@@ -58,13 +58,12 @@ var (
 	ErrUnsupportedJWKAlg = errors.New("sigalg: unsupported JWK alg")
 )
 
-// ResolvedPublicKey is key material plus the RFC 9421 native algorithm derived
-// from the JWK alg parameter. Algorithm is always populated for supported
-// JWKs; callers run ResolveAlgorithm to agree with an optional Signature-Input
-// alg parameter.
+// ResolvedPublicKey is key material plus the JWK algorithm inputs (kty, crv,
+// alg) needed to derive the RFC 9421 native algorithm. Callers run
+// ResolveAlgorithm to agree the JWK alg with an optional Signature-Input alg
+// parameter.
 type ResolvedPublicKey struct {
 	KeyID     string
-	Algorithm string
 	PublicKey crypto.PublicKey
 	JWKKty    string
 	JWKCrv    string

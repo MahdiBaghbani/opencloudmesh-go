@@ -109,6 +109,7 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			RequiresHTTPSignatures: facts.RequiresHTTPRequestSignatures,
 			AdvertiseDenylist:      in.AdvertiseDenylist,
 			AdvertiseAllowlist:     in.AdvertiseAllowlist,
+			AdvertiseMustInvite:    in.AdvertiseMustInvite,
 		},
 	}
 }

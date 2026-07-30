@@ -213,7 +213,6 @@ func (m *mockPeerDiscovery) ResolveVerificationKey(_ context.Context, keyID stri
 func resolvedKeyFromManager(km *crypto.KeyManager) sigalg.ResolvedPublicKey {
 	return sigalg.ResolvedPublicKey{
 		KeyID:     km.GetKeyID(),
-		Algorithm: sigalg.Ed25519,
 		PublicKey: km.GetSigningKey().PublicKey,
 		JWKKty:    "OKP",
 		JWKCrv:    "Ed25519",

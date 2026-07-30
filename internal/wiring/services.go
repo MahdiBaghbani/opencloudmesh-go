@@ -120,6 +120,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 	return ocm.New(ocm.Inputs{
 		IncomingShareRepo:   d.IncomingShareRepo,
 		OutgoingShareRepo:   d.OutgoingShareRepo,
+		IncomingInviteRepo:  d.IncomingInviteRepo,
 		OutgoingInviteRepo:  d.OutgoingInviteRepo,
 		PartyRepo:           d.PartyRepo,
 		PolicyEngine:        d.PolicyEngine,
@@ -130,6 +131,7 @@ func buildOCMService(cfg *config.Config, svcCfg map[string]any, log *slog.Logger
 		SignatureMiddleware: d.SignatureMiddleware,
 		TokenExchangePath:   tokenPath,
 		KeyManager:          d.KeyManager,
+		MustInviteEnforced:  cfg.OCM.MustInviteEnforced(),
 	}, svcCfg, log)
 }
 

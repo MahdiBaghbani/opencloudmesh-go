@@ -1,8 +1,9 @@
-package incoming_test
+package accepted_test
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,10 +11,12 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing/accepted"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 func TestHandleInviteAccepted_TokenInvalid(t *testing.T) {
@@ -74,8 +77,58 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 		t.Errorf("expected 409, got %d: %s", w.Code, w.Body.String())
 	}
 
+	// Without a resolvable inviter identity the 409 falls back to a plain
+	// message body.
 	if msg := decodeOCMError(t, w); msg != "INVITE_ALREADY_ACCEPTED" {
 		t.Errorf("expected INVITE_ALREADY_ACCEPTED, got %q", msg)
+	}
+}
+
+func TestHandleInviteAccepted_AlreadyAccepted_Returns409WithIdentityBody(t *testing.T) {
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	partyRepo := identity.NewMemoryPartyRepo()
+
+	localUser := &identity.User{
+		ID:          "user-uuid-409",
+		Username:    "dave",
+		Email:       "dave@example.com",
+		DisplayName: "Dave D",
+	}
+	if err := partyRepo.Create(context.Background(), localUser); err != nil {
+		t.Fatalf("Create user: %v", err)
+	}
+
+	handler := newTestHandler(repo, partyRepo)
+
+	invite := &invitesoutgoing.OutgoingInvite{
+		Token:           "accepted-identity-token",
+		ProviderFQDN:    testProvider,
+		CreatedByUserID: localUser.ID,
+		Status:          invites.InviteStatusAccepted,
+	}
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	w := postInviteAccepted(handler, validAcceptedBody("accepted-identity-token"))
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// The 409 carries the invite-accepted identity body so an ocmgo receiver
+	// can recover the sender identity on retry (idempotent success).
+	var resp spec.InviteAcceptedResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("expected decodable identity body on 409, got %v: %s", err, w.Body.String())
+	}
+
+	expectedUserID := address.EncodeFederatedOpaqueID(localUser.ID, testProvider)
+	if resp.UserID != expectedUserID {
+		t.Errorf("userID = %q, want %q", resp.UserID, expectedUserID)
+	}
+
+	if resp.Email != localUser.Email || resp.Name != localUser.DisplayName {
+		t.Errorf("identity mismatch: got email=%q name=%q", resp.Email, resp.Name)
 	}
 }
 
@@ -115,15 +168,53 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 	}
 }
 
+// TestHandleInviteAccepted_UnnormalizableProvider_FailsClosed verifies the
+// unauthenticated path fails closed when the body recipient provider cannot be
+// normalized (no raw-provider policy evaluation, no lowercase fallback).
+func TestHandleInviteAccepted_UnnormalizableProvider_FailsClosed(t *testing.T) {
+	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	handler := newTestHandler(repo, nil)
+
+	invite := &invitesoutgoing.OutgoingInvite{
+		Token:        "norm-fail-token",
+		ProviderFQDN: testProvider,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+		Status:       invites.InviteStatusPending,
+	}
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	body := `{"recipientProvider":"bad host","token":"norm-fail-token","userID":"u@host","email":"remote@other.com","name":"Remote User"}`
+	w := postInviteAccepted(handler, body)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if msg := decodeOCMError(t, w); msg != "UNTRUSTED_PROVIDER" {
+		t.Errorf("expected UNTRUSTED_PROVIDER, got %q", msg)
+	}
+
+	stored, err := repo.GetByToken(context.Background(), "norm-fail-token")
+	if err != nil {
+		t.Fatalf("GetByToken: %v", err)
+	}
+
+	if stored.Status != invites.InviteStatusPending {
+		t.Errorf("expected invite to remain pending, got %s", stored.Status)
+	}
+}
+
 type outgoingRepoSpy struct {
 	*invitesoutgoing.MemoryOutgoingInviteRepo
 
 	updateStatusCalled bool
 }
 
-func (s *outgoingRepoSpy) UpdateStatus(ctx context.Context, id string, status invites.InviteStatus, acceptedBy string) error {
+func (s *outgoingRepoSpy) UpdateStatus(ctx context.Context, id string, status invites.InviteStatus, acceptance *invitesoutgoing.Acceptance) error {
 	s.updateStatusCalled = true
-	return s.MemoryOutgoingInviteRepo.UpdateStatus(ctx, id, status, acceptedBy)
+	return s.MemoryOutgoingInviteRepo.UpdateStatus(ctx, id, status, acceptance)
 }
 
 type partyRepoGetFail struct {
@@ -245,7 +336,7 @@ func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing
 // incorrectly match.
 func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	handler := incoming.NewHandler(repo, identity.NewMemoryPartyRepo(), nil, testProvider, "")
+	handler := accepted.NewHandler(repo, identity.NewMemoryPartyRepo(), nil, testProvider, "")
 
 	invite := &invitesoutgoing.OutgoingInvite{
 		Token:        "empty-origin-token",

@@ -9,27 +9,34 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 )
 
 // Handler serves POST /ocm/shares with recipient resolution and peer-trust gating.
 type Handler struct {
-	repo                        sharesinbox.IncomingShareRepo
+	repo                        IncomingShareRepo
 	partyRepo                   identity.PartyRepo
 	policyEngine                *peertrust.PolicyEngine
 	resolver                    *policy.PeerMappingResolver
+	incomingInviteRepo          invitesincoming.IncomingInviteRepo
+	outgoingInviteRepo          invitesoutgoing.OutgoingInviteRepo
+	mustInviteEnforced          bool
 	localProviderFQDNForCompare string
 	localScheme                 string
 }
 
 func NewHandler( //nolint:revive // exported: trivial constructor wiring the handler dependencies
-	repo sharesinbox.IncomingShareRepo,
+	repo IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	policyEngine *peertrust.PolicyEngine,
+	incomingInviteRepo invitesincoming.IncomingInviteRepo,
+	outgoingInviteRepo invitesoutgoing.OutgoingInviteRepo,
+	mustInviteEnforced bool,
 	localProviderFQDNForCompare string,
 	localScheme string,
 	resolver *policy.PeerMappingResolver,
@@ -39,6 +46,9 @@ func NewHandler( //nolint:revive // exported: trivial constructor wiring the han
 		partyRepo:                   partyRepo,
 		policyEngine:                policyEngine,
 		resolver:                    resolver,
+		incomingInviteRepo:          incomingInviteRepo,
+		outgoingInviteRepo:          outgoingInviteRepo,
+		mustInviteEnforced:          mustInviteEnforced,
 		localProviderFQDNForCompare: localProviderFQDNForCompare,
 		localScheme:                 localScheme,
 	}
@@ -70,6 +80,10 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 
 	senderHost, ownerHost, ok := h.authenticateSenderAndResolveOwner(w, r, &req)
 	if !ok {
+		return
+	}
+
+	if !h.gateMustInvite(w, r, &req, resolvedUser) {
 		return
 	}
 
@@ -148,12 +162,14 @@ func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*ide
 	return nil, errors.New("recipient not found")
 }
 
-// ExtractSenderHost returns the lowercased provider host parsed from sender, or empty on error.
-func ExtractSenderHost(sender string) string {
+// ExtractSenderHost returns the normalized provider host parsed from sender.
+// Normalization failure is returned as an error so callers fail closed
+// instead of falling back to a plain lowercase.
+func ExtractSenderHost(sender, localScheme string) (string, error) {
 	_, provider, err := address.Parse(sender)
 	if err != nil {
-		return ""
+		return "", err
 	}
 
-	return strings.ToLower(provider)
+	return hostport.Normalize(provider, localScheme)
 }

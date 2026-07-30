@@ -35,24 +35,6 @@ func TestKidFromPublicOrigin(t *testing.T) {
 	}
 }
 
-func TestKidMatches(t *testing.T) {
-	if !keyid.KidMatches("example.com#key1", "example.com#key1") {
-		t.Fatal("expected match")
-	}
-
-	if keyid.KidMatches("example.com#key1", "other.example#key1") {
-		t.Fatal("expected mismatch")
-	}
-
-	if !keyid.KidMatches("example.com:443#key1", "example.com#key1") {
-		t.Fatal("expected default-port match")
-	}
-
-	if !keyid.KidMatches("https://Example.COM:443/ocm#key1", "example.com#key1") {
-		t.Fatal("expected absolute-URI / host#fragment match after canonicalize")
-	}
-}
-
 func TestParseKid_AbsoluteURI(t *testing.T) {
 	parsed, err := keyid.ParseKid("https://example.com/ocm#key-1")
 	if err != nil {

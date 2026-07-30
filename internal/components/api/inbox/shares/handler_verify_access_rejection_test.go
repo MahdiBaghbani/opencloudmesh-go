@@ -10,11 +10,11 @@ import (
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-cross", "sender.example.com", "file.txt")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -34,7 +34,7 @@ func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-va-pending", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -63,7 +63,7 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}

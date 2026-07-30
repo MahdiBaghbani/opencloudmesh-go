@@ -18,7 +18,7 @@ type RedactedOutgoingShare struct {
 	ProviderID      string `json:"providerId"`
 	ShareID         string `json:"shareId,omitempty"`
 	WebDAVID        string `json:"webdavId,omitempty"`
-	State           string `json:"state"`
+	Status          string `json:"status"`
 	ReceiverHost    string `json:"receiverHost,omitempty"`
 	HasSharedSecret bool   `json:"hasSharedSecret"`
 }
@@ -27,9 +27,9 @@ type RedactedOutgoingShare struct {
 type RedactedIncomingShare struct {
 	ShareID         string `json:"shareId"`
 	ProviderID      string `json:"providerId"`
-	SendingServer   string `json:"sendingServer,omitempty"`
-	State           string `json:"state"`
-	UserID          string `json:"userId,omitempty"`
+	SenderHost      string `json:"senderHost,omitempty"`
+	Status          string `json:"status"`
+	RecipientUserID string `json:"recipientUserId,omitempty"`
 	HasSharedSecret bool   `json:"hasSharedSecret"`
 }
 
@@ -58,16 +58,16 @@ type rawOutgoingShare struct {
 	WebDAVID     string `json:"webdavId"`
 	SharedSecret string `json:"sharedSecret"`
 	ReceiverHost string `json:"receiverHost"`
-	State        string `json:"state"`
+	Status       string `json:"status"`
 }
 
 type rawIncomingShare struct {
-	ShareID       string `json:"shareId"`
-	ProviderID    string `json:"providerId"`
-	SendingServer string `json:"sendingServer"`
-	SharedSecret  string `json:"sharedSecret"`
-	State         string `json:"state"`
-	UserID        string `json:"userId"`
+	ShareID         string `json:"shareId"`
+	ProviderID      string `json:"providerId"`
+	SenderHost      string `json:"senderHost"`
+	SharedSecret    string `json:"sharedSecret"`
+	Status          string `json:"status"`
+	RecipientUserID string `json:"recipientUserId"`
 }
 
 // SnapshotPersistence reads dataDir/data share JSON files and returns redacted
@@ -154,7 +154,7 @@ func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error
 			ProviderID:      share.ProviderID,
 			ShareID:         share.ShareID,
 			WebDAVID:        share.WebDAVID,
-			State:           share.State,
+			Status:          share.Status,
 			ReceiverHost:    share.ReceiverHost,
 			HasSharedSecret: share.SharedSecret != "",
 		}
@@ -190,9 +190,9 @@ func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error
 		out[key] = RedactedIncomingShare{
 			ShareID:         share.ShareID,
 			ProviderID:      share.ProviderID,
-			SendingServer:   share.SendingServer,
-			State:           share.State,
-			UserID:          share.UserID,
+			SenderHost:      share.SenderHost,
+			Status:          share.Status,
+			RecipientUserID: share.RecipientUserID,
 			HasSharedSecret: share.SharedSecret != "",
 		}
 	}

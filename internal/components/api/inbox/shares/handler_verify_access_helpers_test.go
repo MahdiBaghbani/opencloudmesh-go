@@ -9,7 +9,8 @@ import (
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 type mockAccessor struct {
@@ -21,7 +22,7 @@ func (m *mockAccessor) Access(ctx context.Context, opts access.AccessOptions) (*
 }
 
 func newTestRouterWithAccess(
-	repo sharesinbox.IncomingShareRepo,
+	repo sharesincoming.IncomingShareRepo,
 	ac access.RemoteAccessor,
 	user *identity.User,
 ) http.Handler {
@@ -39,15 +40,15 @@ func newTestRouterWithAccess(
 }
 
 func createAcceptedShareForUser(
-	repo *sharesinbox.MemoryIncomingShareRepo,
+	repo *sharesincoming.MemoryIncomingShareRepo,
 	providerID, senderHost, name string, //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
-) *sharesinbox.IncomingShare {
-	share := &sharesinbox.IncomingShare{
+) *sharesincoming.IncomingShare {
+	share := &sharesincoming.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
 		ShareWith:       userAID + "@example.com",
 		RecipientUserID: userAID,
-		Status:          sharesinbox.ShareStatusAccepted,
+		Status:          shares.ShareStatusAccepted,
 		ResourceType:    "file",
 		Name:            name,
 		Owner:           "owner@sender.example.com",
@@ -63,15 +64,15 @@ func createAcceptedShareForUser(
 }
 
 func createAcceptedWebappShareForUser(
-	repo *sharesinbox.MemoryIncomingShareRepo,
+	repo *sharesincoming.MemoryIncomingShareRepo,
 	recipientUserID, providerID, senderHost, name string,
-) *sharesinbox.IncomingShare {
-	share := &sharesinbox.IncomingShare{
+) *sharesincoming.IncomingShare {
+	share := &sharesincoming.IncomingShare{
 		ProviderID:        providerID,
 		SenderHost:        senderHost,
 		ShareWith:         recipientUserID + "@example.com",
 		RecipientUserID:   recipientUserID,
-		Status:            sharesinbox.ShareStatusAccepted,
+		Status:            shares.ShareStatusAccepted,
 		ResourceType:      "file",
 		Name:              name,
 		Owner:             "owner@sender.example.com",

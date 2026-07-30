@@ -2,6 +2,7 @@ package incoming
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -9,8 +10,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
@@ -226,9 +228,21 @@ func (h *Handler) authenticateSenderAndResolveOwner(
 	peerIdentity := inboundsignature.GetPeerIdentity(r.Context())
 	authenticated := peerIdentity != nil && peerIdentity.Authenticated
 
-	senderHost := ExtractSenderHost(req.Sender)
-	if peerIdentity != nil && peerIdentity.Authenticated {
+	var senderHost string
+	if authenticated {
 		senderHost = peerIdentity.AuthorityForCompare
+	} else {
+		// Unauthenticated path: normalize the body sender host or reject; no
+		// lowercase fallback.
+		var hostErr error
+
+		senderHost, hostErr = ExtractSenderHost(req.Sender, h.localScheme)
+		if hostErr != nil {
+			log.Warn("failed to normalize sender provider", "error", hostErr)
+			spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
+
+			return "", "", false
+		}
 	}
 
 	if h.policyEngine != nil {
@@ -285,6 +299,104 @@ func (h *Handler) authenticateSenderAndResolveOwner(
 	return senderHost, ownerHost, true
 }
 
+// gateMustInvite enforces the exchanged-invite requirement for inbound share
+// creation when enforcement is enabled. It is separate from the peer-trust
+// PolicyEngine and independent of peer trust: an exact host PLUS user match
+// against an exchanged invite is required, checked bidirectionally (the remote
+// sender either invited the local recipient, or accepted the local recipient's
+// invite). There is no host-only fallback in enforced mode; the explicit
+// opt-out retains legacy acceptance.
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L763-L765
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1303-L1307
+func (h *Handler) gateMustInvite(
+	w http.ResponseWriter,
+	r *http.Request,
+	req *spec.NewShareRequest,
+	resolvedUser *identity.User,
+) bool {
+	if !h.mustInviteEnforced {
+		return true
+	}
+
+	log := appctx.GetLogger(r.Context())
+
+	if h.incomingInviteRepo == nil || h.outgoingInviteRepo == nil {
+		log.Error("must-invite enforced but invite repositories are not wired")
+		spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
+
+		return false
+	}
+
+	senderUserID, senderProvider, err := address.Parse(req.Sender)
+	if err != nil {
+		log.Warn("must-invite: malformed sender", "error", err)
+		spec.WriteOCMError(w, reason.OCMStatus(reason.SenderNotTrusted), reason.SenderNotTrusted)
+
+		return false
+	}
+
+	senderHostNormalized, err := hostport.Normalize(senderProvider, h.localScheme)
+	if err != nil {
+		log.Warn("must-invite: failed to normalize sender provider",
+			"sender_provider", senderProvider, "error", err)
+		spec.WriteOCMError(w, reason.OCMStatus(reason.SenderNotTrusted), reason.SenderNotTrusted)
+
+		return false
+	}
+
+	// Anti-spoof: an authenticated peer's signature authority must match the
+	// normalized body sender provider; on match the invite lookup uses the
+	// authenticated normalized authority.
+	if peerIdentity := inboundsignature.GetPeerIdentity(r.Context()); peerIdentity != nil && peerIdentity.Authenticated {
+		if peerIdentity.AuthorityForCompare != senderHostNormalized {
+			log.Warn("must-invite: sender host mismatch",
+				"signature_authority", peerIdentity.AuthorityForCompare,
+				"sender_provider", senderProvider)
+			spec.WriteOCMError(w, reason.OCMStatus(reason.SenderNotTrusted), reason.SenderNotTrusted)
+
+			return false
+		}
+
+		senderHostNormalized = peerIdentity.AuthorityForCompare
+	}
+
+	// Direction 1: the remote sender invited the local recipient and the
+	// recipient accepted (incoming invite).
+	_, err = h.incomingInviteRepo.FindAcceptedForSender(r.Context(), resolvedUser.ID, senderUserID, senderHostNormalized)
+	if err == nil {
+		return true
+	}
+
+	if !errors.Is(err, invites.ErrInviteNotFound) {
+		log.Error("must-invite: incoming invite lookup failed", "error", err)
+		spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
+
+		return false
+	}
+
+	// Direction 2: the local recipient invited the remote sender and the
+	// sender accepted (outgoing invite).
+	_, err = h.outgoingInviteRepo.FindAcceptedForRecipient(r.Context(), resolvedUser.ID, senderUserID, senderHostNormalized)
+	if err == nil {
+		return true
+	}
+
+	if !errors.Is(err, invites.ErrInviteNotFound) {
+		log.Error("must-invite: outgoing invite lookup failed", "error", err)
+		spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
+
+		return false
+	}
+
+	log.Warn("must-invite: no exchanged invite for sender",
+		"sender_user_id", senderUserID,
+		"sender_host", senderHostNormalized,
+		"recipient_user_id", resolvedUser.ID)
+	spec.WriteOCMError(w, reason.OCMStatus(reason.SenderNotTrusted), reason.SenderNotTrusted)
+
+	return false
+}
+
 // storeIncomingShare returns an existing duplicate or persists a new share and writes the response.
 func (h *Handler) storeIncomingShare(
 	w http.ResponseWriter,
@@ -297,7 +409,14 @@ func (h *Handler) storeIncomingShare(
 	log := appctx.GetLogger(r.Context())
 
 	existing, err := h.repo.GetByProviderID(r.Context(), senderHost, req.ProviderID)
-	if err == nil && existing != nil {
+	if err != nil && !errors.Is(err, ErrShareNotFound) {
+		log.Error("failed to look up incoming share by provider key", "error", err)
+		spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
+
+		return
+	}
+
+	if existing != nil {
 		log.Info("duplicate share, returning existing",
 			"provider_id", req.ProviderID,
 			"sender", senderHost)
@@ -327,7 +446,7 @@ func (h *Handler) storeIncomingShare(
 		webdavRequirements = append([]string(nil), webdav.Requirements...)
 	}
 
-	share := &sharesinbox.IncomingShare{
+	share := &IncomingShare{
 		ProviderID:           req.ProviderID,
 		SenderHost:           senderHost,
 		OwnerHost:            ownerHost,
@@ -341,7 +460,7 @@ func (h *Handler) storeIncomingShare(
 		OwnerDisplayName:     req.OwnerDisplayName,
 		SenderDisplayName:    req.SenderDisplayName,
 		Expiration:           req.Expiration,
-		Status:               sharesinbox.ShareStatusPending,
+		Status:               shares.ShareStatusPending,
 		RecipientUserID:      resolvedUser.ID,
 		RecipientDisplayName: resolvedUser.DisplayName,
 		WebDAVID:             webdavURI,
@@ -353,7 +472,7 @@ func (h *Handler) storeIncomingShare(
 
 	if err := h.repo.Create(r.Context(), share); err != nil {
 		log.Error("failed to store share", "error", err)
-		spec.WriteOCMError(w, http.StatusInternalServerError, "STORAGE_ERROR")
+		spec.WriteOCMError(w, reason.OCMStatus(reason.StorageError), reason.StorageError)
 
 		return
 	}

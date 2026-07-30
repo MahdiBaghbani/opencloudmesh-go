@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
@@ -144,7 +145,7 @@ func storeOutgoingShareToApp(s *store.OutgoingShare) *sharesoutgoing.OutgoingSha
 		Permissions:      permStringToSlice(s.Permissions),
 		Owner:            s.Owner,
 		Sender:           s.Sender,
-		Status:           s.State,
+		Status:           shares.OutgoingShareStatus(s.Status),
 		Error:            s.Error,
 		// Copy the slice so callers cannot mutate the store's backing array.
 		Requirements: append([]string(nil), s.Requirements...),
@@ -170,7 +171,7 @@ func appOutgoingShareToStore(a *sharesoutgoing.OutgoingShare) *store.OutgoingSha
 		Permissions:      permSliceToString(a.Permissions),
 		Owner:            a.Owner,
 		Sender:           a.Sender,
-		State:            a.Status,
+		Status:           string(a.Status),
 		Error:            a.Error,
 		// Copy the slice so the store cannot mutate the caller's backing array.
 		Requirements: append([]string(nil), a.Requirements...),

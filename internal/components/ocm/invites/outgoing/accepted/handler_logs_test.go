@@ -1,4 +1,4 @@
-package incoming_test
+package accepted_test
 
 import (
 	"bytes"
@@ -12,8 +12,8 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing/accepted"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
@@ -71,7 +71,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			}
 
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
-			handler := incoming.NewHandler(
+			handler := accepted.NewHandler(
 				repo,
 				partyRepo,
 				nil,

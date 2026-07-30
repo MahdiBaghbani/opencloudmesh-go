@@ -44,9 +44,9 @@ type OutgoingShareStore interface {
 type IncomingShareStore interface {
 	CreateIncomingShare(ctx context.Context, share *IncomingShare) error
 	GetIncomingShareByIDForRecipient(ctx context.Context, shareID string, recipientUserID string) (*IncomingShare, error)
-	GetIncomingShareByProviderKey(ctx context.Context, sendingServer, providerID string) (*IncomingShare, error)
+	GetIncomingShareByProviderKey(ctx context.Context, senderHost, providerID string) (*IncomingShare, error)
 	ListIncomingSharesByRecipient(ctx context.Context, recipientUserID string) ([]*IncomingShare, error)
-	UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, state string) error
+	UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, status string) error
 	DeleteIncomingShareForRecipient(ctx context.Context, shareID string, recipientUserID string) error
 }
 
@@ -62,13 +62,13 @@ type OutgoingInviteStore interface {
 
 // IncomingInviteStore manages incoming invite persistence (acceptor-side).
 // All mutating operations are scoped by recipientUserID to prevent cross-user access.
-// Update is intentionally status-only: scope-defining fields (Token, RecipientUserID)
-// cannot be reassigned after creation.
+// Update is intentionally status-plus-sender-identity: scope-defining fields
+// (Token, RecipientUserID) cannot be reassigned after creation.
 type IncomingInviteStore interface {
 	CreateIncomingInvite(ctx context.Context, invite *IncomingInvite) error
 	GetIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) (*IncomingInvite, error)
 	GetIncomingInviteByToken(ctx context.Context, token string, recipientUserID string) (*IncomingInvite, error)
-	UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string) error
+	UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error
 	DeleteIncomingInviteForRecipient(ctx context.Context, id string, recipientUserID string) error
 	ListIncomingInvites(ctx context.Context, recipientUserID string) ([]*IncomingInvite, error)
 }
@@ -91,7 +91,7 @@ type OutgoingShare struct {
 	ResourceType     string   `json:"resourceType"`
 	ShareType        string   `json:"shareType"`
 	Permissions      string   `json:"permissions"`
-	State            string   `json:"state"` // sent, accepted, declined
+	Status           string   `gorm:"column:status"                                                    json:"status"` // sent, accepted, declined
 	Error            string   `json:"error,omitempty"`
 	Requirements     []string `gorm:"serializer:json"                                                  json:"requirements,omitempty"`
 	CreatedAt        int64    `json:"createdAt"`
@@ -99,15 +99,15 @@ type OutgoingShare struct {
 }
 
 // IncomingShare represents a share received by this instance (receiver-side).
-// The composite unique index on (sendingServer, providerID) enforces that one
+// The composite unique index on (senderHost, providerID) enforces that one
 // provider-key pair can be stored at most once, matching GetIncomingShareByProviderKey
 // singular semantics.
 type IncomingShare struct {
-	ShareID           string `gorm:"primaryKey"                                   json:"shareId"`       // receiver-local id (UUIDv7)
-	SendingServer     string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"sendingServer"` // sender's host
-	ProviderID        string `gorm:"uniqueIndex:idx_incoming_shares_provider_key" json:"providerId"`    // sender's share id
-	WebDAVID          string `json:"webdavId,omitempty"`                                                // relative or absolute webdav URI
-	SharedSecret      string `json:"sharedSecret,omitempty"`                                            // omitempty for redaction
+	ShareID           string `gorm:"primaryKey"                                                      json:"shareId"`    // receiver-local id (UUIDv7)
+	SenderHost        string `gorm:"column:sender_host;uniqueIndex:idx_incoming_shares_provider_key" json:"senderHost"` // sender's host
+	ProviderID        string `gorm:"uniqueIndex:idx_incoming_shares_provider_key"                    json:"providerId"` // sender's share id
+	WebDAVID          string `json:"webdavId,omitempty"`                                                                // relative or absolute webdav URI
+	SharedSecret      string `json:"sharedSecret,omitempty"`                                                            // omitempty for redaction
 	Owner             string `json:"owner"`
 	Sender            string `json:"sender"`
 	ShareWith         string `json:"shareWith"`
@@ -123,12 +123,12 @@ type IncomingShare struct {
 	// Requirements. Legacy rows leave these empty.
 	WebappPermissions string   `json:"webappPermissions,omitempty"`
 	WebappURI         string   `json:"webappUri,omitempty"`
-	WebappTargets     []string `gorm:"serializer:json"             json:"webappTargets,omitempty"`
+	WebappTargets     []string `gorm:"serializer:json"                json:"webappTargets,omitempty"`
 	ProtocolName      string   `json:"protocolName,omitempty"`
-	State             string   `json:"state"` // pending, accepted, declined
-	UserID            string   `gorm:"index"                       json:"userId"`
+	Status            string   `gorm:"column:status"                  json:"status"` // pending, accepted, declined
+	RecipientUserID   string   `gorm:"column:recipient_user_id;index" json:"recipientUserId"`
 	OwnerHost         string   `json:"ownerHost"`
-	Requirements      []string `gorm:"serializer:json"             json:"requirements,omitempty"`
+	Requirements      []string `gorm:"serializer:json"                json:"requirements,omitempty"`
 	// Expiration is a Unix epoch; 0 means no expiration.
 	Expiration int64 `json:"expiration,omitempty"`
 	CreatedAt  int64 `json:"createdAt"`
@@ -139,16 +139,22 @@ type IncomingShare struct {
 type OutgoingInvite struct {
 	ID              string `gorm:"primaryKey"               json:"id"`
 	Token           string `gorm:"uniqueIndex"              json:"token"`
-	ProviderFQDN    string `json:"providerFqdn"`
+	ProviderFQDN    string `gorm:"column:provider_fqdn"     json:"providerFqdn"`
 	InviteString    string `json:"inviteString"`
 	RecipientEmail  string `json:"recipientEmail,omitempty"`
 	CreatedByUserID string `gorm:"index"                    json:"createdByUserId"`
-	Status          string `json:"status"` // pending, accepted, declined, expired
-	AcceptedBy      string `json:"acceptedBy,omitempty"`
-	ExpiresAt       int64  `json:"expiresAt"`
-	CreatedAt       int64  `json:"createdAt"`
-	UpdatedAt       int64  `json:"updatedAt"`
-	AcceptedAt      int64  `json:"acceptedAt,omitempty"` // unix epoch; 0 = not yet accepted
+	Status          string `json:"status"` // pending, accepted
+	// AcceptedProviderFQDN is the raw remote provider host from the
+	// invite-accepted request. AcceptedUserID is the canonical remote accepter
+	// user identity (userID). AcceptedProviderFQDNNormalized is the accepting
+	// provider in host compare form; the latter two feed the must-invite gate.
+	AcceptedProviderFQDN           string `gorm:"column:accepted_provider_fqdn"            json:"acceptedProviderFqdn,omitempty"`
+	AcceptedUserID                 string `gorm:"column:accepted_user_id"                  json:"acceptedUserId,omitempty"`
+	AcceptedProviderFQDNNormalized string `gorm:"column:accepted_provider_fqdn_normalized" json:"acceptedProviderFqdnNormalized,omitempty"`
+	ExpiresAt                      int64  `json:"expiresAt"`
+	CreatedAt                      int64  `json:"createdAt"`
+	UpdatedAt                      int64  `json:"updatedAt"`
+	AcceptedAt                     int64  `json:"acceptedAt,omitempty"` // unix epoch; 0 = not yet accepted
 }
 
 // IncomingInvite is the persistence model for incoming invites (acceptor-side).
@@ -158,9 +164,14 @@ type IncomingInvite struct {
 	ID              string `gorm:"primaryKey"                                       json:"id"`
 	Token           string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"token"`
 	InviteString    string `json:"inviteString"`
-	SenderFQDN      string `json:"senderFqdn"`
+	SenderFQDN      string `gorm:"column:sender_fqdn"                               json:"senderFqdn"`
 	RecipientUserID string `gorm:"uniqueIndex:idx_incoming_invites_token_recipient" json:"recipientUserId"`
 	Status          string `json:"status"` // pending, accepted
-	ReceivedAt      int64  `json:"receivedAt"`
-	UpdatedAt       int64  `json:"updatedAt"`
+	// SenderUserID is the canonical remote sender user identity from the
+	// invite-accepted response. SenderFQDNNormalized is the sender host in
+	// compare form; both feed the must-invite gate.
+	SenderUserID         string `json:"senderUserId,omitempty"`
+	SenderFQDNNormalized string `gorm:"column:sender_fqdn_normalized" json:"senderFqdnNormalized,omitempty"`
+	ReceivedAt           int64  `json:"receivedAt"`
+	UpdatedAt            int64  `json:"updatedAt"`
 }

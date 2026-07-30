@@ -3,11 +3,11 @@ package api
 import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/interceptors/ratelimit"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -25,9 +25,9 @@ type Inputs struct {
 	PartyRepo             identity.PartyRepo
 	SessionRepo           identity.SessionRepo
 	UserAuth              *identity.UserAuth
-	IncomingShareRepo     sharesinbox.IncomingShareRepo
+	IncomingShareRepo     sharesincoming.IncomingShareRepo
 	OutgoingShareRepo     sharesoutgoing.OutgoingShareRepo
-	IncomingInviteRepo    invitesinbox.IncomingInviteRepo
+	IncomingInviteRepo    invitesincoming.IncomingInviteRepo
 	OutgoingInviteRepo    invitesoutgoing.OutgoingInviteRepo
 	HTTPClient            *httpclient.ContextClient
 	DiscoveryClient       *discovery.Client

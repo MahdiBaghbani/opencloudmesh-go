@@ -36,7 +36,7 @@ func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 		fetches++
 
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519,
+			KeyID:  keyID,
 			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	})
@@ -62,7 +62,7 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 
 	keyFetcher := func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			KeyID: keyID, PublicKey: km.GetSigningKey().PublicKey,
 			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	}
@@ -277,7 +277,7 @@ func TestVerifyRequest_AcceptsExplicitlyCoveredDate(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, body, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.Ed25519, PublicKey: km.GetSigningKey().PublicKey,
+			KeyID: keyID, PublicKey: km.GetSigningKey().PublicKey,
 			JWKKty: "OKP", JWKCrv: "Ed25519", JWKAlg: "Ed25519",
 		}, nil
 	})
@@ -334,7 +334,7 @@ func TestVerifyRequest_RejectsJWKHeaderAlgMismatch(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, nil, func(keyID string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: keyID, Algorithm: sigalg.ECDSAP256SHA256,
+			KeyID:  keyID,
 			JWKKty: "EC", JWKCrv: "P-256", JWKAlg: "ES256",
 		}, nil
 	})

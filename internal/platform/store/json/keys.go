@@ -3,8 +3,8 @@ package json
 import "fmt"
 
 // providerKey creates a lookup key for incoming shares.
-func providerKey(sendingServer, providerID string) string {
-	return sendingServer + ":" + providerID
+func providerKey(senderHost, providerID string) string {
+	return senderHost + ":" + providerID
 }
 
 // tokenUserKey creates a lookup key for incoming invites scoped to a recipient.
@@ -83,11 +83,11 @@ func (d *Driver) rebuildOutgoingShareIndexes() error {
 
 func (d *Driver) rebuildIncomingShareIndexes() error {
 	for shareID, share := range d.incomingShares {
-		key := providerKey(share.SendingServer, share.ProviderID)
+		key := providerKey(share.SenderHost, share.ProviderID)
 		if existingID, exists := d.providerIndex[key]; exists {
 			return fmt.Errorf(
-				"corrupt data: duplicate incoming share (sendingServer=%q, providerId=%q): ids %q and %q",
-				share.SendingServer, share.ProviderID, existingID, shareID,
+				"corrupt data: duplicate incoming share (senderHost=%q, providerId=%q): ids %q and %q",
+				share.SenderHost, share.ProviderID, existingID, shareID,
 			)
 		}
 

@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleAccept_Success(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-accept", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -30,13 +31,13 @@ func TestHandleAccept_Success(t *testing.T) {
 		t.Fatalf("call failed: %v", err)
 	}
 
-	if updated.Status != sharesinbox.ShareStatusAccepted {
-		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusAccepted, updated.Status)
+	if updated.Status != shares.ShareStatusAccepted {
+		t.Errorf("expected status %s, got %s", shares.ShareStatusAccepted, updated.Status)
 	}
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-cross", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -52,7 +53,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -66,10 +67,10 @@ func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-idem", "sender.example.com")
 
-	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted); err != nil {
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusAccepted); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
 	}
 
@@ -86,10 +87,10 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 }
 
 func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-declined", "sender.example.com")
 
-	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusDeclined); err != nil {
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusDeclined); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
 	}
 
@@ -106,7 +107,7 @@ func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 }
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/some-id/accept", nil)

@@ -12,12 +12,12 @@ import (
 	inboxinvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func TestHandleImport_Success(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
@@ -53,7 +53,7 @@ func TestHandleImport_Success(t *testing.T) {
 }
 
 func TestHandleImport_Idempotent(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
@@ -96,7 +96,7 @@ func TestHandleImport_Idempotent(t *testing.T) {
 }
 
 func TestHandleImport_InvalidInviteString(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
@@ -113,7 +113,7 @@ func TestHandleImport_InvalidInviteString(t *testing.T) {
 }
 
 func TestHandleImport_MissingInviteString(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
@@ -130,7 +130,7 @@ func TestHandleImport_MissingInviteString(t *testing.T) {
 }
 
 func TestHandleImport_Unauthenticated(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	router := newTestRouter(t, repo, nil)
 
 	inviteStr := buildInviteString("token")
@@ -147,7 +147,7 @@ func TestHandleImport_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
-	repo := invitesinbox.NewMemoryIncomingInviteRepo()
+	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	inviteStr := buildInviteString("shared-token")
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
 

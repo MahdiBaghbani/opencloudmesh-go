@@ -1,4 +1,4 @@
-package incoming_test
+package accepted_test
 
 import (
 	"bytes"

@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -16,14 +14,10 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
-	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/hostport"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -55,42 +49,33 @@ type InviteImportResponse struct {
 
 // Handler serves list, import, accept, and decline for inbox invites.
 type Handler struct {
-	incomingRepo    invitesinbox.IncomingInviteRepo
-	httpClient      httpclient.HTTPClient
-	discoveryClient *discovery.Client
-	signer          *crypto.RFC9421Signer
-	peerOrigin      *peerorigin.Resolver
-	localProvider   string // raw host[:port] for recipientProvider in invite-accepted
-	currentUser     func(context.Context) (*identity.User, error)
-	log             *slog.Logger
+	incomingRepo  invitesincoming.IncomingInviteRepo
+	poster        invitesincoming.InviteAcceptedPoster
+	localProvider string // raw host[:port] for recipientProvider in invite-accepted
+	localScheme   string // scheme from PublicOrigin for sender host comparison normalization
+	currentUser   func(context.Context) (*identity.User, error)
+	log           *slog.Logger
 }
 
 // NewHandler returns a Handler with the given dependencies.
 func NewHandler(
-	incomingRepo invitesinbox.IncomingInviteRepo,
-	httpClient httpclient.HTTPClient,
-	discoveryClient *discovery.Client,
-	signer *crypto.RFC9421Signer,
+	incomingRepo invitesincoming.IncomingInviteRepo,
+	poster invitesincoming.InviteAcceptedPoster,
 	localProvider string,
+	localScheme string,
 	currentUser func(context.Context) (*identity.User, error),
 	log *slog.Logger,
 ) *Handler {
 	log = logutil.NoopIfNil(log)
 
 	return &Handler{
-		incomingRepo:    incomingRepo,
-		httpClient:      httpClient,
-		discoveryClient: discoveryClient,
-		signer:          signer,
-		localProvider:   localProvider,
-		currentUser:     currentUser,
-		log:             log,
+		incomingRepo:  incomingRepo,
+		poster:        poster,
+		localProvider: localProvider,
+		localScheme:   localScheme,
+		currentUser:   currentUser,
+		log:           log,
 	}
-}
-
-// SetPeerOrigin wires the peer origin resolver used for invite sender discovery.
-func (h *Handler) SetPeerOrigin(peerOrigin *peerorigin.Resolver) {
-	h.peerOrigin = peerOrigin
 }
 
 // HandleList handles GET /api/inbox/invites; returns only invites for the authenticated user.
@@ -169,7 +154,7 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invite := &invitesinbox.IncomingInvite{
+	invite := &invitesincoming.IncomingInvite{
 		Token:           token,
 		SenderFQDN:      senderFQDN,
 		RecipientUserID: user.ID,
@@ -228,11 +213,11 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	if invite.Status == invites.InviteStatusAccepted {
 		w.Header().Set("Content-Type", "application/json")
 
-		if err := json.NewEncoder(w).Encode(map[string]string{
+		if encErr := json.NewEncoder(w).Encode(map[string]string{
 			"status":   string(invites.InviteStatusAccepted),
 			"inviteId": inviteID,
-		}); err != nil {
-			h.log.Error("failed to encode accepted invite", "error", err)
+		}); encErr != nil {
+			h.log.Error("failed to encode accepted invite", "error", encErr)
 		}
 
 		return
@@ -243,7 +228,27 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sendInviteAccepted(ctx, invite, user); err != nil {
+	// Normalize the stored sender host before any outbound call or persistence;
+	// a host that fails normalization is a local data problem, so fail closed.
+	senderFQDNNormalized, err := hostport.Normalize(invite.SenderFQDN, h.localScheme)
+	if err != nil {
+		h.log.Error("failed to normalize sender fqdn",
+			"invite_id", inviteID, "sender_fqdn", invite.SenderFQDN, "error", err)
+		api.WriteInternalError(w, "failed to normalize sender provider")
+
+		return
+	}
+
+	reqBody := spec.InviteAcceptedRequest{
+		RecipientProvider: h.localProvider,
+		Token:             invite.Token,
+		UserID:            address.EncodeFederatedOpaqueID(user.ID, h.localProvider),
+		Email:             user.Email,
+		Name:              user.DisplayName,
+	}
+
+	result, err := invitesincoming.SendInviteAccepted(ctx, h.poster, reqBody, invite.SenderFQDN)
+	if err != nil {
 		h.log.Error("failed to send invite-accepted",
 			"invite_id", inviteID, "sender_fqdn", invite.SenderFQDN, "error", err)
 		api.WriteError(w, http.StatusBadGateway, api.ReasonPeerUnreachable, "failed to notify sender")
@@ -251,12 +256,26 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.incomingRepo.UpdateStatusForRecipientUserID(ctx, inviteID, user.ID, invites.InviteStatusAccepted); err != nil {
+	// A 409 INVITE_ALREADY_ACCEPTED carrying the sender identity arrives as
+	// AlreadyAccepted: it is idempotent success on the retry path after a local
+	// persist failure, so persist accepted state the same way.
+	acceptance := &invitesincoming.Acceptance{
+		UserID:                 result.Response.UserID,
+		ProviderFQDN:           invite.SenderFQDN,
+		ProviderFQDNNormalized: senderFQDNNormalized,
+	}
+	if err := h.incomingRepo.UpdateStatusForRecipientUserID(ctx, inviteID, user.ID, invites.InviteStatusAccepted, acceptance); err != nil {
 		h.log.Error("failed to update invite status", "invite_id", inviteID, "error", err)
-		// Sender was notified; return success even if local update failed
+		api.WriteInternalError(w, "failed to persist invite acceptance")
+
+		return
 	}
 
-	h.log.Info("invite accepted", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
+	if result.AlreadyAccepted {
+		h.log.Info("invite already accepted by sender", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
+	} else {
+		h.log.Info("invite accepted", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -317,6 +336,9 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.incomingRepo.DeleteForRecipientUserID(ctx, inviteID, user.ID); err != nil {
 		h.log.Error("failed to delete invite", "invite_id", inviteID, "error", err)
+		api.WriteInternalError(w, "failed to decline invite")
+
+		return
 	}
 
 	h.log.Info("invite declined", "invite_id", inviteID, "sender_fqdn", invite.SenderFQDN)
@@ -329,50 +351,4 @@ func (h *Handler) HandleDecline(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		h.log.Error("failed to encode declined invite", "error", err)
 	}
-}
-
-// sendInviteAccepted sends POST /ocm/invite-accepted to the sender with all spec-required fields.
-func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.IncomingInvite, user *identity.User) error {
-	reqBody := spec.InviteAcceptedRequest{
-		RecipientProvider: h.localProvider,
-		Token:             invite.Token,
-		UserID:            address.EncodeFederatedOpaqueID(user.ID, h.localProvider),
-		Email:             user.Email,
-		Name:              user.DisplayName,
-	}
-
-	body, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
-	if err != nil {
-		return fmt.Errorf("failed to encode request: %w", err)
-	}
-
-	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.peerOrigin)
-	// Send POST /ocm/invite-accepted to the sender. Signing is conditional on the
-	// peer advertising http-sig (rule 1), applied via Poster.applySigning.
-	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L383-L387
-	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
-	resp, err := poster.Send(ctx, outbound.Request{
-		TargetHost:   invite.SenderFQDN,
-		EndpointPath: "invite-accepted",
-		Kind:         outbound.EndpointInvites,
-		Body:         body,
-	})
-	if err != nil {
-		return err
-	}
-	defer func() {
-		//nolint:errcheck // best-effort cleanup; error is not actionable
-		resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			return fmt.Errorf("invite-accepted rejected with status %d: %w", resp.StatusCode, readErr)
-		}
-
-		return fmt.Errorf("invite-accepted rejected with status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	return nil
 }

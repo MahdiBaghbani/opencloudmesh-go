@@ -1,4 +1,4 @@
-package inbox
+package incoming
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 // ErrShareNotFound is returned when a share is not found (including cross-user mismatch).
@@ -19,7 +21,7 @@ type IncomingShareRepo interface {
 	GetByIDForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) (*IncomingShare, error)
 	GetByProviderID(ctx context.Context, senderHost, providerID string) (*IncomingShare, error)
 	ListByRecipientUserID(ctx context.Context, recipientUserID string) ([]*IncomingShare, error)
-	UpdateStatusForRecipientUserID(ctx context.Context, shareID string, recipientUserID string, status ShareStatus) error
+	UpdateStatusForRecipientUserID(ctx context.Context, shareID string, recipientUserID string, status shares.ShareStatus) error
 	DeleteForRecipientUserID(ctx context.Context, shareID string, recipientUserID string) error
 }
 
@@ -133,7 +135,7 @@ func (r *MemoryIncomingShareRepo) ListByRecipientUserID(_ context.Context, recip
 }
 
 // UpdateStatusForRecipientUserID sets the share status when the recipient matches; implements IncomingShareRepo.
-func (r *MemoryIncomingShareRepo) UpdateStatusForRecipientUserID(_ context.Context, shareID string, recipientUserID string, status ShareStatus) error {
+func (r *MemoryIncomingShareRepo) UpdateStatusForRecipientUserID(_ context.Context, shareID string, recipientUserID string, status shares.ShareStatus) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

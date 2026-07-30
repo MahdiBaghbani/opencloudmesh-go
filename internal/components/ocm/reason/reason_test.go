@@ -70,6 +70,16 @@ func TestReasonMappings(t *testing.T) {
 	}
 }
 
+func TestOCMStatus_ShareAdmissionWireMessages(t *testing.T) {
+	if got := reason.OCMStatus(reason.SenderNotTrusted); got != http.StatusForbidden {
+		t.Fatalf("OCMStatus(SENDER_NOT_TRUSTED)=%d, want %d", got, http.StatusForbidden)
+	}
+
+	if got := reason.OCMStatus(reason.StorageError); got != http.StatusInternalServerError {
+		t.Fatalf("OCMStatus(STORAGE_ERROR)=%d, want %d", got, http.StatusInternalServerError)
+	}
+}
+
 func TestFromClassified(t *testing.T) {
 	tests := []struct {
 		name string

@@ -70,6 +70,28 @@ type OCMConfig struct {
 	Discovery   DiscoveryConfig   `toml:"discovery"`
 	CodeFlow    CodeFlowConfig    `toml:"code_flow"`
 	PeerMapping PeerMappingConfig `toml:"peer_compat"`
+	Invite      *InviteConfig     `toml:"invite"`
+}
+
+// InviteConfig holds invite-exchange enforcement settings under [ocm.invite].
+// This is independent of peer_trust.enabled: must-invite gates inbound share
+// creation on an exchanged invite, not on peer-trust membership.
+type InviteConfig struct {
+	// EnforceMustInvite requires an exchanged invite before accepting a share
+	// creation notification (IETF-OCM:
+	// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L763-L765).
+	// Nil means enabled (the default); explicit false is the legacy opt-out.
+	EnforceMustInvite *bool `toml:"enforce_must_invite"`
+}
+
+// MustInviteEnforced reports whether inbound shares require an exchanged
+// invite. Unset configuration evaluates to enabled.
+func (c OCMConfig) MustInviteEnforced() bool {
+	if c.Invite == nil || c.Invite.EnforceMustInvite == nil {
+		return true
+	}
+
+	return *c.Invite.EnforceMustInvite
 }
 
 // DiscoveryConfig holds inbound peer discovery validation settings.

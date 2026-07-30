@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
+	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 
@@ -33,22 +34,49 @@ func setupTestPartyRepo() identity.PartyRepo {
 }
 
 // newTestHandler creates a handler wired for testing against localhost:9200 (https).
-func newTestHandler(repo *sharesinbox.MemoryIncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+// Must-invite enforcement is off by default in tests to exercise legacy behavior;
+// gate tests use newTestHandlerWithInvites.
+func newTestHandler(repo *incoming.MemoryIncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
 	return newTestHandlerWithResolver(repo, partyRepo, nil)
 }
 
 func newTestHandlerWithResolver(
-	repo *sharesinbox.MemoryIncomingShareRepo,
+	repo *incoming.MemoryIncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	resolver *policy.PeerMappingResolver,
 ) *incoming.Handler {
 	return incoming.NewHandler(
 		repo,
 		partyRepo,
-		nil, // no policy engine
+		nil,   // no policy engine
+		nil,   // no incoming invite repo
+		nil,   // no outgoing invite repo
+		false, // must-invite enforcement off
 		"localhost:9200",
 		"https",
 		resolver,
+	)
+}
+
+// newTestHandlerWithInvites creates a handler with invite repositories and an
+// explicit must-invite enforcement flag for gate tests.
+func newTestHandlerWithInvites(
+	repo *incoming.MemoryIncomingShareRepo,
+	partyRepo identity.PartyRepo,
+	incomingInvites invitesincoming.IncomingInviteRepo,
+	outgoingInvites invitesoutgoing.OutgoingInviteRepo,
+	enforced bool,
+) *incoming.Handler {
+	return incoming.NewHandler(
+		repo,
+		partyRepo,
+		nil, // no policy engine
+		incomingInvites,
+		outgoingInvites,
+		enforced,
+		"localhost:9200",
+		"https",
+		nil,
 	)
 }
 
@@ -107,7 +135,7 @@ func validWebappShareBody(shareWith, ownerHost, providerID string) string {
 
 func newAcceptedShareHandler(
 	t *testing.T,
-	repo *sharesinbox.MemoryIncomingShareRepo,
+	repo *incoming.MemoryIncomingShareRepo,
 	partyRepo identity.PartyRepo,
 ) (*incoming.Handler, string) {
 	t.Helper()

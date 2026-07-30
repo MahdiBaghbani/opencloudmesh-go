@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
@@ -22,12 +23,12 @@ func TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm(
 
 	repo := r.IncomingShares
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ProviderID:        "prov-durable-rt",
 		SenderHost:        "sender.example.com",
 		ShareWith:         userAID + "@example.com",
 		RecipientUserID:   userAID,
-		Status:            sharesinbox.ShareStatusPending,
+		Status:            shares.ShareStatusPending,
 		ResourceType:      "file",
 		Name:              "test-share-durable",
 		Owner:             "owner@sender.example.com",

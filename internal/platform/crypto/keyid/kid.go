@@ -143,39 +143,6 @@ func KidFromPublicOrigin(publicOrigin, fragment string) (string, error) {
 	return BuildKid(authority, fragment), nil
 }
 
-// KidMatches reports whether a signature keyid parameter matches a JWKS kid.
-// Authorities are compared after CanonicalJWKSAuthority so default ports and
-// case differences do not break lookup (e.g. example.com:443#key1 vs example.com#key1).
-//
-// KidMatches is a compatibility facade for pre-existing callers. The inbound
-// verifier resolves keys by exact string equality via KidEqualsExact and
-// jwks.Set.ResolveExactKeyID, because the OCM contract requires the keyid
-// value to equal the corresponding JWK kid; do not route new verification
-// code through this lenient form.
-func KidMatches(keyidParam, jwksKid string) bool {
-	parsed, err := ParseKid(keyidParam)
-	if err != nil {
-		return false
-	}
-
-	jwks, err := ParseKid(jwksKid)
-	if err != nil {
-		return false
-	}
-
-	_, authA, err := CanonicalJWKSAuthority(parsed)
-	if err != nil {
-		return false
-	}
-
-	_, authB, err := CanonicalJWKSAuthority(jwks)
-	if err != nil {
-		return false
-	}
-
-	return authA == authB && parsed.Fragment == jwks.Fragment
-}
-
 // KidEqualsExact reports whether a signature keyid parameter is byte-for-byte
 // equal to a JWKS kid. The OCM IETF contract requires the keyid value to
 // equal the kid of the corresponding key in the signer's JWK Set, and

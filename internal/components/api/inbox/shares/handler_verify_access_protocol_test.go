@@ -10,11 +10,11 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-webdav", "sender.example.com", "file.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -64,7 +64,7 @@ func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolAndPopulatesShareInfo(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedWebappShareForUser(repo, userAID, "prov-va-webapp", "sender.example.com", "webapp-file.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -134,7 +134,7 @@ func TestHandleVerifyAccess_SelectsWebappProtocolAndPopulatesShareInfo(t *testin
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedWebappShareForUser(repo, userAID, "prov-va-webapp-uri", "sender.example.com", "uri-only.txt")
 	share.ProtocolName = "webdav"
 
@@ -185,7 +185,7 @@ func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolByProtocolName(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedWebappShareForUser(repo, userAID, "prov-va-webapp-name", "sender.example.com", "name-only.txt")
 	share.WebappURI = ""
 

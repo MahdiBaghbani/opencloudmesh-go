@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleDecline_Success(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-decline", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -30,13 +31,13 @@ func TestHandleDecline_Success(t *testing.T) {
 		t.Fatalf("call failed: %v", err)
 	}
 
-	if updated.Status != sharesinbox.ShareStatusDeclined {
-		t.Errorf("expected status %s, got %s", sharesinbox.ShareStatusDeclined, updated.Status)
+	if updated.Status != shares.ShareStatusDeclined {
+		t.Errorf("expected status %s, got %s", shares.ShareStatusDeclined, updated.Status)
 	}
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-cross-dec", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -52,10 +53,10 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleDecline_ConflictForAcceptedShare(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createShareForUser(repo, userAID, "prov-acc-dec", "sender.example.com")
 
-	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, sharesinbox.ShareStatusAccepted); err != nil {
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusAccepted); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
 	}
 

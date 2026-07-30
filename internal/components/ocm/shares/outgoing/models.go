@@ -3,6 +3,8 @@ package outgoing
 
 import (
 	"time"
+
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 )
 
 // OutgoingShare holds a share created locally for a remote receiver.
@@ -16,17 +18,17 @@ type OutgoingShare struct {
 	ReceiverEndPoint string `json:"receiverEndPoint"`
 	ShareWith        string `json:"shareWith"`
 
-	Name         string     `json:"name"`
-	ResourceType string     `json:"resourceType"`
-	ShareType    string     `json:"shareType"`
-	Permissions  []string   `json:"permissions"`
-	Owner        string     `json:"owner"`
-	Sender       string     `json:"sender"`
-	Status       string     `json:"status"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	SentAt       *time.Time `json:"sentAt,omitempty"`
-	Error        string     `json:"error,omitempty"`
-	Requirements []string   `json:"requirements,omitempty"`
+	Name         string                     `json:"name"`
+	ResourceType string                     `json:"resourceType"`
+	ShareType    string                     `json:"shareType"`
+	Permissions  []string                   `json:"permissions"`
+	Owner        string                     `json:"owner"`
+	Sender       string                     `json:"sender"`
+	Status       shares.OutgoingShareStatus `json:"status"`
+	CreatedAt    time.Time                  `json:"createdAt"`
+	SentAt       *time.Time                 `json:"sentAt,omitempty"`
+	Error        string                     `json:"error,omitempty"`
+	Requirements []string                   `json:"requirements,omitempty"`
 }
 
 // OutgoingShareRequest carries the body for creating an outgoing share.

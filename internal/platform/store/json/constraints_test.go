@@ -57,12 +57,12 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 	}
 
 	if err := inStore.UpdateIncomingInviteStatusForRecipient( //nolint:govet // shadow: sequential err in table-driven test is benign
-		ctx, invite.ID, invite.RecipientUserID, "accepted",
+		ctx, invite.ID, invite.RecipientUserID, "accepted", "", "",
 	); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", err)
 	}
 
-	err = inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted")
+	err = inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted", "", "")
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for wrong recipient update, got %v", err)
 	}

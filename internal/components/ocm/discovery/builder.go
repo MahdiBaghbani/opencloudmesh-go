@@ -48,6 +48,11 @@ type BuildParams struct {
 	// sets this only when peer_trust.enabled is true and the configured
 	// peer_trust.policy.allow_list is nonempty.
 	AdvertiseAllowlist bool
+
+	// AdvertiseMustInvite emits the must-invite criterion when true. The caller
+	// (wiring) sets this when must-invite enforcement is enabled, which is the
+	// default; an explicit ocm.invite.enforce_must_invite=false opt-out clears it.
+	AdvertiseMustInvite bool
 }
 
 // BuildDiscovery constructs the static discovery document (Reva pattern:
@@ -163,6 +168,10 @@ func buildDiscoveryCriteria(p BuildParams, disc *spec.Discovery) {
 
 	if p.AdvertiseAllowlist {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaAllowlist)
+	}
+
+	if p.AdvertiseMustInvite {
+		disc.Criteria = append(disc.Criteria, spec.CriteriaMustInvite)
 	}
 }
 

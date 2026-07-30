@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
@@ -22,9 +22,9 @@ import (
 // backends. Close is a no-op for the memory backend.
 type Repos struct {
 	OutgoingShares  sharesoutgoing.OutgoingShareRepo
-	IncomingShares  sharesinbox.IncomingShareRepo
+	IncomingShares  sharesincoming.IncomingShareRepo
 	OutgoingInvites invitesoutgoing.OutgoingInviteRepo
-	IncomingInvites invitesinbox.IncomingInviteRepo
+	IncomingInvites invitesincoming.IncomingInviteRepo
 
 	// driver is non-nil for durable backends; nil for memory.
 	driver store.Driver
@@ -60,9 +60,9 @@ func New(ctx context.Context, cfg config.PersistenceConfig) (*Repos, error) {
 func newMemoryRepos() *Repos {
 	return &Repos{
 		OutgoingShares:  sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		IncomingShares:  sharesinbox.NewMemoryIncomingShareRepo(),
+		IncomingShares:  sharesincoming.NewMemoryIncomingShareRepo(),
 		OutgoingInvites: invitesoutgoing.NewMemoryOutgoingInviteRepo(),
-		IncomingInvites: invitesinbox.NewMemoryIncomingInviteRepo(),
+		IncomingInvites: invitesincoming.NewMemoryIncomingInviteRepo(),
 	}
 }
 

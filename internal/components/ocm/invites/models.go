@@ -1,5 +1,7 @@
-// Package invites provides shared types for OCM invitations. Subpackages: inbox (storage),
-// outgoing (storage), incoming (POST /ocm/invite-accepted handler).
+// Package invites provides shared types for OCM invitations. Subpackages:
+// incoming (received-invite storage plus the invite-accepted domain port),
+// outgoing (created-invite storage), outgoing/accepted (POST
+// /ocm/invite-accepted handler serving our outgoing invites).
 package invites
 
 import (
@@ -9,7 +11,7 @@ import (
 	"time"
 )
 
-// InviteStatus tracks the lifecycle state of an OCM invite (pending, accepted, declined, expired).
+// InviteStatus tracks the lifecycle state of an OCM invite (pending, accepted, declined).
 type InviteStatus string
 
 const (
@@ -19,8 +21,6 @@ const (
 	InviteStatusAccepted InviteStatus = "accepted"
 	// InviteStatusDeclined is the declined invite status.
 	InviteStatusDeclined InviteStatus = "declined"
-	// InviteStatusExpired is the expired invite status.
-	InviteStatusExpired InviteStatus = "expired"
 )
 
 var (

@@ -117,7 +117,7 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 
 	result := verifier.VerifyRequest(req, body, func(id string) (sigalg.ResolvedPublicKey, error) {
 		return sigalg.ResolvedPublicKey{
-			KeyID: id, Algorithm: sigalg.ECDSAP256SHA256, PublicKey: &priv.PublicKey,
+			KeyID: id, PublicKey: &priv.PublicKey,
 			JWKKty: "EC", JWKCrv: "P-256", JWKAlg: "ES256",
 		}, nil
 	})
@@ -139,8 +139,13 @@ func TestResolveExactKeyID_ExactMatchResolvesKey(t *testing.T) {
 		t.Fatalf("KeyID = %q, want %q", got.KeyID, km.GetKeyID())
 	}
 
-	if got.Algorithm != sigalg.Ed25519 {
-		t.Fatalf("Algorithm = %q, want %q", got.Algorithm, sigalg.Ed25519)
+	alg, err := sigalg.ResolveAlgorithm("", got.JWKKty, got.JWKCrv, got.JWKAlg)
+	if err != nil {
+		t.Fatalf("ResolveAlgorithm: %v", err)
+	}
+
+	if alg != sigalg.Ed25519 {
+		t.Fatalf("resolved algorithm = %q, want %q", alg, sigalg.Ed25519)
 	}
 
 	pub, ok := got.PublicKey.(ed25519.PublicKey)
@@ -191,13 +196,9 @@ func TestResolveExactKeyID_RejectsAmbiguousExactKid(t *testing.T) {
 	}
 }
 
-func TestKidMatches_RemainsLenientCompatFacade(t *testing.T) {
-	// The compatibility facade still canonicalizes authorities, while the
-	// verifier's exact resolver requires byte-for-byte equality.
-	if !keyid.KidMatches("example.com:443#key1", "example.com#key1") {
-		t.Fatal("KidMatches facade must keep canonicalized matching")
-	}
-
+func TestKidEqualsExact(t *testing.T) {
+	// The verifier's exact resolver requires byte-for-byte equality; no
+	// authority normalization or case folding.
 	if keyid.KidEqualsExact("example.com:443#key1", "example.com#key1") {
 		t.Fatal("KidEqualsExact must reject non-equal authority forms")
 	}

@@ -8,7 +8,7 @@ import (
 	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	invitesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/inbox"
+	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
@@ -51,7 +51,7 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 				t.Fatalf("OutgoingInvites.Create: %v", err)
 			}
 
-			inInvite := &invitesinbox.IncomingInvite{
+			inInvite := &invitesincoming.IncomingInvite{
 				ID:              "restart-in-" + backend,
 				Token:           "restart-in-token-" + backend,
 				InviteString:    "b64-in",

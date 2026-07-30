@@ -180,9 +180,9 @@ func (d *Driver) ListIncomingSharesByRecipient(ctx context.Context, recipientUse
 	return d.core.ListIncomingSharesByRecipient(ctx, recipientUserID)
 }
 
-// UpdateIncomingShareStatusForRecipient updates the state of an incoming share, scoped to a recipient.
-func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, state string) error {
-	if err := d.core.UpdateIncomingShareStatusForRecipient(ctx, shareID, recipientUserID, state); err != nil {
+// UpdateIncomingShareStatusForRecipient updates the status of an incoming share, scoped to a recipient.
+func (d *Driver) UpdateIncomingShareStatusForRecipient(ctx context.Context, shareID string, recipientUserID string, status string) error {
+	if err := d.core.UpdateIncomingShareStatusForRecipient(ctx, shareID, recipientUserID, status); err != nil {
 		return err
 	}
 
@@ -275,10 +275,11 @@ func (d *Driver) GetIncomingInviteByToken(ctx context.Context, token string, rec
 	return d.core.GetIncomingInviteByToken(ctx, token, recipientUserID)
 }
 
-// UpdateIncomingInviteStatusForRecipient updates only the status of an incoming
-// invite scoped to a recipient.
-func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string) error {
-	if err := d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserID, status); err != nil {
+// UpdateIncomingInviteStatusForRecipient updates the status of an incoming
+// invite scoped to a recipient, persisting the remote sender identity on
+// acceptance when provided.
+func (d *Driver) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error {
+	if err := d.core.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserID, status, senderUserID, senderFQDNNormalized); err != nil {
 		return err
 	}
 

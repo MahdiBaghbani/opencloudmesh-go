@@ -26,9 +26,7 @@ func TestSetFromEd25519PublicKey_Find(t *testing.T) {
 		t.Fatalf("Find: %v", err)
 	}
 
-	if got.Algorithm != sigalg.Ed25519 {
-		t.Fatalf("Algorithm = %q", got.Algorithm)
-	}
+	requireResolvedAlgorithm(t, got, sigalg.Ed25519)
 
 	gotPub, ok := got.PublicKey.(ed25519.PublicKey)
 	if !ok {
@@ -76,9 +74,7 @@ func TestFind_UseSigAndEnc(t *testing.T) {
 		t.Fatalf("use=sig Find: %v", err)
 	}
 
-	if got.Algorithm != sigalg.Ed25519 {
-		t.Fatalf("Algorithm = %q", got.Algorithm)
-	}
+	requireResolvedAlgorithm(t, got, sigalg.Ed25519)
 
 	encOnly := jwks.Ed25519Key(testJWKSKey1, pub)
 	encOnly.Use = "enc"
@@ -113,9 +109,7 @@ func TestFind_ECP256AndRSA(t *testing.T) {
 		t.Fatalf("EC Find: %v", err)
 	}
 
-	if got.Algorithm != sigalg.ECDSAP256SHA256 {
-		t.Fatalf("EC Algorithm = %q", got.Algorithm)
-	}
+	requireResolvedAlgorithm(t, got, sigalg.ECDSAP256SHA256)
 
 	if _, ok := got.PublicKey.(*ecdsa.PublicKey); !ok {
 		t.Fatalf("EC PublicKey type %T", got.PublicKey)
@@ -137,7 +131,20 @@ func TestFind_ECP256AndRSA(t *testing.T) {
 		t.Fatalf("RSA Find: %v", err)
 	}
 
-	if got.Algorithm != sigalg.RSAPKCS1SHA256 {
-		t.Fatalf("RSA Algorithm = %q, want %q", got.Algorithm, sigalg.RSAPKCS1SHA256)
+	requireResolvedAlgorithm(t, got, sigalg.RSAPKCS1SHA256)
+}
+
+// requireResolvedAlgorithm derives the RFC 9421 native algorithm from the
+// resolved key's JWK fields and asserts it matches want.
+func requireResolvedAlgorithm(t *testing.T, got sigalg.ResolvedPublicKey, want string) {
+	t.Helper()
+
+	alg, err := sigalg.ResolveAlgorithm("", got.JWKKty, got.JWKCrv, got.JWKAlg)
+	if err != nil {
+		t.Fatalf("ResolveAlgorithm: %v", err)
+	}
+
+	if alg != want {
+		t.Fatalf("resolved algorithm = %q, want %q", alg, want)
 	}
 }

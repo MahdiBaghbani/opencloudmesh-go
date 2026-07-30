@@ -117,7 +117,6 @@ label = "custom-label"
 
 		return sigalg.ResolvedPublicKey{
 			KeyID:     keyID,
-			Algorithm: key.Algorithm,
 			PublicKey: key.PublicKey,
 			JWKKty:    "OKP",
 			JWKCrv:    "Ed25519",

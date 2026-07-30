@@ -49,6 +49,9 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 	consumerHost := hostFromBaseURL(t, consumer.BaseURL)
 	providerHost := hostFromBaseURL(t, provider.BaseURL)
 
+	// Strict mode enforces must-invite: exchange an invite before any share.
+	exchangeInvitesBetweenPair(t, provider, consumer, providerToken, consumerToken)
+
 	status, body := createOutgoingShareWithClient(t, provider, providerToken, map[string]any{
 		"receiverDomain": consumerHost,
 		"shareWith":      "admin@" + consumerHost,
@@ -96,7 +99,10 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 
 	webdavProviderID := "webdav-inbound-positive"
 	webdavSecret := "webdav-shared-secret"
-	webdavBody := buildSignedInboundShareBody("admin@"+providerHost, webdavProviderID, consumerHost, "webdav-uri",
+	// The inbound sender must match the exchanged invite: the consumer admin's
+	// canonical federated identity, not an arbitrary user.
+	consumerAdminID := fetchCurrentUserID(t, consumer, consumerToken)
+	webdavBody := buildSignedInboundShareBodyWithSender("admin@"+providerHost, webdavProviderID, consumerAdminID, consumerHost, "webdav-uri",
 		webdavSecret,
 	)
 	consumerSigner := subprocessSigner(t, consumer)

@@ -13,11 +13,12 @@ import (
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-redact", "sender.example.com", "redact.txt")
 	secret := share.SharedSecret
 
@@ -57,7 +58,7 @@ func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-redact-ct", "sender.example.com", "ct.txt")
 	secret := share.SharedSecret
 
@@ -105,7 +106,7 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createAcceptedShareForUser(repo, "prov-va-redact-status", "sender.example.com", "err.txt")
 	secret := share.SharedSecret
 
@@ -153,14 +154,14 @@ func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_RedactsCodeAndSharedSecretEvenWithEmptySecret(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ProviderID:      "prov-va-empty-secret",
 		SenderHost:      "sender.example.com",
 		ShareWith:       userAID + "@example.com",
 		RecipientUserID: userAID,
-		Status:          sharesinbox.ShareStatusAccepted,
+		Status:          shares.ShareStatusAccepted,
 		ResourceType:    "file",
 		Name:            "empty-secret.txt",
 		Owner:           "owner@sender.example.com",

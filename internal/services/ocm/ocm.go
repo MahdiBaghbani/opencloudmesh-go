@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing/accepted"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peer"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
@@ -73,11 +73,14 @@ func New(inputs Inputs, m map[string]any, log *slog.Logger) (service.Service, er
 		inputs.IncomingShareRepo,
 		inputs.PartyRepo,
 		inputs.PolicyEngine,
+		inputs.IncomingInviteRepo,
+		inputs.OutgoingInviteRepo,
+		inputs.MustInviteEnforced,
 		inputs.LocalIdentity.ProviderDomainCompare,
 		inputs.LocalIdentity.Scheme,
 		inputs.PeerMappingResolver,
 	)
-	invitesHandler := invitesincoming.NewHandler(
+	invitesHandler := accepted.NewHandler(
 		inputs.OutgoingInviteRepo,
 		inputs.PartyRepo,
 		inputs.PolicyEngine,

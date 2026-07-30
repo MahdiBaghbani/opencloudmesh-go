@@ -9,21 +9,22 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
+	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func createDetailedShareForUser(
-	repo *sharesinbox.MemoryIncomingShareRepo,
+	repo *sharesincoming.MemoryIncomingShareRepo,
 	providerID, senderHost string, //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
 	webdavID, sharedSecret string,
 	requirements []string,
-) *sharesinbox.IncomingShare {
-	share := &sharesinbox.IncomingShare{
+) *sharesincoming.IncomingShare {
+	share := &sharesincoming.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
 		ShareWith:       userAID + "@example.com",
 		RecipientUserID: userAID,
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		ResourceType:    "file",
 		Name:            "test-share-" + providerID,
 		Owner:           "owner@sender.example.com",
@@ -40,7 +41,7 @@ func createDetailedShareForUser(
 }
 
 func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, "prov-detail", "sender.example.com",
 		"webdav-id-123", "secret-value", []string{"must-exchange-token"})
 
@@ -119,7 +120,7 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 }
 
 func TestHandleGetDetail_CrossUserReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, "prov-cross-detail", "sender.example.com",
 		"wdid", "secret", []string{})
 
@@ -136,7 +137,7 @@ func TestHandleGetDetail_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -150,7 +151,7 @@ func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
 }
 
 func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, "prov-redact", "sender.example.com",
 		"wdid", "real-secret-value", []string{})
 
@@ -196,7 +197,7 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 }
 
 func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	share := createDetailedShareForUser(repo, "prov-noleak", "sender.example.com",
 		"wdid", "secret", []string{})
 
@@ -219,7 +220,7 @@ func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 }
 
 func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
 	shareA := createDetailedShareForUser(repo, "prov-met-true", "sender.example.com",
@@ -288,7 +289,7 @@ func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 }
 
 func TestHandleGetDetail_Unauthenticated(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/some-id", nil)
@@ -301,14 +302,14 @@ func TestHandleGetDetail_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ProviderID:      "prov-nilperms",
 		SenderHost:      "sender.example.com",
 		ShareWith:       userAID + "@example.com",
 		RecipientUserID: userAID,
-		Status:          sharesinbox.ShareStatusPending,
+		Status:          shares.ShareStatusPending,
 		ResourceType:    "file",
 		Name:            "test-share-nilperms",
 		Owner:           "owner@sender.example.com",
@@ -358,7 +359,7 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 }
 
 func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -431,15 +432,15 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 // Legacy rows (no protocol name, no webapp data) emit an empty name and omit
 // the webapp arm; that case is covered by TestHandleGetDetail_OwnShareReturns200.
 func TestHandleGetDetail_RendersProtocolNameAndWebappArm(t *testing.T) {
-	repo := sharesinbox.NewMemoryIncomingShareRepo()
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
-	share := &sharesinbox.IncomingShare{
+	share := &sharesincoming.IncomingShare{
 		ProviderID:        "prov-webapp-arm",
 		SenderHost:        "sender.example.com",
 		ShareWith:         userAID + "@example.com",
 		RecipientUserID:   userAID,
-		Status:            sharesinbox.ShareStatusPending,
+		Status:            shares.ShareStatusPending,
 		ResourceType:      "file",
 		Name:              "test-share-webapp",
 		Owner:             "owner@sender.example.com",

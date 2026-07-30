@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesinbox "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/inbox"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
@@ -38,13 +37,16 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := sharesinbox.NewMemoryIncomingShareRepo()
+			repo := incoming.NewMemoryIncomingShareRepo()
 			partyRepo := setupTestPartyRepo()
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := incoming.NewHandler(
 				repo,
 				partyRepo,
 				nil,
+				nil,
+				nil,
+				false,
 				"localhost:9200",
 				"https",
 				policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil, config.CompatibilityScopeGlobal),

@@ -15,7 +15,12 @@ type OutgoingInviteRepo interface { //nolint:revive // exported: self-explanator
 	GetByID(ctx context.Context, id string) (*OutgoingInvite, error)
 	GetByToken(ctx context.Context, token string) (*OutgoingInvite, error)
 	List(ctx context.Context) ([]*OutgoingInvite, error)
-	UpdateStatus(ctx context.Context, id string, status invites.InviteStatus, acceptedBy string) error
+	UpdateStatus(ctx context.Context, id string, status invites.InviteStatus, acceptance *Acceptance) error
+	// FindAcceptedForRecipient finds an accepted outgoing invite created by the
+	// local senderUserID whose remote accepter matches both recipientUserID and
+	// the normalized recipient host. Used by the bidirectional must-invite
+	// check. Rows without a persisted normalized provider host never match.
+	FindAcceptedForRecipient(ctx context.Context, senderUserID string, recipientUserID string, recipientFQDNNormalized string) (*OutgoingInvite, error)
 }
 
 // MemoryOutgoingInviteRepo stores outgoing invites in memory; implements OutgoingInviteRepo.
@@ -99,8 +104,8 @@ func (r *MemoryOutgoingInviteRepo) List(_ context.Context) ([]*OutgoingInvite, e
 	return result, nil
 }
 
-// UpdateStatus sets the invite status and accepted-by metadata; implements OutgoingInviteRepo.
-func (r *MemoryOutgoingInviteRepo) UpdateStatus(_ context.Context, id string, status invites.InviteStatus, acceptedBy string) error {
+// UpdateStatus sets the invite status and acceptance metadata; implements OutgoingInviteRepo.
+func (r *MemoryOutgoingInviteRepo) UpdateStatus(_ context.Context, id string, status invites.InviteStatus, acceptance *Acceptance) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -110,11 +115,51 @@ func (r *MemoryOutgoingInviteRepo) UpdateStatus(_ context.Context, id string, st
 	}
 
 	invite.Status = status
-	if acceptedBy != "" {
-		invite.AcceptedBy = acceptedBy
+
+	if acceptance != nil {
+		if acceptance.ProviderFQDN != "" {
+			invite.AcceptedProviderFQDN = acceptance.ProviderFQDN
+		}
+
+		if acceptance.UserID != "" {
+			invite.AcceptedUserID = acceptance.UserID
+		}
+
+		if acceptance.ProviderFQDNNormalized != "" {
+			invite.AcceptedProviderFQDNNormalized = acceptance.ProviderFQDNNormalized
+		}
+
 		now := time.Now()
 		invite.AcceptedAt = &now
 	}
 
 	return nil
+}
+
+// FindAcceptedForRecipient finds an accepted outgoing invite created by the
+// local sender whose remote accepter matches the given user and normalized
+// host; implements OutgoingInviteRepo.
+func (r *MemoryOutgoingInviteRepo) FindAcceptedForRecipient(_ context.Context, senderUserID string, recipientUserID string, recipientFQDNNormalized string) (*OutgoingInvite, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, invite := range r.invites {
+		if invite.Status != invites.InviteStatusAccepted {
+			continue
+		}
+
+		if invite.CreatedByUserID != senderUserID || invite.AcceptedUserID != recipientUserID {
+			continue
+		}
+
+		// Rows without a persisted normalized provider host never match, even
+		// against an empty query value.
+		if invite.AcceptedProviderFQDNNormalized == "" || invite.AcceptedProviderFQDNNormalized != recipientFQDNNormalized {
+			continue
+		}
+
+		return invite, nil
+	}
+
+	return nil, invites.ErrInviteNotFound
 }

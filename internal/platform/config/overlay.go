@@ -62,6 +62,12 @@ type ocmFileConfig struct {
 	Discovery          *discoveryFileConfig `toml:"discovery"`
 	CodeFlow           *CodeFlowConfig      `toml:"code_flow"`
 	PeerMapping        *PeerMappingConfig   `toml:"peer_compat"`
+	Invite             *inviteFileConfig    `toml:"invite"`
+}
+
+// inviteFileConfig holds invite enforcement settings from TOML.
+type inviteFileConfig struct {
+	EnforceMustInvite *bool `toml:"enforce_must_invite"`
 }
 
 // discoveryFileConfig holds inbound peer discovery settings from TOML.
@@ -460,6 +466,22 @@ func overlayOCMPeerMappingConfig(cfg *Config, fc *PeerMappingConfig) {
 	}
 }
 
+func overlayOCMInviteConfig(cfg *Config, fc *inviteFileConfig) {
+	if fc == nil {
+		return
+	}
+
+	if fc.EnforceMustInvite == nil {
+		return
+	}
+
+	if cfg.OCM.Invite == nil {
+		cfg.OCM.Invite = &InviteConfig{}
+	}
+
+	cfg.OCM.Invite.EnforceMustInvite = fc.EnforceMustInvite
+}
+
 func overlayOCMConfig(cfg *Config, fc *ocmFileConfig) {
 	if fc == nil {
 		return
@@ -468,6 +490,7 @@ func overlayOCMConfig(cfg *Config, fc *ocmFileConfig) {
 	overlayOCMCompatibilityScope(cfg, fc.CompatibilityScope)
 	overlayOCMDiscoveryConfig(cfg, fc.Discovery)
 	overlayOCMCodeFlowConfig(cfg, fc.CodeFlow)
+	overlayOCMInviteConfig(cfg, fc.Invite)
 	overlayOCMPeerMappingConfig(cfg, fc.PeerMapping)
 }
 

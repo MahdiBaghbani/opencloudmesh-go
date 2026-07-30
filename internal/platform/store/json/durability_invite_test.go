@@ -212,7 +212,7 @@ func testUpdateIncomingInviteStatusRollback(t *testing.T, ctx context.Context) {
 	lockDir(t, dir)
 
 	if err := inInvStore.UpdateIncomingInviteStatusForRecipient(
-		ctx, invite.ID, invite.RecipientUserID, "new-status",
+		ctx, invite.ID, invite.RecipientUserID, "new-status", "", "",
 	); err == nil {
 		t.Fatal("expected error from UpdateIncomingInviteStatusForRecipient with read-only dir, got nil")
 	}

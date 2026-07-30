@@ -215,7 +215,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 	pd := &mockPeerDiscovery{
 		publicKeys: map[string]sigalg.ResolvedPublicKey{
 			keyID: {
-				KeyID: keyID, Algorithm: sigalg.ECDSAP256SHA256, PublicKey: &priv.PublicKey,
+				KeyID: keyID, PublicKey: &priv.PublicKey,
 				JWKKty: "EC", JWKCrv: "P-256", JWKAlg: "ES256",
 			},
 		},
