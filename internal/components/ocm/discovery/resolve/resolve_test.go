@@ -6,6 +6,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery/resolve"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
@@ -278,5 +279,59 @@ func TestResolve_ProtocolRolesInDiscoveryDocument(t *testing.T) {
 
 	if _, ok := disc.ResourceTypes[0].Protocols.WebDAVReceive(); !ok {
 		t.Error("expected webdav-receive protocol role in discovery document")
+	}
+}
+
+// TestResolve_ThreadsAdvertiseFlagsIntoCriteria confirms ResolveInputs
+// advertise flags flow through Resolve into the built discovery document
+// criteria (not only BuildParams).
+func TestResolve_ThreadsAdvertiseFlagsIntoCriteria(t *testing.T) {
+	tests := []struct {
+		name               string
+		advertiseDenylist  bool
+		advertiseAllowlist bool
+		wantDenylist       bool
+		wantAllowlist      bool
+	}{
+		{
+			name:               "both true",
+			advertiseDenylist:  true,
+			advertiseAllowlist: true,
+			wantDenylist:       true,
+			wantAllowlist:      true,
+		},
+		{
+			name:               "both false",
+			advertiseDenylist:  false,
+			advertiseAllowlist: false,
+			wantDenylist:       false,
+			wantAllowlist:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := resolve.ResolveInputs{
+				LocalIdentity:      tslocalid.MustTestIdentity(t, "https://cloud.example.com", "/ocm"),
+				RouteOpts:          service.RouteOpts{ExternalBasePath: "/ocm"},
+				AdvertiseDenylist:  tt.advertiseDenylist,
+				AdvertiseAllowlist: tt.advertiseAllowlist,
+			}
+
+			built := resolve.Resolve(&resolve.ProviderConfig{}, map[string]any{}, in)
+			disc := discovery.BuildDiscovery(built.Params, nil)
+
+			if got := disc.HasCriteria(spec.CriteriaDenylist); got != tt.wantDenylist {
+				t.Errorf("HasCriteria(denylist) = %v, want %v", got, tt.wantDenylist)
+			}
+
+			if got := disc.HasCriteria(spec.CriteriaAllowlist); got != tt.wantAllowlist {
+				t.Errorf("HasCriteria(allowlist) = %v, want %v", got, tt.wantAllowlist)
+			}
+
+			if disc.HasCriteria(spec.CriteriaMustInvite) {
+				t.Error("must-invite must not appear in discovery criteria")
+			}
+		})
 	}
 }

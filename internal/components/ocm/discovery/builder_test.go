@@ -460,3 +460,78 @@ func TestBuildDiscovery_JwksUriFollowsDevHTTPEndPoint(t *testing.T) {
 		t.Errorf("JwksUri = %q, want %q", disc.JwksUri, "http://localhost:9200/ocm/jwks")
 	}
 }
+
+func TestBuildDiscovery_AdvertisesDenylistWhenConfigured(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:          "https://example.com/ocm",
+		WebDAVRoot:        "/webdav/ocm/",
+		AdvertiseDenylist: true,
+	}, nil)
+
+	if !disc.HasCriteria(spec.CriteriaDenylist) {
+		t.Error("expected denylist criterion when AdvertiseDenylist is true")
+	}
+}
+
+func TestBuildDiscovery_OmitsDenylistWhenNotConfigured(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:   "https://example.com/ocm",
+		WebDAVRoot: "/webdav/ocm/",
+	}, nil)
+
+	if disc.HasCriteria(spec.CriteriaDenylist) {
+		t.Error("did not expect denylist criterion when AdvertiseDenylist is false")
+	}
+}
+
+func TestBuildDiscovery_AdvertisesAllowlistWhenConfigured(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:           "https://example.com/ocm",
+		WebDAVRoot:         "/webdav/ocm/",
+		AdvertiseAllowlist: true,
+	}, nil)
+
+	if !disc.HasCriteria(spec.CriteriaAllowlist) {
+		t.Error("expected allowlist criterion when AdvertiseAllowlist is true")
+	}
+}
+
+func TestBuildDiscovery_OmitsAllowlistWhenNotConfigured(t *testing.T) {
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:   "https://example.com/ocm",
+		WebDAVRoot: "/webdav/ocm/",
+	}, nil)
+
+	if disc.HasCriteria(spec.CriteriaAllowlist) {
+		t.Error("did not expect allowlist criterion when AdvertiseAllowlist is false")
+	}
+}
+
+func TestBuildDiscovery_EmitsOnlySpecDefinedCriteria(t *testing.T) {
+	known := make(map[string]struct{}, len(spec.KnownCriteria()))
+	for _, c := range spec.KnownCriteria() {
+		known[c] = struct{}{}
+	}
+
+	disc := discovery.BuildDiscovery(discovery.BuildParams{
+		EndPoint:               "https://example.com/ocm",
+		WebDAVRoot:             "/webdav/ocm/",
+		TokenEndPoint:          "https://example.com/ocm/token",
+		AdvertiseHTTPSig:       true,
+		TokenExchangeCapable:   true,
+		RequiresTokenExchange:  true,
+		RequiresHTTPSignatures: true,
+		AdvertiseDenylist:      true,
+		AdvertiseAllowlist:     true,
+	}, nil)
+
+	for _, criterion := range disc.Criteria {
+		if _, ok := known[criterion]; !ok {
+			t.Errorf("criterion %q is not a spec-defined value", criterion)
+		}
+	}
+
+	if disc.HasCriteria(spec.CriteriaMustInvite) {
+		t.Error("must-invite must not be emitted until enforcement is implemented")
+	}
+}

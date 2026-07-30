@@ -22,4 +22,10 @@ type ResolveInputs struct {
 	// means derive the advertised jwksUri from the route-inventory projection
 	// (the GET /jwks route's DiscoveryFields projection), not a fixed path.
 	JwksURIOverride string
+
+	// AdvertiseDenylist and AdvertiseAllowlist reflect peer_trust policy lists
+	// wired by the caller. The caller sets these only when peer_trust.enabled is
+	// true and the corresponding list is nonempty; otherwise both stay false.
+	AdvertiseDenylist  bool
+	AdvertiseAllowlist bool
 }

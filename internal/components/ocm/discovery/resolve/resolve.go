@@ -107,6 +107,8 @@ func Resolve(c *ProviderConfig, rawOCMProvider map[string]any, in ResolveInputs)
 			TokenExchangeCapable:   in.CodeFlow != nil,
 			RequiresTokenExchange:  facts.RequiresTokenExchange,
 			RequiresHTTPSignatures: facts.RequiresHTTPRequestSignatures,
+			AdvertiseDenylist:      in.AdvertiseDenylist,
+			AdvertiseAllowlist:     in.AdvertiseAllowlist,
 		},
 	}
 }

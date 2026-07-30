@@ -18,6 +18,9 @@ func TestCriteriaWireValues(t *testing.T) {
 	}{
 		{name: "must-use-http-sig", got: spec.CriteriaMustUseHTTPSig, want: "must-use-http-sig"},
 		{name: "must-exchange-token", got: spec.CriteriaMustExchangeToken, want: "must-exchange-token"},
+		{name: "denylist", got: spec.CriteriaDenylist, want: "denylist"},
+		{name: "allowlist", got: spec.CriteriaAllowlist, want: "allowlist"},
+		{name: "must-invite", got: spec.CriteriaMustInvite, want: "must-invite"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -56,6 +59,9 @@ var criteriaClosedPathFiles = []string{
 var criteriaWireLiterals = []string{
 	`"must-use-http-sig"`,
 	`"must-exchange-token"`,
+	`"denylist"`,
+	`"allowlist"`,
+	`"must-invite"`,
 }
 
 func TestCriteriaClosedPathNoRawWireLiterals(t *testing.T) {

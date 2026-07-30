@@ -137,3 +137,23 @@ func TestLoadTrustGroupConfig_ValidVerification(t *testing.T) {
 		t.Errorf("expected verification 'optional', got %q", cfg.DirectoryServices[0].Verification)
 	}
 }
+
+func TestPolicyConfig_HasDenylist(t *testing.T) {
+	if (&PolicyConfig{}).HasDenylist() {
+		t.Error("empty PolicyConfig should not HasDenylist")
+	}
+
+	if !(&PolicyConfig{DenyList: []string{"blocked.example.com"}}).HasDenylist() {
+		t.Error("nonempty DenyList should HasDenylist")
+	}
+}
+
+func TestPolicyConfig_HasAllowlist(t *testing.T) {
+	if (&PolicyConfig{}).HasAllowlist() {
+		t.Error("empty PolicyConfig should not HasAllowlist")
+	}
+
+	if !(&PolicyConfig{AllowList: []string{"trusted.example.com"}}).HasAllowlist() {
+		t.Error("nonempty AllowList should HasAllowlist")
+	}
+}

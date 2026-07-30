@@ -276,10 +276,7 @@ func buildPeerTrust(
 		logger.Info("loaded trust group", "trust_group_id", tgCfg.TrustGroupID, "enabled", tgCfg.Enabled)
 	}
 
-	policyCfg := &peertrust.PolicyConfig{
-		AllowList: cfg.PeerTrust.Policy.AllowList,
-		DenyList:  cfg.PeerTrust.Policy.DenyList,
-	}
+	policyCfg := peertrustPolicyFromConfig(&cfg.PeerTrust.Policy)
 	policyEngine := peertrust.NewPolicyEngine(policyCfg, trustGroupMgr, logger)
 	logger.Info("peer trust enabled", "config_paths", len(cfg.PeerTrust.ConfigPaths))
 

@@ -17,7 +17,7 @@ Built by `internal/components/ocm/discovery` and served by
 | `tokenEndPoint` | Projected when token exchange is capable |
 | `resourceTypes[].protocols` | `webdav` path plus `webdav-receive` with `uri: relative` |
 | `capabilities` | `http-sig` when JWKS signing keys are published, `exchange-token` when token exchange is capable, `invites` when `InvitesEnabled` is true (defaults true; OCM invite protocol routes are always mounted), `invite-wayf` only when the WAYF route is enabled |
-| `criteria` | Strictness requirements (HTTP sig, token exchange) |
+| `criteria` | Strictness requirements (HTTP sig, token exchange, denylist/allowlist when configured) |
 | `inviteAcceptDialog` | Derived when invite accept route is active |
 
 With `external_base_path = "/ocm"` on origin `http://fields.test`:
@@ -86,7 +86,7 @@ Full OCM capability enumeration (7 total):
 
 [ocm-capabilities]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L709-L738
 
-### Criteria (2 of 5)
+### Criteria (up to 4 of 5)
 
 Full OCM criteria enumeration (5 total):
 [OCM-API criteria][ocm-criteria].
@@ -95,11 +95,26 @@ Full OCM criteria enumeration (5 total):
 | --------- | ----- |
 | `must-use-http-sig` | advertised when HTTP signatures are required |
 | `must-exchange-token` | advertised when token exchange is required |
-| `denylist` | omitted |
-| `allowlist` | omitted |
-| `must-invite` | omitted |
+| `denylist` | advertised when `[peer_trust] enabled` is true and `[peer_trust.policy] deny_list` is nonempty |
+| `allowlist` | advertised when `[peer_trust] enabled` is true and `[peer_trust.policy] allow_list` is nonempty |
+| `must-invite` | omitted (not yet enforced) |
 
 [ocm-criteria]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L739-L764
+
+### Host normalization
+
+Trust-group membership uses `hostport.Normalize` (lowercase, default-port
+stripping, IPv6 bracket preservation) through
+`internal/platform/hostport/hostport.go`. Denylist/allowlist matching is
+case-insensitive comparison only (lowercased `peerHost` versus list entries
+using `strings.EqualFold`); list entries are not passed through
+`hostport.Normalize`.
+
+This behavior is an ocmgo implementation choice. The OCM specification defines
+`denylist` and `allowlist` criteria as IP-address based and does not define
+FQDN matching ([IETF-OCM.md:759-762][ocm-criteria-ip]).
+
+[ocm-criteria-ip]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L759-L762
 
 ### Protocol roles (WebDAV send, one receive)
 

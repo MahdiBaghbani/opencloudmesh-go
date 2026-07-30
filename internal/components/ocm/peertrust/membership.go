@@ -117,6 +117,11 @@ func (m *TrustGroupManager) IsMember(ctx context.Context, host string, requireVe
 }
 
 // isMemberOf checks if a host matches any precomputed member authority in the trust group.
+// Member authorities are normalized with hostport.Normalize at refresh time; this is an
+// ocmgo implementation choice. The OCM spec defines denylist/allowlist as IP-address
+// based (IETF-OCM.md:759-762;
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L759-L762)
+// and does not define FQDN matching.
 func (m *TrustGroupManager) isMemberOf(tg *TrustGroup, host string, requireVerified bool) bool {
 	normalized, err := hostport.Normalize(host, m.scheme)
 	if err != nil {

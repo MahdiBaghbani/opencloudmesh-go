@@ -1,5 +1,11 @@
 // Package hostport provides scheme-aware authority normalization for host[:port]
-// comparison. It is the single source of truth for default-port equivalence.
+// comparison. It is the single source of truth for default-port equivalence in
+// ocmgo. This normalizer is used for trust-group membership matching;
+// denylist/allowlist use case-insensitive comparison only, not this normalizer.
+// Both are ocmgo implementation choices. The OCM spec defines denylist/allowlist
+// as IP-address based
+// (https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L759-L762)
+// and does not define FQDN matching.
 package hostport
 
 import (

@@ -57,3 +57,13 @@ type PolicyConfig struct {
 	AllowList []string `json:"allowList"`
 	DenyList  []string `json:"denyList"`
 }
+
+// HasDenylist reports whether a nonempty denylist is configured.
+func (c *PolicyConfig) HasDenylist() bool {
+	return c != nil && len(c.DenyList) > 0
+}
+
+// HasAllowlist reports whether a nonempty allowlist is configured.
+func (c *PolicyConfig) HasAllowlist() bool {
+	return c != nil && len(c.AllowList) > 0
+}

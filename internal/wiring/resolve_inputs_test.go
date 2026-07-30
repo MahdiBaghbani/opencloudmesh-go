@@ -33,3 +33,79 @@ func TestResolveInputs_EmptySignatureJwksURILeavesOverrideEmpty(t *testing.T) {
 		t.Errorf("JwksURIOverride = %q, want empty when signature.jwks_uri is unset", in.JwksURIOverride)
 	}
 }
+
+func TestResolveInputs_AdvertisesPeerTrustListsWhenEnabled(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.PeerTrust.Enabled = true
+	cfg.PeerTrust.Policy.DenyList = []string{"blocked.example.com"}
+	cfg.PeerTrust.Policy.AllowList = []string{"trusted.example.com"}
+
+	in := resolveInputs(cfg, &Deps{})
+	if !in.AdvertiseDenylist {
+		t.Error("AdvertiseDenylist = false, want true for nonempty deny_list")
+	}
+
+	if !in.AdvertiseAllowlist {
+		t.Error("AdvertiseAllowlist = false, want true for nonempty allow_list")
+	}
+}
+
+func TestResolveInputs_OmitsPeerTrustListsWhenDisabled(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.PeerTrust.Enabled = false
+	cfg.PeerTrust.Policy.DenyList = []string{"blocked.example.com"}
+	cfg.PeerTrust.Policy.AllowList = []string{"trusted.example.com"}
+
+	in := resolveInputs(cfg, &Deps{})
+	if in.AdvertiseDenylist {
+		t.Error("AdvertiseDenylist = true, want false when peer_trust is disabled")
+	}
+
+	if in.AdvertiseAllowlist {
+		t.Error("AdvertiseAllowlist = true, want false when peer_trust is disabled")
+	}
+}
+
+func TestResolveInputs_OmitsEmptyPeerTrustLists(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.PeerTrust.Enabled = true
+
+	in := resolveInputs(cfg, &Deps{})
+	if in.AdvertiseDenylist {
+		t.Error("AdvertiseDenylist = true, want false for empty deny_list")
+	}
+
+	if in.AdvertiseAllowlist {
+		t.Error("AdvertiseAllowlist = true, want false for empty allow_list")
+	}
+}
+
+func TestResolveInputs_AdvertisesDenylistOnly(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.PeerTrust.Enabled = true
+	cfg.PeerTrust.Policy.DenyList = []string{"blocked.example.com"}
+
+	in := resolveInputs(cfg, &Deps{})
+	if !in.AdvertiseDenylist {
+		t.Error("AdvertiseDenylist = false, want true for nonempty deny_list")
+	}
+
+	if in.AdvertiseAllowlist {
+		t.Error("AdvertiseAllowlist = true, want false for empty allow_list")
+	}
+}
+
+func TestResolveInputs_AdvertisesAllowlistOnly(t *testing.T) {
+	cfg := config.DevConfig()
+	cfg.PeerTrust.Enabled = true
+	cfg.PeerTrust.Policy.AllowList = []string{"trusted.example.com"}
+
+	in := resolveInputs(cfg, &Deps{})
+	if !in.AdvertiseAllowlist {
+		t.Error("AdvertiseAllowlist = false, want true for nonempty allow_list")
+	}
+
+	if in.AdvertiseDenylist {
+		t.Error("AdvertiseDenylist = true, want false for empty deny_list")
+	}
+}

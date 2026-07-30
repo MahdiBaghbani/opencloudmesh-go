@@ -38,6 +38,16 @@ type BuildParams struct {
 	TokenExchangeCapable   bool
 	RequiresTokenExchange  bool
 	RequiresHTTPSignatures bool
+
+	// AdvertiseDenylist emits the denylist criterion when true. The caller (wiring)
+	// sets this only when peer_trust.enabled is true and the configured
+	// peer_trust.policy.deny_list is nonempty.
+	AdvertiseDenylist bool
+
+	// AdvertiseAllowlist emits the allowlist criterion when true. The caller (wiring)
+	// sets this only when peer_trust.enabled is true and the configured
+	// peer_trust.policy.allow_list is nonempty.
+	AdvertiseAllowlist bool
 }
 
 // BuildDiscovery constructs the static discovery document (Reva pattern:
@@ -145,6 +155,14 @@ func buildDiscoveryCriteria(p BuildParams, disc *spec.Discovery) {
 
 	if p.RequiresTokenExchange && p.TokenExchangeCapable && p.TokenEndPoint != "" {
 		disc.Criteria = append(disc.Criteria, spec.CriteriaMustExchangeToken)
+	}
+
+	if p.AdvertiseDenylist {
+		disc.Criteria = append(disc.Criteria, spec.CriteriaDenylist)
+	}
+
+	if p.AdvertiseAllowlist {
+		disc.Criteria = append(disc.Criteria, spec.CriteriaAllowlist)
 	}
 }
 

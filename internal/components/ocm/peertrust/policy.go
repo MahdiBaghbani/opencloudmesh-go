@@ -18,6 +18,11 @@ type PolicyDecision struct {
 }
 
 // PolicyEngine evaluates peer hosts against denylist, allowlist, and trust groups.
+// Denylist and allowlist entries are matched case-insensitively against a
+// lowercased peerHost. Trust-group membership uses hostport.Normalize separately.
+// The OCM spec defines denylist/allowlist as IP-address based
+// (https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L759-L762)
+// and does not define FQDN matching.
 type PolicyEngine struct {
 	cfg           *PolicyConfig
 	trustGroupMgr *TrustGroupManager
@@ -87,7 +92,9 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 	}
 }
 
-// isInList checks if a host is in a list (case-insensitive).
+// isInList checks if host is in list using case-insensitive string equality.
+// Evaluate lowercases peerHost before calling this; list entries are not passed
+// through hostport.Normalize here.
 func (pe *PolicyEngine) isInList(host string, list []string) bool {
 	for _, entry := range list {
 		if strings.EqualFold(host, entry) {
