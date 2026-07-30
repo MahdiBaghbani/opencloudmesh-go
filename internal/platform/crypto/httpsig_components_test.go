@@ -154,8 +154,8 @@ func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
 	// the date-free mandatory set; the Date header is deliberately not
 	// covered.
 	// See:
-	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
-	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L833-L854
+	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L917-L922
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	components := []string{"@method", "@target-uri", "content-digest", "content-length"}

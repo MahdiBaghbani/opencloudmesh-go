@@ -109,7 +109,7 @@ func TestParse(t *testing.T) {
 }
 
 // TestParse_IETF_OCMAddressConformance asserts Parse against the OCM Address
-// ABNF (https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#L140-L154):
+// ABNF (https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L140-L154):
 // identifier "@" host [ ":" port ], with the
 // identifier separated by the last "@", and the provider MUST NOT contain a
 // scheme or path.

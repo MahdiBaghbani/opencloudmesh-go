@@ -52,7 +52,7 @@ type Set struct {
 // Ed25519Key builds a JWKS key entry from an Ed25519 public key.
 // The produced JWK includes the required alg parameter per OCM signing
 // requirements: every JWK must carry kid and alg, and alg is authoritative.
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L887
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L887
 func Ed25519Key(kid string, pub ed25519.PublicKey) Key {
 	return Key{
 		Kty: "OKP",
@@ -108,8 +108,8 @@ func (s Set) Find(kid string) (sigalg.ResolvedPublicKey, error) {
 // fuzzy matching is applied. Duplicate exact-kid matches are rejected. Keys
 // with use set to a value other than "sig" are ignored for verification
 // lookup.
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L846-L848
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L928-L933
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L846-L848
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L928-L933
 func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 	var matches []Key
 
@@ -138,7 +138,7 @@ func (s Set) ResolveExactKeyID(keyID string) (sigalg.ResolvedPublicKey, error) {
 	// Validate the JWK alg before parsing key material. The JWK alg is the
 	// authority; missing, unsupported, or incompatible values must be
 	// rejected before the key is handed to the verifier.
-	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L914
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L914
 	alg, err := sigalg.DeriveFromJWK(key.Kty, key.Crv, key.Alg)
 	if err != nil {
 		return sigalg.ResolvedPublicKey{}, err

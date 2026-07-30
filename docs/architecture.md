@@ -94,8 +94,8 @@ The index is INFORMATIVE. HTTP Message Signatures apply only when the
 peer advertises `http-sig`; `must-use-http-sig` makes signing mandatory
 for inbound requests. See the [applicability rules][signing-applicability].
 
-[signing-direction-index]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L882-L912
-[signing-applicability]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+[signing-direction-index]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L952-L983
+[signing-applicability]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
 
 | Flow | Endpoint | Signer | Verifier |
 | ---- | -------- | ------ | -------- |

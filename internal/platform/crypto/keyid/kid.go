@@ -182,8 +182,8 @@ func KidMatches(keyidParam, jwksKid string) bool {
 // verifiers must reject when no set kid equals keyid, so the exact resolver
 // applies string equality only: no authority normalization, case folding, or
 // prefix/substring matching.
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L846-L848
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L928-L933
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L846-L848
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L928-L933
 func KidEqualsExact(keyidParam, jwksKid string) bool {
 	return keyidParam == jwksKid
 }

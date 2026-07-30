@@ -16,7 +16,7 @@ listing federation members:
 It is not OCM discovery, not JWKS, and not an OCM provider endpoint.
 Verification keys are provisioned out of band.
 
-[ocm-ds]: https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#appendix-c-directory-service
+[ocm-ds]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#appendix-c-directory-service
 
 This server consumes Directory Service listings through
 `internal/components/ocm/directoryservice` when configured under

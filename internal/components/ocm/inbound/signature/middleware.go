@@ -295,8 +295,8 @@ func (m *SignatureMiddleware) serveUnsigned(w http.ResponseWriter, r *http.Reque
 	// A server MAY accept unsigned requests from a peer not advertising
 	// must-use-http-sig; a server advertising must-use-http-sig MUST reject
 	// unsigned requests.
-	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
-	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L917-L922
 	if optionalSignature || !m.localRequiresHTTPSig() {
 		if err := crypto.VerifyContentDigest(r, body); err != nil {
 			m.logger.Warn("content digest verification failed", "error", err)

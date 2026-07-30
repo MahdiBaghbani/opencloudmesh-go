@@ -27,7 +27,7 @@ type RFC9421Options struct {
 	Now                func() time.Time
 }
 
-// DefaultRFC9421Options returns OCM IETF Appendix B defaults.
+// DefaultRFC9421Options returns OCM IETF Appendix B (informative) defaults.
 func DefaultRFC9421Options() RFC9421Options {
 	return RFC9421OptionsFromConfig(config.DefaultSignatureConfig())
 }
@@ -59,8 +59,8 @@ func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 	// signing requirements deliberately exclude the Date header from the
 	// covered components.
 	// See:
-	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
-	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L833-L854
+	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L917-L922
 	return RFC9421Options{
 		Label:             label,
 		CreatedMaxAge:     maxAge,
@@ -70,10 +70,11 @@ func RFC9421OptionsFromConfig(sig config.SignatureConfig) RFC9421Options {
 	}
 }
 
-// AppendixBCoveredComponents returns the OCM IETF Appendix B covered set.
+// AppendixBCoveredComponents returns the OCM IETF Appendix B (informative)
+// covered set.
 // It is a compatibility alias for MandatorySignatureComponents: the signing
 // requirements deliberately exclude the Date header, so the covered set is
-// date-free. See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
+// date-free. See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L833-L854
 func AppendixBCoveredComponents() []string {
 	return MandatorySignatureComponents()
 }
@@ -85,8 +86,8 @@ func AppendixBCoveredComponents() []string {
 // intermediaries sometimes rewrite it, and the created parameter already
 // conveys the message's creation time.
 // See:
-//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
-//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
+//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L833-L854
+//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L917-L922
 func MandatorySignatureComponents() []string {
 	return []string{
 		"@method",
@@ -207,7 +208,8 @@ func (s *RFC9421Signer) presentComponents(req *http.Request, components []string
 	return PresentComponents(req, components)
 }
 
-// PresentComponents returns Appendix B components the signer includes for req.
+// PresentComponents returns Appendix B (informative) components the signer
+// includes for req.
 // Derived components are always present; header components appear only when set.
 func PresentComponents(req *http.Request, components []string) []string {
 	actual := make([]string, 0, len(components))
@@ -385,7 +387,7 @@ func parseSignatureParams(sigInputHeader, sigHeader, label string) (sigparams.Pa
 
 	// The keyid parameter is mandatory and selects the verification key, so a
 	// missing keyid fails here, before any JWKS resolution or network access.
-	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L842-L848
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L842-L848
 	if params.KeyID == "" {
 		return params, nil, &VerificationResult{Verified: false, Reason: ReasonMissingKeyID, Error: fmt.Errorf("missing keyid parameter")}, true
 	}
@@ -402,8 +404,8 @@ func (v *RFC9421Verifier) verifySignaturePolicy(req *http.Request, body []byte, 
 	// MandatorySignatureComponents). The Date header is deliberately not
 	// covered, so it is not required here.
 	// See:
-	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L833-L854
-	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L860-L864
+	//   - Signing requirements: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L833-L854
+	//   - Verification requirements: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L917-L922
 	expectedComponents := v.opts.RequiredComponents
 	if err := validateRequiredComponents(params.Components, expectedComponents); err != nil {
 		return &VerificationResult{Verified: false, KeyID: params.KeyID, Reason: ReasonMissingComponent, Error: err}, true
@@ -662,8 +664,9 @@ func CanonicalTargetURI(req *http.Request) string {
 // VerifyContentDigest verifies the Content-Digest header matches the body.
 // When the header is absent, verification is skipped so optional unsigned
 // paths can accept requests without a digest. When the header is present,
-// every listed digest algorithm must be recognized and match the body per OCM
-// IETF Appendix B.
+// every listed digest algorithm must be recognized and match the body per
+// the OCM verification requirements.
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L924-L926
 func VerifyContentDigest(req *http.Request, body []byte) error {
 	digestHeader := req.Header.Get("Content-Digest")
 	if digestHeader == "" {

@@ -1,6 +1,6 @@
 // OCM conformance is measured against IETF-OCM.md (the prose Internet-Draft),
 // not the vendored OpenAPI snapshot. Normative SSOT:
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md
 //
 // spec.yaml is a derived snapshot pinned for schema stability and may lag the
 // prose spec, including http-sig applicability for /request-share and

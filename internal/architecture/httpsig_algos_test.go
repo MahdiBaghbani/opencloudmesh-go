@@ -9,14 +9,15 @@ import (
 )
 
 func TestHTTPSigAlgorithms_AsymmetricOnlyAndSHA256(t *testing.T) {
-	// OCM request signatures must use asymmetric algorithms from the IANA
-	// "HTTP Signature Algorithms" registry, ed25519 is RECOMMENDED, and
-	// symmetric algorithms such as hmac-sha256 MUST NOT be used.
-	// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L852-L856
+	// OCM request signatures use an asymmetric algorithm identified by the JWK
+	// `alg` parameter from the IANA JOSE registry (RFC7518); Ed25519 is
+	// RECOMMENDED. The `none` algorithm and symmetric MAC algorithms such as
+	// HS256 MUST NOT be used.
+	// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L901
 	// OCM content-digest values must use a hash from the IANA
 	// "Hash Algorithms for HTTP Digest Fields" registry and implementations must
 	// support sha-256.
-	// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L837-L840
+	// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L856-L860
 	// This guard checks that the default allowed algorithm set satisfies those
 	// invariants and that SHA-256 is the implemented digest.
 	for _, alg := range sigalg.DefaultAllowed() {

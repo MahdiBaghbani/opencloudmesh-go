@@ -193,7 +193,7 @@ func (c *Client) decideWebDAVAuth(opts AccessOptions, disc *spec.Discovery) (Acc
 	// When must-exchange-token is omitted but the peer advertises token
 	// exchange, the receiver MAY attempt exchange first and MUST fall back to
 	// legacy shared-secret access if exchange fails.
-	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1523-L1526
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1594-L1597
 	if capable {
 		return AccessAuthDecision{Mode: AccessModeExchangeThenFallback, HTTPStatus: http.StatusOK}, nil
 	}
@@ -263,8 +263,8 @@ func (c *Client) Access(ctx context.Context, opts AccessOptions) (*AccessResult,
 		// legacy shared-secret bearer. Legacy shared secrets are retained for
 		// backwards compatibility; implementers SHOULD prefer short-lived
 		// tokens when available.
-		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1523-L1526
-		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1927-L1931
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1594-L1597
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1998-L2002
 		result, err := c.accessTokenExchange(ctx, share, opts, disc)
 		if err == nil {
 			return result, nil

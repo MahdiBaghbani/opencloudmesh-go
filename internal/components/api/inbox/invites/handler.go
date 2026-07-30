@@ -349,8 +349,8 @@ func (h *Handler) sendInviteAccepted(ctx context.Context, invite *invitesinbox.I
 	poster := outbound.NewPoster(h.httpClient, h.discoveryClient, h.signer, h.peerOrigin)
 	// Send POST /ocm/invite-accepted to the sender. Signing is conditional on the
 	// peer advertising http-sig (rule 1), applied via Poster.applySigning.
-	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L382-L386
-	// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L383-L387
+	// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
 	resp, err := poster.Send(ctx, outbound.Request{
 		TargetHost:   invite.SenderFQDN,
 		EndpointPath: "invite-accepted",

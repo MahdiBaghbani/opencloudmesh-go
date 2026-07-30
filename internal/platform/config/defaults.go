@@ -36,7 +36,7 @@ const (
 	DefaultPeerTrustCacheMaxStaleSeconds = 604800 // 7 days
 )
 
-// HTTP signature defaults (https://www.rfc-editor.org/rfc/rfc9421.html; OCM Appendix B: https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#L2047).
+// HTTP signature defaults (https://www.rfc-editor.org/rfc/rfc9421.html; OCM Appendix B, informative: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L2136).
 const (
 	DefaultSignatureLabel          = sigparams.SignatureLabelOCM
 	DefaultSignatureKidFragment    = "key1"

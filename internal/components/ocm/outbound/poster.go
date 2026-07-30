@@ -118,7 +118,7 @@ func (p *Poster) applySigning(httpReq *http.Request, req Request, disc *spec.Dis
 		// A server implementing http-sig MUST use it when interacting with a
 		// peer advertising http-sig, and MAY interact unsigned with a peer not
 		// advertising http-sig.
-		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
 		if !disc.IsHTTPSigCapable() {
 			return nil
 		}

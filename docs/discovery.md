@@ -67,7 +67,7 @@ enumerations ([OCM-API registry overview][iana-ocm-params]). The five
 registries are: OCM Resource Types, OCM Protocols, OCM Share Types, OCM Share
 Payloads, and OCM Notification Types.
 
-[iana-ocm-params]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1730-L1738
+[iana-ocm-params]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1801-L1809
 
 ### Capabilities (4 of 7)
 
@@ -84,7 +84,7 @@ Full OCM capability enumeration (7 total):
 | `notifications` | omitted |
 | `protocol-object` | omitted |
 
-[ocm-capabilities]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L707-L736
+[ocm-capabilities]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L709-L738
 
 ### Criteria (2 of 5)
 
@@ -99,7 +99,7 @@ Full OCM criteria enumeration (5 total):
 | `allowlist` | omitted |
 | `must-invite` | omitted |
 
-[ocm-criteria]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L737-L762
+[ocm-criteria]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L739-L764
 
 ### Protocol roles (WebDAV send, one receive)
 
@@ -115,7 +115,7 @@ Full OCM protocol role pairs (3 sending/receiving pairs):
 | `ssh` (send) | omitted |
 | `ssh-receive` | omitted |
 
-[ocm-protocol-roles]: https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L667-L706
+[ocm-protocol-roles]: https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L669-L708
 
 Built by `internal/components/ocm/discovery/builder.go`.
 

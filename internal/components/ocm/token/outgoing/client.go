@@ -61,9 +61,9 @@ func NewClient(
 
 // Exchange performs form-urlencoded token exchange with authorization_code.
 // The Receiving Server (this client) MUST sign the token request when using
-// http-sig; see https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1461-L1462.
+// http-sig; see https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1532-L1533.
 // ocmgo signs conditionally when the peer Sending Server advertises http-sig,
-// per the applicability rules at https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812,
+// per the applicability rules at https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823,
 // applied via c.signer.Sign here.
 func (c *Client) Exchange(ctx context.Context, req ExchangeRequest, disc *spec.Discovery) (*ExchangeResult, error) {
 	httpReq, err := c.buildFormRequest(ctx, req, token.GrantTypeAuthorizationCode)

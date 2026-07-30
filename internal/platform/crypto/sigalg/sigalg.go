@@ -71,12 +71,11 @@ type ResolvedPublicKey struct {
 	JWKAlg    string
 }
 
-// symmetricAlgorithms lists HMAC algorithms. OCM request signatures must use
-// asymmetric algorithms from the IANA "HTTP Signature Algorithms" registry,
-// ed25519 is RECOMMENDED, and symmetric algorithms such as hmac-sha256 MUST
-// NOT be used.
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L852-L856
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1955-L1956
+// symmetricAlgorithms lists HMAC algorithms. OCM request signatures use an
+// asymmetric algorithm identified by the JWK `alg` parameter from the IANA
+// JOSE registry (RFC7518); Ed25519 is RECOMMENDED. The `none` algorithm and
+// symmetric MAC algorithms such as HS256 MUST NOT be used.
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L901
 var symmetricAlgorithms = map[string]struct{}{
 	"hmac-sha256": {},
 	"hmac-sha384": {},
@@ -165,7 +164,7 @@ func Normalize(alg string) (string, error) {
 // different registry than the JWK alg: JOSE-only names such as EdDSA, ES256,
 // and RS256 are rejected here, while ed25519 is both a JOSE-registry name and
 // the RFC 9421 native form, so it is accepted.
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L903-L913
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L903-L913
 func NormalizeSignatureInputAlgorithm(alg string) (string, error) {
 	trimmed := strings.TrimSpace(alg)
 	if trimmed == "" {
@@ -201,7 +200,7 @@ func NormalizeSignatureInputAlgorithm(alg string) (string, error) {
 // a JOSE-registry name and the RFC 9421 native form, so it is accepted and is
 // the recommended algorithm; all other RFC 9421 native names, such as
 // ecdsa-p256-sha256 and rsa-v1_5-sha256, remain rejected.
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L881
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L881
 func normalizeJWKAlg(jwkAlg string) (string, error) {
 	trimmed := strings.TrimSpace(jwkAlg)
 	if trimmed == "" {
@@ -332,7 +331,7 @@ func ecParamsFromCrv(crv string) (elliptic.Curve, ecdh.Curve, string, int, error
 // Signature-Input alg parameter is present, it must be an IANA "HTTP
 // Signature Algorithms" registry name denoting the same algorithm; JOSE names
 // valid in the JWK alg are not valid in the Signature-Input alg.
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L914
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L914
 func ResolveAlgorithm(headerAlg, kty, crv, jwkAlg string) (string, error) {
 	derived, err := DeriveFromJWK(kty, crv, jwkAlg)
 	if err != nil {
@@ -630,8 +629,8 @@ func PublicKeyFromJWK(kty, crv, x string) (crypto.PublicKey, error) {
 // SumSHA256 returns a SHA-256 digest helper for content-digest construction.
 // OCM content-digest values must use a hash from the IANA "Hash Algorithms for
 // HTTP Digest Fields" registry and implementations must support sha-256.
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L837-L840
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1952-L1953
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L856-L860
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L2025-L2026
 func SumSHA256(data []byte) []byte {
 	sum := sha256.Sum256(data)
 	return sum[:]

@@ -47,7 +47,7 @@ type CreateOutgoingResponse struct {
 // ParseInviteString decodes a base64url invite string, accepting padded or unpadded
 // base64url and legacy standard base64, then splits on the last '@' into token and
 // provider FQDN. Provider must not contain scheme.
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L484-L497
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L485-L498
 func ParseInviteString(inviteString string) (token, providerFQDN string, err error) {
 	var (
 		decoded   []byte
@@ -96,7 +96,7 @@ func ParseInviteString(inviteString string) (token, providerFQDN string, err err
 
 // BuildInviteString joins token and provider FQDN with '@' and encodes the result
 // using base64url (RFC 4648 Section 5) with padding omitted.
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L127-L130
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L127-L130
 func BuildInviteString(token, providerFQDN string) string {
 	inner := token + "@" + providerFQDN
 	return base64.RawURLEncoding.EncodeToString([]byte(inner))

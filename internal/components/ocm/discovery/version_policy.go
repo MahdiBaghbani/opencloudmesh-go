@@ -14,10 +14,11 @@ type APIVersionMode uint8
 
 const (
 	// APIVersionAcceptAny accepts any non-empty reported apiVersion (default).
-	// This is an ocmgo posture choice, not a spec requirement: apiVersion is
-	// informative in OCM (https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#L626-L629), so strict-by-default
-	// rejection is not required. The accept-any default is intentional and
-	// spec-aligned.
+	// This is an ocmgo posture choice, not a spec requirement: apiVersion is a
+	// REQUIRED discovery field in OCM, but the spec does not mandate
+	// version-matching or rejection behavior, so strict-by-default rejection
+	// is not required. The accept-any default is intentional and spec-aligned.
+	// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L630-L631
 	APIVersionAcceptAny APIVersionMode = iota
 	// APIVersionExact accepts only apiVersion equal to APIVersionPin.
 	// Non-triple strings (for example "1.4" or "1.0-proposal1") are rejected
@@ -43,26 +44,26 @@ const (
 )
 
 // VersionPolicy controls inbound peer apiVersion accept/reject and warnings.
-// This is an ocmgo policy axis: apiVersion is informative in OCM, so the
-// default accept-any posture is spec-aligned and strict-by-default rejection
-// is not required (see the citation on APIVersionAcceptAny above).
-// The pin is always APIVersionPin; there is no per-policy Pin field.
+// This is an ocmgo policy axis: apiVersion is a REQUIRED discovery field, but
+// the spec does not mandate version-matching or rejection, so the default
+// accept-any posture is spec-aligned (see the citation on APIVersionAcceptAny
+// above). The pin is always APIVersionPin; there is no per-policy Pin field.
 type VersionPolicy struct {
 	Mode APIVersionMode
 	Warn WarnMode
 }
 
 // NewVersionPolicy returns the default policy: accept-any with WarnAnyDiff.
-// Accept-any is intentional ocmgo posture, not spec-compliance: apiVersion is
-// informative in OCM (see the citation on APIVersionAcceptAny).
+// Accept-any is intentional ocmgo posture: apiVersion is REQUIRED, but the
+// spec does not mandate matching or rejection (see APIVersionAcceptAny).
 func NewVersionPolicy() *VersionPolicy {
 	return &VersionPolicy{Mode: APIVersionAcceptAny, Warn: WarnAnyDiff}
 }
 
 // VersionPolicyFromConfig builds a VersionPolicy from loaded config values.
 // Caller must ensure cfg values passed enum validation during config load.
-// Defaults are ocmgo posture: accept-any is spec-aligned because apiVersion is
-// informative in OCM (see the citation on APIVersionAcceptAny).
+// Defaults are ocmgo posture: accept-any is spec-aligned because the spec does
+// not mandate version matching or rejection (see APIVersionAcceptAny).
 func VersionPolicyFromConfig(cfg config.DiscoveryConfig) *VersionPolicy {
 	p := NewVersionPolicy()
 

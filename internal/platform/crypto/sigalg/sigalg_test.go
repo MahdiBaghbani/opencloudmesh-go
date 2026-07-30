@@ -171,7 +171,7 @@ func TestResolveAlgorithm_HeaderOptionalAndAgreement(t *testing.T) {
 // alg parameter takes values from the IANA "HTTP Signature Algorithms"
 // registry, not the JOSE registry: JOSE-only names are rejected even when
 // they would denote the same algorithm as the JWK alg.
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L903-L913
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L903-L913
 func TestResolveAlgorithm_RejectsJOSENamesInHeader(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -515,7 +515,7 @@ func TestDeriveFromJWK_RejectsNoneAndSymmetric(t *testing.T) {
 // parameter MUST be a JOSE-registry name (RFC 7518). RFC 9421 native names
 // such as ecdsa-p256-sha256 and rsa-v1_5-sha256 are not valid JWK alg values
 // and must be rejected as unsupported JWK alg.
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L876-L879
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L876-L879
 func TestDeriveFromJWK_RejectsRFC9421NativeAlgNames(t *testing.T) {
 	nativeNames := []struct {
 		kty    string

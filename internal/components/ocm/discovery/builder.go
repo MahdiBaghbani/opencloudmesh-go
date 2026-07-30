@@ -127,7 +127,7 @@ func buildDiscoveryResourceTypes(protocols spec.Protocols) []spec.ResourceType {
 		resourceTypes = append(resourceTypes, spec.ResourceType{
 			Name: rtName,
 			// Core OCM share types are "user" and "group"; "federation" is registered by
-			// OCM-MLS, not core OCM (https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1803-L1805).
+			// OCM-MLS, not core OCM (https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1874-L1876).
 			// ocmgo deliberately does not advertise "federation"; it advertises only "user"
 			// because it does not implement group shares.
 			ShareTypes: []string{"user"},

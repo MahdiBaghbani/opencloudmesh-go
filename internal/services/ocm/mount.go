@@ -99,9 +99,9 @@ func middlewaresForRow(
 		// This covers the invite-acceptance-specific requirement and the sender-side
 		// verify-any-signature requirement. Admission follows Applicability rules 3
 		// and 4 conditionally on must-use-http-sig.
-		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L382-L386
-		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L439-L443
-		// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L383-L387
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L440-L444
+		// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveInviteAcceptedRequest))
 	case service.PeerResolutionToken:
 		middlewares = append(middlewares, sig.VerifyOCMRequestRequireSignatureAndPeer(peerResolver.ResolveTokenRequest))

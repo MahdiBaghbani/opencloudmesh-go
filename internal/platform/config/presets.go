@@ -101,9 +101,11 @@ func StrictConfig() *Config {
 		OCM: OCMConfig{
 			CompatibilityScope: CompatibilityScopeGlobal,
 			// Discovery defaults accept any peer apiVersion with a warning on
-			// differences. This is intentional ocmgo posture, not spec-compliance:
-			// apiVersion is informative in OCM (https://github.com/cs3org/OCM-API/blob/a5b5da6e17a598266b09a0445db8ac53b29daefc/IETF-OCM.md#L626-L629), so
+			// differences. This is intentional ocmgo posture, not a spec
+			// requirement: apiVersion is a REQUIRED discovery field in OCM, but the
+			// spec does not mandate version-matching or rejection behavior, so
 			// strict-by-default rejection is not required.
+			// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L630-L631
 			Discovery: DefaultDiscoveryConfig(),
 		},
 	}

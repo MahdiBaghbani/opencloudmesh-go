@@ -44,12 +44,12 @@ func NewHandler(outgoingRepo outgoing.OutgoingShareRepo, tokenStore token.TokenS
 // The Receiving Server signs the token request; as the Sending Server, ocmgo
 // verifies any present signature and gates unsigned admission on must-use-http-sig
 // through the mounted signature middleware.
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1461-L1462
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1532-L1533
 // Invalid requests receive HTTP 400 with an OAuth 2.0 error code; see
-// https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1495-L1505.
+// https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1566-L1576.
 // Signature applicability is conditional on the peer advertising http-sig; unsigned
 // requests are admitted only when ocmgo does not advertise must-use-http-sig.
-// See https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L796-L812
+// See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
 func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	req, ok := h.parseTokenRequest(w, r)
 	if !ok {
@@ -66,7 +66,7 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 
 // sendOAuthError sends an OAuth-style error response.
 // ocmgo emits invalid_request, invalid_client, invalid_grant, and
-// unsupported_grant_type per https://github.com/cs3org/OCM-API/blob/a5b5da6/IETF-OCM.md#L1495-L1505.
+// unsupported_grant_type per https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L1566-L1576.
 // ErrorUnauthorized ("unauthorized_client") is defined in
 // internal/components/ocm/spec/token_exchange.go and reserved for future
 // per-client grant-authorization enforcement; there is no current emission
