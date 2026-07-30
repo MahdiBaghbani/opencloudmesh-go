@@ -1,6 +1,8 @@
 # OpenCloudMesh server build and test targets.
+SHELL := /bin/bash
 .PHONY: build test-go test-integration test-e2e test-e2e-install \
-	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new security check ci
+	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new security check ci \
+	generate-action-inventory verify-action-pins
 
 # Build the server binary
 build:
@@ -8,11 +10,11 @@ build:
 
 # Run unit tests with race detector (excludes integration tests)
 test-go:
-	go test -race $$(go list ./... | grep -v /tests/integration)
+	go test -race -coverprofile=coverage-unit.out $$(go list ./... | grep -v /tests/integration)
 
 # Run integration tests only
 test-integration:
-	go test -race ./tests/integration/...
+	go test -race -coverprofile=coverage-integration.out ./tests/integration/...
 
 # Install E2E test dependencies
 test-e2e-install:
@@ -30,6 +32,7 @@ clean:
 	rm -rf bin/
 	rm -rf tests/e2e/node_modules
 	rm -rf tests/e2e/test-results
+	rm -f coverage-unit.out coverage-integration.out
 
 # --- Static analysis and security (requires: make tools) ---
 
@@ -82,13 +85,21 @@ LINT_BASE_REF ?= 81fb0ce
 lint-new:
 	$(GOLANGCI_LINT) run --new-from-rev=$(LINT_BASE_REF) ./...
 
-# govulncheck (reachable graph) + gosec via golangci-lint SSOT (not raw CLI).
+# govulncheck is report-only (mirrors CI continue-on-error); gosec blocks.
 security:
-	$(GOVULNCHECK) ./...
+	-$(GOVULNCHECK) ./...
 	$(GOLANGCI_LINT) run --enable-only=gosec ./...
 
 # Light local check: no full lint, no security scan.
 check: fmt-check vet lint-new test-go
 
-# Laptop CI mirror: full lint gate plus blocking gates minus tidy (tidy is CI fmt-vet only).
-ci: fmt-check vet lint test build
+# Laptop CI mirror: fmt, vet, lint, security, unit+integration, build, pins.
+ci: fmt-check vet lint security test build verify-action-pins
+
+# List immutable action@sha references found in workflow files (audit helper).
+generate-action-inventory:
+	nu .github/scripts/generate-action-inventory.nu
+
+# Fail on mutable tags or SHAs that diverge from .github/action-pins.yml.
+verify-action-pins:
+	nu .github/scripts/verify-action-pins.nu

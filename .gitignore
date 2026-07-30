@@ -17,5 +17,7 @@ Thumbs.db
 # Test artifacts
 *.test
 coverage.out
+coverage-unit.out
+coverage-integration.out
 
 /opencloudmesh-go
