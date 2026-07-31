@@ -1,9 +1,14 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 # OpenCloudMesh server build and test targets.
 SHELL := /bin/bash
 .PHONY: build test-go test-integration test-e2e test-e2e-install \
 	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new security check ci \
 	pre-commit-install pre-commit-run \
-	generate-action-inventory verify-action-pins
+	generate-action-inventory verify-action-pins reuse-lint
 
 # Build the server binary
 build:
@@ -104,8 +109,9 @@ pre-commit-install:
 pre-commit-run:
 	uv run pre-commit run
 
-# Laptop CI mirror: fmt, vet, lint, security, unit+integration, build, pins.
-ci: fmt-check vet lint security test build verify-action-pins
+# Laptop CI mirror: fmt, vet, lint, security, unit+integration, build, pins,
+# reuse.
+ci: fmt-check vet lint security test build verify-action-pins reuse-lint
 
 # List immutable action@sha references found in workflow files (audit helper).
 generate-action-inventory:
@@ -114,3 +120,7 @@ generate-action-inventory:
 # Fail on mutable tags or SHAs that diverge from .github/action-pins.yml.
 verify-action-pins:
 	nu .github/scripts/verify-action-pins.nu
+
+# REUSE licensing compliance; reuse comes from the uv dev group.
+reuse-lint:
+	uv run reuse lint

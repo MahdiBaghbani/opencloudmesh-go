@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 // Package realip provides trusted proxy utilities for extracting real client IP.
 // This is the single authoritative location for X-Forwarded-For and X-Real-IP parsing.
 // No other code in the repository should parse these headers directly.

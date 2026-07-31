@@ -1,10 +1,17 @@
+<!--
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+
+OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+-->
+
 # OpenCloudMesh Go
 
 > A runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered
 > subset of the protocol.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MahdiBaghbani/opencloudmesh-go)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE.md)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
 OpenCloudMesh Go is a Go server for Open Cloud Mesh (OCM). It focuses on a
 pinned, practical slice of the protocol: discovery, user shares, invite flows,
@@ -260,4 +267,4 @@ something in the docs is unclear or wrong, that is worth an issue too.
 ## License
 
 Licensed under the GNU Affero General Public License v3.0 or later
-(AGPL-3.0-or-later). See [LICENSE.md](LICENSE.md).
+(AGPL-3.0-or-later). See [LICENSE](LICENSE).

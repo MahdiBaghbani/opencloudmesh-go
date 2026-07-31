@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+//
+// OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
 package spec_test
 
 import (
@@ -49,60 +54,60 @@ var wireLiteralSet = []string{
 // wildcards are not allowed.
 var wireLiteralAllowlist = map[string]map[int]struct{}{
 	"internal/components/ocm/access/remote.go": {
-		// ProtocolWebDAV constant; line shifted after adding the slog import.
-		31: {},
+		// ProtocolWebDAV constant; short SPDX header rewritten to the 5-line form (+2).
+		33: {},
 	},
 	"internal/components/ocm/outbound/kinds.go": {
-		13: {},
+		15: {},
 	},
 	"internal/frameworks/service/descriptors.go": {
-		11: {},
-		19: {},
-		40: {},
-		42: {},
-		64: {},
-		66: {},
+		16: {},
+		24: {},
+		45: {},
+		47: {},
+		69: {},
+		71: {},
 	},
 	"internal/frameworks/service/route_aggregate.go": {
-		130: {},
-		138: {},
+		135: {},
+		143: {},
 	},
 	"internal/frameworks/service/route_opts.go": {
-		50: {},
-	},
-	"internal/frameworks/service/route_specs.go": {
-		46: {},
-		80: {},
-	},
-	"internal/platform/config/loader.go": {
-		904: {},
-	},
-	"internal/platform/crypto/sigparams/label.go": {
-		4: {},
-	},
-	"internal/services/ocm/mount.go": {
 		55: {},
 	},
+	"internal/frameworks/service/route_specs.go": {
+		51: {},
+		85: {},
+	},
+	"internal/platform/config/loader.go": {
+		909: {},
+	},
+	"internal/platform/crypto/sigparams/label.go": {
+		9: {},
+	},
+	"internal/services/ocm/mount.go": {
+		60: {},
+	},
 	"internal/services/ocm/ocm.go": {
-		53:  {},
-		140: {},
+		58:  {},
+		145: {},
 	},
 	"internal/services/ocm/routes.go": {
-		35: {},
-		47: {},
-		59: {},
-		72: {},
+		40: {},
+		52: {},
+		64: {},
+		77: {},
 	},
 	"internal/services/ui/routes.go": {
-		64: {},
+		69: {},
 	},
 	"internal/services/webdav/routes.go": {
-		20: {},
+		25: {},
 	},
 	"internal/services/webdav/webdav.go": {
-		43: {},
-		49: {},
-		65: {},
+		48: {},
+		54: {},
+		70: {},
 	},
 }
 

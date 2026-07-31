@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# opencloudmesh-go Docker image (standalone)
-# Copyright (C) 2025 Mahdi Baghbani <mahdi-baghbani@azadehafzar.io>
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 ARG BASE_BUILD_IMAGE="golang:1.26.5-trixie"
 ARG BASE_RUNTIME_IMAGE="debian:trixie-slim"
