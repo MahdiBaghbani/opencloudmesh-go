@@ -6,6 +6,7 @@
 package wellknown
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/localidentity"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ocm"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/services/ui"
@@ -51,9 +53,9 @@ func TestDiscoveryFields_DevConfigEmptyBasePath(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	t.Cleanup(func() { _ = svc.Close() }) //nolint:errcheck // test cleanup: repository close
+	t.Cleanup(func() { tshttp.MustClose(t, svc) })
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	rec := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(rec, req)
 
@@ -95,9 +97,9 @@ func TestDiscoveryFields_BasePathMount(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	t.Cleanup(func() { _ = svc.Close() }) //nolint:errcheck // test cleanup: repository close
+	t.Cleanup(func() { tshttp.MustClose(t, svc) })
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	rec := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(rec, req)
 
@@ -131,9 +133,9 @@ func TestDiscoveryFields_HandlerCoreDocument(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	t.Cleanup(func() { _ = svc.Close() }) //nolint:errcheck // test cleanup: repository close
+	t.Cleanup(func() { tshttp.MustClose(t, svc) })
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	rec := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(rec, req)
 

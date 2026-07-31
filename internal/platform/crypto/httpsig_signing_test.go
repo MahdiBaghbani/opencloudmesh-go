@@ -25,7 +25,7 @@ func TestRFC9421_SignAndVerify_EmptyBody(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	req, err := http.NewRequest(http.MethodGet, "https://example.com/ocm/discovery", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/ocm/discovery", nil)
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestRFC9421_SignAndVerify(t *testing.T) {
 
 	body := []byte(`{"test": "data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestRFC9421_SignatureParams(t *testing.T) {
 
 	body := []byte(`{"test": "data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestHTTPSig_GoldenDefaultSignatureInput(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestSignRequest_DefaultSigningDoesNotCreateDate(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestSignRequest_PreexistingDateRemainsUnsigned(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestSignRequest_ExplicitDateComponentCovered(t *testing.T) {
 
 			body := httpsigTestBodyJSON
 
-			req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 			if err != nil {
 				t.Fatalf("NewRequest failed: %v", err)
 			}

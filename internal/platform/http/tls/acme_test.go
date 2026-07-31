@@ -93,7 +93,7 @@ func TestChallengeHandler_ServesKeyAuth(t *testing.T) {
 	})
 
 	handler := m.ChallengeHandler()
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/acme-challenge/test-token", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/.well-known/acme-challenge/test-token", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -116,7 +116,7 @@ func TestChallengeHandler_Returns404ForUnknown(t *testing.T) {
 	}
 
 	handler := m.ChallengeHandler()
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/acme-challenge/unknown", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/.well-known/acme-challenge/unknown", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -131,7 +131,7 @@ func TestChallengeHandler_Returns404ForEmptyToken(t *testing.T) {
 	}
 
 	handler := m.ChallengeHandler()
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/acme-challenge/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/.well-known/acme-challenge/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -146,7 +146,7 @@ func TestChallengeHandler_Returns404ForWrongPath(t *testing.T) {
 	}
 
 	handler := m.ChallengeHandler()
-	req := httptest.NewRequest(http.MethodGet, "/other/path", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/other/path", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -161,7 +161,7 @@ func TestChallengeHandler_BeforeInit_NoPanicAnd404(t *testing.T) {
 	}, nil, nil)
 	handler := m.ChallengeHandler()
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/acme-challenge/not-present", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/.well-known/acme-challenge/not-present", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -184,7 +184,7 @@ func TestHTTP01Provider_TTLExpires(t *testing.T) {
 
 	// Move beyond TTL and ensure challenge handler treats token as expired.
 	now = baseTime.Add(11 * time.Minute)
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/acme-challenge/tok-expire", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/.well-known/acme-challenge/tok-expire", nil)
 	rec := httptest.NewRecorder()
 	m.ChallengeHandler().ServeHTTP(rec, req)
 

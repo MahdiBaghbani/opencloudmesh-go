@@ -14,6 +14,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
@@ -44,13 +45,19 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/ocm/token" {
-					_ = r.ParseForm() //nolint:errcheck // test mock handler: parse form
+					if err := r.ParseForm(); err != nil {
+						t.Errorf("parse form: %v", err)
+						w.WriteHeader(http.StatusBadRequest)
+
+						return
+					}
+
 					if got := r.FormValue("code"); got != tt.sharedSecret {
 						t.Errorf("token exchange code = %q, want %q", got, tt.sharedSecret)
 					}
 				}
 
-				if exchangeDiscoveryHandler(w, r, tt.accessToken) {
+				if exchangeDiscoveryHandler(t, w, r, tt.accessToken) {
 					return
 				}
 
@@ -85,7 +92,7 @@ func TestClient_Access_DoesNotLogSensitiveValues(t *testing.T) {
 			if err != nil {
 				t.Fatalf("access failed: %v", err)
 			}
-			defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
+			defer tshttp.MustClose(t, result.Response.Body)
 
 			if result.AccessToken != tt.accessToken {
 				t.Fatalf("access token = %q, want %q", result.AccessToken, tt.accessToken)

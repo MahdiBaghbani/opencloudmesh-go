@@ -21,13 +21,13 @@ import (
 
 func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	shareA := createShareForUser(repo, userAID, "prov-a1", "sender.example.com")
-	createShareForUser(repo, userBID, "prov-b1", "sender.example.com")
+	shareA := createShareForUser(t, repo, userAID, "prov-a1", "sender.example.com")
+	createShareForUser(t, repo, userBID, "prov-b1", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -51,12 +51,12 @@ func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
 
 func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	createShareForUser(repo, userAID, "prov-a1", "sender.example.com")
+	createShareForUser(t, repo, userAID, "prov-a1", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(repo, userB)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -78,7 +78,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	router := newTestRouter(repo, nil) // nil user = unauthenticated
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -110,7 +110,7 @@ func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

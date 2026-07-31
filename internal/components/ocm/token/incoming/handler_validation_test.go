@@ -36,7 +36,7 @@ func TestHandler_MissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(tt.form.Encode()))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(tt.form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			w := httptest.NewRecorder()
@@ -59,17 +59,16 @@ func TestHandler_MissingFields(t *testing.T) {
 	}
 }
 
-func TestHandler_InvalidGrantType(t *testing.T) { //nolint:dupl // intentional: parallel token handler validation tests share form setup but assert different OAuth errors
+// assertTokenFormRejected posts one urlencoded token form to a fresh handler
+// and asserts the response is 400 carrying wantError.
+func assertTokenFormRejected(t *testing.T, form url.Values, wantError string) {
+	t.Helper()
+
 	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
-	form := url.Values{}
-	form.Set("grant_type", "password")
-	form.Set("client_id", "x")
-	form.Set("code", "y")
-
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()
@@ -85,9 +84,18 @@ func TestHandler_InvalidGrantType(t *testing.T) { //nolint:dupl // intentional: 
 		t.Fatalf("Decode: %v", err)
 	}
 
-	if resp.Error != token.ErrorUnsupportedGrantType {
-		t.Errorf("expected error %q, got %q", token.ErrorUnsupportedGrantType, resp.Error)
+	if resp.Error != wantError {
+		t.Errorf("expected error %q, got %q", wantError, resp.Error)
 	}
+}
+
+func TestHandler_InvalidGrantType(t *testing.T) {
+	form := url.Values{}
+	form.Set("grant_type", "password")
+	form.Set("client_id", "x")
+	form.Set("code", "y")
+
+	assertTokenFormRejected(t, form, token.ErrorUnsupportedGrantType)
 }
 
 // TestHandler_UnsupportedGrantType_Rejected proves the strict token contract
@@ -102,7 +110,7 @@ func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()
@@ -130,7 +138,7 @@ func TestHandler_JSONBody_Rejected(t *testing.T) {
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
 	body := `{"grant_type":"authorization_code","client_id":"receiver.example.com","code":"secret-code"}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -241,7 +249,7 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 				form.Set("code", "arbitrary-code")
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 			if !tt.omitContentType {
 				req.Header.Set("Content-Type", tt.contentType)
 			}

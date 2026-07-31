@@ -14,6 +14,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
@@ -49,7 +50,7 @@ func TestMirrorDriverSecretRedaction(t *testing.T) {
 		t.Error("shared secret must not appear in mirror JSON export")
 	}
 
-	driver.Close() //nolint:errcheck // test cleanup: driver close
+	tshttp.MustClose(t, driver)
 }
 
 // TestMirrorInviteExportOnInit verifies that Init exports both invite surfaces
@@ -85,10 +86,10 @@ func TestMirrorInviteExportOnInit(t *testing.T) {
 		t.Fatalf("create incoming invite: %v", err)
 	}
 
-	driver.Close() //nolint:errcheck // test cleanup: driver close
+	tshttp.MustClose(t, driver)
 
 	driver2 := testutil.OpenDriver(t, cfg)
-	defer driver2.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver2)
 
 	mirrorDir := filepath.Join(tempDir, "mirror")
 

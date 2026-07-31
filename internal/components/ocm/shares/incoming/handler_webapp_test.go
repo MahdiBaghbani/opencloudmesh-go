@@ -38,11 +38,11 @@ func assertShareNotStored(t *testing.T, repo *incoming.MemoryIncomingShareRepo, 
 
 func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
 	body := validWebappShareBody("alice@localhost:9200", ownerHost, "webapp-reject")
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -71,7 +71,7 @@ func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
 // may be persisted.
 func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
 	body := `{
@@ -99,7 +99,7 @@ func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
 			}
 		}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -121,12 +121,16 @@ func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
 	assertShareNotStored(t, repo, ownerHost, "multi-arm-webapp-reject")
 }
 
-func TestCreateShare_RejectsWebappMissingURI(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
-	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
-
-	body := `{
+func TestCreateShare_RejectsWebappMissingFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		fieldName string
+		failMsg   string
+	}{
+		{
+			name: "MissingURI",
+			body: `{
 		"shareWith": "alice@localhost:9200",
 		"name": "webapp-resource",
 		"providerId": "webapp-no-uri",
@@ -143,45 +147,13 @@ func TestCreateShare_RejectsWebappMissingURI(t *testing.T) { //nolint:dupl // in
 				"sharedSecret": "s"
 			}
 		}
-	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	handler.CreateShare(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for missing webapp uri, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp spec.OCMErrorResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
-	}
-
-	if resp.Message != "INVALID_PROTOCOL" {
-		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
-	}
-
-	found := false
-
-	for _, e := range resp.ValidationErrors {
-		if e.Name == "protocol.webapp.uri" && e.Message == "REQUIRED" {
-			found = true
-		}
-	}
-
-	if !found {
-		t.Errorf("expected validationError {protocol.webapp.uri, REQUIRED}, got %v", resp.ValidationErrors)
-	}
-}
-
-func TestCreateShare_RejectsWebappMissingTargets(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
-	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
-
-	body := `{
+	}`,
+			fieldName: "protocol.webapp.uri",
+			failMsg:   "expected 400 for missing webapp uri",
+		},
+		{
+			name: "MissingTargets",
+			body: `{
 		"shareWith": "alice@localhost:9200",
 		"name": "webapp-resource",
 		"providerId": "webapp-no-targets",
@@ -198,45 +170,13 @@ func TestCreateShare_RejectsWebappMissingTargets(t *testing.T) { //nolint:dupl /
 				"sharedSecret": "s"
 			}
 		}
-	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	handler.CreateShare(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for missing webapp targets, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp spec.OCMErrorResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
-	}
-
-	if resp.Message != "INVALID_PROTOCOL" {
-		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
-	}
-
-	found := false
-
-	for _, e := range resp.ValidationErrors {
-		if e.Name == "protocol.webapp.targets" && e.Message == "REQUIRED" {
-			found = true
-		}
-	}
-
-	if !found {
-		t.Errorf("expected validationError {protocol.webapp.targets, REQUIRED}, got %v", resp.ValidationErrors)
-	}
-}
-
-func TestCreateShare_RejectsWebappMissingPermissions(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
-	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
-
-	body := `{
+	}`,
+			fieldName: "protocol.webapp.targets",
+			failMsg:   "expected 400 for missing webapp targets",
+		},
+		{
+			name: "MissingPermissions",
+			body: `{
 		"shareWith": "alice@localhost:9200",
 		"name": "webapp-resource",
 		"providerId": "webapp-no-perms",
@@ -253,45 +193,13 @@ func TestCreateShare_RejectsWebappMissingPermissions(t *testing.T) { //nolint:du
 				"sharedSecret": "s"
 			}
 		}
-	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	handler.CreateShare(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for missing webapp permissions, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp spec.OCMErrorResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
-	}
-
-	if resp.Message != "INVALID_PROTOCOL" {
-		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
-	}
-
-	found := false
-
-	for _, e := range resp.ValidationErrors {
-		if e.Name == "protocol.webapp.permissions" && e.Message == "REQUIRED" {
-			found = true
-		}
-	}
-
-	if !found {
-		t.Errorf("expected validationError {protocol.webapp.permissions, REQUIRED}, got %v", resp.ValidationErrors)
-	}
-}
-
-func TestCreateShare_RejectsWebappMissingSharedSecret(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
-	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
-
-	body := `{
+	}`,
+			fieldName: "protocol.webapp.permissions",
+			failMsg:   "expected 400 for missing webapp permissions",
+		},
+		{
+			name: "MissingSharedSecret",
+			body: `{
 		"shareWith": "alice@localhost:9200",
 		"name": "webapp-resource",
 		"providerId": "webapp-no-secret",
@@ -308,42 +216,79 @@ func TestCreateShare_RejectsWebappMissingSharedSecret(t *testing.T) { //nolint:d
 				"requirements": ["must-exchange-token"]
 			}
 		}
-	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	handler.CreateShare(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for missing webapp sharedSecret, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp spec.OCMErrorResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
-	}
-
-	if resp.Message != "INVALID_PROTOCOL" {
-		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
-	}
-
-	found := false
-
-	for _, e := range resp.ValidationErrors {
-		if e.Name == "protocol.webapp.sharedSecret" && e.Message == "REQUIRED" {
-			found = true
+	}`,
+			fieldName: "protocol.webapp.sharedSecret",
+			failMsg:   "expected 400 for missing webapp sharedSecret",
+		},
+		{
+			name: "MissingMustExchangeToken",
+			body: `{
+		"shareWith": "alice@localhost:9200",
+		"name": "webapp-resource",
+		"providerId": "webapp-no-token",
+		"owner": "owner@sender.com",
+		"sender": "sender@sender.com",
+		"shareType": "user",
+		"resourceType": "file",
+		"protocol": {
+			"name": "multi",
+			"webapp": {
+				"uri": "https://sender.example/apps/files/abc",
+				"targets": ["blank"],
+				"permissions": ["view"],
+				"requirements": [],
+				"sharedSecret": "s"
+			}
 		}
+	}`,
+			fieldName: "protocol.webapp.requirements",
+			failMsg:   "expected 400 for missing must-exchange-token",
+		},
 	}
 
-	if !found {
-		t.Errorf("expected validationError {protocol.webapp.sharedSecret, REQUIRED}, got %v", resp.ValidationErrors)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := incoming.NewMemoryIncomingShareRepo()
+			partyRepo := setupTestPartyRepo(t)
+			handler := newTestHandler(repo, partyRepo)
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			handler.CreateShare(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("%s, got %d: %s", tt.failMsg, w.Code, w.Body.String())
+			}
+
+			var resp spec.OCMErrorResponse
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Fatalf("failed to decode error response: %v", err)
+			}
+
+			if resp.Message != "INVALID_PROTOCOL" {
+				t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
+			}
+
+			found := false
+
+			for _, e := range resp.ValidationErrors {
+				if e.Name == tt.fieldName && e.Message == "REQUIRED" {
+					found = true
+				}
+			}
+
+			if !found {
+				t.Errorf("expected validationError {%s, REQUIRED}, got %v", tt.fieldName, resp.ValidationErrors)
+			}
+		})
 	}
 }
 
 func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -365,7 +310,7 @@ func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
 			}
 		}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -387,7 +332,7 @@ func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
 
 func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -409,7 +354,7 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 			}
 		}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -445,65 +390,9 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 	}
 }
 
-func TestCreateShare_RejectsWebappMissingMustExchangeToken(t *testing.T) { //nolint:dupl // intentional: parallel webapp validation tests share error-check structure but assert different missing fields
-	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
-	handler := newTestHandler(repo, partyRepo)
-
-	body := `{
-		"shareWith": "alice@localhost:9200",
-		"name": "webapp-resource",
-		"providerId": "webapp-no-token",
-		"owner": "owner@sender.com",
-		"sender": "sender@sender.com",
-		"shareType": "user",
-		"resourceType": "file",
-		"protocol": {
-			"name": "multi",
-			"webapp": {
-				"uri": "https://sender.example/apps/files/abc",
-				"targets": ["blank"],
-				"permissions": ["view"],
-				"requirements": [],
-				"sharedSecret": "s"
-			}
-		}
-	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	handler.CreateShare(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for missing must-exchange-token, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp spec.OCMErrorResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
-	}
-
-	if resp.Message != "INVALID_PROTOCOL" {
-		t.Errorf("expected INVALID_PROTOCOL, got %q", resp.Message)
-	}
-
-	found := false
-
-	for _, e := range resp.ValidationErrors {
-		if e.Name == "protocol.webapp.requirements" && e.Message == "REQUIRED" {
-			found = true
-		}
-	}
-
-	if !found {
-		t.Errorf("expected validationError {protocol.webapp.requirements, REQUIRED}, got %v", resp.ValidationErrors)
-	}
-}
-
 func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -525,7 +414,7 @@ func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
 			}
 		}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

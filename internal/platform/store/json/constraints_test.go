@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
@@ -25,7 +26,7 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 	}
 
 	driver := testutil.OpenDriver(t, cfg)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	inStore, ok := driver.(store.IncomingInviteStore)
 	if !ok {
@@ -61,10 +62,10 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 		t.Fatalf("expected ErrNotFound for wrong recipient lookup, got %v", err)
 	}
 
-	if err := inStore.UpdateIncomingInviteStatusForRecipient( //nolint:govet // shadow: sequential err in table-driven test is benign
+	if serr := inStore.UpdateIncomingInviteStatusForRecipient(
 		ctx, invite.ID, invite.RecipientUserID, "accepted", "", "",
-	); err != nil {
-		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", err)
+	); serr != nil {
+		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", serr)
 	}
 
 	err = inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted", "", "")
@@ -77,8 +78,8 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 		t.Fatalf("expected ErrNotFound for wrong recipient delete, got %v", err)
 	}
 
-	if err := inStore.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("DeleteIncomingInviteForRecipient failed: %v", err)
+	if serr := inStore.DeleteIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID); serr != nil {
+		t.Fatalf("DeleteIncomingInviteForRecipient failed: %v", serr)
 	}
 
 	_, err = inStore.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID)
@@ -91,7 +92,7 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 // uses exact recipient matching: empty or wrong recipientUserID yields no results.
 func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	ctx := context.Background()
 
@@ -142,44 +143,118 @@ func TestJSONListIncomingInvitesRecipientScope(t *testing.T) {
 	}
 }
 
-// TestJSONOutgoingShareCreateConflictingShareID verifies that creating a second
-// outgoing share with a ShareID already owned by a different record returns
-// ErrAlreadyExists and leaves the original record intact.
-func TestJSONOutgoingShareCreateConflictingShareID(t *testing.T) { //nolint:dupl // intentional: parallel ShareID/WebDAVID constraint tests share fixture setup but assert different unique keys
+// runCreateConflictingShareCase drives one outgoing-share unique-key conflict
+// case: configure sets up first and second to collide on one key, the second
+// create must fail with ErrAlreadyExists, and lookup must still return the
+// original record owned by provider-a.
+func runCreateConflictingShareCase(
+	t *testing.T,
+	fieldLabel string,
+	configure func(first, second *store.OutgoingShare),
+	lookup func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error),
+) {
+	t.Helper()
+
 	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	ctx := context.Background()
 
 	outStore := requireOutgoingShareStore(t, driver)
 
 	first := testutil.NewOutgoingShareFixture()
-	first.ProviderID = "provider-a"
-	first.ShareID = "shared-id"
+	second := testutil.NewOutgoingShareFixture()
+	configure(first, second)
 
-	first.WebDAVID = "webdav-a"
 	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
 		t.Fatalf("CreateOutgoingShare(first): %v", err)
 	}
 
-	second := testutil.NewOutgoingShareFixture()
-	second.ProviderID = "provider-b"
-	second.ShareID = "shared-id" // same ShareID, different owner
-	second.WebDAVID = "webdav-b"
-
 	err := outStore.CreateOutgoingShare(ctx, second)
 	if !errors.Is(err, store.ErrAlreadyExists) {
-		t.Fatalf("expected ErrAlreadyExists for conflicting ShareID, got %v", err)
+		t.Fatalf("expected ErrAlreadyExists for conflicting %s, got %v", fieldLabel, err)
 	}
 
-	// Original must still be reachable.
-	got, err := outStore.GetOutgoingShareByID(ctx, "shared-id")
+	got, err := lookup(outStore, ctx)
 	if err != nil {
-		t.Fatalf("GetOutgoingShareByID after conflict: %v", err)
+		t.Fatalf("lookup after conflict: %v", err)
 	}
 
 	if got.ProviderID != "provider-a" {
 		t.Errorf("original owner overwritten: expected provider-a, got %q", got.ProviderID)
+	}
+}
+
+// TestJSONOutgoingShareCreateConflictingShareID verifies that creating a second
+// outgoing share with a ShareID already owned by a different record returns
+// ErrAlreadyExists and leaves the original record intact.
+func TestJSONOutgoingShareCreateConflictingShareID(t *testing.T) {
+	runCreateConflictingShareCase(
+		t,
+		"ShareID",
+		func(first, second *store.OutgoingShare) {
+			first.ProviderID = "provider-a"
+			first.ShareID = "shared-id"
+			first.WebDAVID = "webdav-a"
+
+			second.ProviderID = "provider-b"
+			second.ShareID = "shared-id" // same ShareID, different owner
+			second.WebDAVID = "webdav-b"
+		},
+		func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error) {
+			return outStore.GetOutgoingShareByID(ctx, "shared-id")
+		},
+	)
+}
+
+// runUpdateConflictingShareCase drives one outgoing-share unique-key update
+// conflict case: configure sets up two non-conflicting records, steal mutates
+// second to collide with first on one key, the update must fail with
+// ErrAlreadyExists, and lookup must still return wantOwner's record.
+func runUpdateConflictingShareCase(
+	t *testing.T,
+	fieldLabel string,
+	configure func(first, second *store.OutgoingShare),
+	steal func(second *store.OutgoingShare),
+	lookup func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error),
+	wantOwner string,
+) {
+	t.Helper()
+
+	driver := newJSONDriver(t)
+	defer tshttp.MustClose(t, driver)
+
+	ctx := context.Background()
+
+	outStore := requireOutgoingShareStore(t, driver)
+
+	first := testutil.NewOutgoingShareFixture()
+	second := testutil.NewOutgoingShareFixture()
+	configure(first, second)
+
+	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
+		t.Fatalf("CreateOutgoingShare(first): %v", err)
+	}
+
+	if err := outStore.CreateOutgoingShare(ctx, second); err != nil {
+		t.Fatalf("CreateOutgoingShare(second): %v", err)
+	}
+
+	steal(second)
+
+	err := outStore.UpdateOutgoingShare(ctx, second)
+	if !errors.Is(err, store.ErrAlreadyExists) {
+		t.Fatalf("expected ErrAlreadyExists for conflicting %s on update, got %v", fieldLabel, err)
+	}
+
+	// Original mapping must be untouched.
+	got, err := lookup(outStore, ctx)
+	if err != nil {
+		t.Fatalf("lookup after failed update: %v", err)
+	}
+
+	if got.ProviderID != wantOwner {
+		t.Errorf("original owner overwritten: expected %s, got %q", wantOwner, got.ProviderID)
 	}
 }
 
@@ -187,141 +262,74 @@ func TestJSONOutgoingShareCreateConflictingShareID(t *testing.T) { //nolint:dupl
 // outgoing share to a ShareID already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingShareUpdateConflictingShareID(t *testing.T) {
-	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	runUpdateConflictingShareCase(
+		t,
+		"ShareID",
+		func(first, second *store.OutgoingShare) {
+			first.ProviderID = "provider-x"
+			first.ShareID = "share-x"
+			first.WebDAVID = "webdav-x"
+			first.SharedSecret = "secret-x"
 
-	ctx := context.Background()
-
-	outStore := requireOutgoingShareStore(t, driver)
-
-	first := testutil.NewOutgoingShareFixture()
-	first.ProviderID = "provider-x"
-	first.ShareID = "share-x"
-	first.WebDAVID = "webdav-x"
-
-	first.SharedSecret = "secret-x"
-	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
-		t.Fatalf("CreateOutgoingShare(first): %v", err)
-	}
-
-	second := testutil.NewOutgoingShareFixture()
-	second.ProviderID = "provider-y"
-	second.ShareID = "share-y"
-	second.WebDAVID = "webdav-y"
-
-	second.SharedSecret = "secret-y"
-	if err := outStore.CreateOutgoingShare(ctx, second); err != nil {
-		t.Fatalf("CreateOutgoingShare(second): %v", err)
-	}
-
-	// Attempt to steal first's ShareID via update.
-	second.ShareID = "share-x"
-
-	err := outStore.UpdateOutgoingShare(ctx, second)
-	if !errors.Is(err, store.ErrAlreadyExists) {
-		t.Fatalf("expected ErrAlreadyExists for conflicting ShareID on update, got %v", err)
-	}
-
-	// Original mapping must be untouched.
-	got, err := outStore.GetOutgoingShareByID(ctx, "share-x")
-	if err != nil {
-		t.Fatalf("GetOutgoingShareByID after failed update: %v", err)
-	}
-
-	if got.ProviderID != "provider-x" {
-		t.Errorf("original owner overwritten: expected provider-x, got %q", got.ProviderID)
-	}
+			second.ProviderID = "provider-y"
+			second.ShareID = "share-y"
+			second.WebDAVID = "webdav-y"
+			second.SharedSecret = "secret-y"
+		},
+		func(second *store.OutgoingShare) { second.ShareID = "share-x" },
+		func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error) {
+			return outStore.GetOutgoingShareByID(ctx, "share-x")
+		},
+		"provider-x",
+	)
 }
 
 // TestJSONOutgoingShareCreateConflictingWebDAVID verifies that creating a second
 // outgoing share with a WebDAVID already owned by a different record returns
 // ErrAlreadyExists and leaves the original record intact.
-func TestJSONOutgoingShareCreateConflictingWebDAVID(t *testing.T) { //nolint:dupl // intentional: parallel ShareID/WebDAVID constraint tests share fixture setup but assert different unique keys
-	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+func TestJSONOutgoingShareCreateConflictingWebDAVID(t *testing.T) {
+	runCreateConflictingShareCase(
+		t,
+		"WebDAVID",
+		func(first, second *store.OutgoingShare) {
+			first.ProviderID = "provider-a"
+			first.ShareID = "share-a"
+			first.WebDAVID = "shared-webdav"
 
-	ctx := context.Background()
-
-	outStore := requireOutgoingShareStore(t, driver)
-
-	first := testutil.NewOutgoingShareFixture()
-	first.ProviderID = "provider-a"
-	first.ShareID = "share-a"
-
-	first.WebDAVID = "shared-webdav"
-	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
-		t.Fatalf("CreateOutgoingShare(first): %v", err)
-	}
-
-	second := testutil.NewOutgoingShareFixture()
-	second.ProviderID = "provider-b"
-	second.ShareID = "share-b"
-	second.WebDAVID = "shared-webdav" // same WebDAVID, different owner
-
-	err := outStore.CreateOutgoingShare(ctx, second)
-	if !errors.Is(err, store.ErrAlreadyExists) {
-		t.Fatalf("expected ErrAlreadyExists for conflicting WebDAVID, got %v", err)
-	}
-
-	// Original must still be reachable.
-	got, err := outStore.GetOutgoingShareByWebDAVID(ctx, "shared-webdav")
-	if err != nil {
-		t.Fatalf("GetOutgoingShareByWebDAVID after conflict: %v", err)
-	}
-
-	if got.ProviderID != "provider-a" {
-		t.Errorf("original owner overwritten: expected provider-a, got %q", got.ProviderID)
-	}
+			second.ProviderID = "provider-b"
+			second.ShareID = "share-b"
+			second.WebDAVID = "shared-webdav" // same WebDAVID, different owner
+		},
+		func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error) {
+			return outStore.GetOutgoingShareByWebDAVID(ctx, "shared-webdav")
+		},
+	)
 }
 
 // TestJSONOutgoingShareUpdateConflictingWebDAVID verifies that updating an
 // outgoing share to a WebDAVID already owned by a different record returns
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingShareUpdateConflictingWebDAVID(t *testing.T) {
-	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	runUpdateConflictingShareCase(
+		t,
+		"WebDAVID",
+		func(first, second *store.OutgoingShare) {
+			first.ProviderID = "provider-m"
+			first.ShareID = "share-m"
+			first.WebDAVID = "webdav-m"
+			first.SharedSecret = "secret-m"
 
-	ctx := context.Background()
-
-	outStore := requireOutgoingShareStore(t, driver)
-
-	first := testutil.NewOutgoingShareFixture()
-	first.ProviderID = "provider-m"
-	first.ShareID = "share-m"
-	first.WebDAVID = "webdav-m"
-
-	first.SharedSecret = "secret-m"
-	if err := outStore.CreateOutgoingShare(ctx, first); err != nil {
-		t.Fatalf("CreateOutgoingShare(first): %v", err)
-	}
-
-	second := testutil.NewOutgoingShareFixture()
-	second.ProviderID = "provider-n"
-	second.ShareID = "share-n"
-	second.WebDAVID = "webdav-n"
-
-	second.SharedSecret = "secret-n"
-	if err := outStore.CreateOutgoingShare(ctx, second); err != nil {
-		t.Fatalf("CreateOutgoingShare(second): %v", err)
-	}
-
-	// Attempt to steal first's WebDAVID via update.
-	second.WebDAVID = "webdav-m"
-
-	err := outStore.UpdateOutgoingShare(ctx, second)
-	if !errors.Is(err, store.ErrAlreadyExists) {
-		t.Fatalf("expected ErrAlreadyExists for conflicting WebDAVID on update, got %v", err)
-	}
-
-	// Original mapping must be untouched.
-	got, err := outStore.GetOutgoingShareByWebDAVID(ctx, "webdav-m")
-	if err != nil {
-		t.Fatalf("GetOutgoingShareByWebDAVID after failed update: %v", err)
-	}
-
-	if got.ProviderID != "provider-m" {
-		t.Errorf("original owner overwritten: expected provider-m, got %q", got.ProviderID)
-	}
+			second.ProviderID = "provider-n"
+			second.ShareID = "share-n"
+			second.WebDAVID = "webdav-n"
+			second.SharedSecret = "secret-n"
+		},
+		func(second *store.OutgoingShare) { second.WebDAVID = "webdav-m" },
+		func(outStore store.OutgoingShareStore, ctx context.Context) (*store.OutgoingShare, error) {
+			return outStore.GetOutgoingShareByWebDAVID(ctx, "webdav-m")
+		},
+		"provider-m",
+	)
 }
 
 // TestJSONOutgoingInviteCreateConflictingToken verifies that creating a second
@@ -329,7 +337,7 @@ func TestJSONOutgoingShareUpdateConflictingWebDAVID(t *testing.T) {
 // ErrAlreadyExists and leaves the original record intact.
 func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	ctx := context.Background()
 
@@ -368,7 +376,7 @@ func TestJSONOutgoingInviteCreateConflictingToken(t *testing.T) {
 // ErrAlreadyExists and leaves both records intact.
 func TestJSONOutgoingInviteUpdateConflictingToken(t *testing.T) {
 	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	ctx := context.Background()
 

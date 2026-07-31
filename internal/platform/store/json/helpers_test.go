@@ -6,11 +6,35 @@
 package json_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
+
+// rollbackCase is one read-only-dir rollback subtest.
+type rollbackCase struct {
+	name string
+	run  func(t *testing.T, ctx context.Context)
+}
+
+// runRollbackSuite drives a save-failure rollback suite: the data directory is
+// made read-only in each subtest so saveFile fails, and the subtest verifies
+// in-memory state rolled back. Read-only dirs cannot be forced as root.
+func runRollbackSuite(t *testing.T, cases []rollbackCase) {
+	t.Helper()
+
+	if os.Getuid() == 0 {
+		t.Skip("cannot test read-only dir as root")
+	}
+
+	ctx := context.Background()
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { tc.run(t, ctx) })
+	}
+}
 
 func requireOutgoingShareStore(t *testing.T, d store.Driver) store.OutgoingShareStore {
 	t.Helper()
@@ -59,7 +83,7 @@ func requireIncomingInviteStore(t *testing.T, d store.Driver) store.IncomingInvi
 func restoreDirPerms(t *testing.T, dir string) {
 	t.Helper()
 
-	if err := os.Chmod(dir, 0700); err != nil { //nolint:gosec // test temp dir: restrictive 0700 mode is intentional for test isolation
+	if err := os.Chmod(dir, 0700); err != nil { //nolint:gosec // test helper: restrictive 0700 restores write permission on the temp dir
 		t.Fatal(err)
 	}
 }

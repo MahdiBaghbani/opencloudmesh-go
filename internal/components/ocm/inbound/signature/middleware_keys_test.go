@@ -7,6 +7,7 @@ package signature_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"log/slog"
@@ -42,7 +43,7 @@ func TestSignatureMiddleware_VerifiedPathfulKeyID_Returns401(t *testing.T) {
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
@@ -103,7 +104,7 @@ func TestSignatureMiddleware_VerifiedUnnormalizableKeyID_Returns401(t *testing.T
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))

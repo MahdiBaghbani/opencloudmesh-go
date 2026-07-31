@@ -31,29 +31,52 @@ func TestRoutePolicyProjections_DerivedFromRoutes(t *testing.T) {
 		t.Fatal("DerivedRouteInventory returned no product routes")
 	}
 
+	assertSyntheticSubtreeGroups(t, opts, routes, groups)
+	assertInventoryMetadata(t, inventory)
+}
+
+// assertSyntheticSubtreeGroups checks each non-host-root synthetic row has a
+// matching subtree mount group with a consistent auth projection.
+func assertSyntheticSubtreeGroups(t *testing.T, opts service.RouteOpts, routes []service.RouteRow, groups []service.DerivedRouteGroup) {
+	t.Helper()
+
 	byPrefix := make(map[string]service.DerivedRouteGroup, len(groups))
 	for _, g := range groups {
 		byPrefix[g.PathPrefix] = g
 	}
 
 	for _, row := range routes {
-		if row.Synthetic && !row.AtHostRoot {
-			g, ok := byPrefix[row.FullPath]
-			if !ok {
-				t.Errorf("missing subtree group for synthetic row %q", row.FullPath)
-				continue
-			}
-
-			if g.Name != row.Service || g.AtHostRoot {
-				t.Errorf("subtree group %+v does not match synthetic row %+v", g, row)
-			}
-
-			wantAuth := service.SessionAuthRequiredForPath(row.FullPath+"/probe", opts)
-			if g.RequiresAuth != wantAuth {
-				t.Errorf("subtree group %q RequiresAuth = %v, want %v", row.FullPath, g.RequiresAuth, wantAuth)
-			}
+		if !row.Synthetic || row.AtHostRoot {
+			continue
 		}
+
+		assertSyntheticRowGroup(t, opts, row, byPrefix)
 	}
+}
+
+// assertSyntheticRowGroup checks one synthetic row against its subtree group.
+func assertSyntheticRowGroup(t *testing.T, opts service.RouteOpts, row service.RouteRow, byPrefix map[string]service.DerivedRouteGroup) {
+	t.Helper()
+
+	g, ok := byPrefix[row.FullPath]
+	if !ok {
+		t.Errorf("missing subtree group for synthetic row %q", row.FullPath)
+		return
+	}
+
+	if g.Name != row.Service || g.AtHostRoot {
+		t.Errorf("subtree group %+v does not match synthetic row %+v", g, row)
+	}
+
+	wantAuth := service.SessionAuthRequiredForPath(row.FullPath+"/probe", opts)
+	if g.RequiresAuth != wantAuth {
+		t.Errorf("subtree group %q RequiresAuth = %v, want %v", row.FullPath, g.RequiresAuth, wantAuth)
+	}
+}
+
+// assertInventoryMetadata checks every inventory row carries policy metadata.
+func assertInventoryMetadata(t *testing.T, inventory []service.RouteRow) {
+	t.Helper()
 
 	for _, row := range inventory {
 		if row.SurfaceClass == "" || row.HandlerAuth == "" || row.TrustClass == "" {

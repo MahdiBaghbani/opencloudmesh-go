@@ -38,7 +38,7 @@ func (r *hostStubResolver) ResolveFacts(host string) policy.Facts {
 }
 
 func TestHandleCreate_LegacyVoluntaryNoPeerCriterion_Returns201(t *testing.T) {
-	srv, postCount, captured := makeCapturingReceiverTLSServer([]string{}, []string{})
+	srv, postCount, captured := makeCapturingReceiverTLSServer(t, []string{}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -49,7 +49,7 @@ func TestHandleCreate_LegacyVoluntaryNoPeerCriterion_Returns201(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-voluntary-no-peer-criterion-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -73,7 +73,7 @@ func TestHandleCreate_LegacyVoluntaryNoPeerCriterion_Returns201(t *testing.T) {
 }
 
 func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
-	srv, postCount, captured := makeCapturingReceiverTLSServer(
+	srv, postCount, captured := makeCapturingReceiverTLSServer(t,
 		[]string{"exchange-token"},
 		[]string{spec.CriteriaMustExchangeToken},
 	)
@@ -90,7 +90,7 @@ func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-peer-forced-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -127,12 +127,12 @@ func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
 }
 
 func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
-	matchedSrv, matchedPost, matchedCaptured := makeCapturingReceiverTLSServer([]string{}, []string{})
+	matchedSrv, matchedPost, matchedCaptured := makeCapturingReceiverTLSServer(t, []string{}, []string{})
 	defer matchedSrv.Close()
 
 	matchedHost := matchedSrv.Listener.Addr().String()
 
-	otherSrv, otherPost, _ := makeCapturingReceiverTLSServer([]string{}, []string{})
+	otherSrv, otherPost, _ := makeCapturingReceiverTLSServer(t, []string{}, []string{})
 	defer otherSrv.Close()
 
 	otherHost := otherSrv.Listener.Addr().String()
@@ -154,7 +154,7 @@ func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 	// Matched host should be relaxed and create a share to a receiver that does
 	// not advertise exchange-token.
 	tmpFile := createTempShareFile(t, "outgoing-instance-matched-*")
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(matchedHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(matchedHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -193,7 +193,7 @@ func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 
 	// Another host without the instance override should remain strict and fail.
 	tmpFile2 := createTempShareFile(t, "outgoing-instance-other-*")
-	req2 := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(otherHost, tmpFile2)))
+	req2 := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(otherHost, tmpFile2)))
 	req2.Header.Set("Content-Type", "application/json")
 
 	w2 := httptest.NewRecorder()
@@ -209,7 +209,7 @@ func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 }
 
 func TestHandleCreate_LocalSenderMissingTokenEndpoint_NonStrict_Allows(t *testing.T) {
-	srv, postCount := makeReceiverTLSServer([]string{}, []string{})
+	srv, postCount := makeReceiverTLSServer(t, []string{}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -233,7 +233,7 @@ func TestHandleCreate_LocalSenderMissingTokenEndpoint_NonStrict_Allows(t *testin
 	tmpFile := createTempShareFile(t, "outgoing-no-local-endpoint-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -262,7 +262,7 @@ func TestHandleCreate_LocalSenderMissingTokenEndpoint_NonStrict_Allows(t *testin
 }
 
 func TestHandleCreate_PeerForcedCriterion_ReceiverLacksExchangeToken_Rejects(t *testing.T) {
-	srv, postCount := makeReceiverTLSServer([]string{}, []string{spec.CriteriaMustExchangeToken})
+	srv, postCount := makeReceiverTLSServer(t, []string{}, []string{spec.CriteriaMustExchangeToken})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -276,7 +276,7 @@ func TestHandleCreate_PeerForcedCriterion_ReceiverLacksExchangeToken_Rejects(t *
 	tmpFile := createTempShareFile(t, "outgoing-peer-forced-receiver-lacks-exchange-token-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -292,7 +292,7 @@ func TestHandleCreate_PeerForcedCriterion_ReceiverLacksExchangeToken_Rejects(t *
 }
 
 func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
-	srv, postCount := makeReceiverTLSServer([]string{"exchange-token"}, []string{})
+	srv, postCount := makeReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -316,7 +316,7 @@ func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-nil-resolver-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -356,7 +356,7 @@ func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
 // the local token endpoint is empty or missing. The create path must reject and
 // must not fall back to the legacy shared-secret path.
 func TestHandleCreate_StrictEmptyOrMissingLocalEndpoint_Rejects(t *testing.T) {
-	srv, postCount := makeReceiverTLSServer([]string{"exchange-token"}, []string{spec.CriteriaMustExchangeToken})
+	srv, postCount := makeReceiverTLSServer(t, []string{"exchange-token"}, []string{spec.CriteriaMustExchangeToken})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -383,7 +383,7 @@ func TestHandleCreate_StrictEmptyOrMissingLocalEndpoint_Rejects(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-strict-empty-endpoint-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -411,7 +411,7 @@ func TestHandleCreate_StrictEmptyOrMissingLocalEndpoint_Rejects(t *testing.T) {
 // strict create persists must-exchange-token in the stored share's
 // Requirements, mirroring the wire payload assertion in other strict tests.
 func TestHandleCreate_StrictPersistsMustExchangeTokenRequirement(t *testing.T) {
-	srv, postCount := makeReceiverTLSServer([]string{"exchange-token"}, []string{})
+	srv, postCount := makeReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -422,7 +422,7 @@ func TestHandleCreate_StrictPersistsMustExchangeTokenRequirement(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-strict-persist-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

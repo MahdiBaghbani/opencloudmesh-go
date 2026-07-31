@@ -67,7 +67,7 @@ func ValidateRequiredFields(req *NewShareRequest) []ValidationError {
 func WriteValidationError(w http.ResponseWriter, message string, errors []ValidationError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
-	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(OCMErrorResponse{
 		Message:          message,
 		ValidationErrors: errors,
@@ -93,6 +93,6 @@ func WriteProtocolNotSupported(w http.ResponseWriter) {
 func WriteOCMError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(OCMErrorResponse{Message: message})
 }

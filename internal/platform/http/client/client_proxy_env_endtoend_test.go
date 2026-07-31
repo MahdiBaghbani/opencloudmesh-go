@@ -17,6 +17,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // clearProxyEnvVars clears all proxy-related env vars so ambient values cannot
@@ -53,7 +54,10 @@ func TestClient_EnvOverrideEndToEnd_UseEnvFallbackTrue(t *testing.T) {
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		proxyHit.Store(true)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("via-env-proxy")) //nolint:errcheck // test handler response write
+
+		if _, err := w.Write([]byte("via-env-proxy")); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	}))
 	defer proxy.Close()
 
@@ -87,11 +91,11 @@ func TestClient_EnvOverrideEndToEnd_UseEnvFallbackTrue(t *testing.T) {
 
 	// 203.0.113.10 is TEST-NET-3; not private/loopback so dev-mode SSRF (off)
 	// does not block it, and the env proxy is reachable so the request succeeds.
-	resp, err := c.Get(context.Background(), "http://203.0.113.10/api")
+	resp, err := c.Get(context.Background(), "http://203.0.113.10/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected success through env proxy, got: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -114,7 +118,7 @@ func TestClient_EnvOverrideEndToEnd_UseEnvFallbackTrue(t *testing.T) {
 // invariant observable: with the default (use_env_fallback=false) the proxy
 // must never be contacted, and the request must reach the destination directly.
 func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
-	localIP := findNonLoopbackIPv4()
+	localIP := findNonLoopbackIPv4(t, t.Context())
 	if localIP == nil {
 		t.Skip("no non-loopback IPv4 interface available; skipping default-false direct test")
 	}
@@ -131,14 +135,17 @@ func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
 
 	// Destination server on a non-loopback IP so Go's httpproxy does not
 	// special-case it independently of use_env_fallback.
-	destListener, err := net.Listen("tcp", localIP.String()+":0")
+	destListener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", localIP.String()+":0")
 	if err != nil {
 		t.Fatalf("listen on non-loopback IP %s: %v", localIP, err)
 	}
 
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("direct")) //nolint:errcheck // test handler response write
+
+		if _, werr := w.Write([]byte("direct")); werr != nil {
+			t.Errorf("write response: %v", werr)
+		}
 	}))
 	server.Listener = destListener
 
@@ -148,8 +155,8 @@ func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
 	dir := t.TempDir()
 
 	configPath := filepath.Join(dir, "config.toml")
-	if err := os.WriteFile(configPath, []byte("mode = \"dev\"\n"), 0o600); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("write config: %v", err)
+	if werr := os.WriteFile(configPath, []byte("mode = \"dev\"\n"), 0o600); werr != nil {
+		t.Fatalf("write config: %v", werr)
 	}
 
 	// Clear the env override so the dev preset default (false) wins.
@@ -176,11 +183,11 @@ func TestClient_EnvOverrideEndToEnd_DefaultFalseDirect(t *testing.T) {
 
 	// Direct connection to the non-loopback destination must succeed; the env
 	// proxy is ignored because UseEnvFallback is false.
-	resp, err := c.Get(context.Background(), server.URL)
+	resp, err := c.Get(context.Background(), server.URL) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected direct connection, got: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)

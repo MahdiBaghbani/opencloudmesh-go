@@ -72,64 +72,52 @@ func TestNormalize_JOSENames(t *testing.T) {
 }
 
 func TestDeriveFromJWK(t *testing.T) {
-	got, err := sigalg.DeriveFromJWK("OKP", "Ed25519", "Ed25519")
-	if err != nil || got != sigalg.Ed25519 {
-		t.Fatalf("OKP: got %q err %v", got, err)
+	successes := []struct {
+		name string
+		kty  string
+		crv  string
+		alg  string
+		want string
+	}{
+		{"OKP", "OKP", "Ed25519", "Ed25519", sigalg.Ed25519},
+		{"EC P-256", "EC", "P-256", "ES256", sigalg.ECDSAP256SHA256},
+		{"EC P-384", "EC", "P-384", "ES384", sigalg.ECDSAP384SHA384},
+		{"RSA RS256", "RSA", "", "RS256", sigalg.RSAPKCS1SHA256},
 	}
 
-	got, err = sigalg.DeriveFromJWK("EC", "P-256", "ES256")
-	if err != nil || got != sigalg.ECDSAP256SHA256 {
-		t.Fatalf("EC P-256: got %q err %v", got, err)
+	for _, tt := range successes {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sigalg.DeriveFromJWK(tt.kty, tt.crv, tt.alg)
+			if err != nil || got != tt.want {
+				t.Fatalf("got %q err %v, want %q", got, err, tt.want)
+			}
+		})
 	}
 
-	got, err = sigalg.DeriveFromJWK("EC", "P-384", "ES384")
-	if err != nil || got != sigalg.ECDSAP384SHA384 {
-		t.Fatalf("EC P-384: got %q err %v", got, err)
+	failures := []struct {
+		name    string
+		kty     string
+		crv     string
+		alg     string
+		wantErr error
+	}{
+		{"OKP without alg", "OKP", "Ed25519", "", sigalg.ErrMissingAlgorithm},
+		{"EC without alg", "EC", "P-256", "", sigalg.ErrMissingAlgorithm},
+		{"RSA without alg", "RSA", "", "", sigalg.ErrMissingAlgorithm},
+		{"OKP + ES256", "OKP", "Ed25519", "ES256", sigalg.ErrAlgorithmMismatch},
+		{"EC P-256 + ES384", "EC", "P-256", "ES384", sigalg.ErrAlgorithmMismatch},
+		{"EC P-384 + ES256", "EC", "P-384", "ES256", sigalg.ErrAlgorithmMismatch},
+		{"EC + Ed25519", "EC", "P-256", "Ed25519", sigalg.ErrAlgorithmMismatch},
+		{"RSA + ES256", "RSA", "", "ES256", sigalg.ErrAlgorithmMismatch},
 	}
 
-	got, err = sigalg.DeriveFromJWK("RSA", "", "RS256")
-	if err != nil || got != sigalg.RSAPKCS1SHA256 {
-		t.Fatalf("RSA RS256: got %q err %v", got, err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("OKP", "Ed25519", "")
-	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
-		t.Fatalf("OKP without alg: got %v, want ErrMissingAlgorithm", err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("EC", "P-256", "")
-	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
-		t.Fatalf("EC without alg: got %v, want ErrMissingAlgorithm", err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("RSA", "", "")
-	if !errors.Is(err, sigalg.ErrMissingAlgorithm) {
-		t.Fatalf("RSA without alg: got %v, want ErrMissingAlgorithm", err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("OKP", "Ed25519", "ES256")
-	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
-		t.Fatalf("OKP + ES256: got %v, want ErrAlgorithmMismatch", err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("EC", "P-256", "ES384")
-	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
-		t.Fatalf("EC P-256 + ES384: got %v, want ErrAlgorithmMismatch", err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("EC", "P-384", "ES256")
-	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
-		t.Fatalf("EC P-384 + ES256: got %v, want ErrAlgorithmMismatch", err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("EC", "P-256", "Ed25519")
-	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
-		t.Fatalf("EC + Ed25519: got %v, want ErrAlgorithmMismatch", err)
-	}
-
-	_, err = sigalg.DeriveFromJWK("RSA", "", "ES256")
-	if !errors.Is(err, sigalg.ErrAlgorithmMismatch) {
-		t.Fatalf("RSA + ES256: got %v, want ErrAlgorithmMismatch", err)
+	for _, tt := range failures {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := sigalg.DeriveFromJWK(tt.kty, tt.crv, tt.alg)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("got %v, want %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -290,8 +278,8 @@ func TestVerify_RS384AndRS512(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := sigalg.Verify(sigalg.RSAPKCS1SHA384, &priv.PublicKey, msg, sig384); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("Verify RS384: %v", err)
+	if verr := sigalg.Verify(sigalg.RSAPKCS1SHA384, &priv.PublicKey, msg, sig384); verr != nil {
+		t.Fatalf("Verify RS384: %v", verr)
 	}
 
 	sum512 := sha512.Sum512(msg)

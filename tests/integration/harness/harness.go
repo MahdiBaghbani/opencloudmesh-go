@@ -95,7 +95,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	}
 
 	// Find a free port
-	port, err := getFreePort()
+	port, err := getFreePort(t.Context())
 	if err != nil {
 		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
@@ -198,7 +198,7 @@ func startTestServer(t *testing.T, patch func(*config.Config), buildOpts wiring.
 	baseURL := localListenerBaseURL(cfg.TLS.Mode, port)
 	// App endpoints (including /api/healthz) mount under ExternalBasePath when
 	// set, so the readiness probe must target that path, not bare root.
-	if err := waitForServerReady(healthEndpointURL(baseURL, cfg.ExternalBasePath), 5*time.Second); err != nil {
+	if err := waitForServerReady(t.Context(), healthEndpointURL(baseURL, cfg.ExternalBasePath), 5*time.Second); err != nil {
 		//nolint:errcheck // test cleanup: best-effort temp dir removal
 		os.RemoveAll(tempDir)
 		t.Fatalf("server failed to start: %v", err)
@@ -276,8 +276,9 @@ func localListenerBaseURL(tlsMode string, port int) string {
 }
 
 // getFreePort finds an available TCP port.
-func getFreePort() (int, error) {
-	listener, err := net.Listen("tcp", ":0") //nolint:gosec // integration test harness: intentional bind for test network
+func getFreePort(ctx context.Context) (int, error) {
+	// integration test harness: intentional bind for test network
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ":0")
 	if err != nil {
 		return 0, err
 	}

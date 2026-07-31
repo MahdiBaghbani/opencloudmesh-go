@@ -21,6 +21,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsinvite "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/invite"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
@@ -28,13 +29,17 @@ import (
 func fetchDiscovery(t *testing.T, srv *harness.SubprocessServer) spec.Discovery {
 	t.Helper()
 
-	resp, err := srv.Client().Get(srv.BaseURL + "/.well-known/ocm")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("%s build discovery request: %v", srv.Name, err)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("%s discovery GET: %v", srv.Name, err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)
@@ -52,6 +57,15 @@ func fetchDiscovery(t *testing.T, srv *harness.SubprocessServer) spec.Discovery 
 func assertStrictLiveDiscovery(t *testing.T, serverName string, disc spec.Discovery, baseURL string) {
 	t.Helper()
 
+	assertStrictDiscoveryBasics(t, serverName, disc, baseURL)
+	assertStrictDiscoveryCapabilities(t, serverName, disc)
+	assertStrictDiscoveryFileResource(t, serverName, disc)
+}
+
+// assertStrictDiscoveryBasics checks core fields and endpoint authority.
+func assertStrictDiscoveryBasics(t *testing.T, serverName string, disc spec.Discovery, baseURL string) {
+	t.Helper()
+
 	if disc.APIVersion != "1.4.0" {
 		t.Fatalf("%s apiVersion = %q, want 1.4.0", serverName, disc.APIVersion)
 	}
@@ -66,6 +80,11 @@ func assertStrictLiveDiscovery(t *testing.T, serverName string, disc spec.Discov
 
 	assertAbsoluteSameAuthority(t, serverName, disc.EndPoint, disc.TokenEndPoint)
 	assertDiscoveryEndpointsMatchServerAuthority(t, serverName, disc, baseURL)
+}
+
+// assertStrictDiscoveryCapabilities checks the strict capability and criteria set.
+func assertStrictDiscoveryCapabilities(t *testing.T, serverName string, disc spec.Discovery) {
+	t.Helper()
 
 	if !disc.HasCapability("http-sig") {
 		t.Fatalf("%s capabilities missing http-sig: %v", serverName, disc.Capabilities)
@@ -82,6 +101,11 @@ func assertStrictLiveDiscovery(t *testing.T, serverName string, disc spec.Discov
 	if !disc.HasCriteria(spec.CriteriaMustExchangeToken) {
 		t.Fatalf("%s criteria missing %s: %v", serverName, spec.CriteriaMustExchangeToken, disc.Criteria)
 	}
+}
+
+// assertStrictDiscoveryFileResource checks the file resource type protocols.
+func assertStrictDiscoveryFileResource(t *testing.T, serverName string, disc spec.Discovery) {
+	t.Helper()
 
 	fileRT, ok := findResourceType(disc, "file")
 	if !ok {
@@ -195,15 +219,15 @@ func postSignedJSONWithClient(
 ) *http.Response {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodPost, targetURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("build signed POST: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := signer.SignRequest(req, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("sign POST: %v", err)
+	if serr := signer.SignRequest(req, body); serr != nil {
+		t.Fatalf("sign POST: %v", serr)
 	}
 
 	if client == nil {
@@ -219,17 +243,23 @@ func postSignedJSONWithClient(
 }
 
 func buildSignedInboundShareBody(
+	t *testing.T,
 	shareWith, providerID, senderHost, webdavURI, sharedSecret string,
 ) []byte {
-	return buildSignedInboundShareBodyWithSender(shareWith, providerID, "step14-sender", senderHost, webdavURI, sharedSecret)
+	t.Helper()
+
+	return buildSignedInboundShareBodyWithSender(t, shareWith, providerID, "step14-sender", senderHost, webdavURI, sharedSecret)
 }
 
 // buildSignedInboundShareBodyWithSender is buildSignedInboundShareBody with an
 // explicit sender user ID, used when the sender identity must match an
 // exchanged invite.
 func buildSignedInboundShareBodyWithSender(
+	t *testing.T,
 	shareWith, providerID, senderUserID, senderHost, webdavURI, sharedSecret string,
 ) []byte {
+	t.Helper()
+
 	owner := address.FormatOutgoingOCMAddressFromUserID("step14-owner", senderHost)
 	sender := address.FormatOutgoingOCMAddressFromUserID(senderUserID, senderHost)
 	payload := spec.NewShareRequest{
@@ -251,12 +281,7 @@ func buildSignedInboundShareBodyWithSender(
 		},
 	}
 
-	body, err := json.Marshal(payload) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
-	if err != nil {
-		panic(err)
-	}
-
-	return body
+	return tshttp.MustMarshalJSON(t, payload)
 }
 
 func waitForInboxShareByProvider(
@@ -290,19 +315,18 @@ func waitForInboxShareByProvider(
 func listInboxShares(t *testing.T, srv *harness.SubprocessServer, token string) []map[string]any {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodGet, srv.BaseURL+"/api/inbox/shares", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/api/inbox/shares", nil)
 	if err != nil {
 		t.Fatalf("build inbox list request: %v", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := srv.Client().Do(req)
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("inbox list GET: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
@@ -326,19 +350,18 @@ func listInboxShares(t *testing.T, srv *harness.SubprocessServer, token string) 
 func getInboxShareDetail(t *testing.T, srv *harness.SubprocessServer, token, shareID string) map[string]any {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodGet, srv.BaseURL+"/api/inbox/shares/"+shareID, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/api/inbox/shares/"+shareID, nil)
 	if err != nil {
 		t.Fatalf("build inbox detail request: %v", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := srv.Client().Do(req)
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("inbox detail GET: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
@@ -395,19 +418,19 @@ func exchangeInvitesBetweenPair(
 ) {
 	t.Helper()
 
-	created, _, err := tsinvite.CreateOutgoing(provider.Client(), provider.BaseURL, providerToken)
+	created, _, err := tsinvite.CreateOutgoing(t.Context(), provider.Client(), provider.BaseURL, providerToken)
 	if err != nil {
 		provider.DumpLogs(t)
 		t.Fatalf("provider create outgoing invite: %v", err)
 	}
 
-	imported, _, err := tsinvite.Import(consumer.Client(), consumer.BaseURL, consumerToken, created.InviteString)
+	imported, _, err := tsinvite.Import(t.Context(), consumer.Client(), consumer.BaseURL, consumerToken, created.InviteString)
 	if err != nil {
 		consumer.DumpLogs(t)
 		t.Fatalf("consumer import invite: %v", err)
 	}
 
-	if _, _, err := tsinvite.Accept(consumer.Client(), consumer.BaseURL, consumerToken, imported.ID); err != nil {
+	if _, _, err := tsinvite.Accept(t.Context(), consumer.Client(), consumer.BaseURL, consumerToken, imported.ID); err != nil {
 		provider.DumpLogs(t)
 		consumer.DumpLogs(t)
 		t.Fatalf("consumer accept invite: %v", err)
@@ -438,19 +461,18 @@ func waitForOutgoingInviteAccepted(t *testing.T, srv *harness.SubprocessServer, 
 func fetchCurrentUserID(t *testing.T, srv *harness.SubprocessServer, token string) string {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodGet, srv.BaseURL+"/api/auth/me", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/api/auth/me", nil)
 	if err != nil {
 		t.Fatalf("build current-user request: %v", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := srv.Client().Do(req)
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("current-user GET: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
@@ -503,15 +525,12 @@ func loginSubprocessAdminWithClient(t *testing.T, srv *harness.SubprocessServer)
 func tryLoginWithClient(t *testing.T, client *http.Client, baseURL, username, password string) (string, string, bool) {
 	t.Helper()
 
-	reqBody, err := json.Marshal(map[string]string{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
+	reqBody := tshttp.MustMarshalJSON(t, map[string]string{
 		"username": username,
 		"password": password,
 	})
-	if err != nil {
-		t.Fatalf("encode login request: %v", err)
-	}
 
-	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/auth/login", bytes.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, baseURL+"/api/auth/login", bytes.NewReader(reqBody))
 	if err != nil {
 		t.Fatalf("build login request: %v", err)
 	}
@@ -522,12 +541,11 @@ func tryLoginWithClient(t *testing.T, client *http.Client, baseURL, username, pa
 		client = http.DefaultClient
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("login POST: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -565,7 +583,7 @@ func createOutgoingShareWithClient(
 		t.Fatalf("marshal outgoing share payload: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, srv.BaseURL+"/api/shares/outgoing", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.BaseURL+"/api/shares/outgoing", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("build outgoing share request: %v", err)
 	}
@@ -573,12 +591,11 @@ func createOutgoingShareWithClient(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := srv.Client().Do(req)
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("outgoing share POST: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -602,27 +619,26 @@ func exchangeSignedAuthorizationCode(
 	form.Set("code", code)
 	body := []byte(form.Encode())
 
-	req, err := http.NewRequest(http.MethodPost, tokenEndpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, tokenEndpoint, bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("build token request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	if err := signer.SignRequest(req, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("sign token request: %v", err)
+	if serr := signer.SignRequest(req, body); serr != nil {
+		t.Fatalf("sign token request: %v", serr)
 	}
 
 	if client == nil {
 		client = http.DefaultClient
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("token exchange POST: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, err := io.ReadAll(resp.Body)

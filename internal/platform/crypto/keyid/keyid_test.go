@@ -376,93 +376,49 @@ func TestAuthorityForCompareFromDeclaredPeer_Errors(t *testing.T) {
 // scheme-aware: example.com matches example.com:443 only for https,
 // and example.com matches example.com:80 only for http.
 func TestSchemeAwareEquivalence(t *testing.T) {
-	t.Run("https: bare host equals host:443", func(t *testing.T) {
-		p, err := keyid.Parse("https://example.com:443/ocm#key-1")
-		if err != nil {
-			t.Fatal(err)
-		}
+	tests := []struct {
+		name      string
+		keyID     string
+		peer      string
+		scheme    string
+		wantEqual bool
+	}{
+		{"https: bare host equals host:443", "https://example.com:443/ocm#key-1", "example.com", "https", true},
+		{"http: bare host equals host:80", "http://example.com:80/ocm#signature", "example.com", "http", true},
+		{"https: bare host does NOT equal host:80", "https://example.com:80/ocm#key-1", "example.com", "https", false},
+		{"http: bare host does NOT equal host:443", "http://example.com:443/ocm#signature", "example.com", "http", false},
+		{"both explicit 443 equal for https", "https://example.com:443/ocm#key-1", "example.com:443", "https", true},
+	}
 
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertAuthorityEquivalence(t, tt.keyID, tt.peer, tt.scheme, tt.wantEqual)
+		})
+	}
+}
 
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "https")
-		if err != nil {
-			t.Fatal(err)
-		}
+// assertAuthorityEquivalence compares the authority derived from a keyId with
+// the authority derived from a declared peer, in the wanted direction.
+func assertAuthorityEquivalence(t *testing.T, rawKeyID, peer, scheme string, wantEqual bool) {
+	t.Helper()
 
-		if fromKeyID != fromPeer {
-			t.Errorf("should be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
+	p, err := keyid.Parse(rawKeyID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	t.Run("http: bare host equals host:80", func(t *testing.T) {
-		p, err := keyid.Parse("http://example.com:80/ocm#signature")
-		if err != nil {
-			t.Fatal(err)
-		}
+	fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
 
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
+	fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer(peer, scheme)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "http")
-		if err != nil {
-			t.Fatal(err)
-		}
+	if wantEqual && fromKeyID != fromPeer {
+		t.Errorf("should be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
+	}
 
-		if fromKeyID != fromPeer {
-			t.Errorf("should be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
-
-	t.Run("https: bare host does NOT equal host:80", func(t *testing.T) {
-		p, err := keyid.Parse("https://example.com:80/ocm#key-1")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
-
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "https")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if fromKeyID == fromPeer {
-			t.Errorf("should NOT be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
-
-	t.Run("http: bare host does NOT equal host:443", func(t *testing.T) {
-		p, err := keyid.Parse("http://example.com:443/ocm#signature")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
-
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com", "http")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if fromKeyID == fromPeer {
-			t.Errorf("should NOT be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
-
-	t.Run("both explicit 443 equal for https", func(t *testing.T) {
-		p, err := keyid.Parse("https://example.com:443/ocm#key-1")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
-
-		fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer("example.com:443", "https")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if fromKeyID != fromPeer {
-			t.Errorf("should be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
-		}
-	})
+	if !wantEqual && fromKeyID == fromPeer {
+		t.Errorf("should NOT be equivalent: keyId=%q peer=%q", fromKeyID, fromPeer)
+	}
 }

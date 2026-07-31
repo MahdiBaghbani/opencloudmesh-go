@@ -63,7 +63,7 @@ func (d *Driver) rebuildOutgoingShareIndexes() error {
 		if share.ShareID != "" {
 			if existingPid, exists := d.shareIDIndex[share.ShareID]; exists {
 				return fmt.Errorf(
-					"corrupt data: duplicate outgoing share share id %q: provider ids %q and %q", //nolint:dupword // intentional: preserved error text wording
+					"corrupt data: duplicate outgoing share share id %q: provider ids %q and %q", //nolint:dupword // 'share share id' is the entity name 'outgoing share' plus the field name 'share id'
 					share.ShareID, existingPid, providerID,
 				)
 			}

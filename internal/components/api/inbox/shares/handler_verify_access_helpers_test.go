@@ -8,6 +8,7 @@ package shares_test
 import (
 	"context"
 	"net/http"
+	"testing"
 
 	"github.com/go-chi/chi/v5"
 
@@ -45,9 +46,12 @@ func newTestRouterWithAccess(
 }
 
 func createAcceptedShareForUser(
+	t *testing.T,
 	repo *sharesincoming.MemoryIncomingShareRepo,
-	providerID, senderHost, name string, //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
+	providerID, senderHost, name string, //nolint:unparam // test fixture helper: senderHost kept for fixture signature uniformity; all current callers pass "sender.example.com"
 ) *sharesincoming.IncomingShare {
+	t.Helper()
+
 	share := &sharesincoming.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
@@ -63,15 +67,20 @@ func createAcceptedShareForUser(
 		WebDAVID:        "webdav-id-" + providerID,
 		SharedSecret:    "secret-" + providerID,
 	}
-	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	return share
 }
 
 func createAcceptedWebappShareForUser(
+	t *testing.T,
 	repo *sharesincoming.MemoryIncomingShareRepo,
 	recipientUserID, providerID, senderHost, name string,
 ) *sharesincoming.IncomingShare {
+	t.Helper()
+
 	share := &sharesincoming.IncomingShare{
 		ProviderID:        providerID,
 		SenderHost:        senderHost,
@@ -92,7 +101,9 @@ func createAcceptedWebappShareForUser(
 		WebappTargets:     []string{"blank", "_self"},
 		WebappPermissions: []string{"view", "share"},
 	}
-	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	return share
 }

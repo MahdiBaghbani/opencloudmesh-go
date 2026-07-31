@@ -17,6 +17,7 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // unsignedMockSigner satisfies RequestSigner without adding a Signature header.
@@ -39,7 +40,7 @@ func TestClient_Exchange_Unsigned401FailClosed(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":"invalid_client","error_description":"client authentication failed"}`)) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte(`{"error":"invalid_client","error_description":"client authentication failed"}`))
 	}))
 	defer server.Close()
 
@@ -118,7 +119,7 @@ func TestClient_Exchange_403FailClosed(t *testing.T) {
 		hits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"error":"access_denied","error_description":"token exchange denied"}`)) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte(`{"error":"access_denied","error_description":"token exchange denied"}`))
 	}))
 	defer server.Close()
 

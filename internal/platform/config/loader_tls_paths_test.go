@@ -12,16 +12,24 @@ import (
 	"testing"
 )
 
-func TestLoad_TLSDir_Absent_NoChange(t *testing.T) { //nolint:dupl // intentional: parallel TLS path loader tests share config write/load structure but assert different TOML inputs
-	// Clear ambient env override so the TLS path load is deterministic.
+// tlsPathExpectation holds the expected TLS path fields for one loader case.
+type tlsPathExpectation struct {
+	tlsDir       string
+	selfSigned   string
+	acmeStorage  string
+	signatureKey string
+}
+
+// loadTLSPathConfig writes tomlContent to a temp config and loads it with the
+// ambient env fallback cleared so the TLS path load is deterministic.
+func loadTLSPathConfig(t *testing.T, tomlContent string) *Config {
+	t.Helper()
+
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
-	// No tls_dir in TOML; paths stay at preset defaults
+
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	tomlContent := `mode = "strict"
-public_origin = "https://localhost:9200"
-`
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
@@ -31,99 +39,76 @@ public_origin = "https://localhost:9200"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.TLS.TLSDir != "" {
-		t.Errorf("expected TLSDir empty when absent, got %q", cfg.TLS.TLSDir)
+	return cfg
+}
+
+// assertTLSPaths verifies the four TLS path fields on cfg.
+func assertTLSPaths(t *testing.T, cfg *Config, want tlsPathExpectation) {
+	t.Helper()
+
+	if cfg.TLS.TLSDir != want.tlsDir {
+		t.Errorf("expected TLSDir %q, got %q", want.tlsDir, cfg.TLS.TLSDir)
 	}
 
-	if cfg.TLS.SelfSignedDir != ".ocm/certs" {
-		t.Errorf("expected SelfSignedDir .ocm/certs from preset, got %q", cfg.TLS.SelfSignedDir)
+	if cfg.TLS.SelfSignedDir != want.selfSigned {
+		t.Errorf("expected SelfSignedDir %q, got %q", want.selfSigned, cfg.TLS.SelfSignedDir)
 	}
 
-	if cfg.TLS.ACME.StorageDir != ".ocm/acme" {
-		t.Errorf("expected ACME StorageDir .ocm/acme from preset, got %q", cfg.TLS.ACME.StorageDir)
+	if cfg.TLS.ACME.StorageDir != want.acmeStorage {
+		t.Errorf("expected ACME StorageDir %q, got %q", want.acmeStorage, cfg.TLS.ACME.StorageDir)
 	}
 
-	if cfg.Signature.KeyPath != ".ocm/keys/signing.pem" {
-		t.Errorf("expected Signature KeyPath .ocm/keys/signing.pem from preset, got %q", cfg.Signature.KeyPath)
+	if cfg.Signature.KeyPath != want.signatureKey {
+		t.Errorf("expected Signature KeyPath %q, got %q", want.signatureKey, cfg.Signature.KeyPath)
 	}
 }
 
-func TestLoad_TLSDir_NotInTOML_NoDerivation(t *testing.T) { //nolint:dupl // intentional: parallel TLS path loader tests share config write/load structure but assert different TOML inputs
-	// Clear ambient env override so the TLS path load is deterministic.
-	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
-	// Even with [tls] present, derivation must not run unless tls_dir key is present.
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
+func TestLoad_TLSDir_Absent_NoChange(t *testing.T) {
+	// No tls_dir in TOML; paths stay at preset defaults.
+	cfg := loadTLSPathConfig(t, `mode = "strict"
+public_origin = "https://localhost:9200"
+`)
 
-	tomlContent := `mode = "strict"
+	assertTLSPaths(t, cfg, tlsPathExpectation{
+		tlsDir:       "",
+		selfSigned:   ".ocm/certs",
+		acmeStorage:  ".ocm/acme",
+		signatureKey: ".ocm/keys/signing.pem",
+	})
+}
+
+func TestLoad_TLSDir_NotInTOML_NoDerivation(t *testing.T) {
+	// Even with [tls] present, derivation must not run unless tls_dir key is present.
+	cfg := loadTLSPathConfig(t, `mode = "strict"
 public_origin = "https://localhost:9200"
 
 [tls]
 mode = "selfsigned"
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
+`)
 
-	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	if cfg.TLS.TLSDir != "" {
-		t.Errorf("expected TLSDir empty when tls_dir key is absent, got %q", cfg.TLS.TLSDir)
-	}
-
-	if cfg.TLS.SelfSignedDir != ".ocm/certs" {
-		t.Errorf("expected preset SelfSignedDir .ocm/certs, got %q", cfg.TLS.SelfSignedDir)
-	}
-
-	if cfg.TLS.ACME.StorageDir != ".ocm/acme" {
-		t.Errorf("expected preset ACME StorageDir .ocm/acme, got %q", cfg.TLS.ACME.StorageDir)
-	}
-
-	if cfg.Signature.KeyPath != ".ocm/keys/signing.pem" {
-		t.Errorf("expected preset Signature KeyPath .ocm/keys/signing.pem, got %q", cfg.Signature.KeyPath)
-	}
+	assertTLSPaths(t, cfg, tlsPathExpectation{
+		tlsDir:       "",
+		selfSigned:   ".ocm/certs",
+		acmeStorage:  ".ocm/acme",
+		signatureKey: ".ocm/keys/signing.pem",
+	})
 }
 
-func TestLoad_TLSDir_Present_DerivesDefaults(t *testing.T) { //nolint:dupl // intentional: parallel TLS path loader tests share config write/load structure but assert different TOML inputs
-	// Clear ambient env override so the TLS path derivation load is deterministic.
-	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
-	// tls_dir set; derives self_signed_dir, acme.storage_dir, signature.key_path
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	tomlContent := `mode = "strict"
+func TestLoad_TLSDir_Present_DerivesDefaults(t *testing.T) {
+	// tls_dir set; derives self_signed_dir, acme.storage_dir, signature.key_path.
+	cfg := loadTLSPathConfig(t, `mode = "strict"
 public_origin = "https://localhost:9200"
 
 [tls]
 tls_dir = "/data/tls"
-`
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
+`)
 
-	cfg, err := Load(LoaderOptions{ConfigPath: configPath})
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	if cfg.TLS.TLSDir != "/data/tls" {
-		t.Errorf("expected TLSDir /data/tls, got %q", cfg.TLS.TLSDir)
-	}
-
-	if cfg.TLS.SelfSignedDir != "/data/tls/certs" {
-		t.Errorf("expected SelfSignedDir /data/tls/certs, got %q", cfg.TLS.SelfSignedDir)
-	}
-
-	if cfg.TLS.ACME.StorageDir != "/data/tls/acme" {
-		t.Errorf("expected ACME StorageDir /data/tls/acme, got %q", cfg.TLS.ACME.StorageDir)
-	}
-
-	if cfg.Signature.KeyPath != "/data/tls/keys/signing.pem" {
-		t.Errorf("expected Signature KeyPath /data/tls/keys/signing.pem, got %q", cfg.Signature.KeyPath)
-	}
+	assertTLSPaths(t, cfg, tlsPathExpectation{
+		tlsDir:       "/data/tls",
+		selfSigned:   "/data/tls/certs",
+		acmeStorage:  "/data/tls/acme",
+		signatureKey: "/data/tls/keys/signing.pem",
+	})
 }
 
 func TestLoad_TLSDir_ExplicitOverride(t *testing.T) {

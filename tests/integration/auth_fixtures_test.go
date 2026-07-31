@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -48,20 +49,28 @@ func loginSubprocessAdmin(t *testing.T, srv *harness.SubprocessServer) string {
 func tryLogin(t *testing.T, baseURL, username, password string) (string, string, bool) {
 	t.Helper()
 
-	reqBody, err := json.Marshal(map[string]string{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
+	reqBody := tshttp.MustMarshalJSON(t, map[string]string{
 		"username": username,
 		"password": password,
 	})
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		baseURL+"/api/auth/login",
+		bytes.NewReader(reqBody),
+	)
 	if err != nil {
-		t.Fatalf("failed to encode login request: %v", err)
+		t.Fatalf("failed to build login request: %v", err)
 	}
 
-	resp, err := http.Post(baseURL+"/api/auth/login", "application/json", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to call login endpoint: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -112,7 +121,12 @@ func createOutgoingShare(t *testing.T, baseURL, token string, payload map[string
 		t.Fatalf("failed to marshal outgoing share payload: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/shares/outgoing", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		baseURL+"/api/shares/outgoing",
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		t.Fatalf("failed to create outgoing share request: %v", err)
 	}
@@ -120,12 +134,11 @@ func createOutgoingShare(t *testing.T, baseURL, token string, payload map[string
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to call outgoing share endpoint: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

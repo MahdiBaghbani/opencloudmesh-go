@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -62,16 +63,23 @@ func postUnsignedToken(t *testing.T, baseURL string) (int, string) {
 	form.Set("client_id", "client.example.com")
 	form.Set("code", "unused-code")
 
-	resp, err := http.Post(
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
 		baseURL+"/ocm/token",
-		"application/x-www-form-urlencoded",
 		strings.NewReader(form.Encode()),
 	)
 	if err != nil {
+		t.Fatalf("build unsigned token request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if err != nil {
 		t.Fatalf("post unsigned token request: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

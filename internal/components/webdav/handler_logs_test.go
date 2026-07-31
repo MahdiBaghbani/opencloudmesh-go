@@ -47,13 +47,19 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				t.Fatalf("create temp file: %v", err)
 			}
 
-			t.Cleanup(func() { _ = os.Remove(tmpFile.Name()) }) //nolint:errcheck // test cleanup: temp path removal
+			t.Cleanup(func() {
+				if err := os.Remove(tmpFile.Name()); err != nil {
+					t.Errorf("remove temp file: %v", err)
+				}
+			})
 
 			if _, err := tmpFile.WriteString("payload"); err != nil {
 				t.Fatalf("write temp file: %v", err)
 			}
 
-			_ = tmpFile.Close() //nolint:errcheck // test cleanup: resource close
+			if err := tmpFile.Close(); err != nil {
+				t.Fatalf("close temp file: %v", err)
+			}
 
 			share := &outgoing.OutgoingShare{
 				ShareID:      "share-logs",
@@ -79,7 +85,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := webdav.NewHandler(repo, tokenStore, capture.Logger)
 
-			req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+share.WebDAVID, nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+share.WebDAVID, nil)
 			req.Header.Set("Authorization", "Bearer "+tt.bearerToken)
 
 			w := httptest.NewRecorder()

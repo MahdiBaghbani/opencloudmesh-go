@@ -53,7 +53,11 @@ func TestTLSManager_SelfSigned_Generate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test temp directory cleanup
+	defer func() {
+		if rerr := os.RemoveAll(tempDir); rerr != nil {
+			t.Errorf("remove temp dir: %v", rerr)
+		}
+	}()
 
 	cfg := &config.TLSConfig{
 		Mode:          "selfsigned",
@@ -93,7 +97,11 @@ func TestTLSManager_SelfSigned_Reload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test temp directory cleanup
+	defer func() {
+		if rerr := os.RemoveAll(tempDir); rerr != nil {
+			t.Errorf("remove temp dir: %v", rerr)
+		}
+	}()
 
 	cfg := &config.TLSConfig{
 		Mode:          "selfsigned",

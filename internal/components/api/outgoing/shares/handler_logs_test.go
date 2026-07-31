@@ -40,7 +40,7 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv, postCount := makeReceiverTLSServer(
+			srv, postCount := makeReceiverTLSServer(t,
 				[]string{"exchange-token"},
 				[]string{"must-exchange-token"},
 			)
@@ -67,7 +67,8 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 			tmpFile := createTempShareFile(t, "outgoing-logs-*")
 			receiverHost := srv.Listener.Addr().String()
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(
+				t.Context(),
 				http.MethodPost,
 				"/api/shares/outgoing",
 				bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)),

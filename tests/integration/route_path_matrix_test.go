@@ -13,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
@@ -359,7 +360,7 @@ func isUIProbePath(path string) bool {
 func doProbe(t *testing.T, baseURL, method, path string, body io.Reader) int {
 	t.Helper()
 
-	req, err := http.NewRequest(method, baseURL+path, body)
+	req, err := http.NewRequestWithContext(t.Context(), method, baseURL+path, body)
 	if err != nil {
 		t.Fatalf("failed to create %s %s request: %v", method, path, err)
 	}
@@ -374,15 +375,15 @@ func doProbe(t *testing.T, baseURL, method, path string, body io.Reader) int {
 		},
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed %s %s: %v", method, path, err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
-	//nolint:errcheck // test cleanup: drain response body
-	_, _ = io.Copy(io.Discard, resp.Body)
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		t.Errorf("drain response body: %v", err)
+	}
 
 	return resp.StatusCode
 }

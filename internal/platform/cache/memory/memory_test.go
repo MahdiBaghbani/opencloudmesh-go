@@ -13,11 +13,12 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/memory"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestCache_SetGet(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -40,7 +41,7 @@ func TestCache_SetGet(t *testing.T) {
 
 func TestCache_GetNotFound(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -52,7 +53,7 @@ func TestCache_GetNotFound(t *testing.T) {
 
 func TestCache_Expiration(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -93,7 +94,7 @@ func TestCache_Expiration(t *testing.T) {
 
 func TestCache_Delete(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -113,7 +114,7 @@ func TestCache_Delete(t *testing.T) {
 
 func TestCache_ValueIsolation(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -151,7 +152,7 @@ func TestCache_ValueIsolation(t *testing.T) {
 
 func TestCounter_Increment(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -197,7 +198,7 @@ func TestCounter_Increment(t *testing.T) {
 
 func TestCounter_Expiration(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -233,7 +234,7 @@ func TestCounter_Expiration(t *testing.T) {
 
 func TestCounter_Reset(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -242,8 +243,8 @@ func TestCounter_Reset(t *testing.T) {
 		t.Fatalf("Increment failed: %v", err)
 	}
 
-	if err := c.Reset(ctx, "counter1"); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("Reset failed: %v", err)
+	if cerr := c.Reset(ctx, "counter1"); cerr != nil {
+		t.Fatalf("Reset failed: %v", cerr)
 	}
 
 	count, err := c.GetCount(ctx, "counter1")
@@ -258,7 +259,7 @@ func TestCounter_Reset(t *testing.T) {
 
 func TestCounter_ResetAt(t *testing.T) {
 	c := memory.New(time.Minute, 0)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -303,7 +304,7 @@ func TestCounter_ResetAt(t *testing.T) {
 func TestCache_CleanupLoop(t *testing.T) {
 	// Create cache with fast cleanup
 	c := memory.New(time.Minute, 50*time.Millisecond)
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 

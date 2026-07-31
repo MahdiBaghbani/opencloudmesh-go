@@ -41,8 +41,8 @@ func TestClientDiscover_CacheHit_NormalizesRelativeInviteAcceptDialogWithOriginB
 	c := cache.NewDefault()
 
 	cacheKey := "discovery:" + baseURL
-	if err := c.Set(context.Background(), cacheKey, rawBytes, cache.TTLDiscovery); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("seed cache: %v", err)
+	if cerr := c.Set(context.Background(), cacheKey, rawBytes, cache.TTLDiscovery); cerr != nil {
+		t.Fatalf("seed cache: %v", cerr)
 	}
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), c)
@@ -71,7 +71,7 @@ func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
 		raw := validDiscoveryPayload(serverURL, nil)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	c := cache.NewDefault()
@@ -84,8 +84,8 @@ func TestClientDiscover_EvictsStaleCacheEntryOnValidationFailure(t *testing.T) {
 		t.Fatalf("marshal invalid discovery: %v", err)
 	}
 
-	if err := c.Set(context.Background(), cacheKey, invalidRaw, cache.TTLDiscovery); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("seed cache: %v", err)
+	if cerr := c.Set(context.Background(), cacheKey, invalidRaw, cache.TTLDiscovery); cerr != nil {
+		t.Fatalf("seed cache: %v", cerr)
 	}
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), c)
@@ -134,7 +134,7 @@ func TestNewClient_NilCacheDefaultsToMemory(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, disc)
 
 			return
 		}
@@ -179,7 +179,7 @@ func TestClientDiscover_CacheHitDoesNotRefetch(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	}))
 	defer server.Close()
 

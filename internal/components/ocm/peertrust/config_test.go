@@ -13,16 +13,12 @@ import (
 )
 
 func TestLoadTrustGroupConfig_ValidTrustGroupID(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "tg-config-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
+	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
 	data := `{"trustGroupId":"sciencemesh-prod","enabled":true,"enforceMembership":false,"directoryServices":[],"keys":[]}`
-	if err := os.WriteFile(path, []byte(data), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
@@ -37,20 +33,16 @@ func TestLoadTrustGroupConfig_ValidTrustGroupID(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_FederationIDUnknownField_Fails(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "tg-config-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
+	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
 	data := `{"federation_id":"test-group","enabled":true,"directoryServices":[],"keys":[]}`
-	if err := os.WriteFile(path, []byte(data), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
-	_, err = LoadTrustGroupConfig(path)
+	_, err := LoadTrustGroupConfig(path)
 	if err == nil {
 		t.Fatal("expected error for unknown federation_id key")
 	}
@@ -65,20 +57,16 @@ func TestLoadTrustGroupConfig_FederationIDUnknownField_Fails(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_TrailingJSONRejected(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "tg-config-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
+	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
 	data := `{"trustGroupId":"test","enabled":true,"directoryServices":[],"keys":[]}{"extra":"trailing"}`
-	if err := os.WriteFile(path, []byte(data), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
-	_, err = LoadTrustGroupConfig(path)
+	_, err := LoadTrustGroupConfig(path)
 	if err == nil {
 		t.Fatal("expected error for trailing JSON content")
 	}
@@ -96,20 +84,16 @@ func TestLoadTrustGroupConfig_MissingFile(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_InvalidVerification(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "tg-config-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
+	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
 	data := `{"trustGroupId":"test","enabled":true,"directoryServices":[{"url":"https://ds.example.com","enabled":true,"verification":"bogus"}],"keys":[]}`
-	if err := os.WriteFile(path, []byte(data), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
-	_, err = LoadTrustGroupConfig(path)
+	_, err := LoadTrustGroupConfig(path)
 	if err == nil {
 		t.Fatal("expected error for invalid verification value")
 	}
@@ -120,16 +104,12 @@ func TestLoadTrustGroupConfig_InvalidVerification(t *testing.T) {
 }
 
 func TestLoadTrustGroupConfig_ValidVerification(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "tg-config-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
+	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "trust-group.json")
 
 	data := `{"trustGroupId":"test","enabled":true,"directoryServices":[{"url":"https://ds.example.com","enabled":true,"verification":"optional"}],"keys":[]}`
-	if err := os.WriteFile(path, []byte(data), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 

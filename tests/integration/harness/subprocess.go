@@ -7,6 +7,7 @@
 package harness
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -67,7 +68,7 @@ func BuildBinary(t *testing.T) string {
 	binaryPath := filepath.Join(tempDir, binaryName)
 
 	// Run go build
-	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/opencloudmesh-go") //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
+	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", binaryPath, "./cmd/opencloudmesh-go") //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
 	cmd.Dir = findProjectRoot(t)
 
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
@@ -129,7 +130,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	if port == 0 {
 		var portErr error
 
-		port, portErr = getFreePort()
+		port, portErr = getFreePort(t.Context())
 		if portErr != nil {
 			//nolint:errcheck // test cleanup: best-effort temp dir removal
 			os.RemoveAll(tempDir)
@@ -142,7 +143,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		absPath := filepath.Join(tempDir, relPath)
 		// Ensure parent directory exists
 		if dir := filepath.Dir(absPath); dir != tempDir {
-			if mkdirErr := os.MkdirAll(dir, 0755); mkdirErr != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
+			if mkdirErr := os.MkdirAll(dir, 0755); mkdirErr != nil { //nolint:gosec // test fixture: 0755 on a local controlled test temp dir, not an attacker-controlled production path
 				//nolint:errcheck // test cleanup: best-effort temp dir removal
 				os.RemoveAll(tempDir)
 				t.Fatalf("failed to create directory for extra file %s: %v", relPath, mkdirErr)
@@ -202,8 +203,10 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 		t.Fatalf("failed to create log file: %v", err)
 	}
 
-	// Start subprocess
-	cmd := exec.Command(binaryPath, "--config", configPath) //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
+	// Start subprocess. t.Context is a backstop kill only: Stop stays the
+	// graceful shutdown path because deferred Stop calls run before the test
+	// context is canceled.
+	cmd := exec.CommandContext(t.Context(), binaryPath, "--config", configPath) //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = tempDir
@@ -237,7 +240,7 @@ func StartSubprocessServer(t *testing.T, binaryPath string, cfg SubprocessConfig
 	// Wait for server to be ready. App endpoints (including /api/healthz) mount
 	// under external_base_path when set, so probe the path the final effective
 	// config actually uses rather than assuming root.
-	if err := waitForServerReady(healthEndpointURL(baseURL, finalCfg.ExternalBasePath), 10*time.Second); err != nil {
+	if err := waitForServerReady(t.Context(), healthEndpointURL(baseURL, finalCfg.ExternalBasePath), 10*time.Second); err != nil {
 		srv.DumpLogs(t)
 		srv.Stop(t)
 		t.Fatalf("server %s failed to start: %v", cfg.Name, err)
@@ -770,7 +773,7 @@ func healthEndpointURL(baseURL, externalBasePath string) string {
 // waitForServerReady waits for a server to respond at healthURL.
 // For HTTPS URLs (self-signed TLS), uses an insecure client for the
 // readiness probe only -- the server config itself still enforces strict TLS.
-func waitForServerReady(healthURL string, timeout time.Duration) error {
+func waitForServerReady(ctx context.Context, healthURL string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	var client *http.Client
@@ -781,7 +784,12 @@ func waitForServerReady(healthURL string, timeout time.Duration) error {
 	}
 
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(healthURL)
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+		if reqErr != nil {
+			return fmt.Errorf("build readiness probe request: %w", reqErr)
+		}
+
+		resp, err := client.Do(req)
 		if err == nil {
 			//nolint:errcheck // test cleanup: response body close
 			resp.Body.Close()

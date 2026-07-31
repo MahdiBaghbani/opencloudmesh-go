@@ -7,13 +7,14 @@ package access
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
@@ -35,7 +36,7 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 	var requestCount atomic.Int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if exchangeDiscoveryHandler(w, r, exchangedToken) {
+		if exchangeDiscoveryHandler(t, w, r, exchangedToken) {
 			return
 		}
 
@@ -44,7 +45,7 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 
 			if r.Header.Get("Authorization") == "Bearer "+exchangedToken {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("file content")) //nolint:errcheck // test mock handler: response write
+				tshttp.MustWrite(t, w, []byte("file content"))
 
 				return
 			}
@@ -75,7 +76,7 @@ func TestAccess_AlwaysExchanges_BearerSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, result.Response.Body)
 
 	if result.Response.StatusCode != http.StatusOK {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)
@@ -103,7 +104,7 @@ func TestAccess_ExchangeFailureFailsClosed(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -136,7 +137,7 @@ func TestAccess_ExchangeFailureFailsClosed(t *testing.T) {
 
 func TestAccess_NilTokenClientFailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if exchangeDiscoveryHandler(w, r, "unused") {
+		if exchangeDiscoveryHandler(t, w, r, "unused") {
 			return
 		}
 
@@ -163,19 +164,24 @@ func TestAccess_NilTokenClientFailsClosed(t *testing.T) {
 	}
 }
 
-func TestAccess_Bearer401ReturnedAsIs(t *testing.T) { //nolint:dupl // intentional: parallel bearer 401/403 tests share exchange setup but assert different status codes
+// assertBearerStatusReturnedAsIs drives one bearer-failure passthrough case:
+// the WebDAV endpoint fails with wantStatus after token exchange and the
+// client must surface that status without retrying other credentials.
+func assertBearerStatusReturnedAsIs(t *testing.T, wantStatus int) {
+	t.Helper()
+
 	const exchangedToken = "exchanged-access-token"
 
 	var requestCount atomic.Int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if exchangeDiscoveryHandler(w, r, exchangedToken) {
+		if exchangeDiscoveryHandler(t, w, r, exchangedToken) {
 			return
 		}
 
 		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
 			requestCount.Add(1)
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(wantStatus)
 
 			return
 		}
@@ -200,63 +206,23 @@ func TestAccess_Bearer401ReturnedAsIs(t *testing.T) { //nolint:dupl // intention
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, result.Response.Body)
 
-	if result.Response.StatusCode != http.StatusUnauthorized {
-		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusUnauthorized)
+	if result.Response.StatusCode != wantStatus {
+		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, wantStatus)
 	}
 
 	if got := requestCount.Load(); got != 1 {
-		t.Errorf("request count = %d, want 1 (no Basic retry)", got)
+		t.Errorf("request count = %d, want 1 (no credential retry)", got)
 	}
 }
 
-func TestAccess_Bearer403ReturnedAsIs(t *testing.T) { //nolint:dupl // intentional: parallel bearer 401/403 tests share exchange setup but assert different status codes
-	const exchangedToken = "exchanged-access-token"
+func TestAccess_Bearer401ReturnedAsIs(t *testing.T) {
+	assertBearerStatusReturnedAsIs(t, http.StatusUnauthorized)
+}
 
-	var webdavRequestCount atomic.Int32
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if exchangeDiscoveryHandler(w, r, exchangedToken) {
-			return
-		}
-
-		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
-			webdavRequestCount.Add(1)
-			w.WriteHeader(http.StatusForbidden)
-
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
-	defer srv.Close()
-
-	client := newExchangeAccessClient(t, srv)
-
-	result, err := client.Access(context.Background(), AccessOptions{
-		Share: &ShareInfo{
-			Status:       "accepted",
-			SenderHost:   srv.URL,
-			SharedSecret: "secret",
-			WebDAVID:     "file-id",
-			Requirements: []string{spec.RequirementMustExchangeToken},
-		},
-		Protocol: "webdav",
-		Method:   "GET",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
-
-	if result.Response.StatusCode != http.StatusForbidden {
-		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusForbidden)
-	}
-
-	if got := webdavRequestCount.Load(); got != 1 {
-		t.Errorf("webdav request count = %d, want 1 (no credential retry)", got)
-	}
+func TestAccess_Bearer403ReturnedAsIs(t *testing.T) {
+	assertBearerStatusReturnedAsIs(t, http.StatusForbidden)
 }
 
 func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
@@ -280,7 +246,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -291,18 +257,21 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 				return
 			}
 
-			_ = r.ParseForm() //nolint:errcheck // test mock handler: parse form
+			if err := r.ParseForm(); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
 			tokenGrantType = r.FormValue("grant_type")
 			if tokenGrantType != "authorization_code" {
 				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"wrong grant"}`)) //nolint:errcheck // test mock handler: response write
+				tshttp.MustWrite(t, w, []byte(`{"error":"invalid_grant","error_description":"wrong grant"}`))
 
 				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"access_token":"owner-token","token_type":"Bearer","expires_in":3600}`)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte(`{"access_token":"owner-token","token_type":"Bearer","expires_in":3600}`))
 
 			return
 		}
@@ -314,7 +283,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte("ok"))
 
 			return
 		}
@@ -342,7 +311,7 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected access error: %v", err)
 	}
-	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, result.Response.Body)
 
 	if tokenGrantType != "authorization_code" {
 		t.Fatalf("expected strict authorization_code grant_type, got %q", tokenGrantType)
@@ -353,10 +322,13 @@ func TestAccess_UsesOwnerHostForTokenExchangeProfile(t *testing.T) {
 	}
 }
 
-func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
-	var tokenHits atomic.Int32
+// startFailingTokenExchangeServer serves discovery plus a /ocm/token endpoint
+// that counts hits and always fails with status and the given OAuth error
+// body.
+func startFailingTokenExchangeServer(t *testing.T, tokenHits *atomic.Int32, status int, errorBody string) *httptest.Server {
+	t.Helper()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { //nolint:dupl // intentional: parallel token exchange 401/403 mock servers share discovery handler setup
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
 			disc := spec.Discovery{
 				Enabled:       true,
@@ -374,7 +346,7 @@ func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -382,25 +354,26 @@ func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 		if r.URL.Path == "/ocm/token" {
 			tokenHits.Add(1)
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte(`{"error":"invalid_client","error_description":"client authentication failed"}`)) //nolint:errcheck // test mock handler: response write
+			w.WriteHeader(status)
+			tshttp.MustWrite(t, w, []byte(errorBody))
 
 			return
 		}
 
 		http.NotFound(w, r)
 	}))
-	defer srv.Close()
+}
 
-	discClient, ctxClient := newTestClients(srv.URL)
-	// Unsigned signer so the token client classifies the 401 as token_unauthorized.
-	tokenClient := tokenoutgoing.NewClient(ctxClient, unsignedMockSigner{}, "local.example.com")
-	client := NewClient(ctxClient, discClient, tokenClient, peerorigin.NewResolver(true))
+// assertTokenExchangeFailsClosed performs one token-exchange access with
+// client against srvURL and asserts the failure is classified as wantReason
+// with exactly one token endpoint hit.
+func assertTokenExchangeFailsClosed(t *testing.T, client *Client, srvURL string, tokenHits *atomic.Int32, wantReason string) {
+	t.Helper()
 
 	_, err := client.Access(context.Background(), AccessOptions{
 		Share: &ShareInfo{
 			Status:       "accepted",
-			SenderHost:   srv.URL,
+			SenderHost:   srvURL,
 			SharedSecret: "secret",
 			WebDAVID:     "file-id",
 			Requirements: []string{spec.RequirementMustExchangeToken},
@@ -409,12 +382,12 @@ func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 		Method:   "GET",
 	})
 	if err == nil {
-		t.Fatal("expected 401 token exchange to fail closed")
+		t.Fatal("expected token exchange to fail closed")
 	}
 
 	var ce *reason.ClassifiedError
-	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonTokenUnauthorized {
-		t.Errorf("expected reason %q, got %q: %v", reason.ReasonTokenUnauthorized, ce.ReasonCode, err)
+	if !errors.As(err, &ce) || ce.ReasonCode != wantReason {
+		t.Errorf("expected reason %q, got %q: %v", wantReason, ce.ReasonCode, err)
 	}
 
 	if got := tokenHits.Load(); got != 1 {
@@ -422,68 +395,27 @@ func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
 	}
 }
 
+func TestAccess_TokenExchange401FailsClosed(t *testing.T) {
+	var tokenHits atomic.Int32
+
+	srv := startFailingTokenExchangeServer(t, &tokenHits, http.StatusUnauthorized, `{"error":"invalid_client","error_description":"client authentication failed"}`)
+	defer srv.Close()
+
+	discClient, ctxClient := newTestClients(srv.URL)
+	// Unsigned signer so the token client classifies the 401 as token_unauthorized.
+	tokenClient := tokenoutgoing.NewClient(ctxClient, unsignedMockSigner{}, "local.example.com")
+	client := NewClient(ctxClient, discClient, tokenClient, peerorigin.NewResolver(true))
+
+	assertTokenExchangeFailsClosed(t, client, srv.URL, &tokenHits, reason.ReasonTokenUnauthorized)
+}
+
 func TestAccess_TokenExchange403FailsClosed(t *testing.T) {
 	var tokenHits atomic.Int32
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { //nolint:dupl // intentional: parallel token exchange 401/403 mock servers share discovery handler setup
-		if r.URL.Path == "/.well-known/ocm" {
-			disc := spec.Discovery{
-				Enabled:       true,
-				APIVersion:    "1.4.0",
-				EndPoint:      "http://" + r.Host + "/ocm",
-				Capabilities:  []string{"exchange-token"},
-				TokenEndPoint: "http://" + r.Host + "/ocm/token",
-				ResourceTypes: []spec.ResourceType{
-					{
-						Name:       "file",
-						ShareTypes: []string{"user"},
-						Protocols:  spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm")},
-					},
-				},
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
-
-			return
-		}
-
-		if r.URL.Path == "/ocm/token" {
-			tokenHits.Add(1)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			_, _ = w.Write([]byte(`{"error":"access_denied","error_description":"token exchange denied"}`)) //nolint:errcheck // test mock handler: response write
-
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
+	srv := startFailingTokenExchangeServer(t, &tokenHits, http.StatusForbidden, `{"error":"access_denied","error_description":"token exchange denied"}`)
 	defer srv.Close()
 
 	client := newExchangeAccessClient(t, srv)
 
-	_, err := client.Access(context.Background(), AccessOptions{
-		Share: &ShareInfo{
-			Status:       "accepted",
-			SenderHost:   srv.URL,
-			SharedSecret: "secret",
-			WebDAVID:     "file-id",
-			Requirements: []string{spec.RequirementMustExchangeToken},
-		},
-		Protocol: "webdav",
-		Method:   "GET",
-	})
-	if err == nil {
-		t.Fatal("expected 403 token exchange to fail closed")
-	}
-
-	var ce *reason.ClassifiedError
-	if !errors.As(err, &ce) || ce.ReasonCode != reason.ReasonTokenForbidden {
-		t.Errorf("expected reason %q, got %q: %v", reason.ReasonTokenForbidden, ce.ReasonCode, err)
-	}
-
-	if got := tokenHits.Load(); got != 1 {
-		t.Errorf("token hits = %d, want 1 (no retry)", got)
-	}
+	assertTokenExchangeFailsClosed(t, client, srv.URL, &tokenHits, reason.ReasonTokenForbidden)
 }

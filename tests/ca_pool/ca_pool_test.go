@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -58,6 +59,33 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 		t.Fatal("expected non-nil pool")
 	}
 
+	caCert, caKey := loadCAKeyPair(t, caFile, caKeyFile)
+	port := startCATLSServer(t, caCert, caKey)
+
+	cfg := &config.OutboundHTTPConfig{
+		SSRF:               config.SSRFConfig{Mode: "off"},
+		TimeoutMS:          tshttp.TestOutboundTimeoutMS,
+		InsecureSkipVerify: false,
+	}
+	client := httpclient.New(cfg, rootCAPool)
+
+	url := fmt.Sprintf("https://127.0.0.1:%d/", port)
+
+	resp, err := client.Get(context.Background(), url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	defer tshttp.MustClose(t, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// loadCAKeyPair reads and parses the test CA certificate and private key.
+func loadCAKeyPair(t *testing.T, caFile, caKeyFile string) (*x509.Certificate, any) {
+	t.Helper()
+
 	caCertPEM, err := os.ReadFile(caFile)
 	if err != nil {
 		t.Fatalf("read CA cert: %v", err)
@@ -91,12 +119,20 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 		}
 	}
 
+	return caCert, caKeyRaw
+}
+
+// startCATLSServer starts a TLS server on an ephemeral port with a certificate
+// signed by the test CA, and returns the port.
+func startCATLSServer(t *testing.T, caCert *x509.Certificate, caKey any) int {
+	t.Helper()
+
 	serverKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	serverCertDER, err := createServerCert(caCert, caKeyRaw, serverKey)
+	serverCertDER, err := createServerCert(caCert, caKey, serverKey)
 	if err != nil {
 		t.Fatalf("create server cert: %v", err)
 	}
@@ -109,15 +145,16 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 		t.Fatalf("load server cert: %v", err)
 	}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	//nolint:errcheck // test cleanup: ephemeral listener close
-	defer listener.Close()
 
-	//nolint:errcheck // test helper: ephemeral TCP listener address
-	port := listener.Addr().(*net.TCPAddr).Port //nolint:forcetypeassert // test: TCPAddr assertion is safe for net.Listen TCP listener
+	t.Cleanup(func() {
+		if closeErr := listener.Close(); closeErr != nil {
+			t.Logf("close CA listener: %v", closeErr)
+		}
+	})
 
 	srv := &http.Server{ //nolint:gosec // test server: short-lived, no Slowloris risk
 		TLSConfig: &tls.Config{
@@ -126,37 +163,30 @@ func TestOutboundClient_WithRootCA(t *testing.T) {
 		},
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			//nolint:errcheck // test stub handler: response write
-			w.Write([]byte("ok"))
+			tshttp.MustWrite(t, w, []byte("ok"))
 		}),
 	}
 
-	//nolint:errcheck // test stub server: ServeTLS runs in background goroutine
-	go srv.ServeTLS(listener, "", "")
-	//nolint:errcheck // test cleanup: test HTTP server close
-	defer srv.Close()
+	go func() {
+		if err := srv.ServeTLS(listener, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			t.Logf("CA test server: %v", err)
+		}
+	}()
+
+	t.Cleanup(func() {
+		if closeErr := srv.Close(); closeErr != nil {
+			t.Logf("close CA server: %v", closeErr)
+		}
+	})
 
 	time.Sleep(50 * time.Millisecond)
 
-	cfg := &config.OutboundHTTPConfig{
-		SSRF:               config.SSRFConfig{Mode: "off"},
-		TimeoutMS:          tshttp.TestOutboundTimeoutMS,
-		InsecureSkipVerify: false,
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("CA listener address type = %T, want *net.TCPAddr", listener.Addr())
 	}
-	client := httpclient.New(cfg, rootCAPool)
 
-	url := fmt.Sprintf("https://127.0.0.1:%d/", port)
-
-	resp, err := client.Get(context.Background(), url)
-	if err != nil {
-		t.Fatalf("GET failed: %v", err)
-	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
+	return tcpAddr.Port
 }
 
 func getTestDir(t *testing.T) string {

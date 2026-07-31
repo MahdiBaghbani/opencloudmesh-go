@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -54,13 +55,17 @@ max_stale_seconds = 600
 	defer srv.Stop(t)
 
 	// GET /ocm-aux/federations
-	resp, err := http.Get(srv.BaseURL + "/ocm-aux/federations")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/ocm-aux/federations", nil)
+	if err != nil {
+		t.Fatalf("build federations request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to get /ocm-aux/federations: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)
@@ -92,13 +97,17 @@ func TestFederationsEndpointWithoutFederation(t *testing.T) {
 	})
 	defer srv.Stop(t)
 
-	resp, err := http.Get(srv.BaseURL + "/ocm-aux/federations")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/ocm-aux/federations", nil)
+	if err != nil {
+		t.Fatalf("build federations request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to get /ocm-aux/federations: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		srv.DumpLogs(t)

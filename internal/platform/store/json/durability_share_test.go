@@ -7,10 +7,9 @@ package json_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
@@ -18,38 +17,14 @@ import (
 // in-memory share state is not left in a mutated state (no split-brain).
 // The failure is injected by making the data directory read-only after Init,
 // mirroring the pattern used by TestJSONInviteSaveFailureRollback.
-func TestJSONShareSaveFailureRollback(t *testing.T) { //nolint:dupl // intentional: parallel invite/share rollback suites share table-driven structure but cover different entity types
-	if os.Getuid() == 0 {
-		t.Skip("cannot test read-only dir as root")
-	}
-
-	ctx := context.Background()
-
-	t.Run("CreateOutgoingShare", func(t *testing.T) { testCreateOutgoingShareRollback(t, ctx) })
-	t.Run("UpdateOutgoingShare", func(t *testing.T) { testUpdateOutgoingShareRollback(t, ctx) })
-	t.Run("DeleteOutgoingShare", func(t *testing.T) { testDeleteOutgoingShareRollback(t, ctx) })
-	t.Run("CreateIncomingShare", func(t *testing.T) { testCreateIncomingShareRollback(t, ctx) })
-	t.Run("UpdateIncomingShareStatusForRecipient", func(t *testing.T) { testUpdateIncomingShareStatusRollback(t, ctx) })
-	t.Run("DeleteIncomingShareForRecipient", func(t *testing.T) { testDeleteIncomingShareRollback(t, ctx) })
-}
-
-func makeShareDriver(t *testing.T, dir string) store.Driver {
-	t.Helper()
-
-	cfg := &store.DriverConfig{Driver: "json", DataDir: dir}
-
-	return testutil.OpenDriver(t, cfg)
-}
-
-func lockShareDir(t *testing.T, dir string) {
-	t.Helper()
-
-	if err := os.Chmod(dir, 0500); err != nil { //nolint:gosec // test temp dir: restrictive 0500 mode is intentional for test isolation
-		t.Fatal(err)
-	}
-
-	t.Cleanup(func() {
-		os.Chmod(dir, 0700) //nolint:errcheck,gosec // test cleanup: restore directory permissions; test temp dir: restrictive 0700 mode is intentional for test isolation
+func TestJSONShareSaveFailureRollback(t *testing.T) {
+	runRollbackSuite(t, []rollbackCase{
+		{"CreateOutgoingShare", testCreateOutgoingShareRollback},
+		{"UpdateOutgoingShare", testUpdateOutgoingShareRollback},
+		{"DeleteOutgoingShare", testDeleteOutgoingShareRollback},
+		{"CreateIncomingShare", testCreateIncomingShareRollback},
+		{"UpdateIncomingShareStatusForRecipient", testUpdateIncomingShareStatusRollback},
+		{"DeleteIncomingShareForRecipient", testDeleteIncomingShareRollback},
 	})
 }
 
@@ -58,14 +33,14 @@ func testCreateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-share-*")
 
-	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()              //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	outStore := requireOutgoingShareStore(t, d)
 
 	share := testutil.NewOutgoingShareFixture()
 
-	lockShareDir(t, dir)
+	lockDir(t, dir)
 
 	if err := outStore.CreateOutgoingShare(ctx, share); err == nil {
 		t.Fatal("expected error from CreateOutgoingShare with read-only dir, got nil")
@@ -97,8 +72,8 @@ func testUpdateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-share-*")
 
-	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()              //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	outStore := requireOutgoingShareStore(t, d)
 
@@ -115,7 +90,7 @@ func testUpdateOutgoingShareRollback(t *testing.T, ctx context.Context) {
 	updated.SharedSecret = "new-secret"
 	updated.Status = "accepted"
 
-	lockShareDir(t, dir)
+	lockDir(t, dir)
 
 	if err := outStore.UpdateOutgoingShare(ctx, &updated); err == nil {
 		t.Fatal("expected error from UpdateOutgoingShare with read-only dir, got nil")
@@ -175,8 +150,8 @@ func testDeleteOutgoingShareRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-share-*")
 
-	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()              //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	outStore := requireOutgoingShareStore(t, d)
 
@@ -185,7 +160,7 @@ func testDeleteOutgoingShareRollback(t *testing.T, ctx context.Context) {
 		t.Fatalf("setup CreateOutgoingShare: %v", err)
 	}
 
-	lockShareDir(t, dir)
+	lockDir(t, dir)
 
 	if err := outStore.DeleteOutgoingShare(ctx, share.ProviderID); err == nil {
 		t.Fatal("expected error from DeleteOutgoingShare with read-only dir, got nil")
@@ -216,14 +191,14 @@ func testCreateIncomingShareRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-share-*")
 
-	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()              //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	inStore := requireIncomingShareStore(t, d)
 
 	share := testutil.NewIncomingShareFixture()
 
-	lockShareDir(t, dir)
+	lockDir(t, dir)
 
 	if err := inStore.CreateIncomingShare(ctx, share); err == nil {
 		t.Fatal("expected error from CreateIncomingShare with read-only dir, got nil")
@@ -249,8 +224,8 @@ func testUpdateIncomingShareStatusRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-share-*")
 
-	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()              //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	inStore := requireIncomingShareStore(t, d)
 
@@ -262,7 +237,7 @@ func testUpdateIncomingShareStatusRollback(t *testing.T, ctx context.Context) {
 	oldStatus := share.Status
 	oldUpdatedAt := share.UpdatedAt
 
-	lockShareDir(t, dir)
+	lockDir(t, dir)
 
 	if err := inStore.UpdateIncomingShareStatusForRecipient(
 		ctx, share.ShareID, share.RecipientUserID, "accepted",
@@ -302,8 +277,8 @@ func testDeleteIncomingShareRollback(t *testing.T, ctx context.Context) { //noli
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-share-*")
 
-	d := makeShareDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()              //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	inStore := requireIncomingShareStore(t, d)
 
@@ -312,7 +287,7 @@ func testDeleteIncomingShareRollback(t *testing.T, ctx context.Context) { //noli
 		t.Fatalf("setup CreateIncomingShare: %v", err)
 	}
 
-	lockShareDir(t, dir)
+	lockDir(t, dir)
 
 	if err := inStore.DeleteIncomingShareForRecipient(
 		ctx, share.ShareID, share.RecipientUserID,

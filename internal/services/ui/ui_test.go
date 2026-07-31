@@ -6,6 +6,7 @@
 package ui
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -81,13 +82,17 @@ func TestService_Close(t *testing.T) {
 	}
 }
 
-func TestService_LoginEndpoint(t *testing.T) {
+// assertEndpointServesHTML GETs path and asserts a 200 text/html response
+// whose body contains HTML or the endpoint-specific marker.
+func assertEndpointServesHTML(t *testing.T, path, marker string) {
+	t.Helper()
+
 	svc, err := New(Inputs{}, map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -101,34 +106,17 @@ func TestService_LoginEndpoint(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "<html") && !strings.Contains(body, "<!DOCTYPE") && !strings.Contains(body, "<form") {
+	if !strings.Contains(body, "<html") && !strings.Contains(body, "<!DOCTYPE") && !strings.Contains(body, marker) {
 		t.Error("expected HTML content in response body")
 	}
 }
 
+func TestService_LoginEndpoint(t *testing.T) {
+	assertEndpointServesHTML(t, "/login", "<form")
+}
+
 func TestService_InboxEndpoint(t *testing.T) {
-	svc, err := New(Inputs{}, map[string]any{}, testLog())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/inbox", nil)
-	w := httptest.NewRecorder()
-	svc.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-
-	contentType := w.Header().Get("Content-Type")
-	if !strings.HasPrefix(contentType, "text/html") {
-		t.Errorf("expected Content-Type text/html, got %q", contentType)
-	}
-
-	body := w.Body.String()
-	if !strings.Contains(body, "<html") && !strings.Contains(body, "<!DOCTYPE") && !strings.Contains(body, "inbox") {
-		t.Error("expected HTML content in response body")
-	}
+	assertEndpointServesHTML(t, "/inbox", "inbox")
 }
 
 func TestService_LoginEndpoint_WithBasePath(t *testing.T) {
@@ -137,7 +125,7 @@ func TestService_LoginEndpoint_WithBasePath(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/login", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -157,7 +145,7 @@ func TestService_WayfEndpoint_Disabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/wayf", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wayf", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -176,7 +164,7 @@ func TestService_WayfEndpoint_Enabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/wayf?token=abc123", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wayf?token=abc123", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -205,7 +193,7 @@ func TestService_AcceptInvite_RendersTemplate(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/accept-invite?token=abc&providerDomain=remote.example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/accept-invite?token=abc&providerDomain=remote.example.com", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 

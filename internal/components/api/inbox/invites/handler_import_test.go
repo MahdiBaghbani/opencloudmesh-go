@@ -28,7 +28,7 @@ func TestHandleImport_Success(t *testing.T) {
 
 	inviteStr := buildInviteString("import-token-1")
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -65,7 +65,7 @@ func TestHandleImport_Idempotent(t *testing.T) {
 	inviteStr := buildInviteString("idem-token")
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
 
-	req1 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
+	req1 := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req1.Header.Set("Content-Type", "application/json")
 
 	w1 := httptest.NewRecorder()
@@ -80,7 +80,7 @@ func TestHandleImport_Idempotent(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	req2 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
+	req2 := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req2.Header.Set("Content-Type", "application/json")
 
 	w2 := httptest.NewRecorder()
@@ -106,7 +106,7 @@ func TestHandleImport_InvalidInviteString(t *testing.T) {
 	router := newTestRouter(t, repo, userA)
 
 	body := `{"inviteString":"not-valid-base64!!!"}`
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -123,7 +123,7 @@ func TestHandleImport_MissingInviteString(t *testing.T) {
 	router := newTestRouter(t, repo, userA)
 
 	body := `{}`
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -140,7 +140,7 @@ func TestHandleImport_Unauthenticated(t *testing.T) {
 
 	inviteStr := buildInviteString("token")
 	body := fmt.Sprintf(`{"inviteString":"%s"}`, inviteStr)
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -158,7 +158,7 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	routerA := newTestRouter(t, repo, userA)
-	req1 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
+	req1 := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req1.Header.Set("Content-Type", "application/json")
 
 	w1 := httptest.NewRecorder()
@@ -170,7 +170,7 @@ func TestHandleImport_DifferentUsersCanImportSameToken(t *testing.T) {
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	routerB := newTestRouter(t, repo, userB)
-	req2 := httptest.NewRequest(http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
+	req2 := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/import", strings.NewReader(body))
 	req2.Header.Set("Content-Type", "application/json")
 
 	w2 := httptest.NewRecorder()

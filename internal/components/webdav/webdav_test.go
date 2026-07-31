@@ -133,11 +133,15 @@ func unexpiredTestToken(accessToken, shareID string) *token.IssuedToken {
 	}
 }
 
-func seedShare(repo *mockOutgoingShareRepo) *sharesoutgoing.OutgoingShare {
-	return seedShareWithRequirements(repo, "share-1", nil)
+func seedShare(t *testing.T, repo *mockOutgoingShareRepo) *sharesoutgoing.OutgoingShare {
+	t.Helper()
+
+	return seedShareWithRequirements(t, repo, "share-1", nil)
 }
 
-func seedShareWithRequirements(repo *mockOutgoingShareRepo, shareID string, requirements []string) *sharesoutgoing.OutgoingShare {
+func seedShareWithRequirements(t *testing.T, repo *mockOutgoingShareRepo, shareID string, requirements []string) *sharesoutgoing.OutgoingShare {
+	t.Helper()
+
 	share := &sharesoutgoing.OutgoingShare{
 		ShareID:      shareID,
 		SharedSecret: "secret123",
@@ -145,7 +149,9 @@ func seedShareWithRequirements(repo *mockOutgoingShareRepo, shareID string, requ
 		ReceiverHost: "receiver.example.com",
 		Requirements: requirements,
 	}
-	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	return share
 }
@@ -153,10 +159,12 @@ func seedShareWithRequirements(repo *mockOutgoingShareRepo, shareID string, requ
 func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShare(repo)
+	share := seedShare(t, repo)
 
 	ctx := context.Background()
-	_ = tokenStore.Store(ctx, unexpiredTestToken("exchanged-token-123", share.ShareID)) //nolint:errcheck // test fixture seed
+	if err := tokenStore.Store(ctx, unexpiredTestToken("exchanged-token-123", share.ShareID)); err != nil {
+		t.Fatal(err)
+	}
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -169,7 +177,7 @@ func TestValidateCredential_ExchangedTokenSucceeds(t *testing.T) {
 func TestValidateCredential_AcceptsSharedSecretForNonStrict(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShare(repo)
+	share := seedShare(t, repo)
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -182,7 +190,7 @@ func TestValidateCredential_AcceptsSharedSecretForNonStrict(t *testing.T) {
 func TestValidateCredential_RejectsSharedSecretForStrict(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShareWithRequirements(repo, "share-1", []string{spec.RequirementMustExchangeToken})
+	share := seedShareWithRequirements(t, repo, "share-1", []string{spec.RequirementMustExchangeToken})
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -195,10 +203,12 @@ func TestValidateCredential_RejectsSharedSecretForStrict(t *testing.T) {
 func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShare(repo)
+	share := seedShare(t, repo)
 
 	ctx := context.Background()
-	_ = tokenStore.Store(ctx, unexpiredTestToken("bound-to-other-share", "other-share")) //nolint:errcheck // test fixture seed
+	if err := tokenStore.Store(ctx, unexpiredTestToken("bound-to-other-share", "other-share")); err != nil {
+		t.Fatal(err)
+	}
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -211,7 +221,7 @@ func TestValidateCredential_RejectsWrongShareBinding(t *testing.T) {
 func TestValidateCredential_RejectsUnknownToken(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
 	tokenStore := newMockTokenStore()
-	share := seedShare(repo)
+	share := seedShare(t, repo)
 
 	handler := NewHandler(repo, tokenStore, nil)
 
@@ -222,7 +232,7 @@ func TestValidateCredential_RejectsUnknownToken(t *testing.T) {
 }
 
 func TestExtractCredential_BearerOnly(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer my-token")
 
 	cred := extractCredential(req)
@@ -232,7 +242,7 @@ func TestExtractCredential_BearerOnly(t *testing.T) {
 }
 
 func TestExtractCredential_RejectsBasic(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
 
 	if extractCredential(req) != nil {
@@ -241,7 +251,7 @@ func TestExtractCredential_RejectsBasic(t *testing.T) {
 }
 
 func TestExtractCredential_RejectsDigest(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Digest username=alice")
 
 	if extractCredential(req) != nil {
@@ -264,10 +274,10 @@ func assertBearerWWWAuthenticate(t *testing.T, w *httptest.ResponseRecorder) {
 
 func TestServeHTTP_MissingAuthBearerOnlyChallenge(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
-	_ = seedShare(repo)
+	_ = seedShare(t, repo)
 	handler := NewHandler(repo, newMockTokenStore(), nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -287,15 +297,20 @@ func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 	}
 
 	repo := newMockOutgoingShareRepo()
-	share := seedShare(repo)
+	share := seedShare(t, repo)
+
 	share.LocalPath = filePath
-	_ = repo.Update(context.Background(), share) //nolint:errcheck // test fixture seed
+	if err := repo.Update(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	tokenStore := newMockTokenStore()
-	_ = tokenStore.Store(context.Background(), unexpiredTestToken("valid-token", share.ShareID)) //nolint:errcheck // test fixture seed
+	if err := tokenStore.Store(context.Background(), unexpiredTestToken("valid-token", share.ShareID)); err != nil {
+		t.Fatal(err)
+	}
 
 	handler := NewHandler(repo, tokenStore, nil)
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)
 	req.Header.Set("Authorization", "Bearer valid-token")
 
 	w := httptest.NewRecorder()
@@ -308,10 +323,10 @@ func TestServeHTTP_BearerWithValidExchangedTokenSucceeds(t *testing.T) {
 
 func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
-	_ = seedShare(repo)
+	_ = seedShare(t, repo)
 	handler := NewHandler(repo, newMockTokenStore(), nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer invalid-token")
 
 	w := httptest.NewRecorder()
@@ -326,16 +341,19 @@ func TestServeHTTP_BearerWithInvalidTokenFails401(t *testing.T) {
 
 func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
-	_ = seedShare(repo)
+	_ = seedShare(t, repo)
+
 	tokenStore := newMockTokenStore()
-	_ = tokenStore.Store(context.Background(), &token.IssuedToken{ //nolint:errcheck // test fixture seed
+	if err := tokenStore.Store(context.Background(), &token.IssuedToken{
 		AccessToken: "expired-token",
 		ShareID:     "share-1",
 		ExpiresAt:   time.Now().Add(-time.Hour),
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	handler := NewHandler(repo, tokenStore, nil)
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer expired-token")
 
 	w := httptest.NewRecorder()
@@ -350,12 +368,15 @@ func TestServeHTTP_BearerWithExpiredTokenFails401(t *testing.T) {
 
 func TestServeHTTP_BasicAuthRejected401(t *testing.T) {
 	repo := newMockOutgoingShareRepo()
-	share := seedShare(repo)
+	share := seedShare(t, repo)
+
 	tokenStore := newMockTokenStore()
-	_ = tokenStore.Store(context.Background(), unexpiredTestToken(share.SharedSecret, share.ShareID)) //nolint:errcheck // test fixture seed
+	if err := tokenStore.Store(context.Background(), unexpiredTestToken(share.SharedSecret, share.ShareID)); err != nil {
+		t.Fatal(err)
+	}
 
 	handler := NewHandler(repo, tokenStore, nil)
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID, nil)
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
 
 	w := httptest.NewRecorder()
@@ -380,12 +401,15 @@ func TestServeHTTP_NonStrictSharedSecretSucceeds(t *testing.T) {
 	}
 
 	repo := newMockOutgoingShareRepo()
-	share := seedShare(repo)
+	share := seedShare(t, repo)
+
 	share.LocalPath = filePath
-	_ = repo.Update(context.Background(), share) //nolint:errcheck // test fixture seed
+	if err := repo.Update(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	handler := NewHandler(repo, newMockTokenStore(), nil)
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+testWebDAVID+"/hello.txt", nil)
 	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
 
 	w := httptest.NewRecorder()

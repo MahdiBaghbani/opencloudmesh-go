@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peertrust"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
@@ -28,11 +30,30 @@ func TestDirectoryServiceJWSFeedsFederations(t *testing.T) {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	goodPeer := startOCMPeerWithInviteDialog(t)
+	srv, goodPeer, badPeer, dsServer := startFederationsSubprocess(t)
+	defer srv.Stop(t)
+	defer dsServer.Close()
+	defer badPeer.Close()
 	defer goodPeer.Close()
 
+	result, err := pollFederations(t, srv.BaseURL+"/ocm-aux/federations", 15*time.Second)
+	if err != nil {
+		srv.DumpLogs(t)
+		t.Fatal(err)
+	}
+
+	serversByURL := lookupFederationServers(t, result)
+	assertGoodPeerEntry(t, serversByURL, goodPeer.URL)
+	assertBadPeerEntry(t, serversByURL, badPeer.URL)
+}
+
+// startFederationsSubprocess starts the good/bad OCM peers, the HTTPS
+// directory service with a signed JWS listing, and the federations subprocess.
+func startFederationsSubprocess(t *testing.T) (*harness.SubprocessServer, *httptest.Server, *httptest.Server, *httptest.Server) {
+	t.Helper()
+
+	goodPeer := startOCMPeerWithInviteDialog(t)
 	badPeer := startBrokenOCMPeer(t)
-	defer badPeer.Close()
 
 	fixture := tsds.GenerateEd25519Fixture(t)
 	listing := directoryservice.Listing{
@@ -45,7 +66,6 @@ func TestDirectoryServiceJWSFeedsFederations(t *testing.T) {
 	jwsBody := fixture.SignListingCompact(t, listing)
 
 	dsServer := tsds.StartHTTPSDirectoryService(t, jwsBody)
-	defer dsServer.Close()
 
 	trustGroup := peertrust.TrustGroupConfig{
 		TrustGroupID:      "ds-integration",
@@ -57,10 +77,7 @@ func TestDirectoryServiceJWSFeedsFederations(t *testing.T) {
 		Keys: []directoryservice.VerificationKey{fixture.VerificationKey()},
 	}
 
-	trustGroupJSON, err := json.Marshal(trustGroup) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
-	if err != nil {
-		t.Fatalf("marshal trust group: %v", err)
-	}
+	trustGroupJSON := tshttp.MustMarshalJSON(t, trustGroup)
 
 	extraConfig := `
 [peer_trust]
@@ -82,15 +99,14 @@ max_stale_seconds = 600
 		},
 		ExtraConfig: extraConfig,
 	})
-	defer srv.Stop(t)
 
-	federationsURL := srv.BaseURL + "/ocm-aux/federations"
+	return srv, goodPeer, badPeer, dsServer
+}
 
-	result, err := pollFederations(t, federationsURL, 15*time.Second)
-	if err != nil {
-		srv.DumpLogs(t)
-		t.Fatal(err)
-	}
+// lookupFederationServers checks the federation envelope and indexes its
+// servers by URL.
+func lookupFederationServers(t *testing.T, result []federationEntry) map[string]federationServerEntry {
+	t.Helper()
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 federation, got %d: %+v", len(result), result)
@@ -109,9 +125,16 @@ max_stale_seconds = 600
 		serversByURL[s.URL] = s
 	}
 
-	good, ok := serversByURL[goodPeer.URL]
+	return serversByURL
+}
+
+// assertGoodPeerEntry checks the enriched good peer entry.
+func assertGoodPeerEntry(t *testing.T, serversByURL map[string]federationServerEntry, peerURL string) {
+	t.Helper()
+
+	good, ok := serversByURL[peerURL]
 	if !ok {
-		t.Fatalf("missing good peer %q in response", goodPeer.URL)
+		t.Fatalf("missing good peer %q in response", peerURL)
 	}
 
 	if good.DisplayName != "Good Peer" {
@@ -125,10 +148,15 @@ max_stale_seconds = 600
 	if good.Status != nil {
 		t.Errorf("expected no status on enriched good peer, got %+v", good.Status)
 	}
+}
 
-	bad, ok := serversByURL[badPeer.URL]
+// assertBadPeerEntry checks the bad peer entry carries discovery failure status.
+func assertBadPeerEntry(t *testing.T, serversByURL map[string]federationServerEntry, peerURL string) {
+	t.Helper()
+
+	bad, ok := serversByURL[peerURL]
 	if !ok {
-		t.Fatalf("missing bad peer %q in response", badPeer.URL)
+		t.Fatalf("missing bad peer %q in response", peerURL)
 	}
 
 	if bad.DisplayName != "Bad Peer" {
@@ -172,7 +200,12 @@ func pollFederations(t *testing.T, url string, timeout time.Duration) ([]federat
 
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		resp, err := http.Get(url)
+		req, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+		if reqErr != nil {
+			return nil, fmt.Errorf("build federations request: %w", reqErr)
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if err != nil {
 			time.Sleep(200 * time.Millisecond)
 			continue
@@ -181,8 +214,7 @@ func pollFederations(t *testing.T, url string, timeout time.Duration) ([]federat
 		var result []federationEntry
 
 		decodeErr := json.NewDecoder(resp.Body).Decode(&result)
-		//nolint:errcheck // test cleanup: response body close
-		resp.Body.Close()
+		defer tshttp.MustClose(t, resp.Body)
 
 		if decodeErr == nil && len(result) > 0 && len(result[0].Servers) > 0 {
 			return result, nil
@@ -205,8 +237,7 @@ func startOCMPeerWithInviteDialog(t *testing.T) *httptest.Server {
 			return
 		}
 
-		//nolint:errcheck // test stub handler: JSON encode/decode
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		tshttp.WriteJSON(w, map[string]any{
 			"enabled":            true,
 			"apiVersion":         "1.4.0",
 			"endPoint":           srv.URL + "/ocm",

@@ -13,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
@@ -35,16 +36,16 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	}
 
 	driver := testutil.OpenDriver(t, cfg)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	// Make the mirror dir read-only so all subsequent JSON export attempts fail.
 	mirrorDir := filepath.Join(tempDir, "mirror")
-	if err := os.Chmod(mirrorDir, 0500); err != nil { //nolint:gosec // test temp dir: restrictive 0500 mode is intentional for test isolation
+	if err := os.Chmod(mirrorDir, 0500); err != nil { //nolint:gosec // test fixture: restrictive 0500 removes write permission on the temp dir to force store failures
 		t.Fatal(err)
 	}
 
 	t.Cleanup(func() {
-		os.Chmod(mirrorDir, 0700) //nolint:errcheck,gosec // test cleanup: restore directory permissions; test temp dir: restrictive 0700 mode is intentional for test isolation
+		restoreDirPerms(t, mirrorDir)
 	})
 
 	outStore := requireOutgoingShareStore(t, driver)
@@ -66,7 +67,7 @@ func TestMirrorExportFailureTransparentToCallers(t *testing.T) {
 	}
 
 	// Restore write permission and verify a second write (update) also succeeds.
-	if err := os.Chmod(mirrorDir, 0700); err != nil { //nolint:gosec // test temp dir: restrictive 0700 mode is intentional for test isolation
+	if err := os.Chmod(mirrorDir, 0700); err != nil { //nolint:gosec // test fixture: restrictive 0700 restores write permission for the update-path check
 		t.Fatal(err)
 	}
 
@@ -95,7 +96,7 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	driver.Close() //nolint:errcheck // test cleanup: driver close
+	tshttp.MustClose(t, driver)
 
 	// Corrupt the JSON file
 	jsonPath := filepath.Join(tempDir, "mirror", "outgoing_shares.json")
@@ -105,7 +106,7 @@ func TestMirrorNeverReadsJSON(t *testing.T) {
 
 	// Reload driver - should still work because it reads from SQLite, not JSON
 	driver2 := testutil.OpenDriver(t, cfg)
-	defer driver2.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver2)
 
 	outStore2 := requireOutgoingShareStore(t, driver2)
 

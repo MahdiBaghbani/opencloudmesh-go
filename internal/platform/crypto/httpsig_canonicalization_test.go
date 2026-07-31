@@ -14,7 +14,7 @@ import (
 )
 
 func TestCanonicalTargetURI_ConsistentWithAndWithoutURLScheme(t *testing.T) {
-	withScheme := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares?x=1", nil)
+	withScheme := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares?x=1", nil)
 	withScheme.Host = "example.com"
 
 	want := "https://example.com/ocm/shares?x=1"
@@ -23,7 +23,7 @@ func TestCanonicalTargetURI_ConsistentWithAndWithoutURLScheme(t *testing.T) {
 	}
 
 	// Proxy-style request: path-only URL, Host set, no TLS -> http form.
-	without := httptest.NewRequest(http.MethodPost, "/ocm/shares?x=1", nil)
+	without := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/ocm/shares?x=1", nil)
 	without.Host = "example.com"
 	without.URL.Scheme = ""
 	without.URL.Host = ""
@@ -35,7 +35,7 @@ func TestCanonicalTargetURI_ConsistentWithAndWithoutURLScheme(t *testing.T) {
 }
 
 func TestBuildSignatureBase_RejectsCRLFInComponent(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("date", "Fri, 16 Jan 2026 13:37:00 GMT\r\nX-Injected: 1")
 
 	_, err := crypto.BuildSignatureBase(req, []string{"@method", "date"})

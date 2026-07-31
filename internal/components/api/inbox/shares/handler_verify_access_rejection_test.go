@@ -20,7 +20,7 @@ import (
 
 func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-cross", "sender.example.com", "file.txt")
+	share := createAcceptedShareForUser(t, repo, "prov-va-cross", "sender.example.com", "file.txt")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
@@ -29,7 +29,7 @@ func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userB)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -40,7 +40,7 @@ func TestHandleVerifyAccess_CrossUserReturns404(t *testing.T) {
 
 func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-va-pending", "sender.example.com")
+	share := createShareForUser(t, repo, userAID, "prov-va-pending", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
@@ -49,7 +49,7 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -69,7 +69,7 @@ func TestHandleVerifyAccess_ShareNotAcceptedReturns400(t *testing.T) {
 
 func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
+	share := createAcceptedShareForUser(t, repo, "prov-va-unsafe", "sender.example.com", "../etc/passwd")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
@@ -78,7 +78,7 @@ func TestHandleVerifyAccess_UnsafePathReturns400(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

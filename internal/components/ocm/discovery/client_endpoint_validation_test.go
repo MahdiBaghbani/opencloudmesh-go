@@ -7,7 +7,6 @@ package discovery_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -24,7 +23,7 @@ func TestClientDiscover_RejectsNonAbsoluteEndPoint(t *testing.T) {
 		raw["endPoint"] = "/ocm"
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -45,7 +44,7 @@ func TestClientDiscover_RejectsCrossAuthorityEndPoint(t *testing.T) {
 		raw["endPoint"] = "https://other.example.com/ocm"
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -67,7 +66,7 @@ func TestClientDiscover_RejectsExchangeTokenWithoutTokenEndPoint(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -89,7 +88,7 @@ func TestClientDiscover_RejectsTokenEndPointWithoutExchangeTokenCapability(t *te
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -112,7 +111,7 @@ func TestClientDiscover_RejectsNonAbsoluteTokenEndPoint(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -135,7 +134,7 @@ func TestClientDiscover_RejectsCrossAuthorityTokenEndPoint(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)

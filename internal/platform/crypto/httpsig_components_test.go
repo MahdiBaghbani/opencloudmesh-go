@@ -22,7 +22,7 @@ func TestSignRequest_CoversAllComponentsOnEmptyBody(t *testing.T) {
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	req, err := http.NewRequest(http.MethodGet, "https://example.com/ocm/discovery", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/ocm/discovery", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestSignRequest_CoversAllComponentsOnNonEmptyBody(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestVerifyRequest_RequiresAllComponentsOnEmptyBody(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, "https://example.com/ocm/discovery", nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/ocm/discovery", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -165,7 +165,7 @@ func TestVerifyRequest_AcceptsMissingDate(t *testing.T) {
 
 	components := []string{"@method", "@target-uri", "content-digest", "content-length"}
 
-	req, err := http.NewRequest(http.MethodGet, "https://example.com/ocm/discovery", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/ocm/discovery", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

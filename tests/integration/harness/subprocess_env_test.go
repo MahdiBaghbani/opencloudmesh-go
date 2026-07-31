@@ -176,12 +176,15 @@ func TestScrubParentConfigEnvRestoresBlocklistedVars(t *testing.T) {
 
 	t.Cleanup(func() {
 		for _, k := range hermeticEnvBlocklist {
+			var err error
 			if v, ok := originals[k]; ok && v != "" {
-				//nolint:errcheck // test env scrub: restore is best-effort
-				_ = os.Setenv(k, v)
+				err = os.Setenv(k, v)
 			} else {
-				//nolint:errcheck // test env scrub: restore is best-effort
-				_ = os.Unsetenv(k)
+				err = os.Unsetenv(k)
+			}
+
+			if err != nil {
+				t.Errorf("restore %s: %v", k, err)
 			}
 		}
 	})

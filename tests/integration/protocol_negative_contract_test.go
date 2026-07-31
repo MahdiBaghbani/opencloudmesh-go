@@ -14,66 +14,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	tsprotocol "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/protocol"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
-
-func runMalformedDiscoveryBlocksOutboundCase( //nolint:dupl // intentional: parallel negative outbound helpers share harness flow but assert different failure scenarios
-
-	t *testing.T,
-	pair *harness.StrictProtocolPair,
-	receiver *trustedProtocolPeer,
-	recordingReceiver *strictRecordingReceiver,
-) {
-	t.Helper()
-
-	provider := pair.Server1
-
-	if receiver.DiscoveryHits() > 0 {
-		t.Fatal("malformed-discovery peer hit before outgoing share attempt")
-	}
-
-	token := loginSubprocessAdminWithClient(t, provider)
-	shareFile := writeNegativeShareFile(t, "malformed-discovery")
-
-	beforeSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
-	if err != nil {
-		t.Fatalf("snapshot persistence before malformed discovery: %v", err)
-	}
-
-	status, body := createOutgoingShareWithClient(t, provider, token, map[string]any{
-		"receiverDomain": receiver.peerBaseURL,
-		"shareWith":      "bob@" + receiver.peerDomain,
-		"localPath":      shareFile,
-		"permissions":    []string{"read"},
-	})
-
-	wantStatus := reason.APIStatus(reason.PeerDiscoveryFailed)
-	if status != wantStatus {
-		provider.DumpLogs(t)
-		t.Fatalf("malformed discovery outgoing share: expected %d, got %d: %s", wantStatus, status, body)
-	}
-
-	if receiver.DiscoveryHits() == 0 {
-		t.Fatal("expected trusted discovery fetch before malformed-discovery rejection")
-	}
-
-	if receiver.PostCount() > 0 {
-		t.Fatalf("expected receiver POST count 0, got %d", receiver.PostCount())
-	}
-
-	afterSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
-	if err != nil {
-		t.Fatalf("snapshot persistence after malformed discovery: %v", err)
-	}
-
-	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
-	assertNoUnexpectedNetwork(t, []*harness.SubprocessServer{provider})
-	assertNoOutboundFallback(t, recordingReceiver, nil, provider)
-	assertNoSecretInLogs(t, nil, provider)
-}
 
 func runUnexchangedSharedSecretBearer401Case(
 	t *testing.T,
@@ -132,24 +78,23 @@ func runUnexchangedSharedSecretBearer401Case(
 	fileName := filepath.Base(testFile)
 	webdavURL := provider.BaseURL + "/webdav/ocm/" + outgoingCreated.WebDAVID + "/" + url.PathEscape(fileName)
 
-	req, err := http.NewRequest(http.MethodGet, webdavURL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, webdavURL, nil)
 	if err != nil {
 		t.Fatalf("create shared-secret bearer webdav request: %v", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+sharedSecret)
 
-	resp, err := provider.Client().Do(req)
+	resp, err := provider.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("shared-secret bearer webdav GET: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusUnauthorized {
-		respBody, err := io.ReadAll(resp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
-		if err != nil {
-			t.Fatalf("read response body: %v", err)
+		respBody, rerr := io.ReadAll(resp.Body)
+		if rerr != nil {
+			t.Fatalf("read response body: %v", rerr)
 		}
 
 		t.Fatalf("shared-secret bearer webdav: expected 401, got %d: %s", resp.StatusCode, respBody)
@@ -186,8 +131,7 @@ func startMalformedDiscoveryPeer(t *testing.T) *trustedProtocolPeer {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewEncoder(w).Encode(disc)
+			tshttp.WriteJSON(w, disc)
 		case "/ocm/shares":
 			if r.Method == http.MethodPost {
 				peer.postCount.Add(1)

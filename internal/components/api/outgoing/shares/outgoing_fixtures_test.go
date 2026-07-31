@@ -44,7 +44,9 @@ func makeDummyDiscoveryClient() *discovery.Client {
 	return discovery.NewClient(hc, nil)
 }
 
-func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *atomic.Int32) {
+func makeReceiverTLSServer(t *testing.T, capabilities, criteria []string) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+
 	postCount := &atomic.Int32{}
 
 	var srv *httptest.Server
@@ -66,7 +68,7 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -74,7 +76,7 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
 
 			return
 		}
@@ -85,7 +87,9 @@ func makeReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *
 	return srv, postCount
 }
 
-func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.Server, *atomic.Int32, *spec.NewShareRequest) {
+func makeCapturingReceiverTLSServer(t *testing.T, capabilities, criteria []string) (*httptest.Server, *atomic.Int32, *spec.NewShareRequest) {
+	t.Helper()
+
 	postCount := &atomic.Int32{}
 
 	var (
@@ -110,7 +114,7 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -118,10 +122,15 @@ func makeCapturingReceiverTLSServer(capabilities, criteria []string) (*httptest.
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 
-			_ = json.NewDecoder(r.Body).Decode(&captured) //nolint:errcheck // test mock handler: JSON decode
+			if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+				t.Errorf("decode share request: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+
+				return
+			}
 
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
 
 			return
 		}
@@ -159,9 +168,16 @@ func createTempShareFile(t *testing.T, pattern string) string {
 	}
 
 	path := tmpFile.Name()
-	_ = tmpFile.Close() //nolint:errcheck // test cleanup: resource close
 
-	t.Cleanup(func() { _ = os.Remove(path) }) //nolint:errcheck // test cleanup: temp path removal
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := os.Remove(path); err != nil {
+			t.Errorf("remove temp file: %v", err)
+		}
+	})
 
 	return path
 }

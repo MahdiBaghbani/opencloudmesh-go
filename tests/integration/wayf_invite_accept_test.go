@@ -13,15 +13,17 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsinvite "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/invite"
 	tsession "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/session"
+	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
 // TestWayfInviteAcceptTwoInstance proves the MVP WAYF/discover path without
 // Playwright: Alice discovers Bob's inviteAcceptDialog, the redirect URL carries
 // token and Alice providerDomain, Bob preserves accept-invite query through login
 // redirect, Bob accepts via API, and Alice records accepted state.
-func TestWayfInviteAcceptTwoInstance(t *testing.T) { //nolint:cyclop // integration e2e test: end-to-end flow complexity is inherent to the protocol narrative
+func TestWayfInviteAcceptTwoInstance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -40,19 +42,38 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) { //nolint:cyclop // integrat
 		},
 	}
 
-	aliceToken, err := tsession.Login(aliceClient, alice.BaseURL, "admin", "")
+	created := createAliceOutgoingInvite(t, alice, aliceClient)
+	disc := discoverBobInviteDialog(t, alice, bob, aliceClient)
+	redirectURL, acceptPath := buildCheckedWAYFRedirect(t, disc, created)
+	assertAcceptInviteRedirectsToLogin(t, noRedirect, bob, redirectURL, acceptPath)
+	bobAcceptsAliceInvite(t, alice, bob, bobClient, created)
+}
+
+// createAliceOutgoingInvite logs in to alice and creates an outgoing invite.
+func createAliceOutgoingInvite(t *testing.T, alice *harness.SubprocessServer, aliceClient *http.Client) *tsinvite.OutgoingCreateResponse {
+	t.Helper()
+
+	aliceToken, err := tsession.Login(t.Context(), aliceClient, alice.BaseURL, "admin", "")
 	if err != nil {
 		alice.DumpLogs(t)
 		t.Fatalf("login alice: %v", err)
 	}
 
-	created, _, err := tsinvite.CreateOutgoing(aliceClient, alice.BaseURL, aliceToken)
+	created, _, err := tsinvite.CreateOutgoing(t.Context(), aliceClient, alice.BaseURL, aliceToken)
 	if err != nil {
 		alice.DumpLogs(t)
 		t.Fatalf("alice create outgoing invite: %v", err)
 	}
 
-	disc, status, err := tsinvite.DiscoverProvider(aliceClient, alice.BaseURL, bob.BaseURL)
+	return created
+}
+
+// discoverBobInviteDialog discovers bob from alice and checks the invite
+// accept dialog fields.
+func discoverBobInviteDialog(t *testing.T, alice, bob *harness.SubprocessServer, aliceClient *http.Client) *tsinvite.DiscoverResponse {
+	t.Helper()
+
+	disc, status, err := tsinvite.DiscoverProvider(t.Context(), aliceClient, alice.BaseURL, bob.BaseURL)
 	if err != nil {
 		alice.DumpLogs(t)
 		bob.DumpLogs(t)
@@ -83,6 +104,14 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) { //nolint:cyclop // integrat
 		t.Fatalf("inviteAcceptDialogAbsolute = %q, expected bob accept-invite URL", disc.InviteAcceptDialogAbsolute)
 	}
 
+	return disc
+}
+
+// buildCheckedWAYFRedirect builds the WAYF redirect URL and checks the token
+// and providerDomain query parameters, returning the URL and its path+query.
+func buildCheckedWAYFRedirect(t *testing.T, disc *tsinvite.DiscoverResponse, created *tsinvite.OutgoingCreateResponse) (string, string) {
+	t.Helper()
+
 	redirectURL := tsinvite.BuildWAYFRedirectURL(
 		disc.InviteAcceptDialogAbsolute,
 		created.Token,
@@ -108,16 +137,29 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) { //nolint:cyclop // integrat
 		acceptPath += "?" + redirectParsed.RawQuery
 	}
 
-	acceptResp, err := noRedirect.Get(redirectURL)
+	return redirectURL, acceptPath
+}
+
+// assertAcceptInviteRedirectsToLogin checks the unauthenticated accept-invite
+// request redirects to login preserving the accept path.
+func assertAcceptInviteRedirectsToLogin(t *testing.T, noRedirect *http.Client, bob *harness.SubprocessServer, redirectURL, acceptPath string) {
+	t.Helper()
+
+	acceptReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, redirectURL, nil)
+	if err != nil {
+		t.Fatalf("build bob accept-invite request: %v", err)
+	}
+
+	acceptResp, err := noRedirect.Do(acceptReq) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("GET bob accept-invite unauthenticated: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer acceptResp.Body.Close()
+	defer tshttp.MustClose(t, acceptResp.Body)
 
-	//nolint:errcheck // test cleanup: drain response body
-	_, _ = io.Copy(io.Discard, acceptResp.Body)
+	if _, derr := io.Copy(io.Discard, acceptResp.Body); derr != nil {
+		t.Errorf("drain response body: %v", derr)
+	}
 
 	if acceptResp.StatusCode != http.StatusFound {
 		bob.DumpLogs(t)
@@ -142,26 +184,32 @@ func TestWayfInviteAcceptTwoInstance(t *testing.T) { //nolint:cyclop // integrat
 	if returnURL != acceptPath {
 		t.Fatalf("login redirect param = %q, want %q", returnURL, acceptPath)
 	}
+}
 
-	bobToken, err := tsession.Login(bobClient, bob.BaseURL, "admin", "")
+// bobAcceptsAliceInvite runs bob's login, import, accept flow and verifies
+// both sides record the accepted state.
+func bobAcceptsAliceInvite(t *testing.T, alice, bob *harness.SubprocessServer, bobClient *http.Client, created *tsinvite.OutgoingCreateResponse) {
+	t.Helper()
+
+	bobToken, err := tsession.Login(t.Context(), bobClient, bob.BaseURL, "admin", "")
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("login bob: %v", err)
 	}
 
-	imported, _, err := tsinvite.Import(bobClient, bob.BaseURL, bobToken, created.InviteString)
+	imported, _, err := tsinvite.Import(t.Context(), bobClient, bob.BaseURL, bobToken, created.InviteString)
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("bob import invite: %v", err)
 	}
 
-	if _, _, err := tsinvite.Accept(bobClient, bob.BaseURL, bobToken, imported.ID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if _, _, aerr := tsinvite.Accept(t.Context(), bobClient, bob.BaseURL, bobToken, imported.ID); aerr != nil {
 		alice.DumpLogs(t)
 		bob.DumpLogs(t)
-		t.Fatalf("bob accept invite via API: %v", err)
+		t.Fatalf("bob accept invite via API: %v", aerr)
 	}
 
-	list, _, err := tsinvite.ListInbox(bobClient, bob.BaseURL, bobToken)
+	list, _, err := tsinvite.ListInbox(t.Context(), bobClient, bob.BaseURL, bobToken)
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("bob list inbox invites: %v", err)

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -48,12 +49,16 @@ mode = "selfsigned"
 		t.Fatalf("BaseURL should follow the overriding TLS config (https), got %q", srv.BaseURL)
 	}
 
-	resp, err := srv.Client().Get(srv.BaseURL + "/api/healthz")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/api/healthz", nil)
+	if err != nil {
+		t.Fatalf("build healthz request: %v", err)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("health check against overridden TLS listener failed: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected healthz 200 over https listener, got %d", resp.StatusCode)
@@ -91,12 +96,16 @@ mode = "selfsigned"
 		t.Fatalf("BaseURL should follow the overriding TLS config (https), got %q", srv.BaseURL)
 	}
 
-	resp, err := srv.Client().Get(srv.BaseURL + "/.well-known/ocm")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("build discovery request: %v", err)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to get discovery: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("discovery returned %d", resp.StatusCode)

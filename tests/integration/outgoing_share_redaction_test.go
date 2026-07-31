@@ -34,7 +34,7 @@ import (
 // The secret is still forwarded to the remote receiver inside the WebDAV protocol
 // payload, but it must not be echoed back to the browser.
 func TestOutgoingShareResponseRedactsSharedSecret(t *testing.T) {
-	receiver, captured := makeCapturingReceiverTLSServerForRedaction([]string{"exchange-token"}, []string{})
+	receiver, captured := makeCapturingReceiverTLSServerForRedaction(t, []string{"exchange-token"}, []string{})
 	defer receiver.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -53,7 +53,7 @@ func TestOutgoingShareResponseRedactsSharedSecret(t *testing.T) {
 		t.Fatalf("failed to marshal payload: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -77,7 +77,9 @@ func TestOutgoingShareResponseRedactsSharedSecret(t *testing.T) {
 	}
 }
 
-func makeCapturingReceiverTLSServerForRedaction(capabilities, criteria []string) (*httptest.Server, *spec.NewShareRequest) {
+func makeCapturingReceiverTLSServerForRedaction(t *testing.T, capabilities, criteria []string) (*httptest.Server, *spec.NewShareRequest) {
+	t.Helper()
+
 	var (
 		captured spec.NewShareRequest
 		srv      *httptest.Server
@@ -87,8 +89,7 @@ func makeCapturingReceiverTLSServerForRedaction(capabilities, criteria []string)
 		switch r.URL.Path {
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewEncoder(w).Encode(spec.Discovery{
+			tshttp.WriteJSON(w, spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
@@ -97,12 +98,15 @@ func makeCapturingReceiverTLSServerForRedaction(capabilities, criteria []string)
 				TokenEndPoint: srv.URL + "/ocm/token",
 			})
 		case "/ocm/shares":
-			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewDecoder(r.Body).Decode(&captured)
+			if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+				t.Errorf("decode share request: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+
+				return
+			}
 
 			w.WriteHeader(http.StatusCreated)
-			//nolint:errcheck // test stub handler: response write
-			_, _ = w.Write([]byte(`{"ok":true}`))
+			tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -173,11 +177,16 @@ func createTempFileForRedaction(t *testing.T, pattern string) string {
 	}
 
 	path := tmpFile.Name()
-	//nolint:errcheck // test cleanup: temp file close
-	_ = tmpFile.Close()
 
-	//nolint:errcheck // test cleanup: temp file removal
-	t.Cleanup(func() { _ = os.Remove(path) })
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := os.Remove(path); err != nil {
+			t.Errorf("remove temp file: %v", err)
+		}
+	})
 
 	return path
 }

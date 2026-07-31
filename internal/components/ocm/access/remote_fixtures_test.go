@@ -6,7 +6,6 @@
 package access
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,8 +34,7 @@ func newTestDiscoveryServer() *httptest.Server {
 				},
 			}
 
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -80,7 +78,9 @@ func newExchangeAccessClient(
 	return client
 }
 
-func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToken string) bool {
+func exchangeDiscoveryHandler(t *testing.T, w http.ResponseWriter, r *http.Request, accessToken string) bool {
+	t.Helper()
+
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
@@ -103,7 +103,7 @@ func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToke
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck,errchkjson // test mock handler: JSON encode; payload marshals to fixed JSON, so encode failure is always nil in practice
+		tshttp.WriteJSON(w, disc)
 
 		return true
 	}
@@ -114,10 +114,13 @@ func exchangeDiscoveryHandler(w http.ResponseWriter, r *http.Request, accessToke
 			return true
 		}
 
-		_ = r.ParseForm() //nolint:errcheck // test mock handler: parse form
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return true
+		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"` + accessToken + `","token_type":"Bearer","expires_in":3600}`)) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte(`{"access_token":"`+accessToken+`","token_type":"Bearer","expires_in":3600}`))
 
 		return true
 	}

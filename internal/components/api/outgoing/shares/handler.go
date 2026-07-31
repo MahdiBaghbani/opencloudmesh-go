@@ -237,7 +237,7 @@ func (h *Handler) sendShareToReceiver(
 	disc *spec.Discovery,
 	payload spec.NewShareRequest,
 ) error {
-	body, err := json.Marshal(payload) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
+	body, err := json.Marshal(payload) //nolint:errchkjson // payload type cannot fail to encode, so the checked error is always nil
 	if err != nil {
 		return fmt.Errorf("failed to encode payload: %w", err)
 	}

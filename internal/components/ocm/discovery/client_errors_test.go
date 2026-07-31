@@ -7,7 +7,6 @@ package discovery_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -47,7 +46,10 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte("{not-json")) //nolint:errcheck // test mock handler: response write
+
+			if _, err := w.Write([]byte("{not-json")); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 		}))
 		defer server.Close()
 
@@ -70,7 +72,7 @@ func TestClientDiscover_ErrorsIsThroughDiscoverWrap(t *testing.T) {
 				return
 			}
 
-			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, map[string]any{
 				"enabled":       false,
 				"apiVersion":    "1.4.0",
 				"resourceTypes": []any{},

@@ -9,67 +9,47 @@ import (
 	"testing"
 )
 
-func TestWebDAVRequirementsAdmission_BoolSeam(t *testing.T) { //nolint:dupl // intentional: parallel webdav/webapp admission table rows share structure but test different validators
+// runRequirementsAdmissionBoolSeam drives the shared bool-seam admission rows
+// for one requirements validator (webdav or webapp). Admission alone does not
+// enforce must-exchange-token; wire does.
+func runRequirementsAdmissionBoolSeam(t *testing.T, field string, validate func(bool, []string) []ValidationError) {
+	t.Helper()
+
 	t.Run("true+omit requires requirements", func(t *testing.T) {
-		errs := ValidateWebDAVRequirementsAdmission(true, nil)
-		if !hasValidationError(errs, "protocol.webdav.requirements") {
+		errs := validate(true, nil)
+		if !hasValidationError(errs, field) {
 			t.Fatalf("expected REQUIRED for true+omit, got %v", errs)
 		}
 
 		for _, e := range errs {
-			if e.Name == "protocol.webdav.requirements" && e.Message != "REQUIRED" {
+			if e.Name == field && e.Message != "REQUIRED" {
 				t.Fatalf("requirements error = %q, want REQUIRED", e.Message)
 			}
 		}
 	})
 	t.Run("false+omit allows empty", func(t *testing.T) {
-		if errs := ValidateWebDAVRequirementsAdmission(false, nil); len(errs) != 0 {
+		if errs := validate(false, nil); len(errs) != 0 {
 			t.Fatalf("expected no admission error for false+omit, got %v", errs)
 		}
 	})
 	t.Run("false+has reqs allows", func(t *testing.T) {
 		reqs := []string{RequirementMustExchangeToken}
-		if errs := ValidateWebDAVRequirementsAdmission(false, reqs); len(errs) != 0 {
+		if errs := validate(false, reqs); len(errs) != 0 {
 			t.Fatalf("expected no admission error for false+has, got %v", errs)
 		}
 	})
 	t.Run("true+has reqs allows", func(t *testing.T) {
 		reqs := []string{RequirementMustExchangeToken}
-		if errs := ValidateWebDAVRequirementsAdmission(true, reqs); len(errs) != 0 {
+		if errs := validate(true, reqs); len(errs) != 0 {
 			t.Fatalf("expected no admission error for true+has, got %v", errs)
 		}
 	})
 }
 
-func TestWebappRequirementsAdmission_BoolSeam(t *testing.T) { //nolint:dupl // intentional: parallel webdav/webapp admission table rows share structure but test different validators
-	t.Run("true+omit requires requirements", func(t *testing.T) {
-		errs := ValidateWebappRequirementsAdmission(true, nil)
-		if !hasValidationError(errs, "protocol.webapp.requirements") {
-			t.Fatalf("expected REQUIRED for true+omit, got %v", errs)
-		}
+func TestWebDAVRequirementsAdmission_BoolSeam(t *testing.T) {
+	runRequirementsAdmissionBoolSeam(t, "protocol.webdav.requirements", ValidateWebDAVRequirementsAdmission)
+}
 
-		for _, e := range errs {
-			if e.Name == "protocol.webapp.requirements" && e.Message != "REQUIRED" {
-				t.Fatalf("requirements error = %q, want REQUIRED", e.Message)
-			}
-		}
-	})
-	t.Run("false+omit allows empty at admission", func(t *testing.T) {
-		// Admission alone does not enforce must-exchange-token; wire does.
-		if errs := ValidateWebappRequirementsAdmission(false, nil); len(errs) != 0 {
-			t.Fatalf("expected no admission error for false+omit, got %v", errs)
-		}
-	})
-	t.Run("false+has reqs allows", func(t *testing.T) {
-		reqs := []string{RequirementMustExchangeToken}
-		if errs := ValidateWebappRequirementsAdmission(false, reqs); len(errs) != 0 {
-			t.Fatalf("expected no admission error for false+has, got %v", errs)
-		}
-	})
-	t.Run("true+has reqs allows", func(t *testing.T) {
-		reqs := []string{RequirementMustExchangeToken}
-		if errs := ValidateWebappRequirementsAdmission(true, reqs); len(errs) != 0 {
-			t.Fatalf("expected no admission error for true+has, got %v", errs)
-		}
-	})
+func TestWebappRequirementsAdmission_BoolSeam(t *testing.T) {
+	runRequirementsAdmissionBoolSeam(t, "protocol.webapp.requirements", ValidateWebappRequirementsAdmission)
 }

@@ -7,6 +7,7 @@ package architecture
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -70,6 +71,19 @@ var peerMappingIdent = regexp.MustCompile(`PeerMapping\w*`)
 func TestResolvedFindings_BanList(t *testing.T) {
 	root := modroot.ModuleRoot(t)
 
+	violations, err := scanBannedIdentifiers(root)
+	if err != nil {
+		t.Fatalf("walk failed: %v", err)
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("Retired identifier regressions:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+// scanBannedIdentifiers walks root and collects retired-identifier violations
+// from Go files.
+func scanBannedIdentifiers(root string) ([]string, error) {
 	var violations []string
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -78,58 +92,76 @@ func TestResolvedFindings_BanList(t *testing.T) {
 		}
 
 		if d.IsDir() {
-			name := d.Name()
-			if name == ".git" || name == "vendor" || name == "node_modules" {
-				return filepath.SkipDir
-			}
-
-			return nil
+			return skipHeavyDir(d)
 		}
 
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-
-		rel, err := filepath.Rel(root, path)
+		fileViolations, err := scanFileForBannedIdentifiers(root, path)
 		if err != nil {
 			return err
 		}
 
-		rel = filepath.ToSlash(rel)
-		if rel == "internal/architecture/resolved_findings_test.go" {
-			return nil
-		}
-
-		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
-		if err != nil {
-			return err
-		}
-
-		content := string(data)
-
-		for _, token := range bannedTokens {
-			if strings.Contains(content, token) {
-				violations = append(violations, rel+": retired identifier "+token)
-			}
-		}
-
-		for _, match := range peerMappingIdent.FindAllString(content, -1) {
-			if peerMappingAllowed(match, rel) {
-				continue
-			}
-
-			violations = append(violations, rel+": banned PeerMapping identifier "+match)
-		}
+		violations = append(violations, fileViolations...)
 
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("walk failed: %v", err)
+
+	return violations, err
+}
+
+// skipHeavyDir prunes directories that never carry first-party Go sources.
+func skipHeavyDir(d fs.DirEntry) error {
+	name := d.Name()
+	if name == ".git" || name == "vendor" || name == "node_modules" {
+		return filepath.SkipDir
 	}
 
-	if len(violations) > 0 {
-		t.Fatalf("Retired identifier regressions:\n%s", strings.Join(violations, "\n"))
+	return nil
+}
+
+// scanFileForBannedIdentifiers reports retired identifiers in one Go file.
+func scanFileForBannedIdentifiers(root, path string) ([]string, error) {
+	if !strings.HasSuffix(path, ".go") {
+		return nil, nil
 	}
+
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, err
+	}
+
+	rel = filepath.ToSlash(rel)
+	if rel == "internal/architecture/resolved_findings_test.go" {
+		return nil, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return bannedIdentifierViolations(string(data), rel), nil
+}
+
+// bannedIdentifierViolations matches the ban list and the PeerMapping guard
+// against one file's content.
+func bannedIdentifierViolations(content, rel string) []string {
+	var violations []string
+
+	for _, token := range bannedTokens {
+		if strings.Contains(content, token) {
+			violations = append(violations, rel+": retired identifier "+token)
+		}
+	}
+
+	for _, match := range peerMappingIdent.FindAllString(content, -1) {
+		if peerMappingAllowed(match, rel) {
+			continue
+		}
+
+		violations = append(violations, rel+": banned PeerMapping identifier "+match)
+	}
+
+	return violations
 }
 
 func TestResolvedFindings_PeerMappingAllowlistPopulated(t *testing.T) {
@@ -236,7 +268,7 @@ func assertTagBasedIdentification(t *testing.T) {
 
 	body := []byte(`{"test":"data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -276,7 +308,7 @@ func assertLabelFreeIdentification(t *testing.T) {
 
 	body := []byte(`{"test":"data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -305,7 +337,7 @@ func assertLabelFreeIdentification(t *testing.T) {
 func assertReasonUnsigned(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", "Fri, 16 Jan 2026 13:37:00 GMT")
 	req.Header.Set("Signature-Input", `sig1=("@method" "@target-uri" "date");created=1730815200;keyid="example.com#key1";alg="ed25519"`)
 	req.Header.Set("Signature", "sig1=:AAAA:")
@@ -335,7 +367,7 @@ func assertTagIntegrity(t *testing.T) {
 
 	body := []byte(`{"test":"data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -372,7 +404,7 @@ func assertGoldenOutput(t *testing.T) {
 
 	body := []byte(`{"test":"data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}

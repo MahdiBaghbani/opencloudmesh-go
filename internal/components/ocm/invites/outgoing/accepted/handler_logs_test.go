@@ -95,7 +95,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				t.Fatalf("Marshal: %v", err)
 			}
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(context.Background(),
 				http.MethodPost,
 				"/ocm/invite-accepted",
 				bytes.NewReader(body),

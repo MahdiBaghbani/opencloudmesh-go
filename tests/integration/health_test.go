@@ -13,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/frameworks/service"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsrouting "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/routing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
@@ -34,12 +35,16 @@ func TestHealthEndpoint(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+healthPathForConfig(t, ts.Config), nil)
+	if err != nil {
+		t.Fatalf("build health request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to get health endpoint: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
@@ -67,12 +72,16 @@ func TestHealthEndpointWithExternalBasePath(t *testing.T) {
 	})
 	defer ts.Stop(t)
 
-	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+healthPathForConfig(t, ts.Config), nil)
+	if err != nil {
+		t.Fatalf("build health request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to get health endpoint: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
@@ -88,13 +97,16 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 	defer ts.Stop(t)
 
 	for _, path := range tsrouting.HostRootDiscoveryPaths() {
-		resp, err := http.Get(ts.BaseURL + path)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+path, nil)
+		if err != nil {
+			t.Fatalf("build discovery request for %q: %v", path, err)
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if err != nil {
 			t.Fatalf("failed to get discovery at %q: %v", path, err)
 		}
-
-		//nolint:errcheck // test cleanup: response body close
-		resp.Body.Close()
+		defer tshttp.MustClose(t, resp.Body)
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("host-root discovery %q returned %d, want 200", path, resp.StatusCode)
@@ -104,13 +116,16 @@ func TestDiscoveryRemainsHostRootWithExternalBasePath(t *testing.T) {
 	for _, path := range tsrouting.HostRootDiscoveryPaths() {
 		prefixed := ts.BaseURL + "/ocm" + path
 
-		resp, err := http.Get(prefixed)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, prefixed, nil)
+		if err != nil {
+			t.Fatalf("build prefixed discovery request for %q: %v", prefixed, err)
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if err != nil {
 			t.Fatalf("failed to get prefixed discovery at %q: %v", prefixed, err)
 		}
-
-		//nolint:errcheck // test cleanup: response body close
-		resp.Body.Close()
+		defer tshttp.MustClose(t, resp.Body)
 
 		if resp.StatusCode == http.StatusOK {
 			t.Errorf("discovery must not be served under external_base_path at %s", prefixed)
@@ -137,12 +152,16 @@ func TestBaseURLTracksListenerNotPublicOrigin(t *testing.T) {
 		t.Fatalf("BaseURL must not use the advertised PublicOrigin, got %q", ts.BaseURL)
 	}
 
-	resp, err := http.Get(ts.BaseURL + healthPathForConfig(t, ts.Config))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+healthPathForConfig(t, ts.Config), nil)
+	if err != nil {
+		t.Fatalf("build health request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("health check against local listener failed: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected healthz 200 from local listener, got %d", resp.StatusCode)
@@ -153,12 +172,16 @@ func TestDiscoveryEndpoint(t *testing.T) {
 	ts := harness.StartTestServer(t)
 	defer ts.Stop(t)
 
-	resp, err := http.Get(ts.BaseURL + "/.well-known/ocm")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.BaseURL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("build discovery request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("failed to get discovery: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)

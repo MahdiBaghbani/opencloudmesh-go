@@ -42,7 +42,7 @@ func TestHandler_FormEncoded_Success(t *testing.T) {
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code-789")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()
@@ -114,7 +114,7 @@ func TestHandler_AuthorizationCode_FormEncoded_Success(t *testing.T) {
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "ac-secret-code")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()

@@ -15,14 +15,18 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsprotocol "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/protocol"
+	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
 // TestProtocolPositiveStrictTwoServer covers strict two-subprocess discovery,
 // signed multi outgoing emission, signed named-webdav inbound admission,
 // same-authority token exchange, Bearer WebDAV content, and duplicate inbound
 // idempotency.
-func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintidx // integration e2e test: end-to-end flow complexity is inherent to the protocol narrative
+func TestProtocolPositiveStrictTwoServer(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
 	}
@@ -53,6 +57,25 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 
 	// Strict mode enforces must-invite: exchange an invite before any share.
 	exchangeInvitesBetweenPair(t, provider, consumer, providerToken, consumerToken)
+
+	providerID, webdavID := createAndVerifyMultiShare(t, provider, consumer, providerToken, consumerToken, consumerHost, testFile)
+	webdavBody, webdavSecret, consumerSigner := postWebDAVInboundShare(t, provider, consumer, providerToken, consumerToken, providerHost, consumerHost)
+
+	tokenResp, sharedSecret := exchangeProviderToken(t, provider, consumer, providerDisc.TokenEndPoint, consumerHost, providerID)
+
+	webdavURL := provider.BaseURL + "/webdav/ocm/" + webdavID + "/" + url.PathEscape(filepath.Base(testFile))
+	assertBearerWebDAVContent(t, provider, webdavURL, tokenResp.AccessToken, testContent)
+	assertSharedSecretWebDAVRejected(t, provider, webdavURL, sharedSecret)
+	assertDuplicateInboundIdempotent(t, provider, consumer, webdavBody, consumerSigner)
+
+	secrets := []string{sharedSecret, webdavSecret, tokenResp.AccessToken}
+	assertNoSecretInLogs(t, secrets, provider, consumer)
+}
+
+// createAndVerifyMultiShare creates the outgoing multi share to the consumer
+// and verifies inbox projection, returning providerId and webdavId.
+func createAndVerifyMultiShare(t *testing.T, provider, consumer *harness.SubprocessServer, providerToken, consumerToken, consumerHost, testFile string) (string, string) {
+	t.Helper()
 
 	status, body := createOutgoingShareWithClient(t, provider, providerToken, map[string]any{
 		"receiverDomain": consumerHost,
@@ -99,19 +122,27 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 		t.Fatalf("inbox detail protocol.name = %v, want multi", proto["name"])
 	}
 
+	return outgoingCreated.ProviderID, outgoingCreated.WebDAVID
+}
+
+// postWebDAVInboundShare posts the signed named-webdav inbound share and
+// verifies inbox projection, returning the body, secret, and signer for the
+// duplicate-post idempotency check.
+func postWebDAVInboundShare(t *testing.T, provider, consumer *harness.SubprocessServer, providerToken, consumerToken, providerHost, consumerHost string) ([]byte, string, *crypto.RFC9421Signer) {
+	t.Helper()
+
 	webdavProviderID := "webdav-inbound-positive"
 	webdavSecret := "webdav-shared-secret"
 	// The inbound sender must match the exchanged invite: the consumer admin's
 	// canonical federated identity, not an arbitrary user.
 	consumerAdminID := fetchCurrentUserID(t, consumer, consumerToken)
-	webdavBody := buildSignedInboundShareBodyWithSender("admin@"+providerHost, webdavProviderID, consumerAdminID, consumerHost, "webdav-uri",
+	webdavBody := buildSignedInboundShareBodyWithSender(t, "admin@"+providerHost, webdavProviderID, consumerAdminID, consumerHost, "webdav-uri",
 		webdavSecret,
 	)
 	consumerSigner := subprocessSigner(t, consumer)
 
-	webdavResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner)
-	//nolint:errcheck // test cleanup: response body close
-	defer webdavResp.Body.Close()
+	webdavResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	defer tshttp.MustClose(t, webdavResp.Body)
 
 	if webdavResp.StatusCode != http.StatusCreated {
 		respBody, err := io.ReadAll(webdavResp.Body)
@@ -131,7 +162,15 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 		t.Fatalf("webdav inbox providerId = %v, want %s", webdavDetail["providerId"], webdavProviderID)
 	}
 
-	sharedSecret := readOutgoingSharedSecret(t, provider, outgoingCreated.ProviderID)
+	return webdavBody, webdavSecret, consumerSigner
+}
+
+// exchangeProviderToken reads the outgoing shared secret and runs the signed
+// authorization code exchange, returning the token response and shared secret.
+func exchangeProviderToken(t *testing.T, provider, consumer *harness.SubprocessServer, tokenEndpoint, consumerHost, providerID string) (spec.TokenResponse, string) {
+	t.Helper()
+
+	sharedSecret := readOutgoingSharedSecret(t, provider, providerID)
 	if sharedSecret == "" {
 		t.Fatal("outgoing persistence missing shared secret for token exchange")
 	}
@@ -139,7 +178,7 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 	tokenResp := exchangeSignedAuthorizationCode(
 		t,
 		consumer.Client(),
-		providerDisc.TokenEndPoint,
+		tokenEndpoint,
 		consumerHost,
 		sharedSecret,
 		subprocessSigner(t, consumer),
@@ -152,27 +191,30 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 		t.Fatal("token exchange returned empty access_token")
 	}
 
-	fileName := filepath.Base(testFile)
-	webdavURL := provider.BaseURL + "/webdav/ocm/" + outgoingCreated.WebDAVID + "/" + url.PathEscape(fileName)
+	return tokenResp, sharedSecret
+}
 
-	bearerReq, err := http.NewRequest(http.MethodGet, webdavURL, nil)
+// assertBearerWebDAVContent checks bearer access to the shared file content.
+func assertBearerWebDAVContent(t *testing.T, provider *harness.SubprocessServer, webdavURL, accessToken string, testContent []byte) {
+	t.Helper()
+
+	bearerReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, webdavURL, nil)
 	if err != nil {
 		t.Fatalf("create bearer webdav request: %v", err)
 	}
 
-	bearerReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+	bearerReq.Header.Set("Authorization", "Bearer "+accessToken)
 
-	bearerResp, err := provider.Client().Do(bearerReq)
+	bearerResp, err := provider.Client().Do(bearerReq) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("bearer webdav GET: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer bearerResp.Body.Close()
+	defer tshttp.MustClose(t, bearerResp.Body)
 
 	if bearerResp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(bearerResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
-		if err != nil {
-			t.Fatalf("read response body: %v", err)
+		respBody, rerr := io.ReadAll(bearerResp.Body)
+		if rerr != nil {
+			t.Fatalf("read response body: %v", rerr)
 		}
 
 		t.Fatalf("bearer webdav: expected 200, got %d: %s", bearerResp.StatusCode, respBody)
@@ -186,43 +228,53 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 	if !bytes.Equal(gotContent, testContent) {
 		t.Fatalf("bearer webdav body = %q, want %q", gotContent, testContent)
 	}
+}
 
-	secretReq, err := http.NewRequest(http.MethodGet, webdavURL, nil)
+// assertSharedSecretWebDAVRejected checks the raw shared secret is not a
+// valid bearer credential.
+func assertSharedSecretWebDAVRejected(t *testing.T, provider *harness.SubprocessServer, webdavURL, sharedSecret string) {
+	t.Helper()
+
+	secretReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet, webdavURL, nil)
 	if err != nil {
 		t.Fatalf("create shared-secret webdav request: %v", err)
 	}
 
 	secretReq.Header.Set("Authorization", "Bearer "+sharedSecret)
 
-	secretResp, err := provider.Client().Do(secretReq)
+	secretResp, err := provider.Client().Do(secretReq) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("shared-secret webdav GET: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer secretResp.Body.Close()
+	defer tshttp.MustClose(t, secretResp.Body)
 
 	if secretResp.StatusCode != http.StatusUnauthorized {
-		respBody, err := io.ReadAll(secretResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
+		respBody, err := io.ReadAll(secretResp.Body)
 		if err != nil {
 			t.Fatalf("read response body: %v", err)
 		}
 
 		t.Fatalf("shared-secret webdav: expected 401, got %d: %s", secretResp.StatusCode, respBody)
 	}
+}
+
+// assertDuplicateInboundIdempotent reposts the inbound share and checks the
+// duplicate is accepted without changing persistence.
+func assertDuplicateInboundIdempotent(t *testing.T, provider, consumer *harness.SubprocessServer, webdavBody []byte, consumerSigner *crypto.RFC9421Signer) {
+	t.Helper()
 
 	beforeSnap, err := tsprotocol.SnapshotPersistence(provider.TempDir)
 	if err != nil {
 		t.Fatalf("snapshot persistence before duplicate: %v", err)
 	}
 
-	dupResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner)
-	//nolint:errcheck // test cleanup: response body close
-	defer dupResp.Body.Close()
+	dupResp := postSignedJSONWithClient(t, consumer.Client(), provider.BaseURL+"/ocm/shares", webdavBody, consumerSigner) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	defer tshttp.MustClose(t, dupResp.Body)
 
 	if dupResp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(dupResp.Body) //nolint:govet // shadow: sequential err in table-driven test is benign
-		if err != nil {
-			t.Fatalf("read response body: %v", err)
+		respBody, rerr := io.ReadAll(dupResp.Body)
+		if rerr != nil {
+			t.Fatalf("read response body: %v", rerr)
 		}
 
 		t.Fatalf("duplicate webdav inbound share: expected 200, got %d: %s", dupResp.StatusCode, respBody)
@@ -234,7 +286,4 @@ func TestProtocolPositiveStrictTwoServer(t *testing.T) { //nolint:cyclop,maintid
 	}
 
 	assertPersistenceUnchanged(t, beforeSnap, afterSnap)
-
-	secrets := []string{sharedSecret, webdavSecret, tokenResp.AccessToken}
-	assertNoSecretInLogs(t, secrets, provider, consumer)
 }

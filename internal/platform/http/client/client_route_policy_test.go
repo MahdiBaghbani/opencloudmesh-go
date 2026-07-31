@@ -84,7 +84,7 @@ func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
 	}
 	c := httpclient.New(cfg, nil)
 
-	resp, err := c.Get(context.Background(), server.URL+"/api")
+	resp, err := c.Get(context.Background(), server.URL+"/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if httpclient.IsSSRFError(err) {
 		t.Errorf("route policy should allow this private host, got SSRF error: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestRoutePolicy_PrivateHostAllowedWhenAllChecksPass(t *testing.T) {
 		t.Fatalf("expected successful request, got: %v", err)
 	}
 
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -120,9 +120,9 @@ func TestRoutePolicy_LeadingDotSuffixNormalized(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	resp, err := c.Get(context.Background(), "http://service.internal/api")
+	resp, err := c.Get(context.Background(), "http://service.internal/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if httpclient.IsSSRFError(err) {
@@ -149,9 +149,9 @@ func TestRoutePolicy_PrivateHostDeniedWhenSuffixFails(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	resp, err := c.Get(context.Background(), "http://other.noncorp.example/api")
+	resp, err := c.Get(context.Background(), "http://other.noncorp.example/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {
@@ -178,9 +178,9 @@ func TestRoutePolicy_PrivateHostDeniedWhenCIDRFails(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	resp, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.corp.example/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {
@@ -208,9 +208,9 @@ func TestRoutePolicy_PrivateHostDeniedWhenPortFails(t *testing.T) {
 	c.SetResolver(resolver)
 
 	// http:// derives effective port 80; policy only allows 443.
-	resp, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.corp.example/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {
@@ -237,9 +237,9 @@ func TestRoutePolicy_PrivateHostDeniedWhenAllowedPortsEmpty(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	resp, err := c.Get(context.Background(), "http://internal.corp.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.corp.example/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {
@@ -270,9 +270,9 @@ func TestRoutePolicy_MixedResolvedIPsFailClosed(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	resp, err := c.Get(context.Background(), "http://mixed.corp.example/api")
+	resp, err := c.Get(context.Background(), "http://mixed.corp.example/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {
@@ -294,9 +294,9 @@ func TestRoutePolicy_PrivateIPLiteralBlockedByDefault(t *testing.T) {
 	}
 	c := httpclient.New(cfg, nil)
 
-	resp, err := c.Get(context.Background(), "http://10.0.0.1/api")
+	resp, err := c.Get(context.Background(), "http://10.0.0.1/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {
@@ -319,9 +319,9 @@ func TestRoutePolicy_PrivateIPLiteralAllowedWithPolicy(t *testing.T) {
 	}
 	c := httpclient.New(cfg, nil)
 
-	resp, err := c.Get(context.Background(), "http://10.0.0.1/api")
+	resp, err := c.Get(context.Background(), "http://10.0.0.1/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if httpclient.IsSSRFError(err) {
@@ -358,9 +358,9 @@ func TestRoutePolicy_ProxyTrustedWhileDestinationPolicyEnforced(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	resp, err := c.Get(context.Background(), "http://internal.nopolicy.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.nopolicy.example/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {
@@ -408,9 +408,9 @@ func TestRoutePolicy_EnvProxyNOProxyCannotBypassDestinationChecks(t *testing.T) 
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	resp, err := c.Get(context.Background(), "http://internal.nopolicy.example/api")
+	resp, err := c.Get(context.Background(), "http://internal.nopolicy.example/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {
@@ -465,11 +465,11 @@ func TestRoutePolicy_RedirectRevalidationWithAllowedPolicy(t *testing.T) {
 	}
 	c := httpclient.New(cfg, nil)
 
-	resp, err := c.Get(context.Background(), server.URL+"/start")
+	resp, err := c.Get(context.Background(), server.URL+"/start") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected redirect to be followed with matching route policy, got: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -494,9 +494,9 @@ func TestClient_NoPolicyErrorDistinct(t *testing.T) {
 	c := httpclient.New(cfg, nil)
 	c.SetResolver(resolver)
 
-	resp, err := c.Get(context.Background(), "http://internal.example.com/api")
+	resp, err := c.Get(context.Background(), "http://internal.example.com/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if !httpclient.IsSSRFError(err) {

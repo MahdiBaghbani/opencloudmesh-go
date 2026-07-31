@@ -10,10 +10,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -37,126 +39,152 @@ mode = "off"
 	defer srv.Stop(t)
 
 	t.Run("DiscoveryAdvertisesExchangeToken", func(t *testing.T) {
-		resp, err := srv.Client().Get(srv.BaseURL + "/.well-known/ocm")
-		if err != nil {
-			srv.DumpLogs(t)
-			t.Fatalf("failed to get discovery: %v", err)
-		}
-		//nolint:errcheck // test cleanup: response body close
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("discovery returned %d", resp.StatusCode)
-		}
-
-		var disc struct {
-			Enabled       bool     `json:"enabled"`
-			Capabilities  []string `json:"capabilities"`
-			Criteria      []string `json:"criteria"`
-			TokenEndPoint string   `json:"tokenEndPoint"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
-			t.Fatalf("failed to decode discovery: %v", err)
-		}
-
-		if !disc.Enabled {
-			t.Fatal("discovery should be enabled in dev mode")
-		}
-
-		hasExchangeToken := false
-
-		for _, cap := range disc.Capabilities {
-			if strings.Contains(cap, "exchange-token") {
-				hasExchangeToken = true
-			}
-		}
-
-		if !hasExchangeToken {
-			t.Error("dev mode should advertise exchange-token capability")
-		}
-
-		if disc.TokenEndPoint == "" {
-			t.Error("dev mode should advertise tokenEndPoint")
-		}
-
-		hasHTTPReqSigs := false
-
-		for _, criterion := range disc.Criteria {
-			if criterion == spec.CriteriaMustUseHTTPSig {
-				hasHTTPReqSigs = true
-				break
-			}
-		}
-
-		if !hasHTTPReqSigs {
-			t.Error("dev mode should advertise signature criterion")
-		}
+		assertDiscoveryAdvertisesExchangeToken(t, srv)
 	})
 
 	t.Run("HealthEndpoint", func(t *testing.T) {
-		resp, err := srv.Client().Get(srv.BaseURL + "/api/healthz")
-		if err != nil {
-			t.Fatalf("health check failed: %v", err)
-		}
-		//nolint:errcheck // test cleanup: response body close
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("health endpoint returned %d", resp.StatusCode)
-		}
+		assertHealthEndpoint(t, srv)
 	})
 
 	t.Run("TokenEndpointRejectsInvalidGrant", func(t *testing.T) {
-		peer := startStrictCodeFlowReceiver(t)
-		defer peer.Close()
-
-		data := url.Values{}
-		data.Set("grant_type", "invalid_type")
-		data.Set("client_id", peer.peerDomain)
-		data.Set("code", "some-secret")
-
-		req, err := http.NewRequest(
-			http.MethodPost,
-			srv.BaseURL+"/ocm/token",
-			strings.NewReader(data.Encode()),
-		)
-		if err != nil {
-			t.Fatalf("failed to build token request: %v", err)
-		}
-
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-		if err := peer.signer.Sign(req); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-			t.Fatalf("failed to sign token request: %v", err)
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatalf("failed to call token endpoint: %v", err)
-		}
-		//nolint:errcheck // test cleanup: response body close
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusBadRequest {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatalf("read response body: %v", err)
-			}
-
-			t.Fatalf("expected 400 for invalid grant_type, got %d: %s", resp.StatusCode, body)
-		}
-
-		var errResp struct {
-			Error string `json:"error"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			t.Fatalf("failed to decode error: %v", err)
-		}
-
-		if errResp.Error != "unsupported_grant_type" {
-			t.Errorf("expected error=unsupported_grant_type, got %q", errResp.Error)
-		}
+		assertTokenEndpointRejectsInvalidGrant(t, srv)
 	})
+}
+
+// assertDiscoveryAdvertisesExchangeToken checks dev-mode discovery advertises
+// the exchange-token capability and signature criterion.
+func assertDiscoveryAdvertisesExchangeToken(t *testing.T, srv *harness.SubprocessServer) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("build discovery request: %v", err)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if err != nil {
+		srv.DumpLogs(t)
+		t.Fatalf("failed to get discovery: %v", err)
+	}
+	defer tshttp.MustClose(t, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("discovery returned %d", resp.StatusCode)
+	}
+
+	var disc struct {
+		Enabled       bool     `json:"enabled"`
+		Capabilities  []string `json:"capabilities"`
+		Criteria      []string `json:"criteria"`
+		TokenEndPoint string   `json:"tokenEndPoint"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
+		t.Fatalf("failed to decode discovery: %v", err)
+	}
+
+	if !disc.Enabled {
+		t.Fatal("discovery should be enabled in dev mode")
+	}
+
+	if !hasExchangeTokenCapability(disc.Capabilities) {
+		t.Error("dev mode should advertise exchange-token capability")
+	}
+
+	if disc.TokenEndPoint == "" {
+		t.Error("dev mode should advertise tokenEndPoint")
+	}
+
+	if !slices.Contains(disc.Criteria, spec.CriteriaMustUseHTTPSig) {
+		t.Error("dev mode should advertise signature criterion")
+	}
+}
+
+// hasExchangeTokenCapability reports whether any capability string mentions
+// the exchange-token capability.
+func hasExchangeTokenCapability(capabilities []string) bool {
+	for _, capability := range capabilities {
+		if strings.Contains(capability, "exchange-token") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// assertHealthEndpoint checks the health endpoint returns 200.
+func assertHealthEndpoint(t *testing.T, srv *harness.SubprocessServer) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/api/healthz", nil)
+	if err != nil {
+		t.Fatalf("build health request: %v", err)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if err != nil {
+		t.Fatalf("health check failed: %v", err)
+	}
+	defer tshttp.MustClose(t, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("health endpoint returned %d", resp.StatusCode)
+	}
+}
+
+// assertTokenEndpointRejectsInvalidGrant checks an invalid grant_type is
+// rejected with unsupported_grant_type.
+func assertTokenEndpointRejectsInvalidGrant(t *testing.T, srv *harness.SubprocessServer) {
+	t.Helper()
+
+	peer := startStrictCodeFlowReceiver(t)
+	defer peer.Close()
+
+	data := url.Values{}
+	data.Set("grant_type", "invalid_type")
+	data.Set("client_id", peer.peerDomain)
+	data.Set("code", "some-secret")
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		srv.BaseURL+"/ocm/token",
+		strings.NewReader(data.Encode()),
+	)
+	if err != nil {
+		t.Fatalf("failed to build token request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	if signErr := peer.signer.Sign(req); signErr != nil {
+		t.Fatalf("failed to sign token request: %v", signErr)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if err != nil {
+		t.Fatalf("failed to call token endpoint: %v", err)
+	}
+	defer tshttp.MustClose(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read response body: %v", err)
+		}
+
+		t.Fatalf("expected 400 for invalid grant_type, got %d: %s", resp.StatusCode, body)
+	}
+
+	var errResp struct {
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error: %v", err)
+	}
+
+	if errResp.Error != "unsupported_grant_type" {
+		t.Errorf("expected error=unsupported_grant_type, got %q", errResp.Error)
+	}
 }
 
 // TestDiscoverySignatureCriteriaMatrixByPosture verifies the discovery
@@ -194,13 +222,17 @@ func TestDiscoverySignatureCriteriaMatrixByPosture(t *testing.T) {
 			})
 			defer srv.Stop(t)
 
-			resp, err := srv.Client().Get(srv.BaseURL + "/.well-known/ocm")
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/.well-known/ocm", nil)
+			if err != nil {
+				t.Fatalf("build discovery request: %v", err)
+			}
+
+			resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if err != nil {
 				srv.DumpLogs(t)
 				t.Fatalf("failed to get discovery: %v", err)
 			}
-			//nolint:errcheck // test cleanup: response body close
-			defer resp.Body.Close()
+			defer tshttp.MustClose(t, resp.Body)
 
 			if resp.StatusCode != http.StatusOK {
 				t.Fatalf("discovery returned %d", resp.StatusCode)

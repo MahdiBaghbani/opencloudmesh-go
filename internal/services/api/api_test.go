@@ -6,6 +6,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -92,7 +93,7 @@ func TestService_HealthzEndpoint(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -121,7 +122,7 @@ func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/auth/login", nil)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -143,7 +144,7 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/inbox/shares", nil)
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)
@@ -164,7 +165,7 @@ func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/invites", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/inbox/invites", nil)
 	w := httptest.NewRecorder()
 
 	svc.Handler().ServeHTTP(w, req)

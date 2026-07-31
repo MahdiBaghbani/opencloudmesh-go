@@ -134,7 +134,7 @@ func init() { _ = "must-exchange-token" }
 `
 
 	path := filepath.Join(tmp, "pkg", "bad.go")
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { //nolint:gosec // test fixture: 0755 on a local controlled test temp dir, not an attacker-controlled production path
 		t.Fatalf("mkdir temp fixture: %v", err)
 	}
 
@@ -185,7 +185,7 @@ func TestWireConstantsScannerSkipsGeneratedFiles(t *testing.T) {
 
 	for _, tc := range cases {
 		dir := filepath.Join(tmp, tc.dir)
-		if err := os.MkdirAll(dir, 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
+		if err := os.MkdirAll(dir, 0755); err != nil { //nolint:gosec // test fixture: 0755 on a local controlled test temp dir, not an attacker-controlled production path
 			t.Fatalf("mkdir temp fixture %s: %v", tc.dir, err)
 		}
 
@@ -240,81 +240,15 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 		}
 
 		if d.IsDir() {
-			name := d.Name()
-			if name == ".git" || name == "vendor" || name == "node_modules" {
-				return filepath.SkipDir
-			}
-
-			return nil
+			return skipWireScanDir(d)
 		}
 
-		rel, err := filepath.Rel(root, path)
+		fileViolations, err := scanFileForRawWireLiterals(root, path, literals, allowlist)
 		if err != nil {
 			return err
 		}
 
-		rel = filepath.ToSlash(rel)
-
-		if !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
-			return nil
-		}
-
-		if isSpecOwnedProductionFile(rel) {
-			return nil
-		}
-
-		fset := token.NewFileSet()
-
-		f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", rel, err)
-		}
-
-		if isGeneratedFile(f) {
-			return nil
-		}
-
-		allowed := allowlist[rel]
-
-		ast.Inspect(f, func(n ast.Node) bool {
-			if field, ok := n.(*ast.Field); ok && field.Tag != nil {
-				// Struct tags are raw string syntax but not wire values;
-				// skip the tag literal so JSON/TOML/mapstructure keys do not
-				// produce false positives.
-				return false
-			}
-
-			if imp, ok := n.(*ast.ImportSpec); ok {
-				// Import paths are string literals but never OCM wire values.
-				_ = imp
-				return false
-			}
-
-			lit, ok := n.(*ast.BasicLit)
-			if !ok || lit.Kind != token.STRING {
-				return true
-			}
-
-			val, err := strconv.Unquote(lit.Value)
-			if err != nil {
-				// Raw string literals are also quoted by the parser; if
-				// Unquote fails, trim the surrounding backticks.
-				val = strings.Trim(lit.Value, "`")
-			}
-
-			if _, match := literals[val]; !match {
-				return true
-			}
-
-			pos := fset.Position(lit.Pos())
-			if _, ok := allowed[pos.Line]; ok {
-				return true
-			}
-
-			violations = append(violations, fmt.Sprintf("%s:%d: raw wire literal %q", rel, pos.Line, val))
-
-			return true
-		})
+		violations = append(violations, fileViolations...)
 
 		return nil
 	})
@@ -323,6 +257,94 @@ func scanRawWireLiterals(root string, literals map[string]struct{}, allowlist ma
 	}
 
 	return violations, nil
+}
+
+// skipWireScanDir prunes directories that never carry first-party Go sources.
+func skipWireScanDir(d fs.DirEntry) error {
+	name := d.Name()
+	if name == ".git" || name == "vendor" || name == "node_modules" {
+		return filepath.SkipDir
+	}
+
+	return nil
+}
+
+// scanFileForRawWireLiterals reports raw wire literals in one Go file.
+func scanFileForRawWireLiterals(root, path string, literals map[string]struct{}, allowlist map[string]map[int]struct{}) ([]string, error) {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, err
+	}
+
+	rel = filepath.ToSlash(rel)
+
+	if !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
+		return nil, nil
+	}
+
+	if isSpecOwnedProductionFile(rel) {
+		return nil, nil
+	}
+
+	fset := token.NewFileSet()
+
+	f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", rel, err)
+	}
+
+	if isGeneratedFile(f) {
+		return nil, nil
+	}
+
+	return rawWireLiteralViolations(fset, f, rel, literals, allowlist[rel]), nil
+}
+
+// rawWireLiteralViolations matches the wire literal set against one parsed file.
+func rawWireLiteralViolations(fset *token.FileSet, f *ast.File, rel string, literals map[string]struct{}, allowed map[int]struct{}) []string {
+	var violations []string
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		if field, ok := n.(*ast.Field); ok && field.Tag != nil {
+			// Struct tags are raw string syntax but not wire values;
+			// skip the tag literal so JSON/TOML/mapstructure keys do not
+			// produce false positives.
+			return false
+		}
+
+		if imp, ok := n.(*ast.ImportSpec); ok {
+			// Import paths are string literals but never OCM wire values.
+			_ = imp
+			return false
+		}
+
+		lit, ok := n.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+
+		val, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			// Raw string literals are also quoted by the parser; if
+			// Unquote fails, trim the surrounding backticks.
+			val = strings.Trim(lit.Value, "`")
+		}
+
+		if _, match := literals[val]; !match {
+			return true
+		}
+
+		pos := fset.Position(lit.Pos())
+		if _, ok := allowed[pos.Line]; ok {
+			return true
+		}
+
+		violations = append(violations, fmt.Sprintf("%s:%d: raw wire literal %q", rel, pos.Line, val))
+
+		return true
+	})
+
+	return violations
 }
 
 func isSpecOwnedProductionFile(rel string) bool {

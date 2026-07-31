@@ -131,7 +131,7 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 		switch r.URL.Path {
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
@@ -146,7 +146,10 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 			}
 
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"status":"ok"}`)) //nolint:errcheck // test mock handler: response write
+
+			if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -155,14 +158,18 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 	return srv, inviteAcceptedCalls, sawSignature
 }
 
-func createInviteForUser(repo *invitesincoming.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesincoming.IncomingInvite {
+func createInviteForUser(t *testing.T, repo *invitesincoming.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesincoming.IncomingInvite {
+	t.Helper()
+
 	invite := &invitesincoming.IncomingInvite{
 		Token:           token,
 		SenderFQDN:      senderFQDN,
 		RecipientUserID: recipientUserID,
 		Status:          invites.InviteStatusPending,
 	}
-	repo.Create(context.Background(), invite) //nolint:errcheck // test fixture seed without testing.T
+	if err := repo.Create(context.Background(), invite); err != nil {
+		t.Fatal(err)
+	}
 
 	return invite
 }
@@ -170,4 +177,15 @@ func createInviteForUser(repo *invitesincoming.MemoryIncomingInviteRepo, recipie
 func buildInviteString(token string) string {
 	inner := token + "@" + "remote.example.com"
 	return base64.StdEncoding.EncodeToString([]byte(inner))
+}
+
+// mustEncodeJSON writes v as JSON to w and reports a test error when the
+// encode fails. Errorf (not Fatalf) because mock handlers may run on httptest
+// server goroutines.
+func mustEncodeJSON(t *testing.T, w http.ResponseWriter, v any) {
+	t.Helper()
+
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		t.Errorf("encode JSON: %v", err)
+	}
 }

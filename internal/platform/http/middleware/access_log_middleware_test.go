@@ -142,7 +142,10 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	// Create a simple handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("hello")) //nolint:errcheck // test mock handler: response write
+
+		if _, err := w.Write([]byte("hello")); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 
 	// Build the middleware chain as in routes.go
@@ -153,7 +156,7 @@ func TestAccessLogMiddleware_Has7RequiredFields(t *testing.T) {
 	r.Use(chimw.Recoverer)
 	r.Get("/test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -233,7 +236,7 @@ func TestAccessLogMiddleware_FallbackWhenContextLoggerMissing(t *testing.T) {
 	r.Use(chimw.Recoverer)
 	r.Get("/fallback-test", handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/fallback-test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/fallback-test", nil)
 	req.RemoteAddr = "127.0.0.1:54321"
 	rr := httptest.NewRecorder()
 
@@ -295,7 +298,7 @@ func TestAccessLogMiddleware_PanicProducesStatus500(t *testing.T) {
 	r.Use(chimw.Recoverer)
 	r.Get("/panic-test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/panic-test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/panic-test", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 

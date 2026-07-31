@@ -131,21 +131,32 @@ func snapshotShares(dataDir string) (SharePersistenceSnapshot, error) {
 	}, nil
 }
 
-func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error) { //nolint:dupl // intentional: parallel outgoing/incoming share readers share file-read structure but map different persisted types
-	path := filepath.Join(dataDir, "data", fileOutgoingShares)
+// readShareRows reads one share JSON file from dataDir/data and decodes its
+// rows. A missing file yields an empty map.
+func readShareRows[Raw any](dataDir, filename, label string) (map[string]Raw, error) {
+	path := filepath.Join(dataDir, "data", filename)
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return map[string]RedactedOutgoingShare{}, nil
+			return map[string]Raw{}, nil
 		}
 
-		return nil, fmt.Errorf("read outgoing shares: %w", err)
+		return nil, fmt.Errorf("read %s shares: %w", label, err)
 	}
 
-	var byProvider map[string]rawOutgoingShare
-	if err := json.Unmarshal(raw, &byProvider); err != nil {
-		return nil, fmt.Errorf("decode outgoing shares: %w", err)
+	var rows map[string]Raw
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("decode %s shares: %w", label, err)
+	}
+
+	return rows, nil
+}
+
+func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error) {
+	byProvider, err := readShareRows[rawOutgoingShare](dataDir, fileOutgoingShares, "outgoing")
+	if err != nil {
+		return nil, err
 	}
 
 	out := make(map[string]RedactedOutgoingShare, len(byProvider))
@@ -168,21 +179,10 @@ func readOutgoingShares(dataDir string) (map[string]RedactedOutgoingShare, error
 	return out, nil
 }
 
-func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error) { //nolint:dupl // intentional: parallel outgoing/incoming share readers share file-read structure but map different persisted types
-	path := filepath.Join(dataDir, "data", fileIncomingShares)
-
-	raw, err := os.ReadFile(path)
+func readIncomingShares(dataDir string) (map[string]RedactedIncomingShare, error) {
+	byShareID, err := readShareRows[rawIncomingShare](dataDir, fileIncomingShares, "incoming")
 	if err != nil {
-		if os.IsNotExist(err) {
-			return map[string]RedactedIncomingShare{}, nil
-		}
-
-		return nil, fmt.Errorf("read incoming shares: %w", err)
-	}
-
-	var byShareID map[string]rawIncomingShare
-	if err := json.Unmarshal(raw, &byShareID); err != nil {
-		return nil, fmt.Errorf("decode incoming shares: %w", err)
+		return nil, err
 	}
 
 	out := make(map[string]RedactedIncomingShare, len(byShareID))

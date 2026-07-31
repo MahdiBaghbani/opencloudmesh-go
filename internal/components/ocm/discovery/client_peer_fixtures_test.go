@@ -7,7 +7,6 @@ package discovery_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -61,7 +60,7 @@ func TestClientDiscover_RealPeerFixtures(t *testing.T) {
 						},
 					},
 				})
-				json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+				tshttp.MustEncodeJSON(t, w, raw)
 			})
 			client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 

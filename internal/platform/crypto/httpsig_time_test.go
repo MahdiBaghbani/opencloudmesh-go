@@ -29,7 +29,7 @@ func TestRFC9421_VerifyRejectsStaleCreated(t *testing.T) {
 
 	body := []byte(`{"test": "data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestRFC9421_VerifyRejectsFutureCreated(t *testing.T) {
 
 	body := []byte(`{"test": "data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestRFC9421_VerifyCreatedBoundaryAtMaxSkew(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestRFC9421_VerifyCreatedBoundaryAtMaxAge(t *testing.T) {
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestVerifyRequest_RejectsFutureCreated(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,7 @@ func TestVerifyRequest_RejectsStaleCreated(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestVerifyRequest_RejectsStaleCreated(t *testing.T) {
 
 func TestVerifyRequest_RejectsMissingCreated(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "date");keyid="a#1";alg="ed25519";tag="ocm"`)
 	req.Header.Set("Signature", httpsigPlaceholderSigAlt)

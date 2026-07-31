@@ -7,12 +7,13 @@ package access
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -43,7 +44,7 @@ func TestAccess_PrefetchSingleDiscover(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -55,7 +56,7 @@ func TestAccess_PrefetchSingleDiscover(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"access_token":"` + exchangedToken + `","token_type":"Bearer","expires_in":3600}`)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte(`{"access_token":"`+exchangedToken+`","token_type":"Bearer","expires_in":3600}`))
 
 			return
 		}
@@ -63,7 +64,7 @@ func TestAccess_PrefetchSingleDiscover(t *testing.T) {
 		if strings.HasPrefix(r.URL.Path, "/webdav/ocm/") {
 			if r.Header.Get("Authorization") == "Bearer "+exchangedToken {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("file content")) //nolint:errcheck // test mock handler: response write
+				tshttp.MustWrite(t, w, []byte("file content"))
 
 				return
 			}
@@ -93,7 +94,7 @@ func TestAccess_PrefetchSingleDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, result.Response.Body)
 
 	if result.Response.StatusCode != http.StatusOK {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)

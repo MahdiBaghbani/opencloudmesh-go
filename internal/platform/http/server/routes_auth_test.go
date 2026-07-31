@@ -131,7 +131,7 @@ func TestSessionGate_AcceptInviteProtectedAtServer(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/ui/accept-invite?token=t&providerDomain=p", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ui/accept-invite?token=t&providerDomain=p", nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 

@@ -48,7 +48,7 @@ func TestTrustedProxies_GetClientIP_Direct(t *testing.T) {
 	// No trusted proxies
 	tp := NewTrustedProxies(nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.168.1.100:12345"
 	req.Header.Set("X-Forwarded-For", "8.8.8.8") // Should be ignored
 
@@ -61,7 +61,7 @@ func TestTrustedProxies_GetClientIP_Direct(t *testing.T) {
 func TestTrustedProxies_GetClientIP_Trusted(t *testing.T) {
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Forwarded-For", "8.8.8.8, 10.0.0.1")
 
@@ -74,7 +74,7 @@ func TestTrustedProxies_GetClientIP_Trusted(t *testing.T) {
 func TestTrustedProxies_GetClientIP_XRealIP(t *testing.T) {
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Real-IP", "1.2.3.4")
 
@@ -87,7 +87,7 @@ func TestTrustedProxies_GetClientIP_XRealIP(t *testing.T) {
 func TestTrustedProxies_GetClientIP_UntrustedIgnoresHeader(t *testing.T) {
 	tp := NewTrustedProxies([]string{"127.0.0.0/8"})
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.168.1.100:12345" // Not in trusted range
 	req.Header.Set("X-Forwarded-For", "8.8.8.8")
 
@@ -100,7 +100,7 @@ func TestTrustedProxies_GetClientIP_UntrustedIgnoresHeader(t *testing.T) {
 func TestTrustedProxies_IPv6(t *testing.T) {
 	tp := NewTrustedProxies([]string{"::1/128"})
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.RemoteAddr = "[::1]:12345"
 	req.Header.Set("X-Forwarded-For", "2001:db8::1")
 

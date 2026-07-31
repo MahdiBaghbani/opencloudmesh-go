@@ -24,7 +24,7 @@ import (
 func TestHandleDiscover_MissingBase(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover", nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -45,7 +45,7 @@ func TestHandleDiscover_MissingBase(t *testing.T) {
 func TestHandleDiscover_NoDiscoveryClient(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base=https://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=https://example.com", nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -71,7 +71,7 @@ func TestHandleDiscover_Success(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -95,7 +95,7 @@ func TestHandleDiscover_Success(t *testing.T) {
 
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+discServer.URL, nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -133,7 +133,7 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -155,7 +155,7 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+discServer.URL, nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -191,7 +191,7 @@ func TestHandleDiscover_InviteAcceptDialogAbsolute(t *testing.T) {
 func TestHandleDiscover_MethodNotAllowed(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
-	req := httptest.NewRequest(http.MethodPost, "/discover?base=https://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/discover?base=https://example.com", nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -210,7 +210,7 @@ func TestHandleDiscover_DiscoveryFailureReasonCode(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := ocmaux.NewAuxHandler(nil, discClient, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+discServer.URL, nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 

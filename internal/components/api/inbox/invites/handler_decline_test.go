@@ -30,12 +30,12 @@ func (r *failingDeleteRepo) DeleteForRecipientUserID(_ context.Context, _ string
 
 func TestHandleDecline_Success(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
-	invite := createInviteForUser(repo, userAID, "decline-token", "sender.example.com")
+	invite := createInviteForUser(t, repo, userAID, "decline-token", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -51,12 +51,12 @@ func TestHandleDecline_Success(t *testing.T) {
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
-	invite := createInviteForUser(repo, userAID, "decline-cross-token", "sender.example.com")
+	invite := createInviteForUser(t, repo, userAID, "decline-cross-token", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(t, repo, userB)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -69,7 +69,7 @@ func TestHandleDecline_Unauthenticated(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	router := newTestRouter(t, repo, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/some-id/decline", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/some-id/decline", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -82,13 +82,13 @@ func TestHandleDecline_Unauthenticated(t *testing.T) {
 // surfaces as 5xx instead of a silent 200 (C3).
 func TestHandleDecline_PersistFailureReturns5xx(t *testing.T) {
 	mem := invitesincoming.NewMemoryIncomingInviteRepo()
-	invite := createInviteForUser(mem, userAID, "decline-fail-token", "sender.example.com")
+	invite := createInviteForUser(t, mem, userAID, "decline-fail-token", "sender.example.com")
 
 	repo := &failingDeleteRepo{mem}
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/decline", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

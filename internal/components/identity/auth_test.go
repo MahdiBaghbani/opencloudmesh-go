@@ -34,8 +34,8 @@ func TestUserAuth_HashAndVerify(t *testing.T) {
 	}
 
 	// Correct password
-	if err := auth.VerifyPassword(hash, password); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Errorf("VerifyPassword failed for correct password: %v", err)
+	if verr := auth.VerifyPassword(hash, password); verr != nil {
+		t.Errorf("VerifyPassword failed for correct password: %v", verr)
 	}
 
 	// Wrong password
@@ -61,8 +61,8 @@ func TestUserAuth_Authenticate(t *testing.T) {
 		PasswordHash: hash,
 		Role:         "user",
 	}
-	if err := repo.Create(ctx, user); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("Create: %v", err)
+	if serr := repo.Create(ctx, user); serr != nil {
+		t.Fatalf("Create: %v", serr)
 	}
 
 	// Successful auth

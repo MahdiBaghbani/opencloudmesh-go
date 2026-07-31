@@ -7,6 +7,7 @@ package incoming_test
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +44,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := incoming.NewMemoryIncomingShareRepo()
-			partyRepo := setupTestPartyRepo()
+			partyRepo := setupTestPartyRepo(t)
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := incoming.NewHandler(
 				repo,
@@ -69,7 +70,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 				[]byte(tt.sharedSecret),
 			)
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(context.Background(),
 				http.MethodPost,
 				"/ocm/shares",
 				bytes.NewReader(bodyBytes),

@@ -18,6 +18,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // mockCounter implements cache.Counter for testing.
@@ -206,12 +207,12 @@ func TestLimiter_AllowsRequestsUnderLimit(t *testing.T) {
 
 	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte("ok"))
 	}))
 
 	// First 5 requests should succeed
 	for i := 1; i <= 5; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
@@ -235,12 +236,12 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 
 	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte("ok"))
 	}))
 
 	// First 2 requests should succeed
 	for i := 1; i <= 2; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
@@ -250,7 +251,7 @@ func TestLimiter_BlocksRequestsOverLimit(t *testing.T) {
 	}
 
 	// Third request should be rate limited
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -307,7 +308,7 @@ func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 
 	// 2 requests from client A should succeed
 	for i := range 2 {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		req.Header.Set("X-Test-Key", "client-a")
 
 		rec := httptest.NewRecorder()
@@ -319,7 +320,7 @@ func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 	}
 
 	// 3rd request from client A should be blocked
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("X-Test-Key", "client-a")
 
 	rec := httptest.NewRecorder()
@@ -330,7 +331,7 @@ func TestLimiter_DifferentKeysTrackedSeparately(t *testing.T) {
 	}
 
 	// But client B should still be allowed
-	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("X-Test-Key", "client-b")
 
 	rec = httptest.NewRecorder()
@@ -356,11 +357,11 @@ func TestLimiter_AllowsOnCacheError(t *testing.T) {
 
 	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte("ok"))
 	}))
 
 	// Request should be allowed even though cache fails
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -385,7 +386,7 @@ func TestWithKeyFunc(t *testing.T) {
 	modified := original.WithKeyFunc(customKeyFunc)
 
 	// Original should be unchanged
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	if original.keyFunc(req) != "original" {
 		t.Error("original keyFunc should not be modified")
 	}
@@ -436,7 +437,7 @@ func TestNew_WithInputs(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.RemoteAddr = "192.168.1.100:12345"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

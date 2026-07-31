@@ -54,7 +54,7 @@ func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) 
 	user := &identity.User{ID: "creator-1", Username: "alice"}
 	handler := outgoinginvites.NewHandler(repo, wantProvider, testCurrentUser(user), testLogger)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -78,7 +78,7 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 	user := &identity.User{ID: "creator-2", Username: "alice"}
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), testCurrentUser(user), testLogger)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -123,7 +123,7 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 	}
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), testCurrentUser(user), testLogger)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -151,7 +151,7 @@ func TestHandleCreateOutgoing_NilCurrentUser_Returns401(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -165,7 +165,7 @@ func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)
@@ -179,7 +179,7 @@ func TestHandleCreateOutgoing_MethodNotAllowed_Returns405(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
-	req := httptest.NewRequest(http.MethodPut, "/api/invites/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/invites/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreateOutgoing(w, req)

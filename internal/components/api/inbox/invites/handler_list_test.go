@@ -20,13 +20,13 @@ import (
 
 func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
-	invA := createInviteForUser(repo, userAID, "token-a", "sender-a.example.com")
-	createInviteForUser(repo, userBID, "token-b", "sender-b.example.com")
+	invA := createInviteForUser(t, repo, userAID, "token-a", "sender-a.example.com")
+	createInviteForUser(t, repo, userBID, "token-b", "sender-b.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/invites/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/invites/", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -50,12 +50,12 @@ func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
 
 func TestHandleList_EmptyForUserWithNoInvites(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
-	createInviteForUser(repo, userAID, "token-a", "sender.example.com")
+	createInviteForUser(t, repo, userAID, "token-a", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(t, repo, userB)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/invites/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/invites/", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -77,7 +77,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	router := newTestRouter(t, repo, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/invites/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/invites/", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -88,12 +88,12 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 
 func TestHandleList_DoesNotLeakToken(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
-	createInviteForUser(repo, userAID, "super-secret-token-123", "sender.example.com")
+	createInviteForUser(t, repo, userAID, "super-secret-token-123", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/invites/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/invites/", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

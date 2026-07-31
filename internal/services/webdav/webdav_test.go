@@ -84,7 +84,7 @@ func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
 		t.Fatal("expected s type *Service")
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+strictShare.WebDAVID, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+strictShare.WebDAVID, nil)
 	req.Header.Set("Authorization", "Bearer "+strictShare.SharedSecret)
 
 	w := httptest.NewRecorder()
@@ -135,7 +135,7 @@ func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 		t.Fatal("expected s type *Service")
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/webdav/ocm/"+share.WebDAVID+"/hello.txt", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/webdav/ocm/"+share.WebDAVID+"/hello.txt", nil)
 	req.Header.Set("Authorization", "Bearer "+share.SharedSecret)
 
 	w := httptest.NewRecorder()

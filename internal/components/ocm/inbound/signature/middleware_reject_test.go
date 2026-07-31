@@ -7,6 +7,7 @@ package signature_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -37,7 +38,7 @@ func TestSignatureMiddleware_StrictMode_RejectsUnsigned(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -77,7 +78,7 @@ func TestSignatureMiddleware_RejectsInvalidSignature(t *testing.T) {
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -145,7 +146,7 @@ func TestSignatureMiddleware_StrictMode_RejectsMalformedSignatureMaterial(t *tes
 				w.WriteHeader(http.StatusOK)
 			}))
 
-			req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"test":"data"}`))
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
@@ -239,7 +240,7 @@ func TestSignatureMiddleware_IfPresent_DistinguishesMalformedOCMFromUnsigned(t *
 				w.WriteHeader(http.StatusOK)
 			}))
 
-			req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 			if tt.signatureInput != "" {
 				req.Header.Set("Signature-Input", tt.signatureInput)
 			}
@@ -284,7 +285,7 @@ func TestSignatureMiddleware_StrictMode_RejectsBadContentDigestAfterVerifiedSign
 	}))
 
 	signedBody := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(signedBody))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(signedBody))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -313,7 +314,7 @@ func TestSignatureMiddleware_IfPresent_RejectsInvalidSignature(t *testing.T) {
 		t.Fatal("handler should not run for invalid signature")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri");created=1;keyid="https://nc.example.com#main-key";tag="ocm"`)
 	req.Header.Set("Signature", "ocm=:invalid:")
 
@@ -339,7 +340,7 @@ func TestSignatureMiddleware_RequireSignatureAndPeer_Advertised_UnsignedRejects(
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

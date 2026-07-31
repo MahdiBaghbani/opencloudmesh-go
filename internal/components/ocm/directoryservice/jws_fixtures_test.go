@@ -11,11 +11,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/go-jose/go-jose/v4"
 	"golang.org/x/crypto/ed25519"
@@ -29,13 +30,10 @@ var testListing = Listing{
 	},
 }
 
-func testPayload() []byte {
-	b, err := json.Marshal(testListing) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
-	if err != nil {
-		panic(err)
-	}
+func testPayload(t *testing.T) []byte {
+	t.Helper()
 
-	return b
+	return tshttp.MustMarshalJSON(t, testListing)
 }
 
 func serveJWS(t *testing.T, body []byte) *httptest.Server {
@@ -43,7 +41,7 @@ func serveJWS(t *testing.T, body []byte) *httptest.Server {
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, body)
 	}))
 }
 

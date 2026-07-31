@@ -11,6 +11,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
@@ -24,7 +25,7 @@ func TestIncomingShareAdapter_DurableRoundTrip_PersistsProtocolNameAndWebappArm(
 	ctx := context.Background()
 
 	r := tsrepos.OpenJSON(t)
-	defer r.Close() //nolint:errcheck // test cleanup: repository close
+	defer tshttp.MustClose(t, r)
 
 	repo := r.IncomingShares
 

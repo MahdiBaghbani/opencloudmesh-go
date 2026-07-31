@@ -42,12 +42,12 @@ func (r *failingUpdateRepo) UpdateStatusForRecipientUserID(_ context.Context, _ 
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
-	invite := createInviteForUser(repo, userAID, "accept-token", "sender.example.com")
+	invite := createInviteForUser(t, repo, userAID, "accept-token", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(t, repo, userB)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -61,7 +61,7 @@ func TestHandleAccept_NonexistentReturns404(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/nonexistent-id/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/nonexistent-id/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -72,7 +72,7 @@ func TestHandleAccept_NonexistentReturns404(t *testing.T) {
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
-	invite := createInviteForUser(repo, userAID, "idem-accept-token", "sender.example.com")
+	invite := createInviteForUser(t, repo, userAID, "idem-accept-token", "sender.example.com")
 
 	if err := repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusAccepted, nil); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
@@ -81,7 +81,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -92,7 +92,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 
 func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
-	invite := createInviteForUser(repo, userAID, "conflict-token", "sender.example.com")
+	invite := createInviteForUser(t, repo, userAID, "conflict-token", "sender.example.com")
 
 	// Decline normally deletes; manually set declined to test accept-after-decline returns 409
 	if err := repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusDeclined, nil); err != nil {
@@ -102,7 +102,7 @@ func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -115,7 +115,7 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 	repo := invitesincoming.NewMemoryIncomingInviteRepo()
 	router := newTestRouter(t, repo, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/some-id/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/some-id/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -131,7 +131,7 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 	defer senderServer.Close()
 
 	senderFQDN := strings.TrimPrefix(senderServer.URL, "https://")
-	invite := createInviteForUser(repo, userAID, "strict-accept-token", senderFQDN)
+	invite := createInviteForUser(t, repo, userAID, "strict-accept-token", senderFQDN)
 
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -142,7 +142,7 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 		discoveryClient,
 	)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -175,7 +175,7 @@ func TestHandleAccept_PersistsRemoteSenderIdentity(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
@@ -185,7 +185,7 @@ func TestHandleAccept_PersistsRemoteSenderIdentity(t *testing.T) {
 		case "/ocm/invite-accepted":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(spec.InviteAcceptedResponse{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, spec.InviteAcceptedResponse{
 				UserID: remoteSenderUserID,
 				Email:  "inviter@sender.example.com",
 				Name:   "Remote Inviter",
@@ -197,7 +197,7 @@ func TestHandleAccept_PersistsRemoteSenderIdentity(t *testing.T) {
 	defer srv.Close()
 
 	senderFQDN := strings.TrimPrefix(srv.URL, "https://")
-	invite := createInviteForUser(repo, userAID, "persist-sender-token", senderFQDN)
+	invite := createInviteForUser(t, repo, userAID, "persist-sender-token", senderFQDN)
 
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -208,7 +208,7 @@ func TestHandleAccept_PersistsRemoteSenderIdentity(t *testing.T) {
 		discoveryClient,
 	)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -249,7 +249,7 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
@@ -271,7 +271,7 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(spec.InviteAcceptedResponse{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, spec.InviteAcceptedResponse{
 				UserID: "remote-sender@sender.example",
 			})
 		default:
@@ -281,7 +281,7 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 	defer srv.Close()
 
 	senderFQDN := strings.TrimPrefix(srv.URL, "https://")
-	invite := createInviteForUser(repo, userAID, "default-port-accept-token", senderFQDN)
+	invite := createInviteForUser(t, repo, userAID, "default-port-accept-token", senderFQDN)
 
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -306,7 +306,7 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 		r.Post("/{inviteId}/accept", h.HandleAccept)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -336,7 +336,7 @@ func startConfigurableSenderServer(t *testing.T, status int, respBody string) (*
 		switch r.URL.Path {
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, spec.Discovery{
 				Enabled:       true,
 				APIVersion:    "1.4.0",
 				EndPoint:      srv.URL + "/ocm",
@@ -348,7 +348,10 @@ func startConfigurableSenderServer(t *testing.T, status int, respBody string) (*
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
-			_, _ = w.Write([]byte(respBody)) //nolint:errcheck // test mock handler: response write
+
+			if _, err := w.Write([]byte(respBody)); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -368,14 +371,14 @@ func TestHandleAccept_PersistFailureReturns5xx(t *testing.T) {
 		`{"userID":"remote-sender@sender.example","email":"s@example","name":"Sender"}`)
 
 	senderFQDN := strings.TrimPrefix(senderServer.URL, "https://")
-	invite := createInviteForUser(mem, userAID, "persist-fail-token", senderFQDN)
+	invite := createInviteForUser(t, mem, userAID, "persist-fail-token", senderFQDN)
 
 	repo := &failingUpdateRepo{mem}
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouterWithDeps(t, repo, userA, requestClient, discoveryClient)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -404,13 +407,13 @@ func TestHandleAccept_ConflictWithIdentityCompensates(t *testing.T) {
 		`{"userID":"remote-sender@sender.example","email":"s@example","name":"Sender"}`)
 
 	senderFQDN := strings.TrimPrefix(senderServer.URL, "https://")
-	invite := createInviteForUser(repo, userAID, "conflict-comp-token", senderFQDN)
+	invite := createInviteForUser(t, repo, userAID, "conflict-comp-token", senderFQDN)
 
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouterWithDeps(t, repo, userA, requestClient, discoveryClient)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -447,13 +450,13 @@ func assertPeerErrorLeavesInvitePending(t *testing.T, peerStatus int, peerBody, 
 	senderServer, _ := startConfigurableSenderServer(t, peerStatus, peerBody)
 
 	senderFQDN := strings.TrimPrefix(senderServer.URL, "https://")
-	invite := createInviteForUser(repo, userAID, token, senderFQDN)
+	invite := createInviteForUser(t, repo, userAID, token, senderFQDN)
 
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouterWithDeps(t, repo, userA, requestClient, discoveryClient)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -493,13 +496,13 @@ func TestHandleAccept_MalformedStoredSenderFailsClosed(t *testing.T) {
 		`{"userID":"remote-sender@sender.example"}`)
 	_ = senderServer
 
-	invite := createInviteForUser(repo, userAID, "malformed-sender-token", "bad host")
+	invite := createInviteForUser(t, repo, userAID, "malformed-sender-token", "bad host")
 
 	requestClient, discoveryClient := newTestOutboundClients(t)
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouterWithDeps(t, repo, userA, requestClient, discoveryClient)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/"+invite.ID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

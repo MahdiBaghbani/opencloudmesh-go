@@ -22,16 +22,16 @@ func TestClient_DoPreservesInterface(t *testing.T) {
 
 	client := outboundtestutil.NewPermissive(nil)
 
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("Do() failed: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)

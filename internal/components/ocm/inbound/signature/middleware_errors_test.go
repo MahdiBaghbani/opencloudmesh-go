@@ -7,6 +7,7 @@ package signature_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -21,10 +22,12 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 )
 
-// TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch checks that a
-// verified signature whose keyId authority disagrees with the declared peer
-// returns 403.
-func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T) { //nolint:dupl // intentional: parallel signature middleware error tests share setup but assert different peer mismatch paths
+// runStrictPeerMismatchCase drives one fail-closed strict peer-identity case:
+// the declared peer returned by the resolver must never reach the inner
+// handler and the middleware must return 403.
+func runStrictPeerMismatchCase(t *testing.T, declaredPeer, body, guardMsg, wantMsg string) {
+	t.Helper()
+
 	km := crypto.NewKeyManager("", "https://sender.example.com")
 	if err := km.LoadOrGenerate(); err != nil {
 		t.Fatal(err)
@@ -43,19 +46,18 @@ func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T
 	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
 
 	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
-		return "attacker.example.com", nil
+		return declaredPeer, nil
 	}
 
 	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-		t.Fatal("handler should not run on peer identity mismatch")
+		t.Fatal(guardMsg)
 	}))
 
-	body := []byte(`{"sender":"user@attacker.example.com"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader([]byte(body)))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := signer.SignRequest(req, body); err != nil {
+	if err := signer.SignRequest(req, []byte(body)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -63,8 +65,21 @@ func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 peer identity mismatch, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("%s, got %d: %s", wantMsg, w.Code, w.Body.String())
 	}
+}
+
+// TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch checks that a
+// verified signature whose keyId authority disagrees with the declared peer
+// returns 403.
+func TestSignatureMiddleware_StrictMode_RejectsPeerIdentityMismatch(t *testing.T) {
+	runStrictPeerMismatchCase(
+		t,
+		"attacker.example.com",
+		`{"sender":"user@attacker.example.com"}`,
+		"handler should not run on peer identity mismatch",
+		"expected 403 peer identity mismatch",
+	)
 }
 
 func TestSignatureMiddleware_StrictMode_RejectsPublicKeyLookupFailure(t *testing.T) {
@@ -90,7 +105,7 @@ func TestSignatureMiddleware_StrictMode_RejectsPublicKeyLookupFailure(t *testing
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -132,7 +147,7 @@ func TestSignatureMiddleware_StrictMode_RejectsKeyNotFound(t *testing.T) {
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -175,7 +190,7 @@ func TestSignatureMiddleware_StrictMode_RejectsAlgorithmNotAllowed(t *testing.T)
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -221,7 +236,7 @@ func TestSignatureMiddleware_StrictMode_RejectsInvalidSignatureBody(t *testing.T
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -253,7 +268,7 @@ func TestSignatureMiddleware_DeclaredPeerResolverError_FailClosed(t *testing.T) 
 		t.Fatal("handler should not run on declared peer resolver error")
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"sender":"bad"}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{"sender":"bad"}`))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -274,7 +289,7 @@ func TestSignatureMiddleware_DeclaredPeerResolverEmpty_FailClosed(t *testing.T) 
 		t.Fatal("handler should not run on empty declared peer")
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{}`))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -292,7 +307,7 @@ func TestSignatureMiddleware_RequireDeclaredPeer_NilResolver(t *testing.T) {
 		t.Fatal("handler should not run")
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(`{}`))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -300,44 +315,13 @@ func TestSignatureMiddleware_RequireDeclaredPeer_NilResolver(t *testing.T) {
 		t.Fatalf("expected 400 when requireDeclaredPeer has nil resolver, got %d", w.Code)
 	}
 }
-func TestSignatureMiddleware_MismatchNormalizeError_FailClosed(t *testing.T) { //nolint:dupl // intentional: parallel signature middleware error tests share setup but assert different peer mismatch paths
-	km := crypto.NewKeyManager("", "https://sender.example.com")
-	if err := km.LoadOrGenerate(); err != nil {
-		t.Fatal(err)
-	}
-
-	signer := crypto.NewRFC9421Signer(km)
-
-	cfg := defaultSigTestConfig()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	pd := &mockPeerDiscovery{
-		publicKeys: map[string]sigalg.ResolvedPublicKey{
-			km.GetKeyID(): resolvedKeyFromManager(km),
-		},
-	}
-	mw := newTestSignatureMiddleware(cfg, pd, "https://receiver.example.com", logger)
-
+func TestSignatureMiddleware_MismatchNormalizeError_FailClosed(t *testing.T) {
 	// Declared peer with a path fails authority normalization.
-	peerResolver := func(_ *http.Request, _ []byte) (string, error) {
-		return "sender.example.com/evil", nil
-	}
-	handler := mw.VerifyOCMRequestRequireSignatureAndPeer(peerResolver)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-		t.Fatal("handler should not run on mismatch normalize error")
-	}))
-
-	body := []byte(`{"sender":"user@sender.example.com"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
-	req.Host = "receiver.example.com"
-	req.Header.Set("Content-Type", "application/json")
-
-	if err := signer.SignRequest(req, body); err != nil {
-		t.Fatal(err)
-	}
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 on declared-peer normalize error, got %d: %s", w.Code, w.Body.String())
-	}
+	runStrictPeerMismatchCase(
+		t,
+		"sender.example.com/evil",
+		`{"sender":"user@sender.example.com"}`,
+		"handler should not run on mismatch normalize error",
+		"expected 403 on declared-peer normalize error",
+	)
 }

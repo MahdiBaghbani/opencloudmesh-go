@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -31,13 +32,17 @@ func TestTwoInstanceDiscovery(t *testing.T) {
 
 	// Both instances should serve discovery endpoints
 	for _, srv := range []*harness.SubprocessServer{h.Server1, h.Server2} {
-		resp, err := http.Get(srv.BaseURL + "/.well-known/ocm")
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/.well-known/ocm", nil)
+		if err != nil {
+			t.Fatalf("build discovery request for %s: %v", srv.Name, err)
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if err != nil {
 			h.DumpLogs(t)
 			t.Fatalf("failed to get discovery from %s: %v", srv.Name, err)
 		}
-		//nolint:errcheck // test cleanup: response body close
-		defer resp.Body.Close()
+		defer tshttp.MustClose(t, resp.Body)
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("%s: expected status 200, got %d", srv.Name, resp.StatusCode)
@@ -73,13 +78,17 @@ func TestTwoInstanceCrossDiscovery(t *testing.T) {
 
 	discoverURL := h.Server1.BaseURL + "/ocm-aux/discover?base=" + h.Server2.BaseURL
 
-	resp, err := http.Get(discoverURL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		h.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusBadGateway {
 		h.DumpLogs(t)
@@ -141,12 +150,16 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 			// Use base= parameter (not peer=)
 			discoverURL := srv.BaseURL + "/ocm-aux/discover?base=" + privateIP
 
-			resp, err := srv.Client().Get(discoverURL)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+			if err != nil {
+				t.Fatalf("build discover request: %v", err)
+			}
+
+			resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if err != nil {
 				t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 			}
-			//nolint:errcheck // test cleanup: response body close
-			defer resp.Body.Close()
+			defer tshttp.MustClose(t, resp.Body)
 
 			// Assert 403 Forbidden - SSRF protection should block private IPs
 			if resp.StatusCode != http.StatusForbidden {
@@ -186,12 +199,34 @@ func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
+	loopbackHost := requireLoopbackHostname(t)
+	binaryPath := harness.BuildBinary(t)
+
+	// Start the target first so its dynamic port is known before writing source config.
+	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+		Name:             "ssrf-cidr-target",
+		Mode:             "dev",
+		PublicOriginHost: loopbackHost,
+	})
+	defer target.Stop(t)
+
+	source := startSSRFRoutePolicySource(t, binaryPath, loopbackHost, target.Port)
+	defer source.Stop(t)
+
+	assertDiscoverAllowedByRoutePolicy(t, source, target, loopbackHost)
+}
+
+// requireLoopbackHostname returns the local hostname, skipping when it does
+// not resolve into 127.0.0.0/8.
+func requireLoopbackHostname(t *testing.T) string {
+	t.Helper()
+
 	loopbackHost, err := os.Hostname()
 	if err != nil {
 		t.Fatalf("hostname: %v", err)
 	}
 
-	ips, err := net.LookupIP(loopbackHost)
+	ips, err := net.DefaultResolver.LookupIP(t.Context(), "ip", loopbackHost)
 	if err != nil {
 		t.Fatalf("lookup %q: %v", loopbackHost, err)
 	}
@@ -209,21 +244,17 @@ func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 		t.Skipf("hostname %q does not resolve to an IPv4 address in 127.0.0.0/8", loopbackHost)
 	}
 
-	binaryPath := harness.BuildBinary(t)
+	return loopbackHost
+}
 
-	// Start the target first so its dynamic port is known before writing source config.
-	target := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
-		Name:             "ssrf-cidr-target",
-		Mode:             "dev",
-		PublicOriginHost: loopbackHost,
-	})
-	defer target.Stop(t)
+// startSSRFRoutePolicySource starts the strict source server with a route
+// policy that explicitly allows the local hostname, 127.0.0.0/8, and the
+// target's port. use_env_fallback is disabled so ambient HTTP_PROXY/HTTPS_PROXY
+// env vars cannot interfere with the loopback discovery request.
+func startSSRFRoutePolicySource(t *testing.T, binaryPath, loopbackHost string, targetPort int) *harness.SubprocessServer {
+	t.Helper()
 
-	// Source: strict mode inherits SSRF strict by default. The route policy explicitly allows the
-	// local hostname, 127.0.0.0/8, and the target's port.
-	// use_env_fallback is disabled so ambient HTTP_PROXY/HTTPS_PROXY env vars
-	// cannot interfere with the loopback discovery request.
-	source := harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
+	return harness.StartSubprocessServer(t, binaryPath, harness.SubprocessConfig{
 		Name:                  "ssrf-cidr-source",
 		Mode:                  "strict",
 		DisableUseEnvFallback: true,
@@ -237,20 +268,30 @@ allow_private_host_suffixes = [%q]
 allow_private_cidrs = ["127.0.0.0/8", "::1/128"]
 allowed_ports = [%d]
 allow_ip_literals = false
-`, loopbackHost, target.Port),
+`, loopbackHost, targetPort),
 	})
-	defer source.Stop(t)
+}
+
+// assertDiscoverAllowedByRoutePolicy proves the route policy permits the
+// private destination: the request passes SSRF (no 403) and upstream
+// discovery proceeds, surfacing no_invite_accept_dialog.
+func assertDiscoverAllowedByRoutePolicy(t *testing.T, source, target *harness.SubprocessServer, loopbackHost string) {
+	t.Helper()
 
 	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://%s:%d", source.BaseURL, loopbackHost, target.Port)
 
-	resp, err := noProxyClient(source.Client()).Get(discoverURL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err := noProxyClient(source.Client()).Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode == http.StatusForbidden {
 		source.DumpLogs(t)
@@ -349,14 +390,18 @@ func TestSSRFRoutePolicyBlocksWithoutAllowance(t *testing.T) {
 
 	discoverURL := fmt.Sprintf("%s/ocm-aux/discover?base=http://127.0.0.1:%d", source.BaseURL, target.Port)
 
-	resp, err := noProxyClient(source.Client()).Get(discoverURL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err := noProxyClient(source.Client()).Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
 		t.Fatalf("failed to call /ocm-aux/discover: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusForbidden {
 		source.DumpLogs(t)
@@ -393,13 +438,17 @@ func TestHealthEndpointSubprocess(t *testing.T) {
 	})
 	defer srv.Stop(t)
 
-	resp, err := http.Get(srv.BaseURL + "/api/healthz")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.BaseURL+"/api/healthz", nil)
+	if err != nil {
+		t.Fatalf("build health request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("failed to get health: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)

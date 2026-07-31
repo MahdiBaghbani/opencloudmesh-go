@@ -19,21 +19,29 @@ import (
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
-func setupTestPartyRepo() identity.PartyRepo {
+func setupTestPartyRepo(t *testing.T) identity.PartyRepo {
+	t.Helper()
+
 	repo := identity.NewMemoryPartyRepo()
 	ctx := context.Background()
-	repo.Create(ctx, &identity.User{ //nolint:errcheck // test fixture seed without testing.T
+
+	if err := repo.Create(ctx, &identity.User{
 		ID:          "user-a-uuid",
 		Username:    "alice",
 		Email:       "alice@example.org",
 		DisplayName: "Alice A",
-	})
-	repo.Create(ctx, &identity.User{ //nolint:errcheck // test fixture seed without testing.T
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := repo.Create(ctx, &identity.User{
 		ID:          "user-b-uuid",
 		Username:    "bob",
 		Email:       "bob@example.org",
 		DisplayName: "Bob B",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	return repo
 }

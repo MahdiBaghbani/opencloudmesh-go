@@ -6,6 +6,7 @@
 package ui_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,7 +24,7 @@ func TestLogin_IncludesSafeRedirectHandling(t *testing.T) {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/login", nil)
 	w := httptest.NewRecorder()
 	handler.Login(w, req)
 
@@ -56,7 +57,7 @@ func TestLogin_AcceptsRedirectQueryForAcceptInvite(t *testing.T) {
 	}
 
 	returnPath := "/ui/accept-invite?token=tok&providerDomain=alice.example.com"
-	req := httptest.NewRequest(http.MethodGet, "/login?redirect="+returnPath, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/login?redirect="+returnPath, nil)
 	w := httptest.NewRecorder()
 	handler.Login(w, req)
 

@@ -31,11 +31,7 @@ func TestLoad_CacheDriverMemoryValid(t *testing.T) {
 	// Clear ambient env override so the cache driver load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 
-	tempDir, err := os.MkdirTemp("", "config-cache-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
+	tempDir := t.TempDir()
 
 	configPath := filepath.Join(tempDir, "config.toml")
 
@@ -45,7 +41,7 @@ mode = "strict"
 [cache]
 driver = "memory"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -63,11 +59,7 @@ func TestLoad_CacheDriverRedisValid(t *testing.T) {
 	// Clear ambient env override so the cache driver load is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 
-	tempDir, err := os.MkdirTemp("", "config-cache-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
+	tempDir := t.TempDir()
 
 	configPath := filepath.Join(tempDir, "config.toml")
 
@@ -77,7 +69,7 @@ mode = "strict"
 [cache]
 driver = "redis"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -95,11 +87,7 @@ func TestLoad_CacheDriverUnknownFails(t *testing.T) {
 	// Clear ambient env override so the cache driver validation path is deterministic.
 	t.Setenv("OCM_CONFIG_OUTBOUND_HTTP_USE_ENV_FALLBACK", "")
 
-	tempDir, err := os.MkdirTemp("", "config-cache-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // test cleanup: temp path removal
+	tempDir := t.TempDir()
 
 	configPath := filepath.Join(tempDir, "config.toml")
 
@@ -109,11 +97,11 @@ mode = "strict"
 [cache]
 driver = "unknown"
 `
-	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	_, err = Load(LoaderOptions{ConfigPath: configPath})
+	_, err := Load(LoaderOptions{ConfigPath: configPath})
 	if err == nil {
 		t.Fatal("expected error for unknown cache driver")
 	}

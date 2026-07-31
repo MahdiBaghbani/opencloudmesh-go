@@ -17,38 +17,17 @@ import (
 )
 
 func TestHandleAccept_Success(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-accept", "sender.example.com")
-
-	userA := &identity.User{ID: userAID, Username: "alice"}
-	router := newTestRouter(repo, userA)
-
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	updated, err := repo.GetByIDForRecipientUserID(context.Background(), share.ShareID, userAID)
-	if err != nil {
-		t.Fatalf("call failed: %v", err)
-	}
-
-	if updated.Status != shares.ShareStatusAccepted {
-		t.Errorf("expected status %s, got %s", shares.ShareStatusAccepted, updated.Status)
-	}
+	runShareStatusTransition(t, "accept", "prov-accept", shares.ShareStatusAccepted)
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-cross", "sender.example.com")
+	share := createShareForUser(t, repo, userAID, "prov-cross", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(repo, userB)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -62,7 +41,7 @@ func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/nonexistent-id/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/nonexistent-id/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -73,7 +52,7 @@ func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-idem", "sender.example.com")
+	share := createShareForUser(t, repo, userAID, "prov-idem", "sender.example.com")
 
 	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusAccepted); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
@@ -82,7 +61,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -93,7 +72,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 
 func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createShareForUser(repo, userAID, "prov-declined", "sender.example.com")
+	share := createShareForUser(t, repo, userAID, "prov-declined", "sender.example.com")
 
 	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusDeclined); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
@@ -102,7 +81,7 @@ func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -115,7 +94,7 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	router := newTestRouter(repo, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/some-id/accept", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/some-id/accept", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

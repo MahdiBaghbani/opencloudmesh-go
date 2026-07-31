@@ -32,14 +32,14 @@ func TestClient_SignedRequestsRejectRedirects(t *testing.T) {
 	client := outboundtestutil.NewPermissive(nil)
 
 	// Signed request should fail on redirect
-	req, err := http.NewRequest(http.MethodGet, server.URL+"/redirect", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/redirect", nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
 
-	resp, err := client.DoSigned(req)
+	resp, err := client.DoSigned(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if err == nil {
@@ -67,15 +67,15 @@ func TestClient_UnsignedFollowsOneRedirect(t *testing.T) {
 func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Always redirect
-		http.Redirect(w, r, r.URL.Path+"x", http.StatusFound) //nolint:gosec // test: redirect target is test-controlled fixture, not user input
+		http.Redirect(w, r, r.URL.Path+"x", http.StatusFound) //nolint:gosec // test fixture: redirect target is derived from the local test request path, not an attacker-controlled production path
 	}))
 	defer server.Close()
 
 	client := outboundtestutil.NewPermissive(nil) // MaxRedirects=1 by default
 
-	resp, err := client.Get(context.Background(), server.URL+"/start")
+	resp, err := client.Get(context.Background(), server.URL+"/start") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if err == nil {
@@ -87,33 +87,8 @@ func TestClient_UnsignedRejectsTooManyRedirects(t *testing.T) {
 	}
 }
 
-//nolint:dupl // intentional: parallel cross-host redirect cases share structure
 func TestClient_UnsignedRejectsCrossHostRedirect(t *testing.T) {
-	// First server redirects to second server (different host)
-	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer targetServer.Close()
-
-	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, targetServer.URL+"/target", http.StatusFound)
-	}))
-	defer redirectServer.Close()
-
-	client := outboundtestutil.NewPermissive(nil)
-
-	resp, err := client.Get(context.Background(), redirectServer.URL+"/start")
-	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
-	}
-
-	if err == nil {
-		t.Fatal("expected error for cross-host redirect")
-	}
-
-	if !strings.Contains(err.Error(), "different host") {
-		t.Errorf("expected 'different host' in error, got: %v", err)
-	}
+	runCrossHostRedirectBlockedTest(t, "expected error for cross-host redirect")
 }
 
 func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
@@ -143,9 +118,9 @@ func TestClient_UnsignedRejectsHTTPSDowngrade(t *testing.T) {
 
 	c := outboundtestutil.NewPermissive(rootCAs)
 
-	resp, err := c.Get(context.Background(), tlsSource.URL)
+	resp, err := c.Get(context.Background(), tlsSource.URL) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if err == nil {
@@ -186,7 +161,7 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, server.URL+"/redirect", nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/redirect", nil)
 			if err != nil {
 				t.Fatalf("NewRequest: %v", err)
 			}
@@ -194,9 +169,9 @@ func TestSignedNoRedirectViaHeaders(t *testing.T) {
 			req.Header.Set(tt.header, "sig=()")
 
 			// Use Do() not DoSigned() - central header detection should still catch it
-			resp, err := client.Do(req)
+			resp, err := client.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
-				defer resp.Body.Close() //nolint:errcheck // test response body close
+				defer outboundtestutil.MustClose(t, resp.Body)
 			}
 
 			if err == nil {
@@ -225,34 +200,8 @@ func TestRedirectSameHostSemantics(t *testing.T) {
 	)
 }
 
-//nolint:dupl // intentional: parallel cross-host redirect cases share structure
 func TestRedirectCrossHostBlocked(t *testing.T) {
-	// Test that redirects to a different host are blocked
-	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer targetServer.Close()
-
-	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Redirect to different host (target server)
-		http.Redirect(w, r, targetServer.URL+"/target", http.StatusFound)
-	}))
-	defer redirectServer.Close()
-
-	client := outboundtestutil.NewPermissive(nil)
-
-	resp, err := client.Get(context.Background(), redirectServer.URL+"/start")
-	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
-	}
-
-	if err == nil {
-		t.Fatal("cross-host redirect should be blocked")
-	}
-
-	if !strings.Contains(err.Error(), "different host") {
-		t.Errorf("expected 'different host' error, got: %v", err)
-	}
+	runCrossHostRedirectBlockedTest(t, "cross-host redirect should be blocked")
 }
 
 func TestIsSameHostPortNormalization(t *testing.T) {
@@ -262,7 +211,7 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 		if r.URL.Path == "/start" {
 			// Build absolute URL with explicit port (should still be same-host)
 			targetURL := "http://" + r.Host + "/target"
-			http.Redirect(w, r, targetURL, http.StatusFound) //nolint:gosec // test: redirect target is test-controlled fixture, not user input
+			http.Redirect(w, r, targetURL, http.StatusFound) //nolint:gosec // test fixture: redirect target is built from the local test server host, not an attacker-controlled production path
 
 			return
 		}
@@ -278,11 +227,11 @@ func TestIsSameHostPortNormalization(t *testing.T) {
 
 	client := outboundtestutil.NewPermissive(nil)
 
-	resp, err := client.Get(context.Background(), server.URL+"/start")
+	resp, err := client.Get(context.Background(), server.URL+"/start") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("same-host redirect with explicit port should work: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -304,14 +253,14 @@ func TestClient_SignedRedirectRejectedWithProxy(t *testing.T) {
 	cfg.ProxyURL = proxy.URL
 	c := httpclient.New(cfg, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "http://external.example.invalid/resource", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://external.example.invalid/resource", nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
 
-	resp, err := c.DoSigned(req)
+	resp, err := c.DoSigned(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if err == nil {

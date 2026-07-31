@@ -19,15 +19,15 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
-func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) { //nolint:dupl // intentional: parallel empty-field invite tests share setup but assert different optional fields
+// assertEmptyFieldInviteAccepted drives one empty-field acceptance case: a
+// local user is created, their pending invite is accepted with body, and the
+// handler must return 200.
+func assertEmptyFieldInviteAccepted(t *testing.T, localUser *identity.User, token, body, fieldLabel string) {
+	t.Helper()
+
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	partyRepo := identity.NewMemoryPartyRepo()
 
-	localUser := &identity.User{
-		ID:       "user-empty-email",
-		Username: "empty-email-user",
-		Email:    "",
-	}
 	if err := partyRepo.Create(context.Background(), localUser); err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) { //nolint:dupl //
 	handler := newTestHandler(repo, partyRepo)
 
 	invite := &invitesoutgoing.OutgoingInvite{
-		Token:           "empty-email-token",
+		Token:           token,
 		ProviderFQDN:    testProvider,
 		CreatedByUserID: localUser.ID,
 		ExpiresAt:       time.Now().Add(24 * time.Hour),
@@ -45,44 +45,31 @@ func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) { //nolint:dupl //
 		t.Fatalf("Create: %v", err)
 	}
 
-	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"empty-email-token","userID":"u@host","email":"","name":"n"}`)
+	w := postInviteAccepted(handler, body)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 (empty email allowed), got %d: %s", w.Code, w.Body.String())
+		t.Errorf("expected 200 (empty %s allowed), got %d: %s", fieldLabel, w.Code, w.Body.String())
 	}
 }
 
-func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) { //nolint:dupl // intentional: parallel empty-field invite tests share setup but assert different optional fields
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	partyRepo := identity.NewMemoryPartyRepo()
+func TestHandleInviteAccepted_EmptyEmailAllowed(t *testing.T) {
+	assertEmptyFieldInviteAccepted(
+		t,
+		&identity.User{ID: "user-empty-email", Username: "empty-email-user", Email: ""},
+		"empty-email-token",
+		`{"recipientProvider":"other.com","token":"empty-email-token","userID":"u@host","email":"","name":"n"}`,
+		"email",
+	)
+}
 
-	localUser := &identity.User{
-		ID:          "user-empty-name",
-		Username:    "empty-name-user",
-		DisplayName: "",
-	}
-	if err := partyRepo.Create(context.Background(), localUser); err != nil {
-		t.Fatalf("failed to create user: %v", err)
-	}
-
-	handler := newTestHandler(repo, partyRepo)
-
-	invite := &invitesoutgoing.OutgoingInvite{
-		Token:           "empty-name-token",
-		ProviderFQDN:    testProvider,
-		CreatedByUserID: localUser.ID,
-		ExpiresAt:       time.Now().Add(24 * time.Hour),
-		Status:          invites.InviteStatusPending,
-	}
-	if err := repo.Create(context.Background(), invite); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"empty-name-token","userID":"u@host","email":"e","name":""}`)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 (empty name allowed), got %d: %s", w.Code, w.Body.String())
-	}
+func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
+	assertEmptyFieldInviteAccepted(
+		t,
+		&identity.User{ID: "user-empty-name", Username: "empty-name-user", DisplayName: ""},
+		"empty-name-token",
+		`{"recipientProvider":"other.com","token":"empty-name-token","userID":"u@host","email":"e","name":""}`,
+		"name",
+	)
 }
 func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()

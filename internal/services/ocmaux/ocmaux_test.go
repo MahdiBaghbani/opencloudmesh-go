@@ -6,6 +6,7 @@
 package ocmaux
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -78,7 +79,7 @@ func TestService_FederationsEndpoint(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/federations", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/federations", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -102,7 +103,7 @@ func TestService_DiscoverEndpoint_MissingBase(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -129,7 +130,7 @@ func TestService_DiscoverEndpoint_NoDiscoveryClient(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base=https://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=https://example.com", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 

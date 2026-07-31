@@ -7,6 +7,7 @@ package accepted_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +32,7 @@ func newTestHandler(repo invitesoutgoing.OutgoingInviteRepo, partyRepo identity.
 }
 
 func postInviteAccepted(handler *accepted.Handler, body string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

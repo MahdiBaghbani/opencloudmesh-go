@@ -7,6 +7,7 @@ package config_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"os"
@@ -89,8 +90,8 @@ label = "custom-label"
 	keyDir := t.TempDir()
 
 	km := crypto.NewKeyManagerWithFragment(filepath.Join(keyDir, "signing.pem"), "https://example.com", cfg.Signature.KidFragment)
-	if err := km.LoadOrGenerate(); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("LoadOrGenerate: %v", err)
+	if lerr := km.LoadOrGenerate(); lerr != nil {
+		t.Fatalf("LoadOrGenerate: %v", lerr)
 	}
 
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -98,7 +99,7 @@ label = "custom-label"
 
 	body := []byte(`{"test":"data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

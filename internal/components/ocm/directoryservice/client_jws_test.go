@@ -26,7 +26,7 @@ func newTestHTTPClient() *httpclient.Client {
 
 func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -44,7 +44,7 @@ func TestFetchListing_CompactJWS_Ed25519(t *testing.T) {
 
 func TestFetchListing_CompactJWS_RS256(t *testing.T) {
 	kp := generateRSA(t)
-	body := signCompact(t, jose.RS256, kp.priv, testPayload())
+	body := signCompact(t, jose.RS256, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -62,7 +62,7 @@ func TestFetchListing_CompactJWS_RS256(t *testing.T) {
 
 func TestFetchListing_CompactJWS_ES256(t *testing.T) {
 	kp := generateECDSA(t)
-	body := signCompact(t, jose.ES256, kp.priv, testPayload())
+	body := signCompact(t, jose.ES256, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -80,7 +80,7 @@ func TestFetchListing_CompactJWS_ES256(t *testing.T) {
 
 func TestFetchListing_FlattenedJSON_Ed25519(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signFullSerialize(t, jose.EdDSA, kp.priv, testPayload())
+	body := signFullSerialize(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -108,7 +108,7 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 		t.Fatalf("create multi-signer: %v", err)
 	}
 
-	jws, err := ms.Sign(testPayload())
+	jws, err := ms.Sign(testPayload(t))
 	if err != nil {
 		t.Fatalf("sign payload: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestFetchListing_GeneralJSON_MultipleSignatures(t *testing.T) {
 
 func TestFetchListing_InvalidSignature(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	bodyStr := string(body)
 	bodyStr = bodyStr[:len(bodyStr)-4] + "XXXX"
@@ -154,7 +154,7 @@ func TestFetchListing_InvalidSignature(t *testing.T) {
 func TestFetchListing_WrongKey(t *testing.T) {
 	signing := generateEd25519(t)
 	wrong := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, signing.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, signing.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -170,7 +170,7 @@ func TestFetchListing_WrongKey(t *testing.T) {
 
 func TestFetchListing_InactiveKey(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -209,7 +209,7 @@ func TestFetchListing_MissingFederationField(t *testing.T) {
 }
 
 func TestFetchListing_UnsignedPayload(t *testing.T) {
-	ts := serveJWS(t, testPayload())
+	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "required", nil)
@@ -224,7 +224,7 @@ func TestFetchListing_UnsignedPayload(t *testing.T) {
 
 func TestFetchListing_NoActiveKeys(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -241,7 +241,7 @@ func TestFetchListing_NoActiveKeys(t *testing.T) {
 func TestFetchListing_MultipleKeys_SecondMatches(t *testing.T) {
 	signing := generateEd25519(t)
 	wrong := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, signing.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, signing.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -262,7 +262,7 @@ func TestFetchListing_MultipleKeys_SecondMatches(t *testing.T) {
 
 func TestFetchListing_AlgorithmCaseInsensitive(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()

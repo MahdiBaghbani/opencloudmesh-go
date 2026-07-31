@@ -95,7 +95,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 			form.Set("client_id", tt.clientID)
 			form.Set("code", "port-test-secret-"+tt.name)
 
-			req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			w := httptest.NewRecorder()
@@ -142,7 +142,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 	form.Set("client_id", "receiver.example.com:443")
 	form.Set("code", "empty-origin-secret")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()
@@ -167,7 +167,7 @@ func TestHandler_NilCodeFlowReturns501(t *testing.T) {
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "secret-code")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()
@@ -209,7 +209,7 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "identity-match-secret")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		AuthorityForCompare: "receiver.example.com",
@@ -246,7 +246,7 @@ func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "identity-mismatch-secret")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		AuthorityForCompare: "other.example.com",

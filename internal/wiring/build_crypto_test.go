@@ -7,6 +7,7 @@ package wiring_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -132,7 +133,7 @@ key_path = %q
 
 	body := []byte(`{"test":"data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,8 +230,8 @@ func TestBuild_APIOutgoingHandlerTokenEndpointMatchesDiscoveryResolve(t *testing
 
 	var providerCfg resolve.ProviderConfig
 	if rawOCMProvider != nil {
-		if err := svccfg.Decode(rawOCMProvider, &providerCfg); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-			t.Fatalf("decode ocm provider config: %v", err)
+		if uerr := svccfg.Decode(rawOCMProvider, &providerCfg); uerr != nil {
+			t.Fatalf("decode ocm provider config: %v", uerr)
 		}
 	}
 
@@ -288,7 +289,7 @@ func TestBuild_DefaultSignatureInputIncludesOCMTag(t *testing.T) {
 
 	body := []byte(`{"test":"data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

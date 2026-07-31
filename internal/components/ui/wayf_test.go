@@ -6,6 +6,7 @@
 package ui_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,7 +31,7 @@ func TestWayf_UsesPublishedProviderDomainStrippedDefaultPort(t *testing.T) {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/wayf?token=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wayf?token=abc", nil)
 	w := httptest.NewRecorder()
 	handler.Wayf(w, req)
 
@@ -54,7 +55,7 @@ func TestWayf_ReadsTokenFromQuery(t *testing.T) {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/wayf?token=invite-token-123", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wayf?token=invite-token-123", nil)
 	w := httptest.NewRecorder()
 	handler.Wayf(w, req)
 
@@ -83,7 +84,7 @@ func TestWayf_NonDefaultPortPreservedInProviderDomain(t *testing.T) {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/wayf?token=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wayf?token=abc", nil)
 	w := httptest.NewRecorder()
 	handler.Wayf(w, req)
 
@@ -104,7 +105,7 @@ func TestNewHandler_UsesValidatedExternalBasePath(t *testing.T) {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/login", nil)
 	w := httptest.NewRecorder()
 	handler.Login(w, req)
 

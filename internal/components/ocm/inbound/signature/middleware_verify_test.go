@@ -7,12 +7,12 @@ package signature_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -31,6 +31,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
@@ -71,7 +72,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsSigned(t *testing.T) {
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -130,7 +131,7 @@ func TestSignatureMiddleware_DefaultPortEquivalence(t *testing.T) {
 	}))
 
 	body := []byte(`{"sender":"user@sender.example.com"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -182,7 +183,7 @@ func TestSignatureMiddleware_UsesSignatureConfigLabel(t *testing.T) {
 
 	body := []byte(`{"test":"data"}`)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewReader(body))
 	if err := signer.SignRequest(req, body); err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func TestSignatureMiddleware_UsesSignatureConfigLabel(t *testing.T) {
 
 	defaultSigner := crypto.NewRFC9421Signer(km)
 
-	defaultReq := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewReader(body))
+	defaultReq := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewReader(body))
 	if err := defaultSigner.SignRequest(defaultReq, body); err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +232,7 @@ func TestSignatureMiddleware_StrictMode_AcceptsOmitAlgECDSAP256(t *testing.T) {
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -302,12 +303,12 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 		switch r.URL.Path {
 		case jwkPath:
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, jwks.Set{Keys: []jwks.Key{{
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
 			}}})
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, map[string]any{
 				"enabled":      true,
 				"apiVersion":   "1.4.0",
 				"endPoint":     srv.URL + "/ocm",
@@ -347,7 +348,7 @@ func TestSignatureMiddleware_StrictMode_OmitAlgECDSAP256_JWKSPeerChain(t *testin
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 	req.Host = "receiver.example.com"
 	req.Header.Set("Content-Type", "application/json")
 
@@ -427,7 +428,7 @@ func TestSignatureMiddleware_IfPresent_StrictMode_AcceptsSigned(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "https://receiver.example.com/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "https://receiver.example.com/.well-known/ocm", nil)
 
 	req.Host = "receiver.example.com"
 	if err := signer.SignRequest(req, nil); err != nil {

@@ -21,6 +21,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/appctx"
 	httpmw "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/middleware"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/realip"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // recordingHandler captures slog records for testing without JSON parsing.
@@ -239,8 +240,8 @@ func TestAuthGate_EnrichesLoggerWithUserID(t *testing.T) {
 	r.Get("/api/protected", testHandler)
 
 	// Make request with valid session
-	req := httptest.NewRequest(http.MethodGet, "/api/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session", Value: testSessionToken}) //nolint:gosec // test cookie: fixture, no browser session
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/protected", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: testSessionToken}) //nolint:gosec // test fixture: fixed session cookie token on a local test request, not a real credential
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -290,7 +291,7 @@ func TestAuthGate_NoUserIDForPublicEndpoints(t *testing.T) {
 	}))
 	r.Get("/.well-known/ocm", testHandler) // Public endpoint
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -311,7 +312,7 @@ func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok")) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte("ok"))
 	})
 
 	r := chi.NewRouter()
@@ -325,7 +326,7 @@ func TestAuthGate_NilRepos_PublicEndpointSucceeds(t *testing.T) {
 	}))
 	r.Get("/public", testHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/public", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/public", nil)
 	rr := httptest.NewRecorder()
 
 	r.ServeHTTP(rr, req)
@@ -354,7 +355,7 @@ func TestAuthGate_RedirectsUIRequestsToLogin(t *testing.T) {
 	}))
 	r.Get("/ocm/ui/inbox", testHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/ocm/ui/inbox?foo=bar", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ocm/ui/inbox?foo=bar", nil)
 	rr := httptest.NewRecorder()
 
 	r.ServeHTTP(rr, req)

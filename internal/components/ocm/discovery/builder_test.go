@@ -8,6 +8,7 @@ package discovery_test
 import (
 	"encoding/json"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -15,6 +16,18 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
+
+// sortedProtocolKeys returns the protocol map keys in sorted order.
+func sortedProtocolKeys(protocols spec.Protocols) []string {
+	keys := make([]string, 0, len(protocols))
+	for key := range protocols {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	return keys
+}
 
 func TestBuildDiscovery_DisabledWhenNoEndPoint(t *testing.T) {
 	disc := discovery.BuildDiscovery(discovery.BuildParams{Provider: "OpenCloudMesh"}, nil)
@@ -188,22 +201,11 @@ func TestBuildDiscovery_ProtocolInventory(t *testing.T) {
 
 	protocols := disc.ResourceTypes[0].Protocols
 
-	keys := make([]string, 0, len(protocols))
-	for key := range protocols {
-		keys = append(keys, key)
-	}
-
-	sort.Strings(keys)
+	keys := sortedProtocolKeys(protocols)
 
 	want := []string{"webdav", "webdav-receive"}
-	if len(keys) != len(want) {
+	if !slices.Equal(keys, want) {
 		t.Fatalf("protocol keys = %v, want %v", keys, want)
-	}
-
-	for i, key := range want {
-		if keys[i] != key {
-			t.Fatalf("protocol keys = %v, want %v", keys, want)
-		}
 	}
 }
 
@@ -262,6 +264,16 @@ func TestBuildDiscovery_StrictDocument(t *testing.T) {
 		t.Errorf("EndPoint = %q, want an absolute URL", disc.EndPoint)
 	}
 
+	assertSameEndpointAuthority(t, disc)
+	assertStrictCapabilities(t, disc)
+	assertStrictResourceTypes(t, disc)
+	assertStrictProtocols(t, disc, webdavRoot)
+}
+
+// assertSameEndpointAuthority checks TokenEndPoint shares the EndPoint authority.
+func assertSameEndpointAuthority(t *testing.T, disc *spec.Discovery) {
+	t.Helper()
+
 	endpointURL, err := url.Parse(disc.EndPoint)
 	if err != nil {
 		t.Fatalf("parse EndPoint: %v", err)
@@ -275,6 +287,12 @@ func TestBuildDiscovery_StrictDocument(t *testing.T) {
 	if tokenURL.Scheme != endpointURL.Scheme || tokenURL.Host != endpointURL.Host {
 		t.Errorf("TokenEndPoint authority = %q, want same authority as EndPoint %q", disc.TokenEndPoint, disc.EndPoint)
 	}
+}
+
+// assertStrictCapabilities checks the capability and criteria sets of a strict
+// discovery document.
+func assertStrictCapabilities(t *testing.T, disc *spec.Discovery) {
+	t.Helper()
 
 	if !disc.HasCapability("http-sig") {
 		t.Error("expected http-sig capability")
@@ -291,6 +309,12 @@ func TestBuildDiscovery_StrictDocument(t *testing.T) {
 	if !disc.HasCriteria(spec.CriteriaMustExchangeToken) {
 		t.Error("expected must-exchange-token criterion")
 	}
+}
+
+// assertStrictResourceTypes checks the file/folder resource type rows of a
+// strict discovery document.
+func assertStrictResourceTypes(t *testing.T, disc *spec.Discovery) {
+	t.Helper()
 
 	if len(disc.ResourceTypes) != 2 {
 		t.Fatalf("ResourceTypes = %+v, want file and folder", disc.ResourceTypes)
@@ -305,25 +329,20 @@ func TestBuildDiscovery_StrictDocument(t *testing.T) {
 			t.Errorf("ResourceTypes[%d].ShareTypes = %v, want [user]", i, disc.ResourceTypes[i].ShareTypes)
 		}
 	}
+}
+
+// assertStrictProtocols checks the protocol map of a strict discovery
+// document: sorted keys and the webdav/webdav-receive arms.
+func assertStrictProtocols(t *testing.T, disc *spec.Discovery, webdavRoot string) {
+	t.Helper()
 
 	protocols := disc.ResourceTypes[0].Protocols
 
-	keys := make([]string, 0, len(protocols))
-	for k := range protocols {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
+	keys := sortedProtocolKeys(protocols)
 
 	wantKeys := []string{"webdav", "webdav-receive"}
-	if len(keys) != len(wantKeys) {
+	if !slices.Equal(keys, wantKeys) {
 		t.Fatalf("protocol keys = %v, want %v", keys, wantKeys)
-	}
-
-	for i, want := range wantKeys {
-		if keys[i] != want {
-			t.Fatalf("protocol keys = %v, want %v", keys, wantKeys)
-		}
 	}
 
 	webdav, ok := protocols.StringRole("webdav")

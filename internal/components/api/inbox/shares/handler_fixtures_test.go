@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"testing"
 
 	"github.com/go-chi/chi/v5"
 
@@ -51,7 +53,9 @@ func newTestRouter(repo sharesincoming.IncomingShareRepo, user *identity.User) h
 	return r
 }
 
-func createShareForUser(repo *sharesincoming.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesincoming.IncomingShare { //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
+func createShareForUser(t *testing.T, repo *sharesincoming.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesincoming.IncomingShare { //nolint:unparam // test fixture helper: senderHost kept for fixture signature uniformity; all current callers pass "sender.example.com"
+	t.Helper()
+
 	share := &sharesincoming.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
@@ -64,7 +68,38 @@ func createShareForUser(repo *sharesincoming.MemoryIncomingShareRepo, recipientU
 		Sender:          "sender@sender.example.com",
 		ShareType:       "user",
 	}
-	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	return share
+}
+
+// runShareStatusTransition posts the given accept/decline action for a fresh
+// share and asserts a 200 response and the resulting stored status.
+func runShareStatusTransition(t *testing.T, action, providerID string, want shares.ShareStatus) {
+	t.Helper()
+
+	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	share := createShareForUser(t, repo, userAID, providerID, "sender.example.com")
+
+	userA := &identity.User{ID: userAID, Username: "alice"}
+	router := newTestRouter(repo, userA)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/"+action, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	updated, err := repo.GetByIDForRecipientUserID(context.Background(), share.ShareID, userAID)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	if updated.Status != want {
+		t.Errorf("expected status %s, got %s", want, updated.Status)
+	}
 }

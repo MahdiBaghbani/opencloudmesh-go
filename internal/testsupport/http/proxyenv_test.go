@@ -62,10 +62,15 @@ func TestClearProxyEnv_KeepsUnsetAfterCleanup(t *testing.T) {
 			origVal, origSet := os.LookupEnv(key)
 
 			t.Cleanup(func() {
+				var err error
 				if origSet {
-					_ = os.Setenv(key, origVal) //nolint:errcheck // test setup: environment variable
+					err = os.Setenv(key, origVal)
 				} else {
-					_ = os.Unsetenv(key) //nolint:errcheck // test setup: environment variable
+					err = os.Unsetenv(key)
+				}
+
+				if err != nil {
+					t.Errorf("restore %s: %v", key, err)
 				}
 			})
 

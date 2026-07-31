@@ -7,6 +7,7 @@ package ocm
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -99,7 +100,7 @@ func TestOCMPostRoutes_RequireSignatures(t *testing.T) {
 				body = []byte("grant_type=authorization_code&client_id=remote.example&code=secret-code")
 			}
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(context.Background(),
 				http.MethodPost,
 				strings.TrimPrefix(mountedPath, "/ocm"),
 				bytes.NewReader(body),
@@ -125,7 +126,7 @@ func TestOCMRequestBodyLimit(t *testing.T) {
 	}
 
 	body := []byte(`{"sender":"sender@remote.example","padding":"` + strings.Repeat("x", 1<<20) + `"}`)
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodPost,
 		strings.TrimPrefix("/ocm"+RouteShares, "/ocm"),
 		bytes.NewReader(body),
@@ -164,7 +165,7 @@ func TestService_RoutingSmoke(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			svc.Handler().ServeHTTP(w, req)
 

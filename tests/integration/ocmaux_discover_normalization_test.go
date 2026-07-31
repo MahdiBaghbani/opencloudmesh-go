@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -44,14 +45,18 @@ func TestOCMAuxDiscover_PastedPathNormalization(t *testing.T) {
 
 	discoverURL := source.BaseURL + "/ocm-aux/discover?base=" + target.BaseURL + "/apps/files/files/123"
 
-	resp, err := http.Get(discoverURL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		source.DumpLogs(t)
@@ -94,14 +99,18 @@ func TestOCMAuxDiscover_BareHostNormalization(t *testing.T) {
 	host := strings.TrimPrefix(strings.TrimPrefix(target.BaseURL, "https://"), "http://")
 	discoverURL := source.BaseURL + "/ocm-aux/discover?base=" + host
 
-	resp, err := http.Get(discoverURL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode == http.StatusBadRequest {
 		source.DumpLogs(t)
@@ -136,13 +145,17 @@ func TestOCMAuxDiscover_SSRFBlockedFriendlyReason(t *testing.T) {
 
 	discoverURL := srv.BaseURL + "/ocm-aux/discover?base=http://10.0.0.1:8080"
 
-	resp, err := srv.Client().Get(discoverURL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		srv.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusForbidden {
 		srv.DumpLogs(t)
@@ -196,14 +209,18 @@ func TestOCMAuxDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 
 	discoverURL := source.BaseURL + "/ocm-aux/discover?base=" + target.BaseURL
 
-	resp, err := http.Get(discoverURL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, discoverURL, nil)
+	if err != nil {
+		t.Fatalf("build discover request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		source.DumpLogs(t)
 		target.DumpLogs(t)
 		t.Fatalf("discover request failed: %v", err)
 	}
-	//nolint:errcheck // test cleanup: response body close
-	defer resp.Body.Close()
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusBadGateway {
 		source.DumpLogs(t)

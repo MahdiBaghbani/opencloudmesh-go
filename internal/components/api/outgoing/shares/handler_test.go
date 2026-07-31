@@ -20,7 +20,7 @@ import (
 // code flow leaves webdav requirements empty when the receiver does not force
 // token exchange.
 func TestOutgoing_LegacyVoluntary_EmptyRequirements(t *testing.T) {
-	srv, postCount, captured := makeCapturingReceiverTLSServer([]string{"exchange-token"}, []string{})
+	srv, postCount, captured := makeCapturingReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -31,7 +31,7 @@ func TestOutgoing_LegacyVoluntary_EmptyRequirements(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-legacy-voluntary-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

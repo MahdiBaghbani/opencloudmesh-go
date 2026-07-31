@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
@@ -21,11 +22,7 @@ func TestRepoContract(t *testing.T) {
 	for _, tt := range tsrepos.OpenTestRepos() {
 		t.Run(tt.Name, func(t *testing.T) {
 			r := tt.Open(t)
-			defer func() {
-				if err := r.Close(); err != nil {
-					t.Errorf("Close() error = %v", err)
-				}
-			}()
+			defer tshttp.MustClose(t, r)
 
 			runRepoContract(t, r)
 		})
@@ -46,11 +43,7 @@ func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 			// repos.New internally type-asserts drv.(fullStore); failure here
 			// means the driver is missing at least one store interface.
 			r := tsrepos.OpenDurable(t, ctx, backend)
-			defer func() {
-				if err := r.Close(); err != nil {
-					t.Errorf("Close() error = %v", err)
-				}
-			}()
+			defer tshttp.MustClose(t, r)
 
 			if r.OutgoingShares == nil {
 				t.Fatalf("%s: OutgoingShares is nil", backend)

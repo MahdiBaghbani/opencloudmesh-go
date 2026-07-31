@@ -7,6 +7,7 @@ package ocm
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -54,7 +55,7 @@ func TestService_AndPeerRoutesRejectMissingDeclaredPeer(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
 			req.Header.Set("Content-Type", tc.contentType)
 
 			w := httptest.NewRecorder()

@@ -120,11 +120,32 @@ func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
 	doc := tsdiscovery.InlineKeyDiscoveryDoc(t, pem)
 	srv, _ := tsdiscovery.NewDiscoveryTestServer(t, doc)
 
-	resp, err := http.Get(srv.URL + "/.well-known/ocm")
+	served := getDiscoveryDoc(t, srv.URL)
+	wantEndpoint := strings.TrimSuffix(srv.URL, "/") + "/ocm"
+
+	assertServedCoreFields(t, served, wantEndpoint)
+	assertServedPublicKey(t, served, pem)
+
+	if got := doc["endPoint"]; got == wantEndpoint {
+		t.Fatalf("InlineKeyDiscoveryDoc map was mutated: endPoint = %q", got)
+	}
+}
+
+// getDiscoveryDoc fetches /.well-known/ocm from the server and decodes the
+// JSON body.
+func getDiscoveryDoc(t *testing.T, baseURL string) map[string]any {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/.well-known/ocm", nil)
+	if err != nil {
+		t.Fatalf("build discovery request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("GET discovery: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
@@ -140,7 +161,13 @@ func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
 		t.Fatalf("unmarshal served doc: %v", err)
 	}
 
-	wantEndpoint := strings.TrimSuffix(srv.URL, "/") + "/ocm"
+	return served
+}
+
+// assertServedCoreFields checks endPoint, enabled, apiVersion, and capabilities.
+func assertServedCoreFields(t *testing.T, served map[string]any, wantEndpoint string) {
+	t.Helper()
+
 	if got := served["endPoint"]; got != wantEndpoint {
 		t.Fatalf("endPoint = %q, want %q", got, wantEndpoint)
 	}
@@ -151,19 +178,6 @@ func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
 
 	if got := served["apiVersion"]; got != spec.APIVersionPin {
 		t.Fatalf("apiVersion = %v, want %q", got, spec.APIVersionPin)
-	}
-
-	pk, ok := served["publicKey"].(map[string]any)
-	if !ok {
-		t.Fatalf("publicKey type = %T, want map[string]any", served["publicKey"])
-	}
-
-	if got := pk["keyId"]; got != "https://peer.example.com/ocm#test-key" {
-		t.Fatalf("keyId = %v, want %q", got, "https://peer.example.com/ocm#test-key")
-	}
-
-	if got := pk["publicKeyPem"]; got != pem {
-		t.Fatalf("publicKeyPem = %v, want %q", got, pem)
 	}
 
 	caps, ok := served["capabilities"].([]any)
@@ -178,8 +192,22 @@ func TestNewDiscoveryTestServer_servesDynamicEndpoint(t *testing.T) {
 	if got, ok := caps[0].(string); !ok || got != "http-sig" {
 		t.Fatalf("capabilities[0] = %v, want %q", caps[0], "http-sig")
 	}
+}
 
-	if got := doc["endPoint"]; got == wantEndpoint {
-		t.Fatalf("InlineKeyDiscoveryDoc map was mutated: endPoint = %q", got)
+// assertServedPublicKey checks the served publicKey block.
+func assertServedPublicKey(t *testing.T, served map[string]any, pem string) {
+	t.Helper()
+
+	pk, ok := served["publicKey"].(map[string]any)
+	if !ok {
+		t.Fatalf("publicKey type = %T, want map[string]any", served["publicKey"])
+	}
+
+	if got := pk["keyId"]; got != "https://peer.example.com/ocm#test-key" {
+		t.Fatalf("keyId = %v, want %q", got, "https://peer.example.com/ocm#test-key")
+	}
+
+	if got := pk["publicKeyPem"]; got != pem {
+		t.Fatalf("publicKeyPem = %v, want %q", got, pem)
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	tslog "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/log"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/wiring"
 
@@ -43,12 +44,12 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 			t.Fatalf("failed to build request: %v", err)
 		}
 
-		resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req)
+		resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if reqErr != nil {
 			t.Fatalf("expected localhost request to succeed with SSRF=off override, got: %v", reqErr)
 		}
 
-		_ = resp.Body.Close() //nolint:errcheck // test cleanup: response body close
+		tshttp.MustClose(t, resp.Body)
 	})
 
 	t.Run("without OutboundOverride SSRF=strict blocks localhost request", func(t *testing.T) {
@@ -65,9 +66,9 @@ func TestOutboundOverride_AffectsSSRF(t *testing.T) {
 			t.Fatalf("failed to build request: %v", err)
 		}
 
-		resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req)
+		resp, reqErr := result.Deps.HTTPClient.Do(context.Background(), req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if resp != nil {
-			defer resp.Body.Close() //nolint:errcheck // test response body close
+			defer tshttp.MustClose(t, resp.Body)
 		}
 
 		if reqErr == nil {

@@ -119,8 +119,10 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	//nolint:errcheck // best-effort cleanup; error is not actionable
-	h.sessions.Delete(ctx, token)
+	if err := h.sessions.Delete(ctx, token); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "session_error", "failed to delete session")
+		return
+	}
 
 	//nolint:gosec // deletion cookie mirrors the login cookie flags (HttpOnly, conditional Secure, SameSite:Lax); gosec heuristic still flags conditional Secure
 	http.SetCookie(w, &http.Cookie{
@@ -194,14 +196,14 @@ func extractToken(r *http.Request) string {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(data)
 }
 
 func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(map[string]string{
 		"error":   code,
 		"message": message,

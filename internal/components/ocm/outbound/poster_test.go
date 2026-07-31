@@ -15,6 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/outbound"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 type captureHTTPClient struct {
@@ -80,7 +81,7 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 		Capabilities: []string{"http-sig"},
 	}
 
-	resp, err := poster.SendResolved(context.Background(), outbound.Request{
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{ //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		TargetHost:   "peer.example",
 		EndpointPath: "shares",
 		Kind:         outbound.EndpointShares,
@@ -91,7 +92,7 @@ func TestSendResolved_DoesNotDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
@@ -111,7 +112,7 @@ func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)
 
-	resp, err := poster.SendResolved(context.Background(), outbound.Request{
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{ //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		TargetHost:   "peer.example",
 		EndpointPath: "shares",
 		Kind:         outbound.EndpointShares,
@@ -120,7 +121,7 @@ func TestSendResolved_NilSignerRejectsShares(t *testing.T) {
 		Discovery: httpSigDiscovery(),
 	})
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer tshttp.MustClose(t, resp.Body)
 	}
 
 	if err == nil {
@@ -136,7 +137,7 @@ func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)
 
-	resp, err := poster.SendResolved(context.Background(), outbound.Request{
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{ //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		TargetHost:   "peer.example",
 		EndpointPath: "invite-accepted",
 		Kind:         outbound.EndpointInvites,
@@ -145,7 +146,7 @@ func TestSendResolved_NilSignerRejectsInvites(t *testing.T) {
 		Discovery: httpSigDiscovery(),
 	})
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer tshttp.MustClose(t, resp.Body)
 	}
 
 	if err == nil {
@@ -161,7 +162,7 @@ func TestSendResolved_SignerSignsShares(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
 
-	resp, err := poster.SendResolved(context.Background(), outbound.Request{
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{ //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		TargetHost:   "peer.example",
 		EndpointPath: "shares",
 		Kind:         outbound.EndpointShares,
@@ -172,7 +173,7 @@ func TestSendResolved_SignerSignsShares(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
@@ -187,7 +188,7 @@ func TestSendResolved_PeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, newTestSigner(t), nil)
 
-	resp, err := poster.SendResolved(context.Background(), outbound.Request{
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{ //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		TargetHost:   "peer.example",
 		EndpointPath: "shares",
 		Kind:         outbound.EndpointShares,
@@ -198,7 +199,7 @@ func TestSendResolved_PeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)
@@ -213,7 +214,7 @@ func TestSendResolved_NoSignerPeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
 	hc := &captureHTTPClient{}
 	poster := outbound.NewPoster(hc, nil, nil, nil)
 
-	resp, err := poster.SendResolved(context.Background(), outbound.Request{
+	resp, err := poster.SendResolved(context.Background(), outbound.Request{ //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		TargetHost:   "peer.example",
 		EndpointPath: "shares",
 		Kind:         outbound.EndpointShares,
@@ -224,7 +225,7 @@ func TestSendResolved_NoSignerPeerWithoutHTTPSig_SendsUnsigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendResolved returned error: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if hc.calls != 1 {
 		t.Fatalf("expected exactly one HTTP send, got %d", hc.calls)

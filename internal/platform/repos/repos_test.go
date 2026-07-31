@@ -11,6 +11,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/repos"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 // ---- backend selection ----
@@ -23,11 +24,7 @@ func TestNew_MemoryBackend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(memory) error = %v", err)
 	}
-	defer func() {
-		if err := r.Close(); err != nil {
-			t.Errorf("Close() error = %v", err)
-		}
-	}()
+	defer tshttp.MustClose(t, r)
 
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")
@@ -59,11 +56,7 @@ func TestNew_JSONBackend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(json) error = %v", err)
 	}
-	defer func() {
-		if err := r.Close(); err != nil {
-			t.Errorf("Close() error = %v", err)
-		}
-	}()
+	defer tshttp.MustClose(t, r)
 
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")
@@ -95,11 +88,7 @@ func TestNew_SQLiteBackend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(sqlite) error = %v", err)
 	}
-	defer func() {
-		if err := r.Close(); err != nil {
-			t.Errorf("Close() error = %v", err)
-		}
-	}()
+	defer tshttp.MustClose(t, r)
 
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")
@@ -131,11 +120,7 @@ func TestNew_MirrorBackend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(mirror) error = %v", err)
 	}
-	defer func() {
-		if err := r.Close(); err != nil {
-			t.Errorf("Close() error = %v", err)
-		}
-	}()
+	defer tshttp.MustClose(t, r)
 
 	if r.OutgoingShares == nil {
 		t.Error("OutgoingShares is nil")

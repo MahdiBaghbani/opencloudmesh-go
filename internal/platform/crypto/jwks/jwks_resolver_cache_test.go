@@ -8,7 +8,6 @@ package jwks_test
 import (
 	"context"
 	"crypto/ed25519"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +16,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 )
@@ -74,8 +75,8 @@ func TestResolver_RefetchesOnKidMiss(t *testing.T) {
 
 	ctx := context.Background()
 
-	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("ResolveURL key1: %v", err)
+	if _, rerr := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); rerr != nil {
+		t.Fatalf("ResolveURL key1: %v", rerr)
 	}
 
 	version.Store(1)
@@ -104,7 +105,7 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if fetches.Add(1) == 1 {
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(set) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, set)
 
 			return
 		}
@@ -126,8 +127,8 @@ func TestResolver_Resolve_KidMissRefreshFetchFailure(t *testing.T) {
 
 	ctx := context.Background()
 
-	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("initial ResolveURL: %v", err)
+	if _, rerr := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); rerr != nil {
+		t.Fatalf("initial ResolveURL: %v", rerr)
 	}
 
 	_, err = resolver.ResolveURL(ctx, jwksURL, "example.com#missing")
@@ -175,8 +176,8 @@ func TestResolver_CooldownBlocksForcedRefetchForNewKid(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("ResolveURL key1: %v", err)
+	if _, rerr := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); rerr != nil {
+		t.Fatalf("ResolveURL key1: %v", rerr)
 	}
 
 	if got := fetches.Load(); got != 1 {
@@ -239,8 +240,8 @@ func TestResolver_NegativeCacheSkipsRefetch(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, err := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("ResolveURL key1: %v", err)
+	if _, rerr := resolver.ResolveURL(ctx, jwksURL, testJWKSKey1); rerr != nil {
+		t.Fatalf("ResolveURL key1: %v", rerr)
 	}
 
 	baseFetches := fetches.Load()
@@ -282,7 +283,7 @@ func TestResolver_SingleflightCoalescesConcurrentFetches(t *testing.T) {
 		startOnce.Do(func() { close(started) })
 		<-release
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.WriteJSON(w, set)
 	}))
 	defer srv.Close()
 

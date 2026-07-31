@@ -11,25 +11,22 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
 // TestJSONInviteSaveFailureRollback verifies that when saveFile fails the
 // in-memory state is not left in a mutated state (no split-brain).
 // The failure is injected by making the data directory read-only after Init.
-func TestJSONInviteSaveFailureRollback(t *testing.T) { //nolint:dupl // intentional: parallel invite/share rollback suites share table-driven structure but cover different entity types
-	if os.Getuid() == 0 {
-		t.Skip("cannot test read-only dir as root")
-	}
-
-	ctx := context.Background()
-
-	t.Run("CreateOutgoingInvite", func(t *testing.T) { testCreateOutgoingInviteRollback(t, ctx) })
-	t.Run("UpdateOutgoingInvite", func(t *testing.T) { testUpdateOutgoingInviteRollback(t, ctx) })
-	t.Run("DeleteOutgoingInvite", func(t *testing.T) { testDeleteOutgoingInviteRollback(t, ctx) })
-	t.Run("CreateIncomingInvite", func(t *testing.T) { testCreateIncomingInviteRollback(t, ctx) })
-	t.Run("UpdateIncomingInviteStatusForRecipient", func(t *testing.T) { testUpdateIncomingInviteStatusRollback(t, ctx) })
-	t.Run("DeleteIncomingInviteForRecipient", func(t *testing.T) { testDeleteIncomingInviteRollback(t, ctx) })
+func TestJSONInviteSaveFailureRollback(t *testing.T) {
+	runRollbackSuite(t, []rollbackCase{
+		{"CreateOutgoingInvite", testCreateOutgoingInviteRollback},
+		{"UpdateOutgoingInvite", testUpdateOutgoingInviteRollback},
+		{"DeleteOutgoingInvite", testDeleteOutgoingInviteRollback},
+		{"CreateIncomingInvite", testCreateIncomingInviteRollback},
+		{"UpdateIncomingInviteStatusForRecipient", testUpdateIncomingInviteStatusRollback},
+		{"DeleteIncomingInviteForRecipient", testDeleteIncomingInviteRollback},
+	})
 }
 
 func makeDriver(t *testing.T, dir string) store.Driver {
@@ -43,12 +40,12 @@ func makeDriver(t *testing.T, dir string) store.Driver {
 func lockDir(t *testing.T, dir string) {
 	t.Helper()
 
-	if err := os.Chmod(dir, 0500); err != nil { //nolint:gosec // test temp dir: restrictive 0500 mode is intentional for test isolation
+	if err := os.Chmod(dir, 0500); err != nil { //nolint:gosec // test fixture: restrictive 0500 removes write permission on the temp dir to force store failures
 		t.Fatal(err)
 	}
 
 	t.Cleanup(func() {
-		os.Chmod(dir, 0700) //nolint:errcheck,gosec // test cleanup: restore directory permissions; test temp dir: restrictive 0700 mode is intentional for test isolation
+		restoreDirPerms(t, dir)
 	})
 }
 
@@ -57,8 +54,8 @@ func testCreateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-out-*")
 
-	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()         //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	outInvStore := requireOutgoingInviteStore(t, d)
 
@@ -87,8 +84,8 @@ func testUpdateOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-out-*")
 
-	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()         //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	outInvStore := requireOutgoingInviteStore(t, d)
 
@@ -136,8 +133,8 @@ func testDeleteOutgoingInviteRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-out-*")
 
-	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()         //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	outInvStore := requireOutgoingInviteStore(t, d)
 
@@ -169,8 +166,8 @@ func testCreateIncomingInviteRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-create-in-*")
 
-	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()         //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	inInvStore := requireIncomingInviteStore(t, d)
 
@@ -202,8 +199,8 @@ func testUpdateIncomingInviteStatusRollback(t *testing.T, ctx context.Context) {
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-update-in-*")
 
-	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()         //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	inInvStore := requireIncomingInviteStore(t, d)
 
@@ -245,8 +242,8 @@ func testDeleteIncomingInviteRollback(t *testing.T, ctx context.Context) { //nol
 
 	dir := testutil.TempDataDir(t, "ocm-test-json-rollback-delete-in-*")
 
-	d := makeDriver(t, dir) //nolint:contextcheck // test: no context propagation needed
-	defer d.Close()         //nolint:errcheck // test cleanup: driver close
+	d := makeDriver(t, dir) //nolint:contextcheck // test helper: driver open accepts no context
+	defer tshttp.MustClose(t, d)
 
 	inInvStore := requireIncomingInviteStore(t, d)
 

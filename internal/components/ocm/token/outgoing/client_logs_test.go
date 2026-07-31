@@ -7,10 +7,11 @@ package outgoing_test
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/outgoing"
@@ -75,13 +76,13 @@ func TestClient_Exchange_DoesNotLogSensitiveValues(t *testing.T) {
 				}
 
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
+				tshttp.WriteJSON(w, token.TokenResponse{
 					AccessToken: tt.accessToken,
 					TokenType:   "Bearer",
 					ExpiresIn:   3600,
 				})
 			}))
-			t.Cleanup(server.Close)
+			defer server.Close()
 
 			httpClient := httpclient.NewContextClient(httpclient.New(&config.OutboundHTTPConfig{
 				SSRF: config.SSRFConfig{Mode: "off"},

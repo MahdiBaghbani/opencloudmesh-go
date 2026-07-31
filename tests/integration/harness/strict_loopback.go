@@ -20,13 +20,13 @@ func ResolveLoopbackHostname(t *testing.T) string {
 		t.Fatalf("hostname: %v", err)
 	}
 
-	ips, err := net.LookupIP(host)
+	addrs, err := net.DefaultResolver.LookupIPAddr(t.Context(), host)
 	if err != nil {
 		t.Fatalf("lookup %q: %v", host, err)
 	}
 
-	for _, ip := range ips {
-		if v4 := ip.To4(); v4 != nil && v4[0] == 127 {
+	for _, addr := range addrs {
+		if v4 := addr.IP.To4(); v4 != nil && v4[0] == 127 {
 			return host
 		}
 	}

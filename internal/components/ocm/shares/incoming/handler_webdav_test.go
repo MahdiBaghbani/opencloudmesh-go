@@ -7,6 +7,7 @@ package incoming_test
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +17,7 @@ import (
 
 func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	tests := []struct {
@@ -79,7 +80,7 @@ func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(tt.body))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
@@ -94,7 +95,7 @@ func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 
 func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -107,7 +108,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["an-unsupported-requirement"]}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -121,7 +122,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 
 func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -134,7 +135,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["write"], "requirements": ["must-exchange-token"]}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -148,7 +149,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
 
 func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -161,7 +162,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "accessTypes": ["datatx"], "requirements": ["must-exchange-token"]}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -175,7 +176,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 
 func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -188,7 +189,7 @@ func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav"}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

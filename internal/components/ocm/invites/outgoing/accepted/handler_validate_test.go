@@ -7,6 +7,7 @@ package accepted_test
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -107,7 +108,7 @@ func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
 	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
 	handler := newTestHandler(repo, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted",
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/invite-accepted",
 		bytes.NewBufferString("token=abc&recipientProvider=other.com"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 

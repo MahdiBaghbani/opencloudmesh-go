@@ -112,7 +112,7 @@ func TestService_HandlerReturnsValidResponse(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -148,7 +148,7 @@ func TestService_TrailingSlashPath(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm/", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -168,7 +168,7 @@ func TestService_PercentEncodedPath(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	req.URL.RawPath = "/.well-known%2Focm"
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
@@ -189,7 +189,7 @@ func TestService_APIVersionPinned(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -249,7 +249,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	signedReq := httptest.NewRequest(
+	signedReq := httptest.NewRequestWithContext(context.Background(),
 		http.MethodGet,
 		"https://receiver.example.com/.well-known/ocm",
 		nil,
@@ -292,7 +292,7 @@ func TestDiscoveryGET_VerifiesSignatureIfPresent(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	unsignedReq := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	unsignedReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	unsignedW := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(unsignedW, unsignedReq)
 

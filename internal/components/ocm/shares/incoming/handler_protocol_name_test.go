@@ -7,6 +7,7 @@ package incoming_test
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -37,7 +38,7 @@ func shareBodyWithProtocolName(protocolName, ownerHost string) string {
 
 func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -56,7 +57,7 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 			}
 		}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -69,10 +70,10 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 
 func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("invalid", "sender.com")))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("invalid", "sender.com")))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -85,10 +86,10 @@ func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
 
 func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("webdav", ownerHost)))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("webdav", ownerHost)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -101,10 +102,10 @@ func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
 
 func TestCreateShare_AcceptsMultiProtocolName(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi", ownerHost)))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(shareBodyWithProtocolName("multi", ownerHost)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

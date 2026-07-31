@@ -269,7 +269,7 @@ func (m *TrustGroupManager) GetTrustGroups() []*TrustGroupConfig {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var result []*TrustGroupConfig //nolint:prealloc // intentional: preserve original nil-slice semantics; prealloc is a micro-optimization not worth the nil/empty semantic shift
+	result := make([]*TrustGroupConfig, 0, len(m.trustGroups))
 	for _, tg := range m.trustGroups {
 		result = append(result, tg.config)
 	}

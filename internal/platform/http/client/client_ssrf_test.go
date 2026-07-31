@@ -65,9 +65,9 @@ func TestClient_SSRFProtection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := client.Get(ctx, tt.url)
+			resp, err := client.Get(ctx, tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
-				defer resp.Body.Close() //nolint:errcheck // test response body close
+				defer outboundtestutil.MustClose(t, resp.Body)
 			}
 
 			if tt.wantError {
@@ -94,9 +94,9 @@ func TestClient_SSRFOff(t *testing.T) {
 
 	// With SSRF off, localhost should not be blocked at the SSRF check level
 	// (it will still fail to connect if nothing is listening)
-	resp, err := client.Get(ctx, "http://localhost:99999/test")
+	resp, err := client.Get(ctx, "http://localhost:99999/test") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	// Should not be an SSRF error
@@ -119,9 +119,9 @@ func TestClient_IPv6BracketHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := client.Get(context.Background(), tt.url)
+			resp, err := client.Get(context.Background(), tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
-				defer resp.Body.Close() //nolint:errcheck // test response body close
+				defer outboundtestutil.MustClose(t, resp.Body)
 			}
 
 			if err == nil {
@@ -139,9 +139,9 @@ func TestClient_UnresolvableHostBlocked(t *testing.T) {
 	client := outboundtestutil.NewStrictNone(nil)
 
 	// Use a domain that definitely doesn't exist
-	resp, err := client.Get(context.Background(), "http://this-domain-does-not-exist-12345.invalid/test")
+	resp, err := client.Get(context.Background(), "http://this-domain-does-not-exist-12345.invalid/test") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	if err == nil {
@@ -185,9 +185,9 @@ func TestIsAllowedIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := c.Get(ctx, tt.url)
+			resp, err := c.Get(ctx, tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
-				defer resp.Body.Close() //nolint:errcheck // test response body close
+				defer outboundtestutil.MustClose(t, resp.Body)
 			}
 
 			if tt.wantBlocked {
@@ -219,9 +219,9 @@ func TestSSRFBlocksLocalhostWithPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := client.Get(context.Background(), tt.url)
+			resp, err := client.Get(context.Background(), tt.url) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
-				defer resp.Body.Close() //nolint:errcheck // test response body close
+				defer outboundtestutil.MustClose(t, resp.Body)
 			}
 
 			if err == nil {
@@ -270,9 +270,9 @@ func TestContextAwareDNSCancellation(t *testing.T) {
 
 	start := time.Now()
 
-	resp, err := client.Get(ctx, "http://example.com/test")
+	resp, err := client.Get(ctx, "http://example.com/test") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if resp != nil {
-		defer resp.Body.Close() //nolint:errcheck // test response body close
+		defer outboundtestutil.MustClose(t, resp.Body)
 	}
 
 	elapsed := time.Since(start)

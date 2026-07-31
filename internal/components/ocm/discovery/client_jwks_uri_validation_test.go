@@ -7,7 +7,6 @@ package discovery_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -26,7 +25,7 @@ func TestClientDiscover_AcceptsCustomJwksUri(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -50,7 +49,7 @@ func TestClientDiscover_RejectsRelativeJwksUri(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -75,7 +74,7 @@ func TestClientDiscover_RejectsCrossAuthorityJwksUri(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -103,7 +102,7 @@ func TestClientDiscover_RejectsJwksUriWithCredentials(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -134,7 +133,7 @@ func TestClientDiscover_RejectsJwksUriWithFragment(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -170,7 +169,7 @@ func TestClientDiscover_JwksUriSurvivesCacheRoundTrip(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)

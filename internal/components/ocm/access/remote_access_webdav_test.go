@@ -7,12 +7,13 @@ package access
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
@@ -37,7 +38,7 @@ func sharedSecretDiscoveryHandler(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck,errchkjson // test mock handler: JSON encode; payload marshals to fixed JSON, so encode failure is always nil in practice
+	tshttp.WriteJSON(w, disc)
 
 	return true
 }
@@ -55,7 +56,7 @@ func TestAccess_SharedSecretSuccess(t *testing.T) {
 
 			if r.Header.Get("Authorization") == "Bearer shared-secret" {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("file content")) //nolint:errcheck // test mock handler: response write
+				tshttp.MustWrite(t, w, []byte("file content"))
 
 				return
 			}
@@ -84,7 +85,7 @@ func TestAccess_SharedSecretSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer result.Response.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, result.Response.Body)
 
 	if result.Response.StatusCode != http.StatusOK {
 		t.Errorf("StatusCode = %d, want %d", result.Response.StatusCode, http.StatusOK)

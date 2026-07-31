@@ -13,7 +13,7 @@
 #   forcetypeassert, contextcheck, wastedassign, bodyclose, cyclop, etc.).
 # - wsl_v5 ON (auto-fix via `make lint-fix`; accept churn). Old wsl OFF.
 # - tagliatelle ON, json: camel (manual struct-tag churn; accept).
-# - cyclop is the sole complexity linter (15 prod / 25 test). gocyclo OFF.
+# - cyclop is the sole complexity linter (max 15). gocyclo OFF.
 # - v2 has NO default exclusions: every exclusion is explicit (presets: []).
 # - Do NOT use linters.exclusions.presets std-error-handling: it hides errcheck
 #   Close/RemoveAll failures (~279 hits including prod HTTP clients).
@@ -24,10 +24,6 @@
 # - Local lint-new uses --new-from-merge-base=master on CLI only.
 # - Do NOT put issues.new-from-merge-base in this committed file.
 #
-# Cyclop test rule: max-complexity 15 globally; text exclusion on _test.go for
-# scores 16-25 implements effective test max 25 (v2 has no per-path cyclop max).
-# Scores >=26 still fail in tests; harness.go (non-_test.go) keeps prod max 15.
-
 version: "2"
 
 run:
@@ -160,38 +156,6 @@ linters:
       - linters:
           - gosec
         text: "G104:"
-      - path: _test\.go
-        linters:
-          - gosec
-        text: "(G101|G306|G304|G107):"
-      - path: internal/testsupport/
-        linters:
-          - gosec
-        text: "(G101|G306|G304|G107):"
-      - path: tests/integration/
-        linters:
-          - gosec
-        text: "(G101|G306|G304|G107):"
-      - path: internal/architecture/
-        linters:
-          - gosec
-        text: "(G101|G306|G304|G107):"
-      - path: _test\.go
-        linters:
-          - cyclop
-        text: "is (1[6-9]|2[0-5]), max is 15"
-      - path: _test\.go
-        linters:
-          - noctx
-      - path: internal/testsupport/
-        linters:
-          - noctx
-      - path: tests/integration/
-        linters:
-          - noctx
-      - path: internal/architecture/
-        linters:
-          - noctx
       - path: internal/platform/crypto/
         linters:
           - canonicalheader

@@ -45,12 +45,12 @@ func StartStrictProtocolPairWithOptions(t *testing.T, opts StrictProtocolPairSta
 
 	loopbackHost := ResolveLoopbackHostname(t)
 
-	port1, err := getFreePort()
+	port1, err := getFreePort(t.Context())
 	if err != nil {
 		t.Fatalf("reserve port for strict-pair-1: %v", err)
 	}
 
-	port2, err := getFreePort()
+	port2, err := getFreePort(t.Context())
 	if err != nil {
 		t.Fatalf("reserve port for strict-pair-2: %v", err)
 	}

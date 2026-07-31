@@ -16,7 +16,7 @@ import (
 // It mirrors the binary and integration harness pre-bootstrap guardrails.
 func ValidatePreBootstrap(cfg *config.Config) error {
 	if cfg.HTTP.Services != nil {
-		var names []string //nolint:prealloc // intentional: preserve original nil-slice semantics; prealloc is a micro-optimization not worth the nil/empty semantic shift
+		names := make([]string, 0, len(cfg.HTTP.Services))
 		for name := range cfg.HTTP.Services {
 			names = append(names, name)
 		}

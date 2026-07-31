@@ -24,7 +24,7 @@ import (
 
 func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-redact", "sender.example.com", "redact.txt")
+	share := createAcceptedShareForUser(t, repo, "prov-va-redact", "sender.example.com", "redact.txt")
 	secret := share.SharedSecret
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -40,7 +40,7 @@ func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -64,7 +64,7 @@ func TestHandleVerifyAccess_RedactsSecretsFromPreview(t *testing.T) {
 
 func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-redact-ct", "sender.example.com", "ct.txt")
+	share := createAcceptedShareForUser(t, repo, "prov-va-redact-ct", "sender.example.com", "ct.txt")
 	secret := share.SharedSecret
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -80,7 +80,7 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -112,7 +112,7 @@ func TestHandleVerifyAccess_RedactsPeerContentType(t *testing.T) {
 
 func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-redact-status", "sender.example.com", "err.txt")
+	share := createAcceptedShareForUser(t, repo, "prov-va-redact-status", "sender.example.com", "err.txt")
 	secret := share.SharedSecret
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -128,7 +128,7 @@ func TestHandleVerifyAccess_RedactsPeerStatusOnNon2xx(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -193,7 +193,7 @@ func TestHandleVerifyAccess_RedactsCodeAndSharedSecretEvenWithEmptySecret(t *tes
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func newTestAuthHandler(t *testing.T) (*AuthHandler, identity.PartyRepo, identity.SessionRepo, *identity.UserAuth) {
@@ -28,7 +29,7 @@ func newTestAuthHandler(t *testing.T) (*AuthHandler, identity.PartyRepo, identit
 	return NewAuthHandler(repo, sessions, auth), repo, sessions, auth
 }
 
-func seedUser(t *testing.T, repo identity.PartyRepo, auth *identity.UserAuth, username, password string) *identity.User { //nolint:unparam // test fixture helper: username kept parameterized for future cases; all callers pass "alice" today
+func seedUser(t *testing.T, repo identity.PartyRepo, auth *identity.UserAuth, username, password string) *identity.User { //nolint:unparam // test fixture helper: username kept for fixture signature uniformity; all current callers pass "alice"
 	t.Helper()
 
 	ctx := context.Background()
@@ -56,7 +57,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	user := seedUser(t, repo, auth, "alice", "secret123")
 
 	body := `{"username":"alice","password":"secret123"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -64,7 +65,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	handler.Login(w, req)
 
 	res := w.Result()
-	defer res.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, res.Body)
 
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", res.StatusCode, w.Body.String())
@@ -108,7 +109,7 @@ func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
 	seedUser(t, repo, auth, "alice", "secret123")
 
 	body := `{"username":"alice","password":"wrong"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 
 	handler.Login(w, req)
@@ -132,7 +133,7 @@ func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(tt.body))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/login", bytes.NewBufferString(tt.body))
 			w := httptest.NewRecorder()
 			handler.Login(w, req)
 
@@ -146,7 +147,7 @@ func TestAuthHandler_Login_MissingCredentials(t *testing.T) {
 func TestAuthHandler_Login_MethodNotAllowed(t *testing.T) {
 	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
-	req := httptest.NewRequest(http.MethodGet, "/api/auth/login", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/auth/login", nil)
 	w := httptest.NewRecorder()
 	handler.Login(w, req)
 
@@ -166,7 +167,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 		t.Fatalf("Create session: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/logout", nil)
 	req.Header.Set("Authorization", "Bearer "+session.Token)
 
 	w := httptest.NewRecorder()
@@ -185,7 +186,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 func TestAuthHandler_Logout_NoSession(t *testing.T) {
 	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/logout", nil)
 	w := httptest.NewRecorder()
 	handler.Logout(w, req)
 
@@ -205,7 +206,7 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 		t.Fatalf("Create session: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/auth/me", nil)
 	req.Header.Set("Authorization", "Bearer "+session.Token)
 
 	w := httptest.NewRecorder()
@@ -236,7 +237,7 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 func TestAuthHandler_GetCurrentUser_NoSession(t *testing.T) {
 	handler, _, _, _ := newTestAuthHandler(t) //nolint:dogsled // test: discarding multiple unneeded values
 
-	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/auth/me", nil)
 	w := httptest.NewRecorder()
 	handler.GetCurrentUser(w, req)
 
@@ -261,7 +262,7 @@ func TestExtractToken(t *testing.T) {
 		{
 			name: "session cookie",
 			setup: func(r *http.Request) {
-				r.AddCookie(&http.Cookie{Name: "session", Value: "cookie-tok"}) //nolint:gosec // test cookie: fixture, no browser session
+				r.AddCookie(&http.Cookie{Name: "session", Value: "cookie-tok"}) //nolint:gosec // test fixture: fixed session cookie token on a local test request, not a real credential
 			},
 			want: "cookie-tok",
 		},
@@ -274,7 +275,7 @@ func TestExtractToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 			tt.setup(req)
 
 			got := extractToken(req)
@@ -290,7 +291,7 @@ func TestAuthHandler_Login_ResponseContentType(t *testing.T) {
 	seedUser(t, repo, auth, "alice", "secret123")
 
 	body := `{"username":"alice","password":"secret123"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.Login(w, req)
 

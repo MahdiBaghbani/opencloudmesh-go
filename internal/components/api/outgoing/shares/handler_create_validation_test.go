@@ -25,7 +25,7 @@ func TestHandleCreate_Unauthenticated_Returns401(t *testing.T) {
 	handler := newTestHandler(failCurrentUser())
 
 	body := `{"receiverDomain":"example.com","shareWith":"user@example.com","localPath":"/tmp/test.txt","permissions":["read"]}`
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -53,7 +53,7 @@ func TestHandleCreate_MissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(tt.body))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
@@ -79,7 +79,7 @@ func TestHandleCreate_FileNotFound(t *testing.T) {
 		"permissions": ["read"]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -100,9 +100,15 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name()) //nolint:errcheck // test cleanup: temp path removal
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			t.Errorf("remove temp file: %v", err)
+		}
+	}()
 
-	tmpFile.Close() //nolint:errcheck // test cleanup: resource close
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
 
 	body := `{
 		"receiverDomain": "example.com",
@@ -111,7 +117,7 @@ func TestHandleCreate_RejectsUnsupportedPermissions(t *testing.T) {
 		"permissions": ["write"]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -149,9 +155,15 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name()) //nolint:errcheck // test cleanup: temp path removal
+	defer func() {
+		if rerr := os.Remove(tmpFile.Name()); rerr != nil {
+			t.Errorf("remove temp file: %v", rerr)
+		}
+	}()
 
-	tmpFile.Close() //nolint:errcheck // test cleanup: resource close
+	if cerr := tmpFile.Close(); cerr != nil {
+		t.Fatalf("close temp file: %v", cerr)
+	}
 
 	body := `{
 		"receiverDomain": "receiver.example.com",
@@ -160,7 +172,7 @@ func TestHandleCreate_OwnerSenderUseRevaStyleFederatedID(t *testing.T) {
 		"permissions": ["read"]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -189,7 +201,7 @@ func TestHandleCreate_MethodNotAllowed(t *testing.T) {
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
 	handler := newTestHandler(testCurrentUser(user))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/shares/outgoing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/shares/outgoing", nil)
 	w := httptest.NewRecorder()
 
 	handler.HandleCreate(w, req)
@@ -204,7 +216,7 @@ func TestHandleCreate_ErrorResponseUsesAPIEnvelope(t *testing.T) {
 	handler := newTestHandler(testCurrentUser(user))
 
 	body := `{"shareWith":"user@example.com","localPath":"/tmp/test.txt","permissions":["read"]}`
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

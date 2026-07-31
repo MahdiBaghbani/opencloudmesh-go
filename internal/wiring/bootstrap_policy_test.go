@@ -7,6 +7,7 @@ package wiring_test
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -68,7 +69,7 @@ func TestBuild_SignaturePolicyWiredFromCodeFlow(t *testing.T) {
 			)
 
 			body := []byte(`{"test":"data"}`)
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(context.Background(),
 				http.MethodPost,
 				"https://localhost:9200/ocm/shares",
 				bytes.NewReader(body),

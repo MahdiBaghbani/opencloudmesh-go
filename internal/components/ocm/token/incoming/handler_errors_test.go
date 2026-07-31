@@ -20,35 +20,13 @@ import (
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 )
 
-func TestHandler_InvalidCode(t *testing.T) { //nolint:dupl // intentional: parallel token handler validation tests share form setup but assert different OAuth errors
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
-	tokenStore := token.NewMemoryTokenStore()
-	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
-
+func TestHandler_InvalidCode(t *testing.T) {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", "receiver.example.com")
 	form.Set("code", "nonexistent-secret")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	w := httptest.NewRecorder()
-
-	handler.HandleToken(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-
-	var resp token.OAuthError
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("Decode: %v", err)
-	}
-
-	if resp.Error != token.ErrorInvalidGrant {
-		t.Errorf("expected error %q, got %q", token.ErrorInvalidGrant, resp.Error)
-	}
+	assertTokenFormRejected(t, form, token.ErrorInvalidGrant)
 }
 
 func TestHandler_ClientMismatch(t *testing.T) {
@@ -73,7 +51,7 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	form.Set("client_id", "wrong-receiver.example.com")
 	form.Set("code", "secret-mismatch")
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()

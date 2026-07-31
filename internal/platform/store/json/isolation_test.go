@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
@@ -26,7 +27,7 @@ import (
 //  4. Update path works correctly after isolation is applied.
 func TestJSONOutgoingShareIsolation(t *testing.T) {
 	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	ctx := context.Background()
 
@@ -100,8 +101,8 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 	updateCopy := *got3
 
 	updateCopy.Status = "accepted"
-	if err := outStore.UpdateOutgoingShare(ctx, &updateCopy); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("UpdateOutgoingShare: %v", err)
+	if serr := outStore.UpdateOutgoingShare(ctx, &updateCopy); serr != nil {
+		t.Fatalf("UpdateOutgoingShare: %v", serr)
 	}
 
 	got4, err := outStore.GetOutgoingShare(ctx, original.ProviderID)
@@ -126,7 +127,7 @@ func TestJSONOutgoingShareIsolation(t *testing.T) {
 //  4. Status-only update still works after the isolation change.
 func TestJSONIncomingShareIsolation(t *testing.T) {
 	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	ctx := context.Background()
 
@@ -143,7 +144,18 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 		t.Fatalf("CreateIncomingShare: %v", err)
 	}
 
-	// 1. Post-create mutation of caller pointer must not affect stored record.
+	assertIncomingShareCreateIsolation(t, ctx, inStore, original)
+	assertIncomingShareGetCopyIsolation(t, ctx, inStore)
+	assertIncomingShareProviderKeyIsolation(t, ctx, inStore)
+	assertIncomingShareListCopyIsolation(t, ctx, inStore)
+	assertIncomingShareStatusUpdate(t, ctx, inStore)
+}
+
+// assertIncomingShareCreateIsolation checks post-create mutation of the
+// caller's pointer does not alter the stored record.
+func assertIncomingShareCreateIsolation(t *testing.T, ctx context.Context, inStore store.IncomingShareStore, original *store.IncomingShare) {
+	t.Helper()
+
 	original.Status = "mutated-after-create"
 	original.RecipientUserID = "hacker"
 
@@ -159,8 +171,18 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	if got.RecipientUserID != "bob" {
 		t.Errorf("create isolation broken: stored UserID = %q, want %q", got.RecipientUserID, "bob")
 	}
+}
 
-	// 2. Mutation of a fetched record must not alter the next fetch.
+// assertIncomingShareGetCopyIsolation checks mutation of a fetched record does
+// not alter the next fetch.
+func assertIncomingShareGetCopyIsolation(t *testing.T, ctx context.Context, inStore store.IncomingShareStore) {
+	t.Helper()
+
+	got, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
+	if err != nil {
+		t.Fatalf("first GetIncomingShareByIDForRecipient: %v", err)
+	}
+
 	got.Status = "mutated-after-get"
 	got.RecipientUserID = "hacker"
 
@@ -172,8 +194,13 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 	if got2.Status != "pending" {
 		t.Errorf("get isolation broken: stored Status = %q, want %q", got2.Status, "pending")
 	}
+}
 
-	// 3. Provider-key lookup returns a copy with correct values.
+// assertIncomingShareProviderKeyIsolation checks the provider-key lookup
+// returns a copy with correct values.
+func assertIncomingShareProviderKeyIsolation(t *testing.T, ctx context.Context, inStore store.IncomingShareStore) {
+	t.Helper()
+
 	byKey, err := inStore.GetIncomingShareByProviderKey(ctx, "sender.example", "provider-iso-1")
 	if err != nil {
 		t.Fatalf("GetIncomingShareByProviderKey: %v", err)
@@ -185,20 +212,20 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 
 	byKey.Status = "mutated-after-provider-key-get"
 
-	got3, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
+	got, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("third GetIncomingShareByIDForRecipient: %v", err)
 	}
 
-	if got3.Status != "pending" {
-		t.Errorf(
-			"provider-key get isolation broken: stored Status = %q, want %q",
-			got3.Status,
-			"pending",
-		)
+	if got.Status != "pending" {
+		t.Errorf("provider-key get isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
+}
 
-	// Also verify list returns copies.
+// assertIncomingShareListCopyIsolation checks listed records are copies.
+func assertIncomingShareListCopyIsolation(t *testing.T, ctx context.Context, inStore store.IncomingShareStore) {
+	t.Helper()
+
 	listed, err := inStore.ListIncomingSharesByRecipient(ctx, "bob")
 	if err != nil {
 		t.Fatalf("ListIncomingSharesByRecipient: %v", err)
@@ -210,27 +237,31 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 
 	listed[0].Status = "mutated-after-list"
 
-	got4, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
+	got, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("fourth GetIncomingShareByIDForRecipient: %v", err)
 	}
 
-	if got4.Status != "pending" {
-		t.Errorf("list isolation broken: stored Status = %q, want %q", got4.Status, "pending")
+	if got.Status != "pending" {
+		t.Errorf("list isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
+}
 
-	// 4. Status-only update path must still work correctly.
-	if err := inStore.UpdateIncomingShareStatusForRecipient(ctx, "iso-share-1", "bob", "accepted"); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+// assertIncomingShareStatusUpdate checks the status-only update path persists.
+func assertIncomingShareStatusUpdate(t *testing.T, ctx context.Context, inStore store.IncomingShareStore) {
+	t.Helper()
+
+	if err := inStore.UpdateIncomingShareStatusForRecipient(ctx, "iso-share-1", "bob", "accepted"); err != nil {
 		t.Fatalf("UpdateIncomingShareStatusForRecipient: %v", err)
 	}
 
-	got5, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
+	got, err := inStore.GetIncomingShareByIDForRecipient(ctx, "iso-share-1", "bob")
 	if err != nil {
 		t.Fatalf("GetIncomingShareByIDForRecipient after update: %v", err)
 	}
 
-	if got5.Status != "accepted" {
-		t.Errorf("status update did not persist: State = %q, want %q", got5.Status, "accepted")
+	if got.Status != "accepted" {
+		t.Errorf("status update did not persist: State = %q, want %q", got.Status, "accepted")
 	}
 }
 
@@ -246,7 +277,7 @@ func TestJSONIncomingShareIsolation(t *testing.T) {
 //  4. Status-only update still works after the isolation change.
 func TestJSONIncomingInviteIsolation(t *testing.T) {
 	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	ctx := context.Background()
 
@@ -262,7 +293,18 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 		t.Fatalf("CreateIncomingInvite: %v", err)
 	}
 
-	// 1. Post-create mutation of caller pointer must not affect stored record.
+	assertIncomingInviteCreateIsolation(t, ctx, inStore, original)
+	assertIncomingInviteGetCopyIsolation(t, ctx, inStore)
+	assertIncomingInviteTokenCopyIsolation(t, ctx, inStore)
+	assertIncomingInviteListCopyIsolation(t, ctx, inStore)
+	assertIncomingInviteStatusUpdate(t, ctx, inStore)
+}
+
+// assertIncomingInviteCreateIsolation checks post-create mutation of the
+// caller's pointer does not alter the stored record.
+func assertIncomingInviteCreateIsolation(t *testing.T, ctx context.Context, inStore store.IncomingInviteStore, original *store.IncomingInvite) {
+	t.Helper()
+
 	original.Status = "mutated-after-create"
 	original.RecipientUserID = "hacker"
 
@@ -276,14 +318,20 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	}
 
 	if got.RecipientUserID != "alice" {
-		t.Errorf(
-			"create isolation broken: stored RecipientUserID = %q, want %q",
-			got.RecipientUserID,
-			"alice",
-		)
+		t.Errorf("create isolation broken: stored RecipientUserID = %q, want %q", got.RecipientUserID, "alice")
+	}
+}
+
+// assertIncomingInviteGetCopyIsolation checks mutation of a fetched record does
+// not alter the next fetch.
+func assertIncomingInviteGetCopyIsolation(t *testing.T, ctx context.Context, inStore store.IncomingInviteStore) {
+	t.Helper()
+
+	got, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
+	if err != nil {
+		t.Fatalf("first GetIncomingInviteForRecipient: %v", err)
 	}
 
-	// 2. Mutation of a fetched record must not alter the next fetch.
 	got.Status = "mutated-after-get"
 
 	got2, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
@@ -294,8 +342,13 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 	if got2.Status != "pending" {
 		t.Errorf("get isolation broken: stored Status = %q, want %q", got2.Status, "pending")
 	}
+}
 
-	// 3. Token scoped lookup returns a copy.
+// assertIncomingInviteTokenCopyIsolation checks the token scoped lookup returns
+// a copy.
+func assertIncomingInviteTokenCopyIsolation(t *testing.T, ctx context.Context, inStore store.IncomingInviteStore) {
+	t.Helper()
+
 	byToken, err := inStore.GetIncomingInviteByToken(ctx, "iso-token-1", "alice")
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken: %v", err)
@@ -307,16 +360,20 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 
 	byToken.Status = "mutated-after-token-get"
 
-	got3, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
+	got, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
 	if err != nil {
 		t.Fatalf("third GetIncomingInviteForRecipient: %v", err)
 	}
 
-	if got3.Status != "pending" {
-		t.Errorf("token-get isolation broken: stored Status = %q, want %q", got3.Status, "pending")
+	if got.Status != "pending" {
+		t.Errorf("token-get isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
+}
 
-	// Also verify list returns copies.
+// assertIncomingInviteListCopyIsolation checks listed records are copies.
+func assertIncomingInviteListCopyIsolation(t *testing.T, ctx context.Context, inStore store.IncomingInviteStore) {
+	t.Helper()
+
 	listed, err := inStore.ListIncomingInvites(ctx, "alice")
 	if err != nil {
 		t.Fatalf("ListIncomingInvites: %v", err)
@@ -328,41 +385,41 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 
 	listed[0].Status = "mutated-after-list"
 
-	got4, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
+	got, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
 	if err != nil {
 		t.Fatalf("fourth GetIncomingInviteForRecipient: %v", err)
 	}
 
-	if got4.Status != "pending" {
-		t.Errorf("list isolation broken: stored Status = %q, want %q", got4.Status, "pending")
+	if got.Status != "pending" {
+		t.Errorf("list isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
+}
 
-	// 4. Status-only update path must still work correctly.
-	if err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, "iso-invite-1", "alice", "accepted", "", ""); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+// assertIncomingInviteStatusUpdate checks the status-only update path persists
+// and the token index still resolves after the update.
+func assertIncomingInviteStatusUpdate(t *testing.T, ctx context.Context, inStore store.IncomingInviteStore) {
+	t.Helper()
+
+	if err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, "iso-invite-1", "alice", "accepted", "", ""); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient: %v", err)
 	}
 
-	got5, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
+	got, err := inStore.GetIncomingInviteForRecipient(ctx, "iso-invite-1", "alice")
 	if err != nil {
 		t.Fatalf("GetIncomingInviteForRecipient after update: %v", err)
 	}
 
-	if got5.Status != "accepted" {
-		t.Errorf("status update did not persist: Status = %q, want %q", got5.Status, "accepted")
+	if got.Status != "accepted" {
+		t.Errorf("status update did not persist: Status = %q, want %q", got.Status, "accepted")
 	}
 
-	// Token index must still resolve correctly after the status update.
 	byTokenAfterUpdate, err := inStore.GetIncomingInviteByToken(ctx, "iso-token-1", "alice")
 	if err != nil {
 		t.Fatalf("GetIncomingInviteByToken after update: %v", err)
 	}
 
 	if byTokenAfterUpdate.Status != "accepted" {
-		t.Errorf(
-			"token lookup after update: Status = %q, want %q",
-			byTokenAfterUpdate.Status,
-			"accepted",
-		)
+		t.Errorf("token lookup after update: Status = %q, want %q", byTokenAfterUpdate.Status, "accepted")
 	}
 }
 
@@ -380,7 +437,7 @@ func TestJSONIncomingInviteIsolation(t *testing.T) {
 //  5. Update path still works correctly after isolation is applied.
 func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	driver := newJSONDriver(t)
-	defer driver.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver)
 
 	ctx := context.Background()
 
@@ -396,7 +453,18 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 		t.Fatalf("CreateOutgoingInvite: %v", err)
 	}
 
-	// 1. Post-create mutation of caller pointer must not affect stored record.
+	assertOutgoingInviteCreateIsolation(t, ctx, outInvStore, original)
+	assertOutgoingInviteGetCopyIsolation(t, ctx, outInvStore, original)
+	assertOutgoingInviteTokenCopyIsolation(t, ctx, outInvStore, original)
+	assertOutgoingInviteListCopyIsolation(t, ctx, outInvStore, original)
+	assertOutgoingInviteUpdate(t, ctx, outInvStore, original)
+}
+
+// assertOutgoingInviteCreateIsolation checks post-create mutation of the
+// caller's pointer does not alter the stored record.
+func assertOutgoingInviteCreateIsolation(t *testing.T, ctx context.Context, outInvStore store.OutgoingInviteStore, original *store.OutgoingInvite) {
+	t.Helper()
+
 	original.Status = "mutated-after-create"
 
 	got, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
@@ -407,8 +475,18 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	if got.Status != "pending" {
 		t.Errorf("create isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
+}
 
-	// 2. Mutation of a fetched record must not alter the next fetch.
+// assertOutgoingInviteGetCopyIsolation checks mutation of a fetched record does
+// not alter the next fetch.
+func assertOutgoingInviteGetCopyIsolation(t *testing.T, ctx context.Context, outInvStore store.OutgoingInviteStore, original *store.OutgoingInvite) {
+	t.Helper()
+
+	got, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
+	if err != nil {
+		t.Fatalf("first GetOutgoingInvite: %v", err)
+	}
+
 	got.Status = "mutated-after-get"
 
 	got2, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
@@ -419,8 +497,12 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 	if got2.Status != "pending" {
 		t.Errorf("get isolation broken: stored Status = %q, want %q", got2.Status, "pending")
 	}
+}
 
-	// 3. GetByToken returns a copy.
+// assertOutgoingInviteTokenCopyIsolation checks GetByToken returns a copy.
+func assertOutgoingInviteTokenCopyIsolation(t *testing.T, ctx context.Context, outInvStore store.OutgoingInviteStore, original *store.OutgoingInvite) {
+	t.Helper()
+
 	byToken, err := outInvStore.GetOutgoingInviteByToken(ctx, original.Token)
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken: %v", err)
@@ -432,16 +514,20 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 
 	byToken.Status = "mutated-after-token-get"
 
-	got3, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
+	got, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
 	if err != nil {
 		t.Fatalf("third GetOutgoingInvite: %v", err)
 	}
 
-	if got3.Status != "pending" {
-		t.Errorf("token-get isolation broken: stored Status = %q, want %q", got3.Status, "pending")
+	if got.Status != "pending" {
+		t.Errorf("token-get isolation broken: stored Status = %q, want %q", got.Status, "pending")
 	}
+}
 
-	// 4. List returns copies.
+// assertOutgoingInviteListCopyIsolation checks listed records are copies.
+func assertOutgoingInviteListCopyIsolation(t *testing.T, ctx context.Context, outInvStore store.OutgoingInviteStore, original *store.OutgoingInvite) {
+	t.Helper()
+
 	listed, err := outInvStore.ListOutgoingInvites(ctx, "alice")
 	if err != nil {
 		t.Fatalf("ListOutgoingInvites: %v", err)
@@ -453,43 +539,48 @@ func TestJSONOutgoingInviteIsolation(t *testing.T) {
 
 	listed[0].Status = "mutated-after-list"
 
-	got4, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
+	got, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
 	if err != nil {
 		t.Fatalf("fourth GetOutgoingInvite: %v", err)
 	}
 
-	if got4.Status != "pending" {
-		t.Errorf("list isolation broken: stored Status = %q, want %q", got4.Status, "pending")
+	if got.Status != "pending" {
+		t.Errorf("list isolation broken: stored Status = %q, want %q", got.Status, "pending")
+	}
+}
+
+// assertOutgoingInviteUpdate checks the update path persists and the token
+// index still resolves after the update.
+func assertOutgoingInviteUpdate(t *testing.T, ctx context.Context, outInvStore store.OutgoingInviteStore, original *store.OutgoingInvite) {
+	t.Helper()
+
+	current, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
+	if err != nil {
+		t.Fatalf("GetOutgoingInvite before update: %v", err)
 	}
 
-	// 5. Update path still works correctly.
-	updateCopy := *got4
-
+	updateCopy := *current
 	updateCopy.Status = "accepted"
-	if err := outInvStore.UpdateOutgoingInvite(ctx, &updateCopy); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("UpdateOutgoingInvite: %v", err)
+
+	if updateErr := outInvStore.UpdateOutgoingInvite(ctx, &updateCopy); updateErr != nil {
+		t.Fatalf("UpdateOutgoingInvite: %v", updateErr)
 	}
 
-	got5, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
+	got, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
 	if err != nil {
 		t.Fatalf("GetOutgoingInvite after update: %v", err)
 	}
 
-	if got5.Status != "accepted" {
-		t.Errorf("update did not persist: Status = %q, want %q", got5.Status, "accepted")
+	if got.Status != "accepted" {
+		t.Errorf("update did not persist: Status = %q, want %q", got.Status, "accepted")
 	}
 
-	// Token index must still resolve after the status update.
 	byTokenAfterUpdate, err := outInvStore.GetOutgoingInviteByToken(ctx, original.Token)
 	if err != nil {
 		t.Fatalf("GetOutgoingInviteByToken after update: %v", err)
 	}
 
 	if byTokenAfterUpdate.Status != "accepted" {
-		t.Errorf(
-			"token lookup after update: Status = %q, want %q",
-			byTokenAfterUpdate.Status,
-			"accepted",
-		)
+		t.Errorf("token lookup after update: Status = %q, want %q", byTokenAfterUpdate.Status, "accepted")
 	}
 }

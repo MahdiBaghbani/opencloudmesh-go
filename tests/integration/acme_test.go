@@ -14,6 +14,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
@@ -46,7 +47,7 @@ func TestACME_SubprocessTwoListeners(t *testing.T) {
 
 	// Write cert.pem and key.pem so ACMEManager.Init takes the fast path.
 	acmeDir := filepath.Join(tempDir, "acme")
-	if err := os.MkdirAll(acmeDir, 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
+	if err := os.MkdirAll(acmeDir, 0755); err != nil { //nolint:gosec // test fixture: 0755 on a local controlled test temp dir, not an attacker-controlled production path
 		t.Fatal(err)
 	}
 
@@ -99,14 +100,15 @@ insecure_skip_verify = true
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(binaryPath, "--config", configPath) //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
+	// t.Context backstops the cleanup kill; gracefulShutdown stays the primary
+	// shutdown path because it runs before the test context is canceled.
+	cmd := exec.CommandContext(t.Context(), binaryPath, "--config", configPath) //nolint:gosec // test harness: intentional subprocess launch with test-controlled args
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = tempDir
 
-	if err := cmd.Start(); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		//nolint:errcheck // test cleanup: log file close
-		logFile.Close()
+	if err := cmd.Start(); err != nil {
+		mustClose(t, logFile)
 		t.Fatalf("failed to start binary: %v", err)
 	}
 
@@ -116,111 +118,176 @@ insecure_skip_verify = true
 
 	t.Cleanup(func() {
 		if !shutdownDone {
-			//nolint:errcheck // test cleanup: subprocess shutdown
-			cmd.Process.Kill()
-			cmd.Wait() //nolint:errcheck // best-effort cleanup
-		}
-
-		//nolint:errcheck // test cleanup: log file close
-		logFile.Close()
-
-		if t.Failed() {
-			content, err := os.ReadFile(logPath) //nolint:govet // shadow: sequential err in table-driven test is benign
-			if err != nil {
-				t.Fatalf("read file: %v", err)
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				t.Logf("cleanup kill: %v", killErr)
 			}
 
-			t.Logf("=== server logs ===\n%s\n=== end ===", content)
+			if waitErr := cmd.Wait(); waitErr != nil {
+				t.Logf("cleanup wait: %v", waitErr)
+			}
+		}
+
+		mustClose(t, logFile)
+
+		if t.Failed() {
+			t.Logf("=== server logs ===\n%s\n=== end ===", readLogOrFail(t, logPath))
 		}
 	})
 
 	// Wait for HTTPS listener to come up.
 	httpsAddr := fmt.Sprintf("127.0.0.1:%d", httpsPort)
-	if !waitForTCPListener(t, httpsAddr, 15*time.Second) {
-		content, err := os.ReadFile(logPath) //nolint:govet // shadow: sequential err in table-driven test is benign
-		if err != nil {
-			t.Fatalf("read file: %v", err)
-		}
 
-		t.Fatalf("HTTPS listener did not come up on %s\n=== logs ===\n%s", httpsAddr, content)
+	if !waitForTCPListener(t, httpsAddr, 15*time.Second) {
+		t.Fatalf("HTTPS listener did not come up on %s\n=== logs ===\n%s", httpsAddr, readLogOrFail(t, logPath))
 	}
 
 	httpAddr := fmt.Sprintf("127.0.0.1:%d", httpPort)
 
 	// 1. Challenge handler returns 404 for unknown token.
-	resp, err := http.Get(fmt.Sprintf("http://%s/.well-known/acme-challenge/nonexistent", httpAddr))
-	if err != nil {
-		t.Fatalf("challenge request failed: %v", err)
-	}
-
-	//nolint:errcheck // test cleanup: response body close
-	resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNotFound {
-		t.Errorf("expected 404 for unknown challenge, got %d", resp.StatusCode)
-	}
+	assertHTTPStatus(
+		t,
+		"challenge",
+		http.DefaultClient,
+		fmt.Sprintf("http://%s/.well-known/acme-challenge/nonexistent", httpAddr),
+		http.StatusNotFound,
+	)
 
 	// 2. Non-challenge HTTP request returns 308 redirect to HTTPS.
-	noRedirectClient := &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err = noRedirectClient.Get(fmt.Sprintf("http://%s/some/path?q=1", httpAddr))
-	if err != nil {
-		t.Fatalf("redirect request failed: %v", err)
-	}
-
-	//nolint:errcheck // test cleanup: response body close
-	resp.Body.Close()
-
-	if resp.StatusCode != http.StatusPermanentRedirect {
-		t.Errorf("expected 308, got %d", resp.StatusCode)
-	}
-
-	loc := resp.Header.Get("Location")
-
-	wantLoc := fmt.Sprintf("https://127.0.0.1:%d/some/path?q=1", httpsPort)
-	if loc != wantLoc {
-		t.Errorf("redirect Location = %q, want %q", loc, wantLoc)
-	}
+	assertRedirectToHTTPS(t, httpAddr, httpsPort)
 
 	// 3. HTTPS listener serves the application (healthz returns 200).
 	tlsClient := &http.Client{Transport: &http.Transport{
 		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true}, //nolint:gosec // test TLS client: InsecureSkipVerify against self-signed test CA
 	}}
 
-	resp, err = tlsClient.Get(fmt.Sprintf("https://%s/api/healthz", httpsAddr))
-	if err != nil {
-		t.Fatalf("HTTPS healthz request failed: %v", err)
-	}
-
-	//nolint:errcheck // test cleanup: response body close
-	resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 for healthz, got %d", resp.StatusCode)
-	}
+	assertHTTPStatus(
+		t,
+		"healthz",
+		tlsClient,
+		fmt.Sprintf("https://%s/api/healthz", httpsAddr),
+		http.StatusOK,
+	)
 
 	// 4. Clean shutdown: SIGINT triggers graceful exit within 5 seconds.
-	//nolint:errcheck // test cleanup: subprocess shutdown
-	cmd.Process.Signal(os.Interrupt)
+	shutdown := gracefulShutdown(t, cmd)
+	shutdownDone = true
+
+	if !shutdown {
+		t.Fatal("server did not exit within 5 seconds after SIGINT")
+	}
+}
+
+// readLogOrFail returns the subprocess log contents.
+func readLogOrFail(t *testing.T, logPath string) string {
+	t.Helper()
+
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+
+	return string(content)
+}
+
+// assertHTTPStatus fetches url with client and expects wantStatus. The name
+// labels failure output so probe failures stay attributable.
+func assertHTTPStatus(t *testing.T, name string, client *http.Client, url string, wantStatus int) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatalf("%s: build request: %v", name, err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("%s request failed: %v", name, err)
+	}
+
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		t.Errorf("%s: close response body: %v", name, closeErr)
+	}
+
+	if resp.StatusCode != wantStatus {
+		t.Errorf("%s: expected %d, got %d", name, wantStatus, resp.StatusCode)
+	}
+}
+
+// assertRedirectToHTTPS fetches an HTTP URL without following redirects and
+// expects a 308 to the corresponding HTTPS URL.
+func assertRedirectToHTTPS(t *testing.T, httpAddr string, httpsPort int) {
+	t.Helper()
+
+	noRedirectClient := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		fmt.Sprintf("http://%s/some/path?q=1", httpAddr),
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("build redirect request: %v", err)
+	}
+
+	resp, err := noRedirectClient.Do(req)
+	if err != nil {
+		t.Fatalf("redirect request failed: %v", err)
+	}
+
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		t.Errorf("close response body: %v", closeErr)
+	}
+
+	if resp.StatusCode != http.StatusPermanentRedirect {
+		t.Errorf("expected 308, got %d", resp.StatusCode)
+	}
+
+	loc := resp.Header.Get("Location")
+	wantLoc := fmt.Sprintf("https://127.0.0.1:%d/some/path?q=1", httpsPort)
+
+	if loc != wantLoc {
+		t.Errorf("redirect Location = %q, want %q", loc, wantLoc)
+	}
+}
+
+// gracefulShutdown sends SIGINT and waits for the process to exit, killing it
+// after tshttp.DefaultShutdownWait. It reports whether the process exited on
+// its own.
+func gracefulShutdown(t *testing.T, cmd *exec.Cmd) bool {
+	t.Helper()
+
+	if err := cmd.Process.Signal(os.Interrupt); err != nil {
+		t.Logf("signal interrupt: %v", err)
+	}
 
 	exitDone := make(chan error, 1)
 	go func() { exitDone <- cmd.Wait() }()
 
 	select {
 	case <-exitDone:
-		shutdownDone = true
+		return true
 	case <-time.After(tshttp.DefaultShutdownWait):
-		//nolint:errcheck // test cleanup: subprocess shutdown
-		cmd.Process.Kill()
+		if err := cmd.Process.Kill(); err != nil {
+			t.Logf("kill after shutdown timeout: %v", err)
+		}
+
 		<-exitDone
 
-		shutdownDone = true
+		return false
+	}
+}
 
-		t.Fatal("server did not exit within 5 seconds after SIGINT")
+// mustClose closes c and reports a test error when close fails.
+func mustClose(t *testing.T, c io.Closer) {
+	t.Helper()
+
+	if err := c.Close(); err != nil {
+		t.Errorf("close: %v", err)
 	}
 }
 
@@ -278,15 +345,19 @@ func writeTestCert(t *testing.T, dir string) {
 func getFreeTCPPort(t *testing.T) int {
 	t.Helper()
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("getFreeTCPPort: %v", err)
 	}
 
-	//nolint:errcheck // test helper: ephemeral TCP listener address
-	port := l.Addr().(*net.TCPAddr).Port //nolint:forcetypeassert // test: TCPAddr assertion is safe for net.Listen TCP listener
-	//nolint:errcheck // test cleanup: ephemeral listener close
-	l.Close()
+	tcpAddr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("getFreeTCPPort: unexpected addr type %T", l.Addr())
+	}
+
+	port := tcpAddr.Port
+
+	mustClose(t, l)
 
 	return port
 }
@@ -296,11 +367,12 @@ func waitForTCPListener(t *testing.T, addr string, timeout time.Duration) bool {
 	t.Helper()
 
 	deadline := time.Now().Add(timeout)
+	dialer := &net.Dialer{Timeout: 200 * time.Millisecond}
+
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+		conn, err := dialer.DialContext(t.Context(), "tcp", addr)
 		if err == nil {
-			//nolint:errcheck // test probe: connection close after dial check
-			conn.Close()
+			mustClose(t, conn)
 			return true
 		}
 

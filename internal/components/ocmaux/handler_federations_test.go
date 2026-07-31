@@ -6,6 +6,7 @@
 package ocmaux_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,7 @@ import (
 func TestHandleFederations_NilTrustGroupManager(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/federations", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/federations", nil)
 	w := httptest.NewRecorder()
 	h.HandleFederations(w, req)
 
@@ -46,7 +47,7 @@ func TestHandleFederations_EmptyTrustGroups(t *testing.T) {
 	mgr := peertrust.NewTrustGroupManager(peertrust.DefaultCacheConfig(), nil, "https", testLogger(), 10*time.Second)
 	h := ocmaux.NewAuxHandler(mgr, nil, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/federations", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/federations", nil)
 	w := httptest.NewRecorder()
 	h.HandleFederations(w, req)
 
@@ -69,7 +70,7 @@ func TestHandleFederations_WithServers(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -106,7 +107,7 @@ func TestHandleFederations_WithServers(t *testing.T) {
 
 	h := ocmaux.NewAuxHandler(mgr, discClient, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/federations", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/federations", nil)
 	w := httptest.NewRecorder()
 	h.HandleFederations(w, req)
 
@@ -193,7 +194,7 @@ func TestHandleFederations_DiscoveryFailureKeepsServerWithStatus(t *testing.T) {
 
 	h := ocmaux.NewAuxHandler(mgr, discClient, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/federations", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/federations", nil)
 	w := httptest.NewRecorder()
 	h.HandleFederations(w, req)
 
@@ -272,7 +273,7 @@ func TestHandleFederations_NoDiscoveryClient(t *testing.T) {
 
 	h := ocmaux.NewAuxHandler(mgr, nil, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/federations", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/federations", nil)
 	w := httptest.NewRecorder()
 	h.HandleFederations(w, req)
 
@@ -308,7 +309,7 @@ func TestHandleFederations_NoDiscoveryClient(t *testing.T) {
 func TestHandleFederations_MethodNotAllowed(t *testing.T) {
 	h := ocmaux.NewAuxHandler(nil, nil, testLogger())
 
-	req := httptest.NewRequest(http.MethodPost, "/federations", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/federations", nil)
 	w := httptest.NewRecorder()
 	h.HandleFederations(w, req)
 

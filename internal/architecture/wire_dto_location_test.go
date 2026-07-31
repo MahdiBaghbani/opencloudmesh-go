@@ -38,6 +38,21 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 		t.Skip("ocm package not found")
 	}
 
+	violations, err := scanWireDTOLocations(root, ocmDir, patterns, wireDTOTypes)
+	if err != nil {
+		t.Fatalf("walk failed: %v", err)
+	}
+
+	if len(violations) > 0 {
+		t.Fatalf("Wire DTO struct definitions found outside internal/components/ocm/spec/ "+
+			"(move them to the spec package):\n%s",
+			strings.Join(violations, "\n"))
+	}
+}
+
+// scanWireDTOLocations walks ocmDir and reports wire DTO struct definitions
+// outside the spec/ tree.
+func scanWireDTOLocations(root, ocmDir string, patterns []*regexp.Regexp, wireDTOTypes []string) ([]string, error) {
 	var violations []string
 
 	err := filepath.WalkDir(ocmDir, func(path string, d fs.DirEntry, err error) error {
@@ -62,37 +77,42 @@ func TestWireDTOsOnlyInSpec(t *testing.T) {
 			return nil
 		}
 
-		data, err := os.ReadFile(path) //nolint:gosec // architecture test: read-only repo walk, no symlink TOCTOU risk
+		fileViolations, err := scanFileForWireDTOs(root, path, patterns, wireDTOTypes)
 		if err != nil {
 			return err
 		}
 
-		content := string(data)
-
-		fileRel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-
-		for i, pat := range patterns {
-			if locs := pat.FindAllStringIndex(content, -1); len(locs) > 0 {
-				for _, loc := range locs {
-					line := 1 + strings.Count(content[:loc[0]], "\n")
-					violations = append(violations,
-						fileRel+":"+itoa(line)+": wire DTO type "+wireDTOTypes[i]+" defined outside spec/")
-				}
-			}
-		}
+		violations = append(violations, fileViolations...)
 
 		return nil
 	})
+
+	return violations, err
+}
+
+// scanFileForWireDTOs reports wire DTO struct definitions in one Go file.
+func scanFileForWireDTOs(root, path string, patterns []*regexp.Regexp, wireDTOTypes []string) ([]string, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("walk failed: %v", err)
+		return nil, err
 	}
 
-	if len(violations) > 0 {
-		t.Fatalf("Wire DTO struct definitions found outside internal/components/ocm/spec/ "+
-			"(move them to the spec package):\n%s",
-			strings.Join(violations, "\n"))
+	fileRel, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, err
 	}
+
+	content := string(data)
+
+	var violations []string
+
+	for i, pat := range patterns {
+		for _, loc := range pat.FindAllStringIndex(content, -1) {
+			line := 1 + strings.Count(content[:loc[0]], "\n")
+			violations = append(violations,
+				fileRel+":"+itoa(line)+": wire DTO type "+wireDTOTypes[i]+" defined outside spec/")
+		}
+	}
+
+	return violations, nil
 }

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	"github.com/MahdiBaghbani/opencloudmesh-go/tests/integration/harness"
 )
 
@@ -78,7 +79,8 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body := tt.data.Encode()
 
-			req, err := http.NewRequest(
+			req, err := http.NewRequestWithContext(
+				t.Context(),
 				http.MethodPost,
 				srv.BaseURL+"/ocm/token",
 				strings.NewReader(body),
@@ -89,16 +91,15 @@ func TestTokenExchangeErrorResponses(t *testing.T) {
 
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			if err := peer.signer.Sign(req); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-				t.Fatalf("failed to sign token request: %v", err)
+			if serr := peer.signer.Sign(req); serr != nil {
+				t.Fatalf("failed to sign token request: %v", serr)
 			}
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if err != nil {
 				t.Fatalf("failed to call token endpoint: %v", err)
 			}
-			//nolint:errcheck // test cleanup: response body close
-			defer resp.Body.Close()
+			defer tshttp.MustClose(t, resp.Body)
 
 			if resp.StatusCode != tt.expectedStatus {
 				respBody, err := io.ReadAll(resp.Body)

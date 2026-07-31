@@ -11,6 +11,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/json"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
 )
 
@@ -53,11 +54,11 @@ func TestJSONDriverAtomicWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	driver.Close() //nolint:errcheck // test cleanup: driver close
+	tshttp.MustClose(t, driver)
 
 	// Reload driver - data should survive
 	driver2 := testutil.OpenDriver(t, cfg)
-	defer driver2.Close() //nolint:errcheck // test cleanup: driver close
+	defer tshttp.MustClose(t, driver2)
 
 	outStore2 := requireOutgoingShareStore(t, driver2)
 

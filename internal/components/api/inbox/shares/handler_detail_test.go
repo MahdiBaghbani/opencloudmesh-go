@@ -19,11 +19,14 @@ import (
 )
 
 func createDetailedShareForUser(
+	t *testing.T,
 	repo *sharesincoming.MemoryIncomingShareRepo,
-	providerID, senderHost string, //nolint:unparam // test fixture helper: senderHost kept parameterized for future cases; all callers pass "sender.example.com" today
+	providerID, senderHost string, //nolint:unparam // test fixture helper: senderHost kept for fixture signature uniformity; all current callers pass "sender.example.com"
 	webdavID, sharedSecret string,
 	requirements []string,
 ) *sharesincoming.IncomingShare {
+	t.Helper()
+
 	share := &sharesincoming.IncomingShare{
 		ProviderID:      providerID,
 		SenderHost:      senderHost,
@@ -40,20 +43,31 @@ func createDetailedShareForUser(
 		SharedSecret:    sharedSecret,
 		Requirements:    requirements,
 	}
-	repo.Create(context.Background(), share) //nolint:errcheck // test fixture seed without testing.T
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	return share
 }
 
 func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createDetailedShareForUser(repo, "prov-detail", "sender.example.com",
+	share := createDetailedShareForUser(t, repo, "prov-detail", "sender.example.com",
 		"webdav-id-123", "secret-value", []string{"must-exchange-token"})
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
+	resp := getShareDetailResponse(t, router, share.ShareID)
+	assertDetailCoreFields(t, resp, share)
+	assertLegacyDetailProtocol(t, resp, share)
+}
+
+// getShareDetailResponse performs GET /inbox/shares/<id> and decodes the 200 body.
+func getShareDetailResponse(t *testing.T, router http.Handler, shareID string) map[string]any {
+	t.Helper()
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+shareID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -66,37 +80,46 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
+	return resp
+}
+
+// assertDetailCoreFields checks the scalar detail fields of a share response.
+func assertDetailCoreFields(t *testing.T, resp map[string]any, share *sharesincoming.IncomingShare) {
+	t.Helper()
+
 	if resp["shareId"] != share.ShareID {
 		t.Errorf("expected shareID %s, got %v", share.ShareID, resp["shareId"])
 	}
 
-	if resp["providerId"] != "prov-detail" {
-		t.Errorf("expected providerID prov-detail, got %v", resp["providerId"])
+	if resp["providerId"] != share.ProviderID {
+		t.Errorf("expected providerID %s, got %v", share.ProviderID, resp["providerId"])
 	}
 
 	if resp["name"] != share.Name {
 		t.Errorf("expected name %s, got %v", share.Name, resp["name"])
 	}
 
-	if resp["senderHost"] != "sender.example.com" {
-		t.Errorf("expected senderHost sender.example.com, got %v", resp["senderHost"])
+	if resp["senderHost"] != share.SenderHost {
+		t.Errorf("expected senderHost %s, got %v", share.SenderHost, resp["senderHost"])
 	}
 
-	// Detail-specific fields
-	if resp["webdavId"] != "webdav-id-123" {
-		t.Errorf("expected webdavID webdav-id-123, got %v", resp["webdavId"])
+	if resp["webdavId"] != share.WebDAVID {
+		t.Errorf("expected webdavID %s, got %v", share.WebDAVID, resp["webdavId"])
 	}
 
 	if resp["webdavUriAbsolutePresent"] != false {
 		t.Errorf("expected webdavUriAbsolutePresent false (no absolute URI), got %v", resp["webdavUriAbsolutePresent"])
 	}
+}
 
-	proto, ok := resp["protocol"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
-	}
-	// Legacy row: no protocol name was persisted, so the detail must emit an
-	// empty name. It must never synthesize "multi".
+// assertLegacyDetailProtocol checks the protocol block of a legacy detail row:
+// no protocol name was persisted, so the detail must emit an empty name and
+// never synthesize "multi", and there must be no webapp arm.
+func assertLegacyDetailProtocol(t *testing.T, resp map[string]any, share *sharesincoming.IncomingShare) {
+	t.Helper()
+
+	proto := requireProtocolObject(t, resp)
+
 	if proto["name"] != "" {
 		t.Errorf("expected protocol.name empty for legacy row, got %v", proto["name"])
 	}
@@ -110,29 +133,54 @@ func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
 		t.Fatalf("expected protocol.webdav to be an object, got %T", proto["webdav"])
 	}
 
-	if webdav["uri"] != "webdav-id-123" {
-		t.Errorf("expected protocol.webdav.uri webdav-id-123, got %v", webdav["uri"])
+	if webdav["uri"] != share.WebDAVID {
+		t.Errorf("expected protocol.webdav.uri %s, got %v", share.WebDAVID, webdav["uri"])
 	}
 
-	reqs, ok := webdav["requirements"].([]any)
+	assertStringArrayField(t, webdav, "requirements", share.Requirements)
+}
+
+// requireProtocolObject extracts the protocol object from a detail response.
+func requireProtocolObject(t *testing.T, resp map[string]any) map[string]any {
+	t.Helper()
+
+	proto, ok := resp["protocol"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected requirements to be an array, got %T", webdav["requirements"])
+		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
 	}
 
-	if len(reqs) != 1 || reqs[0] != "must-exchange-token" {
-		t.Errorf("expected requirements [must-exchange-token], got %v", reqs)
+	return proto
+}
+
+// assertStringArrayField checks a JSON array field holds exactly the wanted strings.
+func assertStringArrayField(t *testing.T, obj map[string]any, field string, want []string) {
+	t.Helper()
+
+	raw, ok := obj[field].([]any)
+	if !ok {
+		t.Fatalf("expected %s to be an array, got %T", field, obj[field])
+	}
+
+	if len(raw) != len(want) {
+		t.Fatalf("expected %s %v, got %v", field, want, raw)
+	}
+
+	for i, wantItem := range want {
+		if raw[i] != wantItem {
+			t.Errorf("expected %s[%d] %q, got %v", field, i, wantItem, raw[i])
+		}
 	}
 }
 
 func TestHandleGetDetail_CrossUserReturns404(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createDetailedShareForUser(repo, "prov-cross-detail", "sender.example.com",
+	share := createDetailedShareForUser(t, repo, "prov-cross-detail", "sender.example.com",
 		"wdid", "secret", []string{})
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
 	router := newTestRouter(repo, userB)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -146,7 +194,7 @@ func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/nonexistent-id", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/nonexistent-id", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -157,13 +205,13 @@ func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
 
 func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createDetailedShareForUser(repo, "prov-redact", "sender.example.com",
+	share := createDetailedShareForUser(t, repo, "prov-redact", "sender.example.com",
 		"wdid", "real-secret-value", []string{})
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -203,13 +251,13 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 
 func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createDetailedShareForUser(repo, "prov-noleak", "sender.example.com",
+	share := createDetailedShareForUser(t, repo, "prov-noleak", "sender.example.com",
 		"wdid", "secret", []string{})
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -228,12 +276,12 @@ func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
-	shareA := createDetailedShareForUser(repo, "prov-met-true", "sender.example.com",
+	shareA := createDetailedShareForUser(t, repo, "prov-met-true", "sender.example.com",
 		"wdid", "secret", []string{"must-exchange-token"})
 
 	router := newTestRouter(repo, userA)
 
-	reqA := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareA.ShareID, nil)
+	reqA := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+shareA.ShareID, nil)
 	wA := httptest.NewRecorder()
 	router.ServeHTTP(wA, reqA)
 
@@ -261,10 +309,10 @@ func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 		t.Errorf("expected requirements [must-exchange-token], got %v", reqsA)
 	}
 
-	shareB := createDetailedShareForUser(repo, "prov-met-false", "sender.example.com",
+	shareB := createDetailedShareForUser(t, repo, "prov-met-false", "sender.example.com",
 		"wdid2", "secret2", []string{})
 
-	reqB := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareB.ShareID, nil)
+	reqB := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+shareB.ShareID, nil)
 	wB := httptest.NewRecorder()
 	router.ServeHTTP(wB, reqB)
 
@@ -297,7 +345,7 @@ func TestHandleGetDetail_Unauthenticated(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	router := newTestRouter(repo, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/some-id", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/some-id", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -330,7 +378,7 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -368,10 +416,10 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
-	shareA := createDetailedShareForUser(repo, "prov-abs-yes", "sender.example.com",
+	shareA := createDetailedShareForUser(t, repo, "prov-abs-yes", "sender.example.com",
 		"https://sender.example.com/webdav/file.txt", "secret", []string{})
 
-	reqA := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareA.ShareID, nil)
+	reqA := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+shareA.ShareID, nil)
 	wA := httptest.NewRecorder()
 	router.ServeHTTP(wA, reqA)
 
@@ -398,10 +446,10 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 		t.Errorf("expected absolute URI in protocol.webdav.uri, got %v", webdavA["uri"])
 	}
 
-	shareB := createDetailedShareForUser(repo, "prov-abs-no", "sender.example.com",
+	shareB := createDetailedShareForUser(t, repo, "prov-abs-no", "sender.example.com",
 		"relative-id-only", "secret2", []string{})
 
-	reqB := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+shareB.ShareID, nil)
+	reqB := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/"+shareB.ShareID, nil)
 	wB := httptest.NewRecorder()
 	router.ServeHTTP(wB, reqB)
 
@@ -465,62 +513,45 @@ func TestHandleGetDetail_RendersProtocolNameAndWebappArm(t *testing.T) {
 	}
 
 	router := newTestRouter(repo, userA)
-	req := httptest.NewRequest(http.MethodGet, "/inbox/shares/"+share.ShareID, nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-
-	proto, ok := resp["protocol"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected protocol to be an object, got %T", resp["protocol"])
-	}
+	resp := getShareDetailResponse(t, router, share.ShareID)
+	proto := requireProtocolObject(t, resp)
 
 	if proto["name"] != "custom-app" {
 		t.Errorf("expected protocol.name custom-app, got %v", proto["name"])
 	}
+
+	assertWebappArm(t, proto, share)
+	assertWebdavArmURI(t, proto, share.WebDAVID)
+}
+
+// assertWebappArm checks the webapp arm of a protocol object against the
+// share's persisted webapp fields.
+func assertWebappArm(t *testing.T, proto map[string]any, share *sharesincoming.IncomingShare) {
+	t.Helper()
 
 	webapp, ok := proto["webapp"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected protocol.webapp to be an object, got %T", proto["webapp"])
 	}
 
-	if webapp["uri"] != "https://app.sender.example.com/launch" {
-		t.Errorf("expected webapp.uri %q, got %v", "https://app.sender.example.com/launch", webapp["uri"])
+	if webapp["uri"] != share.WebappURI {
+		t.Errorf("expected webapp.uri %q, got %v", share.WebappURI, webapp["uri"])
 	}
 
-	targets, ok := webapp["targets"].([]any)
-	if !ok {
-		t.Fatalf("expected webapp.targets to be an array, got %T", webapp["targets"])
-	}
+	assertStringArrayField(t, webapp, "targets", share.WebappTargets)
+	assertStringArrayField(t, webapp, "permissions", share.WebappPermissions)
+}
 
-	if len(targets) != 2 || targets[0] != "blank" || targets[1] != "_self" {
-		t.Errorf("expected webapp.targets [blank _self], got %v", targets)
-	}
+// assertWebdavArmURI checks the WebDAV arm remains present with the expected URI.
+func assertWebdavArmURI(t *testing.T, proto map[string]any, wantURI string) {
+	t.Helper()
 
-	perms, ok := webapp["permissions"].([]any)
-	if !ok {
-		t.Fatalf("expected webapp.permissions to be an array, got %T", webapp["permissions"])
-	}
-
-	if len(perms) != 2 || perms[0] != "view" || perms[1] != "share" {
-		t.Errorf("expected webapp.permissions [view share], got %v", perms)
-	}
-
-	// WebDAV arm must remain present and unchanged alongside the webapp arm.
 	webdav, ok := proto["webdav"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected protocol.webdav to still be present, got %T", proto["webdav"])
 	}
 
-	if webdav["uri"] != "wdid-webapp" {
-		t.Errorf("expected webdav.uri wdid-webapp, got %v", webdav["uri"])
+	if webdav["uri"] != wantURI {
+		t.Errorf("expected webdav.uri %s, got %v", wantURI, webdav["uri"])
 	}
 }

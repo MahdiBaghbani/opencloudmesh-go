@@ -20,7 +20,7 @@ import (
 func TestRFC9421_VerifyMissingHeaders(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 
 	if verifier.HasSignatureHeaders(req) {
 		t.Error("should not have signature headers")
@@ -58,7 +58,7 @@ func TestRFC9421_VerifyInvalidSignature(t *testing.T) {
 
 	body := []byte(`{"test": "data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestRFC9421_VerifyTamperedKeyIDRejected(t *testing.T) {
 
 	body := []byte(`{"test": "data"}`)
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestHasSignatureHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/test", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}

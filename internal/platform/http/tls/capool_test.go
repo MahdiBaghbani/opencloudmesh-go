@@ -109,7 +109,7 @@ func TestBuildRootCAPool_Merged(t *testing.T) {
 	caFile := filepath.Join(tmp, "ca1.pem")
 
 	caDir := filepath.Join(tmp, "cadir")
-	if err := os.MkdirAll(caDir, 0755); err != nil { //nolint:gosec // test temp dir: permissive perms for test isolation
+	if err := os.MkdirAll(caDir, 0755); err != nil { //nolint:gosec // test fixture: 0755 on a local controlled test temp dir, not an attacker-controlled production path
 		t.Fatal(err)
 	}
 

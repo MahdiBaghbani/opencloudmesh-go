@@ -6,6 +6,7 @@
 package ocm
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func TestJWKSHandler_ServesLocalKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, RouteJWKS, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, RouteJWKS, nil)
 	rec := httptest.NewRecorder()
 	newJWKSHandler(km).ServeHTTP(rec, req)
 
@@ -44,7 +45,7 @@ func TestJWKSHandler_ServesLocalKeys(t *testing.T) {
 }
 
 func TestJWKSHandler_NilKeyManagerServesUnavailable(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, RouteJWKS, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, RouteJWKS, nil)
 	rec := httptest.NewRecorder()
 	newJWKSHandler(nil).ServeHTTP(rec, req)
 
@@ -70,7 +71,7 @@ func TestService_MountsJWKSRoute(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, RouteJWKS, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, RouteJWKS, nil)
 	rec := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(rec, req)
 

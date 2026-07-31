@@ -227,7 +227,7 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(InboxListResponse{Shares: views})
 }
 
@@ -262,7 +262,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 
 	if share.Status == shares.ShareStatusAccepted {
 		w.Header().Set("Content-Type", "application/json")
-		//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
+		//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  string(shares.ShareStatusAccepted),
 			"shareId": shareID,
@@ -284,7 +284,7 @@ func (h *Handler) HandleAccept(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  string(shares.ShareStatusAccepted),
 		"shareId": shareID,
@@ -523,7 +523,7 @@ func redactPeerValue(value, secret string) string {
 func writeVerifyError(w http.ResponseWriter, statusCode int, reasonCode, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	//nolint:errcheck,errchkjson // response already started; write error cannot be recovered; payload marshals to fixed JSON, so encode failure is always nil in practice
+	//nolint:errcheck,errchkjson // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled; payload encodes to fixed JSON, so encode error is always nil
 	json.NewEncoder(w).Encode(VerifyAccessResponse{
 		OK:         false,
 		ReasonCode: reasonCode,

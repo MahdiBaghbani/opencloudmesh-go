@@ -6,7 +6,6 @@
 package http_test
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +41,7 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"echo":true}`)) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte(`{"echo":true}`))
 	}))
 	defer server.Close()
 
@@ -51,7 +50,7 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 
 	reqBody := map[string]string{"token": "abc"}
 
-	resp, respBody := tshttp.PostSignedJSON(
+	resp, respBody := tshttp.PostSignedJSON( //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		t,
 		server.Client(),
 		signer,
@@ -59,7 +58,7 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 		server.URL+"/ocm/shares",
 		reqBody,
 	)
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if gotMethod != http.MethodPost {
 		t.Fatalf("method = %q, want POST", gotMethod)
@@ -73,10 +72,7 @@ func TestPostSignedJSON_SignsAndRoundTripsBody(t *testing.T) {
 		t.Fatal("expected Signature header on signed request")
 	}
 
-	wantBody, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
-	if err != nil {
-		t.Fatalf("marshal expected body: %v", err)
-	}
+	wantBody := tshttp.MustMarshalJSON(t, reqBody)
 
 	if string(gotBody) != string(wantBody) {
 		t.Fatalf("request body = %q, want %q", gotBody, wantBody)
@@ -101,14 +97,14 @@ func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(wantBody)) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte(wantBody))
 	}))
 	defer server.Close()
 
 	km := tscrypto.MustTestKeyManager(t, server.URL)
 	signer := crypto.NewRFC9421Signer(km)
 
-	resp, respBody := tshttp.PostSignedJSON(
+	resp, respBody := tshttp.PostSignedJSON( //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		t,
 		server.Client(),
 		signer,
@@ -116,7 +112,7 @@ func TestPostSignedJSON_ResponseBodyReadable(t *testing.T) {
 		server.URL,
 		map[string]string{"ping": "pong"},
 	)
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	fromBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -151,7 +147,7 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(body) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, body)
 	}))
 	defer server.Close()
 
@@ -160,14 +156,11 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 
 	reqBody := map[string]string{"token": "reuse-me"}
 
-	wantBody, err := json.Marshal(reqBody) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
-	if err != nil {
-		t.Fatalf("marshal expected body: %v", err)
-	}
+	wantBody := tshttp.MustMarshalJSON(t, reqBody)
 
 	client := server.Client()
 
-	resp1, respBody1 := tshttp.PostSignedJSON(
+	resp1, respBody1 := tshttp.PostSignedJSON( //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		t,
 		client,
 		signer,
@@ -175,9 +168,9 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 		server.URL,
 		reqBody,
 	)
-	defer resp1.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp1.Body)
 
-	resp2, respBody2 := tshttp.PostSignedJSON(
+	resp2, respBody2 := tshttp.PostSignedJSON( //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		t,
 		client,
 		signer,
@@ -185,7 +178,7 @@ func TestPostSignedJSON_ReplayableWithSameBody(t *testing.T) {
 		server.URL,
 		reqBody,
 	)
-	defer resp2.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp2.Body)
 
 	if resp1.StatusCode != http.StatusOK {
 		t.Fatalf("first status = %d, want %d", resp1.StatusCode, http.StatusOK)
@@ -219,7 +212,7 @@ func TestPostSignedJSONStatusBody_ReturnsStatusAndBody(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte(wantBody)) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte(wantBody))
 	}))
 	defer server.Close()
 
@@ -251,7 +244,7 @@ func TestPostSignedJSONDecode_UnmarshalsResponse(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
 	}))
 	defer server.Close()
 
@@ -289,7 +282,7 @@ func TestPostSignedJSONDecode_NilOutDoesNotPanic(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
+		tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
 	}))
 	defer server.Close()
 

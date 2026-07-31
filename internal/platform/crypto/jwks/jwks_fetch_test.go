@@ -9,12 +9,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 )
@@ -25,7 +26,7 @@ func TestFetchURL(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.WriteJSON(w, set)
 	}))
 	defer srv.Close()
 
@@ -65,7 +66,7 @@ func TestFetchURL_Errors(t *testing.T) {
 	t.Run("invalid JSON", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"keys":[`)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte(`{"keys":[`))
 		}))
 		defer srv.Close()
 
@@ -78,7 +79,7 @@ func TestFetchURL_Errors(t *testing.T) {
 	t.Run("empty key set", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"keys":[]}`)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte(`{"keys":[]}`))
 		}))
 		defer srv.Close()
 
@@ -98,7 +99,7 @@ func TestFetchURL_Errors(t *testing.T) {
 	t.Run("response too large", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(bytes.Repeat([]byte("a"), 64)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, bytes.Repeat([]byte("a"), 64))
 		}))
 		defer srv.Close()
 

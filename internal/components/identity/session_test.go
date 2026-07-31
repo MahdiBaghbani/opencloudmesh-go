@@ -43,8 +43,8 @@ func TestMemorySessionRepo_CRUD(t *testing.T) {
 	}
 
 	// Delete session
-	if err := repo.Delete(ctx, session.Token); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("Delete failed: %v", err)
+	if serr := repo.Delete(ctx, session.Token); serr != nil {
+		t.Fatalf("Delete failed: %v", serr)
 	}
 
 	// Get should fail after delete
@@ -90,8 +90,8 @@ func TestMemorySessionRepo_DeleteByUser(t *testing.T) {
 	}
 
 	// Delete all sessions for user
-	if err := repo.DeleteByUser(ctx, "user-123"); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("DeleteByUser failed: %v", err)
+	if serr := repo.DeleteByUser(ctx, "user-123"); serr != nil {
+		t.Fatalf("DeleteByUser failed: %v", serr)
 	}
 
 	// Both sessions should be gone

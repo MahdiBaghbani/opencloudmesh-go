@@ -6,6 +6,7 @@
 package invite
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,14 +26,19 @@ type DiscoverResponse struct {
 }
 
 // DiscoverProvider calls GET /ocm-aux/discover?base=<providerBaseURL>.
-func DiscoverProvider(client *http.Client, auxBaseURL, providerBaseURL string) (*DiscoverResponse, int, error) {
+func DiscoverProvider(ctx context.Context, client *http.Client, auxBaseURL, providerBaseURL string) (*DiscoverResponse, int, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 
 	discoverURL := auxBaseURL + "/ocm-aux/discover?base=" + url.QueryEscape(providerBaseURL)
 
-	resp, err := client.Get(discoverURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, discoverURL, nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("build discover request: %w", err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("GET discover: %w", err)
 	}

@@ -6,6 +6,7 @@
 package wiring
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -110,7 +111,7 @@ func TestBuildServerDeps_AuthGateDoesNotPanicOnProtectedRoute(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

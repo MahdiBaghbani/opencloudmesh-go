@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
@@ -31,7 +33,7 @@ func outgoingCreateBody(receiverHost, localPath string) string {
 }
 
 func TestHandleCreate_RejectsReceiverWithoutTokenExchange(t *testing.T) {
-	srv, postCount := makeReceiverTLSServer([]string{}, []string{})
+	srv, postCount := makeReceiverTLSServer(t, []string{}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -42,7 +44,7 @@ func TestHandleCreate_RejectsReceiverWithoutTokenExchange(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-no-tx-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -58,7 +60,7 @@ func TestHandleCreate_RejectsReceiverWithoutTokenExchange(t *testing.T) {
 }
 
 func TestHandleCreate_RejectsNilPeerOrigin(t *testing.T) {
-	srv, postCount := makeReceiverTLSServer([]string{"exchange-token"}, []string{})
+	srv, postCount := makeReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -70,7 +72,7 @@ func TestHandleCreate_RejectsNilPeerOrigin(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-nil-peer-origin-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -96,6 +98,7 @@ func TestHandleCreate_RejectsNilPeerOrigin(t *testing.T) {
 
 func TestHandleCreate_AbsoluteWebDAVReceiveURI(t *testing.T) {
 	srv, postCount, captured := makeCapturingReceiverWithWebDAVReceive(
+		t,
 		[]string{"exchange-token"},
 		spec.WebDAVReceiveURIAbsolute,
 		"/webdav/ocm/",
@@ -110,7 +113,7 @@ func TestHandleCreate_AbsoluteWebDAVReceiveURI(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-abs-uri-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -144,6 +147,7 @@ func TestHandleCreate_AbsoluteWebDAVReceiveURI(t *testing.T) {
 
 func TestHandleCreate_RejectsMismatchedAuthorityAbsoluteWebDAVReceiveURI(t *testing.T) {
 	srv, postCount := makeCapturingReceiverWithMismatchedEndpoint(
+		t,
 		[]string{"exchange-token"},
 		spec.WebDAVReceiveURIAbsolute,
 		"/webdav/ocm/",
@@ -159,7 +163,7 @@ func TestHandleCreate_RejectsMismatchedAuthorityAbsoluteWebDAVReceiveURI(t *test
 	tmpFile := createTempShareFile(t, "outgoing-bad-abs-uri-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -185,6 +189,7 @@ func TestHandleCreate_RejectsMismatchedAuthorityAbsoluteWebDAVReceiveURI(t *test
 
 func TestHandleCreate_RelativeWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 	srv, _, captured := makeCapturingReceiverWithWebDAVReceive(
+		t,
 		[]string{"exchange-token"},
 		spec.WebDAVReceiveURIRelative,
 		"/webdav/ocm/",
@@ -199,7 +204,7 @@ func TestHandleCreate_RelativeWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-rel-uri-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -223,7 +228,7 @@ func TestHandleCreate_RelativeWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 }
 
 func TestHandleCreate_AbsentWebDAVReceiveURIUsesBareUUID(t *testing.T) {
-	srv, _, captured := makeCapturingReceiverTLSServer([]string{"exchange-token"}, []string{})
+	srv, _, captured := makeCapturingReceiverTLSServer(t, []string{"exchange-token"}, []string{})
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
@@ -234,7 +239,7 @@ func TestHandleCreate_AbsentWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 	tmpFile := createTempShareFile(t, "outgoing-no-receive-*")
 	receiverHost := srv.Listener.Addr().String()
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/shares/outgoing", bytes.NewBufferString(outgoingCreateBody(receiverHost, tmpFile)))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -267,10 +272,13 @@ func TestHandleCreate_AbsentWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 }
 
 func makeCapturingReceiverWithWebDAVReceive(
+	t *testing.T,
 	capabilities []string,
 	receiveKind spec.WebDAVReceiveURIKind,
 	webdavRoot string,
 ) (*httptest.Server, *atomic.Int32, *spec.NewShareRequest) {
+	t.Helper()
+
 	postCount := &atomic.Int32{}
 
 	var (
@@ -306,7 +314,7 @@ func makeCapturingReceiverWithWebDAVReceive(
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -314,10 +322,15 @@ func makeCapturingReceiverWithWebDAVReceive(
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 
-			_ = json.NewDecoder(r.Body).Decode(&captured) //nolint:errcheck // test mock handler: JSON decode
+			if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+				t.Errorf("decode share request: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+
+				return
+			}
 
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
 
 			return
 		}
@@ -329,11 +342,14 @@ func makeCapturingReceiverWithWebDAVReceive(
 }
 
 func makeCapturingReceiverWithMismatchedEndpoint(
+	t *testing.T,
 	capabilities []string,
 	receiveKind spec.WebDAVReceiveURIKind,
 	webdavRoot string,
 	endpointURL string,
 ) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+
 	postCount := &atomic.Int32{}
 
 	var srv *httptest.Server
@@ -366,7 +382,7 @@ func makeCapturingReceiverWithMismatchedEndpoint(
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(disc) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, disc)
 
 			return
 		}
@@ -374,7 +390,7 @@ func makeCapturingReceiverWithMismatchedEndpoint(
 		if r.Method == http.MethodPost && r.URL.Path == "/ocm/shares" {
 			postCount.Add(1)
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"ok":true}`)) //nolint:errcheck // test mock handler: response write
+			tshttp.MustWrite(t, w, []byte(`{"ok":true}`))
 
 			return
 		}

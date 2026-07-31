@@ -7,6 +7,7 @@ package incoming_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,9 +19,9 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 )
 
-func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) { //nolint:dupl // intentional: parallel protocol validation tests share error-check structure but assert different fields
+func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -33,7 +34,7 @@ func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) { 
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -67,7 +68,7 @@ func TestCreateShare_NilResolver_RejectsEmptyWebDAVRequirements(t *testing.T) { 
 
 func TestCreateShare_NilResolver_RejectsEmptyWebappRequirements(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -80,7 +81,7 @@ func TestCreateShare_NilResolver_RejectsEmptyWebappRequirements(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "multi", "webapp": {"uri": "https://sender.com/apps/files/abc", "targets": ["blank"], "permissions": ["view"], "requirements": [], "sharedSecret": "s"}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -110,7 +111,7 @@ func TestCreateShare_NilResolver_RejectsEmptyWebappRequirements(t *testing.T) {
 
 func TestCreateShare_ResolverWithNoPeerOverlay_RejectsEmptyWebDAVRequirements(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandlerWithResolver(repo, partyRepo, policy.NewPeerMappingResolver(policy.NewCodeFlow(), nil, config.CompatibilityScopeGlobal))
 
 	body := `{
@@ -123,7 +124,7 @@ func TestCreateShare_ResolverWithNoPeerOverlay_RejectsEmptyWebDAVRequirements(t 
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -153,7 +154,7 @@ func TestCreateShare_ResolverWithNoPeerOverlay_RejectsEmptyWebDAVRequirements(t 
 
 func TestCreateShare_NilResolver_AcceptsWebDAVWithMustExchangeToken(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -166,7 +167,7 @@ func TestCreateShare_NilResolver_AcceptsWebDAVWithMustExchangeToken(t *testing.T
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": ["must-exchange-token"]}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -179,7 +180,7 @@ func TestCreateShare_NilResolver_AcceptsWebDAVWithMustExchangeToken(t *testing.T
 
 func TestCreateShare_PeerOverlayOmitsRequirementForMatchedHost(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 
 	const (
 		matchedHost   = "sender.example.com"
@@ -203,7 +204,7 @@ func TestCreateShare_PeerOverlayOmitsRequirementForMatchedHost(t *testing.T) {
 		}`
 	}
 
-	matchedReq := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(bodyFor(matchedHost)))
+	matchedReq := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(bodyFor(matchedHost)))
 	matchedReq.Header.Set("Content-Type", "application/json")
 
 	matchedW := httptest.NewRecorder()
@@ -213,7 +214,7 @@ func TestCreateShare_PeerOverlayOmitsRequirementForMatchedHost(t *testing.T) {
 		t.Fatalf("matched host: expected 201, got %d: %s", matchedW.Code, matchedW.Body.String())
 	}
 
-	unmatchedReq := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(bodyFor(unmatchedHost)))
+	unmatchedReq := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(bodyFor(unmatchedHost)))
 	unmatchedReq.Header.Set("Content-Type", "application/json")
 
 	unmatchedW := httptest.NewRecorder()
@@ -247,7 +248,7 @@ func TestCreateShare_PeerOverlayOmitsRequirementForMatchedHost(t *testing.T) {
 
 func TestCreateShare_UnknownHostUsesGlobalStrictAdmission(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 
 	const (
 		unknownHost = "unknown.example.com"
@@ -268,7 +269,7 @@ func TestCreateShare_UnknownHostUsesGlobalStrictAdmission(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -302,7 +303,7 @@ func TestCreateShare_UnknownHostUsesGlobalStrictAdmission(t *testing.T) {
 
 func TestCreateShare_PeerOverlayRejectsWebappForMatchedHost(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 
 	const matchedHost = "sender.example.com"
 
@@ -311,7 +312,7 @@ func TestCreateShare_PeerOverlayRejectsWebappForMatchedHost(t *testing.T) {
 	handler := newTestHandlerWithResolver(repo, partyRepo, resolver)
 
 	body := validWebappShareBody("alice@localhost:9200", matchedHost, "webapp-overlay-reject")
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -337,7 +338,7 @@ func TestCreateShare_PeerOverlayRejectsWebappForMatchedHost(t *testing.T) {
 
 func TestCreateShare_UnknownHostRejectsWebappWithGlobalStrictAdmission(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 
 	const (
 		matchedHost = "sender.example.com"
@@ -367,7 +368,7 @@ func TestCreateShare_UnknownHostRejectsWebappWithGlobalStrictAdmission(t *testin
 			}
 		}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -401,7 +402,7 @@ func TestCreateShare_UnknownHostRejectsWebappWithGlobalStrictAdmission(t *testin
 
 func TestCreateShare_MalformedSender_KeepsStrictRequirements(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 
 	const relaxedHost = "relaxed.example.com"
 
@@ -419,7 +420,7 @@ func TestCreateShare_MalformedSender_KeepsStrictRequirements(t *testing.T) {
 		"resourceType": "file",
 		"protocol": {"name": "webdav", "webdav": {"uri": "x", "sharedSecret": "s", "permissions": ["read"], "requirements": []}}
 	}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()

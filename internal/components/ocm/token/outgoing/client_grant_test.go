@@ -7,10 +7,11 @@ package outgoing_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -24,7 +25,7 @@ func TestClient_Exchange_OAuthError(t *testing.T) {
 	server := newTokenTestServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(token.OAuthError{ //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, token.OAuthError{
 			Error:            token.ErrorInvalidGrant,
 			ErrorDescription: "invalid code",
 		})
@@ -63,7 +64,7 @@ func TestClient_Exchange_DefaultGrantType_AuthorizationCode(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(token.TokenResponse{ //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, token.TokenResponse{
 			AccessToken: "ac-token",
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,

@@ -7,6 +7,7 @@ package signature_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"log/slog"
@@ -36,7 +37,7 @@ func TestSignatureMiddleware_IfPresent_StrictMode_AllowsUnsigned(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -63,7 +64,7 @@ func TestSignatureMiddleware_RequireSignatureAndPeer_AdvertiseFalse_AllowsUnsign
 	}))
 
 	body := []byte(`{"test":"data"}`)
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -120,7 +121,7 @@ func TestSignatureMiddleware_LabelWithoutTag_IsUnsigned(t *testing.T) {
 			}))
 
 			body := []byte(`{"test":"data"}`)
-			req := httptest.NewRequest(http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "https://receiver.example.com/ocm/shares", bytes.NewReader(body))
 			req.Host = "receiver.example.com"
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
@@ -211,7 +212,7 @@ func TestSignatureMiddleware_ForeignSignature_TreatedAsUnsigned(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
-			req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 			req.Header.Set("Signature-Input", tt.sigInput)
 			req.Header.Set("Signature", tt.signature)
 

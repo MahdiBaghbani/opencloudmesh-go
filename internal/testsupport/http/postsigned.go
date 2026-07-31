@@ -32,7 +32,7 @@ func PostSignedJSON(
 		t.Fatalf("PostSignedJSON: marshal body: %v", err)
 	}
 
-	req, err := http.NewRequest(method, url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(t.Context(), method, url, bytes.NewReader(payload))
 	if err != nil {
 		t.Fatalf("PostSignedJSON: build request: %v", err)
 	}

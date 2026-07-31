@@ -61,7 +61,7 @@ func (f Ed25519Fixture) VerificationKey() ds.VerificationKey {
 func (f Ed25519Fixture) SignListingCompact(t *testing.T, listing ds.Listing) []byte {
 	t.Helper()
 
-	payload, err := json.Marshal(listing) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
+	payload, err := json.Marshal(listing) //nolint:errchkjson // payload type cannot fail to encode, so the checked error is always nil
 	if err != nil {
 		t.Fatalf("marshal listing: %v", err)
 	}
@@ -90,7 +90,7 @@ func StartHTTPSDirectoryService(t *testing.T, body []byte) *httptest.Server {
 
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		//nolint:errcheck // response already started; write error cannot be recovered
+		//nolint:errcheck // response already committed after WriteHeader; write error cannot be recovered or meaningfully handled
 		w.Write(body)
 	}))
 }

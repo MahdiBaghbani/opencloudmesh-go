@@ -84,7 +84,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 			form.Set("client_id", tt.clientID)
 			form.Set("code", tt.sharedSecret)
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(context.Background(),
 				http.MethodPost,
 				"/ocm/token",
 				strings.NewReader(form.Encode()),

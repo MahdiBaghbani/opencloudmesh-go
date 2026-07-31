@@ -55,9 +55,9 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 
 	for _, target := range privateTargets {
 		t.Run(target, func(t *testing.T) {
-			resp, err := c.Get(context.Background(), target)
+			resp, err := c.Get(context.Background(), target) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
-				defer resp.Body.Close() //nolint:errcheck // test response body close
+				defer outboundtestutil.MustClose(t, resp.Body)
 			}
 
 			if err == nil {
@@ -80,7 +80,9 @@ func TestClient_NOProxy_DirectPathSSRFStillBlocks(t *testing.T) {
 // address that can be listened on, or nil if none is available. It is used
 // by TestClient_NOProxy_RoutingBypass to obtain a destination IP that Go's
 // env-driven proxy logic does not special-case the way it does for loopback.
-func findNonLoopbackIPv4() net.IP {
+func findNonLoopbackIPv4(t *testing.T, ctx context.Context) net.IP {
+	t.Helper()
+
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil
@@ -110,8 +112,8 @@ func findNonLoopbackIPv4() net.IP {
 				continue
 			}
 			// Confirm we can actually bind a listener on this address.
-			if l, err := net.Listen("tcp", ip.String()+":0"); err == nil {
-				l.Close() //nolint:errcheck // test bind probe listener cleanup
+			if l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ip.String()+":0"); err == nil {
+				outboundtestutil.MustClose(t, l)
 				return ip.To4()
 			}
 		}
@@ -134,7 +136,7 @@ func findNonLoopbackIPv4() net.IP {
 // local IP ensures that without NO_PROXY the proxy would be contacted, and
 // with NO_PROXY matching the IP it is not.
 func TestClient_NOProxy_RoutingBypass(t *testing.T) {
-	localIP := findNonLoopbackIPv4()
+	localIP := findNonLoopbackIPv4(t, t.Context())
 	if localIP == nil {
 		t.Skip("no non-loopback IPv4 interface available; skipping NO_PROXY routing test")
 	}
@@ -151,14 +153,17 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 
 	// Destination server on a non-loopback IP so Go does not special-case it
 	// independently of NO_PROXY.
-	destListener, err := net.Listen("tcp", localIP.String()+":0")
+	destListener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", localIP.String()+":0")
 	if err != nil {
 		t.Fatalf("listen on non-loopback IP %s: %v", localIP, err)
 	}
 
 	destSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("direct")) //nolint:errcheck // test handler response write
+
+		if _, werr := w.Write([]byte("direct")); werr != nil {
+			t.Errorf("write response: %v", werr)
+		}
 	}))
 	destSrv.Listener = destListener
 
@@ -185,11 +190,11 @@ func TestClient_NOProxy_RoutingBypass(t *testing.T) {
 	// proxy configuration used by the transport.
 	c := httpclient.New(cfg, nil)
 
-	resp, err := c.Get(context.Background(), destURL)
+	resp, err := c.Get(context.Background(), destURL) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected direct connection via NO_PROXY bypass, got error: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)

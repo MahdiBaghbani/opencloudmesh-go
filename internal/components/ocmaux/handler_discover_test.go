@@ -25,12 +25,23 @@ func discoverTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 }
 
+// mustEncodeJSON writes v as JSON to w and reports a test error when the
+// encode fails. Errorf (not Fatalf) because mock handlers may run on httptest
+// server goroutines.
+func mustEncodeJSON(t *testing.T, w http.ResponseWriter, v any) {
+	t.Helper()
+
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		t.Errorf("encode JSON: %v", err)
+	}
+}
+
 func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 	var serverURL string
 
 	discServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -56,7 +67,7 @@ func TestHandleDiscover_BareHostSuccess(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+host, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+host, nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -71,7 +82,7 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":            true,
 				"apiVersion":         "1.4.0",
 				"endPoint":           serverURL + "/ocm",
@@ -95,7 +106,7 @@ func TestHandleDiscover_PastedPathNormalizesToOrigin(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+base, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+base, nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -111,7 +122,7 @@ func TestHandleDiscover_SSRFBlockedFriendlyResponse(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base=http://127.0.0.1:8080", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=http://127.0.0.1:8080", nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -147,7 +158,7 @@ func TestHandleDiscover_DNSFailureReason(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base=https://this-domain-does-not-exist-12345.invalid", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=https://this-domain-does-not-exist-12345.invalid", nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
@@ -173,7 +184,7 @@ func TestHandleDiscover_DNSFailureReason(t *testing.T) {
 func TestHandleDiscover_InvalidURLReason(t *testing.T) {
 	h := NewAuxHandler(nil, nil, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base=ftp://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base=ftp://example.com", nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -201,7 +212,7 @@ func TestHandleDiscover_NoOCMDiscoveryReason(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+discServer.URL, nil)
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)
 
@@ -228,7 +239,7 @@ func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 
 	discServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/ocm" {
-			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test mock handler: JSON encode
+			mustEncodeJSON(t, w, map[string]any{
 				"enabled":       true,
 				"apiVersion":    "1.4.0",
 				"endPoint":      serverURL + "/ocm",
@@ -249,7 +260,7 @@ func TestHandleDiscover_NoInviteAcceptDialogReason(t *testing.T) {
 	discClient := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
 	h := NewAuxHandler(nil, discClient, discoverTestLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/discover?base="+discServer.URL, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/discover?base="+discServer.URL, nil)
 	req = req.WithContext(context.Background())
 	w := httptest.NewRecorder()
 	h.HandleDiscover(w, req)

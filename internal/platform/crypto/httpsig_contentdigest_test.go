@@ -22,7 +22,7 @@ import (
 func TestContentDigest(t *testing.T) {
 	body := []byte(`{"test": "data"}`)
 
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", bytes.NewReader(body))
 
 	if err := crypto.VerifyContentDigest(req, body); err != nil {
 		t.Errorf("should pass without Content-Digest: %v", err)
@@ -37,7 +37,7 @@ func TestContentDigest(t *testing.T) {
 	opts.Now = func() time.Time { return time.Unix(1_730_815_200, 0) }
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
 
-	req2, err := http.NewRequest(http.MethodPost, "https://example.com/test", bytes.NewReader(body))
+	req2, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/test", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestVerifyContentDigest_MultiDigest(t *testing.T) {
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	sha512Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA512(body))
 
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", bytes.NewReader(body))
 	req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:, sha-512=:%s:", sha256Val, sha512Val))
 
 	if err := crypto.VerifyContentDigest(req, body); err != nil {
@@ -75,7 +75,7 @@ func TestVerifyContentDigest_MultiDigest_OneTampered(t *testing.T) {
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 	tampered := base64.StdEncoding.EncodeToString(sigalg.SumSHA512([]byte("wrong")))
 
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", bytes.NewReader(body))
 	req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:, sha-512=:%s:", sha256Val, tampered))
 
 	if err := crypto.VerifyContentDigest(req, body); err == nil {
@@ -87,7 +87,7 @@ func TestVerifyContentDigest_UnknownPlusRecognizedRejected(t *testing.T) {
 	body := httpsigTestBodyJSON
 	sha256Val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", bytes.NewReader(body))
 	req.Header.Set("Content-Digest", fmt.Sprintf("sha-256=:%s:, foo=:%s:", sha256Val, sha256Val))
 
 	if err := crypto.VerifyContentDigest(req, body); err == nil {
@@ -99,7 +99,7 @@ func TestVerifyContentDigest_OnlyUnknownAlgorithmsRejected(t *testing.T) {
 	body := httpsigTestBodyJSON
 	val := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(body))
 
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", bytes.NewReader(body))
 	req.Header.Set("Content-Digest", fmt.Sprintf("foo=:%s:, bar=:%s:", val, val))
 
 	if err := crypto.VerifyContentDigest(req, body); err == nil {
@@ -107,7 +107,12 @@ func TestVerifyContentDigest_OnlyUnknownAlgorithmsRejected(t *testing.T) {
 	}
 }
 
-func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testing.T) { //nolint:dupl // intentional: parallel Content-Digest/Content-Length rejection tests share signed-request setup but assert different missing headers
+// runMissingHeaderRejectionCase signs a non-empty-body request, deletes one
+// header, and asserts verification is rejected with the content_digest reason
+// before any key fetch runs.
+func runMissingHeaderRejectionCase(t *testing.T, header string) {
+	t.Helper()
+
 	km := mustHTTPSigKeyManager(t)
 	opts := httpsigFixedOptions()
 	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
@@ -115,7 +120,7 @@ func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testin
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -125,7 +130,7 @@ func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testin
 		t.Fatal(err)
 	}
 
-	req.Header.Del("Content-Digest")
+	req.Header.Del(header)
 
 	fetched := false
 
@@ -134,7 +139,7 @@ func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testin
 		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
 	})
 	if result.Verified {
-		t.Fatal("expected missing Content-Digest rejection")
+		t.Fatalf("expected missing %s rejection", header)
 	}
 
 	if result.Reason != crypto.ReasonContentDigest {
@@ -142,47 +147,16 @@ func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testin
 	}
 
 	if fetched {
-		t.Fatal("key fetch must not run after missing Content-Digest rejection")
+		t.Fatalf("key fetch must not run after missing %s rejection", header)
 	}
 }
 
-func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testing.T) { //nolint:dupl // intentional: parallel Content-Digest/Content-Length rejection tests share signed-request setup but assert different missing headers
-	km := mustHTTPSigKeyManager(t)
-	opts := httpsigFixedOptions()
-	signer := crypto.NewRFC9421SignerWithOptions(km, opts)
-	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
+func TestVerifyRequest_RejectsMissingContentDigestHeaderOnNonEmptyBody(t *testing.T) {
+	runMissingHeaderRejectionCase(t, "Content-Digest")
+}
 
-	body := httpsigTestBodyJSON
-
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("call failed: %v", err)
-	}
-
-	req.Host = "example.com"
-	if err := signer.SignRequest(req, body); err != nil {
-		t.Fatal(err)
-	}
-
-	req.Header.Del("Content-Length")
-
-	fetched := false
-
-	result := verifier.VerifyRequest(req, body, func(string) (sigalg.ResolvedPublicKey, error) {
-		fetched = true
-		return sigalg.ResolvedPublicKey{}, fmt.Errorf("should not fetch")
-	})
-	if result.Verified {
-		t.Fatal("expected missing Content-Length rejection")
-	}
-
-	if result.Reason != crypto.ReasonContentDigest {
-		t.Fatalf("Reason=%q want content_digest (err=%v)", result.Reason, result.Error)
-	}
-
-	if fetched {
-		t.Fatal("key fetch must not run after missing Content-Length rejection")
-	}
+func TestVerifyRequest_RejectsMissingContentLengthHeaderOnNonEmptyBody(t *testing.T) {
+	runMissingHeaderRejectionCase(t, "Content-Length")
 }
 
 func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T) {
@@ -190,7 +164,7 @@ func TestVerifyRequest_RejectsMissingDigestComponentsOnNonEmptyBody(t *testing.T
 	now := time.Now().Unix()
 	body := httpsigTestBodyJSON
 
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "date");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
@@ -218,7 +192,7 @@ func TestVerifyRequest_RejectsContentDigestMismatch(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -252,7 +226,7 @@ func TestVerifyRequest_AcceptsEmptyBodyMissingContentLengthHeader(t *testing.T) 
 	opts := httpsigFixedOptions()
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
-	req := httptest.NewRequest(http.MethodGet, "https://example.com/ocm/discovery", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/ocm/discovery", nil)
 	req.Host = "example.com"
 	req.Header.Set("Date", opts.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
 
@@ -295,7 +269,7 @@ func TestVerifyRequest_RejectsNonEmptyBodyMissingContentLengthHeader(t *testing.
 	body := httpsigTestBodyJSON
 	digest := httpsigContentDigestHeader(body)
 
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Digest", digest)
 	// Deliberately do NOT set Content-Length.

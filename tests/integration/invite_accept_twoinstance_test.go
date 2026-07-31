@@ -31,25 +31,25 @@ func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
 	aliceClient := alice.Client()
 	bobClient := bob.Client()
 
-	aliceToken, err := tsession.Login(aliceClient, alice.BaseURL, "admin", "")
+	aliceToken, err := tsession.Login(t.Context(), aliceClient, alice.BaseURL, "admin", "")
 	if err != nil {
 		alice.DumpLogs(t)
 		t.Fatalf("login alice: %v", err)
 	}
 
-	created, _, err := tsinvite.CreateOutgoing(aliceClient, alice.BaseURL, aliceToken)
+	created, _, err := tsinvite.CreateOutgoing(t.Context(), aliceClient, alice.BaseURL, aliceToken)
 	if err != nil {
 		alice.DumpLogs(t)
 		t.Fatalf("alice create outgoing invite: %v", err)
 	}
 
-	bobToken, err := tsession.Login(bobClient, bob.BaseURL, "admin", "")
+	bobToken, err := tsession.Login(t.Context(), bobClient, bob.BaseURL, "admin", "")
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("login bob: %v", err)
 	}
 
-	imported, _, err := tsinvite.Import(bobClient, bob.BaseURL, bobToken, created.InviteString)
+	imported, _, err := tsinvite.Import(t.Context(), bobClient, bob.BaseURL, bobToken, created.InviteString)
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("bob import invite: %v", err)
@@ -59,13 +59,13 @@ func TestInviteAcceptTwoInstanceAPI(t *testing.T) {
 		t.Fatalf("imported status = %q, want pending", imported.Status)
 	}
 
-	if _, _, err := tsinvite.Accept(bobClient, bob.BaseURL, bobToken, imported.ID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if _, _, aerr := tsinvite.Accept(t.Context(), bobClient, bob.BaseURL, bobToken, imported.ID); aerr != nil {
 		alice.DumpLogs(t)
 		bob.DumpLogs(t)
-		t.Fatalf("bob accept invite: %v", err)
+		t.Fatalf("bob accept invite: %v", aerr)
 	}
 
-	list, _, err := tsinvite.ListInbox(bobClient, bob.BaseURL, bobToken)
+	list, _, err := tsinvite.ListInbox(t.Context(), bobClient, bob.BaseURL, bobToken)
 	if err != nil {
 		bob.DumpLogs(t)
 		t.Fatalf("bob list inbox invites: %v", err)

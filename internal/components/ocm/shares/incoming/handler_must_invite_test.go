@@ -117,7 +117,7 @@ func postShare(t *testing.T, handler interface {
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -134,7 +134,7 @@ func postShareAuthenticated(t *testing.T, handler interface {
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
@@ -154,7 +154,7 @@ func TestMustInviteGate_EnforcedNoInviteReturns403(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		invitesincoming.NewMemoryIncomingInviteRepo(),
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -176,7 +176,7 @@ func TestMustInviteGate_MalformedSenderRejected(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		invitesincoming.NewMemoryIncomingInviteRepo(),
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -206,7 +206,7 @@ func TestMustInviteGate_HostMatchUserMismatchReturns403(t *testing.T) {
 
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		incomingInvites,
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -233,7 +233,7 @@ func TestMustInviteGate_UserMatchHostMismatchReturns403(t *testing.T) {
 
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		incomingInvites,
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -269,7 +269,7 @@ func TestMustInviteGate_PendingInviteDoesNotAdmit(t *testing.T) {
 
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		incomingInvites,
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -292,7 +292,7 @@ func TestMustInviteGate_IncomingInviteExactMatchAdmits(t *testing.T) {
 
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		incomingInvites,
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -315,7 +315,7 @@ func TestMustInviteGate_OutgoingInviteExactMatchAdmits(t *testing.T) {
 
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		invitesincoming.NewMemoryIncomingInviteRepo(),
 		outgoingInvites,
 		true,
@@ -338,7 +338,7 @@ func TestMustInviteGate_DuplicateAdmittedReturns200(t *testing.T) {
 
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		incomingInvites,
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -361,7 +361,7 @@ func TestMustInviteGate_IncomingStorageFailureReturns500(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		&failingIncomingInviteRepo{invitesincoming.NewMemoryIncomingInviteRepo()},
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -383,7 +383,7 @@ func TestMustInviteGate_OutgoingStorageFailureReturns500(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		invitesincoming.NewMemoryIncomingInviteRepo(),
 		&failingOutgoingInviteRepo{invitesoutgoing.NewMemoryOutgoingInviteRepo()},
 		true,
@@ -405,7 +405,7 @@ func TestMustInviteGate_OptOutRetainsLegacyAcceptance(t *testing.T) {
 	repo := incoming.NewMemoryIncomingShareRepo()
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		invitesincoming.NewMemoryIncomingInviteRepo(),
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		false,
@@ -433,7 +433,7 @@ func TestMustInviteGate_AuthenticatedAuthorityMismatchReturns403(t *testing.T) {
 
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		incomingInvites,
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,
@@ -480,7 +480,7 @@ func TestMustInviteGate_AuthenticatedDefaultPortEquivalentAdmits(t *testing.T) {
 
 	handler := newTestHandlerWithInvites(
 		repo,
-		setupTestPartyRepo(),
+		setupTestPartyRepo(t),
 		incomingInvites,
 		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
 		true,

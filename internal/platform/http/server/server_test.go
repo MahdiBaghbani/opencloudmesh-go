@@ -160,7 +160,7 @@ var _ service.Service = (*trackingService)(nil)
 func getFreePort(t *testing.T) int {
 	t.Helper()
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("getFreePort: %v", err)
 	}
@@ -172,7 +172,7 @@ func getFreePort(t *testing.T) int {
 
 	port := addr.Port
 
-	l.Close() //nolint:errcheck // test bind probe listener cleanup
+	tshttp.MustClose(t, l)
 
 	return port
 }
@@ -273,29 +273,54 @@ func TestACME_TwoListeners(t *testing.T) {
 		t.Fatal("HTTPS listener did not come up")
 	}
 
-	// 1. Challenge handler returns 404 for unknown token.
-	resp, err := http.Get(fmt.Sprintf("http://%s/.well-known/acme-challenge/nonexistent", httpAddr))
+	assertUnknownChallenge404(t, httpAddr)
+	assertHTTPRedirectsToHTTPS(t, httpAddr, httpsPort)
+	assertHTTPSListenerServesTLS(t, httpsAddr)
+	shutdownAndDrainStart(t, srv, startErr)
+}
+
+// assertUnknownChallenge404 checks the ACME challenge handler returns 404 for
+// an unknown token.
+func assertUnknownChallenge404(t *testing.T, httpAddr string) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://%s/.well-known/acme-challenge/nonexistent", httpAddr), nil)
+	if err != nil {
+		t.Fatalf("build challenge request failed: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("challenge request failed: %v", err)
 	}
 
-	resp.Body.Close() //nolint:errcheck // test response body close
+	tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown challenge token, got %d", resp.StatusCode)
 	}
+}
 
-	// 2. Non-challenge HTTP request returns 308 redirect to HTTPS.
+// assertHTTPRedirectsToHTTPS checks a non-challenge HTTP request gets a 308
+// redirect to the HTTPS listener.
+func assertHTTPRedirectsToHTTPS(t *testing.T, httpAddr string, httpsPort int) {
+	t.Helper()
+
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse // do not follow redirects
 	}}
 
-	resp, err = client.Get(fmt.Sprintf("http://%s/some/path?q=1", httpAddr))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://%s/some/path?q=1", httpAddr), nil)
+	if err != nil {
+		t.Fatalf("build redirect request failed: %v", err)
+	}
+
+	resp, err := client.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("redirect request failed: %v", err)
 	}
 
-	resp.Body.Close() //nolint:errcheck // test response body close
+	tshttp.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusPermanentRedirect {
 		t.Errorf("expected 308, got %d", resp.StatusCode)
@@ -307,25 +332,40 @@ func TestACME_TwoListeners(t *testing.T) {
 	if loc != expected {
 		t.Errorf("redirect Location = %q, want %q", loc, expected)
 	}
+}
 
-	// 3. HTTPS listener serves with the loaded certificate.
+// assertHTTPSListenerServesTLS checks the HTTPS listener completes a TLS
+// handshake with the loaded certificate.
+func assertHTTPSListenerServesTLS(t *testing.T, httpsAddr string) {
+	t.Helper()
+
 	tlsClient := &http.Client{Transport: &http.Transport{
 		TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true}, //nolint:gosec // test TLS client: InsecureSkipVerify against self-signed test CA
 	}}
 
-	resp, err = tlsClient.Get(fmt.Sprintf("https://%s/", httpsAddr))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("https://%s/", httpsAddr), nil)
+	if err != nil {
+		t.Fatalf("build HTTPS request failed: %v", err)
+	}
+
+	resp, err := tlsClient.Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("HTTPS request failed: %v", err)
 	}
 
-	resp.Body.Close() //nolint:errcheck // test response body close
+	tshttp.MustClose(t, resp.Body)
 	// Any response means the TLS handshake and listener work; the actual
 	// status depends on mounted services (404 is fine with nil service map).
 	if resp.TLS == nil {
 		t.Error("expected TLS connection info, got nil")
 	}
+}
 
-	// 4. Clean shutdown.
+// shutdownAndDrainStart shuts the server down and checks Start() returns
+// http.ErrServerClosed.
+func shutdownAndDrainStart(t *testing.T, srv *Server, startErr <-chan error) {
+	t.Helper()
+
 	shutCtx, cancel := context.WithTimeout(context.Background(), tshttp.DefaultShutdownWait)
 	defer cancel()
 
@@ -360,7 +400,7 @@ func TestACME_MissingPorts(t *testing.T) {
 		t.Fatalf("server creation failed: %v", err)
 	}
 
-	if err := srv.Start(); err == nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if serr := srv.Start(); serr == nil {
 		t.Error("expected error for zero HTTPPort")
 	}
 
@@ -385,11 +425,11 @@ func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
 	httpsPort := getFreePort(t)
 
 	// Pre-bind HTTPS port so ACME startup fails during HTTPS bind.
-	httpsBlocker, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", httpsPort))
+	httpsBlocker, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", fmt.Sprintf("127.0.0.1:%d", httpsPort))
 	if err != nil {
 		t.Fatalf("failed to pre-bind HTTPS port: %v", err)
 	}
-	defer httpsBlocker.Close() //nolint:errcheck // test port blocker cleanup
+	defer tshttp.MustClose(t, httpsBlocker)
 
 	cfg := config.DevConfig()
 	cfg.TLS.Mode = "acme"
@@ -430,7 +470,7 @@ func TestACME_HTTPSBindFailure_StopsChallengeServer(t *testing.T) {
 }
 
 func TestHTTPSRedirectHandler_IPv6Host(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://[::1]:9080/x?q=1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://[::1]:9080/x?q=1", nil)
 	req.Host = "[::1]:9080"
 	rec := httptest.NewRecorder()
 
@@ -449,11 +489,13 @@ func TestHTTPSRedirectHandler_IPv6Host(t *testing.T) {
 func waitForListener(t *testing.T, addr string, timeout time.Duration) bool {
 	t.Helper()
 
+	dialer := &net.Dialer{Timeout: 100 * time.Millisecond}
 	deadline := time.Now().Add(timeout)
+
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		conn, err := dialer.DialContext(t.Context(), "tcp", addr)
 		if err == nil {
-			conn.Close() //nolint:errcheck // test dial probe connection cleanup
+			tshttp.MustClose(t, conn)
 			return true
 		}
 
@@ -466,14 +508,16 @@ func waitForListener(t *testing.T, addr string, timeout time.Duration) bool {
 func waitForNoListener(t *testing.T, addr string, timeout time.Duration) bool {
 	t.Helper()
 
+	dialer := &net.Dialer{Timeout: 100 * time.Millisecond}
 	deadline := time.Now().Add(timeout)
+
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		conn, err := dialer.DialContext(t.Context(), "tcp", addr)
 		if err != nil {
 			return true
 		}
 
-		conn.Close() //nolint:errcheck // test dial probe connection cleanup
+		tshttp.MustClose(t, conn)
 		time.Sleep(50 * time.Millisecond)
 	}
 

@@ -23,7 +23,7 @@ import (
 func TestRFC9421_VerifyRejectsHMAC(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/test", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 
 	emptyDigest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))
@@ -123,7 +123,7 @@ func TestVerifyRequest_RejectPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "https://example.com/test", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/test", nil)
 			req.Header.Set("Date", httpsigStandardDate)
 
 			if tt.signatureInput != "" {
@@ -155,7 +155,7 @@ func TestVerifyRequest_RejectsMissingKeyIDBeforeFetch(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	now := time.Now().Unix()
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;alg="ed25519";tag="ocm"`,
@@ -187,7 +187,7 @@ func TestVerifyRequest_RejectsMissingKeyIDBeforeFetch(t *testing.T) {
 func TestVerifyRequest_DoesNotFetchBeforeCreatedCheck(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", `ocm=("@method" "@target-uri" "content-digest" "content-length" "date");keyid="example.com#key1";alg="ed25519";tag="ocm"`)
 	req.Header.Set("Signature", httpsigPlaceholderSigAlt)
@@ -213,7 +213,7 @@ func TestVerifyRequest_DoesNotFetchBeforeMissingComponents(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	now := time.Now().Unix()
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri");created=%d;keyid="example.com#key1";alg="ed25519";tag="ocm"`,
@@ -247,7 +247,7 @@ func TestVerifyRequest_AcceptsExplicitlyCoveredDate(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	fetches := 0
 	now := time.Now().Unix()
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Content-Digest", "sha-256=:AAAA:")
 	req.Header.Set("Content-Length", "2")
@@ -325,7 +325,7 @@ func TestVerifyRequest_DoesNotFetchOnMalformedSignature(t *testing.T) {
 func TestVerifyRequest_RejectsJWKHeaderAlgMismatch(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/test", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 
 	emptyDigest := base64.StdEncoding.EncodeToString(sigalg.SumSHA256(nil))

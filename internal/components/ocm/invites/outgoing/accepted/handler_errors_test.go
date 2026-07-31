@@ -152,7 +152,7 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 	}
 
 	body := validAcceptedBody("trust-token")
-	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	peerCtx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           "attacker.com",
@@ -354,7 +354,7 @@ func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
 	}
 
 	body := `{"recipientProvider":"other.com:443","token":"empty-origin-token","userID":"u@host","email":"e","name":"n"}`
-	req := httptest.NewRequest(http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/invite-accepted", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	peerCtx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           "other.com",

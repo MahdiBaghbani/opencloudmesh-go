@@ -6,6 +6,7 @@
 package httpwrap
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,7 +25,7 @@ func TestClearRawPath(t *testing.T) {
 	handler := ClearRawPath(inner)
 
 	// Create request with RawPath set (simulating percent-encoded segments)
-	req := httptest.NewRequest(http.MethodGet, "/path/with%2Fencoded", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/path/with%2Fencoded", nil)
 	req.URL.RawPath = "/path/with%2Fencoded"
 
 	// Verify RawPath is set before wrapping
@@ -58,7 +59,7 @@ func TestClearRawPath_PreservesOtherURLFields(t *testing.T) {
 
 	handler := ClearRawPath(inner)
 
-	req := httptest.NewRequest(http.MethodGet, "/test/path?foo=bar", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test/path?foo=bar", nil)
 	req.URL.RawPath = "/test/path"
 
 	rec := httptest.NewRecorder()

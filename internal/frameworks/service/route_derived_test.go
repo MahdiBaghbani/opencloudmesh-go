@@ -36,18 +36,7 @@ func TestDerivedMountSpecs_ProjectsFromRoutes(t *testing.T) {
 		t.Fatal("expected derived route groups")
 	}
 
-	wantHostRoot := 0
-	wantSubtree := 0
-
-	for _, row := range rows {
-		if row.AtHostRoot && !row.Synthetic {
-			wantHostRoot++
-		}
-
-		if row.Synthetic && !row.AtHostRoot {
-			wantSubtree++
-		}
-	}
+	wantHostRoot, wantSubtree := countMountSpecKinds(rows)
 
 	if len(groups) != wantHostRoot+wantSubtree {
 		t.Fatalf("group count = %d, want %d host-root + %d subtree", len(groups), wantHostRoot, wantSubtree)
@@ -59,49 +48,87 @@ func TestDerivedMountSpecs_ProjectsFromRoutes(t *testing.T) {
 	}
 
 	for _, row := range rows {
-		if row.Synthetic && !row.AtHostRoot {
-			g, ok := byPrefix[row.FullPath]
-			if !ok {
-				t.Errorf("missing subtree group for synthetic row %q prefix %q", row.ID, row.FullPath)
-				continue
-			}
+		assertRowMountGroup(t, opts, row, byPrefix)
+	}
+}
 
-			if g.Name != row.Service {
-				t.Errorf("subtree group %q name = %q, want service %q", row.FullPath, g.Name, row.Service)
-			}
-
-			if g.AtHostRoot {
-				t.Errorf("subtree group %q AtHostRoot = true, want false", row.FullPath)
-			}
-
-			wantAuth := service.SessionAuthRequiredForPath(row.FullPath+"/probe", opts)
-			if g.RequiresAuth != wantAuth {
-				t.Errorf("subtree group %q RequiresAuth = %v, want %v", row.FullPath, g.RequiresAuth, wantAuth)
-			}
-
-			continue
-		}
-
+// countMountSpecKinds counts the host-root and synthetic-subtree route rows.
+func countMountSpecKinds(rows []service.RouteRow) (hostRoot, subtree int) {
+	for _, row := range rows {
 		if row.AtHostRoot && !row.Synthetic {
-			g, ok := byPrefix[row.FullPath]
-			if !ok {
-				t.Errorf("missing host-root group for row %q prefix %q", row.ID, row.FullPath)
-				continue
-			}
-
-			if g.Name != row.ID {
-				t.Errorf("host-root group %q name = %q, want id %q", row.FullPath, g.Name, row.ID)
-			}
-
-			if !g.AtHostRoot {
-				t.Errorf("host-root group %q AtHostRoot = false, want true", row.FullPath)
-			}
-
-			wantAuth := service.SessionAuthRequiredForPath(row.FullPath+"/probe", opts)
-			if g.RequiresAuth != wantAuth {
-				t.Errorf("host-root group %q RequiresAuth = %v, want %v", row.FullPath, g.RequiresAuth, wantAuth)
-			}
+			hostRoot++
 		}
+
+		if row.Synthetic && !row.AtHostRoot {
+			subtree++
+		}
+	}
+
+	return hostRoot, subtree
+}
+
+// assertRowMountGroup checks one route row against its derived mount group.
+func assertRowMountGroup(t *testing.T, opts service.RouteOpts, row service.RouteRow, byPrefix map[string]service.DerivedRouteGroup) {
+	t.Helper()
+
+	switch {
+	case row.Synthetic && !row.AtHostRoot:
+		assertSubtreeGroup(t, opts, row, byPrefix)
+	case row.AtHostRoot && !row.Synthetic:
+		assertHostRootGroup(t, opts, row, byPrefix)
+	}
+}
+
+// assertSubtreeGroup checks a synthetic subtree row against its mount group.
+func assertSubtreeGroup(t *testing.T, opts service.RouteOpts, row service.RouteRow, byPrefix map[string]service.DerivedRouteGroup) {
+	t.Helper()
+
+	g, ok := byPrefix[row.FullPath]
+	if !ok {
+		t.Errorf("missing subtree group for synthetic row %q prefix %q", row.ID, row.FullPath)
+		return
+	}
+
+	if g.Name != row.Service {
+		t.Errorf("subtree group %q name = %q, want service %q", row.FullPath, g.Name, row.Service)
+	}
+
+	if g.AtHostRoot {
+		t.Errorf("subtree group %q AtHostRoot = true, want false", row.FullPath)
+	}
+
+	assertGroupRequiresAuth(t, opts, "subtree", row.FullPath, g)
+}
+
+// assertHostRootGroup checks a host-root row against its mount group.
+func assertHostRootGroup(t *testing.T, opts service.RouteOpts, row service.RouteRow, byPrefix map[string]service.DerivedRouteGroup) {
+	t.Helper()
+
+	g, ok := byPrefix[row.FullPath]
+	if !ok {
+		t.Errorf("missing host-root group for row %q prefix %q", row.ID, row.FullPath)
+		return
+	}
+
+	if g.Name != row.ID {
+		t.Errorf("host-root group %q name = %q, want id %q", row.FullPath, g.Name, row.ID)
+	}
+
+	if !g.AtHostRoot {
+		t.Errorf("host-root group %q AtHostRoot = false, want true", row.FullPath)
+	}
+
+	assertGroupRequiresAuth(t, opts, "host-root", row.FullPath, g)
+}
+
+// assertGroupRequiresAuth checks the group's auth projection against
+// SessionAuthRequiredForPath.
+func assertGroupRequiresAuth(t *testing.T, opts service.RouteOpts, kind, fullPath string, g service.DerivedRouteGroup) {
+	t.Helper()
+
+	wantAuth := service.SessionAuthRequiredForPath(fullPath+"/probe", opts)
+	if g.RequiresAuth != wantAuth {
+		t.Errorf("%s group %q RequiresAuth = %v, want %v", kind, fullPath, g.RequiresAuth, wantAuth)
 	}
 }
 

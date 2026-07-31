@@ -31,7 +31,10 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 	// HTTPS backend - the final TLS destination reached through the tunnel.
 	backend := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("tls-backend-ok")) //nolint:errcheck // test handler response write
+
+		if _, err := w.Write([]byte("tls-backend-ok")); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	}))
 	defer backend.Close()
 
@@ -47,9 +50,62 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		observedCONNECTTarget atomic.Value
 	)
 
-	// Minimal CONNECT-capable proxy: records CONNECT semantics and tunnels
-	// bytes to the real backend.
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxy := newCONNECTRecordingProxy(t, &connectSeen, &observedCONNECTTarget)
+	defer proxy.Close()
+
+	rootCAs := backendTLSCertPool(t, backend)
+
+	// SSRF off: backend is 127.0.0.1; SSRF bypass is intentional here because we
+	// are testing CONNECT tunnel semantics, not SSRF enforcement. The companion
+	// test TestClient_HTTPSPrivateDestinationBlockedWithProxy covers that
+	// preflight blocks private HTTPS targets before CONNECT.
+	cfg := outboundtestutil.PermissiveConfig()
+	cfg.ProxyURL = proxy.URL
+	c := httpclient.New(cfg, rootCAs)
+
+	resp, err := c.Get(context.Background(), backend.URL) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
+	if err != nil {
+		t.Fatalf("HTTPS through CONNECT proxy failed: %v", err)
+	}
+	defer outboundtestutil.MustClose(t, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	if !connectSeen.Load() {
+		t.Error("proxy did not receive a CONNECT request")
+	}
+
+	if got, ok := observedCONNECTTarget.Load().(string); !ok || got != wantCONNECTTarget {
+		t.Errorf("CONNECT target: got %q, want %q", got, wantCONNECTTarget)
+	}
+}
+
+// backendTLSCertPool builds a cert pool trusting the test backend's
+// self-signed TLS certificate.
+func backendTLSCertPool(t *testing.T, backend *httptest.Server) *x509.CertPool {
+	t.Helper()
+
+	serverCert := backend.TLS.Certificates[0]
+
+	x509Cert, parseErr := x509.ParseCertificate(serverCert.Certificate[0])
+	if parseErr != nil {
+		t.Fatalf("parse backend TLS cert: %v", parseErr)
+	}
+
+	rootCAs := x509.NewCertPool()
+	rootCAs.AddCert(x509Cert)
+
+	return rootCAs
+}
+
+// newCONNECTRecordingProxy starts a minimal CONNECT-capable proxy that records
+// CONNECT semantics and tunnels bytes to the real backend.
+func newCONNECTRecordingProxy(t *testing.T, connectSeen *atomic.Bool, observedCONNECTTarget *atomic.Value) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodConnect {
 			t.Errorf("proxy: expected CONNECT, got %s %s", r.Method, r.RequestURI)
 			w.WriteHeader(http.StatusBadRequest)
@@ -69,7 +125,8 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 			return
 		}
 
-		targetConn, dialErr := net.Dial("tcp", r.Host) //nolint:gosec // test: r.Host is a test-controlled host header, not user-supplied URL input
+		// r.Host is the test-controlled CONNECT target, not user-supplied URL input.
+		targetConn, dialErr := (&net.Dialer{}).DialContext(r.Context(), "tcp", r.Host)
 		if dialErr != nil {
 			http.Error(w, dialErr.Error(), http.StatusBadGateway)
 			return
@@ -77,13 +134,15 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 
 		clientConn, _, hijackErr := hijacker.Hijack()
 		if hijackErr != nil {
-			targetConn.Close() //nolint:errcheck // test proxy cleanup after hijack failure
+			outboundtestutil.MustClose(t, targetConn)
 			t.Logf("proxy: hijack error: %v", hijackErr)
 
 			return
 		}
 
-		_, _ = fmt.Fprint(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n") //nolint:errcheck // test CONNECT tunnel handshake
+		if _, err := fmt.Fprint(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n"); err != nil {
+			t.Errorf("proxy: write CONNECT response: %v", err)
+		}
 
 		// Proxy bytes bidirectionally until both sides close.
 		var wg sync.WaitGroup
@@ -91,15 +150,21 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			defer targetConn.Close() //nolint:errcheck // test tunnel relay teardown
+			defer outboundtestutil.MustClose(t, targetConn)
 
-			_, _ = io.Copy(targetConn, clientConn) //nolint:errcheck // test tunnel byte relay
+			// Relay errors are expected at teardown, when the cleanup forces
+			// both connections closed via expired deadlines; log, do not fail.
+			if _, err := io.Copy(targetConn, clientConn); err != nil {
+				t.Logf("proxy: tunnel relay target<-client stopped: %v", err)
+			}
 		}()
 		go func() {
 			defer wg.Done()
-			defer clientConn.Close() //nolint:errcheck // test tunnel relay teardown
+			defer outboundtestutil.MustClose(t, clientConn)
 
-			_, _ = io.Copy(clientConn, targetConn) //nolint:errcheck // test tunnel byte relay
+			if _, err := io.Copy(clientConn, targetConn); err != nil {
+				t.Logf("proxy: tunnel relay client<-target stopped: %v", err)
+			}
 		}()
 		// Do not block the handler goroutine: that would cause proxy.Close()
 		// (and therefore the test) to hang while the client holds the tunnel
@@ -107,50 +172,18 @@ func TestClient_HTTPSProxyCONNECT(t *testing.T) {
 		// expires both connections so the io.Copy goroutines unblock promptly.
 		t.Cleanup(func() {
 			past := time.Now().Add(-time.Second)
-			_ = clientConn.SetDeadline(past) //nolint:errcheck // test tunnel teardown force close
-			_ = targetConn.SetDeadline(past) //nolint:errcheck // test tunnel teardown force close
+
+			if err := clientConn.SetDeadline(past); err != nil {
+				t.Logf("proxy: clientConn deadline: %v", err)
+			}
+
+			if err := targetConn.SetDeadline(past); err != nil {
+				t.Logf("proxy: targetConn deadline: %v", err)
+			}
 
 			wg.Wait()
 		})
 	}))
-	defer proxy.Close()
-
-	// Build a cert pool trusting the backend's self-signed TLS certificate.
-	serverCert := backend.TLS.Certificates[0]
-
-	x509Cert, parseErr := x509.ParseCertificate(serverCert.Certificate[0])
-	if parseErr != nil {
-		t.Fatalf("parse backend TLS cert: %v", parseErr)
-	}
-
-	rootCAs := x509.NewCertPool()
-	rootCAs.AddCert(x509Cert)
-
-	// SSRF off: backend is 127.0.0.1; SSRF bypass is intentional here because we
-	// are testing CONNECT tunnel semantics, not SSRF enforcement. The companion
-	// test TestClient_HTTPSPrivateDestinationBlockedWithProxy covers that
-	// preflight blocks private HTTPS targets before CONNECT.
-	cfg := outboundtestutil.PermissiveConfig()
-	cfg.ProxyURL = proxy.URL
-	c := httpclient.New(cfg, rootCAs)
-
-	resp, err := c.Get(context.Background(), backend.URL)
-	if err != nil {
-		t.Fatalf("HTTPS through CONNECT proxy failed: %v", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
-
-	if !connectSeen.Load() {
-		t.Error("proxy did not receive a CONNECT request")
-	}
-
-	if got, ok := observedCONNECTTarget.Load().(string); !ok || got != wantCONNECTTarget {
-		t.Errorf("CONNECT target: got %q, want %q", got, wantCONNECTTarget)
-	}
 }
 
 // TestClient_HTTPSPrivateDestinationBlockedWithProxy verifies that strict-mode
@@ -176,9 +209,9 @@ func TestClient_HTTPSPrivateDestinationBlockedWithProxy(t *testing.T) {
 	}
 	for _, target := range targets {
 		t.Run(target, func(t *testing.T) {
-			resp, err := c.Get(context.Background(), target)
+			resp, err := c.Get(context.Background(), target) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 			if resp != nil {
-				defer resp.Body.Close() //nolint:errcheck // test response body close
+				defer outboundtestutil.MustClose(t, resp.Body)
 			}
 
 			if err == nil {

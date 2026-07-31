@@ -25,7 +25,7 @@ import (
 
 func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-ok", "sender.example.com", "hello.txt")
+	share := createAcceptedShareForUser(t, repo, "prov-va-ok", "sender.example.com", "hello.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	fileContent := "E2E test file content"
@@ -41,7 +41,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -77,7 +77,7 @@ func TestHandleVerifyAccess_BearerSuccess(t *testing.T) {
 
 func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-fail", "sender.example.com", "missing.txt")
+	share := createAcceptedShareForUser(t, repo, "prov-va-fail", "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
@@ -89,7 +89,7 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -111,26 +111,26 @@ func TestHandleVerifyAccess_RemoteFailureReturnsReasonCode(t *testing.T) {
 	}
 }
 
-func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) { //nolint:dupl // intentional: parallel verify-access tests share HTTP setup but assert different reason codes
+// assertVerifyAccessError wires an accessor that fails with accessErr and
+// asserts verify-access returns wantStatus carrying wantReasonCode.
+func assertVerifyAccessError(t *testing.T, providerLabel string, accessErr error, wantStatus int, wantReasonCode string) {
+	t.Helper()
+
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-signature", "sender.example.com", "missing.txt")
+	share := createAcceptedShareForUser(t, repo, providerLabel, "sender.example.com", "missing.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
-		return nil, reason.NewClassifiedError(
-			reason.ReasonSignatureRequired,
-			"signature required",
-			nil,
-		)
+		return nil, accessErr
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	if w.Code != wantStatus {
+		t.Fatalf("expected %d, got %d: %s", wantStatus, w.Code, w.Body.String())
 	}
 
 	var resp inboxshares.VerifyAccessResponse
@@ -138,42 +138,34 @@ func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) { /
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if resp.ReasonCode != "policy_denied" {
-		t.Errorf("expected reasonCode policy_denied, got %s", resp.ReasonCode)
+	if resp.ReasonCode != wantReasonCode {
+		t.Errorf("expected reasonCode %s, got %s", wantReasonCode, resp.ReasonCode)
 	}
 }
 
-func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T) { //nolint:dupl // intentional: parallel verify-access tests share HTTP setup but assert different reason codes
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-disabled", "sender.example.com", "missing.txt")
+func TestHandleVerifyAccess_SignatureFailureMapsToPolicyDenied(t *testing.T) {
+	assertVerifyAccessError(
+		t,
+		"prov-va-signature",
+		reason.NewClassifiedError(reason.ReasonSignatureRequired, "signature required", nil),
+		http.StatusForbidden,
+		"policy_denied",
+	)
+}
 
-	userA := &identity.User{ID: userAID, Username: "alice"}
-	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
-		return nil, reason.New(reason.PeerDiscoveryDisabled, "discovery disabled", nil)
-	}}
-	router := newTestRouterWithAccess(repo, ac, userA)
-
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var resp inboxshares.VerifyAccessResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	if resp.ReasonCode != "discovery_disabled" {
-		t.Errorf("expected reasonCode discovery_disabled, got %s", resp.ReasonCode)
-	}
+func TestHandleVerifyAccess_ReasonErrorDiscoveryDisabledIsPreserved(t *testing.T) {
+	assertVerifyAccessError(
+		t,
+		"prov-va-disabled",
+		reason.New(reason.PeerDiscoveryDisabled, "discovery disabled", nil),
+		http.StatusNotImplemented,
+		"discovery_disabled",
+	)
 }
 
 func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-big", "sender.example.com", "big.bin")
+	share := createAcceptedShareForUser(t, repo, "prov-va-big", "sender.example.com", "big.bin")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	bigBody := strings.Repeat("x", 5000)
@@ -188,7 +180,7 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -216,7 +208,7 @@ func TestHandleVerifyAccess_BoundedPreviewTruncation(t *testing.T) {
 
 func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
-	share := createAcceptedShareForUser(repo, "prov-va-remote-err", "sender.example.com", "forbidden.txt")
+	share := createAcceptedShareForUser(t, repo, "prov-va-remote-err", "sender.example.com", "forbidden.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	ac := &mockAccessor{accessFn: func(_ context.Context, _ access.AccessOptions) (*access.AccessResult, error) {
@@ -231,7 +223,7 @@ func TestHandleVerifyAccess_RemoteNon2xxReturns502(t *testing.T) {
 	}}
 	router := newTestRouterWithAccess(repo, ac, userA)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/"+share.ShareID+"/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -261,7 +253,7 @@ func TestHandleVerifyAccess_Unauthenticated(t *testing.T) {
 	repo := sharesincoming.NewMemoryIncomingShareRepo()
 	router := newTestRouterWithAccess(repo, nil, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/inbox/shares/some-id/verify-access", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/some-id/verify-access", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

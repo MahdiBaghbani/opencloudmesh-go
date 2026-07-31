@@ -29,7 +29,7 @@ import (
 // invariant observable: with use_env_fallback=false the proxy must never be
 // contacted, and the request must reach the destination directly.
 func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
-	localIP := findNonLoopbackIPv4()
+	localIP := findNonLoopbackIPv4(t, t.Context())
 	if localIP == nil {
 		t.Skip("no non-loopback IPv4 interface available; skipping env-fallback disabled test")
 	}
@@ -46,14 +46,17 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 
 	// Destination server on a non-loopback IP so Go's httpproxy does not
 	// special-case it independently of use_env_fallback.
-	destListener, err := net.Listen("tcp", localIP.String()+":0")
+	destListener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", localIP.String()+":0")
 	if err != nil {
 		t.Fatalf("listen on non-loopback IP %s: %v", localIP, err)
 	}
 
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("direct")) //nolint:errcheck // test handler response write
+
+		if _, werr := w.Write([]byte("direct")); werr != nil {
+			t.Errorf("write response: %v", werr)
+		}
 	}))
 	server.Listener = destListener
 
@@ -77,11 +80,11 @@ func TestClient_UseEnvFallbackDisabled_IgnoresEnv(t *testing.T) {
 	cfg.UseEnvFallback = false // ignore env proxy
 	c := httpclient.New(cfg, nil)
 
-	resp, err := c.Get(context.Background(), server.URL)
+	resp, err := c.Get(context.Background(), server.URL) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected direct connection, got error: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -101,7 +104,10 @@ func TestClient_UseEnvFallbackEnabled_UsesEnv(t *testing.T) {
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		proxyHit.Store(true)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("via-env-proxy")) //nolint:errcheck // test handler response write
+
+		if _, err := w.Write([]byte("via-env-proxy")); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	}))
 	defer proxy.Close()
 
@@ -123,11 +129,11 @@ func TestClient_UseEnvFallbackEnabled_UsesEnv(t *testing.T) {
 	cfg.UseEnvFallback = true
 	c := httpclient.New(cfg, nil)
 
-	resp, err := c.Get(context.Background(), "http://external.example.invalid/api")
+	resp, err := c.Get(context.Background(), "http://external.example.invalid/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected success through env proxy, got: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -170,11 +176,11 @@ func TestClient_ExplicitProxyOverridesEnv(t *testing.T) {
 	cfg.UseEnvFallback = true        // even when env fallback is enabled
 	c := httpclient.New(cfg, nil)
 
-	resp, err := c.Get(context.Background(), "http://external.example.invalid/api")
+	resp, err := c.Get(context.Background(), "http://external.example.invalid/api") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected success through explicit proxy, got: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if !explicitHit.Load() {
 		t.Error("request must route through the explicit proxy_url")

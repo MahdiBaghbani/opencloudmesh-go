@@ -6,10 +6,20 @@
 package mirror_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
+
+// restoreDirPerms restores write permission on a locked-down temp dir.
+func restoreDirPerms(t *testing.T, dir string) {
+	t.Helper()
+
+	if err := os.Chmod(dir, 0700); err != nil { //nolint:gosec // test helper: restrictive 0700 restores write permission on the temp dir
+		t.Fatal(err)
+	}
+}
 
 func requireOutgoingShareStore(t *testing.T, d store.Driver) store.OutgoingShareStore {
 	t.Helper()

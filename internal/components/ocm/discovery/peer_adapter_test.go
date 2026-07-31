@@ -12,7 +12,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -30,6 +29,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
@@ -43,10 +43,10 @@ func TestPeerDiscoveryAdapter_GetPublicKeyFromJWKS(t *testing.T) {
 		switch r.URL.Path {
 		case "/ocm/jwks":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(km.JWKS()) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, km.JWKS())
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
@@ -124,12 +124,12 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_ECP256OmitAlg(t *testing.T)
 		switch r.URL.Path {
 		case "/ocm/jwks":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, jwks.Set{Keys: []jwks.Key{{
 				Kty: "EC", Kid: keyID, Use: "sig", Crv: "P-256", X: x, Y: y,
 			}}})
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
@@ -191,10 +191,10 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_SchemeFromPeerContract(t *t
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub)) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, jwks.SetFromEd25519PublicKey(keyID, pub))
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
@@ -265,10 +265,10 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_PreservesExplicitHTTPSKid(t
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(keyID, pub)) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, jwks.SetFromEd25519PublicKey(keyID, pub))
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
@@ -335,10 +335,10 @@ func TestPeerDiscoveryAdapter_RejectsDisallowedAbsoluteURIKid(t *testing.T) {
 		switch r.URL.Path {
 		case jwkPath:
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey("ignored#key1", pub)) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, jwks.SetFromEd25519PublicKey("ignored#key1", pub))
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
@@ -421,6 +421,57 @@ func padCoord(b []byte, size int) []byte {
 	return out
 }
 
+// newJWKSErrorPeer starts a mock peer whose discovery document points at its
+// own JWKS path; the JWKS path itself is served by jwksHandler.
+func newJWKSErrorPeer(t *testing.T, jwksHandler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+
+	var srv *httptest.Server
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/ocm/jwks":
+			jwksHandler(w, r)
+		case "/.well-known/ocm":
+			w.Header().Set("Content-Type", "application/json")
+			tshttp.MustEncodeJSON(t, w, spec.Discovery{
+				Enabled:    true,
+				APIVersion: "1.4.0",
+				EndPoint:   srv.URL + "/ocm",
+				JwksUri:    srv.URL + "/ocm/jwks",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	return srv
+}
+
+// newLoadedKeyManager creates a key manager for the peer URL and loads or
+// generates its key material.
+func newLoadedKeyManager(t *testing.T, peerURL string) *crypto.KeyManager {
+	t.Helper()
+
+	km := crypto.NewKeyManager("", peerURL)
+	if err := km.LoadOrGenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	return km
+}
+
+// expectResolveKeyError asserts that resolving the manager's key against the
+// adapter fails.
+func expectResolveKeyError(t *testing.T, adapter *PeerDiscoveryAdapter, km *crypto.KeyManager, msg string) {
+	t.Helper()
+
+	_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
+	if err == nil {
+		t.Fatal(msg)
+	}
+}
+
 func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 	peerOrigin := peerorigin.NewResolver(true)
 
@@ -433,128 +484,47 @@ func TestPeerDiscoveryAdapter_GetPublicKey_JWKSErrors(t *testing.T) {
 	discClient := NewClient(rawClient, nil)
 
 	t.Run("jwks 404", func(t *testing.T) {
-		jwksURI := ""
-
-		var srv *httptest.Server
-
-		srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/ocm/jwks":
-				http.NotFound(w, r)
-			case "/.well-known/ocm":
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
-					Enabled:    true,
-					APIVersion: "1.4.0",
-					EndPoint:   srv.URL + "/ocm",
-					JwksUri:    jwksURI,
-				})
-			default:
-				http.NotFound(w, r)
-			}
-		}))
+		srv := newJWKSErrorPeer(t, http.NotFound)
 		defer srv.Close()
 
-		jwksURI = srv.URL + "/ocm/jwks"
-
-		km := crypto.NewKeyManager("", srv.URL)
-		if err := km.LoadOrGenerate(); err != nil {
-			t.Fatal(err)
-		}
-
+		km := newLoadedKeyManager(t, srv.URL)
 		adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
-		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
-		if err == nil {
-			t.Fatal("expected jwks lookup error for 404")
-		}
+		expectResolveKeyError(t, adapter, km, "expected jwks lookup error for 404")
 	})
 
 	t.Run("invalid jwks JSON", func(t *testing.T) {
-		jwksURI := ""
+		srv := newJWKSErrorPeer(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
 
-		var srv *httptest.Server
-
-		srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/ocm/jwks":
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"keys":[`)) //nolint:errcheck // test mock handler: response write
-			case "/.well-known/ocm":
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
-					Enabled:    true,
-					APIVersion: "1.4.0",
-					EndPoint:   srv.URL + "/ocm",
-					JwksUri:    jwksURI,
-				})
-			default:
-				http.NotFound(w, r)
+			if _, err := w.Write([]byte(`{"keys":[`)); err != nil {
+				t.Errorf("write response: %v", err)
 			}
-		}))
+		})
 		defer srv.Close()
 
-		jwksURI = srv.URL + "/ocm/jwks"
-
-		km := crypto.NewKeyManager("", srv.URL)
-		if err := km.LoadOrGenerate(); err != nil {
-			t.Fatal(err)
-		}
-
+		km := newLoadedKeyManager(t, srv.URL)
 		adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
-		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
-		if err == nil {
-			t.Fatal("expected jwks decode error")
-		}
+		expectResolveKeyError(t, adapter, km, "expected jwks decode error")
 	})
 
 	t.Run("missing kid", func(t *testing.T) {
-		var (
-			srv     *httptest.Server
-			jwksURI string
-		)
+		otherKM := newLoadedKeyManager(t, "https://other.example.com")
 
-		otherKM := crypto.NewKeyManager("", "https://other.example.com")
-		if err := otherKM.LoadOrGenerate(); err != nil {
-			t.Fatal(err)
-		}
-
-		srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/ocm/jwks":
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(otherKM.JWKS()) //nolint:errcheck // test mock handler: JSON encode
-			case "/.well-known/ocm":
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
-					Enabled:    true,
-					APIVersion: "1.4.0",
-					EndPoint:   srv.URL + "/ocm",
-					JwksUri:    jwksURI,
-				})
-			default:
-				http.NotFound(w, r)
-			}
-		}))
+		srv := newJWKSErrorPeer(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			tshttp.MustEncodeJSON(t, w, otherKM.JWKS())
+		})
 		defer srv.Close()
 
-		jwksURI = srv.URL + "/ocm/jwks"
-
-		km := crypto.NewKeyManager("", srv.URL)
-		if err := km.LoadOrGenerate(); err != nil {
-			t.Fatal(err)
-		}
-
+		km := newLoadedKeyManager(t, srv.URL)
 		adapter := NewPeerDiscoveryAdapter(rawClient, discClient)
 		adapter.SetPeerOrigin(peerOrigin)
 
-		_, err := adapter.ResolveVerificationKey(context.Background(), km.GetKeyID())
-		if err == nil {
-			t.Fatal("expected missing kid error")
-		}
+		expectResolveKeyError(t, adapter, km, "expected missing kid error")
 	})
 }
 
@@ -568,7 +538,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_MissingJwksUri(t *testing.T
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, spec.Discovery{
 			Enabled:    true,
 			APIVersion: "1.4.0",
 			EndPoint:   srv.URL + "/ocm",
@@ -630,7 +600,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksInvalidAdvertisedJwks
 				}
 
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+				tshttp.MustEncodeJSON(t, w, spec.Discovery{
 					Enabled:    true,
 					APIVersion: "1.4.0",
 					EndPoint:   srv.URL + "/ocm",
@@ -695,7 +665,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksHTTPSDowngradeRedirec
 			w.WriteHeader(http.StatusFound)
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",
@@ -754,7 +724,7 @@ func TestPeerDiscoveryAdapter_ResolveVerificationKey_BlocksCrossHostRedirect(t *
 			w.WriteHeader(http.StatusFound)
 		case "/.well-known/ocm":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec.Discovery{ //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, spec.Discovery{
 				Enabled:    true,
 				APIVersion: "1.4.0",
 				EndPoint:   srv.URL + "/ocm",

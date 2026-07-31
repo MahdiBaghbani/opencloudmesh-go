@@ -26,11 +26,11 @@ func TestCreateShare_Authenticated_RejectsUntrustedOwnerProvider(t *testing.T) {
 	)
 
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := validShareBodyWithOwnerAndSenderHosts("alice@localhost:9200", ownerHost, senderHost, providerID)
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           senderHost,
@@ -67,7 +67,7 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 	)
 
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 
 	handler := newTestHandler(repo, partyRepo)
 
@@ -90,7 +90,7 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 		}
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           authenticatedSender,
@@ -127,7 +127,7 @@ func TestCreateShare_Authenticated_AcceptsDistinctOwnerAndSenderUserIDs(t *testi
 	)
 
 	repo := incoming.NewMemoryIncomingShareRepo()
-	partyRepo := setupTestPartyRepo()
+	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
 	body := `{
@@ -149,7 +149,7 @@ func TestCreateShare_Authenticated_AcceptsDistinctOwnerAndSenderUserIDs(t *testi
 		}
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
 		Authority:           authority,

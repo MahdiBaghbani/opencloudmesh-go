@@ -7,6 +7,7 @@ package ocm
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,7 @@ func TestNew_EvaluatorOwnsTokenExchangeEnablement(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/token", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/token", nil)
 	w := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(w, req)
 
@@ -79,7 +80,7 @@ func TestNew_RawConfigDoesNotBackfillTokenExchangeEnablement(t *testing.T) {
 
 	form := "grant_type=authorization_code&client_id=" + clientHost + "&code=raw-config-code"
 	body := []byte(form)
-	req := httptest.NewRequest(http.MethodPost, cfg.PublicOrigin+"/token", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, cfg.PublicOrigin+"/token", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	if err := signer.SignRequest(req, body); err != nil {

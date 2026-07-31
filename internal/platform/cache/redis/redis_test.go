@@ -13,6 +13,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/redis"
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestNew_FailFastUnreachable(t *testing.T) {
@@ -60,7 +61,7 @@ func TestIncrement_ResetAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
 	}
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 	ttl := 30 * time.Second
@@ -115,15 +116,15 @@ func TestIncrement_CounterValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
 	}
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
 	// Multiple increments
 	for i := 1; i <= 5; i++ {
-		count, _, err := c.Increment(ctx, "counter", 1, time.Minute) //nolint:govet // shadow: sequential err in table-driven test is benign
-		if err != nil {
-			t.Fatalf("Increment %d failed: %v", i, err)
+		count, _, ierr := c.Increment(ctx, "counter", 1, time.Minute)
+		if ierr != nil {
+			t.Fatalf("Increment %d failed: %v", i, ierr)
 		}
 
 		if count != int64(i) {
@@ -154,7 +155,7 @@ func TestSetGetDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
 	}
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 
@@ -213,7 +214,7 @@ func TestReset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
 	}
-	defer c.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, c)
 
 	ctx := context.Background()
 

@@ -33,7 +33,7 @@ func TestVerifyRequest_MissingHeaderAlgUsesJWK(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"ok":true}`)
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Date", opts.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
 
@@ -82,7 +82,7 @@ func TestVerifyRequest_OmitAlgECDSAP256(t *testing.T) {
 	verifier := crypto.NewRFC9421VerifierWithOptions(opts)
 
 	body := []byte(`{"ok":true}`)
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Date", opts.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
 
@@ -221,7 +221,7 @@ func TestVerifyRequest_ExactKeyIDResolutionEndToEnd(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestVerifyRequest_RejectsKeyIDWithoutExactKid(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +290,7 @@ func TestVerifyRequest_KeyNotFoundVsLookupFailed(t *testing.T) {
 	digest := httpsigContentDigestHeader(body)
 
 	newReq := func() *http.Request {
-		req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))

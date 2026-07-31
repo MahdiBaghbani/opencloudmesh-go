@@ -7,7 +7,6 @@ package crypto_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
@@ -41,20 +42,20 @@ func TestSignVerifyRoundTrip_RealTransport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	req, err := http.NewRequest(http.MethodGet, server.URL+"/ocm/discovery", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/ocm/discovery", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := signer.SignRequest(req, nil); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("SignRequest: %v", err)
+	if serr := signer.SignRequest(req, nil); serr != nil {
+		t.Fatalf("SignRequest: %v", serr)
 	}
 
-	resp, err := server.Client().Do(req)
+	resp, err := server.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("client.Do: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if !strings.Contains(gotSignatureInput, `"content-length"`) {
 		t.Fatalf("server-observed Signature-Input = %q, want content-length coverage for an empty body", gotSignatureInput)
@@ -82,7 +83,7 @@ func TestSignVerifyRoundTrip_ExactKeyIDOverHTTPJWKS(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(km.JWKS()) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.WriteJSON(w, km.JWKS())
 	})
 	mux.HandleFunc("/ocm/discovery", func(w http.ResponseWriter, r *http.Request) {
 		resolver, err := jwks.NewResolver(srv.Client())
@@ -107,20 +108,20 @@ func TestSignVerifyRoundTrip_ExactKeyIDOverHTTPJWKS(t *testing.T) {
 	srv = httptest.NewTLSServer(mux)
 	defer srv.Close()
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/ocm/discovery", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/ocm/discovery", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := signer.SignRequest(req, nil); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("SignRequest: %v", err)
+	if serr := signer.SignRequest(req, nil); serr != nil {
+		t.Fatalf("SignRequest: %v", serr)
 	}
 
-	resp, err := srv.Client().Do(req)
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("client.Do: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test cleanup: resource close
+	defer tshttp.MustClose(t, resp.Body)
 
 	if !gotVerified {
 		t.Fatalf("expected server-side verification via HTTP JWKS exact keyid match: %v", gotErr)
@@ -137,7 +138,7 @@ func TestVerifyRequest_MissingKeyIDMakesNoHTTPCall(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		jwksRequests.Add(1)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks.Set{Keys: []jwks.Key{}}) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.WriteJSON(w, jwks.Set{Keys: []jwks.Key{}})
 	}))
 	defer srv.Close()
 
@@ -148,7 +149,7 @@ func TestVerifyRequest_MissingKeyIDMakesNoHTTPCall(t *testing.T) {
 
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`ocm=("@method" "@target-uri" "content-digest" "content-length" "date");created=%d;alg="ed25519";tag="ocm"`,

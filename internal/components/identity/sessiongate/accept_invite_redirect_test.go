@@ -6,6 +6,7 @@
 package sessiongate
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +35,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesFullQuery(t *testing.T) {
 	r.Get("/ui/accept-invite", protected)
 
 	originalQuery := "token=invite-abc&providerDomain=alice.example.com"
-	req := httptest.NewRequest(http.MethodGet, "/ui/accept-invite?"+originalQuery, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/accept-invite?"+originalQuery, nil)
 	rr := httptest.NewRecorder()
 
 	r.ServeHTTP(rr, req)
@@ -85,7 +86,7 @@ func TestAuthGate_AcceptInviteRedirectPreservesQueryWithBasePath(t *testing.T) {
 	r.Get("/ocm/ui/accept-invite", protected)
 
 	originalQuery := "token=xyz&providerDomain=bob.example.com"
-	req := httptest.NewRequest(http.MethodGet, "/ocm/ui/accept-invite?"+originalQuery, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ocm/ui/accept-invite?"+originalQuery, nil)
 	rr := httptest.NewRecorder()
 
 	r.ServeHTTP(rr, req)

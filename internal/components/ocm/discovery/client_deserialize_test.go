@@ -41,7 +41,7 @@ func TestClientDiscover_DeserializesTypedReceiveRoles(t *testing.T) {
 		})
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.MustEncodeJSON(t, w, raw)
 	})
 
 	client := discovery.NewClient(httpclient.New(tshttp.PermissiveConfig(), nil), nil)
@@ -123,7 +123,7 @@ func TestClientDiscover_IgnoresInlinePublicKey(t *testing.T) {
 				raw := inlineKeyDiscoveryPayload(server.URL, tt.shape, tt.apiVersion)
 
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+				tshttp.MustEncodeJSON(t, w, raw)
 			}))
 			defer server.Close()
 

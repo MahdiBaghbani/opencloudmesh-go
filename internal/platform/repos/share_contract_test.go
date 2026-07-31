@@ -70,10 +70,10 @@ func runIncomingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 		t.Errorf("GetByProviderID ShareID: got %q, want %q", got.ShareID, share.ShareID)
 	}
 
-	if err := r.IncomingShares.UpdateStatusForRecipientUserID( //nolint:govet // shadow: sequential err in table-driven test is benign
+	if serr := r.IncomingShares.UpdateStatusForRecipientUserID(
 		ctx, share.ShareID, share.RecipientUserID, shares.ShareStatusAccepted,
-	); err != nil {
-		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
+	); serr != nil {
+		t.Fatalf("UpdateStatusForRecipientUserID: %v", serr)
 	}
 
 	got, err = r.IncomingShares.GetByIDForRecipientUserID(ctx, share.ShareID, share.RecipientUserID)
@@ -85,8 +85,8 @@ func runIncomingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 		t.Errorf("Status after update: got %q, want accepted", got.Status)
 	}
 
-	if err := r.IncomingShares.DeleteForRecipientUserID(ctx, share.ShareID, share.RecipientUserID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("DeleteForRecipientUserID: %v", err)
+	if serr := r.IncomingShares.DeleteForRecipientUserID(ctx, share.ShareID, share.RecipientUserID); serr != nil {
+		t.Fatalf("DeleteForRecipientUserID: %v", serr)
 	}
 
 	_, err = r.IncomingShares.GetByIDForRecipientUserID(ctx, share.ShareID, share.RecipientUserID)
@@ -346,8 +346,8 @@ func runOutgoingShareRepoContractCRUD(t *testing.T, ctx context.Context, r *repo
 	}
 
 	share.Status = shares.OutgoingShareStatusAccepted
-	if err := r.OutgoingShares.Update(ctx, share); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("Update: %v", err)
+	if serr := r.OutgoingShares.Update(ctx, share); serr != nil {
+		t.Fatalf("Update: %v", serr)
 	}
 
 	got, err = r.OutgoingShares.GetByID(ctx, share.ShareID)

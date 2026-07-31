@@ -29,7 +29,7 @@ func TestService_SharesRequireVerifiedSignature(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodPost,
 		"/shares",
 		bytes.NewBufferString(`{"shareWith":"user@remote.example","name":"test","providerId":"provider-123","owner":"owner@remote.example","sender":"sender@remote.example","shareType":"user","resourceType":"file","protocol":{"name":"webdav","options":{"sharedSecret":"secret"}}}`),
@@ -54,7 +54,7 @@ func TestService_InviteAcceptedRequireVerifiedSignature(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodPost,
 		"/invite-accepted",
 		bytes.NewBufferString(`{"recipientProvider":"remote.example","token":"invite-token","userID":"user-1","email":"user@remote.example","name":"Remote User"}`),
@@ -99,7 +99,7 @@ func TestService_SignedTokenExchangePropagatesVerifiedIdentity(t *testing.T) {
 	form := "grant_type=authorization_code&client_id=" + clientHost + "&code=" + sharedSecret
 	body := []byte(form)
 	origin := config.DevConfig().PublicOrigin
-	req := httptest.NewRequest(http.MethodPost, origin+"/token", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, origin+"/token", bytes.NewReader(body))
 	req.Host = "localhost:9200"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -146,7 +146,7 @@ func TestService_TokenRequireVerifiedSignature(t *testing.T) {
 	}
 
 	form := "grant_type=authorization_code&client_id=receiver.example.com&code=secret-code"
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodPost,
 		"/token",
 		bytes.NewBufferString(form),

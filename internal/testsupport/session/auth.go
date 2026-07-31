@@ -8,6 +8,7 @@ package session
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,7 +18,7 @@ import (
 const defaultAdminPassword = "testpassword123"
 
 // Login exchanges credentials for a session bearer token at /api/auth/login.
-func Login(client *http.Client, baseURL, username, password string) (string, error) {
+func Login(ctx context.Context, client *http.Client, baseURL, username, password string) (string, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -26,7 +27,7 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 		password = defaultAdminPassword
 	}
 
-	body, err := json.Marshal(map[string]string{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
+	body, err := json.Marshal(map[string]string{ //nolint:errchkjson // payload type cannot fail to encode, so the checked error is always nil
 		"username": username,
 		"password": password,
 	})
@@ -34,7 +35,14 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 		return "", fmt.Errorf("encode login body: %w", err)
 	}
 
-	resp, err := client.Post(baseURL+"/api/auth/login", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/api/auth/login", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("build login request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("POST login: %w", err)
 	}
@@ -64,7 +72,7 @@ func Login(client *http.Client, baseURL, username, password string) (string, err
 }
 
 // NewRequest builds an HTTP request with optional JSON body and bearer auth.
-func NewRequest(method, baseURL, path, token string, payload any) (*http.Request, error) {
+func NewRequest(ctx context.Context, method, baseURL, path, token string, payload any) (*http.Request, error) {
 	var body io.Reader
 
 	if payload != nil {
@@ -76,7 +84,7 @@ func NewRequest(method, baseURL, path, token string, payload any) (*http.Request
 		body = bytes.NewReader(encoded)
 	}
 
-	req, err := http.NewRequest(method, baseURL+path, body)
+	req, err := http.NewRequestWithContext(ctx, method, baseURL+path, body)
 	if err != nil {
 		return nil, err
 	}

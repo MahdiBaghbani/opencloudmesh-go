@@ -8,6 +8,7 @@ package integration
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +22,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -72,8 +75,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewEncoder(w).Encode(disc)
+			tshttp.WriteJSON(w, disc)
 		case "/ocm/jwks":
 			if km == nil {
 				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
@@ -81,8 +83,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewEncoder(w).Encode(km.JWKS())
+			tshttp.WriteJSON(w, km.JWKS())
 		case "/ocm/shares":
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -117,8 +118,7 @@ func startStrictCodeFlowReceiver(t *testing.T) *strictCodeFlowReceiver {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			//nolint:errcheck // test stub handler: response write
-			_, _ = w.Write([]byte(`{"recipientDisplayName":"Strict Receiver"}`))
+			tshttp.MustWrite(t, w, []byte(`{"recipientDisplayName":"Strict Receiver"}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -177,6 +177,7 @@ type strictRecordingShareCapture struct {
 // strictRecordingReceiver is a strict-capable httptest peer that records share
 // and token exchange traffic and exposes a minimal WebDAV stub.
 type strictRecordingReceiver struct {
+	t              *testing.T
 	server         *httptest.Server
 	peerDomain     string
 	peerBaseURL    string
@@ -197,108 +198,20 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 		km  *crypto.KeyManager
 	)
 
-	receiver := &strictRecordingReceiver{}
+	receiver := &strictRecordingReceiver{t: t}
 
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/.well-known/ocm":
-			if km == nil {
-				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
-				return
-			}
-
-			disc := spec.Discovery{
-				Enabled:       true,
-				APIVersion:    "1.4.0",
-				EndPoint:      srv.URL + "/ocm",
-				ResourceTypes: []spec.ResourceType{{Name: "file", ShareTypes: []string{"user"}, Protocols: spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")}}},
-				Capabilities:  []string{"exchange-token", "http-sig"},
-				Criteria:      []string{spec.CriteriaMustExchangeToken, spec.CriteriaMustUseHTTPSig},
-				TokenEndPoint: srv.URL + "/ocm/token",
-				JwksUri:       srv.URL + "/ocm/jwks",
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewEncoder(w).Encode(disc)
+			serveRecordingDiscovery(w, srv, km)
 		case r.URL.Path == "/ocm/jwks":
-			if km == nil {
-				http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewEncoder(w).Encode(km.JWKS())
+			serveRecordingJWKS(w, km)
 		case r.URL.Path == "/ocm/shares" && r.Method == http.MethodPost:
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				http.Error(w, "failed to read share body", http.StatusBadRequest)
-				return
-			}
-
-			var req spec.NewShareRequest
-			if err := json.Unmarshal(body, &req); err != nil {
-				http.Error(w, "failed to parse share body", http.StatusBadRequest)
-				return
-			}
-
-			if req.Protocol.WebDAV == nil {
-				http.Error(w, "missing webdav payload", http.StatusBadRequest)
-				return
-			}
-
-			capture := strictRecordingShareCapture{
-				ProviderID:   req.ProviderID,
-				SharedSecret: req.Protocol.WebDAV.SharedSecret,
-				Requirements: append([]string(nil), req.Protocol.WebDAV.Requirements...),
-				SawSignature: r.Header.Get("Signature") != "",
-				RawBody:      append([]byte(nil), body...),
-			}
-
-			receiver.mu.Lock()
-			receiver.lastShare = capture
-			receiver.mu.Unlock()
-			receiver.postCount.Add(1)
-
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			//nolint:errcheck // test stub handler: response write
-			_, _ = w.Write([]byte(`{"recipientDisplayName":"Strict Recording Receiver"}`))
+			receiver.serveRecordingShare(w, r)
 		case r.URL.Path == "/ocm/token" && r.Method == http.MethodPost:
-			receiver.tokenPostCount.Add(1)
-
-			if err := r.ParseForm(); err != nil {
-				http.Error(w, "invalid token form", http.StatusBadRequest)
-				return
-			}
-
-			receiver.mu.Lock()
-			receiver.lastTokenForm = copyURLValues(r.PostForm)
-			receiver.mu.Unlock()
-
-			w.Header().Set("Content-Type", "application/json")
-			//nolint:errcheck // test stub handler: JSON encode/decode
-			_ = json.NewEncoder(w).Encode(spec.TokenResponse{ //nolint:gosec // test fixture: dummy token, not a secret
-				AccessToken: "recording-receiver-access-token",
-				TokenType:   "Bearer",
-				ExpiresIn:   3600,
-			})
+			receiver.serveRecordingToken(w, r)
 		case strings.HasPrefix(r.URL.Path, "/webdav/ocm/"):
-			if r.Method != http.MethodGet {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-
-			if r.Header.Get("Authorization") == "" {
-				http.Error(w, "missing authorization", http.StatusUnauthorized)
-				return
-			}
-
-			receiver.webDAVGetCount.Add(1)
-			w.WriteHeader(http.StatusOK)
-			//nolint:errcheck // test stub handler: response write
-			_, _ = w.Write([]byte("strict-recording-webdav-stub"))
+			receiver.serveRecordingWebDAV(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -323,6 +236,114 @@ func startStrictRecordingReceiver(t *testing.T) *strictRecordingReceiver {
 	receiver.peerBaseURL = srv.URL
 
 	return receiver
+}
+
+// serveRecordingDiscovery serves the strict discovery document for the receiver.
+func serveRecordingDiscovery(w http.ResponseWriter, srv *httptest.Server, km *crypto.KeyManager) {
+	if km == nil {
+		http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	disc := spec.Discovery{
+		Enabled:       true,
+		APIVersion:    "1.4.0",
+		EndPoint:      srv.URL + "/ocm",
+		ResourceTypes: []spec.ResourceType{{Name: "file", ShareTypes: []string{"user"}, Protocols: spec.Protocols{"webdav": spec.StringProtocolRole("/webdav/ocm/")}}},
+		Capabilities:  []string{"exchange-token", "http-sig"},
+		Criteria:      []string{spec.CriteriaMustExchangeToken, spec.CriteriaMustUseHTTPSig},
+		TokenEndPoint: srv.URL + "/ocm/token",
+		JwksUri:       srv.URL + "/ocm/jwks",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	tshttp.WriteJSON(w, disc)
+}
+
+// serveRecordingJWKS serves the receiver JWKS.
+func serveRecordingJWKS(w http.ResponseWriter, km *crypto.KeyManager) {
+	if km == nil {
+		http.Error(w, "receiver signing key not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	tshttp.WriteJSON(w, km.JWKS())
+}
+
+// serveRecordingShare records an inbound share POST and returns 201.
+func (r *strictRecordingReceiver) serveRecordingShare(w http.ResponseWriter, req *http.Request) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, "failed to read share body", http.StatusBadRequest)
+		return
+	}
+
+	var shareReq spec.NewShareRequest
+	if err := json.Unmarshal(body, &shareReq); err != nil {
+		http.Error(w, "failed to parse share body", http.StatusBadRequest)
+		return
+	}
+
+	if shareReq.Protocol.WebDAV == nil {
+		http.Error(w, "missing webdav payload", http.StatusBadRequest)
+		return
+	}
+
+	capture := strictRecordingShareCapture{
+		ProviderID:   shareReq.ProviderID,
+		SharedSecret: shareReq.Protocol.WebDAV.SharedSecret,
+		Requirements: append([]string(nil), shareReq.Protocol.WebDAV.Requirements...),
+		SawSignature: req.Header.Get("Signature") != "",
+		RawBody:      append([]byte(nil), body...),
+	}
+
+	r.mu.Lock()
+	r.lastShare = capture
+	r.mu.Unlock()
+	r.postCount.Add(1)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	tshttp.MustWrite(r.t, w, []byte(`{"recipientDisplayName":"Strict Recording Receiver"}`))
+}
+
+// serveRecordingToken records a token exchange POST and returns a token.
+func (r *strictRecordingReceiver) serveRecordingToken(w http.ResponseWriter, req *http.Request) {
+	r.tokenPostCount.Add(1)
+
+	if err := req.ParseForm(); err != nil {
+		http.Error(w, "invalid token form", http.StatusBadRequest)
+		return
+	}
+
+	r.mu.Lock()
+	r.lastTokenForm = copyURLValues(req.PostForm)
+	r.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	tshttp.WriteJSON(w, spec.TokenResponse{
+		AccessToken: "recording-receiver-access-token",
+		TokenType:   "Bearer",
+		ExpiresIn:   3600,
+	})
+}
+
+// serveRecordingWebDAV serves the minimal WebDAV stub.
+func (r *strictRecordingReceiver) serveRecordingWebDAV(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if req.Header.Get("Authorization") == "" {
+		http.Error(w, "missing authorization", http.StatusUnauthorized)
+		return
+	}
+
+	r.webDAVGetCount.Add(1)
+	w.WriteHeader(http.StatusOK)
+	tshttp.MustWrite(r.t, w, []byte("strict-recording-webdav-stub"))
 }
 
 func copyURLValues(src url.Values) url.Values {
@@ -413,6 +434,7 @@ func strictRecordingReceiverAllowedPort(t *testing.T, receiver *strictRecordingR
 // trustedProtocolPeer serves HTTPS using the shared dockypody-signed localhost
 // fixture certificate so strict subprocess servers trust it via tls_root_ca_file.
 type trustedProtocolPeer struct {
+	t             *testing.T
 	server        *http.Server
 	peerDomain    string
 	peerBaseURL   string
@@ -423,8 +445,9 @@ type trustedProtocolPeer struct {
 
 func (p *trustedProtocolPeer) Close() {
 	if p != nil && p.server != nil {
-		//nolint:errcheck // test cleanup: test fixture server shutdown
-		_ = p.server.Close()
+		if err := p.server.Close(); err != nil && p.t != nil {
+			p.t.Errorf("close trusted protocol peer: %v", err)
+		}
 	}
 }
 
@@ -464,19 +487,24 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 		t.Fatalf("load trusted protocol peer TLS key pair: %v", err)
 	}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen trusted protocol peer: %v", err)
 	}
 
-	//nolint:errcheck // test helper: ephemeral TCP listener address
-	port := listener.Addr().(*net.TCPAddr).Port //nolint:forcetypeassert // test: TCPAddr assertion is safe for net.Listen TCP listener
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("trusted protocol peer listener address type = %T, want *net.TCPAddr", listener.Addr())
+	}
+
+	port := tcpAddr.Port
 	tlsListener := tls.NewListener(listener, &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		MinVersion:   tls.VersionTLS12,
 	})
 
 	peer := &trustedProtocolPeer{
+		t:           t,
 		port:        port,
 		peerDomain:  fmt.Sprintf("localhost:%d", port),
 		peerBaseURL: fmt.Sprintf("https://localhost:%d", port),
@@ -492,8 +520,9 @@ func startTrustedProtocolPeer(t *testing.T, handler func(peer *trustedProtocolPe
 	}
 
 	go func() {
-		//nolint:errcheck // test cleanup: test fixture server shutdown
-		_ = peer.server.Serve(tlsListener)
+		if err := peer.server.Serve(tlsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			t.Errorf("trusted protocol peer serve: %v", err)
+		}
 	}()
 
 	t.Cleanup(func() {

@@ -48,7 +48,7 @@ func TestProtocolNegativeStrict(t *testing.T) {
 		pair := startStrictProtocolPairWithExtraAllowedPorts(t, tsprotocol.VariantProtocolPair, extraPorts)
 		defer pair.Stop(t)
 
-		runOutboundCrossAuthorityCase(t, pair, receiver, recordingReceiver)
+		runOutboundDiscoveryFailureCase(t, pair, receiver, recordingReceiver, "cross-authority")
 	})
 
 	t.Run("outbound_redirect_ssrf", func(t *testing.T) {
@@ -61,7 +61,7 @@ func TestProtocolNegativeStrict(t *testing.T) {
 		pair := startStrictProtocolPairWithExtraAllowedPorts(t, tsprotocol.VariantSSRFStrictRedirect, extraPorts)
 		defer pair.Stop(t)
 
-		runOutboundRedirectSSRFCase(t, pair, receiver, recordingReceiver)
+		runOutboundDiscoveryFailureCase(t, pair, receiver, recordingReceiver, "redirect-ssrf")
 	})
 
 	t.Run("outbound_stale_trust_membership", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestProtocolNegativeStrict(t *testing.T) {
 		pair := startStrictProtocolPairWithExtraAllowedPorts(t, tsprotocol.VariantProtocolPair, extraPorts)
 		defer pair.Stop(t)
 
-		runMalformedDiscoveryBlocksOutboundCase(t, pair, receiver, recordingReceiver)
+		runOutboundDiscoveryFailureCase(t, pair, receiver, recordingReceiver, "malformed-discovery")
 	})
 
 	t.Run("contract_unexchanged_shared_secret_bearer_401", func(t *testing.T) {

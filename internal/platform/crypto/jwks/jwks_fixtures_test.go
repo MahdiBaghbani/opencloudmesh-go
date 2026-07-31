@@ -7,10 +7,11 @@ package jwks_test
 
 import (
 	"crypto/ed25519"
-	"encoding/json"
 	"net/http"
 	"sync/atomic"
 	"testing"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/jwks"
 )
@@ -42,7 +43,7 @@ func mustTwoEd25519PublicKeys(t *testing.T) (ed25519.PublicKey, ed25519.PublicKe
 func jwksJSONHandler(set jwks.Set) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(set) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.WriteJSON(w, set)
 	}
 }
 
@@ -63,10 +64,10 @@ func twoKeyRotationHandler(version *atomic.Int32, key1Pub, key2Pub ed25519.Publi
 		w.Header().Set("Content-Type", "application/json")
 
 		if version.Load() == 0 {
-			_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(testJWKSKey1, key1Pub)) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.WriteJSON(w, jwks.SetFromEd25519PublicKey(testJWKSKey1, key1Pub))
 			return
 		}
 
-		_ = json.NewEncoder(w).Encode(jwks.SetFromEd25519PublicKey(testJWKSKey2, key2Pub)) //nolint:errcheck // test mock handler: JSON encode
+		tshttp.WriteJSON(w, jwks.SetFromEd25519PublicKey(testJWKSKey2, key2Pub))
 	}
 }

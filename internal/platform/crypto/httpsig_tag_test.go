@@ -27,7 +27,7 @@ func TestVerifyRequest_AcceptsForeignLabelsWithOneOCM(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestVerifyRequest_RejectsDuplicateSignatureLabels(t *testing.T) {
 	digest := httpsigContentDigestHeader(body)
 
 	newReq := func(sigInput, signature string) *http.Request {
-		req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -138,7 +138,7 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 	body := httpsigTestBodyJSON
 	digest := httpsigContentDigestHeader(body)
 
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	req.Header.Set("Content-Digest", digest)
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 	req.Header.Set("Date", httpsigStandardDate)
@@ -166,7 +166,7 @@ func TestVerifyRequest_RejectsDuplicateOCM(t *testing.T) {
 func TestVerifyRequest_RejectsMissingOCM(t *testing.T) {
 	verifier := crypto.NewRFC9421Verifier()
 	now := time.Now().Unix()
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", nil)
 	req.Header.Set("Date", httpsigStandardDate)
 	req.Header.Set("Signature-Input", fmt.Sprintf(
 		`sig1=("@method" "@target-uri" "date");created=%d;keyid="a#1";alg="ed25519"`,
@@ -202,7 +202,7 @@ func TestHTTPSig_Sign_AlwaysEmitsTag(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestHTTPSig_Sign_AlwaysEmitsTagWithCustomLabel(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestHTTPSig_Verify_ByTag_IgnoresLabel(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestHTTPSig_Verify_TagCount(t *testing.T) {
 	body := httpsigTestBodyJSON
 	digest := httpsigContentDigestHeader(body)
 	newReq := func(sigInput string) *http.Request {
-		req := httptest.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Digest", digest)
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -381,15 +381,15 @@ func TestHTTPSig_Verify_TagIntegrityInvariant(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/shares", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
 
 	req.Host = "example.com"
 
-	if err := signer.SignRequest(req, body); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
-		t.Fatalf("SignRequest failed: %v", err)
+	if serr := signer.SignRequest(req, body); serr != nil {
+		t.Fatalf("SignRequest failed: %v", serr)
 	}
 
 	sigInput := req.Header.Get("Signature-Input")

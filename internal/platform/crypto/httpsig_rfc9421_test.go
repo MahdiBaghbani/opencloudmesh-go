@@ -95,7 +95,7 @@ func TestAppendixB_VectorSignVerify_Positive(t *testing.T) {
 				reqBody = bytes.NewReader(tc.body)
 			}
 
-			req, err := http.NewRequest(tc.method, tc.target, reqBody)
+			req, err := http.NewRequestWithContext(t.Context(), tc.method, tc.target, reqBody)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -155,7 +155,7 @@ func TestAppendixB_VectorVerify_Negative(t *testing.T) {
 
 	body := httpsigTestBodyJSON
 
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/ocm/token", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/ocm/token", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

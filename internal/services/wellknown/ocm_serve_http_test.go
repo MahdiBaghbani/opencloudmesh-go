@@ -6,6 +6,7 @@
 package wellknown
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +28,7 @@ func TestOCMHandler_ServeHTTP(t *testing.T) {
 		testLogger(),
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()
 
 	h.ServeHTTP(w, req)
@@ -64,7 +65,7 @@ func TestOCMHandler_ServeHTTP_DisabledDiscovery(t *testing.T) {
 
 	h := newOCMHandler(c, nil, resolve.ResolveInputs{}, testLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/ocm", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/.well-known/ocm", nil)
 	w := httptest.NewRecorder()
 
 	h.ServeHTTP(w, req)

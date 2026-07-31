@@ -6,15 +6,16 @@
 package directoryservice
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/go-jose/go-jose/v4"
+
+	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 )
 
 func TestFetchListing_Required_SetsVerifiedTrue(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -33,7 +34,7 @@ func TestFetchListing_Required_SetsVerifiedTrue(t *testing.T) {
 }
 
 func TestFetchListing_Optional_UnsignedPayload_Accepted(t *testing.T) {
-	ts := serveJWS(t, testPayload())
+	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "optional", nil)
@@ -54,7 +55,7 @@ func TestFetchListing_Optional_UnsignedPayload_Accepted(t *testing.T) {
 
 func TestFetchListing_Optional_ValidJWS_Verified(t *testing.T) {
 	kp := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -77,7 +78,7 @@ func TestFetchListing_Optional_ValidJWS_Verified(t *testing.T) {
 func TestFetchListing_Optional_BadSignature_Rejected(t *testing.T) {
 	signing := generateEd25519(t)
 	wrong := generateEd25519(t)
-	body := signCompact(t, jose.EdDSA, signing.priv, testPayload())
+	body := signCompact(t, jose.EdDSA, signing.priv, testPayload(t))
 
 	ts := serveJWS(t, body)
 	defer ts.Close()
@@ -92,7 +93,7 @@ func TestFetchListing_Optional_BadSignature_Rejected(t *testing.T) {
 }
 
 func TestFetchListing_Optional_NoKeys_AcceptsAsUnsigned(t *testing.T) {
-	ts := serveJWS(t, testPayload())
+	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "optional", nil)
@@ -111,7 +112,7 @@ func TestFetchListing_Optional_NoKeys_AcceptsAsUnsigned(t *testing.T) {
 }
 
 func TestFetchListing_Off_Accepted(t *testing.T) {
-	ts := serveJWS(t, testPayload())
+	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "off", nil)
@@ -133,7 +134,7 @@ func TestFetchListing_Off_Accepted(t *testing.T) {
 // peer trust membership refresh uses required JWS verification (matching wiring
 // bootstrap). Unsigned directory listings must not satisfy membership refresh.
 func TestTrustMembershipGuardrail_RequiredRejectsUnsignedListing(t *testing.T) {
-	ts := serveJWS(t, testPayload())
+	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "required", nil)
@@ -147,7 +148,7 @@ func TestTrustMembershipGuardrail_RequiredRejectsUnsignedListing(t *testing.T) {
 }
 
 func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
-	ts := serveJWS(t, testPayload())
+	ts := serveJWS(t, testPayload(t))
 	defer ts.Close()
 
 	client := NewClient(newTestHTTPClient(), "required", nil)
@@ -170,7 +171,7 @@ func TestFetchListing_PerCallPolicyOverridesDefault(t *testing.T) {
 }
 
 func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing.T) {
-	payload, err := json.Marshal(Listing{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
+	payload := tshttp.MustMarshalJSON(t, Listing{
 		Federation: "test-federation",
 		Servers: []Server{
 			{URL: "https://valid.example.com", DisplayName: "Valid"},
@@ -182,9 +183,6 @@ func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing
 			{URL: "ftp://wrong-scheme.example.com", DisplayName: "Wrong Scheme"},
 		},
 	})
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
 
 	kp := generateEd25519(t)
 	body := signCompact(t, jose.EdDSA, kp.priv, payload)
@@ -221,7 +219,7 @@ func TestFetchListing_URLValidation_VerifiedListingFiltersInvalidURLs(t *testing
 }
 
 func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
-	unsignedTS := serveJWS(t, testPayload())
+	unsignedTS := serveJWS(t, testPayload(t))
 	defer unsignedTS.Close()
 
 	trustClient := NewClient(newTestHTTPClient(), "required", nil)
@@ -233,7 +231,7 @@ func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
 		t.Fatal("unsigned listing must be rejected under required policy used for trust membership")
 	}
 
-	signedBody := signCompact(t, jose.EdDSA, kp.priv, testPayload())
+	signedBody := signCompact(t, jose.EdDSA, kp.priv, testPayload(t))
 
 	signedTS := serveJWS(t, signedBody)
 	defer signedTS.Close()
@@ -249,16 +247,13 @@ func TestTrustMembershipConsumesVerifiedListings_Guardrail(t *testing.T) {
 }
 
 func TestFetchListing_URLValidation_UnverifiedListingKeepsAllURLs(t *testing.T) {
-	payload, err := json.Marshal(Listing{ //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
+	payload := tshttp.MustMarshalJSON(t, Listing{
 		Federation: "test-federation",
 		Servers: []Server{
 			{URL: "https://valid.example.com", DisplayName: "Valid"},
 			{URL: "https://has-path.example.com/base/path", DisplayName: "Has Path"},
 		},
 	})
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
 
 	ts := serveJWS(t, payload)
 	defer ts.Close()

@@ -40,7 +40,7 @@ type AcceptResult struct {
 // See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L383-L387
 // See https://github.com/cs3org/OCM-API/blob/6a0586183cbef10ecae9dedc42561806447eb2f5/IETF-OCM.md#L808-L823
 func SendInviteAccepted(ctx context.Context, poster InviteAcceptedPoster, req spec.InviteAcceptedRequest, targetHost string) (AcceptResult, error) {
-	body, err := json.Marshal(req) //nolint:errchkjson // MarshalJSON emits fixed JSON; error is always nil in practice
+	body, err := json.Marshal(req) //nolint:errchkjson // payload type cannot fail to encode, so the checked error is always nil
 	if err != nil {
 		return AcceptResult{}, fmt.Errorf("failed to encode request: %w", err)
 	}

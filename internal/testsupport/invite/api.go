@@ -6,6 +6,7 @@
 package invite
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -46,8 +47,8 @@ type AcceptResponse struct {
 }
 
 // CreateOutgoing posts to /api/invites/outgoing and returns the created invite.
-func CreateOutgoing(client *http.Client, baseURL, token string) (*OutgoingCreateResponse, int, error) {
-	req, err := tsession.NewRequest(http.MethodPost, baseURL, "/api/invites/outgoing", token, map[string]any{})
+func CreateOutgoing(ctx context.Context, client *http.Client, baseURL, token string) (*OutgoingCreateResponse, int, error) {
+	req, err := tsession.NewRequest(ctx, http.MethodPost, baseURL, "/api/invites/outgoing", token, map[string]any{})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -71,8 +72,8 @@ func CreateOutgoing(client *http.Client, baseURL, token string) (*OutgoingCreate
 }
 
 // Import posts to /api/inbox/invites/import.
-func Import(client *http.Client, baseURL, token, inviteString string) (*ImportResponse, int, error) {
-	req, err := tsession.NewRequest(http.MethodPost, baseURL, "/api/inbox/invites/import", token, map[string]string{
+func Import(ctx context.Context, client *http.Client, baseURL, token, inviteString string) (*ImportResponse, int, error) {
+	req, err := tsession.NewRequest(ctx, http.MethodPost, baseURL, "/api/inbox/invites/import", token, map[string]string{
 		"inviteString": inviteString,
 	})
 	if err != nil {
@@ -98,10 +99,10 @@ func Import(client *http.Client, baseURL, token, inviteString string) (*ImportRe
 }
 
 // Accept posts to /api/inbox/invites/{id}/accept.
-func Accept(client *http.Client, baseURL, token, inviteID string) (*AcceptResponse, int, error) {
+func Accept(ctx context.Context, client *http.Client, baseURL, token, inviteID string) (*AcceptResponse, int, error) {
 	path := fmt.Sprintf("/api/inbox/invites/%s/accept", inviteID)
 
-	req, err := tsession.NewRequest(http.MethodPost, baseURL, path, token, nil)
+	req, err := tsession.NewRequest(ctx, http.MethodPost, baseURL, path, token, nil)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -125,8 +126,8 @@ func Accept(client *http.Client, baseURL, token, inviteID string) (*AcceptRespon
 }
 
 // ListInbox returns GET /api/inbox/invites.
-func ListInbox(client *http.Client, baseURL, token string) (*InboxListResponse, int, error) {
-	req, err := tsession.NewRequest(http.MethodGet, baseURL, "/api/inbox/invites", token, nil)
+func ListInbox(ctx context.Context, client *http.Client, baseURL, token string) (*InboxListResponse, int, error) {
+	req, err := tsession.NewRequest(ctx, http.MethodGet, baseURL, "/api/inbox/invites", token, nil)
 	if err != nil {
 		return nil, 0, err
 	}

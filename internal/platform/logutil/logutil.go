@@ -12,7 +12,7 @@ import (
 )
 
 // noop is a package-level discard logger, created once.
-var noop = slog.New(slog.NewTextHandler(io.Discard, nil)) //nolint:sloglint // intentional: keep io.Discard text handler; slog.DiscardHandler revert was deliberate
+var noop = slog.New(slog.NewTextHandler(io.Discard, nil)) //nolint:sloglint // intentional: io.Discard text handler kept over slog.DiscardHandler by design
 
 // Noop returns a logger that discards all output.
 func Noop() *slog.Logger { return noop }

@@ -6,6 +6,7 @@
 package ui_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,7 +21,7 @@ func TestAcceptInvite_ReadsTokenAndProviderFromQuery(t *testing.T) {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(
+	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodGet,
 		"/accept-invite?token=invite-tok&providerDomain=alice.example.com",
 		nil,
@@ -46,7 +47,7 @@ func TestAcceptInvite_MissingParamsShowsWarning(t *testing.T) {
 		t.Fatalf("NewHandler: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/accept-invite", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/accept-invite", nil)
 	w := httptest.NewRecorder()
 	handler.AcceptInvite(w, req)
 

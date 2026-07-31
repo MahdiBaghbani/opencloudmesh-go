@@ -7,7 +7,6 @@ package discovery_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -35,7 +34,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 			})
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, raw)
 		})
 
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
@@ -65,7 +64,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 			})
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, raw)
 		})
 
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
@@ -95,7 +94,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 			})
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+			tshttp.MustEncodeJSON(t, w, raw)
 		})
 
 		client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)
@@ -137,7 +136,7 @@ func TestClientDiscover_RejectsMalformedProtocolRoles(t *testing.T) {
 					})
 
 					w.Header().Set("Content-Type", "application/json")
-					json.NewEncoder(w).Encode(raw) //nolint:errcheck // test mock handler: JSON encode
+					tshttp.MustEncodeJSON(t, w, raw)
 				})
 
 				client := discovery.NewClient(httpclient.New(httpCfg, nil), nil)

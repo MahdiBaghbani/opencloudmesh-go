@@ -100,7 +100,7 @@ func TestRequestLoggerMiddleware_AttachesRequiredFields(t *testing.T) {
 	// Wrap with RequestID and RequestLoggerMiddleware
 	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
-	req := httptest.NewRequest(http.MethodGet, "/test/path", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/path", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -169,7 +169,7 @@ func TestRequestLoggerMiddleware_ClientIPFromXForwardedFor(t *testing.T) {
 
 	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Forwarded-For", "203.0.113.42")
 
@@ -207,7 +207,7 @@ func TestRequestLoggerMiddleware_NilTrustedProxies(t *testing.T) {
 	// Pass nil trustedProxies
 	chain := chimw.RequestID(RequestLoggerMiddleware(logger, nil)(nextHandler))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
 	rr := httptest.NewRecorder()
 
@@ -244,7 +244,7 @@ func TestRequestLoggerMiddleware_PathOnly_NoQueryString(t *testing.T) {
 	chain := chimw.RequestID(RequestLoggerMiddleware(logger, tp)(nextHandler))
 
 	// Request with query string
-	req := httptest.NewRequest(http.MethodGet, "/test/path?secret=value&token=abc", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test/path?secret=value&token=abc", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rr := httptest.NewRecorder()
 

@@ -32,7 +32,10 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 		observedMethod.Store(r.Method)
 		observedHost.Store(r.Host)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("via-proxy")) //nolint:errcheck // test handler response write
+
+		if _, err := w.Write([]byte("via-proxy")); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	}))
 	defer proxy.Close()
 
@@ -42,11 +45,11 @@ func TestClient_ExplicitProxySuccess(t *testing.T) {
 
 	const destURL = "http://external.example.invalid/api"
 
-	resp, err := c.Get(context.Background(), destURL)
+	resp, err := c.Get(context.Background(), destURL) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected success through proxy, got: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -91,9 +94,9 @@ func TestClient_DestinationPrivateIPBlockedWithProxy(t *testing.T) {
 	}
 
 	for _, target := range privateTargets {
-		resp, err := c.Get(context.Background(), target)
+		resp, err := c.Get(context.Background(), target) //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 		if resp != nil {
-			resp.Body.Close() //nolint:errcheck // test response body close
+			outboundtestutil.MustClose(t, resp.Body)
 		}
 
 		if err == nil {
@@ -127,11 +130,11 @@ func TestClient_PrivateProxyAllowedInStrictMode(t *testing.T) {
 	// 203.0.113.10 is TEST-NET-3, not blocked by preflight SSRF (not
 	// private/loopback by Go's net.IP classification). The proxy lives on
 	// loopback but is operator-trusted, so it must be reached and respond.
-	resp, err := c.Get(context.Background(), "http://203.0.113.10/resource")
+	resp, err := c.Get(context.Background(), "http://203.0.113.10/resource") //nolint:bodyclose // response body closed inside shared tshttp.MustClose SSOT helper; bodyclose cannot trace close through helper
 	if err != nil {
 		t.Fatalf("expected success through private proxy in strict mode, got: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // test response body close
+	defer outboundtestutil.MustClose(t, resp.Body)
 
 	if !proxyHit.Load() {
 		t.Fatal("private proxy host must be reachable in strict mode (operator-trusted)")

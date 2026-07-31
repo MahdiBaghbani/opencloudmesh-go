@@ -48,6 +48,19 @@ func runIncomingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 		t.Fatalf("Create: %v", err)
 	}
 
+	assertIncomingInviteReadPaths(t, ctx, r, invite)
+	acceptIncomingInvite(t, ctx, r, invite)
+	assertIncomingAcceptedState(t, ctx, r, invite)
+	assertIncomingAcceptedScopeMisses(t, ctx, r, invite.RecipientUserID)
+	assertIncomingNoIdentityMiss(t, ctx, r)
+	assertIncomingInviteDelete(t, ctx, r, invite)
+}
+
+// assertIncomingInviteReadPaths checks the ID and token read paths return the
+// created invite.
+func assertIncomingInviteReadPaths(t *testing.T, ctx context.Context, r *repos.Repos, invite *invitesincoming.IncomingInvite) {
+	t.Helper()
+
 	got, err := r.IncomingInvites.GetByIDForRecipientUserID(ctx, invite.ID, invite.RecipientUserID)
 	if err != nil {
 		t.Fatalf("GetByIDForRecipientUserID: %v", err)
@@ -65,8 +78,13 @@ func runIncomingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 	if got.ID != invite.ID {
 		t.Errorf("ID: got %q, want %q", got.ID, invite.ID)
 	}
+}
 
-	if err := r.IncomingInvites.UpdateStatusForRecipientUserID( //nolint:govet // shadow: sequential err in table-driven test is benign
+// acceptIncomingInvite marks the invite accepted with sender identity.
+func acceptIncomingInvite(t *testing.T, ctx context.Context, r *repos.Repos, invite *invitesincoming.IncomingInvite) {
+	t.Helper()
+
+	if err := r.IncomingInvites.UpdateStatusForRecipientUserID(
 		ctx, invite.ID, invite.RecipientUserID, invites.InviteStatusAccepted, &invitesincoming.Acceptance{
 			UserID:                 "ct-sender-user-1",
 			ProviderFQDNNormalized: "ct.sender.invite.example",
@@ -74,8 +92,14 @@ func runIncomingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 	); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
 	}
+}
 
-	got, err = r.IncomingInvites.GetByIDForRecipientUserID(ctx, invite.ID, invite.RecipientUserID)
+// assertIncomingAcceptedState checks post-accept persisted state and the
+// accepted-sender lookup.
+func assertIncomingAcceptedState(t *testing.T, ctx context.Context, r *repos.Repos, invite *invitesincoming.IncomingInvite) {
+	t.Helper()
+
+	got, err := r.IncomingInvites.GetByIDForRecipientUserID(ctx, invite.ID, invite.RecipientUserID)
 	if err != nil {
 		t.Fatalf("GetByIDForRecipientUserID after update: %v", err)
 	}
@@ -100,27 +124,39 @@ func runIncomingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 	if found.ID != invite.ID {
 		t.Errorf("FindAcceptedForSender ID: got %q, want %q", found.ID, invite.ID)
 	}
+}
 
-	if _, err := r.IncomingInvites.FindAcceptedForSender( //nolint:govet // shadow: sequential err in table-driven test is benign
-		ctx, invite.RecipientUserID, "ct-sender-user-1", "other.example",
-	); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForSender wrong host: expected ErrInviteNotFound, got %v", err)
+// assertIncomingAcceptedScopeMisses checks wrong host, user, or recipient
+// queries never match the accepted invite.
+func assertIncomingAcceptedScopeMisses(t *testing.T, ctx context.Context, r *repos.Repos, recipientUserID string) {
+	t.Helper()
+
+	cases := []struct {
+		name       string
+		recipient  string
+		senderUser string
+		senderFQDN string
+	}{
+		{"wrong host", recipientUserID, "ct-sender-user-1", "other.example"},
+		{"wrong user", recipientUserID, "ct-other-user", "ct.sender.invite.example"},
+		{"wrong recipient", "ct-wrong-recipient", "ct-sender-user-1", "ct.sender.invite.example"},
 	}
 
-	if _, err := r.IncomingInvites.FindAcceptedForSender( //nolint:govet // shadow: sequential err in table-driven test is benign
-		ctx, invite.RecipientUserID, "ct-other-user", "ct.sender.invite.example",
-	); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForSender wrong user: expected ErrInviteNotFound, got %v", err)
+	for _, tc := range cases {
+		if _, err := r.IncomingInvites.FindAcceptedForSender(
+			ctx, tc.recipient, tc.senderUser, tc.senderFQDN,
+		); !errors.Is(err, invites.ErrInviteNotFound) {
+			t.Errorf("FindAcceptedForSender %s: expected ErrInviteNotFound, got %v", tc.name, err)
+		}
 	}
+}
 
-	if _, err := r.IncomingInvites.FindAcceptedForSender( //nolint:govet // shadow: sequential err in table-driven test is benign
-		ctx, "ct-wrong-recipient", "ct-sender-user-1", "ct.sender.invite.example",
-	); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForSender wrong recipient: expected ErrInviteNotFound, got %v", err)
-	}
+// assertIncomingNoIdentityMiss checks a row accepted without identity
+// persistence (empty normalized sender host column) never matches, even
+// against an empty query value.
+func assertIncomingNoIdentityMiss(t *testing.T, ctx context.Context, r *repos.Repos) {
+	t.Helper()
 
-	// A row accepted without identity persistence (empty normalized sender host
-	// column) must never match, even against an empty query value.
 	noIdentity := &invitesincoming.IncomingInvite{
 		ID:              "ct-in-inv-noident",
 		Token:           "ct-in-token-noident",
@@ -130,27 +166,32 @@ func runIncomingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 		Status:          invites.InviteStatusPending,
 		ReceivedAt:      time.Unix(time.Now().Unix(), 0).UTC(),
 	}
-	if err := r.IncomingInvites.Create(ctx, noIdentity); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := r.IncomingInvites.Create(ctx, noIdentity); err != nil {
 		t.Fatalf("Create noIdentity: %v", err)
 	}
 
-	if err := r.IncomingInvites.UpdateStatusForRecipientUserID( //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := r.IncomingInvites.UpdateStatusForRecipientUserID(
 		ctx, noIdentity.ID, noIdentity.RecipientUserID, invites.InviteStatusAccepted, nil,
 	); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID noIdentity: %v", err)
 	}
 
-	if _, err := r.IncomingInvites.FindAcceptedForSender( //nolint:govet // shadow: sequential err in table-driven test is benign
+	if _, err := r.IncomingInvites.FindAcceptedForSender(
 		ctx, noIdentity.RecipientUserID, "", "",
 	); !errors.Is(err, invites.ErrInviteNotFound) {
 		t.Errorf("FindAcceptedForSender empty normalized column: expected ErrInviteNotFound, got %v", err)
 	}
+}
 
-	if err := r.IncomingInvites.DeleteForRecipientUserID(ctx, invite.ID, invite.RecipientUserID); err != nil { //nolint:govet // shadow: sequential err in table-driven test is benign
+// assertIncomingInviteDelete checks delete removes the invite for the recipient.
+func assertIncomingInviteDelete(t *testing.T, ctx context.Context, r *repos.Repos, invite *invitesincoming.IncomingInvite) {
+	t.Helper()
+
+	if err := r.IncomingInvites.DeleteForRecipientUserID(ctx, invite.ID, invite.RecipientUserID); err != nil {
 		t.Fatalf("DeleteForRecipientUserID: %v", err)
 	}
 
-	_, err = r.IncomingInvites.GetByIDForRecipientUserID(ctx, invite.ID, invite.RecipientUserID)
+	_, err := r.IncomingInvites.GetByIDForRecipientUserID(ctx, invite.ID, invite.RecipientUserID)
 	if !errors.Is(err, invites.ErrInviteNotFound) {
 		t.Errorf("GetByIDForRecipientUserID after delete: expected ErrInviteNotFound, got %v", err)
 	}
@@ -310,6 +351,18 @@ func runOutgoingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 		t.Fatalf("Create: %v", err)
 	}
 
+	assertOutgoingInviteReadPaths(t, ctx, r, invite)
+	acceptOutgoingInvite(t, ctx, r, invite)
+	assertOutgoingAcceptedState(t, ctx, r, invite)
+	assertOutgoingAcceptedScopeMisses(t, ctx, r, invite.CreatedByUserID)
+	assertOutgoingNoNormMiss(t, ctx, r, now)
+}
+
+// assertOutgoingInviteReadPaths checks the ID and token read paths return the
+// created invite.
+func assertOutgoingInviteReadPaths(t *testing.T, ctx context.Context, r *repos.Repos, invite *invitesoutgoing.OutgoingInvite) {
+	t.Helper()
+
 	got, err := r.OutgoingInvites.GetByID(ctx, invite.ID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
@@ -327,6 +380,11 @@ func runOutgoingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 	if got.ID != invite.ID {
 		t.Errorf("GetByToken ID: got %q, want %q", got.ID, invite.ID)
 	}
+}
+
+// acceptOutgoingInvite marks the invite accepted with provider identity.
+func acceptOutgoingInvite(t *testing.T, ctx context.Context, r *repos.Repos, invite *invitesoutgoing.OutgoingInvite) {
+	t.Helper()
 
 	acceptance := &invitesoutgoing.Acceptance{
 		ProviderFQDN:           "ct.provider.example",
@@ -334,13 +392,19 @@ func runOutgoingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 		ProviderFQDNNormalized: "ct.provider.example",
 	}
 
-	if err := r.OutgoingInvites.UpdateStatus( //nolint:govet // shadow: sequential err in table-driven test is benign
+	if err := r.OutgoingInvites.UpdateStatus(
 		ctx, invite.ID, invites.InviteStatusAccepted, acceptance,
 	); err != nil {
 		t.Fatalf("UpdateStatus: %v", err)
 	}
+}
 
-	got, err = r.OutgoingInvites.GetByID(ctx, invite.ID)
+// assertOutgoingAcceptedState checks post-accept persisted state and the
+// accepted-recipient lookup.
+func assertOutgoingAcceptedState(t *testing.T, ctx context.Context, r *repos.Repos, invite *invitesoutgoing.OutgoingInvite) {
+	t.Helper()
+
+	got, err := r.OutgoingInvites.GetByID(ctx, invite.ID)
 	if err != nil {
 		t.Fatalf("GetByID after UpdateStatus: %v", err)
 	}
@@ -373,27 +437,38 @@ func runOutgoingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 	if found.ID != invite.ID {
 		t.Errorf("FindAcceptedForRecipient ID: got %q, want %q", found.ID, invite.ID)
 	}
+}
 
-	if _, err := r.OutgoingInvites.FindAcceptedForRecipient(
-		ctx, invite.CreatedByUserID, "ct-acceptor-user-1", "other.example",
-	); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForRecipient wrong host: expected ErrInviteNotFound, got %v", err)
+// assertOutgoingAcceptedScopeMisses checks wrong host, user, or creator
+// queries never match the accepted invite.
+func assertOutgoingAcceptedScopeMisses(t *testing.T, ctx context.Context, r *repos.Repos, createdByUserID string) {
+	t.Helper()
+
+	cases := []struct {
+		name         string
+		creator      string
+		acceptorUser string
+		providerFQDN string
+	}{
+		{"wrong host", createdByUserID, "ct-acceptor-user-1", "other.example"},
+		{"wrong user", createdByUserID, "ct-other-acceptor", "ct.provider.example"},
+		{"wrong creator", "ct-other-creator", "ct-acceptor-user-1", "ct.provider.example"},
 	}
 
-	if _, err := r.OutgoingInvites.FindAcceptedForRecipient(
-		ctx, invite.CreatedByUserID, "ct-other-acceptor", "ct.provider.example",
-	); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForRecipient wrong user: expected ErrInviteNotFound, got %v", err)
+	for _, tc := range cases {
+		if _, err := r.OutgoingInvites.FindAcceptedForRecipient(
+			ctx, tc.creator, tc.acceptorUser, tc.providerFQDN,
+		); !errors.Is(err, invites.ErrInviteNotFound) {
+			t.Errorf("FindAcceptedForRecipient %s: expected ErrInviteNotFound, got %v", tc.name, err)
+		}
 	}
+}
 
-	if _, err := r.OutgoingInvites.FindAcceptedForRecipient(
-		ctx, "ct-other-creator", "ct-acceptor-user-1", "ct.provider.example",
-	); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForRecipient wrong creator: expected ErrInviteNotFound, got %v", err)
-	}
+// assertOutgoingNoNormMiss checks a row accepted without the normalized
+// provider column never matches, even against an empty query value.
+func assertOutgoingNoNormMiss(t *testing.T, ctx context.Context, r *repos.Repos, now time.Time) {
+	t.Helper()
 
-	// A row accepted without the normalized provider column must never match,
-	// even against an empty query value.
 	noNorm := &invitesoutgoing.OutgoingInvite{
 		ID:              "ct-out-inv-nonorm",
 		Token:           "ct-out-token-nonorm",
