@@ -100,12 +100,14 @@ security:
 check: fmt-check vet lint-new test-go
 
 # Install pre-commit.com git hooks (.pre-commit-config.yaml).
-# gofmt/goimports/vet are staged-scoped; golangci-lint is full-module (mirrors make lint).
+# Staged: gofmt/goimports. Index snapshot (full module): go-vet.
+# Full module: golangci-lint (make lint), go-test-unit (make test-go),
+# reuse (make reuse-lint), go-mod-tidy (CI tidy).
 pre-commit-install:
 	uv run pre-commit install
 
-# Run pre-commit hooks (same as git commit): staged gofmt/goimports/vet;
-# golangci-lint is full-module (mirrors make lint).
+# Run pre-commit hooks (same as git commit). Mirrors the CI check set where
+# hooks are wired; see CONTRIBUTING.md for conditional parity notes.
 pre-commit-run:
 	uv run pre-commit run
 

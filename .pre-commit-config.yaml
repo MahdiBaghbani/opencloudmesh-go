@@ -4,7 +4,10 @@
 # OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
 
 # Local git hooks. Tool versions: make tools + Makefile pins.
-# gofmt/goimports/vet: staged Go files. golangci-lint: full module (make lint/CI).
+# gofmt/goimports: staged Go files. go-vet: full module (index snapshot).
+# go-mod-tidy: index check (CI fmt-vet).
+# golangci-lint / go-test-unit: full module (make lint / make test-go).
+# reuse: full-tree REUSE lint (make reuse-lint / CI reuse job).
 minimum_pre_commit_version: "3.0.0"
 
 repos:
@@ -25,11 +28,18 @@ repos:
         pass_filenames: true
 
       - id: go-vet
-        name: go vet (staged, index)
+        name: go vet (full module, index snapshot)
         entry: nu scripts/git/pre-commit-go-vet.nu
         language: system
         types: [go]
         pass_filenames: true
+        require_serial: true
+
+      - id: go-mod-tidy
+        name: go mod tidy (index check)
+        entry: nu scripts/git/pre-commit-go-mod-tidy.nu
+        language: system
+        pass_filenames: false
         require_serial: true
 
       - id: golangci-lint
@@ -40,3 +50,18 @@ repos:
         types: [go]
         pass_filenames: false
         require_serial: true
+
+      - id: go-test-unit
+        name: go test unit (full module, -race)
+        entry: make
+        args: [test-go]
+        language: system
+        pass_filenames: false
+        require_serial: true
+
+  - repo: https://codeberg.org/fsfe/reuse-tool
+    rev: v6.2.0
+    hooks:
+      - id: reuse
+        name: reuse lint
+        pass_filenames: false

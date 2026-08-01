@@ -35,38 +35,76 @@ rules.
 
 ## Git hooks (pre-commit)
 
-gofmt, goimports, and go vet hooks check **staged** `.go` files only using
-the staged-content contract. The golangci-lint hook runs the **full** module
-lint, mirroring `make lint` / CI, when the commit includes staged Go files.
-It is skipped for docs-only commits (no staged `.go` files) because of
-`types: [go]`. A green local pre-commit means staged files passed fmt/vet
-checks; for commits that touch Go files it also means full-module lint
-passed (CI lint should match). For docs-only commits the lint hook is
-skipped and CI lint must still pass independently. A green local
-pre-commit does not guarantee whole-tree CI fmt or vet.
+Pre-commit runs a fail-closed check set before each commit. Any hook
+failure blocks the commit.
 
-One-time setup:
+| Hook | Scope | CI mirror |
+| ---- | ----- | --------- |
+| gofmt | staged `.go` (index) | `make fmt-check` |
+| goimports | staged `.go` (index) | `make fmt-check` |
+| go-vet | full module (index snapshot) | `make vet` |
+| go-mod-tidy | `go.mod` / `go.sum` vs index | fmt-vet tidy step |
+| golangci-lint | full module | `make lint` |
+| go-test-unit | full module, `-race`, excludes `tests/integration` | `make test-go` |
+| reuse | full tree | `make reuse-lint` / CI reuse job |
 
-Nushell (`nu`) is required because the pre-commit helpers are `.nu` files.
-Install via [mise](https://mise.jdx.dev/) or the
-[official Nushell install](https://www.nushell.sh/book/installation.html).
+Local hooks under `scripts/git/` are Nushell helpers invoked by
+pre-commit (`nu scripts/git/pre-commit-*.nu`). `go-test-unit` calls
+`make test-go` directly so its package list and `-race` flag stay in
+sync with CI.
+
+### Conditional parity with CI
+
+A green local pre-commit run is meaningful: every hook that ran passed.
+It does **not** guarantee every CI job passed on its own.
+
+- Hooks with `types: [go]` (gofmt, goimports, go-vet, golangci-lint)
+  skip when the commit has no staged Go files. Docs-only commits can
+  still fail reuse or go-mod-tidy, but golangci-lint is skipped while CI
+  lint still runs on the full tree.
+- gofmt and goimports check only staged `.go` files; a passing hook does
+  not guarantee `make fmt-check` passes on the whole tree if unstaged
+  files are misformatted.
+- go-test-unit, go-mod-tidy, and reuse run on every commit attempt
+  (they are not gated on staged Go files).
+- Pre-commit does not run integration tests, E2E, security scans, build,
+  or action-pin verification. Run `make ci` or push to CI for those.
+
+### uv-managed setup
+
+Python tooling is pinned in `pyproject.toml` (`pre-commit`, `reuse`) and
+installed into `.venv` by [uv](https://docs.astral.sh/uv/):
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh   # install uv
-uv sync                   # create .venv and install pinned pre-commit from uv.lock
-make tools                # pinned goimports + golangci-lint (see Makefile)
-make pre-commit-install   # writes .git/hooks/pre-commit (uses the project venv)
+uv sync                         # create .venv from pyproject.toml / uv.lock
+make tools                      # pinned goimports + golangci-lint (Makefile)
+make pre-commit-install         # writes .git/hooks/pre-commit
 ```
+
+Nushell (`nu`) is required for the staged Go helpers. Install via
+[mise](https://mise.jdx.dev/) or the
+[official Nushell install](https://www.nushell.sh/book/installation.html).
 
 Optional manual run before commit:
 
 ```sh
 make pre-commit-run
+# or: uv run pre-commit run --all-files
 ```
 
-Hook versions match CI via `make tools` (`GOLANGCI_LINT_VERSION`,
-`GOIMPORTS_VERSION` in the Makefile). The legacy `.githooks/pre-commit`
-path is retired; use `pre-commit install` instead.
+Hook versions for Go tools match CI via `make tools` (`GOLANGCI_LINT_VERSION`,
+`GOIMPORTS_VERSION` in the Makefile). REUSE uses the pinned upstream
+pre-commit hook (`fsfe/reuse-tool` at `v6.2.0`).
+
+When this repository lives inside a MAIDE meta workspace, invoke MAIDE
+from the workspace root as `nu scripts/maide.nu <domain> ...`. This
+satellite still installs and runs pre-commit from its repository root
+with `make pre-commit-install` and `make pre-commit-run` (or `cd
+repos/opencloudmesh-go` first when your shell cwd is the meta root).
+
+The legacy `.githooks/pre-commit` path is retired; use pre-commit install
+instead.
 
 ## Before you open a pull request
 
@@ -79,8 +117,9 @@ make lint
 make test
 ```
 
-With hooks installed, `git commit` runs staged gofmt/goimports/vet plus the
-full-module golangci-lint bar for Go paths you are committing.
+With hooks installed, `git commit` runs the pre-commit check set (see
+above). Staged Go hooks and golangci-lint skip when no `.go` files are
+staged; go-mod-tidy, go-test-unit, and reuse still run.
 
 If your change touches browser flows, invite UX, or WAYF behavior, also run:
 
