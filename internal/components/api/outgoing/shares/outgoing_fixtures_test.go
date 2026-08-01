@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
@@ -209,8 +211,10 @@ func (r *stubResolver) ResolveFacts(_ string) policy.Facts {
 	return r.facts
 }
 
-func newTestHandler(currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+func newTestHandler(t *testing.T, currentUser func(context.Context) (*identity.User, error)) *outgoingshares.Handler {
+	t.Helper()
+
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient := makeDummyDiscoveryClient()
 
 	return outgoingshares.NewHandler(

@@ -14,7 +14,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
@@ -23,7 +24,7 @@ import (
 func runCreateShareSuccess(t *testing.T, shareWith string) {
 	t.Helper()
 
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -59,7 +60,7 @@ func TestCreateShare_Success_ResolvesByUsername(t *testing.T) {
 }
 
 func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -76,7 +77,7 @@ func TestCreateShare_Success_ResolvesByEmail(t *testing.T) {
 	}
 }
 func TestCreateShare_DuplicateReturns200(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -115,7 +116,7 @@ func TestCreateShare_DuplicateReturns200(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsFolderResourceType(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -144,7 +145,7 @@ func TestCreateShare_Success_ResolvesByFederatedOpaqueID(t *testing.T) {
 	// Reva-style federated opaque ID: base64url_padded(userID@localProvider)
 	// The encoded identifier won't match any user by raw ID, username, or email,
 	// so triple resolution fails and the decode fallback fires.
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 

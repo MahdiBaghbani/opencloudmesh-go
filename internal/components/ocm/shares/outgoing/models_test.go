@@ -9,11 +9,13 @@ import (
 	"context"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 )
 
 func TestOutgoingShareRepo_CreateAndLookup(t *testing.T) {
-	repo := outgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	ctx := context.Background()
 
 	share := &outgoing.OutgoingShare{

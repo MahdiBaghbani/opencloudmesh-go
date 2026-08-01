@@ -11,9 +11,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
-	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleDecline_Success(t *testing.T) {
@@ -21,7 +22,7 @@ func TestHandleDecline_Success(t *testing.T) {
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-cross-dec", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -37,7 +38,7 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleDecline_ConflictForAcceptedShare(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-acc-dec", "sender.example.com")
 
 	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusAccepted); err != nil {

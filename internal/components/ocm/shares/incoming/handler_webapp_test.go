@@ -14,6 +14,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
@@ -22,7 +24,7 @@ import (
 // providerID) is present in the repo, or if the lookup returns an error other
 // than ErrShareNotFound. A rejected admit must not persist; a silent lookup
 // error must not be swallowed.
-func assertShareNotStored(t *testing.T, repo *incoming.MemoryIncomingShareRepo, senderHost, providerID string) {
+func assertShareNotStored(t *testing.T, repo incoming.IncomingShareRepo, senderHost, providerID string) {
 	t.Helper()
 
 	stored, err := repo.GetByProviderID(context.Background(), senderHost, providerID)
@@ -37,7 +39,7 @@ func assertShareNotStored(t *testing.T, repo *incoming.MemoryIncomingShareRepo, 
 }
 
 func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -70,7 +72,7 @@ func TestCreateShare_RejectsValidMultiWebapp(t *testing.T) {
 // trigger 501 at admit regardless of a co-present webdav arm, and no share
 // may be persisted.
 func TestCreateShare_RejectsMultiArmWithWebappAndWebDAV(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -248,7 +250,7 @@ func TestCreateShare_RejectsWebappMissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := incoming.NewMemoryIncomingShareRepo()
+			repo := tsrepos.OpenMemory(t).IncomingShares
 			partyRepo := setupTestPartyRepo(t)
 			handler := newTestHandler(repo, partyRepo)
 
@@ -287,7 +289,7 @@ func TestCreateShare_RejectsWebappMissingFields(t *testing.T) {
 }
 
 func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -331,7 +333,7 @@ func TestCreateShare_RejectsWebappUnsupportedPermission(t *testing.T) {
 }
 
 func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -391,7 +393,7 @@ func TestCreateShare_RejectsWebappMustUseMFAWithGapNote(t *testing.T) {
 }
 
 func TestCreateShare_RejectsWebappUnknownRequirement(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 

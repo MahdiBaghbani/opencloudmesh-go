@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
@@ -20,7 +22,7 @@ import (
 
 func createDetailedShareForUser(
 	t *testing.T,
-	repo *sharesincoming.MemoryIncomingShareRepo,
+	repo sharesincoming.IncomingShareRepo,
 	providerID, senderHost string, //nolint:unparam // test fixture helper: senderHost kept for fixture signature uniformity; all current callers pass "sender.example.com"
 	webdavID, sharedSecret string,
 	requirements []string,
@@ -51,7 +53,7 @@ func createDetailedShareForUser(
 }
 
 func TestHandleGetDetail_OwnShareReturns200(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createDetailedShareForUser(t, repo, "prov-detail", "sender.example.com",
 		"webdav-id-123", "secret-value", []string{"must-exchange-token"})
 
@@ -173,7 +175,7 @@ func assertStringArrayField(t *testing.T, obj map[string]any, field string, want
 }
 
 func TestHandleGetDetail_CrossUserReturns404(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createDetailedShareForUser(t, repo, "prov-cross-detail", "sender.example.com",
 		"wdid", "secret", []string{})
 
@@ -190,7 +192,7 @@ func TestHandleGetDetail_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -204,7 +206,7 @@ func TestHandleGetDetail_NonexistentReturns404(t *testing.T) {
 }
 
 func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createDetailedShareForUser(t, repo, "prov-redact", "sender.example.com",
 		"wdid", "real-secret-value", []string{})
 
@@ -250,7 +252,7 @@ func TestHandleGetDetail_SharedSecretAlwaysRedacted(t *testing.T) {
 }
 
 func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createDetailedShareForUser(t, repo, "prov-noleak", "sender.example.com",
 		"wdid", "secret", []string{})
 
@@ -273,7 +275,7 @@ func TestHandleGetDetail_RecipientUserIDNotInResponse(t *testing.T) {
 }
 
 func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
 	shareA := createDetailedShareForUser(t, repo, "prov-met-true", "sender.example.com",
@@ -342,7 +344,7 @@ func TestHandleGetDetail_RequirementsReflectStoredValues(t *testing.T) {
 }
 
 func TestHandleGetDetail_Unauthenticated(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/some-id", nil)
@@ -355,7 +357,7 @@ func TestHandleGetDetail_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 
 	share := &sharesincoming.IncomingShare{
 		ProviderID:      "prov-nilperms",
@@ -412,7 +414,7 @@ func TestHandleGetDetail_NilPermissionsSerializesAsEmptyArray(t *testing.T) {
 }
 
 func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -485,7 +487,7 @@ func TestHandleGetDetail_AbsoluteWebDAVURIPresent(t *testing.T) {
 // Legacy rows (no protocol name, no webapp data) emit an empty name and omit
 // the webapp arm; that case is covered by TestHandleGetDetail_OwnShareReturns200.
 func TestHandleGetDetail_RendersProtocolNameAndWebappArm(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
 	share := &sharesincoming.IncomingShare{

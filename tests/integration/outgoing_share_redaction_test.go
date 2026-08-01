@@ -16,12 +16,13 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/discovery"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
@@ -124,7 +125,7 @@ func newOutgoingHandlerForRedaction(t *testing.T, user *identity.User) *outgoing
 	discClient := discovery.NewClient(rawClient, nil)
 	ctxClient := httpclient.NewContextClient(rawClient)
 
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	signer := makeTestSignerForRedaction(t)
 
 	resolver := &stubResolverForRedaction{facts: policy.NewCodeFlow().Evaluate()}

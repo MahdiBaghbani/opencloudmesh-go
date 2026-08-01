@@ -12,11 +12,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/logutil"
 )
 
@@ -47,7 +48,7 @@ func TestHandleCreate_DoesNotLogSensitiveValues(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			user := &identity.User{ID: "user-uuid", Username: "alice"}
-			repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+			repo := tsrepos.OpenMemory(t).OutgoingShares
 			discClient, ctxClient := makeTLSClients()
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := outgoingshares.NewHandler(

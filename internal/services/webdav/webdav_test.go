@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -27,7 +29,7 @@ func testLog() *slog.Logger {
 func TestNew_SucceedsWithInputs(t *testing.T) {
 	m := map[string]any{}
 
-	svc, err := New(testWebDAVInputs(), m, testLog())
+	svc, err := New(testWebDAVInputs(t), m, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -40,7 +42,7 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 func TestNew_UsesMinimalInputs(t *testing.T) {
 	m := map[string]any{}
 
-	svc, err := New(testWebDAVInputs(), m, testLog())
+	svc, err := New(testWebDAVInputs(t), m, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -56,7 +58,7 @@ func TestNew_UsesMinimalInputs(t *testing.T) {
 }
 
 func TestService_StrictShareRejectsSharedSecret(t *testing.T) {
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 
 	strictShare := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-strict-share",
@@ -107,7 +109,7 @@ func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 
 	share := &sharesoutgoing.OutgoingShare{
 		ProviderID:   "provider-non-strict",
@@ -148,7 +150,7 @@ func TestService_NonStrictShareAcceptsSharedSecret(t *testing.T) {
 }
 
 func TestService_Prefix(t *testing.T) {
-	svc, err := New(testWebDAVInputs(), map[string]any{}, testLog())
+	svc, err := New(testWebDAVInputs(t), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -159,7 +161,7 @@ func TestService_Prefix(t *testing.T) {
 }
 
 func TestService_Handler(t *testing.T) {
-	svc, err := New(testWebDAVInputs(), map[string]any{}, testLog())
+	svc, err := New(testWebDAVInputs(t), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -170,7 +172,7 @@ func TestService_Handler(t *testing.T) {
 }
 
 func TestService_Close(t *testing.T) {
-	svc, err := New(testWebDAVInputs(), map[string]any{}, testLog())
+	svc, err := New(testWebDAVInputs(t), map[string]any{}, testLog())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -193,7 +195,7 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 		"unknown_key": "value",
 	}
 
-	_, err := New(testWebDAVInputs(), m, log)
+	_, err := New(testWebDAVInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

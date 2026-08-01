@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/go-chi/chi/v5"
 
 	inboxinvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/invites"
@@ -33,7 +35,7 @@ import (
 // UpdateStatusForRecipientUserID to exercise the accept persistence-failure
 // path.
 type failingUpdateRepo struct {
-	*invitesincoming.MemoryIncomingInviteRepo
+	invitesincoming.IncomingInviteRepo
 }
 
 func (r *failingUpdateRepo) UpdateStatusForRecipientUserID(_ context.Context, _ string, _ string, _ invites.InviteStatus, _ *invitesincoming.Acceptance) error {
@@ -41,7 +43,7 @@ func (r *failingUpdateRepo) UpdateStatusForRecipientUserID(_ context.Context, _ 
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "accept-token", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -57,7 +59,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_NonexistentReturns404(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(t, repo, userA)
 
@@ -71,7 +73,7 @@ func TestHandleAccept_NonexistentReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "idem-accept-token", "sender.example.com")
 
 	if err := repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusAccepted, nil); err != nil {
@@ -91,7 +93,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 }
 
 func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "conflict-token", "sender.example.com")
 
 	// Decline normally deletes; manually set declined to test accept-after-decline returns 409
@@ -112,7 +114,7 @@ func TestHandleAccept_ConflictForDeclinedInvite(t *testing.T) {
 }
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	router := newTestRouter(t, repo, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/some-id/accept", nil)
@@ -125,7 +127,7 @@ func TestHandleAccept_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 
 	senderServer, inviteAcceptedCalls, _ := startInviteSenderServer(t)
 	defer senderServer.Close()
@@ -165,7 +167,7 @@ func TestHandleAccept_StrictPolicyWithoutSignerReturnsBadGateway(t *testing.T) {
 }
 
 func TestHandleAccept_PersistsRemoteSenderIdentity(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 
 	remoteSenderUserID := address.EncodeFederatedOpaqueID("remote-inviter-uuid", "sender.example.com")
 
@@ -238,7 +240,7 @@ func TestHandleAccept_RecipientProviderStripsDefaultHTTPSPort(t *testing.T) {
 		t.Fatalf("test setup: ProviderDomain = %q, want example.com", wantProvider)
 	}
 
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	inviteAcceptedCalls := &atomic.Int32{}
 
 	var capturedRecipientProvider string
@@ -365,7 +367,7 @@ func startConfigurableSenderServer(t *testing.T, status int, respBody string) (*
 // after a successful invite-accepted call surfaces as 5xx (C2), leaving the
 // invite pending for retry.
 func TestHandleAccept_PersistFailureReturns5xx(t *testing.T) {
-	mem := invitesincoming.NewMemoryIncomingInviteRepo()
+	mem := tsrepos.OpenMemory(t).IncomingInvites
 
 	senderServer, _ := startConfigurableSenderServer(t, http.StatusCreated,
 		`{"userID":"remote-sender@sender.example","email":"s@example","name":"Sender"}`)
@@ -401,7 +403,7 @@ func TestHandleAccept_PersistFailureReturns5xx(t *testing.T) {
 // with its identity body, which is idempotent success — the handler persists
 // accepted state plus sender identity and returns 200 (C2 compensation).
 func TestHandleAccept_ConflictWithIdentityCompensates(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 
 	senderServer, _ := startConfigurableSenderServer(t, http.StatusConflict,
 		`{"userID":"remote-sender@sender.example","email":"s@example","name":"Sender"}`)
@@ -445,7 +447,7 @@ func TestHandleAccept_ConflictWithIdentityCompensates(t *testing.T) {
 func assertPeerErrorLeavesInvitePending(t *testing.T, peerStatus int, peerBody, token string, wantStatus int) {
 	t.Helper()
 
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 
 	senderServer, _ := startConfigurableSenderServer(t, peerStatus, peerBody)
 
@@ -490,7 +492,7 @@ func TestHandleAccept_EmptyPeerUserIDReturns502(t *testing.T) {
 // host that fails normalization returns an internal error before any outbound
 // call or persistence (B: no lowercase fallback).
 func TestHandleAccept_MalformedStoredSenderFailsClosed(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 
 	senderServer, inviteAcceptedCalls := startConfigurableSenderServer(t, http.StatusCreated,
 		`{"userID":"remote-sender@sender.example"}`)

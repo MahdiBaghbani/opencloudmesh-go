@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
@@ -25,7 +27,7 @@ import (
 func assertEmptyFieldInviteAccepted(t *testing.T, localUser *identity.User, token, body, fieldLabel string) {
 	t.Helper()
 
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 
 	if err := partyRepo.Create(context.Background(), localUser); err != nil {
@@ -72,7 +74,7 @@ func TestHandleInviteAccepted_EmptyNameAllowed(t *testing.T) {
 	)
 }
 func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 
 	localUser := &identity.User{
@@ -133,7 +135,7 @@ func TestHandleInviteAccepted_Success_ReturnsLocalUserIdentity(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_Success_EmptyEmailAndName(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 
 	localUser := &identity.User{

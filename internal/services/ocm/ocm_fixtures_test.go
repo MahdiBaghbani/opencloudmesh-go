@@ -12,6 +12,8 @@ import (
 	"os"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
@@ -77,7 +79,7 @@ func setupTestInputsWithOutgoingShareRepo(t *testing.T) Inputs {
 	t.Helper()
 
 	in := testInputs(config.DevConfig())
-	in.OutgoingShareRepo = sharesoutgoing.NewMemoryOutgoingShareRepo()
+	in.OutgoingShareRepo = tsrepos.OpenMemory(t).OutgoingShares
 
 	return in
 }
@@ -142,7 +144,7 @@ func (s *identityCapturingTokenStore) CleanExpired(ctx context.Context) error {
 func setupSignedTokenServiceInputs(
 	t *testing.T,
 	pd inboundsignature.PeerDiscovery,
-) (Inputs, *identityCapturingTokenStore, *sharesoutgoing.MemoryOutgoingShareRepo) {
+) (Inputs, *identityCapturingTokenStore, sharesoutgoing.OutgoingShareRepo) {
 	t.Helper()
 
 	cfg := config.DevConfig()
@@ -152,7 +154,7 @@ func setupSignedTokenServiceInputs(
 
 	innerStore := token.NewMemoryTokenStore()
 	spyStore := &identityCapturingTokenStore{inner: innerStore}
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 
 	in.CodeFlow = policy.NewCodeFlow()
 	in.OutgoingShareRepo = shareRepo

@@ -12,14 +12,15 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	inboxinvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/loader"
 )
 
 func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invA := createInviteForUser(t, repo, userAID, "token-a", "sender-a.example.com")
 	createInviteForUser(t, repo, userBID, "token-b", "sender-b.example.com")
 
@@ -49,7 +50,7 @@ func TestHandleList_ReturnsOnlyCurrentUserInvites(t *testing.T) {
 }
 
 func TestHandleList_EmptyForUserWithNoInvites(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	createInviteForUser(t, repo, userAID, "token-a", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -74,7 +75,7 @@ func TestHandleList_EmptyForUserWithNoInvites(t *testing.T) {
 }
 
 func TestHandleList_Unauthenticated(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	router := newTestRouter(t, repo, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/invites/", nil)
@@ -87,7 +88,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 }
 
 func TestHandleList_DoesNotLeakToken(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	createInviteForUser(t, repo, userAID, "super-secret-token-123", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}

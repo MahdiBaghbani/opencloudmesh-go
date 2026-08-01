@@ -49,12 +49,12 @@ func setupTestPartyRepo(t *testing.T) identity.PartyRepo {
 // newTestHandler creates a handler wired for testing against localhost:9200 (https).
 // Must-invite enforcement is off by default in tests to exercise legacy behavior;
 // gate tests use newTestHandlerWithInvites.
-func newTestHandler(repo *incoming.MemoryIncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
+func newTestHandler(repo incoming.IncomingShareRepo, partyRepo identity.PartyRepo) *incoming.Handler {
 	return newTestHandlerWithResolver(repo, partyRepo, nil)
 }
 
 func newTestHandlerWithResolver(
-	repo *incoming.MemoryIncomingShareRepo,
+	repo incoming.IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	resolver *policy.PeerMappingResolver,
 ) *incoming.Handler {
@@ -74,7 +74,7 @@ func newTestHandlerWithResolver(
 // newTestHandlerWithInvites creates a handler with invite repositories and an
 // explicit must-invite enforcement flag for gate tests.
 func newTestHandlerWithInvites(
-	repo *incoming.MemoryIncomingShareRepo,
+	repo incoming.IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 	incomingInvites invitesincoming.IncomingInviteRepo,
 	outgoingInvites invitesoutgoing.OutgoingInviteRepo,
@@ -148,7 +148,7 @@ func validWebappShareBody(shareWith, ownerHost, providerID string) string {
 
 func newAcceptedShareHandler(
 	t *testing.T,
-	repo *incoming.MemoryIncomingShareRepo,
+	repo incoming.IncomingShareRepo,
 	partyRepo identity.PartyRepo,
 ) (*incoming.Handler, string) {
 	t.Helper()

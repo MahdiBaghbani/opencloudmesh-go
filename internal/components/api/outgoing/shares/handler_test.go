@@ -11,8 +11,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
@@ -24,7 +25,7 @@ func TestOutgoing_LegacyVoluntary_EmptyRequirements(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newLegacyVoluntaryOutgoingHandler(t, repo, discClient, ctxClient, user)
 

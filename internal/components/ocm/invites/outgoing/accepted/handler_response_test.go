@@ -12,13 +12,15 @@ import (
 	"testing"
 	"time"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 )
 
 func TestHandleInviteAccepted_ResponseFieldsAlwaysPresent(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 
 	localUser := &identity.User{

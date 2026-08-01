@@ -47,7 +47,7 @@ func newTestRouterWithAccess(
 
 func createAcceptedShareForUser(
 	t *testing.T,
-	repo *sharesincoming.MemoryIncomingShareRepo,
+	repo sharesincoming.IncomingShareRepo,
 	providerID, senderHost, name string, //nolint:unparam // test fixture helper: senderHost kept for fixture signature uniformity; all current callers pass "sender.example.com"
 ) *sharesincoming.IncomingShare {
 	t.Helper()
@@ -76,7 +76,7 @@ func createAcceptedShareForUser(
 
 func createAcceptedWebappShareForUser(
 	t *testing.T,
-	repo *sharesincoming.MemoryIncomingShareRepo,
+	repo sharesincoming.IncomingShareRepo,
 	recipientUserID, providerID, senderHost, name string,
 ) *sharesincoming.IncomingShare {
 	t.Helper()

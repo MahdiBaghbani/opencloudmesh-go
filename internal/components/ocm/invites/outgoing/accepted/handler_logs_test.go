@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
@@ -51,7 +53,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+			repo := tsrepos.OpenMemory(t).OutgoingInvites
 			partyRepo := identity.NewMemoryPartyRepo()
 
 			if err := partyRepo.Create(context.Background(), &identity.User{

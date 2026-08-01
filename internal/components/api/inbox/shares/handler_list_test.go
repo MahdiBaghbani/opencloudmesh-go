@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
@@ -20,7 +22,7 @@ import (
 )
 
 func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	shareA := createShareForUser(t, repo, userAID, "prov-a1", "sender.example.com")
 	createShareForUser(t, repo, userBID, "prov-b1", "sender.example.com")
 
@@ -50,7 +52,7 @@ func TestHandleList_ReturnsOnlyCurrentUserShares(t *testing.T) {
 }
 
 func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	createShareForUser(t, repo, userAID, "prov-a1", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -75,7 +77,7 @@ func TestHandleList_EmptyForUserWithNoShares(t *testing.T) {
 }
 
 func TestHandleList_Unauthenticated(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	router := newTestRouter(repo, nil) // nil user = unauthenticated
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/inbox/shares/", nil)
@@ -87,7 +89,7 @@ func TestHandleList_Unauthenticated(t *testing.T) {
 	}
 }
 func TestHandleList_DoesNotLeakSensitiveFields(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 
 	share := &sharesincoming.IncomingShare{
 		ProviderID:           "prov-sensitive",

@@ -11,9 +11,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
-	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestHandleAccept_Success(t *testing.T) {
@@ -21,7 +22,7 @@ func TestHandleAccept_Success(t *testing.T) {
 }
 
 func TestHandleAccept_CrossUserReturns404(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-cross", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -37,7 +38,7 @@ func TestHandleAccept_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	userA := &identity.User{ID: userAID, Username: "alice"}
 	router := newTestRouter(repo, userA)
 
@@ -51,7 +52,7 @@ func TestHandleAccept_NonexistentShareReturns404(t *testing.T) {
 }
 
 func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-idem", "sender.example.com")
 
 	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusAccepted); err != nil {
@@ -71,7 +72,7 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 }
 
 func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, "prov-declined", "sender.example.com")
 
 	if err := repo.UpdateStatusForRecipientUserID(context.Background(), share.ShareID, userAID, shares.ShareStatusDeclined); err != nil {
@@ -91,7 +92,7 @@ func TestHandleAccept_ConflictForDeclinedShare(t *testing.T) {
 }
 
 func TestHandleAccept_Unauthenticated(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	router := newTestRouter(repo, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/shares/some-id/accept", nil)

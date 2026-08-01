@@ -12,7 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 func shareBodyWithProtocolName(protocolName, ownerHost string) string {
@@ -37,7 +37,7 @@ func shareBodyWithProtocolName(protocolName, ownerHost string) string {
 }
 
 func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -69,7 +69,7 @@ func TestCreateShare_RejectsEmptyProtocolName(t *testing.T) {
 }
 
 func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -85,7 +85,7 @@ func TestCreateShare_InvalidProtocolName_Returns501(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 
@@ -101,7 +101,7 @@ func TestCreateShare_AcceptsCanonicalWebDAVProtocolName(t *testing.T) {
 }
 
 func TestCreateShare_AcceptsMultiProtocolName(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler, ownerHost := newAcceptedShareHandler(t, repo, partyRepo)
 

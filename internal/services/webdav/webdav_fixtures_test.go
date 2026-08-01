@@ -6,13 +6,17 @@
 package webdav
 
 import (
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
+	"testing"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
-func testWebDAVInputs() Inputs {
+func testWebDAVInputs(t *testing.T) Inputs {
+	t.Helper()
+
 	return Inputs{
-		OutgoingShareRepo: sharesoutgoing.NewMemoryOutgoingShareRepo(),
+		OutgoingShareRepo: tsrepos.OpenMemory(t).OutgoingShares,
 		TokenStore:        token.NewMemoryTokenStore(),
 	}
 }

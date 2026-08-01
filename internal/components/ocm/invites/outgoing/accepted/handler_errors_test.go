@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
@@ -25,7 +27,7 @@ import (
 )
 
 func TestHandleInviteAccepted_TokenInvalid(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, validAcceptedBody("nonexistent"))
@@ -40,7 +42,7 @@ func TestHandleInviteAccepted_TokenInvalid(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_TokenExpired(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	invite := &invitesoutgoing.OutgoingInvite{
@@ -65,7 +67,7 @@ func TestHandleInviteAccepted_TokenExpired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	invite := &invitesoutgoing.OutgoingInvite{
@@ -90,7 +92,7 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_AlreadyAccepted_Returns409WithIdentityBody(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 
 	localUser := &identity.User{
@@ -138,7 +140,7 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409WithIdentityBody(t *test
 }
 
 func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	invite := &invitesoutgoing.OutgoingInvite{
@@ -177,7 +179,7 @@ func TestHandleInviteAccepted_UntrustedProvider_Returns403(t *testing.T) {
 // unauthenticated path fails closed when the body recipient provider cannot be
 // normalized (no raw-provider policy evaluation, no lowercase fallback).
 func TestHandleInviteAccepted_UnnormalizableProvider_FailsClosed(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	invite := &invitesoutgoing.OutgoingInvite{
@@ -212,14 +214,15 @@ func TestHandleInviteAccepted_UnnormalizableProvider_FailsClosed(t *testing.T) {
 }
 
 type outgoingRepoSpy struct {
-	*invitesoutgoing.MemoryOutgoingInviteRepo
+	invitesoutgoing.OutgoingInviteRepo
 
+	inner              invitesoutgoing.OutgoingInviteRepo
 	updateStatusCalled bool
 }
 
 func (s *outgoingRepoSpy) UpdateStatus(ctx context.Context, id string, status invites.InviteStatus, acceptance *invitesoutgoing.Acceptance) error {
 	s.updateStatusCalled = true
-	return s.MemoryOutgoingInviteRepo.UpdateStatus(ctx, id, status, acceptance)
+	return s.inner.UpdateStatus(ctx, id, status, acceptance)
 }
 
 type partyRepoGetFail struct {
@@ -255,8 +258,8 @@ func (r *partyRepoGetFail) List(context.Context, string) ([]*identity.User, erro
 func (r *partyRepoGetFail) DeleteExpired(context.Context) (int, error) { return 0, nil }
 
 func TestHandleInviteAccepted_PartyRepoGetFails_InviterIdentityUnavailable(t *testing.T) {
-	memoryRepo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
-	repo := &outgoingRepoSpy{MemoryOutgoingInviteRepo: memoryRepo}
+	inner := tsrepos.OpenMemory(t).OutgoingInvites
+	repo := &outgoingRepoSpy{OutgoingInviteRepo: inner, inner: inner}
 	creatorID := "missing-creator-user"
 	partyRepo := &partyRepoGetFail{failID: creatorID}
 	handler := newTestHandler(repo, partyRepo)
@@ -286,7 +289,7 @@ func TestHandleInviteAccepted_PartyRepoGetFails_InviterIdentityUnavailable(t *te
 		t.Error("UpdateStatus should not have been called")
 	}
 
-	updated, err := memoryRepo.GetByToken(context.Background(), "party-get-fail-token")
+	updated, err := inner.GetByToken(context.Background(), "party-get-fail-token")
 	if err != nil {
 		t.Fatalf("call failed: %v", err)
 	}
@@ -297,7 +300,7 @@ func TestHandleInviteAccepted_PartyRepoGetFails_InviterIdentityUnavailable(t *te
 }
 
 func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	partyRepo := identity.NewMemoryPartyRepo()
 	handler := newTestHandler(repo, partyRepo)
 
@@ -340,7 +343,7 @@ func TestHandleInviteAccepted_EmptyCreator_InviterIdentityUnavailable(t *testing
 // were forced to "https", :443 would be stripped and the authorities would
 // incorrectly match.
 func TestHandleInviteAccepted_EmptyPublicOrigin_NoHTTPSDefault(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := accepted.NewHandler(repo, identity.NewMemoryPartyRepo(), nil, testProvider, "")
 
 	invite := &invitesoutgoing.OutgoingInvite{

@@ -32,7 +32,7 @@ func TestNew_SucceedsWithInputs(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestService_Prefix(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestService_Handler(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestService_Close(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestService_HealthzEndpoint(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestService_LoginEndpoint_MissingCredentials(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestService_InboxSharesEndpoint_RequiresAuth(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestService_InboxInvitesEndpoint_RequiresAuth(t *testing.T) {
 	m := map[string]any{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	svc, err := New(testAPIInputs(), m, log)
+	svc, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestNew_WarnsOnUnusedConfigKeys(t *testing.T) {
 		"unknown_key": "value",
 	}
 
-	_, err := New(testAPIInputs(), m, log)
+	_, err := New(testAPIInputs(t), m, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

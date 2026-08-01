@@ -13,13 +13,14 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/address"
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 const (
@@ -59,7 +60,7 @@ func mustInviteSenderString(t *testing.T) string {
 	return address.EncodeFederatedOpaqueID(mustInviteRemoteUser, mustInviteRemoteHost) + "@" + mustInviteRemoteHost
 }
 
-func seedAcceptedIncomingInvite(t *testing.T, repo *invitesincoming.MemoryIncomingInviteRepo, senderUserID, senderHost string) {
+func seedAcceptedIncomingInvite(t *testing.T, repo invitesincoming.IncomingInviteRepo, senderUserID, senderHost string) {
 	t.Helper()
 
 	invite := &invitesincoming.IncomingInvite{
@@ -75,7 +76,7 @@ func seedAcceptedIncomingInvite(t *testing.T, repo *invitesincoming.MemoryIncomi
 	}
 }
 
-func seedAcceptedOutgoingInvite(t *testing.T, repo *invitesoutgoing.MemoryOutgoingInviteRepo, creatorID, accepterUserID, accepterHost string) {
+func seedAcceptedOutgoingInvite(t *testing.T, repo invitesoutgoing.OutgoingInviteRepo, creatorID, accepterUserID, accepterHost string) {
 	t.Helper()
 
 	invite := &invitesoutgoing.OutgoingInvite{
@@ -94,7 +95,7 @@ func seedAcceptedOutgoingInvite(t *testing.T, repo *invitesoutgoing.MemoryOutgoi
 // failingIncomingInviteRepo wraps the memory repo with a storage failure on
 // FindAcceptedForSender to exercise the STORAGE_ERROR branch.
 type failingIncomingInviteRepo struct {
-	*invitesincoming.MemoryIncomingInviteRepo
+	invitesincoming.IncomingInviteRepo
 }
 
 func (f *failingIncomingInviteRepo) FindAcceptedForSender(context.Context, string, string, string) (*invitesincoming.IncomingInvite, error) {
@@ -104,7 +105,7 @@ func (f *failingIncomingInviteRepo) FindAcceptedForSender(context.Context, strin
 // failingOutgoingInviteRepo wraps the memory repo with a storage failure on
 // FindAcceptedForRecipient to exercise the STORAGE_ERROR branch.
 type failingOutgoingInviteRepo struct {
-	*invitesoutgoing.MemoryOutgoingInviteRepo
+	invitesoutgoing.OutgoingInviteRepo
 }
 
 func (f *failingOutgoingInviteRepo) FindAcceptedForRecipient(context.Context, string, string, string) (*invitesoutgoing.OutgoingInvite, error) {
@@ -151,12 +152,12 @@ func postShareAuthenticated(t *testing.T, handler interface {
 }
 
 func TestMustInviteGate_EnforcedNoInviteReturns403(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	handler := newTestHandlerWithInvites(
 		repo,
 		setupTestPartyRepo(t),
-		invitesincoming.NewMemoryIncomingInviteRepo(),
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).IncomingInvites,
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -173,12 +174,12 @@ func TestMustInviteGate_EnforcedNoInviteReturns403(t *testing.T) {
 }
 
 func TestMustInviteGate_MalformedSenderRejected(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	handler := newTestHandlerWithInvites(
 		repo,
 		setupTestPartyRepo(t),
-		invitesincoming.NewMemoryIncomingInviteRepo(),
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).IncomingInvites,
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -198,8 +199,8 @@ func TestMustInviteGate_MalformedSenderRejected(t *testing.T) {
 }
 
 func TestMustInviteGate_HostMatchUserMismatchReturns403(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
-	incomingInvites := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
 
 	seedAcceptedIncomingInvite(t, incomingInvites,
 		address.EncodeFederatedOpaqueID("other-remote-user", mustInviteRemoteHost), mustInviteRemoteHost)
@@ -208,7 +209,7 @@ func TestMustInviteGate_HostMatchUserMismatchReturns403(t *testing.T) {
 		repo,
 		setupTestPartyRepo(t),
 		incomingInvites,
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -225,8 +226,8 @@ func TestMustInviteGate_HostMatchUserMismatchReturns403(t *testing.T) {
 }
 
 func TestMustInviteGate_UserMatchHostMismatchReturns403(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
-	incomingInvites := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
 
 	seedAcceptedIncomingInvite(t, incomingInvites,
 		address.EncodeFederatedOpaqueID(mustInviteRemoteUser, "other.example.com"), "other.example.com")
@@ -235,7 +236,7 @@ func TestMustInviteGate_UserMatchHostMismatchReturns403(t *testing.T) {
 		repo,
 		setupTestPartyRepo(t),
 		incomingInvites,
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -252,8 +253,8 @@ func TestMustInviteGate_UserMatchHostMismatchReturns403(t *testing.T) {
 }
 
 func TestMustInviteGate_PendingInviteDoesNotAdmit(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
-	incomingInvites := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
 
 	pending := &invitesincoming.IncomingInvite{
 		Token:                "must-invite-pending-token",
@@ -271,7 +272,7 @@ func TestMustInviteGate_PendingInviteDoesNotAdmit(t *testing.T) {
 		repo,
 		setupTestPartyRepo(t),
 		incomingInvites,
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -284,8 +285,8 @@ func TestMustInviteGate_PendingInviteDoesNotAdmit(t *testing.T) {
 }
 
 func TestMustInviteGate_IncomingInviteExactMatchAdmits(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
-	incomingInvites := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
 
 	seedAcceptedIncomingInvite(t, incomingInvites,
 		address.EncodeFederatedOpaqueID(mustInviteRemoteUser, mustInviteRemoteHost), mustInviteRemoteHost)
@@ -294,7 +295,7 @@ func TestMustInviteGate_IncomingInviteExactMatchAdmits(t *testing.T) {
 		repo,
 		setupTestPartyRepo(t),
 		incomingInvites,
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -307,8 +308,8 @@ func TestMustInviteGate_IncomingInviteExactMatchAdmits(t *testing.T) {
 }
 
 func TestMustInviteGate_OutgoingInviteExactMatchAdmits(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
-	outgoingInvites := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	outgoingInvites := tsrepos.OpenMemory(t).OutgoingInvites
 
 	seedAcceptedOutgoingInvite(t, outgoingInvites, mustInviteRecipientID,
 		address.EncodeFederatedOpaqueID(mustInviteRemoteUser, mustInviteRemoteHost), mustInviteRemoteHost)
@@ -316,7 +317,7 @@ func TestMustInviteGate_OutgoingInviteExactMatchAdmits(t *testing.T) {
 	handler := newTestHandlerWithInvites(
 		repo,
 		setupTestPartyRepo(t),
-		invitesincoming.NewMemoryIncomingInviteRepo(),
+		tsrepos.OpenMemory(t).IncomingInvites,
 		outgoingInvites,
 		true,
 	)
@@ -330,8 +331,8 @@ func TestMustInviteGate_OutgoingInviteExactMatchAdmits(t *testing.T) {
 }
 
 func TestMustInviteGate_DuplicateAdmittedReturns200(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
-	incomingInvites := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
 
 	seedAcceptedIncomingInvite(t, incomingInvites,
 		address.EncodeFederatedOpaqueID(mustInviteRemoteUser, mustInviteRemoteHost), mustInviteRemoteHost)
@@ -340,7 +341,7 @@ func TestMustInviteGate_DuplicateAdmittedReturns200(t *testing.T) {
 		repo,
 		setupTestPartyRepo(t),
 		incomingInvites,
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -358,12 +359,12 @@ func TestMustInviteGate_DuplicateAdmittedReturns200(t *testing.T) {
 }
 
 func TestMustInviteGate_IncomingStorageFailureReturns500(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	handler := newTestHandlerWithInvites(
 		repo,
 		setupTestPartyRepo(t),
-		&failingIncomingInviteRepo{invitesincoming.NewMemoryIncomingInviteRepo()},
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		&failingIncomingInviteRepo{tsrepos.OpenMemory(t).IncomingInvites},
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -380,12 +381,12 @@ func TestMustInviteGate_IncomingStorageFailureReturns500(t *testing.T) {
 }
 
 func TestMustInviteGate_OutgoingStorageFailureReturns500(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	handler := newTestHandlerWithInvites(
 		repo,
 		setupTestPartyRepo(t),
-		invitesincoming.NewMemoryIncomingInviteRepo(),
-		&failingOutgoingInviteRepo{invitesoutgoing.NewMemoryOutgoingInviteRepo()},
+		tsrepos.OpenMemory(t).IncomingInvites,
+		&failingOutgoingInviteRepo{tsrepos.OpenMemory(t).OutgoingInvites},
 		true,
 	)
 
@@ -402,12 +403,12 @@ func TestMustInviteGate_OutgoingStorageFailureReturns500(t *testing.T) {
 }
 
 func TestMustInviteGate_OptOutRetainsLegacyAcceptance(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	handler := newTestHandlerWithInvites(
 		repo,
 		setupTestPartyRepo(t),
-		invitesincoming.NewMemoryIncomingInviteRepo(),
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).IncomingInvites,
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		false,
 	)
 
@@ -425,8 +426,8 @@ func TestMustInviteGate_OptOutRetainsLegacyAcceptance(t *testing.T) {
 // exists for the body sender (C4). The owner host matches the authority so the
 // request reaches the must-invite gate, where the sender mismatch is caught.
 func TestMustInviteGate_AuthenticatedAuthorityMismatchReturns403(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
-	incomingInvites := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
 
 	seedAcceptedIncomingInvite(t, incomingInvites,
 		address.EncodeFederatedOpaqueID(mustInviteRemoteUser, mustInviteRemoteHost), mustInviteRemoteHost)
@@ -435,7 +436,7 @@ func TestMustInviteGate_AuthenticatedAuthorityMismatchReturns403(t *testing.T) {
 		repo,
 		setupTestPartyRepo(t),
 		incomingInvites,
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 
@@ -472,8 +473,8 @@ func TestMustInviteGate_AuthenticatedAuthorityMismatchReturns403(t *testing.T) {
 // sender host carrying the scheme's default port normalizes to the
 // authenticated authority and admits on the persisted invite (C4).
 func TestMustInviteGate_AuthenticatedDefaultPortEquivalentAdmits(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
-	incomingInvites := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
 
 	seedAcceptedIncomingInvite(t, incomingInvites,
 		address.EncodeFederatedOpaqueID(mustInviteRemoteUser, mustInviteRemoteHost), mustInviteRemoteHost)
@@ -482,7 +483,7 @@ func TestMustInviteGate_AuthenticatedDefaultPortEquivalentAdmits(t *testing.T) {
 		repo,
 		setupTestPartyRepo(t),
 		incomingInvites,
-		invitesoutgoing.NewMemoryOutgoingInviteRepo(),
+		tsrepos.OpenMemory(t).OutgoingInvites,
 		true,
 	)
 

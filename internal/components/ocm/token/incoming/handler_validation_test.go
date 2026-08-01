@@ -15,13 +15,15 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
 )
 
 func TestHandler_MissingFields(t *testing.T) {
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
@@ -64,7 +66,7 @@ func TestHandler_MissingFields(t *testing.T) {
 func assertTokenFormRejected(t *testing.T, form url.Values, wantError string) {
 	t.Helper()
 
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
@@ -101,7 +103,7 @@ func TestHandler_InvalidGrantType(t *testing.T) {
 // TestHandler_UnsupportedGrantType_Rejected proves the strict token contract
 // rejects unknown grant types with unsupported_grant_type.
 func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
@@ -133,7 +135,7 @@ func TestHandler_UnsupportedGrantType_Rejected(t *testing.T) {
 
 // TestHandler_JSONBody_Rejected proves JSON token request bodies are rejected.
 func TestHandler_JSONBody_Rejected(t *testing.T) {
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
@@ -221,7 +223,7 @@ func TestHandler_ContentTypeValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+			shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 			tokenStore := token.NewMemoryTokenStore()
 			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 

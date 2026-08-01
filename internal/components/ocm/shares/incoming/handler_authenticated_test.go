@@ -13,8 +13,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
@@ -25,7 +26,7 @@ func TestCreateShare_Authenticated_RejectsUntrustedOwnerProvider(t *testing.T) {
 		providerID = "owner-sender-split"
 	)
 
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -66,7 +67,7 @@ func TestCreateShare_AuthenticatedIdentityOverridesRawSender(t *testing.T) {
 		providerID          = "auth-sender-override"
 	)
 
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 
 	handler := newTestHandler(repo, partyRepo)
@@ -126,7 +127,7 @@ func TestCreateShare_Authenticated_AcceptsDistinctOwnerAndSenderUserIDs(t *testi
 		providerID = "distinct-users-same-authority"
 	)
 
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 

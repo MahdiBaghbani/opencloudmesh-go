@@ -12,11 +12,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
 )
 
 func TestHandleInviteAccepted_RecipientProviderRequired(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"","token":"t","userID":"u@host","email":"e","name":"n"}`)
@@ -31,7 +31,7 @@ func TestHandleInviteAccepted_RecipientProviderRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"https://other.com","token":"t","userID":"u@host","email":"e","name":"n"}`)
@@ -46,7 +46,7 @@ func TestHandleInviteAccepted_InvalidRecipientProvider(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"","userID":"u@host","email":"e","name":"n"}`)
@@ -61,7 +61,7 @@ func TestHandleInviteAccepted_TokenRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"","email":"e","name":"n"}`)
@@ -76,7 +76,7 @@ func TestHandleInviteAccepted_UserIDRequired(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","name":"n"}`)
@@ -91,7 +91,7 @@ func TestHandleInviteAccepted_EmailKeyMissing(t *testing.T) {
 }
 
 func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	w := postInviteAccepted(handler, `{"recipientProvider":"other.com","token":"t","userID":"u@host","email":"e"}`)
@@ -105,7 +105,7 @@ func TestHandleInviteAccepted_NameKeyMissing(t *testing.T) {
 	}
 }
 func TestHandleInviteAccepted_StrictContentType(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := newTestHandler(repo, nil)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/invite-accepted",

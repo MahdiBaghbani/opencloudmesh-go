@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	invitesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
@@ -21,7 +23,7 @@ import (
 // failingDeleteRepo wraps the memory repo and fails DeleteForRecipientUserID
 // to exercise the decline persistence-failure path.
 type failingDeleteRepo struct {
-	*invitesincoming.MemoryIncomingInviteRepo
+	invitesincoming.IncomingInviteRepo
 }
 
 func (r *failingDeleteRepo) DeleteForRecipientUserID(_ context.Context, _ string, _ string) error {
@@ -29,7 +31,7 @@ func (r *failingDeleteRepo) DeleteForRecipientUserID(_ context.Context, _ string
 }
 
 func TestHandleDecline_Success(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "decline-token", "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -50,7 +52,7 @@ func TestHandleDecline_Success(t *testing.T) {
 }
 
 func TestHandleDecline_CrossUserReturns404(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "decline-cross-token", "sender.example.com")
 
 	userB := &identity.User{ID: userBID, Username: "bob"}
@@ -66,7 +68,7 @@ func TestHandleDecline_CrossUserReturns404(t *testing.T) {
 }
 
 func TestHandleDecline_Unauthenticated(t *testing.T) {
-	repo := invitesincoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	router := newTestRouter(t, repo, nil)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/inbox/invites/some-id/decline", nil)
@@ -81,7 +83,7 @@ func TestHandleDecline_Unauthenticated(t *testing.T) {
 // TestHandleDecline_PersistFailureReturns5xx verifies a local delete failure
 // surfaces as 5xx instead of a silent 200 (C3).
 func TestHandleDecline_PersistFailureReturns5xx(t *testing.T) {
-	mem := invitesincoming.NewMemoryIncomingInviteRepo()
+	mem := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, mem, userAID, "decline-fail-token", "sender.example.com")
 
 	repo := &failingDeleteRepo{mem}

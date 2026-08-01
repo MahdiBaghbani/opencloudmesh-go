@@ -11,7 +11,7 @@ import (
 )
 
 func TestValidateInputs_ReportsMissingRequiredFields(t *testing.T) {
-	base := testAPIInputs()
+	base := testAPIInputs(t)
 
 	tests := []struct {
 		name    string

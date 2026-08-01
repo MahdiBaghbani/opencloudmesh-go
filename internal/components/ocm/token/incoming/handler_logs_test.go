@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	tokenincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token/incoming"
@@ -55,7 +57,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+			shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 			tokenStore := token.NewMemoryTokenStore()
 			capture := logutil.NewCapturingLogger(slog.LevelDebug)
 			handler := tokenincoming.NewHandler(

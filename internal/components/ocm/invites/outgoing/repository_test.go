@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 )
@@ -19,7 +21,7 @@ import (
 // must-invite lookup fails closed: a row accepted without identity persistence
 // (empty normalized provider column) never matches.
 func TestFindAcceptedForRecipient_RequiresNormalizedColumn(t *testing.T) {
-	repo := outgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	ctx := context.Background()
 
 	invite := &outgoing.OutgoingInvite{
@@ -48,7 +50,7 @@ func TestFindAcceptedForRecipient_RequiresNormalizedColumn(t *testing.T) {
 // path: an acceptance carrying recipient identity is findable by user and
 // normalized host.
 func TestFindAcceptedForRecipient_MatchesPersistedIdentity(t *testing.T) {
-	repo := outgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	ctx := context.Background()
 
 	invite := &outgoing.OutgoingInvite{

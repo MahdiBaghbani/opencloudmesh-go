@@ -9,13 +9,15 @@ import (
 	"context"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	ctx := context.Background()
 
 	share1 := &incoming.IncomingShare{
@@ -62,7 +64,7 @@ func TestIncomingRepository_SenderScopedStorage(t *testing.T) {
 }
 
 func TestIncomingRepository_RecipientScoping(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	ctx := context.Background()
 
 	shareA := &incoming.IncomingShare{

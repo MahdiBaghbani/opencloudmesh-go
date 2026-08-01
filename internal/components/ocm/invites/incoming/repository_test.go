@@ -10,6 +10,8 @@ import (
 	"errors"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 )
@@ -19,7 +21,7 @@ import (
 // host was never persisted never matches, even when user and host inputs
 // would otherwise agree.
 func TestFindAcceptedForSender_RequiresNormalizedColumn(t *testing.T) {
-	repo := incoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	ctx := context.Background()
 
 	invite := &incoming.IncomingInvite{
@@ -46,7 +48,7 @@ func TestFindAcceptedForSender_RequiresNormalizedColumn(t *testing.T) {
 // an acceptance carrying sender identity is findable by user and normalized
 // host.
 func TestFindAcceptedForSender_MatchesPersistedIdentity(t *testing.T) {
-	repo := incoming.NewMemoryIncomingInviteRepo()
+	repo := tsrepos.OpenMemory(t).IncomingInvites
 	ctx := context.Background()
 
 	invite := &incoming.IncomingInvite{

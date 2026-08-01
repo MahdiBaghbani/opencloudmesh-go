@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/webdav"
@@ -40,7 +42,7 @@ func TestHandler_DoesNotLogSensitiveValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := outgoing.NewMemoryOutgoingShareRepo()
+			repo := tsrepos.OpenMemory(t).OutgoingShares
 
 			tmpFile, err := os.CreateTemp("", "webdav-logs-*")
 			if err != nil {

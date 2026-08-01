@@ -12,12 +12,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoingshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/shares"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/peerorigin"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/ocm/configfixture"
 )
@@ -42,7 +43,7 @@ func TestHandleCreate_LegacyVoluntaryNoPeerCriterion_Returns201(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newLegacyVoluntaryOutgoingHandler(t, repo, discClient, ctxClient, user)
 
@@ -80,7 +81,7 @@ func TestHandleCreate_PeerForcedCriteria_EmitsRequirement(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	// Use a legacy voluntary code flow so the local facts would not include the
 	// requirement on their own. The peer's must-exchange-token criterion should
@@ -147,7 +148,7 @@ func TestHandleCreate_InstanceOverride_RelaxesOnlyMatchedHost(t *testing.T) {
 	}
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newOutgoingHandler(t, repo, discClient, ctxClient, user, resolver, "")
 
@@ -213,7 +214,7 @@ func TestHandleCreate_LocalSenderMissingTokenEndpoint_NonStrict_Allows(t *testin
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	resolver := &stubResolver{facts: configfixture.CodeFlowLegacyVoluntary().Evaluate()}
 	handler := outgoingshares.NewHandler(
@@ -266,7 +267,7 @@ func TestHandleCreate_PeerForcedCriterion_ReceiverLacksExchangeToken_Rejects(t *
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	// Local facts use the legacy voluntary flow: IncludesTokenExchangeRequirement
 	// is false. The peer forces the must-exchange-token criterion, but the
@@ -296,7 +297,7 @@ func TestHandleCreate_NilResolver_NonStrict_Allows(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 
 	handler := outgoingshares.NewHandler(
@@ -360,7 +361,7 @@ func TestHandleCreate_StrictEmptyOrMissingLocalEndpoint_Rejects(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	// Token exchange is required, but the local token endpoint is empty or
 	// missing. The create path must reject and must not fall back to the
@@ -415,7 +416,7 @@ func TestHandleCreate_StrictPersistsMustExchangeTokenRequirement(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newStrictOutgoingHandler(t, repo, discClient, ctxClient, user)
 

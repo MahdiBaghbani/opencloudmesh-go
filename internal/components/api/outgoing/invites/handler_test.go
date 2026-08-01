@@ -14,10 +14,11 @@ import (
 	"os"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	outgoinginvites "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/outgoing/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
-	invitesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 	tslocalid "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/localidentity"
 )
 
@@ -50,7 +51,7 @@ func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) 
 		t.Fatalf("test setup: ProviderDomain = %q, want example.com", wantProvider)
 	}
 
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	user := &identity.User{ID: "creator-1", Username: "alice"}
 	handler := outgoinginvites.NewHandler(repo, wantProvider, testCurrentUser(user), testLogger)
 
@@ -74,7 +75,7 @@ func TestHandleCreateOutgoing_DefaultPortStrippedFromProviderFQDN(t *testing.T) 
 }
 
 func TestHandleCreateOutgoing_Success(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	user := &identity.User{ID: "creator-2", Username: "alice"}
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), testCurrentUser(user), testLogger)
 
@@ -116,7 +117,7 @@ func TestHandleCreateOutgoing_Success(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	user := &identity.User{
 		ID:       "creator-uuid",
 		Username: "alice",
@@ -148,7 +149,7 @@ func TestHandleCreateOutgoing_SetsCreatedByUserID(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_NilCurrentUser_Returns401(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/invites/outgoing", nil)
@@ -162,7 +163,7 @@ func TestHandleCreateOutgoing_NilCurrentUser_Returns401(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/invites/outgoing", nil)
@@ -176,7 +177,7 @@ func TestHandleCreateOutgoing_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleCreateOutgoing_MethodNotAllowed_Returns405(t *testing.T) {
-	repo := invitesoutgoing.NewMemoryOutgoingInviteRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	handler := outgoinginvites.NewHandler(repo, testLocalProvider(t), failCurrentUser(), testLogger)
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/invites/outgoing", nil)

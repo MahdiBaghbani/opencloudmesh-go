@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	inboundsignature "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/inbound/signature"
 	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -21,7 +23,7 @@ import (
 )
 
 func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 
 	tests := []struct {
@@ -122,7 +124,7 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 // receiver host and the exchange succeeds. An empty scheme would preserve :443
 // and cause an invalid_client mismatch.
 func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "")
 
@@ -155,7 +157,7 @@ func TestHandler_EmptyPublicOrigin_HTTPSDefault(t *testing.T) {
 }
 
 func TestHandler_NilCodeFlowReturns501(t *testing.T) {
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 
 	nilCodeFlowSettings := &tokenincoming.TokenExchangeSettings{}
@@ -189,7 +191,7 @@ func TestHandler_NilCodeFlowReturns501(t *testing.T) {
 }
 
 func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 
@@ -226,7 +228,7 @@ func TestHandler_VerifiedPeerIdentityMatch(t *testing.T) {
 }
 
 func TestHandler_VerifiedPeerIdentityMismatch(t *testing.T) {
-	shareRepo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
 	tokenStore := token.NewMemoryTokenStore()
 	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
 

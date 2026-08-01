@@ -12,11 +12,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -94,7 +96,7 @@ func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -121,7 +123,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVRequirement(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -148,7 +150,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVPermissions(t *testing.T) {
 }
 
 func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -175,7 +177,7 @@ func TestCreateShare_RejectsUnsupportedWebDAVAccessTypes(t *testing.T) {
 }
 
 func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 

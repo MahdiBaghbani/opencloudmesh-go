@@ -14,6 +14,8 @@ import (
 	"slices"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
@@ -22,7 +24,7 @@ import (
 // runVerifyAccess posts to /verify-access through a mock accessor that answers
 // 200 with the given content type, capturing the protocol and share info the
 // handler passed to the access client.
-func runVerifyAccess(t *testing.T, repo *sharesincoming.MemoryIncomingShareRepo, user *identity.User, shareID, contentType, body string) (string, *access.ShareInfo) {
+func runVerifyAccess(t *testing.T, repo sharesincoming.IncomingShareRepo, user *identity.User, shareID, contentType, body string) (string, *access.ShareInfo) {
 	t.Helper()
 
 	var (
@@ -56,7 +58,7 @@ func runVerifyAccess(t *testing.T, repo *sharesincoming.MemoryIncomingShareRepo,
 }
 
 func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedShareForUser(t, repo, "prov-va-webdav", "sender.example.com", "file.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -81,7 +83,7 @@ func TestHandleVerifyAccess_DefaultsToWebDAVProtocol(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolAndPopulatesShareInfo(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedWebappShareForUser(t, repo, userAID, "prov-va-webapp", "sender.example.com", "webapp-file.txt")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
@@ -134,7 +136,7 @@ func assertWebappShareInfo(t *testing.T, got *access.ShareInfo, share *sharesinc
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedWebappShareForUser(t, repo, userAID, "prov-va-webapp-uri", "sender.example.com", "uri-only.txt")
 	share.ProtocolName = "webdav"
 
@@ -160,7 +162,7 @@ func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
 }
 
 func TestHandleVerifyAccess_SelectsWebappProtocolByProtocolName(t *testing.T) {
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createAcceptedWebappShareForUser(t, repo, userAID, "prov-va-webapp-name", "sender.example.com", "name-only.txt")
 	share.WebappURI = ""
 

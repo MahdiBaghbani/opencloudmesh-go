@@ -158,7 +158,7 @@ func startInviteSenderServer(t *testing.T) (*httptest.Server, *atomic.Int32, *at
 	return srv, inviteAcceptedCalls, sawSignature
 }
 
-func createInviteForUser(t *testing.T, repo *invitesincoming.MemoryIncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesincoming.IncomingInvite {
+func createInviteForUser(t *testing.T, repo invitesincoming.IncomingInviteRepo, recipientUserID, token, senderFQDN string) *invitesincoming.IncomingInvite {
 	t.Helper()
 
 	invite := &invitesincoming.IncomingInvite{

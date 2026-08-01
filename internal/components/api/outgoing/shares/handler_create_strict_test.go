@@ -15,11 +15,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/reason"
-	sharesoutgoing "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/outgoing"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
@@ -37,7 +38,7 @@ func TestHandleCreate_RejectsReceiverWithoutTokenExchange(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newStrictOutgoingHandler(t, repo, discClient, ctxClient, user)
 
@@ -64,7 +65,7 @@ func TestHandleCreate_RejectsNilPeerOrigin(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newStrictOutgoingHandler(t, repo, discClient, ctxClient, user)
 	handler.SetPeerOrigin(nil)
@@ -106,7 +107,7 @@ func TestHandleCreate_AbsoluteWebDAVReceiveURI(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newStrictOutgoingHandler(t, repo, discClient, ctxClient, user)
 
@@ -156,7 +157,7 @@ func TestHandleCreate_RejectsMismatchedAuthorityAbsoluteWebDAVReceiveURI(t *test
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newStrictOutgoingHandler(t, repo, discClient, ctxClient, user)
 
@@ -197,7 +198,7 @@ func TestHandleCreate_RelativeWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newStrictOutgoingHandler(t, repo, discClient, ctxClient, user)
 
@@ -232,7 +233,7 @@ func TestHandleCreate_AbsentWebDAVReceiveURIUsesBareUUID(t *testing.T) {
 	defer srv.Close()
 
 	user := &identity.User{ID: "user-uuid", Username: "alice"}
-	repo := sharesoutgoing.NewMemoryOutgoingShareRepo()
+	repo := tsrepos.OpenMemory(t).OutgoingShares
 	discClient, ctxClient := makeTLSClients()
 	handler := newStrictOutgoingHandler(t, repo, discClient, ctxClient, user)
 

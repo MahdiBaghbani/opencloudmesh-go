@@ -14,6 +14,8 @@ import (
 	"os"
 	"testing"
 
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/go-chi/chi/v5"
 
 	inboxshares "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/api/inbox/shares"
@@ -53,7 +55,7 @@ func newTestRouter(repo sharesincoming.IncomingShareRepo, user *identity.User) h
 	return r
 }
 
-func createShareForUser(t *testing.T, repo *sharesincoming.MemoryIncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesincoming.IncomingShare { //nolint:unparam // test fixture helper: senderHost kept for fixture signature uniformity; all current callers pass "sender.example.com"
+func createShareForUser(t *testing.T, repo sharesincoming.IncomingShareRepo, recipientUserID, providerID, senderHost string) *sharesincoming.IncomingShare { //nolint:unparam // test fixture helper: senderHost kept for fixture signature uniformity; all current callers pass "sender.example.com"
 	t.Helper()
 
 	share := &sharesincoming.IncomingShare{
@@ -80,7 +82,7 @@ func createShareForUser(t *testing.T, repo *sharesincoming.MemoryIncomingShareRe
 func runShareStatusTransition(t *testing.T, action, providerID string, want shares.ShareStatus) {
 	t.Helper()
 
-	repo := sharesincoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	share := createShareForUser(t, repo, userAID, providerID, "sender.example.com")
 
 	userA := &identity.User{ID: userAID, Username: "alice"}

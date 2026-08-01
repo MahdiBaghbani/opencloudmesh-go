@@ -14,12 +14,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
+	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
+
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/spec"
 )
 
 func TestCreateShare_MissingRequiredFields(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -50,7 +51,7 @@ func TestCreateShare_MissingRequiredFields(t *testing.T) {
 }
 
 func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -98,7 +99,7 @@ func TestCreateShare_InvalidOwnerFormat(t *testing.T) {
 }
 
 func TestCreateShare_ProviderMismatch(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -125,7 +126,7 @@ func TestCreateShare_ProviderMismatch(t *testing.T) {
 }
 
 func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -161,7 +162,7 @@ func TestCreateShare_InvalidShareType_Returns501(t *testing.T) {
 }
 
 func TestCreateShare_RecipientNotFound(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -199,7 +200,7 @@ func TestCreateShare_RecipientNotFound(t *testing.T) {
 	}
 }
 func TestCreateShare_InvalidResourceType_Returns501(t *testing.T) {
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -227,7 +228,7 @@ func TestCreateShare_InvalidResourceType_Returns501(t *testing.T) {
 func TestCreateShare_FederatedOpaqueID_IDPMismatch_Rejected(t *testing.T) {
 	// Encoded identifier decodes to a valid userID@idp payload, but the
 	// decoded idp doesn't match local provider -- must be rejected.
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
@@ -259,7 +260,7 @@ func TestCreateShare_Base64LikeButNoFederatedPayload_Rejected(t *testing.T) {
 	// "YWJj" is base64 of "abc" -- passes charset check but decoded payload
 	// has no '@', so DecodeFederatedOpaqueID returns false. Falls through to
 	// "recipient not found" since "YWJj" is not a real user.
-	repo := incoming.NewMemoryIncomingShareRepo()
+	repo := tsrepos.OpenMemory(t).IncomingShares
 	partyRepo := setupTestPartyRepo(t)
 	handler := newTestHandler(repo, partyRepo)
 
