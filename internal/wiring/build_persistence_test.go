@@ -6,6 +6,8 @@
 package wiring_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
@@ -29,7 +31,18 @@ func assertMemoryBackedTokenStore(t *testing.T, d *wiring.Deps) {
 }
 
 func TestPersistence_MemoryBackend(t *testing.T) {
+	// Run from a fresh working directory so the memory backend can prove it
+	// never touches the strict preset's CWD-relative data dir.
+	t.Chdir(t.TempDir())
+
 	cfg := config.DevConfig()
+	if cfg.Persistence.Backend != config.BackendMemory {
+		t.Fatalf("dev preset backend = %q, want %q", cfg.Persistence.Backend, config.BackendMemory)
+	}
+
+	if cfg.Persistence.DataDir != "" {
+		t.Fatalf("dev preset data dir = %q, want empty", cfg.Persistence.DataDir)
+	}
 
 	result, err := wiring.Build(cfg, tslog.DiscardLogger(), harnessBuildOpts())
 	if err != nil {
@@ -61,6 +74,11 @@ func TestPersistence_MemoryBackend(t *testing.T) {
 
 	if err := result.Persistence.Close(); err != nil {
 		t.Errorf("Persistence.Close() for memory backend: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(config.DefaultPersistenceDataDir, "ocm.db")); !os.IsNotExist(err) {
+		t.Errorf("memory backend must not create %s, stat err = %v",
+			filepath.Join(config.DefaultPersistenceDataDir, "ocm.db"), err)
 	}
 }
 

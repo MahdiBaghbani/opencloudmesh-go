@@ -101,7 +101,8 @@ func StrictConfig() *Config {
 			Path: "token",
 		},
 		Persistence: PersistenceConfig{
-			Backend: BackendMemory,
+			Backend: BackendSQLite,
+			DataDir: DefaultPersistenceDataDir,
 		},
 		OCM: OCMConfig{
 			CompatibilityScope: CompatibilityScopeGlobal,
@@ -126,7 +127,9 @@ func StrictConfig() *Config {
 // so the strict preset stays the single source of shared defaults.
 //
 // DevConfig relaxes dev-only transport and operational settings (TLS off, SSRF
-// off, insecure skip verify, ACME staging, debug logging).
+// off, insecure skip verify, ACME staging, debug logging) and overrides
+// persistence to the ephemeral memory backend so dev runs never touch the
+// strict data dir.
 func DevConfig() *Config {
 	cfg := StrictConfig()
 	cfg.Mode = string(ModeDev)
@@ -138,6 +141,8 @@ func DevConfig() *Config {
 	cfg.OutboundHTTP.InsecureSkipVerify = true
 	cfg.OutboundHTTP.UseEnvFallback = false
 	cfg.Logging.Level = "debug"
+	cfg.Persistence.Backend = BackendMemory
+	cfg.Persistence.DataDir = ""
 
 	return cfg
 }

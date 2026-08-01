@@ -307,6 +307,8 @@ func TestDevConfig_DerivesFromStrict(t *testing.T) {
 		{"OutboundHTTP.InsecureSkipVerify", dev.OutboundHTTP.InsecureSkipVerify, true},
 		{"OutboundHTTP.UseEnvFallback", dev.OutboundHTTP.UseEnvFallback, false},
 		{"Logging.Level", dev.Logging.Level, "debug"},
+		{"Persistence.Backend", dev.Persistence.Backend, BackendMemory},
+		{"Persistence.DataDir", dev.Persistence.DataDir, ""},
 	}
 	for _, d := range deltas {
 		if d.got != d.want {

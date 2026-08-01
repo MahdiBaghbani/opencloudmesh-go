@@ -530,6 +530,20 @@ func extraDefinesTLSTable(extra string) bool {
 	return hasTLSTable
 }
 
+// extraDefinesPersistenceTable reports whether ExtraConfig declares its own
+// [persistence] table. When it does, generateTOMLConfig omits the generated
+// memory-backend pin so the test can pick a durable backend without a
+// duplicate-table TOML error.
+func extraDefinesPersistenceTable(extra string) bool {
+	for _, line := range strings.Split(extra, "\n") {
+		if strings.TrimSpace(line) == "[persistence]" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // extraDefinesPublicOrigin reports whether ExtraConfig sets the top-level
 // public_origin key. When it does, generateTOMLConfig omits its generated
 // default so the test's explicit origin wins (and so the rendered TOML does not
@@ -571,6 +585,8 @@ func extraDefinesPublicOrigin(extra string) bool {
 // at construction time, so the base config can stay minimal.
 func generateTOMLConfig(name string, port int, _, mode string, disableUseEnvFallback bool, tlsRootCAFile, bootstrapAdminPassword, publicOriginHost string, extra string) string {
 	secure := needsSecureTransport(mode)
+	// Capture before the local config string shadows the config package.
+	memoryBackend := config.BackendMemory
 
 	// Derive the scheme for the generated default public_origin from the FINAL
 	// effective TLS mode, not just the preset heuristic. ExtraConfig may override
@@ -637,6 +653,17 @@ mode = "off"
 
 `
 		}
+	}
+
+	// Pin the memory backend explicitly: the subprocess binary is built with
+	// CGO_ENABLED=0, where the sqlite driver is a stub, so the strict preset's
+	// durable sqlite default cannot boot there. Tests that need durable
+	// persistence declare their own [persistence] table in ExtraConfig.
+	if !extraDefinesPersistenceTable(extra) {
+		config += fmt.Sprintf(`[persistence]
+backend = %q
+
+`, memoryBackend)
 	}
 
 	bootstrapAdmin := "[server.bootstrap_admin]\nusername = \"admin\"\n"

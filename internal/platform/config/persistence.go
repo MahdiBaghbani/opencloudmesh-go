@@ -14,3 +14,7 @@ const (
 	BackendSQLite = "sqlite"
 	BackendMirror = "mirror"
 )
+
+// DefaultPersistenceDataDir is the CWD-relative data directory the strict
+// preset uses for its durable sqlite backend.
+const DefaultPersistenceDataDir = ".ocm/data"

@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -34,6 +35,12 @@ type Core struct {
 // persistence models, and returns a ready Core. The caller owns the Core and
 // must call Close when done.
 func Open(dataDir string) (*Core, error) {
+	// Create the data dir up front so a fresh-CWD first boot works; matches
+	// the JSON driver's Init behavior.
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		return nil, fmt.Errorf("failed to create data dir: %w", err)
+	}
+
 	dbPath := filepath.Join(dataDir, "ocm.db")
 
 	db, err := gorm.Open(gormsqlite.Open(dbPath), &gorm.Config{

@@ -7,6 +7,8 @@ package repos_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -28,22 +30,53 @@ func TestDurableRepos_InviteRestart(t *testing.T) {
 
 	for _, backend := range tsrepos.DurableBackends() {
 		t.Run(backend, func(t *testing.T) {
-			runInviteRestartSession(t, ctx, backend)
+			cfg := config.PersistenceConfig{
+				Backend: backend,
+				DataDir: t.TempDir(),
+			}
+			runInviteRestartSession(t, ctx, cfg)
 		})
 	}
 }
 
-// runInviteRestartSession drives one backend through a create, close, reopen,
-// verify cycle.
-func runInviteRestartSession(t *testing.T, ctx context.Context, backend string) {
-	t.Helper()
+// TestStrictPresetPersistence_DataDirSurvivesRestart is the regression guard
+// for the sqlite first-boot fix: from a fresh working directory, the strict
+// preset's CWD-relative data dir must be created on demand and the seeded
+// invites must survive a restart. Without the MkdirAll in sqlitecore.Open,
+// the first repos.New fails because .ocm/data does not exist.
+func TestStrictPresetPersistence_DataDirSurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
 
-	dir := t.TempDir()
-	cfg := config.PersistenceConfig{
-		Backend: backend,
-		DataDir: dir,
+	cfg := config.StrictConfig().Persistence
+	if cfg.Backend != config.BackendSQLite {
+		t.Fatalf("strict preset backend = %q, want %q", cfg.Backend, config.BackendSQLite)
 	}
 
+	if cfg.DataDir != config.DefaultPersistenceDataDir {
+		t.Fatalf("strict preset data dir = %q, want %q", cfg.DataDir, config.DefaultPersistenceDataDir)
+	}
+
+	ctx := context.Background()
+	now := time.Unix(time.Now().Unix(), 0).UTC()
+	outInvite := newRestartOutgoingInvite(cfg.Backend, now)
+	inInvite := newRestartIncomingInvite(cfg.Backend, now)
+
+	seedRestartInvites(t, ctx, cfg, cfg.Backend, outInvite, inInvite)
+
+	if _, err := os.Stat(filepath.Join(cfg.DataDir, "ocm.db")); err != nil {
+		t.Fatalf("ocm.db must exist under the strict data dir after first session: %v", err)
+	}
+
+	verifyRestartedInvites(t, ctx, cfg, cfg.Backend, outInvite, inInvite)
+}
+
+// runInviteRestartSession drives one backend through a create, close, reopen,
+// verify cycle.
+func runInviteRestartSession(t *testing.T, ctx context.Context, cfg config.PersistenceConfig) {
+	t.Helper()
+
+	backend := cfg.Backend
 	now := time.Unix(time.Now().Unix(), 0).UTC()
 	outInvite := newRestartOutgoingInvite(backend, now)
 	inInvite := newRestartIncomingInvite(backend, now)

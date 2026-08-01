@@ -119,7 +119,7 @@ type CodeFlowConfig struct {
 // PersistenceConfig holds persistence backend settings.
 type PersistenceConfig struct {
 	// Backend selects the persistence backend: memory, json, sqlite, mirror.
-	// Default: memory.
+	// Preset default: strict uses sqlite; dev uses memory (see presets.go).
 	Backend string `toml:"backend"`
 
 	// DataDir is the data directory for durable backends (json, sqlite, mirror).

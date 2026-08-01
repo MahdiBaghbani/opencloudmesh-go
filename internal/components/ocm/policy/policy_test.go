@@ -131,6 +131,14 @@ func TestStrictPreset_FinalShape(t *testing.T) {
 		cfg.OCM.CodeFlow.RequiresHTTPRequestSignatures != nil {
 		t.Fatalf("strict preset code-flow knobs must stay unset, got %+v", cfg.OCM.CodeFlow)
 	}
+
+	if cfg.Persistence.Backend != config.BackendSQLite {
+		t.Errorf("strict persistence backend = %q, want %q", cfg.Persistence.Backend, config.BackendSQLite)
+	}
+
+	if cfg.Persistence.DataDir != config.DefaultPersistenceDataDir {
+		t.Errorf("strict persistence data dir = %q, want %q", cfg.Persistence.DataDir, config.DefaultPersistenceDataDir)
+	}
 }
 
 func TestStrictPreset_UseEnvFallbackExplicitOptIn(t *testing.T) {
