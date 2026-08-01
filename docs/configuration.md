@@ -70,6 +70,9 @@ TOML sections map to `internal/platform/config.Config`:
 | `[persistence]` | Store backend (memory, json, sqlite, mirror) |
 | `[http]` | Per-service HTTP limits |
 
+The strict preset defaults `[persistence]` to sqlite with data stored under
+`.ocm/data` (relative to the process working directory).
+
 ## Example configs
 
 | Path | Use |
