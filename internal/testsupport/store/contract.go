@@ -125,9 +125,19 @@ func RunDriverTests(t *testing.T, driverName string, cfg *store.DriverConfig) {
 		runOutgoingInviteUpdateNotFound(t, ctx, requireOutgoingInviteStore(t, d))
 	})
 
+	t.Run("OutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate", func(t *testing.T) {
+		d := newSubDriver(t)
+		runOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t, ctx, requireOutgoingInviteStore(t, d))
+	})
+
 	t.Run("IncomingInviteStatusContract", func(t *testing.T) {
 		d := newSubDriver(t)
 		runIncomingInviteStatusContract(t, ctx, requireIncomingInviteStore(t, d))
+	})
+
+	t.Run("IncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate", func(t *testing.T) {
+		d := newSubDriver(t)
+		runIncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t, ctx, requireIncomingInviteStore(t, d))
 	})
 
 	t.Run("IncomingInviteCompositeUniqueness", func(t *testing.T) {
@@ -551,7 +561,8 @@ func runOutgoingInviteCRUD(t *testing.T, ctx context.Context, s store.OutgoingIn
 	requireDuplicateCreateOutgoingInviteFails(t, ctx, s, invite)
 	requireOutgoingInviteByID(t, ctx, s, invite)
 	requireOutgoingInviteByToken(t, ctx, s, invite)
-	oldToken := updateOutgoingInviteTokenAndStatus(t, ctx, s, invite, "new-invite-token", "accepted")
+	oldToken := updateOutgoingInviteToken(t, ctx, s, invite, "new-invite-token")
+	updateOutgoingInviteStatusAccepted(t, ctx, s, invite)
 	requireOutgoingInviteByTokenNotFound(t, ctx, s, oldToken)
 	requireOutgoingInviteByTokenHasStatus(t, ctx, s, invite.Token, "accepted")
 	requireOutgoingInviteListByUserNonEmpty(t, ctx, s, invite.CreatedByUserID)
@@ -607,25 +618,35 @@ func requireOutgoingInviteByToken(t *testing.T, ctx context.Context, s store.Out
 	}
 }
 
-func updateOutgoingInviteTokenAndStatus(
+func updateOutgoingInviteToken(
 	t *testing.T,
 	ctx context.Context,
 	s store.OutgoingInviteStore,
 	invite *store.OutgoingInvite,
-	newToken,
-	newStatus string,
+	newToken string,
 ) string {
 	t.Helper()
 
 	oldToken := invite.Token
 	invite.Token = newToken
-	invite.Status = newStatus
 
 	if err := s.UpdateOutgoingInvite(ctx, invite); err != nil {
 		t.Fatalf("UpdateOutgoingInvite failed: %v", err)
 	}
 
 	return oldToken
+}
+
+func updateOutgoingInviteStatusAccepted(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, invite *store.OutgoingInvite) {
+	t.Helper()
+
+	invite.Status = "accepted"
+	invite.AcceptedUserID = "bob"
+	invite.AcceptedProviderFQDNNormalized = invite.ProviderFQDN
+
+	if err := s.UpdateOutgoingInvite(ctx, invite); err != nil {
+		t.Fatalf("UpdateOutgoingInvite failed: %v", err)
+	}
 }
 
 func requireOutgoingInviteByTokenNotFound(t *testing.T, ctx context.Context, s store.OutgoingInviteStore, token string) {
@@ -680,9 +701,10 @@ func requireOutgoingInviteNotFound(t *testing.T, ctx context.Context, s store.Ou
 	}
 }
 
-// runIncomingInviteStatusContract verifies that incoming-invite updates are
-// status-only: cross-user access is rejected and scope-defining fields (Token,
-// RecipientUserID) are unchanged after a status update.
+// runIncomingInviteStatusContract verifies incoming-invite update behavior:
+// cross-user access is rejected, scope-defining fields (Token, RecipientUserID)
+// are unchanged after an update, and the remote sender identity is persisted on
+// acceptance.
 func runIncomingInviteStatusContract(t *testing.T, ctx context.Context, s store.IncomingInviteStore) {
 	invite := NewIncomingInviteFixture()
 
@@ -1264,5 +1286,117 @@ func runIncomingShareProviderKeyUniqueness(
 
 	if gotThird.ShareID != "provider-key-unique-3" {
 		t.Errorf("expected provider-key-unique-3, got %q", gotThird.ShareID)
+	}
+}
+
+// runOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate verifies the store
+// layer (without the adapter) coalesces an empty-identity accepted update with
+// the stored row so a partial write cannot erase the accepted identity. The
+// store coalesces only AcceptedUserID and AcceptedProviderFQDNNormalized;
+// the raw AcceptedProviderFQDN follows replace semantics and is not restored
+// from the stored row when the payload carries an empty value.
+func runOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T, ctx context.Context, s store.OutgoingInviteStore) {
+	t.Helper()
+
+	invite := NewOutgoingInviteFixture()
+	invite.ID = "store-out-coalesce-id"
+	invite.Token = "store-out-coalesce-token"
+	invite.Status = "pending"
+	invite.AcceptedUserID = ""
+	invite.AcceptedProviderFQDNNormalized = ""
+	invite.AcceptedProviderFQDN = ""
+
+	createOutgoingInvite(t, ctx, s, invite)
+
+	invite.Status = "accepted"
+	invite.AcceptedUserID = "store-acceptor"
+	invite.AcceptedProviderFQDNNormalized = invite.ProviderFQDN
+	invite.AcceptedProviderFQDN = invite.ProviderFQDN
+
+	if err := s.UpdateOutgoingInvite(ctx, invite); err != nil {
+		t.Fatalf("UpdateOutgoingInvite accepted with identity: %v", err)
+	}
+
+	// Re-accept with an entirely empty accepted-identity payload: the store
+	// must coalesce userID and normalizedHost from the stored row, but must
+	// NOT restore the raw AcceptedProviderFQDN (replace semantics).
+	invite.AcceptedUserID = ""
+	invite.AcceptedProviderFQDNNormalized = ""
+	invite.AcceptedProviderFQDN = ""
+
+	if err := s.UpdateOutgoingInvite(ctx, invite); err != nil {
+		t.Fatalf("UpdateOutgoingInvite accepted with empty identity: %v", err)
+	}
+
+	got, err := s.GetOutgoingInvite(ctx, invite.ID)
+	if err != nil {
+		t.Fatalf("GetOutgoingInvite after empty update: %v", err)
+	}
+
+	if got.Status != "accepted" {
+		t.Errorf("Status after empty update: got %q, want accepted", got.Status)
+	}
+
+	if got.AcceptedUserID != "store-acceptor" {
+		t.Errorf("AcceptedUserID after empty update: got %q, want store-acceptor (coalesced from stored)", got.AcceptedUserID)
+	}
+
+	if got.AcceptedProviderFQDNNormalized != invite.ProviderFQDN {
+		t.Errorf("AcceptedProviderFQDNNormalized after empty update: got %q, want %q (coalesced from stored)", got.AcceptedProviderFQDNNormalized, invite.ProviderFQDN)
+	}
+
+	// Option B: the raw FQDN is not coalesced. An empty payload value replaces
+	// the stored raw FQDN; the store must not restore it from the stored row.
+	if got.AcceptedProviderFQDN != "" {
+		t.Errorf("AcceptedProviderFQDN after empty update: got %q, want empty (raw FQDN follows replace semantics, not coalesced)", got.AcceptedProviderFQDN)
+	}
+}
+
+// runIncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate verifies the store
+// layer (without the adapter) coalesces an empty-identity accepted update with
+// the stored row so a partial write cannot erase the sender identity, and the
+// raw sender FQDN is not overwritten by the empty payload.
+func runIncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T, ctx context.Context, s store.IncomingInviteStore) {
+	t.Helper()
+
+	invite := NewIncomingInviteFixture()
+	invite.ID = "store-in-coalesce-id"
+	invite.Token = "store-in-coalesce-token"
+	invite.RecipientUserID = "store-recipient-coalesce"
+	invite.Status = "pending"
+	invite.SenderUserID = ""
+	invite.SenderFQDNNormalized = ""
+
+	createIncomingInvite(t, ctx, s, invite)
+
+	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserID, "accepted", "store-sender", invite.SenderFQDN); err != nil {
+		t.Fatalf("UpdateIncomingInviteStatusForRecipient accepted with identity: %v", err)
+	}
+
+	// Re-accept with empty identity: the store must coalesce from the stored
+	// row, not erase the sender identity.
+	if err := s.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, invite.RecipientUserID, "accepted", "", ""); err != nil {
+		t.Fatalf("UpdateIncomingInviteStatusForRecipient accepted with empty identity: %v", err)
+	}
+
+	got, err := s.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID)
+	if err != nil {
+		t.Fatalf("GetIncomingInviteForRecipient after empty update: %v", err)
+	}
+
+	if got.Status != "accepted" {
+		t.Errorf("Status after empty update: got %q, want accepted", got.Status)
+	}
+
+	if got.SenderUserID != "store-sender" {
+		t.Errorf("SenderUserID after empty update: got %q, want store-sender (coalesced from stored)", got.SenderUserID)
+	}
+
+	if got.SenderFQDNNormalized != invite.SenderFQDN {
+		t.Errorf("SenderFQDNNormalized after empty update: got %q, want %q (coalesced from stored)", got.SenderFQDNNormalized, invite.SenderFQDN)
+	}
+
+	if got.SenderFQDN != invite.SenderFQDN {
+		t.Errorf("SenderFQDN after empty update: got %q, want %q (raw FQDN not written back from empty payload)", got.SenderFQDN, invite.SenderFQDN)
 	}
 }

@@ -8,6 +8,7 @@ package json
 import (
 	"context"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
@@ -28,6 +29,10 @@ func (d *Driver) CreateOutgoingInvite(_ context.Context, invite *store.OutgoingI
 		if existing, ok := d.outgoingInviteTokenIndex[invite.Token]; ok && existing != invite.ID {
 			return store.ErrAlreadyExists
 		}
+	}
+
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized); err != nil {
+		return err
 	}
 
 	d.outgoingInvites[invite.ID] = cloneOutgoingInvite(invite)
@@ -88,7 +93,10 @@ func (d *Driver) GetOutgoingInviteByToken(_ context.Context, token string) (*sto
 	return cloneOutgoingInvite(invite), nil
 }
 
-// UpdateOutgoingInvite updates an existing outgoing invite.
+// UpdateOutgoingInvite updates an existing outgoing invite. The accepted
+// identity (user id plus normalized host) coalesces with the stored row so a
+// status-only write cannot erase it, and an accepted status without a complete
+// identity is rejected. The raw accepted provider FQDN keeps replace semantics.
 func (d *Driver) UpdateOutgoingInvite(_ context.Context, invite *store.OutgoingInvite) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -97,18 +105,29 @@ func (d *Driver) UpdateOutgoingInvite(_ context.Context, invite *store.OutgoingI
 		return store.ErrClosed
 	}
 
-	if _, exists := d.outgoingInvites[invite.ID]; !exists {
+	existing, exists := d.outgoingInvites[invite.ID]
+	if !exists {
 		return store.ErrNotFound
 	}
 
+	if err := invites.ValidateUpdateAcceptedIdentity(invite.Status,
+		invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
+		existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized); err != nil {
+		return err
+	}
+
+	invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+		invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
+		existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized)
+
 	if invite.Token != "" {
-		if existing, ok := d.outgoingInviteTokenIndex[invite.Token]; ok && existing != invite.ID {
+		if existingID, ok := d.outgoingInviteTokenIndex[invite.Token]; ok && existingID != invite.ID {
 			return store.ErrAlreadyExists
 		}
 	}
 
 	// Capture old state for rollback.
-	oldInvite := d.outgoingInvites[invite.ID]
+	oldInvite := existing
 
 	var oldToken string
 

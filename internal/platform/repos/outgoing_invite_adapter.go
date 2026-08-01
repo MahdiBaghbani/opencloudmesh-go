@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +38,10 @@ func (a *outgoingInviteAdapter) Create(ctx context.Context, invite *invitesoutgo
 
 	if invite.Status == "" {
 		invite.Status = invites.InviteStatusPending
+	}
+
+	if err := invites.ValidateCreateInviteStatus(string(invite.Status), invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized); err != nil {
+		return err
 	}
 
 	s := appOutgoingInviteToStore(invite)
@@ -107,19 +112,27 @@ func (a *outgoingInviteAdapter) UpdateStatus(
 		return err
 	}
 
-	existing.Status = string(status)
+	argUserID := ""
+	argHost := ""
 
 	if acceptance != nil {
-		if acceptance.ProviderFQDN != "" {
+		argUserID = acceptance.UserID
+		argHost = acceptance.ProviderFQDNNormalized
+	}
+
+	if err := invites.ValidateUpdateAcceptedIdentity(string(status), argUserID, argHost, existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized); err != nil {
+		return err
+	}
+
+	existing.Status = string(status)
+	existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+		argUserID, argHost, existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized)
+
+	if acceptance != nil {
+		// The raw provider FQDN keeps replace semantics: only the user id and
+		// the normalized host coalesce with the stored identity above.
+		if strings.TrimSpace(acceptance.ProviderFQDN) != "" {
 			existing.AcceptedProviderFQDN = acceptance.ProviderFQDN
-		}
-
-		if acceptance.UserID != "" {
-			existing.AcceptedUserID = acceptance.UserID
-		}
-
-		if acceptance.ProviderFQDNNormalized != "" {
-			existing.AcceptedProviderFQDNNormalized = acceptance.ProviderFQDNNormalized
 		}
 
 		existing.AcceptedAt = time.Now().Unix()

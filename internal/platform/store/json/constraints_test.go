@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
@@ -62,10 +63,11 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 		t.Fatalf("expected ErrNotFound for wrong recipient lookup, got %v", err)
 	}
 
-	if serr := inStore.UpdateIncomingInviteStatusForRecipient(
+	// An accepted update without sender identity is rejected before any write.
+	if cerr := inStore.UpdateIncomingInviteStatusForRecipient(
 		ctx, invite.ID, invite.RecipientUserID, "accepted", "", "",
-	); serr != nil {
-		t.Fatalf("UpdateIncomingInviteStatusForRecipient failed: %v", serr)
+	); !errors.Is(cerr, invites.ErrInvalidAcceptedIdentity) {
+		t.Fatalf("expected ErrInvalidAcceptedIdentity for accepted update without identity, got %v", cerr)
 	}
 
 	err = inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted", "", "")
@@ -85,6 +87,52 @@ func TestJSONIncomingInviteRecipientScope(t *testing.T) {
 	_, err = inStore.GetIncomingInviteForRecipient(ctx, invite.ID, invite.RecipientUserID)
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound after delete, got %v", err)
+	}
+}
+
+// TestJSONIncomingInviteUpdateRecipientGateBeforeValidation pins the ordering
+// guarantee: a wrong-recipient accepted update reports ErrNotFound whether or
+// not identity validation would have passed, because the recipient scope gate
+// always runs first.
+func TestJSONIncomingInviteUpdateRecipientGateBeforeValidation(t *testing.T) {
+	driver := newJSONDriver(t)
+	defer tshttp.MustClose(t, driver)
+
+	ctx := context.Background()
+
+	inStore := requireIncomingInviteStore(t, driver)
+
+	invite := &store.IncomingInvite{
+		ID:              "gate-order-invite",
+		Token:           "gate-order-token",
+		InviteString:    "ocm://invite",
+		SenderFQDN:      "remote.example",
+		RecipientUserID: "alice",
+		Status:          "pending",
+		ReceivedAt:      time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
+	}
+	if err := inStore.CreateIncomingInvite(ctx, invite); err != nil {
+		t.Fatalf("CreateIncomingInvite: %v", err)
+	}
+
+	// Wrong recipient plus an identity validation would reject: ErrNotFound.
+	err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted", "", "")
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for wrong recipient without identity, got %v", err)
+	}
+
+	// Seed a full sender identity through the correct recipient.
+	if cerr := inStore.UpdateIncomingInviteStatusForRecipient(
+		ctx, invite.ID, invite.RecipientUserID, "accepted", "sender-user", "remote.example",
+	); cerr != nil {
+		t.Fatalf("UpdateIncomingInviteStatusForRecipient with identity: %v", cerr)
+	}
+
+	// Wrong recipient where coalesced validation would pass: still ErrNotFound.
+	err = inStore.UpdateIncomingInviteStatusForRecipient(ctx, invite.ID, "bob", "accepted", "", "")
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for wrong recipient with stored identity, got %v", err)
 	}
 }
 

@@ -82,6 +82,38 @@ func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 	}
 }
 
+// TestOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate verifies across
+// every backend that re-accepting an already-accepted outgoing invite with an
+// empty identity payload preserves the persisted accepted identity: the user
+// id and normalized host coalesce from the stored row so a partial write cannot
+// erase them, and the raw provider FQDN is not overwritten by the empty payload.
+func TestOutgoingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T) {
+	for _, tt := range tsrepos.OpenTestRepos() {
+		t.Run(tt.Name, func(t *testing.T) {
+			r := tt.Open(t)
+			defer tshttp.MustClose(t, r)
+
+			runOutgoingInviteRepoContractAcceptedIdentityCoalescedOnEmptyUpdate(t, context.Background(), r)
+		})
+	}
+}
+
+// TestIncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate verifies across
+// every backend that re-accepting an already-accepted incoming invite with an
+// empty identity payload preserves the persisted sender identity: the user id
+// and normalized host coalesce from the stored row so a partial write cannot
+// erase them, and the raw sender FQDN is not overwritten by the empty payload.
+func TestIncomingInviteAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T) {
+	for _, tt := range tsrepos.OpenTestRepos() {
+		t.Run(tt.Name, func(t *testing.T) {
+			r := tt.Open(t)
+			defer tshttp.MustClose(t, r)
+
+			runIncomingInviteRepoContractAcceptedIdentityCoalescedOnEmptyUpdate(t, context.Background(), r)
+		})
+	}
+}
+
 // runRepoContract exercises all four app repo interfaces against a single
 // *repos.Repos instance. All subtests use IDs that are unique within this
 // call so no state leaks between subtests.

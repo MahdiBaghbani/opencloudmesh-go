@@ -17,10 +17,30 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/outgoing"
 )
 
-// TestFindAcceptedForRecipient_RequiresNormalizedColumn verifies the
-// must-invite lookup fails closed: a row accepted without identity persistence
-// (empty normalized provider column) never matches.
-func TestFindAcceptedForRecipient_RequiresNormalizedColumn(t *testing.T) {
+// TestCreate_RejectsAcceptedWithoutIdentity verifies the create-time guard:
+// an invite created directly in accepted status must carry the full accepted
+// identity.
+func TestCreate_RejectsAcceptedWithoutIdentity(t *testing.T) {
+	repo := tsrepos.OpenMemory(t).OutgoingInvites
+	ctx := context.Background()
+
+	invite := &outgoing.OutgoingInvite{
+		Token:           "tok-create-accepted",
+		ProviderFQDN:    "receiver.example",
+		CreatedByUserID: "sender-user",
+		Status:          invites.InviteStatusAccepted,
+		ExpiresAt:       time.Now().Add(time.Hour),
+	}
+	if err := repo.Create(ctx, invite); !errors.Is(err, invites.ErrInvalidCreateStatus) {
+		t.Errorf("Create accepted without identity: got %v, want ErrInvalidCreateStatus", err)
+	}
+}
+
+// TestUpdateStatus_RejectsAcceptedWithoutNormalizedHost verifies the
+// acceptance identity invariant fails closed: an accepted update missing the
+// normalized provider host is rejected instead of persisting a row the
+// must-invite lookup could never match.
+func TestUpdateStatus_RejectsAcceptedWithoutNormalizedHost(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).OutgoingInvites
 	ctx := context.Background()
 
@@ -37,12 +57,8 @@ func TestFindAcceptedForRecipient_RequiresNormalizedColumn(t *testing.T) {
 
 	// Acceptance with only the user identity leaves the normalized column empty.
 	acceptance := &outgoing.Acceptance{UserID: "recipient-user"}
-	if err := repo.UpdateStatus(ctx, invite.ID, invites.InviteStatusAccepted, acceptance); err != nil {
-		t.Fatalf("UpdateStatus: %v", err)
-	}
-
-	if _, err := repo.FindAcceptedForRecipient(ctx, "sender-user", "recipient-user", "receiver.example"); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForRecipient with empty normalized column: got %v, want ErrInviteNotFound", err)
+	if err := repo.UpdateStatus(ctx, invite.ID, invites.InviteStatusAccepted, acceptance); !errors.Is(err, invites.ErrInvalidAcceptedIdentity) {
+		t.Errorf("UpdateStatus accepted without normalized host: got %v, want ErrInvalidAcceptedIdentity", err)
 	}
 }
 

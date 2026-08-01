@@ -24,7 +24,7 @@ type IncomingInvite struct {
 	Status          invites.InviteStatus `json:"status"`
 	// SenderUserID is the canonical remote sender user identity from the
 	// accepted invite exchange (invite-accepted userID). Empty until the
-	// invite is accepted or for rows predating must-invite persistence.
+	// invite is accepted.
 	SenderUserID string `json:"senderUserId,omitempty"`
 	// SenderFQDNNormalized is the sender FQDN in compare form (lowercase,
 	// scheme-aware default-port stripped), persisted on acceptance so the

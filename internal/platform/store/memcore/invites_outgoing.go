@@ -8,30 +8,9 @@ package memcore
 import (
 	"context"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
-
-// validateCreateInviteStatus is the create-time status validation seam for
-// outgoing invites. Status transition rules are not enforced here yet; Create
-// routes through the hook so the validation point stays stable.
-func validateCreateInviteStatus(_ *store.OutgoingInvite) {
-}
-
-// validateUpdateAcceptedIdentity applies the narrow accepted-identity
-// invariant before Update replaces the stored record: the accepted user id
-// and the normalized accepted provider host are coalesced from the stored
-// record when the update leaves them empty, so a full-record replace cannot
-// erase a persisted accepted identity. All other fields follow normal
-// replace semantics; the hook writes no acceptance payload fields.
-func validateUpdateAcceptedIdentity(existing, invite *store.OutgoingInvite) {
-	if invite.AcceptedUserID == "" {
-		invite.AcceptedUserID = existing.AcceptedUserID
-	}
-
-	if invite.AcceptedProviderFQDNNormalized == "" {
-		invite.AcceptedProviderFQDNNormalized = existing.AcceptedProviderFQDNNormalized
-	}
-}
 
 // CreateOutgoingInvite creates a new outgoing invite.
 func (c *Core) CreateOutgoingInvite(_ context.Context, invite *store.OutgoingInvite) error {
@@ -52,7 +31,9 @@ func (c *Core) CreateOutgoingInvite(_ context.Context, invite *store.OutgoingInv
 		}
 	}
 
-	validateCreateInviteStatus(invite)
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized); err != nil {
+		return err
+	}
 
 	c.outgoingInvites[invite.ID] = cloneOutgoingInvite(invite)
 	if invite.Token != "" {
@@ -101,7 +82,10 @@ func (c *Core) GetOutgoingInviteByToken(_ context.Context, token string) (*store
 	return cloneOutgoingInvite(invite), nil
 }
 
-// UpdateOutgoingInvite updates an existing outgoing invite.
+// UpdateOutgoingInvite updates an existing outgoing invite. The accepted
+// identity (user id plus normalized host) coalesces with the stored row so a
+// status-only write cannot erase it, and an accepted status without a complete
+// identity is rejected. The raw accepted provider FQDN keeps replace semantics.
 func (c *Core) UpdateOutgoingInvite(_ context.Context, invite *store.OutgoingInvite) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -115,13 +99,21 @@ func (c *Core) UpdateOutgoingInvite(_ context.Context, invite *store.OutgoingInv
 		return store.ErrNotFound
 	}
 
+	if err := invites.ValidateUpdateAcceptedIdentity(invite.Status,
+		invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
+		existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized); err != nil {
+		return err
+	}
+
+	invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+		invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
+		existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized)
+
 	if invite.Token != "" {
 		if existingID, ok := c.outgoingInviteTokenIndex[invite.Token]; ok && existingID != invite.ID {
 			return store.ErrAlreadyExists
 		}
 	}
-
-	validateUpdateAcceptedIdentity(existing, invite)
 
 	for tok, id := range c.outgoingInviteTokenIndex {
 		if id == invite.ID {

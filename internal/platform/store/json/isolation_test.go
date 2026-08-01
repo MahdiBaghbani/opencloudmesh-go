@@ -7,8 +7,10 @@ package json_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 	tshttp "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/http"
 	testutil "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/store"
@@ -274,7 +276,8 @@ func assertIncomingShareStatusUpdate(t *testing.T, ctx context.Context, inStore 
 //  2. Get/list return copies: mutation of a fetched or listed record does not
 //     alter subsequent fetches from the store.
 //  3. Token scoped lookup (GetIncomingInviteByToken) returns a copy.
-//  4. Status-only update still works after the isolation change.
+//  4. Update path (status plus sender identity) still works after the
+//     isolation change.
 func TestJSONIncomingInviteIsolation(t *testing.T) {
 	driver := newJSONDriver(t)
 	defer tshttp.MustClose(t, driver)
@@ -395,12 +398,12 @@ func assertIncomingInviteListCopyIsolation(t *testing.T, ctx context.Context, in
 	}
 }
 
-// assertIncomingInviteStatusUpdate checks the status-only update path persists
-// and the token index still resolves after the update.
+// assertIncomingInviteStatusUpdate checks the update path persists status and
+// sender identity, and the token index still resolves after the update.
 func assertIncomingInviteStatusUpdate(t *testing.T, ctx context.Context, inStore store.IncomingInviteStore) {
 	t.Helper()
 
-	if err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, "iso-invite-1", "alice", "accepted", "", ""); err != nil {
+	if err := inStore.UpdateIncomingInviteStatusForRecipient(ctx, "iso-invite-1", "alice", "accepted", "sender-user", "remote.example"); err != nil {
 		t.Fatalf("UpdateIncomingInviteStatusForRecipient: %v", err)
 	}
 
@@ -559,8 +562,28 @@ func assertOutgoingInviteUpdate(t *testing.T, ctx context.Context, outInvStore s
 		t.Fatalf("GetOutgoingInvite before update: %v", err)
 	}
 
+	// An accepted update without the accepted identity is rejected before any
+	// write, leaving the stored record untouched.
+	rejected := *current
+	rejected.Status = "accepted"
+
+	if updateErr := outInvStore.UpdateOutgoingInvite(ctx, &rejected); !errors.Is(updateErr, invites.ErrInvalidAcceptedIdentity) {
+		t.Fatalf("expected ErrInvalidAcceptedIdentity for accepted update without identity, got %v", updateErr)
+	}
+
+	stillPending, err := outInvStore.GetOutgoingInvite(ctx, original.ID)
+	if err != nil {
+		t.Fatalf("GetOutgoingInvite after rejected update: %v", err)
+	}
+
+	if stillPending.Status != "pending" {
+		t.Errorf("rejected update must not persist: Status = %q, want %q", stillPending.Status, "pending")
+	}
+
 	updateCopy := *current
 	updateCopy.Status = "accepted"
+	updateCopy.AcceptedUserID = "bob"
+	updateCopy.AcceptedProviderFQDNNormalized = original.ProviderFQDN
 
 	if updateErr := outInvStore.UpdateOutgoingInvite(ctx, &updateCopy); updateErr != nil {
 		t.Fatalf("UpdateOutgoingInvite: %v", updateErr)

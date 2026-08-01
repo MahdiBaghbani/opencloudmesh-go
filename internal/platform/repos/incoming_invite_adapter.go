@@ -39,6 +39,10 @@ func (a *incomingInviteAdapter) Create(ctx context.Context, invite *invitesincom
 		invite.Status = invites.InviteStatusPending
 	}
 
+	if err := invites.ValidateCreateInviteStatus(string(invite.Status), invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
+		return err
+	}
+
 	s := appIncomingInviteToStore(invite)
 	if err := a.s.CreateIncomingInvite(ctx, s); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
@@ -109,13 +113,30 @@ func (a *incomingInviteAdapter) UpdateStatusForRecipientUserID(
 	status invites.InviteStatus,
 	acceptance *invitesincoming.Acceptance,
 ) error {
-	senderUserID := ""
-	senderFQDNNormalized := ""
+	// Recipient gate first: resolve the recipient-scoped record so a wrong
+	// recipient stays ErrInviteNotFound before identity validation runs.
+	existing, err := a.s.GetIncomingInviteForRecipient(ctx, id, recipientUserID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return invites.ErrInviteNotFound
+		}
+
+		return err
+	}
+
+	argUserID := ""
+	argHost := ""
 
 	if acceptance != nil {
-		senderUserID = acceptance.UserID
-		senderFQDNNormalized = acceptance.ProviderFQDNNormalized
+		argUserID = acceptance.UserID
+		argHost = acceptance.ProviderFQDNNormalized
 	}
+
+	if err := invites.ValidateUpdateAcceptedIdentity(string(status), argUserID, argHost, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
+		return err
+	}
+
+	senderUserID, senderFQDNNormalized := invites.CoalesceAcceptedIdentity(argUserID, argHost, existing.SenderUserID, existing.SenderFQDNNormalized)
 
 	if err := a.s.UpdateIncomingInviteStatusForRecipient(ctx, id, recipientUserID, string(status), senderUserID, senderFQDNNormalized); err != nil {
 		if errors.Is(err, store.ErrNotFound) {

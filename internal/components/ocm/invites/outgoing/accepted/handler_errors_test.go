@@ -71,9 +71,11 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409(t *testing.T) {
 	handler := newTestHandler(repo, nil)
 
 	invite := &invitesoutgoing.OutgoingInvite{
-		Token:        "accepted-token",
-		ProviderFQDN: testProvider,
-		Status:       invites.InviteStatusAccepted,
+		Token:                          "accepted-token",
+		ProviderFQDN:                   testProvider,
+		Status:                         invites.InviteStatusAccepted,
+		AcceptedUserID:                 "previous-acceptor",
+		AcceptedProviderFQDNNormalized: testProvider,
 	}
 	if err := repo.Create(context.Background(), invite); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -108,10 +110,12 @@ func TestHandleInviteAccepted_AlreadyAccepted_Returns409WithIdentityBody(t *test
 	handler := newTestHandler(repo, partyRepo)
 
 	invite := &invitesoutgoing.OutgoingInvite{
-		Token:           "accepted-identity-token",
-		ProviderFQDN:    testProvider,
-		CreatedByUserID: localUser.ID,
-		Status:          invites.InviteStatusAccepted,
+		Token:                          "accepted-identity-token",
+		ProviderFQDN:                   testProvider,
+		CreatedByUserID:                localUser.ID,
+		Status:                         invites.InviteStatusAccepted,
+		AcceptedUserID:                 "previous-acceptor",
+		AcceptedProviderFQDNNormalized: testProvider,
 	}
 	if err := repo.Create(context.Background(), invite); err != nil {
 		t.Fatalf("Create: %v", err)

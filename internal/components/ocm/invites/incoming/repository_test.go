@@ -16,11 +16,29 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites/incoming"
 )
 
-// TestFindAcceptedForSender_RequiresNormalizedColumn verifies the
-// bidirectional must-invite lookup fails closed: a row whose normalized sender
-// host was never persisted never matches, even when user and host inputs
-// would otherwise agree.
-func TestFindAcceptedForSender_RequiresNormalizedColumn(t *testing.T) {
+// TestCreate_RejectsAcceptedWithoutIdentity verifies the create-time guard:
+// an invite created directly in accepted status must carry the full sender
+// identity.
+func TestCreate_RejectsAcceptedWithoutIdentity(t *testing.T) {
+	repo := tsrepos.OpenMemory(t).IncomingInvites
+	ctx := context.Background()
+
+	invite := &incoming.IncomingInvite{
+		Token:           "tok-create-accepted",
+		SenderFQDN:      "sender.example",
+		RecipientUserID: "user-a",
+		Status:          invites.InviteStatusAccepted,
+	}
+	if err := repo.Create(ctx, invite); !errors.Is(err, invites.ErrInvalidCreateStatus) {
+		t.Errorf("Create accepted without identity: got %v, want ErrInvalidCreateStatus", err)
+	}
+}
+
+// TestUpdateStatusForRecipientUserID_RejectsAcceptedWithoutIdentity verifies
+// the acceptance identity invariant fails closed: an accepted update carrying
+// no sender identity is rejected instead of persisting a row the must-invite
+// lookup could never match.
+func TestUpdateStatusForRecipientUserID_RejectsAcceptedWithoutIdentity(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	ctx := context.Background()
 
@@ -34,13 +52,8 @@ func TestFindAcceptedForSender_RequiresNormalizedColumn(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	// Acceptance without identity persistence leaves the normalized column empty.
-	if err := repo.UpdateStatusForRecipientUserID(ctx, invite.ID, "user-a", invites.InviteStatusAccepted, nil); err != nil {
-		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
-	}
-
-	if _, err := repo.FindAcceptedForSender(ctx, "user-a", "sender-user", "sender.example"); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForSender with empty normalized column: got %v, want ErrInviteNotFound", err)
+	if err := repo.UpdateStatusForRecipientUserID(ctx, invite.ID, "user-a", invites.InviteStatusAccepted, nil); !errors.Is(err, invites.ErrInvalidAcceptedIdentity) {
+		t.Errorf("UpdateStatusForRecipientUserID accepted without identity: got %v, want ErrInvalidAcceptedIdentity", err)
 	}
 }
 

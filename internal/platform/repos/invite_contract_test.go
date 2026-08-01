@@ -52,7 +52,8 @@ func runIncomingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 	acceptIncomingInvite(t, ctx, r, invite)
 	assertIncomingAcceptedState(t, ctx, r, invite)
 	assertIncomingAcceptedScopeMisses(t, ctx, r, invite.RecipientUserID)
-	assertIncomingNoIdentityMiss(t, ctx, r)
+	assertIncomingCreateRejectedAcceptedWithoutIdentity(t, ctx, r)
+	assertIncomingUpdateRejectedWithoutIdentity(t, ctx, r)
 	assertIncomingInviteDelete(t, ctx, r, invite)
 }
 
@@ -151,10 +152,30 @@ func assertIncomingAcceptedScopeMisses(t *testing.T, ctx context.Context, r *rep
 	}
 }
 
-// assertIncomingNoIdentityMiss checks a row accepted without identity
-// persistence (empty normalized sender host column) never matches, even
-// against an empty query value.
-func assertIncomingNoIdentityMiss(t *testing.T, ctx context.Context, r *repos.Repos) {
+// assertIncomingCreateRejectedAcceptedWithoutIdentity checks that creating an
+// incoming invite directly in accepted status without sender identity is
+// rejected with ErrInvalidCreateStatus across every backend.
+func assertIncomingCreateRejectedAcceptedWithoutIdentity(t *testing.T, ctx context.Context, r *repos.Repos) {
+	t.Helper()
+
+	invite := &invitesincoming.IncomingInvite{
+		ID:              "ct-in-inv-create-accepted",
+		Token:           "ct-in-token-create-accepted",
+		InviteString:    "b64ct-in-create-accepted",
+		SenderFQDN:      "ct.create-accepted.example",
+		RecipientUserID: "ct-recipient-create-accepted",
+		Status:          invites.InviteStatusAccepted,
+		ReceivedAt:      time.Unix(time.Now().Unix(), 0).UTC(),
+	}
+	if err := r.IncomingInvites.Create(ctx, invite); !errors.Is(err, invites.ErrInvalidCreateStatus) {
+		t.Errorf("Create accepted without identity: expected ErrInvalidCreateStatus, got %v", err)
+	}
+}
+
+// assertIncomingUpdateRejectedWithoutIdentity checks an accepted update
+// carrying no sender identity is rejected with ErrInvalidAcceptedIdentity and
+// that the stored row is left untouched (no partial write leaks through).
+func assertIncomingUpdateRejectedWithoutIdentity(t *testing.T, ctx context.Context, r *repos.Repos) {
 	t.Helper()
 
 	noIdentity := &invitesincoming.IncomingInvite{
@@ -172,14 +193,25 @@ func assertIncomingNoIdentityMiss(t *testing.T, ctx context.Context, r *repos.Re
 
 	if err := r.IncomingInvites.UpdateStatusForRecipientUserID(
 		ctx, noIdentity.ID, noIdentity.RecipientUserID, invites.InviteStatusAccepted, nil,
-	); err != nil {
-		t.Fatalf("UpdateStatusForRecipientUserID noIdentity: %v", err)
+	); !errors.Is(err, invites.ErrInvalidAcceptedIdentity) {
+		t.Errorf("UpdateStatusForRecipientUserID accepted without identity: expected ErrInvalidAcceptedIdentity, got %v", err)
 	}
 
-	if _, err := r.IncomingInvites.FindAcceptedForSender(
-		ctx, noIdentity.RecipientUserID, "", "",
-	); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForSender empty normalized column: expected ErrInviteNotFound, got %v", err)
+	got, err := r.IncomingInvites.GetByIDForRecipientUserID(ctx, noIdentity.ID, noIdentity.RecipientUserID)
+	if err != nil {
+		t.Fatalf("GetByIDForRecipientUserID after rejected update: %v", err)
+	}
+
+	if got.Status != invites.InviteStatusPending {
+		t.Errorf("Status after rejected update: expected %q, got %q", invites.InviteStatusPending, got.Status)
+	}
+
+	if got.SenderUserID != "" {
+		t.Errorf("SenderUserID after rejected update: expected empty, got %q", got.SenderUserID)
+	}
+
+	if got.SenderFQDNNormalized != "" {
+		t.Errorf("SenderFQDNNormalized after rejected update: expected empty, got %q", got.SenderFQDNNormalized)
 	}
 }
 
@@ -355,7 +387,8 @@ func runOutgoingInviteRepoContractCRUD(t *testing.T, ctx context.Context, r *rep
 	acceptOutgoingInvite(t, ctx, r, invite)
 	assertOutgoingAcceptedState(t, ctx, r, invite)
 	assertOutgoingAcceptedScopeMisses(t, ctx, r, invite.CreatedByUserID)
-	assertOutgoingNoNormMiss(t, ctx, r, now)
+	assertOutgoingCreateRejectedAcceptedWithoutIdentity(t, ctx, r, now)
+	assertOutgoingUpdateRejectedWithoutNormalized(t, ctx, r, now)
 }
 
 // assertOutgoingInviteReadPaths checks the ID and token read paths return the
@@ -464,9 +497,32 @@ func assertOutgoingAcceptedScopeMisses(t *testing.T, ctx context.Context, r *rep
 	}
 }
 
-// assertOutgoingNoNormMiss checks a row accepted without the normalized
-// provider column never matches, even against an empty query value.
-func assertOutgoingNoNormMiss(t *testing.T, ctx context.Context, r *repos.Repos, now time.Time) {
+// assertOutgoingCreateRejectedAcceptedWithoutIdentity checks that creating an
+// outgoing invite directly in accepted status without accepted identity is
+// rejected with ErrInvalidCreateStatus across every backend.
+func assertOutgoingCreateRejectedAcceptedWithoutIdentity(t *testing.T, ctx context.Context, r *repos.Repos, now time.Time) {
+	t.Helper()
+
+	invite := &invitesoutgoing.OutgoingInvite{
+		ID:              "ct-out-inv-create-accepted",
+		Token:           "ct-out-token-create-accepted",
+		ProviderFQDN:    "ct.create-accepted.example",
+		InviteString:    "b64ct-out-create-accepted",
+		CreatedByUserID: "ct-creator-create-accepted",
+		CreatedAt:       now,
+		ExpiresAt:       now.Add(24 * time.Hour),
+		Status:          invites.InviteStatusAccepted,
+	}
+	if err := r.OutgoingInvites.Create(ctx, invite); !errors.Is(err, invites.ErrInvalidCreateStatus) {
+		t.Errorf("Create accepted without identity: expected ErrInvalidCreateStatus, got %v", err)
+	}
+}
+
+// assertOutgoingUpdateRejectedWithoutNormalized checks an accepted update
+// missing the normalized provider host is rejected with
+// ErrInvalidAcceptedIdentity and that the stored row is left untouched (no
+// partial write leaks through).
+func assertOutgoingUpdateRejectedWithoutNormalized(t *testing.T, ctx context.Context, r *repos.Repos, now time.Time) {
 	t.Helper()
 
 	noNorm := &invitesoutgoing.OutgoingInvite{
@@ -485,14 +541,156 @@ func assertOutgoingNoNormMiss(t *testing.T, ctx context.Context, r *repos.Repos,
 
 	if err := r.OutgoingInvites.UpdateStatus(
 		ctx, noNorm.ID, invites.InviteStatusAccepted, &invitesoutgoing.Acceptance{UserID: "ct-nonorm-acceptor"},
-	); err != nil {
-		t.Fatalf("UpdateStatus noNorm: %v", err)
+	); !errors.Is(err, invites.ErrInvalidAcceptedIdentity) {
+		t.Errorf("UpdateStatus accepted without normalized host: expected ErrInvalidAcceptedIdentity, got %v", err)
 	}
 
-	if _, err := r.OutgoingInvites.FindAcceptedForRecipient(
-		ctx, noNorm.CreatedByUserID, "ct-nonorm-acceptor", "",
-	); !errors.Is(err, invites.ErrInviteNotFound) {
-		t.Errorf("FindAcceptedForRecipient empty normalized column: expected ErrInviteNotFound, got %v", err)
+	got, err := r.OutgoingInvites.GetByID(ctx, noNorm.ID)
+	if err != nil {
+		t.Fatalf("GetByID after rejected update: %v", err)
+	}
+
+	if got.Status != invites.InviteStatusPending {
+		t.Errorf("Status after rejected update: expected %q, got %q", invites.InviteStatusPending, got.Status)
+	}
+
+	if got.AcceptedUserID != "" {
+		t.Errorf("AcceptedUserID after rejected update: expected empty, got %q", got.AcceptedUserID)
+	}
+
+	if got.AcceptedProviderFQDNNormalized != "" {
+		t.Errorf("AcceptedProviderFQDNNormalized after rejected update: expected empty, got %q", got.AcceptedProviderFQDNNormalized)
+	}
+}
+
+// runOutgoingInviteRepoContractAcceptedIdentityCoalescedOnEmptyUpdate
+// verifies that re-accepting an already-accepted outgoing invite with an empty
+// identity payload preserves the persisted accepted identity: the user id and
+// normalized host coalesce from the stored row so a partial write cannot erase
+// them, and the raw provider FQDN is not overwritten by the empty payload.
+func runOutgoingInviteRepoContractAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T, ctx context.Context, r *repos.Repos) {
+	t.Helper()
+
+	now := time.Unix(time.Now().Unix(), 0).UTC()
+
+	invite := &invitesoutgoing.OutgoingInvite{
+		ID:              "ct-out-inv-empty-update",
+		Token:           "ct-out-token-empty-update",
+		ProviderFQDN:    "ct.empty.example",
+		InviteString:    "b64ct-out-empty-update",
+		RecipientEmail:  "alice@ct.example",
+		CreatedByUserID: "ct-creator-empty-update",
+		CreatedAt:       now,
+		ExpiresAt:       now.Add(24 * time.Hour),
+		Status:          invites.InviteStatusPending,
+	}
+	if err := r.OutgoingInvites.Create(ctx, invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	acceptance := &invitesoutgoing.Acceptance{
+		ProviderFQDN:           "ct.empty.example",
+		UserID:                 "ct-acceptor-empty-update",
+		ProviderFQDNNormalized: "ct.empty.example",
+	}
+	if err := r.OutgoingInvites.UpdateStatus(
+		ctx, invite.ID, invites.InviteStatusAccepted, acceptance,
+	); err != nil {
+		t.Fatalf("UpdateStatus accepted with identity: %v", err)
+	}
+
+	// Re-accept with an empty identity payload: the coalesced identity must keep
+	// the stored row, and the raw provider FQDN must not be written back from the
+	// empty payload.
+	emptyAcceptance := &invitesoutgoing.Acceptance{}
+	if err := r.OutgoingInvites.UpdateStatus(
+		ctx, invite.ID, invites.InviteStatusAccepted, emptyAcceptance,
+	); err != nil {
+		t.Fatalf("UpdateStatus accepted with empty identity: %v", err)
+	}
+
+	got, err := r.OutgoingInvites.GetByID(ctx, invite.ID)
+	if err != nil {
+		t.Fatalf("GetByID after empty update: %v", err)
+	}
+
+	if got.Status != invites.InviteStatusAccepted {
+		t.Errorf("Status after empty update: got %q, want accepted", got.Status)
+	}
+
+	if got.AcceptedUserID != acceptance.UserID {
+		t.Errorf("AcceptedUserID after empty update: got %q, want %q (coalesced from stored, not overwritten by empty)", got.AcceptedUserID, acceptance.UserID)
+	}
+
+	if got.AcceptedProviderFQDNNormalized != acceptance.ProviderFQDNNormalized {
+		t.Errorf("AcceptedProviderFQDNNormalized after empty update: got %q, want %q (coalesced from stored, not overwritten by empty)", got.AcceptedProviderFQDNNormalized, acceptance.ProviderFQDNNormalized)
+	}
+
+	if got.AcceptedProviderFQDN != acceptance.ProviderFQDN {
+		t.Errorf("AcceptedProviderFQDN after empty update: got %q, want %q (raw FQDN not written back from empty payload)", got.AcceptedProviderFQDN, acceptance.ProviderFQDN)
+	}
+}
+
+// runIncomingInviteRepoContractAcceptedIdentityCoalescedOnEmptyUpdate
+// verifies that re-accepting an already-accepted incoming invite with an empty
+// identity payload preserves the persisted sender identity: the user id and
+// normalized host coalesce from the stored row so a partial write cannot erase
+// them, and the raw sender FQDN is not overwritten by the empty payload.
+func runIncomingInviteRepoContractAcceptedIdentityCoalescedOnEmptyUpdate(t *testing.T, ctx context.Context, r *repos.Repos) {
+	t.Helper()
+
+	invite := &invitesincoming.IncomingInvite{
+		ID:              "ct-in-inv-empty-update",
+		Token:           "ct-in-token-empty-update",
+		InviteString:    "b64ct-in-empty-update",
+		SenderFQDN:      "ct.empty.example",
+		RecipientUserID: "ct-recipient-empty-update",
+		Status:          invites.InviteStatusPending,
+		ReceivedAt:      time.Unix(time.Now().Unix(), 0).UTC(),
+	}
+	if err := r.IncomingInvites.Create(ctx, invite); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	acceptance := &invitesincoming.Acceptance{
+		UserID:                 "ct-sender-empty-update",
+		ProviderFQDNNormalized: "ct.empty.example",
+	}
+	if err := r.IncomingInvites.UpdateStatusForRecipientUserID(
+		ctx, invite.ID, invite.RecipientUserID, invites.InviteStatusAccepted, acceptance,
+	); err != nil {
+		t.Fatalf("UpdateStatusForRecipientUserID accepted with identity: %v", err)
+	}
+
+	// Re-accept with an empty identity payload: the coalesced identity must keep
+	// the stored row, and the raw sender FQDN must not be written back from the
+	// empty payload.
+	emptyAcceptance := &invitesincoming.Acceptance{}
+	if err := r.IncomingInvites.UpdateStatusForRecipientUserID(
+		ctx, invite.ID, invite.RecipientUserID, invites.InviteStatusAccepted, emptyAcceptance,
+	); err != nil {
+		t.Fatalf("UpdateStatusForRecipientUserID accepted with empty identity: %v", err)
+	}
+
+	got, err := r.IncomingInvites.GetByIDForRecipientUserID(ctx, invite.ID, invite.RecipientUserID)
+	if err != nil {
+		t.Fatalf("GetByIDForRecipientUserID after empty update: %v", err)
+	}
+
+	if got.Status != invites.InviteStatusAccepted {
+		t.Errorf("Status after empty update: got %q, want accepted", got.Status)
+	}
+
+	if got.SenderUserID != acceptance.UserID {
+		t.Errorf("SenderUserID after empty update: got %q, want %q (coalesced from stored, not overwritten by empty)", got.SenderUserID, acceptance.UserID)
+	}
+
+	if got.SenderFQDNNormalized != acceptance.ProviderFQDNNormalized {
+		t.Errorf("SenderFQDNNormalized after empty update: got %q, want %q (coalesced from stored, not overwritten by empty)", got.SenderFQDNNormalized, acceptance.ProviderFQDNNormalized)
+	}
+
+	if got.SenderFQDN != invite.SenderFQDN {
+		t.Errorf("SenderFQDN after empty update: got %q, want %q (raw FQDN not written back from empty payload)", got.SenderFQDN, invite.SenderFQDN)
 	}
 }
 

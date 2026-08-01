@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
@@ -30,6 +31,10 @@ func (c *Core) CreateIncomingInvite(_ context.Context, invite *store.IncomingInv
 		if existing, ok := c.incomingInviteTokenUserIndex[key]; ok && existing != invite.ID {
 			return store.ErrAlreadyExists
 		}
+	}
+
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
+		return err
 	}
 
 	c.incomingInvites[invite.ID] = cloneIncomingInvite(invite)
@@ -86,8 +91,11 @@ func (c *Core) GetIncomingInviteByToken(_ context.Context, token string, recipie
 // UpdateIncomingInviteStatusForRecipient updates the status of an incoming invite scoped
 // to a recipient, persisting the remote sender identity on acceptance when provided.
 // The write is intentionally narrow: besides status and updatedAt, only the sender
-// user id and normalized sender host are written (when non-empty); scope-defining
+// user id and normalized sender host are written; scope-defining
 // fields (Token, RecipientUserID) and all other payload fields are immutable here.
+// The recipient scope gate runs before identity validation so a wrong recipient
+// stays ErrNotFound. Sender identity coalesces with the stored row, and an
+// accepted status without a complete identity is rejected.
 func (c *Core) UpdateIncomingInviteStatusForRecipient(
 	_ context.Context,
 	id string,
@@ -108,16 +116,17 @@ func (c *Core) UpdateIncomingInviteStatusForRecipient(
 		return store.ErrNotFound
 	}
 
+	if err := invites.ValidateUpdateAcceptedIdentity(status, senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
+		return err
+	}
+
+	senderUserID, senderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+		senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized)
+
 	existing.Status = status
 	existing.UpdatedAt = time.Now().Unix()
-
-	if senderUserID != "" {
-		existing.SenderUserID = senderUserID
-	}
-
-	if senderFQDNNormalized != "" {
-		existing.SenderFQDNNormalized = senderFQDNNormalized
-	}
+	existing.SenderUserID = senderUserID
+	existing.SenderFQDNNormalized = senderFQDNNormalized
 
 	return nil
 }

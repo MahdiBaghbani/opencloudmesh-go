@@ -22,6 +22,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
@@ -43,7 +44,17 @@ func Open(dataDir string) (*Core, error) {
 
 	dbPath := filepath.Join(dataDir, "ocm.db")
 
-	db, err := gorm.Open(gormsqlite.Open(dbPath), &gorm.Config{
+	// The busy timeout lets concurrent writers wait (up to 5s) instead of
+	// failing immediately with SQLITE_BUSY. Combined with wrapping the
+	// read-then-write update paths in a single transaction, this makes the
+	// pre-read + validate + coalesce + write atomic: SQLite's transaction
+	// isolation prevents another writer from committing a change between the
+	// pre-read and the write within the same transaction (the SHARED lock
+	// held by the pre-read blocks the other writer's COMMIT until our
+	// transaction finishes).
+	dsn := fmt.Sprintf("%s?_busy_timeout=5000", dbPath)
+
+	db, err := gorm.Open(gormsqlite.Open(dsn), &gorm.Config{
 		Logger:         logger.Default.LogMode(logger.Silent),
 		TranslateError: true,
 	})
@@ -307,6 +318,10 @@ func (c *Core) DeleteIncomingShareForRecipient(ctx context.Context, shareID stri
 
 // CreateOutgoingInvite creates a new outgoing invite.
 func (c *Core) CreateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized); err != nil {
+		return err
+	}
+
 	if err := c.db.WithContext(ctx).Create(invite).Error; err != nil {
 		return normWrite(err)
 	}
@@ -340,23 +355,50 @@ func (c *Core) GetOutgoingInviteByToken(ctx context.Context, token string) (*sto
 
 // UpdateOutgoingInvite updates an existing outgoing invite.
 // Returns ErrNotFound when no row matches the ID (prevents silent upsert).
-// Uses a single UPDATE statement so there is no TOCTOU race between existence
-// check and write.
+// The accepted identity (user id plus normalized host) coalesces with the
+// stored row so a status-only write cannot erase it, and an accepted status
+// without a complete identity is rejected. The raw accepted provider FQDN
+// keeps replace semantics.
+//
+// The pre-read, validation, coalesce, and write run inside one serializable
+// transaction so a concurrent writer cannot modify the row between the read
+// and the write (TOCTOU). The Option B write-back is preserved exactly:
+// only the coalesced AcceptedUserID and AcceptedProviderFQDNNormalized are
+// written back before the update; the raw FQDN follows replace semantics
+// and is not coalesced here.
 func (c *Core) UpdateOutgoingInvite(ctx context.Context, invite *store.OutgoingInvite) error {
-	result := c.db.WithContext(ctx). //nolint:unqueryvet // intentional: select all columns for this GORM Updates chain; column list is intentionally open
-						Model(&store.OutgoingInvite{}).
-						Where("id = ?", invite.ID).
-						Select("*").
-						Updates(invite)
-	if result.Error != nil {
-		return normWrite(result.Error)
-	}
+	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing store.OutgoingInvite
 
-	if result.RowsAffected == 0 {
-		return store.ErrNotFound
-	}
+		if err := tx.First(&existing, "id = ?", invite.ID).Error; err != nil {
+			return normNotFound(err)
+		}
 
-	return nil
+		if err := invites.ValidateUpdateAcceptedIdentity(invite.Status,
+			invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
+			existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized); err != nil {
+			return err
+		}
+
+		invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+			invite.AcceptedUserID, invite.AcceptedProviderFQDNNormalized,
+			existing.AcceptedUserID, existing.AcceptedProviderFQDNNormalized)
+
+		result := tx. //nolint:unqueryvet // intentional: select all columns for this GORM Updates chain; column list is intentionally open
+				Model(&store.OutgoingInvite{}).
+				Where("id = ?", invite.ID).
+				Select("*").
+				Updates(invite)
+		if result.Error != nil {
+			return normWrite(result.Error)
+		}
+
+		if result.RowsAffected == 0 {
+			return store.ErrNotFound
+		}
+
+		return nil
+	})
 }
 
 // DeleteOutgoingInvite deletes an outgoing invite by id.
@@ -395,6 +437,10 @@ func (c *Core) ListOutgoingInvites(ctx context.Context, userID string) ([]*store
 
 // CreateIncomingInvite creates a new incoming invite.
 func (c *Core) CreateIncomingInvite(ctx context.Context, invite *store.IncomingInvite) error {
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
+		return err
+	}
+
 	if err := c.db.WithContext(ctx).Create(invite).Error; err != nil {
 		return normWrite(err)
 	}
@@ -429,34 +475,57 @@ func (c *Core) GetIncomingInviteByToken(ctx context.Context, token string, recip
 // UpdateIncomingInviteStatusForRecipient updates the status of an incoming invite
 // scoped to a recipient, persisting the remote sender identity on acceptance when
 // provided. Scope-defining fields (Token, RecipientUserID) are immutable after
-// creation; sender identity columns are only written when non-empty.
+// creation; sender identity coalesces with the stored row, and an accepted
+// status without a complete identity is rejected. The recipient scope gate
+// runs before identity validation so a wrong recipient stays ErrNotFound.
+//
+// The pre-read, validation, coalesce, and write run inside one serializable
+// transaction so a concurrent writer cannot modify the row between the read
+// and the write (TOCTOU). The Option B write-back is preserved exactly:
+// only the coalesced SenderUserID and SenderFQDNNormalized are written back;
+// no payload write occurs on partial-write paths.
 func (c *Core) UpdateIncomingInviteStatusForRecipient(ctx context.Context, id string, recipientUserID string, status string, senderUserID string, senderFQDNNormalized string) error {
-	updates := map[string]interface{}{
-		"status":     status,
-		"updated_at": time.Now().Unix(),
-	}
+	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing store.IncomingInvite
 
-	if senderUserID != "" {
-		updates["sender_user_id"] = senderUserID
-	}
+		if err := tx.First(&existing, "id = ? AND recipient_user_id = ?", id, recipientUserID).Error; err != nil {
+			return normNotFound(err)
+		}
 
-	if senderFQDNNormalized != "" {
-		updates["sender_fqdn_normalized"] = senderFQDNNormalized
-	}
+		if err := invites.ValidateUpdateAcceptedIdentity(status, senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
+			return err
+		}
 
-	result := c.db.WithContext(ctx).
-		Model(&store.IncomingInvite{}).
-		Where("id = ? AND recipient_user_id = ?", id, recipientUserID).
-		Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
+		senderUserID, senderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+			senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized)
 
-	if result.RowsAffected == 0 {
-		return store.ErrNotFound
-	}
+		updates := map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now().Unix(),
+		}
 
-	return nil
+		if senderUserID != "" {
+			updates["sender_user_id"] = senderUserID
+		}
+
+		if senderFQDNNormalized != "" {
+			updates["sender_fqdn_normalized"] = senderFQDNNormalized
+		}
+
+		result := tx.
+			Model(&store.IncomingInvite{}).
+			Where("id = ? AND recipient_user_id = ?", id, recipientUserID).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+
+		if result.RowsAffected == 0 {
+			return store.ErrNotFound
+		}
+
+		return nil
+	})
 }
 
 // DeleteIncomingInviteForRecipient deletes an incoming invite scoped to a recipient.

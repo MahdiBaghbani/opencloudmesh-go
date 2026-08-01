@@ -76,7 +76,11 @@ func TestHandleAccept_IdempotentForAlreadyAccepted(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, repo, userAID, "idem-accept-token", "sender.example.com")
 
-	if err := repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusAccepted, nil); err != nil {
+	if err := repo.UpdateStatusForRecipientUserID(context.Background(), invite.ID, userAID, invites.InviteStatusAccepted, &invitesincoming.Acceptance{
+		UserID:                 "remote-sender@sender.example.com",
+		ProviderFQDN:           "sender.example.com",
+		ProviderFQDNNormalized: "sender.example.com",
+	}); err != nil {
 		t.Fatalf("UpdateStatusForRecipientUserID: %v", err)
 	}
 

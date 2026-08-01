@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/invites"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 )
 
@@ -30,6 +31,10 @@ func (d *Driver) CreateIncomingInvite(_ context.Context, invite *store.IncomingI
 		if existing, ok := d.incomingInviteTokenUserIndex[key]; ok && existing != invite.ID {
 			return store.ErrAlreadyExists
 		}
+	}
+
+	if err := invites.ValidateCreateInviteStatus(invite.Status, invite.SenderUserID, invite.SenderFQDNNormalized); err != nil {
+		return err
 	}
 
 	d.incomingInvites[invite.ID] = cloneIncomingInvite(invite)
@@ -97,7 +102,10 @@ func (d *Driver) GetIncomingInviteByToken(_ context.Context, token string, recip
 // UpdateIncomingInviteStatusForRecipient updates the status of an incoming invite scoped
 // to a recipient, persisting the remote sender identity on acceptance when provided.
 // Scope-defining fields (Token, RecipientUserID) are immutable after creation;
-// callers cannot reassign them through this path.
+// callers cannot reassign them through this path. The recipient scope gate runs
+// before identity validation so a wrong recipient stays ErrNotFound. Sender
+// identity coalesces with the stored row, and an accepted status without a
+// complete identity is rejected.
 func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 	_ context.Context,
 	id string,
@@ -118,6 +126,13 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 		return store.ErrNotFound
 	}
 
+	if err := invites.ValidateUpdateAcceptedIdentity(status, senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized); err != nil {
+		return err
+	}
+
+	senderUserID, senderFQDNNormalized = invites.CoalesceAcceptedIdentity(
+		senderUserID, senderFQDNNormalized, existing.SenderUserID, existing.SenderFQDNNormalized)
+
 	oldStatus := existing.Status
 	oldUpdatedAt := existing.UpdatedAt
 	oldSenderUserID := existing.SenderUserID
@@ -125,14 +140,8 @@ func (d *Driver) UpdateIncomingInviteStatusForRecipient(
 
 	existing.Status = status
 	existing.UpdatedAt = time.Now().Unix()
-
-	if senderUserID != "" {
-		existing.SenderUserID = senderUserID
-	}
-
-	if senderFQDNNormalized != "" {
-		existing.SenderFQDNNormalized = senderFQDNNormalized
-	}
+	existing.SenderUserID = senderUserID
+	existing.SenderFQDNNormalized = senderFQDNNormalized
 
 	if err := d.saveFile(fileIncomingInvites, d.incomingInvites); err != nil {
 		// Rollback: restore the old field values on the in-place pointer.
