@@ -187,3 +187,46 @@ func TestCreateShare_Authenticated_AcceptsDistinctOwnerAndSenderUserIDs(t *testi
 		t.Fatalf("expected distinct owner and sender addresses, both %q", stored.Owner)
 	}
 }
+
+func TestCreateShare_AuthenticatedOwnerHostDefaultPortStripped(t *testing.T) {
+	const (
+		normalizedAuthority = "relay.example.com"
+		rawOwnerHost        = "relay.example.com:443"
+		providerID          = "owner-default-port-stripped"
+	)
+
+	repo := tsrepos.OpenMemory(t).IncomingShares
+	partyRepo := setupTestPartyRepo(t)
+	handler := newTestHandler(repo, partyRepo)
+
+	body := validShareBodyWithOwnerAndSenderHosts(
+		"alice@localhost:9200",
+		rawOwnerHost,
+		normalizedAuthority,
+		providerID,
+	)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/shares", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), inboundsignature.PeerIdentityKey, &inboundsignature.PeerIdentity{
+		Authority:           normalizedAuthority,
+		AuthorityForCompare: normalizedAuthority,
+		Authenticated:       true,
+	})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handler.CreateShare(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	stored, err := repo.GetByProviderID(context.Background(), normalizedAuthority, providerID)
+	if err != nil {
+		t.Fatalf("expected persisted share, got error: %v", err)
+	}
+
+	if stored.OwnerHost != normalizedAuthority {
+		t.Fatalf("OwnerHost = %q, want normalized %q", stored.OwnerHost, normalizedAuthority)
+	}
+}

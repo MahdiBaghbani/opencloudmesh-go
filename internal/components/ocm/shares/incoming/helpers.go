@@ -237,11 +237,9 @@ func (h *Handler) authenticateSenderAndResolveOwner(
 	if authenticated {
 		senderHost = peerIdentity.AuthorityForCompare
 	} else {
-		// Unauthenticated path: normalize the body sender host or reject; no
-		// lowercase fallback.
 		var hostErr error
 
-		senderHost, hostErr = ExtractSenderHost(req.Sender, h.localScheme)
+		senderHost, hostErr = address.NormalizedProviderFrom(req.Sender, h.localScheme)
 		if hostErr != nil {
 			log.Warn("failed to normalize sender provider", "error", hostErr)
 			spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
@@ -269,32 +267,19 @@ func (h *Handler) authenticateSenderAndResolveOwner(
 		}
 	}
 
-	ownerHost := ""
+	ownerHost, err := address.NormalizedProviderFrom(req.Owner, h.localScheme)
+	if err != nil {
+		log.Warn("failed to normalize owner provider", "error", err)
+		spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
 
-	ownerProvider := ""
-	if _, parsedOwnerProvider, err := address.Parse(req.Owner); err == nil {
-		ownerProvider = parsedOwnerProvider
-		ownerHost = ownerProvider
-	}
-
-	if ownerHost == "" {
-		ownerHost = senderHost
+		return "", "", false
 	}
 
 	if peerIdentity != nil && peerIdentity.Authenticated {
-		normalizedOwnerProvider, err := hostport.Normalize(ownerProvider, h.localScheme)
-		if err != nil {
-			log.Warn("failed to normalize owner provider",
-				"owner_provider", ownerProvider, "error", err)
-			spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
-
-			return "", "", false
-		}
-
-		if peerIdentity.AuthorityForCompare != normalizedOwnerProvider {
+		if peerIdentity.AuthorityForCompare != ownerHost {
 			log.Warn("share owner provider mismatch",
 				"signature_authority", peerIdentity.AuthorityForCompare,
-				"owner_provider", ownerProvider)
+				"owner_provider", ownerHost)
 			spec.WriteOCMError(w, http.StatusForbidden, "UNTRUSTED_PROVIDER")
 
 			return "", "", false

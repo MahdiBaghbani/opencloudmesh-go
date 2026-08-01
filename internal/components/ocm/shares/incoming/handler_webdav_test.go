@@ -13,8 +13,6 @@ import (
 	"testing"
 
 	tsrepos "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/repos"
-
-	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
 func TestCreateShare_RejectsEmptyWebDAVFields(t *testing.T) {
@@ -200,45 +198,5 @@ func TestCreateShare_MissingWebDAVArm_Returns400(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing webdav arm, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestExtractSenderHost(t *testing.T) {
-	tests := []struct {
-		name        string
-		sender      string
-		scheme      string
-		expected    string
-		expectError bool
-	}{
-		{"simple address", "user@example.com", "https", "example.com", false},
-		{"with port", "user@example.com:9200", "https", "example.com:9200", false},
-		{"uppercase host", "user@EXAMPLE.COM", "https", "example.com", false},
-		{"default port stripped", "user@example.com:443", "https", "example.com", false},
-		{"no @ separator", "invalid", "https", "", true},
-		{"empty string", "", "https", "", true},
-		{"email identifier (last-@)", "alice@university.edu@provider.net", "https", "provider.net", false},
-		{"email identifier with port (last-@)", "alice@uni.edu@provider.net:443", "https", "provider.net", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := incoming.ExtractSenderHost(tt.sender, tt.scheme)
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("ExtractSenderHost(%q) expected error, got %q", tt.sender, result)
-				}
-
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("ExtractSenderHost(%q) unexpected error: %v", tt.sender, err)
-			}
-
-			if result != tt.expected {
-				t.Errorf("ExtractSenderHost(%q) = %q, want %q", tt.sender, result, tt.expected)
-			}
-		})
 	}
 }

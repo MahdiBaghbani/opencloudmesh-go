@@ -166,15 +166,3 @@ func (h *Handler) resolveRecipient(ctx context.Context, identifier string) (*ide
 
 	return nil, errors.New("recipient not found")
 }
-
-// ExtractSenderHost returns the normalized provider host parsed from sender.
-// Normalization failure is returned as an error so callers fail closed
-// instead of falling back to a plain lowercase.
-func ExtractSenderHost(sender, localScheme string) (string, error) {
-	_, provider, err := address.Parse(sender)
-	if err != nil {
-		return "", err
-	}
-
-	return hostport.Normalize(provider, localScheme)
-}
