@@ -330,7 +330,7 @@ func TestPublicKeyFromJWKFields_ECAndRSA(t *testing.T) {
 		t.Fatal("expected ecPub type *ecdsa.PublicKey")
 	}
 
-	if ecPub.X.Cmp(ecPriv.X) != 0 || ecPub.Y.Cmp(ecPriv.Y) != 0 {
+	if !ecPub.Equal(&ecPriv.PublicKey) {
 		t.Fatal("EC coordinate mismatch")
 	}
 

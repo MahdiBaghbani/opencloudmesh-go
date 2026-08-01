@@ -1,6 +1,6 @@
 module github.com/MahdiBaghbani/opencloudmesh-go
 
-go 1.24.9
+go 1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.5.0
