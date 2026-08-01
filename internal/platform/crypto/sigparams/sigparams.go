@@ -151,33 +151,8 @@ func FormatSignature(label string, signature []byte) string {
 func ListDictionaryMemberLabels(header string) []string {
 	var labels []string
 
-	for memberStart := 0; memberStart < len(header); {
-		for memberStart < len(header) {
-			ch := header[memberStart]
-			if ch == ' ' || ch == '\t' || ch == ',' {
-				memberStart++
-				continue
-			}
-
-			break
-		}
-
-		if memberStart >= len(header) {
-			break
-		}
-
-		memberEnd := scanTopLevelMemberEnd(header, memberStart)
-
-		keyStart := memberStart
-		for keyStart < memberEnd {
-			ch := header[keyStart]
-			if ch == ' ' || ch == '\t' {
-				keyStart++
-				continue
-			}
-
-			break
-		}
+	visitDictionaryMembersRaw(header, func(memberStart, memberEnd int) bool {
+		keyStart := skipSpacesTabs(header, memberStart)
 
 		eq := keyStart
 		for eq < memberEnd && header[eq] != '=' {
@@ -188,11 +163,8 @@ func ListDictionaryMemberLabels(header string) []string {
 			labels = append(labels, strings.TrimSpace(header[keyStart:eq]))
 		}
 
-		memberStart = memberEnd
-		if memberStart < len(header) && header[memberStart] == ',' {
-			memberStart++
-		}
-	}
+		return true
+	})
 
 	return labels
 }
@@ -557,6 +529,27 @@ func skipMemberSeparators(s string, start int) int {
 	return start
 }
 
+// visitDictionaryMembersRaw walks every top-level dictionary member in header
+// and calls fn with [memberStart, memberEnd) offsets. fn returning false stops.
+func visitDictionaryMembersRaw(header string, fn func(memberStart, memberEnd int) bool) {
+	for memberStart := 0; memberStart < len(header); {
+		memberStart = skipMemberSeparators(header, memberStart)
+		if memberStart >= len(header) {
+			return
+		}
+
+		memberEnd := scanTopLevelMemberEnd(header, memberStart)
+		if !fn(memberStart, memberEnd) {
+			return
+		}
+
+		memberStart = memberEnd
+		if memberStart < len(header) && header[memberStart] == ',' {
+			memberStart++
+		}
+	}
+}
+
 func parseDictionaryMember(header string, memberStart, memberEnd int, fn func(label, entry string) bool) bool {
 	keyStart := skipSpacesTabs(header, memberStart)
 
@@ -579,22 +572,9 @@ func parseDictionaryMember(header string, memberStart, memberEnd int, fn func(la
 // and calls fn with the member label and raw entry value. fn returning false
 // stops iteration.
 func visitAllDictionaryMembers(header string, fn func(label, entry string) bool) {
-	for memberStart := 0; memberStart < len(header); {
-		memberStart = skipMemberSeparators(header, memberStart)
-		if memberStart >= len(header) {
-			return
-		}
-
-		memberEnd := scanTopLevelMemberEnd(header, memberStart)
-		if !parseDictionaryMember(header, memberStart, memberEnd, fn) {
-			return
-		}
-
-		memberStart = memberEnd
-		if memberStart < len(header) && header[memberStart] == ',' {
-			memberStart++
-		}
-	}
+	visitDictionaryMembersRaw(header, func(memberStart, memberEnd int) bool {
+		return parseDictionaryMember(header, memberStart, memberEnd, fn)
+	})
 }
 
 // CountDictionaryMembers counts RFC 8941 dictionary members named label.
@@ -646,45 +626,17 @@ func extractDictionaryEntry(header, label, headerName string) (string, error) {
 func visitDictionaryMembers(header, label string, fn func(start, end int) bool) {
 	prefix := label + "="
 
-	for memberStart := 0; memberStart < len(header); {
-		for memberStart < len(header) {
-			ch := header[memberStart]
-			if ch == ' ' || ch == '\t' || ch == ',' {
-				memberStart++
-				continue
-			}
-
-			break
-		}
-
-		if memberStart >= len(header) {
-			return
-		}
-
-		memberEnd := scanTopLevelMemberEnd(header, memberStart)
-
-		keyStart := memberStart
-		for keyStart < memberEnd {
-			ch := header[keyStart]
-			if ch == ' ' || ch == '\t' {
-				keyStart++
-				continue
-			}
-
-			break
-		}
+	visitDictionaryMembersRaw(header, func(memberStart, memberEnd int) bool {
+		keyStart := skipSpacesTabs(header, memberStart)
 
 		if keyStart+len(prefix) <= memberEnd && header[keyStart:keyStart+len(prefix)] == prefix {
 			if !fn(keyStart+len(prefix), memberEnd) {
-				return
+				return false
 			}
 		}
 
-		memberStart = memberEnd
-		if memberStart < len(header) && header[memberStart] == ',' {
-			memberStart++
-		}
-	}
+		return true
+	})
 }
 
 type topLevelScanState struct {

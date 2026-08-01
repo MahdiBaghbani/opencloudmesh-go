@@ -557,6 +557,13 @@ func applyEnvOverrides(cfg *Config) error {
 
 // overlayFlags applies CLI flag values onto cfg.
 func overlayFlags(cfg *Config, f FlagOverrides) {
+	overlayNetFlags(cfg, f)
+	overlayAdminFlags(cfg, f)
+	overlayLoggingFlags(cfg, f)
+	overlayTokenFlags(cfg, f)
+}
+
+func overlayNetFlags(cfg *Config, f FlagOverrides) {
 	if f.ListenAddr != nil && *f.ListenAddr != "" {
 		cfg.ListenAddr = *f.ListenAddr
 	}
@@ -568,7 +575,9 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.ExternalBasePath != nil && *f.ExternalBasePath != "" {
 		cfg.ExternalBasePath = *f.ExternalBasePath
 	}
+}
 
+func overlayAdminFlags(cfg *Config, f FlagOverrides) {
 	if f.AdminUsername != nil && *f.AdminUsername != "" {
 		cfg.Server.BootstrapAdmin.Username = *f.AdminUsername
 	}
@@ -576,11 +585,15 @@ func overlayFlags(cfg *Config, f FlagOverrides) {
 	if f.AdminPassword != nil && *f.AdminPassword != "" {
 		cfg.Server.BootstrapAdmin.Password = *f.AdminPassword
 	}
+}
 
+func overlayLoggingFlags(cfg *Config, f FlagOverrides) {
 	if f.LoggingLevel != nil && *f.LoggingLevel != "" {
 		cfg.Logging.Level = *f.LoggingLevel
 	}
+}
 
+func overlayTokenFlags(cfg *Config, f FlagOverrides) {
 	if f.TokenExchangePath != nil && *f.TokenExchangePath != "" {
 		cfg.TokenExchange.Path = *f.TokenExchangePath
 	}

@@ -19,10 +19,10 @@
 #   Close/RemoveAll failures (~279 hits including prod HTTP clients).
 #
 # CI and local lint policy (not YAML keys):
-# - CI: only-new-issues delta BLOCKS merges on new lint in touched lines.
-# - Full-tree make lint / report-only CI job stays NON-BLOCKING until baseline is clean.
-# - Local lint-new uses --new-from-merge-base=master on CLI only.
-# - Do NOT put issues.new-from-merge-base in this committed file.
+# - CI: full-tree golangci-lint BLOCKS merges on any issue (ci.yml lint job).
+# - Local make lint mirrors CI (full tree); make lint-new is delta-only via
+#   --new-from-rev on the CLI (pinned LINT_BASE_REF in Makefile), not here.
+# - Do NOT put issues.new-from-rev or new-from-merge-base in this file.
 #
 version: "2"
 
