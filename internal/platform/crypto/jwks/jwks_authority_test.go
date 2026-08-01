@@ -52,9 +52,9 @@ func TestEd25519Key_PublicationIncludesAlg(t *testing.T) {
 		t.Fatalf("Ed25519Key missing required fields: %+v", key)
 	}
 
-	got, err := jwks.Set{Keys: []jwks.Key{key}}.Find(testJWKSKey1)
+	got, err := jwks.Set{Keys: []jwks.Key{key}}.ResolveExactKeyID(testJWKSKey1)
 	if err != nil {
-		t.Fatalf("Find: %v", err)
+		t.Fatalf("ResolveExactKeyID: %v", err)
 	}
 
 	if got.JWKAlg != "Ed25519" {

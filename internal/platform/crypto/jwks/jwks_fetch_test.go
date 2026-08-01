@@ -35,9 +35,9 @@ func TestFetchURL(t *testing.T) {
 		t.Fatalf("FetchURL: %v", err)
 	}
 
-	key, err := got.Find(testJWKSKey1)
+	key, err := got.ResolveExactKeyID(testJWKSKey1)
 	if err != nil {
-		t.Fatalf("Find: %v", err)
+		t.Fatalf("ResolveExactKeyID: %v", err)
 	}
 
 	gotPub, ok := key.PublicKey.(ed25519.PublicKey)

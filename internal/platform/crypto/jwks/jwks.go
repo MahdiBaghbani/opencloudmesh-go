@@ -21,6 +21,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/bounded"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/keyid"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto/sigalg"
@@ -34,6 +35,10 @@ const (
 	DefaultMinRefetchInterval = 30 * time.Second
 	// DefaultNegativeCacheTTL is how long a kid miss is remembered per JWKS URL.
 	DefaultNegativeCacheTTL = 30 * time.Second
+	// DefaultMaxCacheEntries bounds the cached JWKS document cardinality.
+	DefaultMaxCacheEntries = 256
+	// DefaultMaxNegativeEntries bounds the negative-kid cache cardinality.
+	DefaultMaxNegativeEntries = 1024
 )
 
 // Key is a single RFC 7517 JSON Web Key entry.
@@ -96,15 +101,6 @@ var ErrNilHTTPClient = errors.New("jwks: nil HTTP client")
 
 // ErrResponseTooLarge indicates the JWKS response exceeded the configured size limit.
 var ErrResponseTooLarge = errors.New("jwks: response too large")
-
-// Find resolves a public key by JWKS kid into a ResolvedPublicKey.
-//
-// Find is a compatibility wrapper around ResolveExactKeyID: the OCM contract
-// requires the keyid signature parameter to equal the JWK kid, so lookup is
-// exact.
-func (s Set) Find(kid string) (sigalg.ResolvedPublicKey, error) {
-	return s.ResolveExactKeyID(kid)
-}
 
 // ResolveExactKeyID resolves a public key by exact keyID equality against
 // each JWK kid in the set, per the OCM requirement that the keyid signature
@@ -194,10 +190,9 @@ type ResolverOptions struct {
 
 // Resolver fetches and caches remote JWKS documents.
 type Resolver struct {
-	mu                 sync.RWMutex
-	cache              map[string]cacheEntry
-	negative           map[string]time.Time
-	lastFetchAt        map[string]time.Time
+	mu                 sync.Mutex
+	cache              *bounded.LRU[string, cacheEntry]
+	negative           *bounded.LRU[string, time.Time]
 	client             HTTPDoer
 	ttl                time.Duration
 	minRefetchInterval time.Duration
@@ -272,9 +267,8 @@ func NewResolverWithOptions(client HTTPDoer, opts ResolverOptions) (*Resolver, e
 	}
 
 	return &Resolver{
-		cache:              map[string]cacheEntry{},
-		negative:           map[string]time.Time{},
-		lastFetchAt:        map[string]time.Time{},
+		cache:              bounded.NewLRU[string, cacheEntry](DefaultMaxCacheEntries),
+		negative:           bounded.NewLRU[string, time.Time](DefaultMaxNegativeEntries),
 		client:             client,
 		ttl:                ttl,
 		minRefetchInterval: minRefetch,
@@ -341,9 +335,7 @@ func FetchURLLimited(ctx context.Context, client HTTPDoer, jwksURL string, maxBy
 }
 
 // ResolveURL fetches the JWKS at the explicit advertised URL and returns the
-// key whose kid exactly equals the keyID signature parameter. Fetches go
-// through the resolver's bounded cache with the configured TTL, min-refetch
-// interval, and negative-cache behavior.
+// key whose kid exactly equals the keyID signature parameter.
 func (r *Resolver) ResolveURL(
 	ctx context.Context,
 	jwksURL, kid string,
@@ -405,8 +397,7 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 
 		fetchedAt := r.now()
 		r.mu.Lock()
-		r.cache[jwksURL] = cacheEntry{set: set, fetchedAt: fetchedAt}
-		r.lastFetchAt[jwksURL] = fetchedAt
+		r.cache.Set(jwksURL, cacheEntry{set: set, fetchedAt: fetchedAt})
 		r.mu.Unlock()
 
 		return result{set: set, fresh: true}, nil
@@ -424,24 +415,31 @@ func (r *Resolver) loadSet(ctx context.Context, jwksURL string, forceRefresh boo
 }
 
 func (r *Resolver) cachedSet(jwksURL string, forceRefresh bool, now time.Time) (Set, bool) {
-	r.mu.RLock()
-	entry, ok := r.cache[jwksURL]
-	lastFetch, haveFetch := r.lastFetchAt[jwksURL]
-	r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
+	// Peek so a TTL miss cannot promote a stale entry and keep it from
+	// eviction under polling.
+	entry, ok := r.cache.Peek(jwksURL)
 	if !ok {
 		return Set{}, false
 	}
 
 	if !forceRefresh {
 		if now.Sub(entry.fetchedAt) < r.ttl {
+			_, _ = r.cache.Get(jwksURL)
+
 			return entry.set, true
 		}
+
+		r.cache.Delete(jwksURL)
 
 		return Set{}, false
 	}
 
-	if r.minRefetchInterval > 0 && haveFetch && now.Sub(lastFetch) < r.minRefetchInterval {
+	if r.minRefetchInterval > 0 && now.Sub(entry.fetchedAt) < r.minRefetchInterval {
+		_, _ = r.cache.Get(jwksURL)
+
 		return entry.set, true
 	}
 
@@ -457,12 +455,25 @@ func (r *Resolver) negativeHit(jwksURL, kid string) bool {
 		return false
 	}
 
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	until, ok := r.negative[negativeKey(jwksURL, kid)]
+	key := negativeKey(jwksURL, kid)
 
-	return ok && r.now().Before(until)
+	until, ok := r.negative.Peek(key)
+	if !ok {
+		return false
+	}
+
+	if !r.now().Before(until) {
+		r.negative.Delete(key)
+
+		return false
+	}
+
+	_, _ = r.negative.Get(key)
+
+	return true
 }
 
 func (r *Resolver) rememberNegative(jwksURL, kid string) {
@@ -471,7 +482,7 @@ func (r *Resolver) rememberNegative(jwksURL, kid string) {
 	}
 
 	r.mu.Lock()
-	r.negative[negativeKey(jwksURL, kid)] = r.now().Add(r.negativeTTL)
+	r.negative.Set(negativeKey(jwksURL, kid), r.now().Add(r.negativeTTL))
 	r.mu.Unlock()
 }
 

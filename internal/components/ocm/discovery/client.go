@@ -89,6 +89,17 @@ func (c *Client) IsNoopCache() bool {
 	return ok
 }
 
+// Cache returns the cache wired into this client.
+// Use in tests to verify discovery cache cardinality bounds without reaching
+// into unexported fields. Returns nil when the client itself is nil.
+func (c *Client) Cache() cache.Cache {
+	if c == nil {
+		return nil
+	}
+
+	return c.cache
+}
+
 // Discover fetches the discovery document for a remote OCM server. Uses cache when available.
 //
 // Raw response bytes are cached so normalization runs on every cache read.

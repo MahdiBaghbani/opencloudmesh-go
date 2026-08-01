@@ -26,11 +26,8 @@ type PeerDiscoveryAdapter struct {
 }
 
 // NewPeerDiscoveryAdapter builds a peer discovery adapter backed by JWKS
-// resolution. The resolver is constructed with explicit bounded cache and
-// fetch policy (package defaults for TTL, MinRefetchInterval,
-// NegativeCacheTTL, and MaxResponseBytes) so production wiring never runs an
-// unbounded JWKS cache; see jwks.NewResolverWithOptions. The discovery client
-// fetches the peer's advertised discovery document to obtain the jwksUri.
+// resolution. The discovery client fetches the peer's advertised discovery
+// document to obtain the jwksUri.
 func NewPeerDiscoveryAdapter(httpClient jwks.HTTPDoer, discoveryClient *Client) *PeerDiscoveryAdapter {
 	resolver, err := jwks.NewResolverWithOptions(httpClient, jwks.ResolverOptions{
 		TTL:                jwks.DefaultCacheTTL,

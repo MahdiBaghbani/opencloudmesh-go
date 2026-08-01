@@ -22,6 +22,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/policy"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/token"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/cache/memory"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/crypto"
 	httpclient "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/http/client"
@@ -128,6 +129,11 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		return BuildResult{}, err
 	}
 
+	ratelimitCacheInstance, err := buildRatelimitCacheInstance(cfg)
+	if err != nil {
+		return BuildResult{}, err
+	}
+
 	discoveryCache := cache.Cache(cacheInstance)
 	if opts.SkipDiscoveryCache {
 		discoveryCache = cache.NewNoopCache()
@@ -177,7 +183,7 @@ func wireSharedDeps(cfg *config.Config, logger *slog.Logger, opts BuildOpts, per
 		PeerOrigin:          peerOrigin,
 		LocalIdentity:       localIdentity,
 		Config:              cfg,
-		Cache:               cacheInstance,
+		Cache:               ratelimitCacheInstance,
 		RealIP:              realIPExtractor,
 	}
 
@@ -235,7 +241,32 @@ func resolveOutboundConfig(cfg *config.Config, opts BuildOpts) *config.OutboundH
 	return &cfg.OutboundHTTP
 }
 
+// buildCacheInstance builds the discovery cache. The memory driver is
+// LRU-capped at the locked cardinality default; the redis driver is bounded
+// server-side by operator maxmemory policy.
 func buildCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
+	cacheDriver := cfg.Cache.Driver
+	if cacheDriver == "" {
+		cacheDriver = "memory"
+	}
+
+	driversConfig := cfg.Cache.Drivers
+	if cacheDriver == "memory" {
+		driversConfig = withMemoryMaxEntries(driversConfig)
+	}
+
+	cacheInstance, err := cache.NewFromConfig(cacheDriver, driversConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create cache: %w", err)
+	}
+
+	return cacheInstance, nil
+}
+
+// buildRatelimitCacheInstance builds the rate-limit cache as a TTL-only
+// instance with no LRU bound: an LRU eviction would drop a live rate-limit
+// window and let requests bypass the limit.
+func buildRatelimitCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
 	cacheDriver := cfg.Cache.Driver
 	if cacheDriver == "" {
 		cacheDriver = "memory"
@@ -243,10 +274,34 @@ func buildCacheInstance(cfg *config.Config) (cache.CacheWithCounter, error) {
 
 	cacheInstance, err := cache.NewFromConfig(cacheDriver, cfg.Cache.Drivers)
 	if err != nil {
-		return nil, fmt.Errorf("create cache: %w", err)
+		return nil, fmt.Errorf("create ratelimit cache: %w", err)
 	}
 
 	return cacheInstance, nil
+}
+
+// withMemoryMaxEntries returns a copy of the drivers config with the memory
+// driver bounded to the locked discovery cardinality cap.
+func withMemoryMaxEntries(driversConfig map[string]any) map[string]any {
+	out := make(map[string]any, len(driversConfig)+1)
+	for k, v := range driversConfig {
+		out[k] = v
+	}
+
+	memoryCfg := map[string]any{}
+
+	if raw, ok := driversConfig["memory"]; ok {
+		if m, ok := raw.(map[string]any); ok {
+			for k, v := range m {
+				memoryCfg[k] = v
+			}
+		}
+	}
+
+	memoryCfg["max_entries"] = memory.DefaultMaxEntries
+	out["memory"] = memoryCfg
+
+	return out
 }
 
 func buildPeerTrust(

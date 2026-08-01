@@ -88,6 +88,8 @@ func (l *Limiter) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := l.keyFunc(r)
 
+		// The counter cache must stay TTL-only with no LRU bound: evicting a
+		// live window would reset its count and bypass the limit.
 		count, resetAt, err := l.cache.Increment(r.Context(), "ratelimit:"+key, 1, l.window)
 		if err != nil {
 			l.log.Warn("rate limit check failed", "error", err)

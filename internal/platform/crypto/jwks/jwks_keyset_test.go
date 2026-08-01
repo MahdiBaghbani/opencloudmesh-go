@@ -21,14 +21,14 @@ import (
 	tscrypto "github.com/MahdiBaghbani/opencloudmesh-go/internal/testsupport/crypto"
 )
 
-func TestSetFromEd25519PublicKey_Find(t *testing.T) {
+func TestSetFromEd25519PublicKey_ResolveExactKeyID(t *testing.T) {
 	pub, _ := mustEd25519KeyPair(t)
 
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
-	got, err := set.Find(testJWKSKey1)
+	got, err := set.ResolveExactKeyID(testJWKSKey1)
 	if err != nil {
-		t.Fatalf("Find: %v", err)
+		t.Fatalf("ResolveExactKeyID: %v", err)
 	}
 
 	requireResolvedAlgorithm(t, got, sigalg.Ed25519)
@@ -43,30 +43,30 @@ func TestSetFromEd25519PublicKey_Find(t *testing.T) {
 	}
 }
 
-func TestFind_MissingKid(t *testing.T) {
+func TestResolveExactKeyID_MissingKid(t *testing.T) {
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.SetFromEd25519PublicKey(testJWKSKey1, pub)
 
-	_, err := set.Find("example.com#missing")
+	_, err := set.ResolveExactKeyID("example.com#missing")
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
-		t.Fatalf("Find() error = %v, want ErrKeyNotFound", err)
+		t.Fatalf("ResolveExactKeyID() error = %v, want ErrKeyNotFound", err)
 	}
 }
 
-func TestFind_AmbiguousKid(t *testing.T) {
+func TestResolveExactKeyID_AmbiguousKid(t *testing.T) {
 	pub, _ := mustEd25519KeyPair(t)
 	set := jwks.Set{Keys: []jwks.Key{
 		jwks.Ed25519Key(testJWKSKey1, pub),
 		jwks.Ed25519Key(testJWKSKey1, pub),
 	}}
 
-	_, err := set.Find(testJWKSKey1)
+	_, err := set.ResolveExactKeyID(testJWKSKey1)
 	if !errors.Is(err, jwks.ErrAmbiguousKid) {
-		t.Fatalf("Find() error = %v, want ErrAmbiguousKid", err)
+		t.Fatalf("ResolveExactKeyID() error = %v, want ErrAmbiguousKid", err)
 	}
 }
 
-func TestFind_UseSigAndEnc(t *testing.T) {
+func TestResolveExactKeyID_UseSigAndEnc(t *testing.T) {
 	pub, _ := mustEd25519KeyPair(t)
 
 	sigKey := jwks.Ed25519Key(testJWKSKey1, pub)
@@ -74,9 +74,9 @@ func TestFind_UseSigAndEnc(t *testing.T) {
 		t.Fatalf("Ed25519Key Use = %q, want sig", sigKey.Use)
 	}
 
-	got, err := jwks.Set{Keys: []jwks.Key{sigKey}}.Find(testJWKSKey1)
+	got, err := jwks.Set{Keys: []jwks.Key{sigKey}}.ResolveExactKeyID(testJWKSKey1)
 	if err != nil {
-		t.Fatalf("use=sig Find: %v", err)
+		t.Fatalf("use=sig ResolveExactKeyID: %v", err)
 	}
 
 	requireResolvedAlgorithm(t, got, sigalg.Ed25519)
@@ -84,20 +84,20 @@ func TestFind_UseSigAndEnc(t *testing.T) {
 	encOnly := jwks.Ed25519Key(testJWKSKey1, pub)
 	encOnly.Use = "enc"
 
-	_, err = jwks.Set{Keys: []jwks.Key{encOnly}}.Find(testJWKSKey1)
+	_, err = jwks.Set{Keys: []jwks.Key{encOnly}}.ResolveExactKeyID(testJWKSKey1)
 	if !errors.Is(err, jwks.ErrKeyNotFound) {
-		t.Fatalf("use=enc Find error = %v, want ErrKeyNotFound", err)
+		t.Fatalf("use=enc ResolveExactKeyID error = %v, want ErrKeyNotFound", err)
 	}
 
 	emptyUse := jwks.Ed25519Key(testJWKSKey1, pub)
 
 	emptyUse.Use = ""
-	if _, err := (jwks.Set{Keys: []jwks.Key{emptyUse}}).Find(testJWKSKey1); err != nil {
-		t.Fatalf("empty use Find: %v", err)
+	if _, err := (jwks.Set{Keys: []jwks.Key{emptyUse}}).ResolveExactKeyID(testJWKSKey1); err != nil {
+		t.Fatalf("empty use ResolveExactKeyID: %v", err)
 	}
 }
 
-func TestFind_ECP256AndRSA(t *testing.T) {
+func TestResolveExactKeyID_ECP256AndRSA(t *testing.T) {
 	ecPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -109,9 +109,9 @@ func TestFind_ECP256AndRSA(t *testing.T) {
 		Kty: "EC", Kid: "example.com#ec1", Use: "sig", Alg: "ES256", Crv: "P-256", X: x, Y: y,
 	}}}
 
-	got, err := ecSet.Find("example.com#ec1")
+	got, err := ecSet.ResolveExactKeyID("example.com#ec1")
 	if err != nil {
-		t.Fatalf("EC Find: %v", err)
+		t.Fatalf("EC ResolveExactKeyID: %v", err)
 	}
 
 	requireResolvedAlgorithm(t, got, sigalg.ECDSAP256SHA256)
@@ -131,9 +131,9 @@ func TestFind_ECP256AndRSA(t *testing.T) {
 		Kty: "RSA", Kid: "example.com#rsa1", Use: "sig", Alg: "RS256", N: n, E: e,
 	}}}
 
-	got, err = rsaSet.Find("example.com#rsa1")
+	got, err = rsaSet.ResolveExactKeyID("example.com#rsa1")
 	if err != nil {
-		t.Fatalf("RSA Find: %v", err)
+		t.Fatalf("RSA ResolveExactKeyID: %v", err)
 	}
 
 	requireResolvedAlgorithm(t, got, sigalg.RSAPKCS1SHA256)
