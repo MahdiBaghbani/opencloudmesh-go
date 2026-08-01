@@ -16,63 +16,48 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/config"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store"
 
-	// Register durable store drivers via their init() functions.
+	// Register store drivers via their init() functions.
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/json"
+	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/memory"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/mirror"
 	_ "github.com/MahdiBaghbani/opencloudmesh-go/internal/platform/store/sqlite"
 )
 
 // Repos holds the four app-level repository interfaces produced by the seam.
-// Callers must call Close when done to release resources held by durable
-// backends. Close is a no-op for the memory backend.
+// Callers must call Close when done to release resources held by the backing
+// store driver.
 type Repos struct {
 	OutgoingShares  sharesoutgoing.OutgoingShareRepo
 	IncomingShares  sharesincoming.IncomingShareRepo
 	OutgoingInvites invitesoutgoing.OutgoingInviteRepo
 	IncomingInvites invitesincoming.IncomingInviteRepo
 
-	// driver is non-nil for durable backends; nil for memory.
+	// driver is the backing store driver for every backend.
 	driver store.Driver
 }
 
-// Close releases resources held by durable backends. Safe to call on memory
-// backend (no-op).
+// Close releases resources held by the backing store driver.
 func (r *Repos) Close() error {
-	if r.driver == nil {
-		return nil
-	}
-
 	return r.driver.Close()
 }
 
 // New constructs app repos from a PersistenceConfig.
-//   - "memory": returns in-process memory repos; no I/O.
-//   - "json", "sqlite", "mirror": opens and initializes the named durable
-//     store, then wraps each store surface in an app-repo adapter.
+// Every backend (memory, json, sqlite, mirror) resolves through the store
+// driver registry: the driver is opened and initialized, then each store
+// surface is wrapped in an app-repo adapter.
 //
 // Returns a clear error for unknown backend values without silent fallback.
 func New(ctx context.Context, cfg config.PersistenceConfig) (*Repos, error) {
 	switch cfg.Backend {
-	case config.BackendMemory:
-		return newMemoryRepos(), nil
-	case config.BackendJSON, config.BackendSQLite, config.BackendMirror:
-		return newDurableRepos(ctx, cfg)
+	case config.BackendMemory, config.BackendJSON, config.BackendSQLite, config.BackendMirror:
+		return newStoreRepos(ctx, cfg)
 	default:
 		return nil, fmt.Errorf("unknown persistence backend %q: must be one of memory, json, sqlite, mirror", cfg.Backend)
 	}
 }
 
-func newMemoryRepos() *Repos {
-	return &Repos{
-		OutgoingShares:  sharesoutgoing.NewMemoryOutgoingShareRepo(),
-		IncomingShares:  sharesincoming.NewMemoryIncomingShareRepo(),
-		OutgoingInvites: invitesoutgoing.NewMemoryOutgoingInviteRepo(),
-		IncomingInvites: invitesincoming.NewMemoryIncomingInviteRepo(),
-	}
-}
-
-// fullStore is the union of all four store surfaces every durable driver
-// must implement.
+// fullStore is the union of all four store surfaces every store driver must
+// implement.
 type fullStore interface {
 	store.OutgoingShareStore
 	store.IncomingShareStore
@@ -80,7 +65,7 @@ type fullStore interface {
 	store.IncomingInviteStore
 }
 
-func newDurableRepos(ctx context.Context, cfg config.PersistenceConfig) (*Repos, error) {
+func newStoreRepos(ctx context.Context, cfg config.PersistenceConfig) (*Repos, error) {
 	driverCfg := &store.DriverConfig{
 		Driver:  cfg.Backend,
 		DataDir: cfg.DataDir,

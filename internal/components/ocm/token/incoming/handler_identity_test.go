@@ -82,8 +82,8 @@ func TestHandler_ClientID_DefaultPortEquivalence(t *testing.T) {
 			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), tt.publicOrigin)
 
 			share := &sharesoutgoing.OutgoingShare{
-				ProviderID:   "provider-port-test",
-				WebDAVID:     "webdav-port-test",
+				ProviderID:   "provider-port-test-" + tt.name,
+				WebDAVID:     "webdav-port-test-" + tt.name,
 				SharedSecret: "port-test-secret-" + tt.name,
 				ReceiverHost: tt.receiverHost,
 				LocalPath:    "/tmp/test.txt",

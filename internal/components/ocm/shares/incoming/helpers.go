@@ -429,7 +429,7 @@ func (h *Handler) storeIncomingShare(
 		w.WriteHeader(http.StatusOK)
 
 		if err := json.NewEncoder(w).Encode(spec.CreateShareResponse{
-			RecipientDisplayName: existing.RecipientDisplayName,
+			RecipientDisplayName: resolvedUser.DisplayName,
 		}); err != nil {
 			log.Error("failed to encode share response", "error", err)
 		}

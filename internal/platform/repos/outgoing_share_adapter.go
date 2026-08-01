@@ -43,7 +43,7 @@ func (a *outgoingShareAdapter) Create(ctx context.Context, share *sharesoutgoing
 	s := appOutgoingShareToStore(share)
 	if err := a.s.CreateOutgoingShare(ctx, s); err != nil {
 		if errors.Is(err, store.ErrAlreadyExists) {
-			return fmt.Errorf("share already exists: %s", share.ShareID)
+			return fmt.Errorf("share already exists: %w", store.ErrAlreadyExists)
 		}
 
 		return err

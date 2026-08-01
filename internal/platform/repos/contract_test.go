@@ -33,7 +33,7 @@ func TestRepoContract(t *testing.T) {
 // each expose all four app repo interfaces and that every required list
 // operation is callable without error. repos.New returns an error if the
 // underlying store driver does not implement the fullStore union (via
-// type-assertion in newDurableRepos); this test makes that assertion visible
+// type-assertion in newStoreRepos); this test makes that assertion visible
 // and also smoke-tests each list operation to confirm it is wired correctly.
 func TestDurableDriversExposeAllRepoInterfaces(t *testing.T) {
 	ctx := context.Background()

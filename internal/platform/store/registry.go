@@ -12,7 +12,7 @@ import (
 
 // DriverConfig holds configuration for driver selection and initialization.
 type DriverConfig struct {
-	// Driver is the driver name: json, sqlite, mirror
+	// Driver is the driver name: memory, json, sqlite, mirror
 	Driver string `json:"driver"`
 
 	// DataDir is the directory for data files (json files, sqlite db)

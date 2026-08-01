@@ -27,7 +27,7 @@ type Driver interface {
 	// Close releases resources held by the driver.
 	Close() error
 
-	// Name returns the driver name (json, sqlite, mirror).
+	// Name returns the driver name (memory, json, sqlite, mirror).
 	Name() string
 }
 

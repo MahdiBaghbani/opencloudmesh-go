@@ -18,6 +18,7 @@ import (
 
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/identity"
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/access"
+	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares"
 	sharesincoming "github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/shares/incoming"
 )
 
@@ -137,8 +138,30 @@ func assertWebappShareInfo(t *testing.T, got *access.ShareInfo, share *sharesinc
 
 func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingShares
-	share := createAcceptedWebappShareForUser(t, repo, userAID, "prov-va-webapp-uri", "sender.example.com", "uri-only.txt")
-	share.ProtocolName = "webdav"
+
+	share := &sharesincoming.IncomingShare{
+		ProviderID:        "prov-va-webapp-uri",
+		SenderHost:        "sender.example.com",
+		ShareWith:         userAID + "@example.com",
+		RecipientUserID:   userAID,
+		Status:            shares.ShareStatusAccepted,
+		ResourceType:      "file",
+		Name:              "uri-only.txt",
+		Owner:             "owner@sender.example.com",
+		Sender:            "sender@sender.example.com",
+		ShareType:         "user",
+		Permissions:       []string{"read"},
+		WebDAVID:          "webdav-id-prov-va-webapp-uri",
+		SharedSecret:      "secret-prov-va-webapp-uri",
+		Requirements:      []string{"must-exchange-token"},
+		ProtocolName:      "webdav",
+		WebappURI:         "https://app.sender.example.com/launch?share=prov-va-webapp-uri",
+		WebappTargets:     []string{"blank", "_self"},
+		WebappPermissions: []string{"view", "share"},
+	}
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
@@ -163,8 +186,29 @@ func TestHandleVerifyAccess_SelectsWebappProtocolByWebappURI(t *testing.T) {
 
 func TestHandleVerifyAccess_SelectsWebappProtocolByProtocolName(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingShares
-	share := createAcceptedWebappShareForUser(t, repo, userAID, "prov-va-webapp-name", "sender.example.com", "name-only.txt")
-	share.WebappURI = ""
+
+	share := &sharesincoming.IncomingShare{
+		ProviderID:        "prov-va-webapp-name",
+		SenderHost:        "sender.example.com",
+		ShareWith:         userAID + "@example.com",
+		RecipientUserID:   userAID,
+		Status:            shares.ShareStatusAccepted,
+		ResourceType:      "file",
+		Name:              "name-only.txt",
+		Owner:             "owner@sender.example.com",
+		Sender:            "sender@sender.example.com",
+		ShareType:         "user",
+		Permissions:       []string{"read"},
+		WebDAVID:          "webdav-id-prov-va-webapp-name",
+		SharedSecret:      "secret-prov-va-webapp-name",
+		Requirements:      []string{"must-exchange-token"},
+		ProtocolName:      "webapp",
+		WebappTargets:     []string{"blank", "_self"},
+		WebappPermissions: []string{"view", "share"},
+	}
+	if err := repo.Create(context.Background(), share); err != nil {
+		t.Fatal(err)
+	}
 
 	userA := &identity.User{ID: userAID, Username: "alice"}
 
