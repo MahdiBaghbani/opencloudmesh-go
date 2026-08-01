@@ -81,7 +81,7 @@ func TestHandleDecline_Unauthenticated(t *testing.T) {
 }
 
 // TestHandleDecline_PersistFailureReturns5xx verifies a local delete failure
-// surfaces as 5xx instead of a silent 200 (C3).
+// surfaces as 5xx instead of a silent 200.
 func TestHandleDecline_PersistFailureReturns5xx(t *testing.T) {
 	mem := tsrepos.OpenMemory(t).IncomingInvites
 	invite := createInviteForUser(t, mem, userAID, "decline-fail-token", "sender.example.com")

@@ -122,7 +122,7 @@ func TestTrustGroupManager_M1UnionAcrossTrustGroups(t *testing.T) {
 		},
 	}, time.Now())
 
-	// Both should be members (M1 union)
+	// Both should be members (union across trust groups)
 	if !m.IsMember(context.Background(), "member1.example.com", false) {
 		t.Error("expected member1 to be a member")
 	}

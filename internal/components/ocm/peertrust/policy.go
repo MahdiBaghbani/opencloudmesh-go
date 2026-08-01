@@ -73,7 +73,7 @@ func (pe *PolicyEngine) Evaluate(ctx context.Context, peerHost string, authentic
 		}
 	}
 
-	// Check trust group membership (M1 union across all trust groups).
+	// Check trust group membership across all trust groups.
 	// When any trust group enforces membership, require verified directory data.
 	if pe.trustGroupMgr != nil {
 		requireVerified := pe.anyEnforcesMembership()

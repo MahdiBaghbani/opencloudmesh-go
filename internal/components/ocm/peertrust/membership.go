@@ -84,7 +84,7 @@ func NewTrustGroupManager(
 	}
 }
 
-// AddTrustGroup registers a trust group config (loaded from K2 JSON).
+// AddTrustGroup registers a trust group config loaded from JSON.
 func (m *TrustGroupManager) AddTrustGroup(cfg *TrustGroupConfig) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -95,7 +95,7 @@ func (m *TrustGroupManager) AddTrustGroup(cfg *TrustGroupConfig) {
 	}
 }
 
-// IsMember checks if a host is a member of any enabled trust group (M1 union).
+// IsMember checks if a host is a member of any enabled trust group.
 // When requireVerified is true, only members from verified directory listings match.
 func (m *TrustGroupManager) IsMember(ctx context.Context, host string, requireVerified bool) bool {
 	m.mu.RLock()

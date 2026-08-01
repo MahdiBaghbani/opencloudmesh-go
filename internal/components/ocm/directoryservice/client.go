@@ -213,7 +213,7 @@ func (c *Client) verifyJWS(jws *jose.JSONWebSignature, keys []VerificationKey) (
 		return parseListing(payload)
 	}
 
-	return nil, fmt.Errorf("JWS signature verification failed (F2)")
+	return nil, fmt.Errorf("JWS signature verification failed")
 }
 
 // filterValidServerURLs drops invalid server URLs from verified listings (OCM Appendix C:

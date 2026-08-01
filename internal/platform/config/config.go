@@ -170,7 +170,7 @@ type PeerTrustConfig struct {
 	// Enabled enables peer trust features. Default: false.
 	Enabled bool `toml:"enabled"`
 
-	// ConfigPaths is a list of paths to K2 JSON trust group config files.
+	// ConfigPaths is a list of paths to JSON trust group config files.
 	// Required when enabled.
 	ConfigPaths []string `toml:"config_paths"`
 

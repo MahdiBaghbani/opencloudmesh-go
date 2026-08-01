@@ -15,7 +15,7 @@ import (
 	"github.com/MahdiBaghbani/opencloudmesh-go/internal/components/ocm/directoryservice"
 )
 
-// TrustGroupConfig defines a single trust group (K2 format).
+// TrustGroupConfig defines a single trust group.
 type TrustGroupConfig struct {
 	TrustGroupID      string                             `json:"trustGroupId"`
 	DirectoryServices []directoryservice.EndpointConfig  `json:"directoryServices"`
@@ -24,7 +24,7 @@ type TrustGroupConfig struct {
 	EnforceMembership bool                               `json:"enforceMembership"`
 }
 
-// LoadTrustGroupConfig loads a trust group config from a K2 JSON file.
+// LoadTrustGroupConfig loads a trust group config from a JSON file.
 // Unknown JSON keys fail the load.
 func LoadTrustGroupConfig(path string) (*TrustGroupConfig, error) {
 	data, err := os.ReadFile(path)

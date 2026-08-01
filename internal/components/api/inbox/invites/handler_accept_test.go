@@ -368,7 +368,7 @@ func startConfigurableSenderServer(t *testing.T, status int, respBody string) (*
 }
 
 // TestHandleAccept_PersistFailureReturns5xx verifies a local update failure
-// after a successful invite-accepted call surfaces as 5xx (C2), leaving the
+// after a successful invite-accepted call surfaces as 5xx, leaving the
 // invite pending for retry.
 func TestHandleAccept_PersistFailureReturns5xx(t *testing.T) {
 	mem := tsrepos.OpenMemory(t).IncomingInvites
@@ -405,7 +405,7 @@ func TestHandleAccept_PersistFailureReturns5xx(t *testing.T) {
 // TestHandleAccept_ConflictWithIdentityCompensates verifies the retry path
 // after a local persist failure: the sender answers 409 INVITE_ALREADY_ACCEPTED
 // with its identity body, which is idempotent success — the handler persists
-// accepted state plus sender identity and returns 200 (C2 compensation).
+// accepted state plus sender identity and returns 200.
 func TestHandleAccept_ConflictWithIdentityCompensates(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 
@@ -481,20 +481,20 @@ func assertPeerErrorLeavesInvitePending(t *testing.T, peerStatus int, peerBody, 
 }
 
 // TestHandleAccept_BodylessConflictReturns502 verifies a 409 without a
-// decodable identity body is an honest 502 (C2: foreign/bodyless 409).
+// decodable identity body is an honest 502.
 func TestHandleAccept_BodylessConflictReturns502(t *testing.T) {
 	assertPeerErrorLeavesInvitePending(t, http.StatusConflict, ``, "bodyless-conflict-token", http.StatusBadGateway)
 }
 
 // TestHandleAccept_EmptyPeerUserIDReturns502 verifies a 201 response without
-// userID is rejected as 502 and never marks the invite accepted (C1).
+// userID is rejected as 502 and never marks the invite accepted.
 func TestHandleAccept_EmptyPeerUserIDReturns502(t *testing.T) {
 	assertPeerErrorLeavesInvitePending(t, http.StatusCreated, `{"status":"ok"}`, "empty-userid-token", http.StatusBadGateway)
 }
 
 // TestHandleAccept_MalformedStoredSenderFailsClosed verifies a stored sender
 // host that fails normalization returns an internal error before any outbound
-// call or persistence (B: no lowercase fallback).
+// call or persistence (no lowercase fallback).
 func TestHandleAccept_MalformedStoredSenderFailsClosed(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingInvites
 

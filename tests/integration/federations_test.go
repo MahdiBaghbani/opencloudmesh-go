@@ -23,7 +23,7 @@ func TestFederationsEndpoint(t *testing.T) {
 		t.Skip("skipping subprocess test in short mode")
 	}
 
-	// K2 JSON config: trust group enabled but no directory services to fetch from
+	// Trust group config: enabled but no directory services to fetch from
 	trustGroupJSON := `{
 		"trustGroupId": "test-federation-001",
 		"enabled": true,

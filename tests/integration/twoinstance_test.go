@@ -64,7 +64,7 @@ func TestTwoInstanceDiscovery(t *testing.T) {
 
 // TestTwoInstanceCrossDiscovery verifies instance1 can reach instance2 via /ocm-aux/discover.
 // Dev instances expose OCM discovery but not inviteAcceptDialog, so the helper returns a
-// reason-coded failure after successful upstream discovery (T7a).
+// reason-coded failure after successful upstream discovery.
 func TestTwoInstanceCrossDiscovery(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")
@@ -193,7 +193,7 @@ func TestSSRFBlockingWithIPLiterals(t *testing.T) {
 // active route policy with explicit host suffix, CIDR, and port allowance permits
 // a private destination that strict mode would otherwise block. The source runs in
 // strict mode, the target in dev mode. The discover helper
-// may still return no_invite_accept_dialog after upstream discovery succeeds (T7a).
+// may still return no_invite_accept_dialog after upstream discovery succeeds.
 func TestSSRFRoutePolicyAllowsExplicitCIDRDiscover(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping subprocess test in short mode")

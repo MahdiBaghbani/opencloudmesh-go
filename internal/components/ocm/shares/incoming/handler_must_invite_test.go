@@ -423,7 +423,7 @@ func TestMustInviteGate_OptOutRetainsLegacyAcceptance(t *testing.T) {
 // TestMustInviteGate_AuthenticatedAuthorityMismatchReturns403 verifies the
 // anti-spoof check: an authenticated peer whose signature authority does not
 // match the normalized body sender host is rejected even when a valid invite
-// exists for the body sender (C4). The owner host matches the authority so the
+// exists for the body sender. The owner host matches the authority so the
 // request reaches the must-invite gate, where the sender mismatch is caught.
 func TestMustInviteGate_AuthenticatedAuthorityMismatchReturns403(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingShares
@@ -471,7 +471,7 @@ func TestMustInviteGate_AuthenticatedAuthorityMismatchReturns403(t *testing.T) {
 
 // TestMustInviteGate_AuthenticatedDefaultPortEquivalentAdmits verifies a body
 // sender host carrying the scheme's default port normalizes to the
-// authenticated authority and admits on the persisted invite (C4).
+// authenticated authority and admits on the persisted invite.
 func TestMustInviteGate_AuthenticatedDefaultPortEquivalentAdmits(t *testing.T) {
 	repo := tsrepos.OpenMemory(t).IncomingShares
 	incomingInvites := tsrepos.OpenMemory(t).IncomingInvites
