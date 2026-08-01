@@ -86,17 +86,15 @@ func Authority(p Parsed) string {
 //
 // Uses hostport.Normalize internally to ensure a single normalization
 // implementation across the codebase.
-func AuthorityForCompareFromKeyID(p Parsed) string {
+func AuthorityForCompareFromKeyID(p Parsed) (string, error) {
 	authority := Authority(p)
 
 	normalized, err := hostport.Normalize(authority, p.Scheme)
 	if err != nil {
-		// Authority was already parsed from a valid keyId URI, so this
-		// should not fail. Fall back to the raw authority on error.
-		return authority
+		return "", fmt.Errorf("keyid: normalize authority for compare: %w", err)
 	}
 
-	return normalized
+	return normalized, nil
 }
 
 // AuthorityForCompareFromDeclaredPeer normalizes a schemeless declared peer

@@ -170,12 +170,12 @@ func (h *Handler) lookupAndVerifyShare(w http.ResponseWriter, r *http.Request, r
 	normalizedClient, errClient := hostport.Normalize(req.ClientID, h.localScheme)
 
 	if errReceiver != nil || errClient != nil {
-		log.Warn("token exchange client_id normalization failed, falling back to raw comparison",
+		log.Warn("token exchange client_id normalization failed",
 			"receiver_err", errReceiver,
 			"client_err", errClient)
+		h.sendOAuthError(w, http.StatusBadRequest, token.ErrorInvalidClient, "invalid client_id")
 
-		normalizedReceiver = share.ReceiverHost
-		normalizedClient = req.ClientID
+		return nil, false
 	}
 
 	if normalizedReceiver != normalizedClient {

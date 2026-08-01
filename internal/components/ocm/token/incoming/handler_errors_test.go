@@ -74,6 +74,130 @@ func TestHandler_ClientMismatch(t *testing.T) {
 	}
 }
 
+func TestHandler_NormalizeError_InvalidClient(t *testing.T) {
+	tests := []struct {
+		name         string
+		providerID   string
+		webdavID     string
+		sharedSecret string
+		receiverHost string
+		clientID     string
+	}{
+		{
+			name:         "client_id normalize error",
+			providerID:   "provider-normalize-error",
+			webdavID:     "webdav-normalize-error",
+			sharedSecret: "normalize-error-secret",
+			receiverHost: "receiver.example.com",
+			clientID:     "https://receiver.example.com",
+		},
+		{
+			name:         "receiver host normalize error",
+			providerID:   "provider-receiver-normalize-error",
+			webdavID:     "webdav-receiver-normalize-error",
+			sharedSecret: "receiver-normalize-error-secret",
+			receiverHost: "https://receiver.example.com",
+			clientID:     "receiver.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shareRepo := tsrepos.OpenMemory(t).OutgoingShares
+			tokenStore := token.NewMemoryTokenStore()
+			handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
+
+			share := &sharesoutgoing.OutgoingShare{
+				ProviderID:   tt.providerID,
+				WebDAVID:     tt.webdavID,
+				SharedSecret: tt.sharedSecret,
+				ReceiverHost: tt.receiverHost,
+				LocalPath:    "/tmp/test.txt",
+			}
+			if err := shareRepo.Create(context.Background(), share); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("client_id", tt.clientID)
+			form.Set("code", tt.sharedSecret)
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			w := httptest.NewRecorder()
+
+			handler.HandleToken(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+
+			var resp token.OAuthError
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Fatalf("Decode: %v", err)
+			}
+
+			if resp.Error != token.ErrorInvalidClient {
+				t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
+			}
+
+			if resp.ErrorDescription != "invalid client_id" {
+				t.Errorf("expected description %q, got %q", "invalid client_id", resp.ErrorDescription)
+			}
+		})
+	}
+}
+
+func TestHandler_NormalizeError_NoRawFallback(t *testing.T) {
+	shareRepo := tsrepos.OpenMemory(t).OutgoingShares
+	tokenStore := token.NewMemoryTokenStore()
+	handler := tokenincoming.NewHandler(shareRepo, tokenStore, enabledSettings(), enabledCodeFlow(), "https://local.example.com")
+
+	invalidClientID := "https://receiver.example.com"
+
+	share := &sharesoutgoing.OutgoingShare{
+		ProviderID:   "provider-raw-fallback-guard",
+		WebDAVID:     "webdav-raw-fallback-guard",
+		SharedSecret: "raw-fallback-guard-secret",
+		ReceiverHost: invalidClientID,
+		LocalPath:    "/tmp/test.txt",
+	}
+	if err := shareRepo.Create(context.Background(), share); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("client_id", invalidClientID)
+	form.Set("code", "raw-fallback-guard-secret")
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/ocm/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	w := httptest.NewRecorder()
+
+	handler.HandleToken(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 (fail-closed), got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp token.OAuthError
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
+	if resp.Error != token.ErrorInvalidClient {
+		t.Errorf("expected error %q, got %q", token.ErrorInvalidClient, resp.Error)
+	}
+
+	if resp.ErrorDescription != "invalid client_id" {
+		t.Errorf("expected description %q, got %q", "invalid client_id", resp.ErrorDescription)
+	}
+}
+
 func TestTokenStore_Expiration(t *testing.T) {
 	store := token.NewMemoryTokenStore()
 	ctx := context.Background()

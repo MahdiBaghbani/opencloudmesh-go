@@ -24,8 +24,10 @@ import (
 // Normalize returns a lowercase, scheme-aware host[:port] with default ports
 // stripped. Default ports: :443 for https, :80 for http.
 //
-// Rejects values containing "://" or "/" since all inputs are schemeless
-// authorities. Preserves IPv6 bracket form (e.g. [::1], [::1]:9200).
+// Rejects values containing "://" or "/", and authorities with a trailing
+// colon (empty host, including scheme-only forms like "https:"), since all
+// inputs are schemeless authorities. Preserves IPv6 bracket form
+// (e.g. [::1], [::1]:9200).
 func Normalize(authority string, scheme string) (string, error) {
 	authority = strings.TrimSpace(authority)
 	if authority == "" {
@@ -38,6 +40,10 @@ func Normalize(authority string, scheme string) (string, error) {
 
 	if strings.Contains(authority, "/") {
 		return "", fmt.Errorf("hostport: authority %q must not contain a path", authority)
+	}
+
+	if strings.HasSuffix(authority, ":") {
+		return "", fmt.Errorf("hostport: authority %q has no host", authority)
 	}
 
 	// Use a dummy scheme so url.Parse handles IPv6 brackets and port splitting.

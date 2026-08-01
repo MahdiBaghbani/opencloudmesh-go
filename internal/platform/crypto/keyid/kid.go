@@ -110,9 +110,14 @@ func parseKidFromURI(keyID string) (Kid, error) {
 		return Kid{}, fmt.Errorf("keyid: URI keyId %q has no fragment", keyID)
 	}
 
+	compareAuthority, err := AuthorityForCompareFromKeyID(u)
+	if err != nil {
+		return Kid{}, err
+	}
+
 	return Kid{
 		Scheme:    u.Scheme,
-		Authority: strings.ToLower(AuthorityForCompareFromKeyID(u)),
+		Authority: strings.ToLower(compareAuthority),
 		Fragment:  fragment,
 	}, nil
 }

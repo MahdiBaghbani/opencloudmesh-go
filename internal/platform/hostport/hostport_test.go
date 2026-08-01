@@ -55,6 +55,12 @@ func TestNormalize(t *testing.T) {
 		// Rejection: empty
 		{"reject empty", "", "https", "", true},
 		{"reject whitespace only", "   ", "https", "", true},
+
+		// Rejection: scheme-only or slash-only host
+		{"reject slash only", "/", "https", "", true},
+		{"reject double slash only", "//", "https", "", true},
+		{"reject https scheme only", "https:", "https", "", true},
+		{"reject http scheme only", "http:", "https", "", true},
 	}
 
 	for _, tt := range tests {

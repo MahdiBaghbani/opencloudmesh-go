@@ -302,7 +302,11 @@ func TestAuthorityForCompareFromKeyID(t *testing.T) {
 				t.Fatalf("Parse failed: %v", err)
 			}
 
-			got := keyid.AuthorityForCompareFromKeyID(p)
+			got, err := keyid.AuthorityForCompareFromKeyID(p)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
 			if got != tt.expected {
 				t.Errorf("AuthorityForCompareFromKeyID: got %q, want %q", got, tt.expected)
 			}
@@ -407,7 +411,10 @@ func assertAuthorityEquivalence(t *testing.T, rawKeyID, peer, scheme string, wan
 		t.Fatal(err)
 	}
 
-	fromKeyID := keyid.AuthorityForCompareFromKeyID(p)
+	fromKeyID, err := keyid.AuthorityForCompareFromKeyID(p)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	fromPeer, err := keyid.AuthorityForCompareFromDeclaredPeer(peer, scheme)
 	if err != nil {
