@@ -23,11 +23,11 @@ pins:
     release: v1.1.0
     sha: 032d45514ae346b1db93c04b0c90b841c370344f
   astral-sh/setup-uv:
-    release: v7.6.0
-    sha: 37802adc94f370d6bfd71619e3f0bf239e1f3b78
+    release: v9.0.0
+    sha: c771a70e6277c0a99b617c7a806ffedaca235ff9
   github/codeql-action/upload-sarif:
-    release: v4.37.3
-    sha: e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81
+    release: v4.37.4
+    sha: f205ea1c3313d32999d8d6a48b4f6530d4437b38
   docker/setup-buildx-action:
     release: v4.2.0
     sha: bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
