@@ -6,7 +6,8 @@
 # OpenCloudMesh server build and test targets.
 SHELL := /bin/bash
 .PHONY: build test-go test-integration test-e2e test-e2e-install \
-	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new security check ci \
+	test clean fmt fmt-check vet tidy tools lint lint-fix lint-new shellcheck \
+	security check ci \
 	pre-commit-install pre-commit-run \
 	generate-action-inventory verify-action-pins reuse-lint
 
@@ -91,6 +92,18 @@ LINT_BASE_REF ?= 81fb0ce
 lint-new:
 	$(GOLANGCI_LINT) run --new-from-rev=$(LINT_BASE_REF) ./...
 
+# Shellcheck: lint all tracked shell scripts (parity with pre-commit shellcheck hook).
+# Null-safe via IFS= read -r; "--" guards leading-hyphen paths; set -e fails closed.
+.PHONY: shellcheck
+shellcheck:
+	@set -eu; \
+	files=$$(git ls-files '*.sh'); \
+	if [ -z "$$files" ]; then \
+		echo "no tracked shell scripts to lint"; \
+	else \
+		printf '%s\n' "$$files" | while IFS= read -r f; do shellcheck -- "$$f"; done; \
+	fi
+
 # govulncheck is report-only (mirrors CI continue-on-error); gosec blocks.
 security:
 	-$(GOVULNCHECK) ./...
@@ -111,9 +124,9 @@ pre-commit-install:
 pre-commit-run:
 	uv run pre-commit run
 
-# Laptop CI mirror: fmt, vet, lint, security, unit+integration, build, pins,
-# reuse.
-ci: fmt-check vet lint security test build verify-action-pins reuse-lint
+# Laptop CI mirror: fmt, vet, lint, shellcheck, security, unit+integration,
+# build, pins, reuse.
+ci: fmt-check vet lint shellcheck security test build verify-action-pins reuse-lint
 
 # List immutable action@sha references found in workflow files (audit helper).
 generate-action-inventory:

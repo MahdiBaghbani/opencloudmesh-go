@@ -62,9 +62,11 @@ jobs:
             exit 1
           fi
           FULL_SHA="${GITHUB_SHA}"
-          echo "semver_tag=${SEMVER_TAG}" >> "${GITHUB_OUTPUT}"
-          echo "full_sha=${FULL_SHA}" >> "${GITHUB_OUTPUT}"
-          echo "sha_tag=sha-${FULL_SHA}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "semver_tag=${SEMVER_TAG}"
+            echo "full_sha=${FULL_SHA}"
+            echo "sha_tag=sha-${FULL_SHA}"
+          } >> "${GITHUB_OUTPUT}"
           echo "SEMVER_TAG=${SEMVER_TAG}"
           echo "GITHUB_SHA=${FULL_SHA}"
 

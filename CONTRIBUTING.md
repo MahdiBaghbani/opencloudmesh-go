@@ -46,6 +46,8 @@ failure blocks the commit.
 | go-mod-tidy | `go.mod` / `go.sum` vs index | fmt-vet tidy step |
 | golangci-lint | full module | `make lint` |
 | go-test-unit | full module, `-race`, excludes `tests/integration` | `make test-go` |
+| shellcheck | staged shell scripts | CI shellcheck job |
+| actionlint | `.github/workflows` when a workflow file is staged | pre-commit only |
 | reuse | full tree | `make reuse-lint` / CI reuse job |
 
 Local hooks under `scripts/git/` are Nushell helpers invoked by
@@ -67,6 +69,11 @@ It does **not** guarantee every CI job passed on its own.
   files are misformatted.
 - go-test-unit, go-mod-tidy, and reuse run on every commit attempt
   (they are not gated on staged Go files).
+- shellcheck runs only when staged files include shell scripts
+  (`types: [shell]`); it skips commits with no staged shell files.
+- actionlint runs only when a staged file matches
+  `.github/workflows/**/*.{yml,yaml}`; it skips commits with no staged
+  workflow file.
 - Pre-commit does not run integration tests, E2E, security scans, build,
   or action-pin verification. Run `make ci` or push to CI for those.
 
@@ -85,6 +92,11 @@ make pre-commit-install         # writes .git/hooks/pre-commit
 Nushell (`nu`) is required for the staged Go helpers. Install via
 [mise](https://mise.jdx.dev/) or the
 [official Nushell install](https://www.nushell.sh/book/installation.html).
+
+[shellcheck](https://www.shellcheck.net/) and
+[actionlint](https://github.com/rhysd/actionlint) must be on `PATH` for
+pre-commit (shellcheck for shell scripts; actionlint for workflow files).
+CI runs shellcheck but not actionlint.
 
 Optional manual run before commit:
 
