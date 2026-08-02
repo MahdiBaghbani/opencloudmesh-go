@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Mohammad Mahdi Baghbani Pourvahid <mahdi-baghbani@azadehafzar.io>
+#
+# OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered subset of the protocol.
+
+name: CI Lint
+
+on:
+  workflow_call:
+    inputs:
+      job:
+        description: Which lint job to run (fmt-vet or lint)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  GOLANGCI_LINT_VERSION: v2.12.2
+  GOIMPORTS_VERSION: v0.30.0
+
+jobs:
+  validate-job:
+    name: validate job input
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject unknown job input
+        env:
+          JOB: ${{ inputs.job }}
+        run: |
+          set -euo pipefail
+          case "$JOB" in
+            fmt-vet|lint) ;;
+            *)
+              echo "Invalid inputs.job: ${JOB}" >&2
+              echo "Allowed: fmt-vet, lint" >&2
+              exit 1
+              ;;
+          esac
+
+  fmt-vet:
+    name: fmt + vet
+    if: inputs.job == 'fmt-vet'
+    needs: validate-job
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
+      - name: Verify formatting
+        run: make fmt-check
+      - name: go vet
+        run: make vet
+      - name: go mod tidy check
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+  lint:
+    name: golangci-lint
+    if: inputs.job == 'lint'
+    needs: validate-job
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Full-tree lint gate: baseline is clean, so CI blocks on any issue.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=5m

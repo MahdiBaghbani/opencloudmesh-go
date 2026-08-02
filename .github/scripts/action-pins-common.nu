@@ -26,8 +26,15 @@ def list-workflow-paths [workflows_dir: string] {
   $yml | append $yaml | uniq | sort
 }
 
-# Load repo root, action-pins manifest, and sorted workflow paths (*.yml + *.yaml).
-# Fails non-zero when no workflow files match.
+def list-action-paths [root: string] {
+  let yml = (glob ($root | path join '**' 'action.yml'))
+  let yaml = (glob ($root | path join '**' 'action.yaml'))
+  $yml | append $yaml | uniq | sort
+}
+
+# Load repo root, action-pins manifest, and sorted paths to scan for uses:
+# pins: workflow files (*.yml + *.yaml) plus composite action manifests
+# (**/action.yml + **/action.yaml). Fails non-zero when no workflow files match.
 export def load-action-pins-context [] {
   let root = (find-repo-root)
   let manifest_path = ($root | path join '.github' 'action-pins.yml')
@@ -39,11 +46,19 @@ export def load-action-pins-context [] {
       msg: 'No workflow files found under .github/workflows (*.yml, *.yaml)'
     }
   }
+  # Fold composite-action manifests into the scan set so existing consumers
+  # (verify / inventory) cover uses: pins inside action.yml / action.yaml too.
+  let scan_paths = (
+    $workflow_paths
+    | append (list-action-paths $root)
+    | uniq
+    | sort
+  )
   {
     root: $root
     manifest_path: $manifest_path
     manifest: $manifest
     workflows_dir: $workflows_dir
-    workflow_paths: $workflow_paths
+    workflow_paths: $scan_paths
   }
 }

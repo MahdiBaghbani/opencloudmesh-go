@@ -9,6 +9,9 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
 
 permissions:
   contents: read
@@ -17,126 +20,38 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  GOLANGCI_LINT_VERSION: v2.12.2
-  GOIMPORTS_VERSION: v0.30.0
-
 jobs:
   fmt-vet:
-    name: fmt + vet
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
-      - name: Verify formatting
-        run: make fmt-check
-      - name: go vet
-        run: make vet
-      - name: go mod tidy check
-        run: |
-          go mod tidy
-          git diff --exit-code go.mod go.sum
+    uses: ./.github/workflows/ci-lint.yml
+    with:
+      job: fmt-vet
 
   lint:
-    name: golangci-lint
-    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
       checks: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: go.mod
-          cache: true
-      # Full-tree lint gate: baseline is clean, so CI blocks on any issue.
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
-        with:
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --timeout=5m
+    uses: ./.github/workflows/ci-lint.yml
+    with:
+      job: lint
 
   security:
-    name: security
-    runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: go.mod
-          cache: true
-      # Report-only until toolchain pin, module bumps, and govulncheck reach zero.
-      - name: govulncheck
-        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f
-        with:
-          go-version-file: go.mod
-        continue-on-error: true
-      - name: Install golangci-lint for SARIF
-        run: |
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
-      # Blocking gosec gate: baseline is clean, so findings fail CI.
-      - name: gosec SARIF (golangci-lint)
-        run: |
-          golangci-lint run --enable-only=gosec \
-            --output.sarif.path=gosec.sarif ./...
-      - name: Upload gosec SARIF
-        if: >-
-          always() &&
-          (github.event_name != 'pull_request' ||
-           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81
-        with:
-          sarif_file: gosec.sarif
-          category: gosec
+    uses: ./.github/workflows/ci-security.yml
+    with:
+      job: security
 
   test:
-    name: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Unit tests with coverage
-        run: make test-go
-      - name: Integration tests with coverage
-        run: make test-integration
-      - name: Verify coverage artifact names
-        run: |
-          test -f coverage-unit.out
-          test -f coverage-integration.out
-      - name: Upload coverage profiles
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: coverage-profiles
-          path: |
-            coverage-unit.out
-            coverage-integration.out
-          if-no-files-found: error
+    uses: ./.github/workflows/ci-test.yml
+    with:
+      job: test
 
   build:
-    name: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Build binary
-        run: make build
+    uses: ./.github/workflows/ci-test.yml
+    with:
+      job: build
 
   action-pins:
     name: action-pins
@@ -160,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
       # Blocking REUSE gate: any missing copyright/licensing info fails CI.
       - name: Sync dev dependencies
         run: uv sync
