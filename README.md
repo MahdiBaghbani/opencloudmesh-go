@@ -10,8 +10,10 @@ OpenCloudMesh Go - a runnable Open Cloud Mesh peer in Go, focused on a strict, W
 > A runnable Open Cloud Mesh peer in Go, focused on a strict, WebDAV-centered
 > subset of the protocol.
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MahdiBaghbani/opencloudmesh-go)
+[![Go version](https://img.shields.io/github/go-mod/go-version/MahdiBaghbani/opencloudmesh-go)](https://github.com/MahdiBaghbani/opencloudmesh-go/blob/master/go.mod)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
+[![FOSSA license scan status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FMahdiBaghbani%2Fopencloudmesh-go.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FMahdiBaghbani%2Fopencloudmesh-go?ref=badge_shield)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MahdiBaghbani/opencloudmesh-go)
 
 OpenCloudMesh Go is a Go server for Open Cloud Mesh (OCM). It focuses on a
 pinned, practical slice of the protocol: discovery, user shares, invite flows,
