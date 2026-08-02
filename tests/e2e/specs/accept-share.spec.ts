@@ -9,11 +9,17 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { buildBinary, startServer, stopServer, ServerInstance } from '../harness/server';
+import { rmSync } from 'fs';
 import {
-  localPeerShareFields,
-  postSignedIncomingShare,
-} from '../harness/signing';
+  buildBinary,
+  startServer,
+  startTwoServers,
+  stopServer,
+  ServerInstance,
+} from '../harness/server';
+import { loginAndNavigateToInbox } from '../harness/auth';
+import { establishTrust } from '../harness/invites';
+import { sendOutgoingShare } from '../harness/shares';
 
 let binaryPath: string;
 
@@ -22,10 +28,178 @@ test.beforeAll(() => {
 });
 
 test.describe('Accept Share Flow', () => {
+  let serverA: ServerInstance;
+  let serverB: ServerInstance;
+  const shareFilePaths: string[] = [];
+
+  test.beforeEach(async () => {
+    [serverA, serverB] = await startTwoServers(binaryPath, { mode: 'dev' });
+  });
+
+  test.afterEach(async () => {
+    if (serverA) stopServer(serverA);
+    if (serverB) stopServer(serverB);
+    for (const path of shareFilePaths) {
+      rmSync(path, { force: true });
+    }
+    shareFilePaths.length = 0;
+  });
+
+  test('inbox loads shares from API', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'Test Document.pdf',
+    });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
+
+    // Verify share is displayed
+    await expect(page.locator('#share-list .share-item')).toHaveCount(1);
+    await expect(page.locator('#share-list .share-name')).toContainText('Test Document.pdf');
+    await expect(page.locator('#share-list .share-status')).toContainText('pending');
+  });
+
+  test('pending share shows accept and decline buttons', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'Shared File.docx',
+    });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
+
+    // Verify action buttons are present
+    await expect(page.locator('#share-list .btn-accept')).toBeVisible();
+    await expect(page.locator('#share-list .btn-decline')).toBeVisible();
+  });
+
+  test('clicking accept changes share status', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'Accept Me.txt',
+    });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
+
+    // Click accept
+    await page.click('#share-list .btn-accept');
+
+    // Wait for status to change
+    await page.waitForSelector('#share-list .status-accepted', { timeout: 5000 });
+
+    // Verify status changed
+    await expect(page.locator('#share-list .share-status')).toContainText('accepted');
+
+    // Action buttons should be gone for accepted share
+    await expect(page.locator('#share-list .btn-accept')).toHaveCount(0);
+    await expect(page.locator('#share-list .btn-decline')).toHaveCount(0);
+  });
+
+  test('clicking decline changes share status', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'Decline Me.txt',
+    });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
+
+    // Click decline
+    await page.click('#share-list .btn-decline');
+
+    // Wait for status to change
+    await page.waitForSelector('#share-list .status-declined', { timeout: 5000 });
+
+    // Verify status changed
+    await expect(page.locator('#share-list .share-status')).toContainText('declined');
+
+    // Action buttons should be gone for declined share
+    await expect(page.locator('#share-list .btn-accept')).toHaveCount(0);
+    await expect(page.locator('#share-list .btn-decline')).toHaveCount(0);
+  });
+
+  test('tab filter shows only pending shares', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const sent1 = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'Pending Share.pdf',
+    });
+    const sent2 = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'Also Pending.pdf',
+    });
+    shareFilePaths.push(sent1.shareFilePath, sent2.shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
+
+    // Accept one share via UI
+    await page.locator('#share-list .btn-accept').first().click();
+    await page.waitForSelector('#share-list .status-accepted', { timeout: 5000 });
+
+    // Click Pending tab
+    await page.click('#share-tabs .tab[data-filter="pending"]');
+
+    // Should show only pending shares
+    await expect(page.locator('#share-list .status-pending')).toHaveCount(1);
+    // Should NOT show accepted shares
+    await expect(page.locator('#share-list .status-accepted')).toHaveCount(0);
+  });
+
+  test('tab filter shows only accepted shares', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const { shareFilePath } = await sendOutgoingShare(page, serverA, serverB, {
+      name: 'To Be Accepted.pdf',
+    });
+    shareFilePaths.push(shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
+
+    // Accept via UI
+    await page.click('#share-list .btn-accept');
+    await page.waitForSelector('#share-list .status-accepted', { timeout: 5000 });
+
+    // Click Accepted tab
+    await page.click('#share-tabs .tab[data-filter="accepted"]');
+
+    // Should show only accepted shares
+    await expect(page.locator('#share-list .status-accepted')).toHaveCount(1);
+    await expect(page.locator('#share-list .status-pending')).toHaveCount(0);
+  });
+
+  test('multiple shares can be managed', async ({ page }) => {
+    await establishTrust(page, serverA, serverB);
+    await loginAndNavigateToInbox(page, serverA.baseURL);
+    const sent1 = await sendOutgoingShare(page, serverA, serverB, { name: 'File 1.txt' });
+    const sent2 = await sendOutgoingShare(page, serverA, serverB, { name: 'File 2.txt' });
+    const sent3 = await sendOutgoingShare(page, serverA, serverB, { name: 'File 3.txt' });
+    shareFilePaths.push(sent1.shareFilePath, sent2.shareFilePath, sent3.shareFilePath);
+    await loginAndNavigateToInbox(page, serverB.baseURL);
+    await page.waitForSelector('#share-list .share-item', { timeout: 10000 });
+
+    // Should show all 3 shares
+    await expect(page.locator('#share-list .share-item')).toHaveCount(3);
+
+    // Accept the first one
+    await page.locator('#share-list .btn-accept').first().click();
+    await page.waitForSelector('#share-list .status-accepted', { timeout: 5000 });
+
+    // Now we should have 1 accepted and 2 pending
+    await expect(page.locator('#share-list .status-accepted')).toHaveCount(1);
+    await expect(page.locator('#share-list .status-pending')).toHaveCount(2);
+  });
+});
+
+test.describe('Accept Share Flow (empty inbox)', () => {
   let server: ServerInstance;
 
   test.beforeEach(async () => {
-    server = await startServer(binaryPath, { name: 'accept-test', mode: 'dev' });
+    server = await startServer(binaryPath, { name: 'accept-test-empty', mode: 'dev' });
   });
 
   test.afterEach(async () => {
@@ -34,181 +208,12 @@ test.describe('Accept Share Flow', () => {
     }
   });
 
-  /**
-   * Helper to login and navigate to inbox.
-   */
-  async function loginAndNavigateToInbox(page: import('@playwright/test').Page) {
-    await page.goto(`${server.baseURL}/ui/login`);
-    await page.fill('#username', 'admin');
-    await page.fill('#password', 'testpassword123');
-    await page.click('#submit-btn');
-    await page.waitForURL('**/ui/inbox', { timeout: 5000 });
-  }
-
-  /**
-   * Helper to create a test share via signed POST /ocm/shares.
-   * shareWith and sender/owner providers must match the server public_origin host.
-   */
-  async function createTestShare(request: import('@playwright/test').APIRequestContext, options: {
-    name: string;
-    sender?: string;
-    status?: string;
-  }) {
-    const { provider, owner, sender } = localPeerShareFields(server);
-
-    const sharePayload = {
-      shareWith: `admin@${provider}`,
-      name: options.name,
-      providerId: `provider-${Date.now()}`,
-      owner: options.sender || owner,
-      sender: options.sender || sender,
-      shareType: 'user',
-      resourceType: 'file',
-      protocol: {
-        name: 'webdav',
-        webdav: {
-          uri: `https://remote.example.com/webdav/${Date.now()}`,
-          sharedSecret: `secret-${Date.now()}`,
-          permissions: ['read'],
-          requirements: ['must-exchange-token'],
-        },
-      },
-    };
-
-    const response = await postSignedIncomingShare(request, server, sharePayload);
-    expect(response.status()).toBe(201);
-    return response;
-  }
-
-  test('inbox loads shares from API', async ({ page, request }) => {
-    // Create a test share first
-    await createTestShare(request, { name: 'Test Document.pdf' });
-
-    await loginAndNavigateToInbox(page);
-
-    // Wait for shares to load
-    await page.waitForSelector('.share-item', { timeout: 5000 });
-
-    // Verify share is displayed
-    await expect(page.locator('.share-item')).toHaveCount(1);
-    await expect(page.locator('.share-name')).toContainText('Test Document.pdf');
-    await expect(page.locator('.share-status')).toContainText('pending');
-  });
-
-  test('pending share shows accept and decline buttons', async ({ page, request }) => {
-    await createTestShare(request, { name: 'Shared File.docx' });
-
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
-
-    // Verify action buttons are present
-    await expect(page.locator('.btn-accept')).toBeVisible();
-    await expect(page.locator('.btn-decline')).toBeVisible();
-  });
-
-  test('clicking accept changes share status', async ({ page, request }) => {
-    await createTestShare(request, { name: 'Accept Me.txt' });
-
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
-
-    // Click accept
-    await page.click('.btn-accept');
-
-    // Wait for status to change
-    await page.waitForSelector('.status-accepted', { timeout: 5000 });
-
-    // Verify status changed
-    await expect(page.locator('.share-status')).toContainText('accepted');
-
-    // Action buttons should be gone for accepted share
-    await expect(page.locator('.btn-accept')).toHaveCount(0);
-    await expect(page.locator('.btn-decline')).toHaveCount(0);
-  });
-
-  test('clicking decline changes share status', async ({ page, request }) => {
-    await createTestShare(request, { name: 'Decline Me.txt' });
-
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
-
-    // Click decline
-    await page.click('.btn-decline');
-
-    // Wait for status to change
-    await page.waitForSelector('.status-declined', { timeout: 5000 });
-
-    // Verify status changed
-    await expect(page.locator('.share-status')).toContainText('declined');
-  });
-
-  test('tab filter shows only pending shares', async ({ page, request }) => {
-    // Create multiple shares
-    await createTestShare(request, { name: 'Pending Share.pdf' });
-    await createTestShare(request, { name: 'Also Pending.pdf' });
-
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
-
-    // Accept one share via UI
-    await page.locator('.btn-accept').first().click();
-    await page.waitForSelector('.status-accepted', { timeout: 5000 });
-
-    // Click Pending tab
-    await page.click('.tab[data-filter="pending"]');
-
-    // Should show only pending shares
-    await expect(page.locator('.status-pending')).toBeVisible();
-    // Should NOT show accepted shares
-    await expect(page.locator('.status-accepted')).toHaveCount(0);
-  });
-
-  test('tab filter shows only accepted shares', async ({ page, request }) => {
-    // Create a share
-    await createTestShare(request, { name: 'To Be Accepted.pdf' });
-
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
-
-    // Accept via UI
-    await page.click('.btn-accept');
-    await page.waitForSelector('.status-accepted', { timeout: 5000 });
-
-    // Click Accepted tab
-    await page.click('.tab[data-filter="accepted"]');
-
-    // Should show only accepted shares
-    await expect(page.locator('.status-accepted')).toBeVisible();
-    await expect(page.locator('.status-pending')).toHaveCount(0);
-  });
-
   test('empty state shows when no shares match filter', async ({ page }) => {
-    await loginAndNavigateToInbox(page);
+    await loginAndNavigateToInbox(page, server.baseURL);
 
     // With no shares, should show empty state in the share list
     const shareList = page.locator('#share-list');
     await expect(shareList.locator('.empty-state')).toBeVisible();
     await expect(shareList).toContainText('No shares yet');
-  });
-
-  test('multiple shares can be managed', async ({ page, request }) => {
-    // Create multiple shares
-    await createTestShare(request, { name: 'File 1.txt' });
-    await createTestShare(request, { name: 'File 2.txt' });
-    await createTestShare(request, { name: 'File 3.txt' });
-
-    await loginAndNavigateToInbox(page);
-    await page.waitForSelector('.share-item', { timeout: 5000 });
-
-    // Should show all 3 shares
-    await expect(page.locator('.share-item')).toHaveCount(3);
-
-    // Accept the first one
-    await page.locator('.btn-accept').first().click();
-    await page.waitForSelector('.status-accepted', { timeout: 5000 });
-
-    // Now we should have 1 accepted and 2 pending
-    await expect(page.locator('.status-accepted')).toHaveCount(1);
-    await expect(page.locator('.status-pending')).toHaveCount(2);
   });
 });

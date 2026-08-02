@@ -246,6 +246,41 @@ export function stopServer(instance: ServerInstance): void {
 }
 
 /**
+ * Waits until the server health endpoint is unreachable (after stopServer).
+ */
+export async function waitForServerStopped(
+  instance: ServerInstance,
+  timeoutMs = 5000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const healthURL = `${instance.baseURL}/api/healthz`;
+
+  while (Date.now() < deadline) {
+    let down = false;
+    await new Promise<void>((resolve) => {
+      const req = https.get(healthURL, { ca: caCert }, (res) => {
+        res.resume();
+        resolve(); // still up -> keep polling
+      });
+      req.on('error', () => {
+        down = true; // connection refused / reset -> server down
+        resolve();
+      });
+      req.setTimeout(1000, () => {
+        req.destroy();
+        resolve(); // treat as still up -> keep polling
+      });
+    });
+    if (down) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  throw new Error(`Server ${instance.name} still reachable after ${timeoutMs}ms`);
+}
+
+/**
  * Dumps server logs for debugging.
  */
 export function dumpLogs(instance: ServerInstance): void {
