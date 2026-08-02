@@ -22,9 +22,7 @@ concurrency:
 
 jobs:
   fmt-vet:
-    uses: ./.github/workflows/ci-lint.yml
-    with:
-      job: fmt-vet
+    uses: ./.github/workflows/ci-fmt-vet.yml
 
   lint:
     permissions:
@@ -32,31 +30,21 @@ jobs:
       pull-requests: read
       checks: write
     uses: ./.github/workflows/ci-lint.yml
-    with:
-      job: lint
 
   shellcheck:
-    uses: ./.github/workflows/ci-lint.yml
-    with:
-      job: shellcheck
+    uses: ./.github/workflows/ci-shellcheck.yml
 
   security:
     permissions:
       contents: read
       security-events: write
     uses: ./.github/workflows/ci-security.yml
-    with:
-      job: security
 
   test:
     uses: ./.github/workflows/ci-test.yml
-    with:
-      job: test
 
   build:
-    uses: ./.github/workflows/ci-test.yml
-    with:
-      job: build
+    uses: ./.github/workflows/ci-build.yml
 
   action-pins:
     name: action-pins

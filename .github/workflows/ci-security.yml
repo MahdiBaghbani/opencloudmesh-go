@@ -7,45 +7,14 @@ name: CI Security
 
 on:
   workflow_call:
-    inputs:
-      job:
-        description: Which security job to run (security)
-        required: true
-        type: string
-
-permissions:
-  contents: read
 
 env:
   GOLANGCI_LINT_VERSION: v2.12.2
 
 jobs:
-  validate-job:
-    name: validate job input
-    runs-on: ubuntu-latest
-    steps:
-      - name: Reject unknown job input
-        env:
-          JOB: ${{ inputs.job }}
-        run: |
-          set -euo pipefail
-          case "$JOB" in
-            security) ;;
-            *)
-              echo "Invalid inputs.job: ${JOB}" >&2
-              echo "Allowed: security" >&2
-              exit 1
-              ;;
-          esac
-
   security:
     name: security
-    if: inputs.job == 'security'
-    needs: validate-job
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
