@@ -97,6 +97,7 @@ jobs:
           unzip -q -o "/tmp/${archive}" -d /tmp/bun-extract
           mkdir -p "$HOME/.bun/bin"
           install -m 755 "/tmp/bun-extract/bun-linux-x64/bun" "$HOME/.bun/bin/bun"
+          ln -s "$HOME/.bun/bin/bun" "$HOME/.bun/bin/bunx"
           echo "$HOME/.bun/bin" >> "${GITHUB_PATH}"
           "$HOME/.bun/bin/bun" --version
       - name: Install E2E dependencies
