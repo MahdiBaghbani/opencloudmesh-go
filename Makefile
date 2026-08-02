@@ -17,11 +17,11 @@ build:
 
 # Run unit tests with race detector (excludes integration tests)
 test-go:
-	go test -race -coverprofile=coverage-unit.out $$(go list ./... | grep -v /tests/integration)
+	go test -race -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-unit.out $$(go list ./... | grep -v /tests/integration)
 
 # Run integration tests only
 test-integration:
-	go test -race -coverprofile=coverage-integration.out ./tests/integration/...
+	go test -race -coverpkg=./internal/...,./cmd/... -coverprofile=coverage-integration.out ./tests/integration/...
 
 # Install E2E test dependencies
 test-e2e-install:
