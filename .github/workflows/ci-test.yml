@@ -34,3 +34,33 @@ jobs:
             coverage-unit.out
             coverage-integration.out
           if-no-files-found: error
+      - name: Upload unit coverage to Coveralls
+        uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          files: coverage-unit.out
+          format: golang
+          flag-name: unit
+          parallel: true
+        continue-on-error: true
+      - name: Upload integration coverage to Coveralls
+        uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          files: coverage-integration.out
+          format: golang
+          flag-name: integration
+          parallel: true
+        continue-on-error: true
+  finish:
+    name: coveralls-finish
+    needs: [test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close Coveralls parallel build
+        uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329
+        with:
+          parallel-finished: true
+          carryforward: "unit,integration"
+        continue-on-error: true
