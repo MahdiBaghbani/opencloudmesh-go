@@ -7,35 +7,10 @@ name: CI Test
 
 on:
   workflow_call:
-    inputs:
-      job:
-        description: Which test job to run (test or build)
-        required: true
-        type: string
 
 jobs:
-  validate-job:
-    name: validate job input
-    runs-on: ubuntu-latest
-    steps:
-      - name: Reject unknown job input
-        env:
-          JOB: ${{ inputs.job }}
-        run: |
-          set -euo pipefail
-          case "$JOB" in
-            test|build) ;;
-            *)
-              echo "Invalid inputs.job: ${JOB}" >&2
-              echo "Allowed: test, build" >&2
-              exit 1
-              ;;
-          esac
-
   test:
     name: test
-    if: inputs.job == 'test'
-    needs: validate-job
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -59,17 +34,3 @@ jobs:
             coverage-unit.out
             coverage-integration.out
           if-no-files-found: error
-
-  build:
-    name: build
-    if: inputs.job == 'build'
-    needs: validate-job
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Build binary
-        run: make build
