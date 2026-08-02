@@ -13,9 +13,6 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
-
 env:
   GOLANGCI_LINT_VERSION: v2.12.2
 
