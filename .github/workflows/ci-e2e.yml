@@ -6,12 +6,16 @@
 name: CI E2E
 
 on:
+  push:
+    branches: [master]
+  pull_request:
   workflow_dispatch:
   schedule:
     - cron: '30 6 * * *'
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   # Pinned Bun release (npm/GitHub latest at pin time: bun-v1.3.14).
@@ -24,8 +28,56 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      e2e: ${{ steps.apply.outputs.e2e }}
+    steps:
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "schedule" ] || [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "force=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "force=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        if: steps.decide.outputs.force != 'true'
+      - id: filter
+        if: steps.decide.outputs.force != 'true'
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414d9d0420d706
+        with:
+          filters: |
+            e2e:
+              - 'tests/e2e/**'
+              - 'tests/ca_pool/**'
+              - 'internal/**'
+              - 'cmd/**'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Makefile'
+              - '.github/workflows/ci-e2e.yml'
+      - id: apply
+        env:
+          FORCE: ${{ steps.decide.outputs.force }}
+          FILTERED: ${{ steps.filter.outputs.e2e }}
+        run: |
+          if [ "$FORCE" = "true" ]; then
+            echo "e2e=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "e2e=$FILTERED" >> "$GITHUB_OUTPUT"
+          fi
+
   e2e:
     name: e2e
+    needs: [changes]
+    if: needs.changes.outputs.e2e == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -51,3 +103,50 @@ jobs:
         run: make test-e2e-install
       - name: Run E2E tests
         run: make test-e2e
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Upload Playwright traces, screenshots and videos
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: playwright-test-results
+          path: tests/e2e/test-results/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Publish JUnit test report
+        if: always()
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2
+        with:
+          name: Playwright E2E results
+          path: tests/e2e/test-results/junit.xml
+          reporter: java-junit
+          fail-on-empty: false
+        continue-on-error: true
+
+  e2e-result:
+    name: e2e-result
+    needs: [changes, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report e2e result
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          RESULT: ${{ needs.e2e.result }}
+        run: |
+          echo "changes result: ${CHANGES}"
+          echo "e2e result: ${RESULT}"
+          if [ "${CHANGES}" != "success" ]; then
+            exit 1
+          fi
+          if [ "${RESULT}" = "success" ] || [ "${RESULT}" = "skipped" ] || [ "${RESULT}" = "cancelled" ]; then
+            exit 0
+          else
+            exit 1
+          fi
